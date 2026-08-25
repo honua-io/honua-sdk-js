@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/certification-denominator.v1.schema.json",
+  "title": "Honua JavaScript SDK 2026.1 certification denominator",
+  "description": "The frozen set of rows the 2026.1 installed-package certification (honua-io/honua-sdk-js#39) must execute, generated from config/support-manifest.v1.json, config/protocol-certification.v1.json, config/sdk-coverage-crosswalk.v1.json, config/admin-mcp-coverage.v1.json and mcp/release/zero-to-map/journey.v1.json by scripts/certification-denominator.mjs and enforced by scripts/verify-certification-denominator.mjs. Rows are never hand-authored and tiers are never promoted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schemaVersion",
+    "release",
+    "countingTier",
+    "tierVocabulary",
+    "inputs",
+    "profiles",
+    "digests",
+    "summary",
+    "rows"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.certification-denominator.v1" },
+    "schemaVersion": { "const": 1 },
+    "release": { "const": "2026.1" },
+    "certificationIssue": { "type": "string", "format": "uri" },
+    "generator": { "const": "scripts/certification-denominator.mjs" },
+    "driftGate": { "const": "scripts/verify-certification-denominator.mjs" },
+    "description": { "type": "string", "minLength": 40 },
+    "countingTier": { "const": "supported" },
+    "tierVocabulary": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "candidatePackages": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "registry": { "type": ["string", "null"] },
+    "terminalJourney": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["journeyId", "releaseContract", "stages"],
+      "properties": {
+        "journeyId": { "type": ["string", "null"] },
+        "releaseContract": { "type": ["string", "null"] },
+        "stages": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    },
+    "portableMapArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "sourceProtocols", "rendererBindings", "rendererBindingSource"],
+      "properties": {
+        "schema": { "const": "schemas/honua-map-package.v1.json" },
+        "$id": { "type": ["string", "null"] },
+        "title": { "type": ["string", "null"] },
+        "sourceProtocols": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "rendererBindings": {
+          "description": "Renderer protocol -> the portable map artifact source bindings that render through it, derived from toMapLibreNativeSource in src/runtime/source-bridge.ts.",
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        },
+        "rendererBindingSource": { "const": "src/runtime/source-bridge.ts" }
+      }
+    },
+    "appPlatform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["journey", "lanes", "browsers"],
+      "properties": {
+        "journey": { "type": "array", "items": { "type": "string" } },
+        "lanes": { "type": "array", "items": { "type": "string" } },
+        "browsers": { "type": "array", "items": { "type": "string" } },
+        "evidenceDigest": { "type": ["string", "null"] },
+        "maturityDigest": { "type": ["string", "null"] }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Every manifest the denominator was derived from, with the digest it was frozen against.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "bytes", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "bytes": { "type": "integer", "minimum": 1 },
+          "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability", "support"],
+      "properties": {
+        "capability": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tier", "contributors", "documentationSlugs"],
+            "properties": {
+              "tier": { "type": "string" },
+              "contributors": { "type": "array", "items": { "type": "string" } },
+              "documentationSlugs": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "support": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["claims", "protocols"],
+          "properties": {
+            "claims": { "type": "object", "additionalProperties": { "type": "string" } },
+            "protocols": {
+              "type": "object",
+              "additionalProperties": { "type": "object", "additionalProperties": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "digests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputs", "capabilityProfile", "supportProfile", "rows"],
+      "properties": {
+        "inputs": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "capabilityProfile": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "supportProfile": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "rows": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rows",
+        "counting",
+        "visibleNonCounting",
+        "renderer",
+        "portableMapArtifact",
+        "rendererFromPortableMapArtifact",
+        "byTier",
+        "byFamily"
+      ],
+      "properties": {
+        "rows": { "type": "integer", "minimum": 1 },
+        "counting": { "type": "integer", "minimum": 1 },
+        "visibleNonCounting": { "type": "integer", "minimum": 0 },
+        "renderer": { "type": "integer", "minimum": 1 },
+        "portableMapArtifact": { "type": "integer", "minimum": 1 },
+        "rendererFromPortableMapArtifact": { "type": "integer", "minimum": 1 },
+        "byTier": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 } },
+        "byFamily": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 } }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "subject",
+          "operation",
+          "tier",
+          "tierSource",
+          "cappedBy",
+          "counts",
+          "environmentSkipAllowed",
+          "source",
+          "evidence"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "family": {
+            "enum": ["sdk-operation", "protocol-operation", "protocol-certification", "terminal-journey"]
+          },
+          "subject": { "type": "string", "minLength": 1 },
+          "label": { "type": ["string", "null"] },
+          "operation": { "type": "string", "minLength": 1 },
+          "tier": {
+            "enum": [
+              "supported",
+              "beta",
+              "experimental",
+              "facade-required",
+              "deprecated",
+              "unsupported",
+              "unmapped"
+            ]
+          },
+          "tierSource": { "type": "string", "minLength": 1 },
+          "cappedBy": {
+            "type": ["object", "null"],
+            "description": "A broader manifest claim that forbids this row from counting as a supported pass even though its own status is supported.",
+            "additionalProperties": false,
+            "required": ["tier", "source"],
+            "properties": {
+              "tier": { "type": "string", "minLength": 1 },
+              "source": { "type": "string", "minLength": 1 }
+            }
+          },
+          "counts": { "type": "boolean" },
+          "environmentSkipAllowed": { "type": "boolean" },
+          "protocol": { "type": ["string", "null"] },
+          "environment": { "type": ["string", "null"] },
+          "executionMode": { "type": ["string", "null"] },
+          "renderer": { "type": "boolean" },
+          "portableMapArtifact": { "type": "boolean" },
+          "portableMapArtifactBindings": { "type": "array", "items": { "type": "string" } },
+          "capabilityKey": { "type": "string" },
+          "coverage": { "type": "string" },
+          "documentationSlugs": { "type": "array", "items": { "type": "string" } },
+          "scenarioFacets": { "type": "array", "items": { "type": "string" } },
+          "kind": { "type": "string" },
+          "tool": { "type": ["string", "null"] },
+          "adminProjection": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["operationId", "method", "path"],
+            "properties": {
+              "operationId": { "type": "string" },
+              "method": { "type": "string" },
+              "path": { "type": "string" }
+            }
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "pointer"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "pointer": { "type": "string", "minLength": 1 }
+            }
+          },
+          "evidence": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}
