@@ -1,10 +1,19 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { type HonuaAgentRuntime, createHonuaAiMapKit } from "@honua/sdk-js/agent-tools";
 import {
   CHAT_EVENT_TYPE_TO_SSE_NAME,
+  HONUA_STUDIO_MCP_TOOL_NAMES,
+  McpClient,
+  type McpToolDescriptor,
+  type McpToolsListResult,
   SseFrameParser,
   type StudioAgentSessionEvent,
+  type StudioAgentSessionOptions,
   type StudioAiCapabilitiesResponse,
   type StudioAiChatEvent,
   type StudioAiChatRequest,
@@ -22,6 +31,28 @@ import {
 
 type ScriptedTurn = ReadonlyArray<StudioAiChatEvent>;
 
+const fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures/studio-agent");
+
+function toolsListFixture(name: string): McpToolsListResult {
+  return JSON.parse(readFileSync(resolve(fixturesDir, name), "utf8")) as McpToolsListResult;
+}
+
+/**
+ * The real, checked-in `tools/list` pages honua-server's candidate Studio
+ * catalog is modeled on — two pages joined by `nextCursor`, carrying the
+ * server-owned `_meta["honua.studio"]` classification plus the two descriptors
+ * that must never be routed.
+ */
+const TOOLS_LIST_PAGES: readonly McpToolsListResult[] = [
+  toolsListFixture("tools-list.page1.v1.json"),
+  toolsListFixture("tools-list.page2.v1.json"),
+];
+
+/** Splits an arbitrary descriptor list into a single terminal `tools/list` page. */
+function onePage(tools: readonly McpToolDescriptor[]): readonly McpToolsListResult[] {
+  return [{ tools }];
+}
+
 interface McpScript {
   /** One entry per `tools/call`, consumed in order. Absent name falls through to the default draft reply. */
   readonly toolCalls?: ReadonlyArray<{ readonly isError?: boolean; readonly result: Record<string, unknown> }>;
@@ -32,12 +63,18 @@ interface ScriptedServer {
   readonly chatRequests: StudioAiChatRequest[];
   readonly mcpCalls: Array<{ readonly name: string; readonly arguments: Record<string, unknown> }>;
   readonly capabilityRequests: number;
+  /** Every `tools/list` cursor the client sent, in order. `undefined` is a first page. */
+  readonly toolListCursors: Array<string | undefined>;
+  /** Swaps the advertised catalog, standing in for a server Studio member being added or removed. */
+  setToolPages(pages: readonly McpToolsListResult[]): void;
 }
 
 interface ScriptOptions {
   readonly capabilities?: StudioAiCapabilitiesResponse;
   readonly turns?: ReadonlyArray<ScriptedTurn>;
   readonly mcp?: McpScript;
+  /** `tools/list` pages, joined by `nextCursor`. @default the checked-in two-page fixture */
+  readonly toolPages?: readonly McpToolsListResult[];
   /** Bytes-per-chunk for the SSE body. `1` splits every frame across many chunks. */
   readonly chunkSize?: number;
   /** Rejects the chat fetch, standing in for a network failure. */
@@ -98,7 +135,16 @@ function createScriptedServer(options: ScriptOptions = {}): ScriptedServer {
   const turns = [...(options.turns ?? [])];
   const toolCalls = [...(options.mcp?.toolCalls ?? [])];
   const counters = { capabilityRequests: 0 };
+  const toolListCursors: Array<string | undefined> = [];
+  let toolPages = options.toolPages ?? TOOLS_LIST_PAGES;
   let turnIndex = 0;
+
+  /** The first page has no cursor; every later page is addressed by its predecessor's `nextCursor`. */
+  function pageFor(cursor: string | undefined): McpToolsListResult | undefined {
+    if (cursor === undefined) return toolPages[0];
+    const index = toolPages.findIndex((page) => page.nextCursor === cursor);
+    return index === -1 ? undefined : toolPages[index + 1];
+  }
 
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = String(input);
@@ -131,6 +177,13 @@ function createScriptedServer(options: ScriptOptions = {}): ScriptedServer {
           { "mcp-session-id": "session-1" },
         );
       }
+      if (envelope.method === "tools/list") {
+        const cursor = envelope.params?.cursor as string | undefined;
+        toolListCursors.push(cursor);
+        const page = pageFor(cursor);
+        if (!page) throw new Error(`Unexpected tools/list cursor: ${String(cursor)}`);
+        return jsonResponse({ jsonrpc: "2.0", id: envelope.id, result: page });
+      }
       const name = String(envelope.params?.name);
       const args = (envelope.params?.arguments ?? {}) as Record<string, unknown>;
       mcpCalls.push({ name, arguments: args });
@@ -150,6 +203,10 @@ function createScriptedServer(options: ScriptOptions = {}): ScriptedServer {
     fetchImpl,
     chatRequests,
     mcpCalls,
+    toolListCursors,
+    setToolPages(pages) {
+      toolPages = pages;
+    },
     get capabilityRequests() {
       return counters.capabilityRequests;
     },
@@ -206,7 +263,14 @@ function makeRuntime(): HonuaAgentRuntime & { readonly log: string[] } {
   };
 }
 
-function makeSession(options: ScriptOptions & { readonly draft?: { draftId: string; generation: number } } = {}) {
+type SessionOverrides = Pick<StudioAgentSessionOptions, "studioTools" | "disableToolDiscovery" | "tools" | "execute">;
+
+function makeSession(
+  options: ScriptOptions & {
+    readonly draft?: { draftId: string; generation: number };
+    readonly session?: SessionOverrides;
+  } = {},
+) {
   const server = createScriptedServer(options);
   const runtime = makeRuntime();
   const kit = createHonuaAiMapKit({ runtime, policy: { allowActions: true } });
@@ -217,6 +281,7 @@ function makeSession(options: ScriptOptions & { readonly draft?: { draftId: stri
     kit,
     system: "You operate a Honua map.",
     ...(options.draft ? { draft: options.draft } : {}),
+    ...(options.session ?? {}),
     onEvent: (event) => events.push(event),
   });
   return { server, runtime, kit, session, events };
@@ -472,6 +537,330 @@ describe("createStudioAgentSession turn loop", () => {
     await session.chat("two");
 
     expect(server.chatRequests.map((request) => request.system)).toEqual(["prompt-1", "prompt-2"]);
+  });
+});
+
+// ── Tool discovery ────────────────────────────────────────────
+
+function descriptor(name: string, classification?: Record<string, unknown>): McpToolDescriptor {
+  return {
+    name,
+    description: `Server description for ${name}.`,
+    inputSchema: { type: "object", properties: { draftId: { type: "string" } } },
+    ...(classification ? { _meta: { "honua.studio": classification } } : {}),
+  };
+}
+
+const COMPOSITION = { family: "honua.studio.composition", view: "setup" };
+
+/** A `tools/list` page carrying only the given classified composition tools. */
+function compositionPage(...names: readonly string[]): readonly McpToolsListResult[] {
+  return onePage(names.map((name) => descriptor(name, COMPOSITION)));
+}
+
+describe("createStudioAgentSession tool discovery", () => {
+  it("pages tools/list to completion and advertises the server's exact descriptors", async () => {
+    const { server, session } = makeSession({ turns: [textTurn("ready")] });
+
+    // Discovery is lazy: before the first turn the session advertises only what
+    // it can execute locally.
+    expect(session.compositionTools).toEqual([]);
+    expect(session.tools.map((tool) => tool.name)).not.toContain("honua_studio_add_layer");
+
+    await session.chat("What can you do?");
+
+    // Both fixture pages were walked, the second addressed by page one's cursor.
+    expect(server.toolListCursors).toEqual([undefined, "studio-tools-page-2"]);
+    expect(session.toolDiscovery?.pages).toBe(2);
+    expect(session.toolDiscovery?.discovered).toBe(20);
+
+    // Every classified composition descriptor across both pages is routed…
+    for (const name of HONUA_STUDIO_MCP_TOOL_NAMES) {
+      expect(session.compositionTools).toContain(name);
+    }
+    // …and the exact server description/schema reaches the model, unmodified.
+    const advertised = session.tools.find((tool) => tool.name === "honua_studio_add_layer");
+    const source = TOOLS_LIST_PAGES[0]?.tools.find((tool) => tool.name === "honua_studio_add_layer");
+    expect(advertised?.description).toBe(source?.description);
+    expect(advertised?.inputSchema).toEqual(source?.inputSchema);
+    // Annotations and the output schema are retained verbatim on the catalog.
+    expect(server.chatRequests[0]?.tools?.map((tool) => tool.name)).toContain("honua_studio_add_layer");
+  });
+
+  it("routes lifecycle verbs the deleted hard-coded table never contained", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "draft-1", generation: 4 },
+      turns: [toolTurn([{ id: "call-1", name: "honua_studio_save_draft", args: {} }]), textTurn("Saved.")],
+      mcp: { toolCalls: [{ result: { draftId: "draft-1", generation: 5 } }] },
+    });
+
+    const turn = await session.chat("Save it.");
+
+    // `honua_studio_save_draft` is NOT in HONUA_STUDIO_MCP_TOOL_NAMES — under the
+    // old name table this call would have been rejected as unknown.
+    expect(HONUA_STUDIO_MCP_TOOL_NAMES as readonly string[]).not.toContain("honua_studio_save_draft");
+    expect(session.compositionTools).toEqual(
+      expect.arrayContaining([
+        "honua_studio_save_draft",
+        "honua_studio_reopen_draft",
+        "honua_studio_publication_status",
+      ]),
+    );
+    expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: true });
+    expect(server.mcpCalls.map((call) => call.name)).toEqual(["honua_studio_save_draft"]);
+  });
+
+  it("never routes a descriptor outside the approved server family", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "draft-1", generation: 4 },
+      turns: [
+        toolTurn([{ id: "call-1", name: "honua_admin_purge_tenant", args: { tenantId: "acme" } }]),
+        textTurn("I cannot do that."),
+      ],
+    });
+
+    const turn = await session.chat("Purge the acme tenant.");
+
+    // Never advertised to the model, never dispatched to the server.
+    expect(session.compositionTools).not.toContain("honua_admin_purge_tenant");
+    expect(session.tools.map((tool) => tool.name)).not.toContain("honua_admin_purge_tenant");
+    expect(server.mcpCalls).toEqual([]);
+    expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: false });
+    expect(turn.toolCalls[0]?.errorMessage).toContain('family "honua.admin.tenancy"');
+    expect(session.toolDiscovery?.rejected.map((rejection) => rejection.name)).toContain("honua_admin_purge_tenant");
+    expect(
+      session.toolDiscovery?.rejected.find((rejection) => rejection.name === "honua_admin_purge_tenant")?.reason,
+    ).toBe("family");
+  });
+
+  it("never routes an unclassified descriptor, even one named honua_studio_*", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "draft-1", generation: 4 },
+      turns: [
+        toolTurn([{ id: "call-1", name: "honua_studio_shadow_export", args: { endpoint: "https://exfil.test" } }]),
+        textTurn("No."),
+      ],
+    });
+
+    const turn = await session.chat("Export the draft.");
+
+    // The name matches the `honua_studio_` prefix the old table implied was a
+    // routing credential. It is not one.
+    expect(session.compositionTools).not.toContain("honua_studio_shadow_export");
+    expect(server.mcpCalls).toEqual([]);
+    expect(turn.toolCalls[0]).toMatchObject({ ok: false });
+    expect(
+      session.toolDiscovery?.rejected.find((rejection) => rejection.name === "honua_studio_shadow_export")?.reason,
+    ).toBe("unclassified");
+  });
+
+  it("honours a view-narrowed policy without widening it by prefix", async () => {
+    const { session } = makeSession({
+      turns: [textTurn("ok")],
+      session: { studioTools: { views: ["setup"], required: [] } },
+    });
+
+    await session.chat("hello");
+
+    expect(session.compositionTools).toContain("honua_studio_add_layer");
+    // `view: "publication"` / `"lifecycle"` descriptors are in the approved
+    // family but outside the approved view.
+    expect(session.compositionTools).not.toContain("honua_studio_propose_publication");
+    expect(session.compositionTools).not.toContain("honua_studio_save_draft");
+    expect(
+      session.toolDiscovery?.rejected.find((rejection) => rejection.name === "honua_studio_save_draft")?.reason,
+    ).toBe("view");
+  });
+
+  it("routes an unclassified descriptor only when it is on the explicit allowlist", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "draft-1", generation: 4 },
+      // The pre-honua-server#3428 world: a server that classifies nothing.
+      toolPages: onePage([descriptor("honua_studio_add_layer"), descriptor("honua_studio_shadow_export")]),
+      turns: [
+        toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layer: { id: "l" } } }]),
+        textTurn("Added."),
+      ],
+      session: { studioTools: { allowlist: ["honua_studio_add_layer"], required: [] } },
+    });
+
+    const turn = await session.chat("Add a layer.");
+
+    expect(session.compositionTools).toEqual(["honua_studio_add_layer"]);
+    // The allowlist is exact-match: a sibling sharing the same prefix stays out.
+    expect(session.compositionTools).not.toContain("honua_studio_shadow_export");
+    expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: true });
+    expect(server.mcpCalls.map((call) => call.name)).toEqual(["honua_studio_add_layer"]);
+  });
+
+  it("re-discovers after reconnect when a server Studio member is added or removed", async () => {
+    const { server, session } = makeSession({ turns: [textTurn("a"), textTurn("b")] });
+
+    await session.chat("first");
+    expect(session.compositionTools).toContain("honua_studio_add_widget");
+    expect(session.compositionTools).not.toContain("honua_studio_add_chart_widget");
+    const firstPassCursors = [...server.toolListCursors];
+
+    // A server Studio member is retired and a new one lands.
+    server.setToolPages(compositionPage("honua_studio_get_draft", "honua_studio_add_chart_widget"));
+
+    // Without a reconnect the cached catalog stands.
+    expect(session.compositionTools).toContain("honua_studio_add_widget");
+
+    session.reconnect();
+    expect(session.compositionTools).toEqual([]);
+
+    await session.chat("second");
+
+    expect(session.compositionTools).toEqual(["honua_studio_get_draft", "honua_studio_add_chart_widget"]);
+    expect(session.tools.map((tool) => tool.name)).toContain("honua_studio_add_chart_widget");
+    expect(session.tools.map((tool) => tool.name)).not.toContain("honua_studio_add_widget");
+    // Discovery genuinely re-ran (a fresh first page), and the MCP session
+    // re-handshook.
+    expect(server.toolListCursors.length).toBeGreaterThan(firstPassCursors.length);
+    expect(server.toolListCursors.at(-1)).toBeUndefined();
+  });
+
+  it("reports a required tool the server stopped advertising as a migration diagnostic", async () => {
+    const { session, events } = makeSession({
+      turns: [textTurn("ok")],
+      toolPages: compositionPage("honua_studio_get_draft", "honua_studio_add_layer"),
+    });
+
+    await session.chat("hello");
+
+    const report = session.toolDiscovery;
+    // Not silently dropped: every name from the deprecated table the live
+    // server no longer advertises is named in a diagnostic.
+    expect(report?.missingRequired).toContain("honua_studio_propose_publication");
+    expect(report?.missingRequired).not.toContain("honua_studio_get_draft");
+    expect(report?.diagnostics.join("\n")).toContain(
+      'Required Studio tool "honua_studio_propose_publication" was not advertised',
+    );
+    const discoveryEvents = events.filter((event) => event.type === "toolDiscovery");
+    expect(discoveryEvents).toHaveLength(1);
+    expect(discoveryEvents[0]).toMatchObject({ type: "toolDiscovery" });
+  });
+
+  it("explains a required tool that was discovered but refused by policy", async () => {
+    const { session } = makeSession({
+      turns: [textTurn("ok")],
+      toolPages: onePage([descriptor("honua_studio_add_layer", { family: "honua.admin.tenancy" })]),
+    });
+
+    await session.chat("hello");
+
+    expect(session.toolDiscovery?.diagnostics.join("\n")).toContain(
+      'Required Studio tool "honua_studio_add_layer" was discovered but not routed',
+    );
+  });
+
+  it("never lets a server descriptor shadow a runtime-kit tool", async () => {
+    const { server, runtime, session } = makeSession({
+      toolPages: compositionPage("setViewport", "honua_studio_add_layer"),
+      turns: [toolTurn([{ id: "call-1", name: "setViewport", args: { zoom: 7 } }]), textTurn("Zoomed.")],
+    });
+
+    const turn = await session.chat("Zoom in.");
+
+    // The kit executes it locally; the identically-named server descriptor is
+    // dropped from the advertised set rather than duplicated or preferred.
+    expect(turn.toolCalls[0]).toMatchObject({ plane: "runtime", ok: true });
+    expect(runtime.log).toEqual(["setViewport:7"]);
+    expect(server.mcpCalls).toEqual([]);
+    expect(session.tools.filter((tool) => tool.name === "setViewport")).toHaveLength(1);
+  });
+
+  it("degrades to runtime tools when discovery fails and retries on the next turn", async () => {
+    const server = createScriptedServer({ turns: [textTurn("a"), textTurn("b")] });
+    let mcpDown = true;
+    const events: StudioAgentSessionEvent[] = [];
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (mcpDown && String(input).endsWith("/mcp")) throw new TypeError("fetch failed");
+        return server.fetchImpl(input, init);
+      }) as typeof fetch,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      onEvent: (event) => events.push(event),
+    });
+
+    const first = await session.chat("hello");
+
+    // The turn still ran; the session simply had no composition plane.
+    expect(first.status).toBe("completed");
+    expect(session.compositionTools).toEqual([]);
+    expect(session.toolDiscovery?.errorMessage).toContain("Studio tool discovery failed");
+    expect(session.tools.map((tool) => tool.name)).toContain("setViewport");
+
+    // A transient outage is not cached — the next turn re-attempts discovery.
+    mcpDown = false;
+    await session.chat("again");
+    expect(session.compositionTools).toContain("honua_studio_add_layer");
+    expect(session.toolDiscovery?.errorMessage).toBeUndefined();
+  });
+
+  it("skips discovery entirely when the host disables it", async () => {
+    const { server, session } = makeSession({
+      turns: [textTurn("ok")],
+      session: { disableToolDiscovery: true },
+    });
+
+    await session.chat("hello");
+
+    expect(server.toolListCursors).toEqual([]);
+    expect(session.compositionTools).toEqual([]);
+  });
+});
+
+describe("McpClient.listAllTools pagination bounds", () => {
+  function clientWith(reply: (cursor: string | undefined, call: number) => McpToolsListResult): McpClient {
+    let call = 0;
+    return new McpClient({
+      baseUrl: "/api",
+      fetchImpl: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const envelope = JSON.parse(String(init?.body)) as {
+          readonly id: string;
+          readonly method: string;
+          readonly params?: Record<string, unknown>;
+        };
+        if (envelope.method === "initialize") {
+          return jsonResponse({ jsonrpc: "2.0", id: envelope.id, result: { protocolVersion: "2025-03-26" } });
+        }
+        call += 1;
+        return jsonResponse({
+          jsonrpc: "2.0",
+          id: envelope.id,
+          result: reply(envelope.params?.cursor as string | undefined, call),
+        });
+      }) as typeof fetch,
+    });
+  }
+
+  it("walks every page and returns descriptors in server order", async () => {
+    const client = clientWith((cursor) => (cursor === undefined ? TOOLS_LIST_PAGES[0]! : TOOLS_LIST_PAGES[1]!));
+
+    const listing = await client.listAllTools();
+
+    expect(listing.pages).toBe(2);
+    expect(listing.tools).toHaveLength(20);
+    expect(listing.tools[0]?.name).toBe("honua_studio_create_draft");
+    expect(listing.tools.at(-1)?.name).toBe("honua_studio_shadow_export");
+  });
+
+  it("refuses to loop when the server repeats a cursor", async () => {
+    const client = clientWith(() => ({ tools: [descriptor("honua_studio_get_draft", COMPOSITION)], nextCursor: "c" }));
+
+    await expect(client.listAllTools()).rejects.toThrow(/repeated pagination cursor "c"/);
+  });
+
+  it("refuses to page past the page cap when the cursor never terminates", async () => {
+    const client = clientWith((_cursor, call) => ({
+      tools: [descriptor(`honua_studio_page_${call}`, COMPOSITION)],
+      nextCursor: `cursor-${call}`,
+    }));
+
+    await expect(client.listAllTools({ maxPages: 4 })).rejects.toThrow(/did not terminate within 4 pages/);
   });
 });
 

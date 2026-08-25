@@ -72,12 +72,18 @@ export interface McpInitializeResult {
 
 // ── tools/list ────────────────────────────────────────────────
 
-/** MCP behavior annotations advertised per tool. */
+/**
+ * MCP behavior annotations advertised per tool. Open — a server may carry
+ * vendor-namespaced blocks here (see `./tool-catalog.ts`, which reads
+ * honua-server's Studio family/view classification off either `annotations` or
+ * the descriptor's `_meta`).
+ */
 export interface McpToolAnnotations {
   readonly title?: string;
   readonly readOnlyHint?: boolean;
   readonly destructiveHint?: boolean;
   readonly idempotentHint?: boolean;
+  readonly [key: string]: unknown;
 }
 
 export interface McpToolDescriptor {
@@ -87,6 +93,12 @@ export interface McpToolDescriptor {
   readonly inputSchema: Record<string, unknown>;
   readonly outputSchema?: Record<string, unknown>;
   readonly annotations?: McpToolAnnotations;
+  /**
+   * MCP's forward-compatible extension slot. honua-server#3428 will publish the
+   * Studio tool family/view classification here under the `"honua.studio"` key;
+   * `./tool-catalog.ts` documents the exact shape and is the only reader.
+   */
+  readonly _meta?: Record<string, unknown>;
 }
 
 export interface McpToolsListParams {
@@ -145,7 +157,19 @@ export type McpToolErrorCode =
   | "unknown"
   | string;
 
-/** The 15 `honua_studio_*` composition/lifecycle tools this session can route to. */
+/**
+ * The 15 `honua_studio_*` composition/lifecycle tools the SDK used to route by
+ * name-table lookup.
+ *
+ * @deprecated This is **no longer routing truth**. `StudioAgentSession` routes
+ * the tools honua-server advertises through `tools/list`, selected by
+ * server-owned family/view classification or an explicit configured allowlist
+ * (see `./tool-catalog.ts`). This constant survives only as the default
+ * `studioTools.required` baseline: a name here that the live server does not
+ * end up advertising produces a consumer migration diagnostic on
+ * `StudioAgentSession.toolDiscovery` rather than being silently dropped. Do not
+ * use it to decide whether a tool call goes to MCP.
+ */
 export const HONUA_STUDIO_MCP_TOOL_NAMES = [
   "honua_studio_create_draft",
   "honua_studio_get_draft",
@@ -164,9 +188,17 @@ export const HONUA_STUDIO_MCP_TOOL_NAMES = [
   "honua_studio_propose_publication",
 ] as const;
 
+/** @deprecated Derived from the deprecated {@link HONUA_STUDIO_MCP_TOOL_NAMES} table. */
 export type HonuaStudioMcpToolName = (typeof HONUA_STUDIO_MCP_TOOL_NAMES)[number];
 
-/** True for a tool name the session routes through MCP rather than the local kit executor. */
+/**
+ * True for a name in the historical {@link HONUA_STUDIO_MCP_TOOL_NAMES} table.
+ *
+ * @deprecated Not a routing predicate. The session routes on the discovered
+ * server catalog (`StudioToolCatalog.has`); this guard now only answers "was
+ * this one of the 15 names the SDK used to hard-code?", which is useful for
+ * migration diagnostics and nothing else.
+ */
 export function isHonuaStudioMcpToolName(name: string): name is HonuaStudioMcpToolName {
   return (HONUA_STUDIO_MCP_TOOL_NAMES as readonly string[]).includes(name);
 }

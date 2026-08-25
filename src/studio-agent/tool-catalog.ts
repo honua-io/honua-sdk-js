@@ -1,0 +1,393 @@
+/**
+ * `StudioToolCatalog` — the routing authority for server-discovered Studio
+ * composition tools.
+ *
+ * The session used to decide "is this an MCP composition tool?" by testing the
+ * model's tool name against a 15-entry literal table compiled into the SDK
+ * (`HONUA_STUDIO_MCP_TOOL_NAMES`). That table drifted the moment honua-server
+ * grew a lifecycle verb, and it could never describe a per-principal catalog.
+ * This module replaces it: the live server's `tools/list` result is ingested
+ * verbatim — exact name, title, description, input schema, output schema, and
+ * annotations — and a policy decides which of those descriptors this session is
+ * allowed to route and advertise.
+ *
+ * ## Selection is metadata-driven, never prefix-driven
+ *
+ * A name starting with `honua_studio_` is NOT a routing credential. Any server
+ * on the other end of `POST /mcp` — including one a caller was tricked into
+ * pointing at — can advertise `honua_studio_delete_everything`, and prefix
+ * matching would hand it the session's draft identity, generation token, and
+ * bearer credentials. Selection therefore requires one of exactly two positive
+ * signals:
+ *
+ *  1. **Server-owned classification metadata** (preferred). honua-server
+ *     attaches a family/view classification to each Studio descriptor, and the
+ *     session policy names the families (and optionally the views) it accepts.
+ *     This is the mechanism the issue calls for and it is the only one that can
+ *     express a per-principal, server-authorized catalog.
+ *  2. **An explicit configured allowlist** (fallback). Exact names, supplied by
+ *     the consumer. Never a pattern, never a prefix.
+ *
+ * Everything else is rejected, with a recorded reason.
+ *
+ * ## The metadata shape, and why the fallback exists today
+ *
+ * **The server field does not exist yet — it is honua-server#3428.** Until that
+ * lands, every real descriptor arrives unclassified and the allowlist fallback
+ * is what actually selects tools. The shape this module expects the moment the
+ * server starts emitting it is:
+ *
+ * ```jsonc
+ * {
+ *   "name": "honua_studio_add_layer",
+ *   "inputSchema": { "type": "object" },
+ *   "_meta": {
+ *     "honua.studio": {
+ *       "family": "honua.studio.composition",  // required; matched against policy.families
+ *       "view": "setup",                       // optional; matched against policy.views
+ *       "revision": "2026-08-01"               // optional; advisory, surfaced for drift reporting
+ *     }
+ *   }
+ * }
+ * ```
+ *
+ * `_meta` is the canonical location (MCP's forward-compatible extension slot).
+ * The same object is also read off `annotations["honua.studio"]`, because the
+ * server-side design is not final and either carrier satisfies "server-owned
+ * classification"; both are read, `_meta` wins. When neither is present the
+ * descriptor is `unclassified` and only the configured allowlist can select it.
+ *
+ * Discovery can only ever NARROW what the session routes. It cannot widen
+ * server RBAC: the server still authorizes every `tools/call` independently, and
+ * a descriptor the principal is not entitled to simply never appears in the
+ * `tools/list` result this catalog is built from.
+ *
+ * @experimental Tracks honua-server#3428's descriptor classification contract.
+ *
+ * @module
+ */
+
+import type { StudioAiToolDefinition } from "./ai-contract.js";
+import type { McpToolDescriptor } from "./mcp-protocol.js";
+
+/** The `_meta` / `annotations` key honua-server#3428 will hang Studio classification off. */
+export const HONUA_STUDIO_TOOL_METADATA_KEY = "honua.studio";
+
+/** The classification family honua-server assigns to the Studio composition/lifecycle tool set. */
+export const HONUA_STUDIO_TOOL_FAMILY = "honua.studio.composition";
+
+/** Server-owned classification for one Studio tool descriptor (honua-server#3428). */
+export interface StudioToolClassification {
+  /** The server-owned tool family, e.g. `"honua.studio.composition"`. */
+  readonly family?: string;
+  /** The server-authored setup/composition view this descriptor belongs to, e.g. `"setup"`. */
+  readonly view?: string;
+  /** Advisory revision of the server's catalog, surfaced for drift reporting. */
+  readonly revision?: string;
+}
+
+/** Why a discovered descriptor was not selected for routing. */
+export type StudioToolRejectionReason =
+  /** The server supplied no classification and the name is not on the configured allowlist. */
+  | "unclassified"
+  /** Classified, but into a family this session's policy does not approve. */
+  | "family"
+  /** In an approved family, but not in an approved view. */
+  | "view"
+  /** Approved by family/view, then vetoed by the policy's `approve` predicate. */
+  | "policy";
+
+/** One descriptor this session is allowed to route, with the exact server payload retained. */
+export interface StudioToolCatalogEntry {
+  /** The server's descriptor, unmodified — name, title, description, schemas, annotations. */
+  readonly descriptor: McpToolDescriptor;
+  /** The server-owned classification, or `undefined` when the server supplied none. */
+  readonly classification: StudioToolClassification | undefined;
+  /** Which positive signal selected this entry. */
+  readonly source: "metadata" | "allowlist";
+}
+
+/** One discovered descriptor the policy refused to route, and why. */
+export interface StudioToolRejection {
+  readonly name: string;
+  readonly reason: StudioToolRejectionReason;
+  readonly classification: StudioToolClassification | undefined;
+  /** Human-readable explanation, suitable for a migration diagnostic. */
+  readonly detail: string;
+}
+
+/**
+ * The session's approval policy. Defaults approve the canonical
+ * {@link HONUA_STUDIO_TOOL_FAMILY} in every view and allowlist nothing — so an
+ * unclassified server (today's server, pending honua-server#3428) routes no
+ * composition tools until a consumer configures {@link allowlist} explicitly.
+ */
+export interface StudioToolPolicy {
+  /**
+   * Server-owned families approved for routing.
+   * @default [HONUA_STUDIO_TOOL_FAMILY]
+   */
+  readonly families?: readonly string[];
+  /**
+   * Server-authored views approved for routing. When omitted, every view inside
+   * an approved family is approved. When supplied, a descriptor must declare a
+   * view from this list — an undeclared view is a rejection, not a pass.
+   */
+  readonly views?: readonly string[];
+  /**
+   * Exact tool names to route when the server supplied NO classification
+   * metadata for them. This is the honua-server#3428 fallback; it is matched by
+   * exact string equality and is never interpreted as a prefix or pattern.
+   * @default []
+   */
+  readonly allowlist?: readonly string[];
+  /**
+   * Tool names this consumer depends on. Any that discovery does not end up
+   * routing is reported as a migration diagnostic instead of being silently
+   * dropped.
+   * @default HONUA_STUDIO_MCP_TOOL_NAMES
+   */
+  readonly required?: readonly string[];
+  /** Final veto, applied only to entries family/view/allowlist already approved. */
+  readonly approve?: (entry: StudioToolCatalogEntry) => boolean;
+}
+
+/** What one discovery pass found, kept for consumer migration diagnostics. */
+export interface StudioToolDiscoveryReport {
+  /** Every descriptor `tools/list` returned, across all pages. */
+  readonly discovered: number;
+  /** Pages of `tools/list` walked. */
+  readonly pages: number;
+  /** Names selected for routing, in server order. */
+  readonly routed: readonly string[];
+  /** Discovered descriptors the policy refused, with reasons. */
+  readonly rejected: readonly StudioToolRejection[];
+  /** Policy-`required` names discovery did not end up routing. */
+  readonly missingRequired: readonly string[];
+  /** Human-readable migration guidance for everything above that needs consumer action. */
+  readonly diagnostics: readonly string[];
+  /** Set when discovery itself failed; the session keeps its runtime tools and retries next turn. */
+  readonly errorMessage?: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Reads the server-owned classification off a descriptor. `_meta` is canonical;
+ * `annotations` is read as the alternate carrier (see the module doc). Returns
+ * `undefined` — never a partially-invented default — when the server said
+ * nothing, so the caller can tell "unclassified" apart from "classified into a
+ * family I do not approve".
+ */
+export function readStudioToolClassification(descriptor: McpToolDescriptor): StudioToolClassification | undefined {
+  const carriers = [asRecord(descriptor._meta), asRecord(descriptor.annotations)];
+  for (const carrier of carriers) {
+    const block = asRecord(carrier?.[HONUA_STUDIO_TOOL_METADATA_KEY]);
+    if (!block) continue;
+    const family = optionalString(block.family);
+    const view = optionalString(block.view);
+    const revision = optionalString(block.revision);
+    if (family === undefined && view === undefined && revision === undefined) continue;
+    return {
+      ...(family !== undefined ? { family } : {}),
+      ...(view !== undefined ? { view } : {}),
+      ...(revision !== undefined ? { revision } : {}),
+    };
+  }
+  return undefined;
+}
+
+interface Decision {
+  readonly approved: boolean;
+  readonly source: "metadata" | "allowlist";
+  readonly reason?: StudioToolRejectionReason;
+  readonly detail?: string;
+}
+
+function decide(
+  descriptor: McpToolDescriptor,
+  classification: StudioToolClassification | undefined,
+  families: readonly string[],
+  views: readonly string[] | undefined,
+  allowlist: ReadonlySet<string>,
+): Decision {
+  if (!classification || classification.family === undefined) {
+    // No server-owned classification. The ONLY remaining positive signal is an
+    // exact configured allowlist entry. Deliberately no prefix test here: see
+    // the module doc.
+    if (allowlist.has(descriptor.name)) {
+      return { approved: true, source: "allowlist" };
+    }
+    return {
+      approved: false,
+      source: "allowlist",
+      reason: "unclassified",
+      detail: `"${descriptor.name}" carries no server-owned "${HONUA_STUDIO_TOOL_METADATA_KEY}" family classification (pending honua-server#3428) and is not on this session's configured allowlist, so it is not routed. Add it to \`studioTools.allowlist\` to route it before the server publishes classification metadata.`,
+    };
+  }
+
+  if (!families.includes(classification.family)) {
+    return {
+      approved: false,
+      source: "metadata",
+      reason: "family",
+      detail:
+        `"${descriptor.name}" is classified into family "${classification.family}", which this session's policy ` +
+        `does not approve (approved: ${families.join(", ") || "none"}).`,
+    };
+  }
+
+  if (views && (classification.view === undefined || !views.includes(classification.view))) {
+    return {
+      approved: false,
+      source: "metadata",
+      reason: "view",
+      detail:
+        `"${descriptor.name}" is in approved family "${classification.family}" but view ` +
+        `"${classification.view ?? "(none declared)"}" is not approved (approved: ${views.join(", ") || "none"}).`,
+    };
+  }
+
+  return { approved: true, source: "metadata" };
+}
+
+/**
+ * The set of server descriptors this session routes through MCP, plus the
+ * rejections and migration diagnostics from building it. Immutable — a
+ * re-discovery builds a new catalog rather than mutating this one, so a turn
+ * already in flight keeps a consistent view.
+ */
+export class StudioToolCatalog {
+  readonly #entries: ReadonlyMap<string, StudioToolCatalogEntry>;
+  readonly #rejections: readonly StudioToolRejection[];
+  readonly #missingRequired: readonly string[];
+  readonly #discovered: number;
+
+  private constructor(
+    entries: ReadonlyMap<string, StudioToolCatalogEntry>,
+    rejections: readonly StudioToolRejection[],
+    missingRequired: readonly string[],
+    discovered: number,
+  ) {
+    this.#entries = entries;
+    this.#rejections = rejections;
+    this.#missingRequired = missingRequired;
+    this.#discovered = discovered;
+  }
+
+  /** An empty catalog — routes nothing. Used before discovery has run and when it failed. */
+  public static empty(): StudioToolCatalog {
+    return new StudioToolCatalog(new Map(), [], [], 0);
+  }
+
+  /** Applies `policy` to the exact descriptors the server advertised. */
+  public static fromDescriptors(
+    descriptors: readonly McpToolDescriptor[],
+    policy: StudioToolPolicy = {},
+  ): StudioToolCatalog {
+    const families = policy.families ?? [HONUA_STUDIO_TOOL_FAMILY];
+    const views = policy.views;
+    const allowlist = new Set(policy.allowlist ?? []);
+    const entries = new Map<string, StudioToolCatalogEntry>();
+    const rejections: StudioToolRejection[] = [];
+
+    for (const descriptor of descriptors) {
+      if (typeof descriptor?.name !== "string" || descriptor.name.length === 0) continue;
+      if (entries.has(descriptor.name)) continue;
+      const classification = readStudioToolClassification(descriptor);
+      const decision = decide(descriptor, classification, families, views, allowlist);
+      if (!decision.approved) {
+        rejections.push({
+          name: descriptor.name,
+          reason: decision.reason ?? "policy",
+          classification,
+          detail: decision.detail ?? `"${descriptor.name}" was not approved by this session's policy.`,
+        });
+        continue;
+      }
+      const entry: StudioToolCatalogEntry = { descriptor, classification, source: decision.source };
+      if (policy.approve && !policy.approve(entry)) {
+        rejections.push({
+          name: descriptor.name,
+          reason: "policy",
+          classification,
+          detail: `"${descriptor.name}" was vetoed by this session's \`approve\` predicate.`,
+        });
+        continue;
+      }
+      entries.set(descriptor.name, entry);
+    }
+
+    const missingRequired = (policy.required ?? []).filter((name) => !entries.has(name));
+    return new StudioToolCatalog(entries, rejections, missingRequired, descriptors.length);
+  }
+
+  /** True for a tool name this session routes through MCP rather than the local kit executor. */
+  public has(name: string): boolean {
+    return this.#entries.has(name);
+  }
+
+  /** The exact server descriptor for a routed tool — schemas and annotations included. */
+  public descriptor(name: string): McpToolDescriptor | undefined {
+    return this.#entries.get(name)?.descriptor;
+  }
+
+  /** Routed names, in server order. */
+  public get names(): readonly string[] {
+    return [...this.#entries.keys()];
+  }
+
+  public get entries(): readonly StudioToolCatalogEntry[] {
+    return [...this.#entries.values()];
+  }
+
+  public get rejections(): readonly StudioToolRejection[] {
+    return this.#rejections;
+  }
+
+  public get missingRequired(): readonly string[] {
+    return this.#missingRequired;
+  }
+
+  /**
+   * The routed descriptors in the proxy's HTTP tool shape. The server's exact
+   * `name`, `description`, and `inputSchema` are passed through untouched;
+   * `title`/`outputSchema`/`annotations` are retained on the catalog entry (see
+   * {@link descriptor}) but are not part of the proxy's wire contract
+   * ({@link StudioAiToolDefinition}), which carries only the triple.
+   */
+  public toolDefinitions(): readonly StudioAiToolDefinition[] {
+    return this.entries.map((entry) => ({
+      name: entry.descriptor.name,
+      ...(entry.descriptor.description !== undefined ? { description: entry.descriptor.description } : {}),
+      inputSchema: entry.descriptor.inputSchema,
+    }));
+  }
+
+  /** Builds the consumer-facing report for one discovery pass. */
+  public report(pages: number): StudioToolDiscoveryReport {
+    const diagnostics: string[] = [];
+    for (const name of this.#missingRequired) {
+      const rejection = this.#rejections.find((candidate) => candidate.name === name);
+      diagnostics.push(
+        rejection
+          ? `Required Studio tool "${name}" was discovered but not routed: ${rejection.detail}`
+          : `Required Studio tool "${name}" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's \`studioTools.required\` list.`,
+      );
+    }
+    return {
+      discovered: this.#discovered,
+      pages,
+      routed: this.names,
+      rejected: this.#rejections,
+      missingRequired: this.#missingRequired,
+      diagnostics,
+    };
+  }
+}

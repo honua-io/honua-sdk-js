@@ -65,12 +65,34 @@ import {
   type JsonRpcResponse,
   MCP_PROTOCOL_VERSION,
   type McpInitializeResult,
+  type McpToolDescriptor,
   type McpToolsCallParams,
   type McpToolsCallResult,
   type McpToolsListParams,
   type McpToolsListResult,
   isJsonRpcErrorResponse,
 } from "./mcp-protocol.js";
+
+/** JSON-RPC's reserved "internal error" code, used for a server that misuses `tools/list` pagination. */
+const JSON_RPC_INTERNAL_ERROR = -32603;
+
+/**
+ * Page budget for {@link McpClient.listAllTools}. Generous relative to any real
+ * Studio catalog (honua-server pages `tools/list` well under this), tight
+ * enough that a looping server fails fast.
+ */
+export const MCP_DEFAULT_MAX_TOOL_LIST_PAGES = 50;
+
+export interface McpListAllToolsOptions {
+  /** @default MCP_DEFAULT_MAX_TOOL_LIST_PAGES */
+  readonly maxPages?: number;
+}
+
+/** Every descriptor `tools/list` advertised, plus how many pages it took. */
+export interface McpToolListing {
+  readonly tools: readonly McpToolDescriptor[];
+  readonly pages: number;
+}
 
 export interface McpClientOptions {
   /** The `/mcp` endpoint's base — the client POSTs to `${baseUrl}/mcp`. @default "/api" */
@@ -163,6 +185,68 @@ export class McpClient {
   public async listTools(params: McpToolsListParams = {}): Promise<McpToolsListResult> {
     await this.initialize();
     return this.#send<McpToolsListResult>("tools/list", params);
+  }
+
+  /**
+   * Walks `tools/list` to completion, following `nextCursor` until the server
+   * stops issuing one, and returns every descriptor in server order.
+   *
+   * The loop is bounded twice, because "follow the cursor until it stops" is an
+   * unbounded instruction handed to a remote party:
+   *
+   *  - **Page cap** ({@link McpListAllToolsOptions.maxPages}, default
+   *    {@link MCP_DEFAULT_MAX_TOOL_LIST_PAGES}) — a server that keeps issuing
+   *    fresh cursors forever cannot spin this client forever.
+   *  - **Repeat-cursor guard** — a server that hands back a cursor it already
+   *    handed back is looping; that is caught on the first repeat instead of
+   *    burning the whole page budget on the same page.
+   *
+   * Both bounds throw {@link McpProtocolError} rather than silently returning a
+   * truncated catalog, because a partial tool catalog is indistinguishable from
+   * a narrower server authorization and must never be mistaken for one.
+   */
+  public async listAllTools(options: McpListAllToolsOptions = {}): Promise<McpToolListing> {
+    const maxPages = options.maxPages ?? MCP_DEFAULT_MAX_TOOL_LIST_PAGES;
+    const tools: McpToolDescriptor[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+    let pages = 0;
+
+    while (pages < maxPages) {
+      const page = await this.listTools(cursor === undefined ? {} : { cursor });
+      pages += 1;
+      if (Array.isArray(page.tools)) tools.push(...page.tools);
+
+      const next = page.nextCursor;
+      if (next === undefined || next === "") {
+        return { tools, pages };
+      }
+      if (seenCursors.has(next)) {
+        throw new McpProtocolError(
+          `MCP tools/list repeated pagination cursor "${next}" after ${pages} pages; refusing to loop.`,
+          JSON_RPC_INTERNAL_ERROR,
+        );
+      }
+      seenCursors.add(next);
+      cursor = next;
+    }
+
+    throw new McpProtocolError(
+      `MCP tools/list did not terminate within ${maxPages} pages; refusing to page further.`,
+      JSON_RPC_INTERNAL_ERROR,
+    );
+  }
+
+  /**
+   * Drops the negotiated `Mcp-Session-Id` and `initialize` result so the next
+   * call re-handshakes. Callers use this to reconnect — a new server session
+   * may advertise a different tool catalog, so whoever calls this is
+   * responsible for invalidating anything derived from the old one
+   * (`StudioAgentSession.reconnect` invalidates its tool catalog here).
+   */
+  public resetSession(): void {
+    this.#sessionId = undefined;
+    this.#initializeResult = undefined;
   }
 
   /**
