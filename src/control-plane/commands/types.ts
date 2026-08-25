@@ -123,7 +123,15 @@ export interface HonuaCommandPlan {
   readonly method: QueryMethod;
   /** Path relative to the client's base path, exactly as the command will call it. */
   readonly path: string;
-  /** One-line human summary for CLI/Studio previews. */
+  /**
+   * One-line human summary for CLI/Studio previews.
+   *
+   * A command builds this from its own input, so it can name a source URL. The
+   * runtime passes it through the SDK's credential recognizer before it reaches
+   * a receipt, so a presigned URL or an embedded secret is withheld rather than
+   * persisted into an audit record. Commands should still prefer identifiers to
+   * URLs here.
+   */
   readonly summary: string;
   /** Resource this request addresses. Any `href` is stripped by the runtime. */
   readonly resourceRef?: HonuaCommandResourceRef;
