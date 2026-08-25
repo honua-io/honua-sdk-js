@@ -326,8 +326,8 @@ describe("HonuaStudioLifecycleClient", () => {
     expect(draft.draftId).toBe("draft-parcels-2");
   });
 
-  it("creates a publication request that is accepted and moves the published pointer", async () => {
-    const contract = fixture("publish-request-accepted.v1.json");
+  it("creates a publication request that is accepted under the legacy synchronous behaviour", async () => {
+    const contract = fixture("publish-request-legacy-accepted.v1.json");
     const { client, requests } = clientFor(contract);
 
     const request = await client.publicationRequests.create(
@@ -340,8 +340,8 @@ describe("HonuaStudioLifecycleClient", () => {
     expect(request.status).toBe("accepted");
   });
 
-  it("creates a publication request that is rejected for an invalid version without a body override", async () => {
-    const contract = fixture("publish-request-rejected.v1.json");
+  it("creates a legacy publication request that is rejected for an invalid version without a body override", async () => {
+    const contract = fixture("publish-request-legacy-rejected.v1.json");
     const { client, requests } = clientFor(contract);
 
     const request = await client.publicationRequests.create("item-parcels-1", "version-parcels-3");

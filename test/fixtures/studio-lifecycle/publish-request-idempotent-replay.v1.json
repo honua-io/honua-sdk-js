@@ -1,8 +1,17 @@
 {
   "schemaVersion": 1,
   "request": {
-    "method": "GET",
-    "path": "/api/v1/studio/content-items/item-parcels-1/versions/version-parcels-1/publish-requests/publish-1"
+    "method": "POST",
+    "path": "/api/v1/studio/content-items/item-parcels-1/versions/version-parcels-1/publish-requests",
+    "body": {
+      "intent": {
+        "route": "/studio/parcels",
+        "visibility": "organization"
+      },
+      "contentHash": "sha256:1f0c5d3a8b7e4f2619c0d8a4b6e3f10925ad7c4e8b0f36a1d2c5e79b4a836f01",
+      "idempotencyKey": "idem-2f7a0c9d-4e18-4b62-9a03-8d5c1e7b4f60",
+      "correlationId": "corr-5b8e2d07"
+    }
   },
   "response": {
     "status": 200,
@@ -13,7 +22,7 @@
         "itemId": "item-parcels-1",
         "versionId": "version-parcels-1",
         "contentHash": "sha256:1f0c5d3a8b7e4f2619c0d8a4b6e3f10925ad7c4e8b0f36a1d2c5e79b4a836f01",
-        "status": "Rejected",
+        "status": "AwaitingApproval",
         "intent": {
           "route": "/studio/parcels",
           "visibility": "organization"
@@ -25,10 +34,11 @@
         "correlationId": "corr-5b8e2d07",
         "createdAt": "2026-07-02T00:02:00Z",
         "createdBy": "actor-proposer-1",
-        "updatedAt": "2026-07-02T00:07:00Z",
-        "reason": "Approver declined: parcels layer is not cleared for organization-wide visibility."
+        "updatedAt": "2026-07-02T00:02:00Z",
+        "idempotencyKey": "idem-2f7a0c9d-4e18-4b62-9a03-8d5c1e7b4f60",
+        "replayed": true
       },
-      "timestamp": "2026-07-02T00:02:00Z"
+      "timestamp": "2026-07-02T00:03:00Z"
     }
   }
 }
