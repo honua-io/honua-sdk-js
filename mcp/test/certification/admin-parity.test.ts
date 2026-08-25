@@ -10,7 +10,12 @@ import {
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
 
-import { certifyAdminCatalogParity, listAllTools } from "../../src/certification/admin-parity.js";
+import {
+  MCP_TOOLS_LIST_MAX_PAGES,
+  MCP_TOOLS_LIST_MAX_TOOLS,
+  certifyAdminCatalogParity,
+  listAllTools,
+} from "../../src/certification/admin-parity.js";
 
 function adminTools(): Tool[] {
   return ADMIN_MCP_PUBLISHED_TOOL_NAMES.map((name, index) => ({
@@ -80,10 +85,15 @@ describe("complete Admin MCP default-roster transport parity", () => {
     await expect(
       listAllTools({
         async listTools() {
-          return { tools: [...defaultCatalog(), staticTools()[0] as Tool] };
+          return {
+            tools: Array.from({ length: MCP_TOOLS_LIST_MAX_TOOLS + 1 }, (_, index) => ({
+              name: `tool-${index}`,
+              inputSchema: { type: "object" },
+            })) as Tool[],
+          };
         },
       }),
-    ).rejects.toThrow("exceeded the exact 432-tool default roster");
+    ).rejects.toThrow(`exceeded the ${MCP_TOOLS_LIST_MAX_TOOLS}-tool pagination safety ceiling`);
 
     await expect(
       listAllTools({
@@ -104,7 +114,7 @@ describe("complete Admin MCP default-roster transport parity", () => {
           };
         },
       }),
-    ).rejects.toThrow("exceeded 432 bounded pages");
+    ).rejects.toThrow(`exceeded the ${MCP_TOOLS_LIST_MAX_PAGES}-page pagination safety ceiling`);
 
     await expect(
       listAllTools({
@@ -113,6 +123,32 @@ describe("complete Admin MCP default-roster transport parity", () => {
         },
       }),
     ).rejects.toThrow("invalid bounded cursor");
+  });
+
+  it("keeps the pagination safety ceiling independent of the expected roster total", async () => {
+    expect(MCP_TOOLS_LIST_MAX_PAGES).not.toBe(MCP_DEFAULT_TOTAL_TOOL_COUNT);
+    expect(MCP_TOOLS_LIST_MAX_TOOLS).toBeGreaterThan(MCP_DEFAULT_TOTAL_TOOL_COUNT);
+
+    // A profile-enabled candidate advertises additive analysis/Esri GP tools.
+    // Reading that catalog is a transport concern and must succeed; whether the
+    // roster is correct is a separate, later assertion.
+    const additive = Array.from({ length: 9 }, (_, index) => ({
+      name: `honua_profile_tool_${index}`,
+      inputSchema: { type: "object" },
+    })) as Tool[];
+    const tools = await listAllTools({
+      async listTools() {
+        return { tools: [...defaultCatalog(), ...additive] };
+      },
+    });
+    expect(tools).toHaveLength(MCP_DEFAULT_TOTAL_TOOL_COUNT + 9);
+
+    // The roster assertion, not the pagination ceiling, is what rejects it.
+    const receipt = certifyAdminCatalogParity(tools, structuredClone(tools));
+    expect(receipt.pass).toBe(false);
+    expect(receipt.differences.join("; ")).toContain(
+      `direct catalog exposes ${MCP_DEFAULT_TOTAL_TOOL_COUNT + 9} total tools; expected ${MCP_DEFAULT_TOTAL_TOOL_COUNT}`,
+    );
   });
 
   it("certifies the exact 47 + 385 = 432 roster, schemas, annotations, and provenance", () => {

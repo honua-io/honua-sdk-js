@@ -9,8 +9,12 @@ import { publicHttps } from "./zero-to-map-provision.js";
  * not contain a second installer, admin client, or MCP proxy.
  */
 
+import { createHash } from "node:crypto";
+
 import {
   ADMIN_MCP_EXCLUDED_OPERATIONS,
+  ADMIN_MCP_EXCLUDED_OPERATION_COUNT,
+  ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
   ADMIN_MCP_PUBLISHED_TOOL_NAMES,
   MCP_DEFAULT_STATIC_TOOL_COUNT,
   MCP_DEFAULT_TOTAL_TOOL_COUNT,
@@ -20,6 +24,118 @@ export const ZERO_TO_MAP_PLAN_SCHEMA = "honua.zero-to-map.plan/v1" as const;
 export const ZERO_TO_MAP_RECEIPT_SCHEMA = "honua.zero-to-map.receipt/v1" as const;
 export const ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA = "honua.zero-to-map.console-receipt/v1" as const;
 export const ZERO_TO_MAP_CONSOLE_RECEIPT_REQUEST_SCHEMA = "honua.zero-to-map.console-receipt-request/v1" as const;
+export const ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA = "honua.zero-to-map.catalog/v1" as const;
+
+/**
+ * A server MCP profile whose members are additive to the default 432-tool base
+ * roster (47 static plus 385 `honua_admin_*` tools).
+ *
+ * The zero-to-map candidate must advertise `base` plus `analysis` plus
+ * `esri-gp`. Each profile is verified independently and the expected catalog
+ * total is derived by summing the base roster and the enabled profile rosters;
+ * it is never written down as a single magic number, so enabling or retiring a
+ * profile cannot silently disagree with the assertion.
+ */
+export interface ZeroToMapProfileRoster {
+  readonly id: string;
+  /** Tools this profile contributes on top of the base roster. */
+  readonly memberCount: number;
+  /**
+   * Members whose exact tool names are proven by an artifact in this
+   * repository (the checked-in Esri GP MCP contract and the journey plan).
+   * Any further members are counted, digested and reported, but deliberately
+   * not name-asserted: naming tools the server has never published would be a
+   * fabricated assertion rather than evidence.
+   */
+  readonly confirmedMembers: readonly string[];
+  /**
+   * Tool-name prefixes that attribute an advertised additive tool to this
+   * profile. A profile with no prefixes is the fallback bucket for additive
+   * tools that no other profile claims.
+   */
+  readonly namePrefixes: readonly string[];
+}
+
+/** Identifier of the always-required default roster. */
+export const ZERO_TO_MAP_BASE_PROFILE_ID = "base";
+
+/**
+ * Additive profiles the zero-to-map journey requires, in receipt order.
+ *
+ * `analysis` contributes six members; only `honua_buffer_features` - the
+ * MCP-native dataset Buffer verb the journey actually executes - is confirmed
+ * by an in-repo artifact. `esri-gp` contributes exactly the three tools named
+ * by `release/zero-to-map/contracts/esri-gp-mcp.v1.json`.
+ */
+export const ZERO_TO_MAP_ADDITIVE_PROFILES: readonly ZeroToMapProfileRoster[] = [
+  {
+    id: "analysis",
+    memberCount: 6,
+    confirmedMembers: ["honua_buffer_features"],
+    namePrefixes: [],
+  },
+  {
+    id: "esri-gp",
+    memberCount: 3,
+    confirmedMembers: ["honua_esri_gp_describe_task", "honua_esri_gp_execute_task", "honua_esri_gp_list_tasks"],
+    namePrefixes: ["honua_esri_gp_"],
+  },
+];
+
+/** Profiles the candidate must advertise before the journey is executable. */
+export const ZERO_TO_MAP_REQUIRED_PROFILES: readonly string[] = [
+  ZERO_TO_MAP_BASE_PROFILE_ID,
+  ...ZERO_TO_MAP_ADDITIVE_PROFILES.map((profile) => profile.id),
+];
+
+/** Tools the base roster contributes: 47 static + 385 published Admin projections. */
+export const ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT =
+  MCP_DEFAULT_STATIC_TOOL_COUNT + ADMIN_MCP_PUBLISHED_TOOL_NAMES.length;
+
+/** Derived candidate total. Never hardcode this; it follows from the enabled profiles. */
+export const ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT =
+  ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT +
+  ZERO_TO_MAP_ADDITIVE_PROFILES.reduce((total, profile) => total + profile.memberCount, 0);
+
+export interface ZeroToMapProfileReceipt {
+  readonly id: string;
+  readonly expectedMembers: number;
+  readonly advertisedMembers: number;
+  readonly confirmedMembers: readonly string[];
+  /**
+   * Advertised names this preflight can attribute to the profile. Empty-prefix
+   * profiles cannot be separated from the base static surface by name, so only
+   * their confirmed members appear here.
+   */
+  readonly nameResolvedMembers: readonly string[];
+  /** SHA-256 over the sorted advertised names this profile was verified against. */
+  readonly rosterSha256: string;
+}
+
+/** Catalog preflight evidence retained on the journey receipt. */
+export interface ZeroToMapCatalogReceipt {
+  readonly schemaVersion: typeof ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA;
+  readonly activeProfiles: readonly string[];
+  /** Derived: base roster plus every enabled additive profile roster. */
+  readonly expectedTotalTools: number;
+  readonly advertisedTotalTools: number;
+  readonly baseStaticTools: number;
+  readonly baseAdminTools: number;
+  readonly auditedExclusions: number;
+  readonly profiles: readonly ZeroToMapProfileReceipt[];
+  /** SHA-256 over every advertised tool name, sorted. */
+  readonly catalogSha256: string;
+  /** SHA-256 over the advertised `honua_admin_*` names, sorted. */
+  readonly adminRosterSha256: string;
+  /**
+   * SHA-256 over the advertised non-Admin names that no name-resolvable profile
+   * claimed, sorted. This is the base static surface plus the unnamed members
+   * of the fallback profile, which the server does not yet let us separate.
+   */
+  readonly staticRosterSha256: string;
+  /** Generated exclusion-roster digest the base roster was audited against. */
+  readonly exclusionRosterSha256: string;
+}
 
 const STUDIO_GENERATION_MUTATION_TOOLS = new Set([
   "honua_studio_add_control",
@@ -240,6 +356,8 @@ export interface ZeroToMapReceipt {
   readonly dependencyRefs: readonly string[];
   /** Runtime blocking receipts only. Always empty when status is passed. */
   readonly blockers: readonly string[];
+  /** Catalog preflight evidence: active profiles and roster digests. Live mode only. */
+  readonly catalog?: ZeroToMapCatalogReceipt;
   readonly stages: readonly JourneyStageReceipt[];
 }
 
@@ -325,7 +443,7 @@ export async function runZeroToMapJourney(
   };
   const stages: JourneyStageReceipt[] = [...(options.resume?.completedStages ?? [])];
   let stop: { status: "blocked" | "failed"; actionId: string } | undefined;
-  let catalogChecked = false;
+  let catalogReceipt: ZeroToMapCatalogReceipt | undefined;
 
   try {
     for (let stageIndex = resumeStageIndex; stageIndex < plan.stages.length; stageIndex += 1) {
@@ -363,9 +481,8 @@ export async function runZeroToMapJourney(
         }
 
         try {
-          if (action.kind === "mcp" && !catalogChecked) {
-            await assertMcpCatalog(plan, adapter);
-            catalogChecked = true;
+          if (action.kind === "mcp" && !catalogReceipt) {
+            catalogReceipt = await assertMcpCatalog(plan, adapter);
           }
           const result = await executeAction(action, adapter, variables);
           for (const pointer of action.forbiddenPointers ?? []) {
@@ -458,6 +575,7 @@ export async function runZeroToMapJourney(
     finishedAt: now().toISOString(),
     dependencyRefs: plan.dependencyRefs,
     blockers,
+    ...(catalogReceipt ? { catalog: catalogReceipt } : {}),
     stages,
   };
 }
@@ -708,55 +826,255 @@ function stableValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): Promise<void> {
-  const required = plan.stages.flatMap((stage) =>
-    stage.actions.filter((action): action is JourneyMcpAction => action.kind === "mcp").map((action) => action.tool),
+interface RequiredToolUse {
+  readonly tool: string;
+  readonly stageNumber: number;
+  readonly stageId: string;
+  readonly actionId: string;
+}
+
+function requiredMcpToolUses(plan: ZeroToMapPlan): readonly RequiredToolUse[] {
+  return plan.stages.flatMap((stage) =>
+    stage.actions
+      .filter((action): action is JourneyMcpAction => action.kind === "mcp")
+      .map((action) => ({
+        tool: action.tool,
+        stageNumber: stage.number,
+        stageId: stage.id,
+        actionId: action.id,
+      })),
   );
+}
+
+function describeToolUse(use: RequiredToolUse): string {
+  return `${use.tool} (stage ${use.stageNumber} ${use.stageId}, action ${use.actionId})`;
+}
+
+function rosterDigest(names: readonly string[]): string {
+  return createHash("sha256")
+    .update(`${[...names].sort().join("\n")}\n`)
+    .digest("hex");
+}
+
+function summarizeNames(names: readonly string[], limit = 10): string {
+  if (names.length === 0) return "none";
+  const sorted = [...names].sort();
+  return sorted.length > limit
+    ? `${sorted.slice(0, limit).join(", ")}, ... (+${sorted.length - limit})`
+    : sorted.join(", ");
+}
+
+/**
+ * Preflight the advertised MCP catalog before the first live mutation.
+ *
+ * The base roster, the audited exclusions and each enabled server profile are
+ * verified independently, and the expected total is *derived* from those
+ * rosters rather than written down. A previous revision required the catalog
+ * to equal the 432-tool default roster while the journey simultaneously
+ * required analysis and Esri GP tools, so no candidate configuration could
+ * pass. Findings are reported per cause (missing / unexpected / duplicate /
+ * excluded / truncated / drifted) and name the journey stage and action that
+ * needs the tool.
+ */
+async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): Promise<ZeroToMapCatalogReceipt> {
+  const requiredUses = requiredMcpToolUses(plan);
   const catalog = await adapter.listTools();
-  const duplicateNames = duplicateValues(catalog.map((tool) => tool.name));
-  const adminNames = catalog.filter((tool) => tool.name.startsWith("honua_admin_")).map((tool) => tool.name);
-  const advertisedAdmin = new Set(adminNames);
+  const names = catalog.map((tool) => tool.name);
+  const findings: string[] = [];
+
+  const duplicateNames = duplicateValues(names);
+  if (duplicateNames.length > 0) {
+    findings.push(`duplicate: the catalog advertises ${summarizeNames(duplicateNames)} more than once`);
+  }
+
+  // --- base profile: the 385 published Admin projections ---------------------
+  const advertisedAdmin = names.filter((name) => name.startsWith("honua_admin_"));
+  const advertisedAdminSet = new Set(advertisedAdmin);
   const expectedAdmin = new Set<string>(ADMIN_MCP_PUBLISHED_TOOL_NAMES);
-  const missingAdmin = [...expectedAdmin].filter((name) => !advertisedAdmin.has(name)).sort();
-  const unexpectedAdmin = [...advertisedAdmin].filter((name) => !expectedAdmin.has(name)).sort();
-  const excludedAdmin = ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.toolName)
-    .filter((name) => advertisedAdmin.has(name))
-    .sort();
-  const staticToolCount = catalog.length - adminNames.length;
-  if (
-    duplicateNames.length > 0 ||
-    missingAdmin.length > 0 ||
-    unexpectedAdmin.length > 0 ||
-    excludedAdmin.length > 0 ||
-    staticToolCount !== MCP_DEFAULT_STATIC_TOOL_COUNT ||
-    catalog.length !== MCP_DEFAULT_TOTAL_TOOL_COUNT
-  ) {
-    throw new JourneyBlockedError(
-      `MCP catalog does not satisfy the exact Admin/default roster: total=${catalog.length} (expected ${MCP_DEFAULT_TOTAL_TOOL_COUNT}), static=${staticToolCount} (expected ${MCP_DEFAULT_STATIC_TOOL_COUNT}), admin=${adminNames.length} (expected ${ADMIN_MCP_PUBLISHED_TOOL_NAMES.length}); missingAdmin=${missingAdmin.join(", ") || "none"}; unexpectedAdmin=${unexpectedAdmin.join(", ") || "none"}; excludedAdmin=${excludedAdmin.join(", ") || "none"}; duplicates=${duplicateNames.join(", ") || "none"}`,
-      "mcp-catalog-incomplete",
+  const missingAdmin = [...expectedAdmin].filter((name) => !advertisedAdminSet.has(name)).sort();
+  const unexpectedAdmin = [...advertisedAdminSet].filter((name) => !expectedAdmin.has(name)).sort();
+  if (missingAdmin.length > 0) {
+    findings.push(
+      `missing: ${missingAdmin.length} of the ${expectedAdmin.size} published Admin projections are absent ` +
+        `(${summarizeNames(missingAdmin)})`,
     );
   }
-  const advertised = new Map(catalog.map((tool) => [tool.name, tool]));
-  const missing = [...new Set(required)].filter((tool) => !advertised.has(tool));
-  if (missing.length > 0) {
-    throw new JourneyBlockedError(
-      `MCP catalog is missing required tools: ${missing.join(", ")}`,
-      "mcp-catalog-incomplete",
+  if (unexpectedAdmin.length > 0) {
+    findings.push(`unexpected: the catalog advertises unpublished Admin tools ${summarizeNames(unexpectedAdmin)}`);
+  }
+
+  // --- base profile: the 11 audited secret/session exclusions ----------------
+  const excludedToolNames = ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.toolName);
+  if (excludedToolNames.length !== ADMIN_MCP_EXCLUDED_OPERATION_COUNT) {
+    findings.push(
+      `excluded: the generated exclusion roster carries ${excludedToolNames.length} operations; the audited ` +
+        `contract requires ${ADMIN_MCP_EXCLUDED_OPERATION_COUNT}`,
     );
   }
-  for (const action of plan.stages.flatMap((stage) => stage.actions)) {
-    if (action.kind !== "mcp") continue;
-    const descriptor = advertised.get(action.tool);
-    if (!descriptor) continue;
-    try {
-      assertArgumentShape(action.arguments, descriptor.inputSchema, action.tool);
-    } catch (error) {
-      throw new JourneyBlockedError(
-        `MCP input contract mismatch for ${action.tool}: ${error instanceof Error ? error.message : String(error)}`,
-        "mcp-input-contract-mismatch",
+  const advertisedExclusions = excludedToolNames.filter((name) => advertisedAdminSet.has(name)).sort();
+  if (advertisedExclusions.length > 0) {
+    findings.push(
+      `excluded: the catalog advertises audited secret/session operations ${summarizeNames(advertisedExclusions)}`,
+    );
+  }
+
+  // --- additive profiles, verified independently -----------------------------
+  const nonAdminNames = names.filter((name) => !name.startsWith("honua_admin_"));
+  const namedProfiles = ZERO_TO_MAP_ADDITIVE_PROFILES.filter((profile) => profile.namePrefixes.length > 0);
+  const fallbackProfile = ZERO_TO_MAP_ADDITIVE_PROFILES.find((profile) => profile.namePrefixes.length === 0);
+  const claimed = new Set<string>();
+  const profileReceipts: ZeroToMapProfileReceipt[] = [];
+
+  for (const profile of namedProfiles) {
+    const members = nonAdminNames.filter((name) => profile.namePrefixes.some((prefix) => name.startsWith(prefix)));
+    for (const member of members) claimed.add(member);
+    const memberSet = new Set(members);
+    const missingMembers = profile.confirmedMembers.filter((name) => !memberSet.has(name)).sort();
+    const unexpectedMembers = [...memberSet].filter((name) => !profile.confirmedMembers.includes(name)).sort();
+    if (missingMembers.length > 0) {
+      findings.push(
+        `missing: the ${profile.id} profile is not advertised - ${missingMembers
+          .map((tool) => {
+            const use = requiredUses.find((candidate) => candidate.tool === tool);
+            return use ? describeToolUse(use) : tool;
+          })
+          .join(", ")}. Enable the ${profile.id} server profile on the candidate and rerun.`,
       );
     }
+    if (unexpectedMembers.length > 0) {
+      findings.push(
+        `unexpected: the ${profile.id} profile advertises ${summarizeNames(unexpectedMembers)}, which the checked-in profile contract does not declare`,
+      );
+    }
+    if (members.length !== profile.memberCount) {
+      findings.push(
+        `${members.length < profile.memberCount ? "missing" : "unexpected"}: the ${profile.id} profile advertises ` +
+          `${members.length} members; the profile contract declares ${profile.memberCount}`,
+      );
+    }
+    profileReceipts.push({
+      id: profile.id,
+      expectedMembers: profile.memberCount,
+      advertisedMembers: members.length,
+      confirmedMembers: [...profile.confirmedMembers].sort(),
+      nameResolvedMembers: [...members].sort(),
+      rosterSha256: rosterDigest(members),
+    });
   }
+
+  // The fallback profile's members are not separable from the base static
+  // surface by name (the server has not published an `analysis` roster yet:
+  // honua-server#3363). It is therefore verified by its confirmed members plus
+  // its declared size, and the base static count is derived from the residue.
+  const residue = nonAdminNames.filter((name) => !claimed.has(name));
+  const fallbackMembers = fallbackProfile ? residue.length - MCP_DEFAULT_STATIC_TOOL_COUNT : 0;
+  const baseStaticTools = residue.length - fallbackMembers;
+  if (fallbackProfile) {
+    const residueSet = new Set(residue);
+    const missingMembers = fallbackProfile.confirmedMembers.filter((name) => !residueSet.has(name)).sort();
+    if (missingMembers.length > 0) {
+      findings.push(
+        `missing: the ${fallbackProfile.id} profile is not advertised - ${missingMembers
+          .map((tool) => {
+            const use = requiredUses.find((candidate) => candidate.tool === tool);
+            return use ? describeToolUse(use) : tool;
+          })
+          .join(", ")}. Enable the ${fallbackProfile.id} server profile on the candidate and rerun.`,
+      );
+    }
+    if (fallbackMembers !== fallbackProfile.memberCount) {
+      findings.push(
+        `${fallbackMembers < fallbackProfile.memberCount ? "missing" : "unexpected"}: the non-Admin surface ` +
+          `advertises ${residue.length} tools; the base static roster (${MCP_DEFAULT_STATIC_TOOL_COUNT}) plus the ` +
+          `${fallbackProfile.id} profile (${fallbackProfile.memberCount}) derive ` +
+          `${MCP_DEFAULT_STATIC_TOOL_COUNT + fallbackProfile.memberCount}`,
+      );
+    }
+    profileReceipts.push({
+      id: fallbackProfile.id,
+      expectedMembers: fallbackProfile.memberCount,
+      advertisedMembers: Math.max(fallbackMembers, 0),
+      confirmedMembers: [...fallbackProfile.confirmedMembers].sort(),
+      nameResolvedMembers: [...fallbackProfile.confirmedMembers].filter((name) => residueSet.has(name)).sort(),
+      rosterSha256: rosterDigest(residue),
+    });
+  }
+
+  // --- derived totals --------------------------------------------------------
+  if (ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT !== MCP_DEFAULT_TOTAL_TOOL_COUNT) {
+    findings.push(
+      `unexpected: the generated base roster derives ${MCP_DEFAULT_STATIC_TOOL_COUNT} static + ${expectedAdmin.size} ` +
+        `Admin = ${ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT} tools, but the default roster constant is ` +
+        `${MCP_DEFAULT_TOTAL_TOOL_COUNT}`,
+    );
+  }
+  const expectedTotal = ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT;
+  if (names.length !== expectedTotal) {
+    const shortfall = expectedTotal - names.length;
+    findings.push(
+      shortfall > 0 && duplicateNames.length === 0 && unexpectedAdmin.length === 0
+        ? `truncated: the catalog returned ${names.length} of ${expectedTotal} tools (${shortfall} short). Every tools/list page must be drained before the roster is judged; a short read is a pagination fault, not a roster decision.`
+        : `unexpected: the catalog advertises ${names.length} tools; the enabled profiles ` +
+            `(${ZERO_TO_MAP_REQUIRED_PROFILES.join(" + ")}) derive ${expectedTotal}`,
+    );
+  }
+
+  if (findings.length > 0) {
+    throw new JourneyBlockedError(
+      `MCP catalog preflight failed for profiles ${ZERO_TO_MAP_REQUIRED_PROFILES.join(" + ")}: ${findings.join("; ")}`,
+      "mcp-catalog-incomplete",
+    );
+  }
+
+  // --- every tool the plan actually calls ------------------------------------
+  const advertised = new Map(catalog.map((tool) => [tool.name, tool]));
+  const missingRequired = [...new Set(requiredUses.map((use) => use.tool))].filter((tool) => !advertised.has(tool));
+  if (missingRequired.length > 0) {
+    throw new JourneyBlockedError(
+      `MCP catalog is missing required tools: ${missingRequired.join(", ")}`,
+      "mcp-catalog-incomplete",
+    );
+  }
+
+  // --- input-schema drift on every planned call ------------------------------
+  for (const stage of plan.stages) {
+    for (const action of stage.actions) {
+      if (action.kind !== "mcp") continue;
+      const descriptor = advertised.get(action.tool);
+      if (!descriptor) continue;
+      try {
+        assertArgumentShape(action.arguments, descriptor.inputSchema, action.tool);
+      } catch (error) {
+        const use: RequiredToolUse = {
+          tool: action.tool,
+          stageNumber: stage.number,
+          stageId: stage.id,
+          actionId: action.id,
+        };
+        throw new JourneyBlockedError(
+          `MCP input contract mismatch for ${describeToolUse(use)}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          "mcp-input-contract-mismatch",
+        );
+      }
+    }
+  }
+
+  return {
+    schemaVersion: ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA,
+    activeProfiles: [...ZERO_TO_MAP_REQUIRED_PROFILES],
+    expectedTotalTools: expectedTotal,
+    advertisedTotalTools: names.length,
+    baseStaticTools,
+    baseAdminTools: advertisedAdmin.length,
+    auditedExclusions: excludedToolNames.length,
+    profiles: profileReceipts,
+    catalogSha256: rosterDigest(names),
+    adminRosterSha256: rosterDigest(advertisedAdmin),
+    staticRosterSha256: rosterDigest(residue),
+    exclusionRosterSha256: ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
+  };
 }
 
 function duplicateValues(values: readonly string[]): string[] {

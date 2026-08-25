@@ -42,7 +42,16 @@ explicit (`--execute --yes`), preflights the complete MCP catalog before the
 first MCP mutation, blocks on missing deployment capabilities, and accepts a
 Console receipt only when its journey, resource, job, result, proposal,
 execution-operation, audit-correlation, candidate, and release identities
-match. The Studio `PublicationIntent` is not mislabeled as the separate admin
+match.
+
+The catalog preflight verifies the `base`, `analysis`, and `esri-gp` server
+profiles independently and derives the expected total (432 + 6 + 3 = 441)
+instead of asserting one hardcoded number; it records the active profiles and
+the roster digests on the journey receipt. Enabling those profiles on a local
+candidate still depends on honua-server#3363/#3430/#3431: the server
+configuration key that turns them on is not yet published, so
+`honua admin install local --profile gp-dev` grants the Pro edition but cannot
+yet request the profiles. The Studio `PublicationIntent` is not mislabeled as the separate admin
 approval proposal.
 
 The checked-in fixtures and simulated tests are contract evidence, not a live
