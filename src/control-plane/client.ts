@@ -471,26 +471,32 @@ function withManifestQuery(path: string, environment?: string, workspaceId?: str
 
 /**
  * Base JSON headers plus the concurrency/idempotency options every request
- * option bag can carry. An explicit `headers` entry always wins over the
- * option-level `idempotencyKey`/`ifMatch` shorthand, and over the per-request
- * `ifMatch` the resource clients fold in through {@link withIfMatch}.
+ * option bag can carry.
+ *
+ * The option-level `idempotencyKey`/`ifMatch` are applied **after** raw
+ * `headers`, so a raw `Idempotency-Key`/`If-Match` entry cannot silently
+ * replace the value the caller passed as an option — the command layer records
+ * that value on its receipt, and a receipt that disagrees with the wire is
+ * worse than no receipt. Per-request `ifMatch` on a resource-client method is
+ * folded into `headers` by {@link withIfMatch} and still applies whenever the
+ * option-level shorthand is absent, which is every existing call site.
  */
 function jsonHeaders(options: HonuaControlPlaneRequestOptions): HeadersInit {
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
+    ...headersToRecord(options.headers),
     ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
     ...(options.ifMatch ? { "If-Match": options.ifMatch } : {}),
-    ...headersToRecord(options.headers),
   };
 }
 
 function listHeaders(options: HonuaControlPlaneListOptions): HeadersInit {
   const headers: Record<string, string> = {
     Accept: "application/json",
+    ...headersToRecord(options.headers),
     ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
     ...(options.ifMatch ? { "If-Match": options.ifMatch } : {}),
-    ...headersToRecord(options.headers),
   };
   if (options.validator?.etag) headers["If-None-Match"] = options.validator.etag;
   if (options.validator?.lastModified) headers["If-Modified-Since"] = options.validator.lastModified;

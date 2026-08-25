@@ -68,9 +68,11 @@ export {
   serializeHonuaCommandReceipt,
 } from "./identity.js";
 export {
+  HONUA_COMMAND_OWNED_HEADERS,
   HONUA_COMMAND_RESERVED_HEADERS,
   HonuaCommandRuntime,
   assertNoAuthorityOverride,
+  assertNoCommandKeyOverride,
   createHonuaCommandRuntime,
 } from "./runtime.js";
 export type { HonuaCommandInvocation, HonuaCommandRuntimeOptions } from "./runtime.js";

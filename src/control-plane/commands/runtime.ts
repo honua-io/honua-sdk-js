@@ -20,6 +20,13 @@
  *   `authorization` {@link HonuaCommandError} *before* the command runs, on
  *   every transport. The claimed {@link HonuaCommandIdentity} is echoed onto
  *   the receipt and never placed on the wire.
+ * - **No caller-owned request identity.** The same screen refuses
+ *   {@link HONUA_COMMAND_OWNED_HEADERS} — the `Idempotency-Key` and `If-Match`
+ *   the runtime derives and records on the receipt. Both screens compare
+ *   header names case-insensitively, so `Idempotency-Key`, `idempotency-key`,
+ *   and `IDEMPOTENCY-KEY` are the same header to them. Without this a caller
+ *   could put one key on the wire while the receipt and the invocation record
+ *   claimed another, breaking retry collapsing and the audit join.
  * - **No self-approval.** Command input schemas are closed, so no transport can
  *   introduce an approval field the others lack; every receipt records
  *   `authorization: "server-enforced"`.
@@ -82,6 +89,20 @@ export const HONUA_COMMAND_RESERVED_HEADERS = [
 ] as const;
 
 const RESERVED_HEADER_SET: ReadonlySet<string> = new Set<string>(HONUA_COMMAND_RESERVED_HEADERS);
+
+/**
+ * Headers the runtime derives and records on the receipt.
+ *
+ * A caller-supplied value for either one would put a different key on the wire
+ * than the receipt claims, which breaks exactly the two guarantees the receipt
+ * exists to provide: that a retry collapses to one server-side effect, and that
+ * an audit join can match a receipt to the request it describes. Callers set
+ * these through {@link HonuaCommandInvocation.idempotencyKey} and
+ * {@link HonuaCommandInvocation.ifMatch}, which are recorded.
+ */
+export const HONUA_COMMAND_OWNED_HEADERS = ["idempotency-key", "if-match"] as const;
+
+const OWNED_HEADER_SET: ReadonlySet<string> = new Set<string>(HONUA_COMMAND_OWNED_HEADERS);
 
 /** Options accepted by every {@link HonuaCommandRuntime.execute} call. */
 export interface HonuaCommandInvocation {
@@ -175,8 +196,12 @@ export class HonuaCommandRuntime {
     const failureContext = { correlationId, idempotencyKey, signal: invocation.signal } as const;
 
     assertNoAuthorityOverride(command.id, invocation.headers, { correlationId, idempotencyKey });
+    assertNoCommandKeyOverride(command.id, invocation.headers, { correlationId, idempotencyKey });
 
-    const issues = validateCommandInput(command.inputSchema, input);
+    // Schema first, then the command's own cross-field rules. Both run before
+    // `plan`, so the dry-run preview below is reachable only for input the real
+    // invocation would also accept.
+    const issues = [...validateCommandInput(command.inputSchema, input), ...(command.validate?.(input) ?? [])];
     if (issues.length > 0) {
       throw new HonuaCommandError(
         "validation",
@@ -273,6 +298,36 @@ export function assertNoAuthorityOverride(
     commandId,
     `Command ${commandId} refused caller-supplied authority header(s): ${named}. Authorization is derived server-side from the connection credential; no transport may assert it.`,
     context,
+  );
+}
+
+/**
+ * Refuse a caller-supplied value for a header the runtime derives.
+ *
+ * Classified `validation` rather than `authorization`: this is caller misuse of
+ * the invocation contract, not an attempt to assert authority. Use
+ * {@link HonuaCommandInvocation.idempotencyKey} / `.ifMatch` instead, so the
+ * value that travels is the value the receipt records.
+ */
+export function assertNoCommandKeyOverride(
+  commandId: string,
+  headers: HeadersInit | undefined,
+  context: { readonly correlationId?: string; readonly idempotencyKey?: string } = {},
+): void {
+  const offending = headerNames(headers).filter((name) => OWNED_HEADER_SET.has(name));
+  if (offending.length === 0) return;
+  const named = offending.sort().join(", ");
+  throw new HonuaCommandError(
+    "validation",
+    commandId,
+    `Command ${commandId} refused caller-supplied header(s) it derives itself: ${named}. Set them through the invocation's \`idempotencyKey\` / \`ifMatch\` so the value on the wire is the value the receipt records.`,
+    {
+      ...context,
+      issues: offending.sort().map((name) => ({
+        path: `headers.${name}`,
+        message: "is derived by the command runtime and cannot be set by a caller",
+      })),
+    },
   );
 }
 

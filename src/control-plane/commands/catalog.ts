@@ -7,8 +7,29 @@
  * draft as an immutable version — and exercise every capability the shared
  * layer promises: idempotency, dry run, cancellation, validation, typed errors,
  * and deterministic receipts. Each command owns its own sequencing, which is
- * why `studio.draft.saveVersion` performs the optimistic-generation read here
+ * why `studio.draft.saveVersion` performs the optimistic-generation check here
  * rather than in four transports.
+ *
+ * ## Where the concurrency check is bracketed, not atomic
+ *
+ * `studio.draft.saveVersion` cannot make its generation check atomic with the
+ * write, because the Studio lifecycle API offers nothing to make it atomic
+ * with: `POST /package-drafts/{draftId}/content-versions` takes no request body
+ * (`HonuaStudioDraftsClient.createContentVersion`, and the pinned contract
+ * fixture `test/fixtures/studio-lifecycle/content-version-create.v1.json`) and
+ * `HonuaStudioRequestOptions` has no `ifMatch` — unlike its control-plane
+ * sibling `HonuaControlPlaneRequestOptions`. The one optimistic-concurrency
+ * primitive in the surface is the `generation` field on the
+ * `PUT /package-drafts/{draftId}` *body* (`StudioPackageDraftReplaceRequest`),
+ * which this route has no analogue for.
+ *
+ * So the command brackets the write instead of pretending the check was
+ * atomic: it reads the generation before, re-reads it after, and raises a
+ * `conflict` naming the version it created if the draft moved at any point.
+ * `generation` is documented to increment on every successful `PUT`
+ * (`StudioPackageDraft`), so no concurrent edit can slip through the bracket
+ * unseen. When honua-server grows a real precondition on this route, the
+ * bracket collapses into it and the second read goes away.
  *
  * @experimental
  * @module
@@ -148,6 +169,15 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
     required: ["sourceKind"],
     additionalProperties: false,
   },
+  validate(input) {
+    // JSON Schema cannot say "one of these two", and this has to run before the
+    // dry-run short circuit: a preview that accepts an import with no source
+    // would be a preview of a request the server never sees.
+    if (!input.sourceUrl && !input.connectionId) {
+      return [{ path: "", message: "one of `sourceUrl` or `connectionId` is required" }];
+    }
+    return [];
+  },
   plan(context) {
     const { input } = context;
     return {
@@ -162,18 +192,6 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
   },
   async execute(context) {
     const { input } = context;
-    if (!input.sourceUrl && !input.connectionId) {
-      throw new HonuaCommandError(
-        "validation",
-        this.id,
-        "import.create requires either `sourceUrl` or `connectionId`.",
-        {
-          correlationId: context.correlationId,
-          idempotencyKey: context.idempotencyKey,
-          issues: [{ path: "", message: "one of `sourceUrl` or `connectionId` is required" }],
-        },
-      );
-    }
     const result = await context.controlPlane.imports.create(
       {
         sourceKind: input.sourceKind,
@@ -292,9 +310,15 @@ export const mapPackagePublishCommand: HonuaCommand<MapPackagePublishInput, Honu
 export interface StudioDraftSaveVersionInput {
   readonly draftId: string;
   /**
-   * Last-seen draft `generation`. When supplied, the command re-reads the draft
-   * and fails with a `conflict` error if it moved — the optimistic-concurrency
-   * sequencing every transport would otherwise reimplement.
+   * Last-seen draft `generation`. When supplied, the command brackets the write
+   * with a generation read on each side and fails with a `conflict` error if
+   * the draft moved — the optimistic-concurrency sequencing every transport
+   * would otherwise reimplement.
+   *
+   * The check is *detected*, not *enforced*: the route accepts no precondition,
+   * so a concurrent edit surfaces as a loud conflict naming the version that
+   * was created rather than as a rejected write. See this module's
+   * "Where the concurrency check is bracketed, not atomic".
    */
   readonly generation?: number;
 }
@@ -342,9 +366,12 @@ export const studioDraftSaveVersionCommand: HonuaCommand<StudioDraftSaveVersionI
       ...(options.signal ? { signal: options.signal } : {}),
       ...(options.headers ? { headers: options.headers } : {}),
     };
+    // The command-owned key goes on last: the runtime already refuses a caller
+    // header that would replace it, and this keeps the value on the wire equal
+    // to the value the receipt records even if that guard is ever relaxed.
     const writeOptions = {
       ...readOptions,
-      headers: { "Idempotency-Key": context.idempotencyKey, ...headersToRecord(options.headers) },
+      headers: { ...headersToRecord(options.headers), "Idempotency-Key": context.idempotencyKey },
     };
 
     if (context.input.generation !== undefined) {
@@ -360,6 +387,25 @@ export const studioDraftSaveVersionCommand: HonuaCommand<StudioDraftSaveVersionI
     }
 
     const version = await studio.drafts.createContentVersion(context.input.draftId, writeOptions);
+
+    // The lifecycle API exposes no precondition on the content-version POST, so
+    // the pre-read alone leaves a window in which another editor's `PUT` lands
+    // between the check and the write. When the caller asked for concurrency
+    // protection, close the bracket: re-read and refuse to report a success we
+    // cannot vouch for. The created version is named so the caller can
+    // reconcile it rather than lose track of it.
+    if (context.input.generation !== undefined) {
+      const after = await studio.drafts.get(context.input.draftId, readOptions);
+      if (after.generation !== context.input.generation) {
+        throw new HonuaCommandError(
+          "conflict",
+          this.id,
+          `Studio draft ${context.input.draftId} moved from generation ${context.input.generation} to ${after.generation} while version ${version?.versionId ?? "(unknown)"} was being cut; reconcile that version, then reload and retry.`,
+          { correlationId: context.correlationId, idempotencyKey: context.idempotencyKey, statusCode: 409 },
+        );
+      }
+    }
+
     return {
       output: version,
       resourceRef: {

@@ -12,7 +12,8 @@
  *
  * Authorization is deliberately **not** modelled here beyond an echo. The
  * command layer carries no administrator credential of its own, refuses
- * caller-supplied authority headers (see `assertNoAuthorityOverride` in
+ * caller-supplied authority headers and the request-identity headers it derives
+ * itself (see `assertNoAuthorityOverride` and `assertNoCommandKeyOverride` in
  * `./runtime.js`), and stamps every receipt `authorization:
  * "server-enforced"`. A client cannot approve its own publication by choosing
  * a different transport because no transport can express approval at all —
@@ -28,6 +29,7 @@ import type { QueryMethod } from "../../core/types.js";
 import type { HonuaStudioLifecycleClient } from "../../studio/lifecycle-client.js";
 import type { HonuaControlPlaneClient } from "../client.js";
 import type { HonuaControlPlaneRequestOptions, HonuaEntityValidators, HonuaProblemDetails } from "../types.js";
+import type { HonuaCommandValidationIssue } from "./errors.js";
 
 /**
  * JSON-Schema subset used to describe a command's input.
@@ -183,8 +185,10 @@ export interface HonuaCommandContext<TInput> {
   readonly signal?: AbortSignal;
   /**
    * Request options for the underlying resource client, with `Idempotency-Key`
-   * (action commands only), `If-Match`, the caller's `AbortSignal`, and any
-   * non-authority headers already threaded.
+   * (action commands only), `If-Match`, the caller's `AbortSignal`, and the
+   * caller's remaining headers already threaded. The headers that reach here
+   * can carry neither an authority claim nor a command-owned key: both
+   * families are refused before `plan` runs.
    */
   requestOptions(overrides?: HonuaControlPlaneRequestOptions): HonuaControlPlaneRequestOptions;
 }
@@ -204,6 +208,13 @@ export interface HonuaCommand<TInput, TOutput> {
   /** Resource kind this command addresses; used for the receipt's `resourceRef`. */
   readonly resourceKind: string;
   readonly inputSchema: HonuaCommandJsonSchema;
+  /**
+   * Cross-field checks the JSON schema cannot express ("one of these two is
+   * required"). Called by the runtime after schema validation and **before**
+   * `plan`, so a dry run can never approve an input the real invocation would
+   * reject. Must be pure. Return an empty array when the input is valid.
+   */
+  validate?(input: TInput): readonly HonuaCommandValidationIssue[];
   /** Describe the request without issuing it. Must be pure and side-effect free. */
   plan(context: HonuaCommandContext<TInput>): HonuaCommandPlan;
   /** Issue the request. Never called during a dry run. */

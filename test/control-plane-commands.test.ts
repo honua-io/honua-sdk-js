@@ -5,6 +5,7 @@ import { run } from "../src/cli/main.js";
 import {
   HONUA_COMMANDS,
   HONUA_COMMAND_IDS,
+  HONUA_COMMAND_OWNED_HEADERS,
   HONUA_COMMAND_RESERVED_HEADERS,
   HonuaCommandError,
   type HonuaCommandReceipt,
@@ -214,6 +215,33 @@ describe("command error taxonomy", () => {
     });
   });
 
+  it("rejects a cross-field violation before the dry-run short circuit, not inside execute", async () => {
+    // A dry run that approves an input the real invocation rejects is worse
+    // than no dry run: `import.create` needs a source, and the schema alone
+    // cannot say "one of these two".
+    for (const dryRun of [true, false]) {
+      const { requests, fetchFn } = recorder();
+      const error = await runtimeFor(fetchFn)
+        .execute(importCreateCommand, { sourceKind: "geojson" }, { transport: "mcp", dryRun })
+        .catch((thrown: unknown) => thrown);
+      expect(error, `dryRun=${dryRun}`).toBeInstanceOf(HonuaCommandError);
+      expect((error as HonuaCommandError).kind, `dryRun=${dryRun}`).toBe("validation");
+      expect(
+        (error as HonuaCommandError).issues?.map((issue) => issue.message),
+        `dryRun=${dryRun}`,
+      ).toEqual(["one of `sourceUrl` or `connectionId` is required"]);
+      expect(requests, `dryRun=${dryRun}`).toHaveLength(0);
+    }
+
+    // The same input with a source previews cleanly.
+    const preview = await runtimeFor(recorder().fetchFn).execute(
+      importCreateCommand,
+      { sourceKind: "geojson", connectionId: "conn-1" },
+      { transport: "mcp", dryRun: true },
+    );
+    expect(preview.status).toBe("dry-run");
+  });
+
   it("classifies HTTP failures into the shared taxonomy", async () => {
     const cases = [
       { status: 403, kind: "authorization" },
@@ -276,10 +304,41 @@ describe("command error taxonomy", () => {
     );
     expect(receipt.status).toBe("ok");
     expect(receipt.resourceRef).toEqual({ type: "studio-content-version", id: "ver-1" });
-    expect(requests.at(-1)?.path).toBe("/api/v1/studio/package-drafts/draft-1/content-versions");
-    // The idempotency key rides the mutating call, not the concurrency read.
-    expect(requests.at(-1)?.headers["idempotency-key"]).toBe(receipt.idempotencyKey);
-    expect(requests.at(-2)?.headers["idempotency-key"]).toBeUndefined();
+    // Read, write, then re-read to close the concurrency bracket.
+    expect(requests.map((request) => request.method)).toEqual(["GET", "GET", "POST", "GET"]);
+    const write = requests.find((request) => request.method === "POST");
+    expect(write?.path).toBe("/api/v1/studio/package-drafts/draft-1/content-versions");
+    // The idempotency key rides the mutating call, not the concurrency reads.
+    expect(write?.headers["idempotency-key"]).toBe(receipt.idempotencyKey);
+    for (const read of requests.filter((request) => request.method === "GET")) {
+      expect(read.headers["idempotency-key"]).toBeUndefined();
+    }
+  });
+
+  it("fails closed when the draft moves between the generation read and the version write", async () => {
+    // The Studio lifecycle API exposes no precondition on
+    // `POST /package-drafts/{draftId}/content-versions`, so the command
+    // brackets the write and refuses to report an unverified success.
+    let generation = 9;
+    const { requests, fetchFn } = recorder((request) => {
+      if (request.method !== "GET") {
+        // Another editor lands a `PUT` while the version is being cut.
+        generation = 10;
+        return { body: { success: true, data: { versionId: "ver-2", itemId: "item-1", versionNumber: 4 } } };
+      }
+      return { body: { success: true, data: { draftId: "draft-1", generation } } };
+    });
+
+    const conflict = await runtimeFor(fetchFn, { studio: true })
+      .execute(studioDraftSaveVersionCommand, { draftId: "draft-1", generation: 9 }, { transport: "studio" })
+      .catch((thrown: unknown) => thrown);
+
+    expect(conflict).toBeInstanceOf(HonuaCommandError);
+    expect((conflict as HonuaCommandError).kind).toBe("conflict");
+    expect((conflict as HonuaCommandError).retryable).toBe(true);
+    // The created version is named so the caller can reconcile it.
+    expect((conflict as HonuaCommandError).message).toContain("ver-2");
+    expect(requests.map((request) => request.method)).toEqual(["GET", "POST", "GET"]);
   });
 
   it("reports a missing Studio client as a transport failure rather than reaching for another credential", async () => {
@@ -437,6 +496,59 @@ describe("no shared administrator credential and no client-side authorization by
     //    server's, never the caller's.
     const receipt = await runtimeFor(recorder().fetchFn).execute(mapPackagePublishCommand, input, invocation);
     expect(receipt.authorization).toBe("server-enforced");
+  });
+
+  it("refuses caller headers that would replace a command-owned key, in every casing", async () => {
+    // `Idempotency-Key` and `If-Match` are derived by the runtime and recorded
+    // on the receipt. A raw header carrying either one would put a different
+    // value on the wire than the receipt and the invocation record claim,
+    // breaking the retry and audit guarantees the receipt exists to provide.
+    for (const transport of ["cli", "mcp", "studio", "sdk"] as const) {
+      for (const header of ["Idempotency-Key", "idempotency-key", "IDEMPOTENCY-KEY", "If-Match", "iF-MaTcH"]) {
+        const { requests, fetchFn } = recorder();
+        const error = await runtimeFor(fetchFn)
+          .execute(
+            mapPackagePublishCommand,
+            { mapId: "map-ops", package: MAP_PACKAGE },
+            { transport, headers: { [header]: "forged" } },
+          )
+          .catch((thrown: unknown) => thrown);
+        expect(error, `${transport} / ${header}`).toBeInstanceOf(HonuaCommandError);
+        expect((error as HonuaCommandError).kind, `${transport} / ${header}`).toBe("validation");
+        expect(requests, `${transport} / ${header}`).toHaveLength(0);
+      }
+    }
+    expect(HONUA_COMMAND_OWNED_HEADERS).toEqual(["idempotency-key", "if-match"]);
+  });
+
+  it("keeps the command-owned key on the Studio write path too", async () => {
+    const { requests, fetchFn } = recorder((request) =>
+      request.method === "GET"
+        ? { body: { success: true, data: { draftId: "draft-1", generation: 9 } } }
+        : { body: { success: true, data: { versionId: "ver-1", itemId: "item-1", versionNumber: 3 } } },
+    );
+    const runtime = runtimeFor(fetchFn, { studio: true });
+
+    const error = await runtime
+      .execute(
+        studioDraftSaveVersionCommand,
+        { draftId: "draft-1" },
+        { transport: "studio", headers: { "Idempotency-Key": "forged" } },
+      )
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(HonuaCommandError);
+    expect((error as HonuaCommandError).kind).toBe("validation");
+    expect(requests).toHaveLength(0);
+
+    // And the key that does travel is the one on the receipt.
+    const receipt = await runtime.execute(
+      studioDraftSaveVersionCommand,
+      { draftId: "draft-1" },
+      { transport: "studio", headers: { "X-Trace-Id": "trace-1" } },
+    );
+    const write = requests.find((request) => request.method === "POST");
+    expect(write?.headers["idempotency-key"]).toBe(receipt.idempotencyKey);
+    expect(write?.headers["x-trace-id"]).toBe("trace-1");
   });
 
   it("never places the claimed identity or a second credential on the wire", async () => {
