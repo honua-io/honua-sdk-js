@@ -176,7 +176,9 @@ describe("the portable map artifact never asserts where the map is published", (
       forged.fingerprint = mapPackageFingerprint(forged.mapPackage as unknown as HonuaMapPackage);
 
       expect(() => importMapPackage(forged), path).toThrow(HonuaMapPackageError);
-      expect(() => importMapPackage(forged), path).toThrow(new RegExp(path.replace(/[.[\]]/g, "\\$&"), "i"));
+      expect(() => importMapPackage(forged), path).toThrow(
+        new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+      );
       expect(() => importMapPackage(forged), path).not.toThrow(/fingerprint/i);
     }
   });
