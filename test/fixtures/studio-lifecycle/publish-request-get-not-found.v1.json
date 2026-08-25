@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/content-items/item-parcels-1/versions/version-parcels-1/publish-requests/publish-missing"
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "type": "https://honua.io/problems/studio",
+      "title": "Publication request not found",
+      "status": 404,
+      "detail": "Publication request \"publish-missing\" was not found for version \"version-parcels-1\".",
+      "code": "studio.publish-request.not-found"
+    }
+  }
+}

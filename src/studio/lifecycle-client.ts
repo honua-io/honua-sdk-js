@@ -17,6 +17,17 @@
  * `./lifecycle-errors.js` for the RFC 7807 problem-detail taxonomy and the
  * `generation-conflict` discriminant.
  *
+ * ## Publication proposals
+ *
+ * {@link HonuaStudioPublicationRequestsClient} submits an already-saved
+ * immutable version for publication, reads the resulting proposal, and walks
+ * it to a final state with a bounded, cancellable
+ * {@link HonuaStudioPublicationRequestsClient.poll}. Only `Active` yields a
+ * final publication URL; `Rejected` and `Failed` are terminal without one,
+ * and a status this release does not recognize is treated as neither.
+ * Approval is deliberately **not** part of this surface — see that class's
+ * doc comment.
+ *
  * ## Enumeration gap
  *
  * The lifecycle API doc is explicit that **there is no endpoint to enumerate
@@ -53,6 +64,7 @@ import type {
   StudioPackageDraftReplaceRequest,
   StudioPackageFamilyCapabilities,
   StudioPreviewPlan,
+  StudioPublicationLifecycleState,
   StudioPublicationRequest,
   StudioPublicationRequestInput,
   StudioReopenVersionRequest,
@@ -62,6 +74,12 @@ import type {
   StudioVersionComparison,
   StudioVersionComparisonRequest,
 } from "./lifecycle-types.js";
+import {
+  isStudioPublicationActive,
+  isStudioPublicationTerminal,
+  normalizeStudioPublicationStatus,
+  studioPublicationUrl,
+} from "./publication-status.js";
 
 /** Default base path for the Studio package lifecycle API. */
 export const HONUA_STUDIO_LIFECYCLE_BASE_PATH = "/api/v1/studio" as const;
@@ -318,7 +336,109 @@ export class HonuaStudioContentVersionsClient {
   }
 }
 
-/** `/content-items/{itemId}/versions/{versionId}/publish-requests`. */
+/** Default delay between {@link HonuaStudioPublicationRequestsClient.poll} attempts. */
+export const HONUA_STUDIO_PUBLICATION_POLL_INTERVAL_MS = 1_000;
+
+/** Default attempt bound for {@link HonuaStudioPublicationRequestsClient.poll}. */
+export const HONUA_STUDIO_PUBLICATION_POLL_MAX_ATTEMPTS = 30;
+
+/**
+ * Body keys a publication *submission* may never carry. Approval is a
+ * separate principal acting through the canonical Admin API/CLI, so the SDK
+ * refuses to serialize a submission that tries to assert its own decision,
+ * override policy, or seed a terminal status — see
+ * {@link HonuaStudioPublicationRequestsClient} for why this is enforced
+ * client-side as well as server-side.
+ *
+ * Matching is on the exact key (case-insensitively); an additive server field
+ * that merely *mentions* approval (`approvalPolicyId`, say) is unaffected.
+ */
+const REJECTED_SUBMISSION_KEYS: ReadonlySet<string> = new Set([
+  "status",
+  "state",
+  "approve",
+  "approved",
+  "approval",
+  "approvedat",
+  "approvedby",
+  "autoapprove",
+  "selfapprove",
+  "skipapproval",
+  "bypassapproval",
+  "bypasspolicy",
+  "policyoverride",
+  "overridepolicy",
+  "force",
+]);
+
+/** Per-call options for {@link HonuaStudioPublicationRequestsClient.poll}. */
+export interface HonuaStudioPublicationPollOptions extends HonuaStudioRequestOptions {
+  /**
+   * Delay between attempts, in milliseconds. Defaults to
+   * {@link HONUA_STUDIO_PUBLICATION_POLL_INTERVAL_MS}. `0` polls back-to-back
+   * with no wait, which is what tests want and production code does not.
+   */
+  readonly intervalMs?: number;
+  /**
+   * Hard upper bound on the number of `GET`s, defaulting to
+   * {@link HONUA_STUDIO_PUBLICATION_POLL_MAX_ATTEMPTS}. The poll always stops:
+   * there is no "wait forever" mode, and no option that produces one.
+   */
+  readonly maxAttempts?: number;
+  /**
+   * Optional wall-clock bound, in milliseconds, checked before each attempt
+   * and before each wait. Whichever of `maxAttempts`/`timeoutMs` is reached
+   * first ends the poll.
+   */
+  readonly timeoutMs?: number;
+  /** Invoked with every observed proposal, including the last one. */
+  readonly onStatus?: (request: StudioPublicationRequest, state: StudioPublicationLifecycleState | undefined) => void;
+}
+
+/**
+ * The outcome of a bounded {@link HonuaStudioPublicationRequestsClient.poll}.
+ *
+ * `terminal: false` means the bound was reached before the proposal settled
+ * (`exhausted` says which bound) — it is *not* a failure and the proposal may
+ * still be progressing server-side; poll again with the same `requestId`.
+ */
+export interface StudioPublicationPollOutcome {
+  /** The last proposal observed, verbatim — every joined identifier preserved. */
+  readonly request: StudioPublicationRequest;
+  /** The last status normalized, or `undefined` when this release does not recognize it. */
+  readonly state: StudioPublicationLifecycleState | undefined;
+  /** True only for `Active`, `Rejected` and `Failed`. An unrecognized state is never terminal. */
+  readonly terminal: boolean;
+  /** True only for `Active`. `Rejected`/`Failed` are terminal but not successful. */
+  readonly active: boolean;
+  /** The final publication URL — present **only** when `active` is true. */
+  readonly publicationUrl: string | undefined;
+  /** How many `GET`s were issued. */
+  readonly attempts: number;
+  /** Which bound ended a non-terminal poll, if any. */
+  readonly exhausted: "max-attempts" | "timeout" | undefined;
+}
+
+/**
+ * `/content-items/{itemId}/versions/{versionId}/publish-requests` — submit an
+ * already-saved immutable version for publication and walk the resulting
+ * proposal to a final state.
+ *
+ * ## Approval is a different principal
+ *
+ * This client can **create**, **get** and **poll** a publication proposal. It
+ * deliberately exposes no approve, authorize, force, or policy-override
+ * capability, and {@link create} refuses to serialize a submission body that
+ * tries to smuggle one (see {@link REJECTED_SUBMISSION_KEYS}). A proposer
+ * therefore cannot approve their own publication, or bypass policy, through
+ * any method on this class — approval happens through the canonical Admin
+ * API/CLI acting as a separate principal, and the server enforces the same
+ * rule with a `403` (`code: "forbidden"`) if a proposer tries anyway.
+ *
+ * {@link HonuaStudioLifecycleClient.raw} is a generic HTTP escape hatch with
+ * no Studio approval semantics of its own; it reaches whatever the server
+ * exposes and is subject to exactly the same server-side authorization.
+ */
 export class HonuaStudioPublicationRequestsClient {
   readonly #lifecycle: HonuaStudioLifecycleClient;
 
@@ -328,22 +448,194 @@ export class HonuaStudioPublicationRequestsClient {
 
   /**
    * `POST /content-items/{itemId}/versions/{versionId}/publish-requests` —
-   * persist a publication request and move the published pointer when
-   * validation permits.
+   * submit an already-saved immutable version for publication.
+   *
+   * The submission carries only the identity of what is being published
+   * (`itemId`, `versionId`, the optional `contentHash` pin), the requested
+   * route/visibility `intent`, and an optional `idempotencyKey` so a replayed
+   * submit resolves to the same proposal. It never carries a decision:
+   * an approval, policy-override, or `status` key in `request` throws a
+   * {@link HonuaStudioError} with `code: "validation"` **before** anything is
+   * sent.
+   *
+   * The response carries the joined `operationInstanceId`, `proposalId`,
+   * `proposalUri`, `auditId` and `correlationId` identifiers verbatim.
    */
-  public create(
+  // `async` so the client-side approval guard below surfaces as a rejected
+  // promise, exactly like every server-side failure on this client, rather
+  // than as a synchronous throw callers would have to catch separately.
+  public async create(
     itemId: string,
     versionId: string,
     request: StudioPublicationRequestInput = {},
     options: HonuaStudioRequestOptions = {},
   ): Promise<StudioPublicationRequest> {
+    assertNoApprovalFields(request);
+    return this.#lifecycle.request("POST", `${this.#path(itemId, versionId)}/publish-requests`, request, options);
+  }
+
+  /**
+   * `GET /content-items/{itemId}/versions/{versionId}/publish-requests/{requestId}`
+   * — read one publication proposal's current status and joined identifiers.
+   *
+   * A proposal that does not exist, or is not reachable from this
+   * `itemId`/`versionId` pair, throws `code: "not-found"`; one outside the
+   * caller's owner/tenant scope throws `code: "forbidden"`.
+   */
+  public get(
+    itemId: string,
+    versionId: string,
+    requestId: string,
+    options: HonuaStudioRequestOptions = {},
+  ): Promise<StudioPublicationRequest> {
     return this.#lifecycle.request(
-      "POST",
-      `/content-items/${encodeURIComponent(itemId)}/versions/${encodeURIComponent(versionId)}/publish-requests`,
-      request,
+      "GET",
+      `${this.#path(itemId, versionId)}/publish-requests/${encodeURIComponent(requestId)}`,
+      undefined,
       options,
     );
   }
+
+  /**
+   * Poll one publication proposal until it reaches a terminal state or a
+   * bound is reached, whichever comes first.
+   *
+   * - **Bounded by construction.** Every poll stops after at most
+   *   `maxAttempts` `GET`s (and `timeoutMs`, when given). There is no
+   *   unbounded mode.
+   * - **A final publication URL only at `Active`.** `Rejected` and `Failed`
+   *   end the poll with `terminal: true`, `active: false` and no URL.
+   * - **An unrecognized status is never final.** A state this release does
+   *   not know keeps the poll waiting until a bound is hit, and comes back as
+   *   `state: undefined, terminal: false, active: false`.
+   * - **Cancellable.** `options.signal` aborts the in-flight request and the
+   *   wait between attempts; the returned promise rejects with the signal's
+   *   abort reason.
+   * - **Standard error handling.** Every non-2xx surfaces as
+   *   {@link HonuaStudioError} with its RFC 7807 problem details, exactly as
+   *   for every other method on this client.
+   */
+  public async poll(
+    itemId: string,
+    versionId: string,
+    requestId: string,
+    options: HonuaStudioPublicationPollOptions = {},
+  ): Promise<StudioPublicationPollOutcome> {
+    const maxAttempts = normalizePollBound(options.maxAttempts, HONUA_STUDIO_PUBLICATION_POLL_MAX_ATTEMPTS);
+    const intervalMs = normalizeInterval(options.intervalMs);
+    const deadline = options.timeoutMs === undefined ? undefined : Date.now() + normalizeInterval(options.timeoutMs);
+    const requestOptions: HonuaStudioRequestOptions = { signal: options.signal, headers: options.headers };
+
+    // Bounded by construction: the loop counter is the only thing that drives
+    // it, `maxAttempts` is validated to be a finite integer >= 1, and every
+    // path out of the body either returns or advances the counter.
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      throwIfAborted(options.signal);
+      const request = await this.get(itemId, versionId, requestId, requestOptions);
+      const state = normalizeStudioPublicationStatus(request.status);
+      options.onStatus?.(request, state);
+      if (isStudioPublicationTerminal(request.status)) {
+        return toPollOutcome(request, state, attempt, undefined);
+      }
+      if (attempt >= maxAttempts) {
+        return toPollOutcome(request, state, attempt, "max-attempts");
+      }
+      if (deadline !== undefined && Date.now() >= deadline) {
+        return toPollOutcome(request, state, attempt, "timeout");
+      }
+      await delay(intervalMs, options.signal);
+    }
+
+    // Unreachable while `maxAttempts >= 1`; kept so the bound is enforced by
+    // the type system rather than by a comment.
+    throw new TypeError(`maxAttempts must be an integer >= 1, received ${String(maxAttempts)}.`);
+  }
+
+  #path(itemId: string, versionId: string): string {
+    return `/content-items/${encodeURIComponent(itemId)}/versions/${encodeURIComponent(versionId)}`;
+  }
+}
+
+function toPollOutcome(
+  request: StudioPublicationRequest,
+  state: StudioPublicationLifecycleState | undefined,
+  attempts: number,
+  exhausted: "max-attempts" | "timeout" | undefined,
+): StudioPublicationPollOutcome {
+  return {
+    request,
+    state,
+    terminal: isStudioPublicationTerminal(request.status),
+    active: isStudioPublicationActive(request.status),
+    publicationUrl: studioPublicationUrl(request),
+    attempts,
+    exhausted,
+  };
+}
+
+/**
+ * Throw a client-side `validation` {@link HonuaStudioError} — nothing is sent
+ * — when a submission body carries an approval or policy-override key.
+ */
+function assertNoApprovalFields(request: StudioPublicationRequestInput): void {
+  const offending = Object.keys(request).filter((key) => REJECTED_SUBMISSION_KEYS.has(key.toLowerCase()));
+  if (offending.length === 0) return;
+  const rule = [
+    "the proposer cannot approve their own publication or override policy.",
+    "Approval is a separate principal acting through the Admin API/CLI.",
+  ].join(" ");
+  throw new HonuaStudioError(
+    "validation",
+    400,
+    `A publication submission must not carry ${offending.join(", ")}: ${rule}`,
+  );
+}
+
+function normalizePollBound(value: number | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isInteger(value) || value < 1) {
+    throw new TypeError(`maxAttempts must be an integer >= 1, received ${String(value)}.`);
+  }
+  return value;
+}
+
+function normalizeInterval(value: number | undefined): number {
+  if (value === undefined) return HONUA_STUDIO_PUBLICATION_POLL_INTERVAL_MS;
+  if (!Number.isFinite(value) || value < 0) {
+    throw new TypeError(`Poll interval and timeout must be finite and >= 0, received ${String(value)}.`);
+  }
+  return value;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw abortReason(signal);
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException("The operation was aborted.", "AbortError");
+}
+
+/** `setTimeout` that settles early — by rejecting with the abort reason — when `signal` aborts. */
+function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  if (ms <= 0) {
+    throwIfAborted(signal);
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortReason(signal));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(abortReason(signal as AbortSignal));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 /** `/content-items/{itemId}/rollback-requests`. */

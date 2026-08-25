@@ -21,6 +21,13 @@
  * (`honua-server#3003`) and how the client absorbs it without a breaking
  * change.
  *
+ * Publication proposals are submitted, read and polled to a final state
+ * through `publicationRequests` — `create`, `get` and a bounded, cancellable
+ * `poll` that returns a final publication URL only at `Active`. This surface
+ * carries **no** approve/authorize/override capability by design: approval is
+ * a separate principal acting through the canonical Admin API/CLI. See
+ * `./publication-status.js` for the state machine.
+ *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract
  *   — the surface may change in any minor release prior to `1.0.0`, and the
  *   stub families may change again when their server contracts ship.
@@ -158,6 +165,14 @@ export {
 } from "./lifecycle-errors.js";
 export type { HonuaStudioProblemDetails, HonuaStudioProblemKind } from "./lifecycle-errors.js";
 
+export {
+  STUDIO_PUBLICATION_LIFECYCLE_STATES,
+  isStudioPublicationActive,
+  isStudioPublicationTerminal,
+  normalizeStudioPublicationStatus,
+  studioPublicationUrl,
+} from "./publication-status.js";
+
 export type {
   StudioApiResponse,
   StudioBindingRef,
@@ -176,7 +191,9 @@ export type {
   StudioPersistenceMode,
   StudioPreviewPlan,
   StudioProvenanceRef,
+  StudioPublicationIdentifiers,
   StudioPublicationIntent,
+  StudioPublicationLifecycleState,
   StudioPublicationRequest,
   StudioPublicationRequestInput,
   StudioPublicationRequestStatus,
@@ -194,6 +211,8 @@ export type {
 
 export {
   HONUA_STUDIO_LIFECYCLE_BASE_PATH,
+  HONUA_STUDIO_PUBLICATION_POLL_INTERVAL_MS,
+  HONUA_STUDIO_PUBLICATION_POLL_MAX_ATTEMPTS,
   HonuaStudioContentVersionsClient,
   HonuaStudioDraftsClient,
   HonuaStudioLifecycleClient,
@@ -204,6 +223,8 @@ export {
 } from "./lifecycle-client.js";
 export type {
   HonuaStudioLifecycleClientOptions,
+  HonuaStudioPublicationPollOptions,
   HonuaStudioRawRequest,
   HonuaStudioRequestOptions,
+  StudioPublicationPollOutcome,
 } from "./lifecycle-client.js";
