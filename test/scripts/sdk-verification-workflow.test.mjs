@@ -101,8 +101,8 @@ function workflowCommands(workflow) {
   return found;
 }
 
-const CONSUMER_JOBS = ["verify-core", "verify-package", "verify-examples", "mcp", "browser"];
-const LONG_JOBS = ["quickstart-budget", "build", ...CONSUMER_JOBS];
+const CONSUMER_JOBS = ["verify-core", "unit-coverage", "verify-package", "verify-examples", "mcp", "browser"];
+const LONG_JOBS = ["quickstart-budget", "build", "coverage-gate", ...CONSUMER_JOBS];
 
 describe("the SDK verification graph produces one build and consumes it", () => {
   it("builds the SDK in exactly one job", () => {
@@ -480,9 +480,32 @@ describe("exact-head orchestration and the rollback switch", () => {
 });
 
 describe("the graph preserves the coverage ci.yml enforces today", () => {
+  it("partitions unit specs and applies one threshold verdict to the merged reports", () => {
+    assert.deepEqual(graph.jobs["unit-coverage"].strategy.matrix.shard, [1, 2, 3, 4]);
+    assert.equal(graph.jobs["unit-coverage"].strategy["fail-fast"], false);
+    const shardScripts = steps(graph, "unit-coverage").map(stepScript).join("\n");
+    assert.match(shardScripts, /unit-test-shards\.mjs run/u);
+    assert.match(
+      fs.readFileSync(path.join(root, "scripts/unit-test-shards.mjs"), "utf8"),
+      /"--coverage", "--reporter=blob"/u,
+    );
+    const mergeScripts = steps(graph, "coverage-gate").map(stepScript).join("\n");
+    assert.match(mergeScripts, /--merge-reports=.*--coverage/u);
+    const download = steps(graph, "coverage-gate").find((step) => String(step.uses ?? "").includes("download-artifact"));
+    assert.equal(download.with.pattern, "unit-coverage-shard-*");
+    assert.equal(download.with["merge-multiple"], true);
+    assert.ok(graph.jobs["coverage-gate"].needs.includes("unit-coverage"));
+    assert.ok(graph.jobs.verified.needs.includes("coverage-gate"));
+    assert.match(steps(graph, "admission").map(stepScript).join("\n"), /unit:shards:check/u);
+  });
+
   it("runs every verification command the JS SDK and MCP SDK jobs run", () => {
     const authoritative = new Set([...jobCommands(ci, "js-sdk"), ...jobCommands(ci, "mcp-sdk")]);
     const reproduced = workflowCommands(graph);
+    // The monolithic coverage script is intentionally replaced by the guarded
+    // four-blob + one-merge contract asserted above. All other commands must
+    // remain literal graph gates.
+    authoritative.delete("npm run test:coverage:prepared");
     const lost = [...authoritative].filter((command) => !reproduced.has(command)).sort();
     assert.deepEqual(
       lost,
