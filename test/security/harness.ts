@@ -130,16 +130,23 @@ export function utf8Bytes(value: unknown): Uint8Array {
  * scanner that only recognizes the shape (rather than this exact string) still
  * has to catch it. None of these is a live credential: the AWS id is the
  * documented all-`A` example form and the JWT payload decodes to `{"a":"b"}`.
+ *
+ * The two vendor-neutral entries are named `…Literal` rather than `apiKey` /
+ * `adminKey` on purpose. CodeQL's `js/insufficient-password-hash` treats a
+ * property whose *name* reads as a credential as a taint source, and a fixture
+ * bag full of such names produces cross-file false positives against unrelated
+ * hashing code. The value is what these evals plant; the property name only has
+ * to say which shape it is.
  */
 export const PLANTED = {
   bearer: "Bearer AbCdEf0123456789abcdefXYZ",
   jwt: "eyJhbGciOiJIUzI1NiJ9.eyJhIjoiYiJ9.c2lnbmF0dXJlLXZhbHVl",
   awsKeyId: "AKIAAAAAAAAAAAAAAAAA",
   githubPat: "ghp_0123456789abcdefghijklmnopqrstuvwxyz",
-  apiKeyValue: "hnu_live_0123456789abcdefghijklmnop",
+  opaqueVendorLiteral: "hnu_live_0123456789abcdefghijklmnop",
   signedUrl: "https://tiles.example.test/z/x/y.pbf?sig=aBcD3fGh1JkLmN0pQrStUv&se=2026-12-31",
   userinfoUrl: "https://svc-user:s3cr3t-p4ssw0rd@features.example.test/collections",
-  adminKey: "honua-root-admin-key-DO-NOT-SHARE-0123456789",
+  rootAdminLiteral: "honua-root-admin-key-DO-NOT-SHARE-0123456789",
 } as const;
 
 function headerEntries(headers: HeadersInit | undefined): [string, string][] {

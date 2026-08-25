@@ -275,7 +275,7 @@ describe("secret disclosure :: command receipts", () => {
         "--base-url",
         "https://example.test",
         "--api-key",
-        PLANTED.apiKeyValue,
+        PLANTED.opaqueVendorLiteral,
       ]);
       expect(exitCode).toBe(0);
     } finally {
@@ -285,7 +285,7 @@ describe("secret disclosure :: command receipts", () => {
     const stdout = printed.join("");
     expect(stdout.length).toBeGreaterThan(0);
     // The credential that authorized the call is never echoed back to the terminal.
-    expect(stdout).not.toContain(PLANTED.apiKeyValue);
+    expect(stdout).not.toContain(PLANTED.opaqueVendorLiteral);
     assertCredentialFreeExportText(stdout, "honua map publish --json stdout");
   });
 
@@ -323,8 +323,8 @@ describe("secret disclosure :: exported map artifacts", () => {
           protocol: "ogc_features",
           locator: {
             url: PLANTED.signedUrl,
-            headers: { Authorization: PLANTED.bearer, "X-Api-Key": PLANTED.apiKeyValue },
-            apiKey: PLANTED.apiKeyValue,
+            headers: { Authorization: PLANTED.bearer, "X-Api-Key": PLANTED.opaqueVendorLiteral },
+            apiKey: PLANTED.opaqueVendorLiteral,
           },
           attribution: `Feed key ${PLANTED.githubPat}`,
         },
@@ -342,7 +342,7 @@ describe("secret disclosure :: exported map artifacts", () => {
     const serialized = JSON.stringify(envelope);
 
     for (const [name, secret] of Object.entries(PLANTED)) {
-      if (name === "adminKey") continue; // not present in this package
+      if (name === "rootAdminLiteral") continue; // not present in this package
       expect(serialized, `${name} survived the export`).not.toContain(secret);
     }
     // Two independent scans of the finished artifact: as text, and as the bytes
@@ -425,8 +425,8 @@ describe("secret disclosure :: the shared credential recognizer", () => {
     // layers, and the other two are what actually catch it — the labelled
     // `name=value` scan and the sensitive-property-name refusal that the export
     // pipeline applies to `apiKey`, `Authorization`, and friends.
-    expect(containsCredentialMaterial(PLANTED.apiKeyValue)).toBe(false);
-    expect(containsCredentialMaterial(`api_key=${PLANTED.apiKeyValue}`)).toBe(true);
+    expect(containsCredentialMaterial(PLANTED.opaqueVendorLiteral)).toBe(false);
+    expect(containsCredentialMaterial(`api_key=${PLANTED.opaqueVendorLiteral}`)).toBe(true);
     for (const key of ["apiKey", "X-API-KEY", "refresh_token", "sessionCookie", "clientSecret"]) {
       expect(isSensitiveExportKey(key), `${key} must be refused as a property name`).toBe(true);
     }
@@ -442,8 +442,8 @@ describe("secret disclosure :: the shared credential recognizer", () => {
     for (const key of ["adminKey", "admin_key", "ADMIN-KEY", "accessKey", "masterKey", "rootKey", "signingKey"]) {
       expect(isSensitiveExportKey(key), `${key} must be refused as a property name`).toBe(true);
     }
-    expect(containsCredentialMaterial(`adminKey=${PLANTED.adminKey}`)).toBe(true);
-    expect(containsCredentialMaterial(`admin_key: ${PLANTED.adminKey}`)).toBe(true);
+    expect(containsCredentialMaterial(`adminKey=${PLANTED.rootAdminLiteral}`)).toBe(true);
+    expect(containsCredentialMaterial(`admin_key: ${PLANTED.rootAdminLiteral}`)).toBe(true);
   });
 
   it("still exports the ordinary *Key identifiers a real map package depends on", () => {
@@ -490,10 +490,10 @@ describe("secret disclosure :: the shared credential recognizer", () => {
     const { headers, redactions } = sanitizeHonuaExportHeaders({
       Accept: "application/json",
       Authorization: PLANTED.bearer,
-      "X-Acme-Session": PLANTED.apiKeyValue,
+      "X-Acme-Session": PLANTED.opaqueVendorLiteral,
     });
     expect(JSON.stringify(headers)).not.toContain(PLANTED.bearer);
-    expect(JSON.stringify(headers)).not.toContain(PLANTED.apiKeyValue);
+    expect(JSON.stringify(headers)).not.toContain(PLANTED.opaqueVendorLiteral);
     expect(redactions.length).toBeGreaterThan(0);
   });
 });

@@ -94,14 +94,14 @@ describe("shared-admin fallback :: credential resolution", () => {
     // root key in at all.
     const env = await configWithAdminKey({
       baseUrl: BASE_URL,
-      profiles: { ops: { baseUrl: BASE_URL, adminKey: PLANTED.adminKey } },
+      profiles: { ops: { baseUrl: BASE_URL, adminKey: PLANTED.rootAdminLiteral } },
     });
-    env.HONUA_ADMIN_KEY = PLANTED.adminKey;
+    env.HONUA_ADMIN_KEY = PLANTED.rootAdminLiteral;
 
     for (const profile of [undefined, "ops"]) {
       const resolved = resolveConnection({ env, ...(profile ? { profile } : {}) });
       expect(resolved.apiKey, `profile=${profile ?? "(none)"} must resolve no credential`).toBeUndefined();
-      expect(JSON.stringify(resolved)).not.toContain(PLANTED.adminKey);
+      expect(JSON.stringify(resolved)).not.toContain(PLANTED.rootAdminLiteral);
       expect(Object.keys(resolved)).not.toContain("adminKey");
     }
   });
@@ -111,9 +111,9 @@ describe("shared-admin fallback :: credential resolution", () => {
     // the more powerful one "because it will definitely work".
     const env = await configWithAdminKey({
       baseUrl: BASE_URL,
-      profiles: { ops: { baseUrl: BASE_URL, apiKey: SCOPED_KEY, adminKey: PLANTED.adminKey } },
+      profiles: { ops: { baseUrl: BASE_URL, apiKey: SCOPED_KEY, adminKey: PLANTED.rootAdminLiteral } },
     });
-    env.HONUA_ADMIN_KEY = PLANTED.adminKey;
+    env.HONUA_ADMIN_KEY = PLANTED.rootAdminLiteral;
     const resolved = resolveConnection({ env, profile: "ops" });
     expect(resolved.apiKey).toBe(SCOPED_KEY);
   });
@@ -125,8 +125,8 @@ describe("shared-admin fallback :: credential resolution", () => {
     // it falls back DOWN to the caller's scoped key, which is a privilege
     // reduction. The forbidden direction is an ordinary verb reaching UP.
     const withRoot = await configWithAdminKey({ baseUrl: BASE_URL });
-    withRoot.HONUA_ADMIN_KEY = PLANTED.adminKey;
-    expect(resolveAdminConnection({ env: withRoot }).adminKey).toBe(PLANTED.adminKey);
+    withRoot.HONUA_ADMIN_KEY = PLANTED.rootAdminLiteral;
+    expect(resolveAdminConnection({ env: withRoot }).adminKey).toBe(PLANTED.rootAdminLiteral);
 
     const withoutRoot = await configWithAdminKey({ baseUrl: BASE_URL, apiKey: SCOPED_KEY });
     expect(resolveAdminConnection({ env: withoutRoot }).adminKey).toBe(SCOPED_KEY);
@@ -146,9 +146,9 @@ describe("shared-admin fallback :: the CLI's client factories", () => {
     // a command list that the next feature will make stale.
     const env = await configWithAdminKey({
       baseUrl: BASE_URL,
-      profiles: { ops: { baseUrl: BASE_URL, adminKey: PLANTED.adminKey } },
+      profiles: { ops: { baseUrl: BASE_URL, adminKey: PLANTED.rootAdminLiteral } },
     });
-    vi.stubEnv("HONUA_ADMIN_KEY", PLANTED.adminKey);
+    vi.stubEnv("HONUA_ADMIN_KEY", PLANTED.rootAdminLiteral);
     vi.stubEnv("HONUA_CONFIG_HOME", env.HONUA_CONFIG_HOME as string);
     vi.stubEnv("HONUA_API_KEY", "");
 
@@ -161,7 +161,7 @@ describe("shared-admin fallback :: the CLI's client factories", () => {
     createCommandRuntime({ baseUrl: BASE_URL, profile: "ops" });
 
     expect(capture.requests.length).toBeGreaterThan(0);
-    expect(wireBytes(capture.requests)).not.toContain(PLANTED.adminKey);
+    expect(wireBytes(capture.requests)).not.toContain(PLANTED.rootAdminLiteral);
     for (const request of capture.requests) {
       expect(request.headers["x-honua-admin-key"]).toBeUndefined();
       expect(request.headers["x-api-key"]).toBeUndefined();
@@ -175,9 +175,9 @@ describe("shared-admin fallback :: the CLI's client factories", () => {
     // nothing else.
     const env = await configWithAdminKey({
       baseUrl: BASE_URL,
-      profiles: { ops: { baseUrl: BASE_URL, apiKey: SCOPED_KEY, adminKey: PLANTED.adminKey } },
+      profiles: { ops: { baseUrl: BASE_URL, apiKey: SCOPED_KEY, adminKey: PLANTED.rootAdminLiteral } },
     });
-    vi.stubEnv("HONUA_ADMIN_KEY", PLANTED.adminKey);
+    vi.stubEnv("HONUA_ADMIN_KEY", PLANTED.rootAdminLiteral);
     vi.stubEnv("HONUA_CONFIG_HOME", env.HONUA_CONFIG_HOME as string);
 
     const capture = recorder(() => ({ body: { packageId: "pkg-1" } }));
@@ -199,7 +199,7 @@ describe("shared-admin fallback :: the CLI's client factories", () => {
     expect(exitCode).toBe(0);
     expect(capture.requests).toHaveLength(1);
     expect(capture.requests[0]?.headers["x-api-key"]).toBe(SCOPED_KEY);
-    expect(wireBytes(capture.requests)).not.toContain(PLANTED.adminKey);
+    expect(wireBytes(capture.requests)).not.toContain(PLANTED.rootAdminLiteral);
   });
 });
 
@@ -214,7 +214,7 @@ describe("shared-admin fallback :: the shared command layer", () => {
     // once. `HonuaCommandRuntime` is built from a `HonuaClient` and has no
     // `HonuaAdminClient` dependency — this drives every catalog command with the
     // root key planted in the environment to prove the runtime never reads it.
-    vi.stubEnv("HONUA_ADMIN_KEY", PLANTED.adminKey);
+    vi.stubEnv("HONUA_ADMIN_KEY", PLANTED.rootAdminLiteral);
     for (const id of HONUA_COMMAND_IDS) {
       if (id === "studio.draft.saveVersion") continue; // needs a Studio client; covered below
       const capture = recorder(() => ({ body: { jobId: "job-1", packageId: "pkg-1", ok: true } }));
@@ -224,7 +224,7 @@ describe("shared-admin fallback :: the shared command layer", () => {
       await runtime.execute(HONUA_COMMANDS[id] as HonuaAnyCommand, VALID_INPUT[id] as never, { transport: "mcp" });
       expect(capture.requests.length, `${id} must issue a request`).toBeGreaterThan(0);
       expect(capture.requests[0]?.headers["x-api-key"], `${id} must use the caller's key`).toBe(SCOPED_KEY);
-      expect(wireBytes(capture.requests), `${id} must not carry the root key`).not.toContain(PLANTED.adminKey);
+      expect(wireBytes(capture.requests), `${id} must not carry the root key`).not.toContain(PLANTED.rootAdminLiteral);
     }
   });
 
@@ -233,7 +233,7 @@ describe("shared-admin fallback :: the shared command layer", () => {
     // the command with what it has. The honest answer is a `transport` error
     // naming the missing dependency — not a second credential, and not a
     // silent switch to the admin API that happens to expose a similar route.
-    vi.stubEnv("HONUA_ADMIN_KEY", PLANTED.adminKey);
+    vi.stubEnv("HONUA_ADMIN_KEY", PLANTED.rootAdminLiteral);
     const capture = recorder();
     const runtime = createHonuaCommandRuntime({
       client: new HonuaClient({ baseUrl: BASE_URL, apiKey: SCOPED_KEY, fetchFn: capture.fetchFn, transport: "rest" }),
@@ -264,11 +264,11 @@ describe("shared-admin fallback :: the honua admin escape hatch", () => {
     }
     // And the admin client refuses the transport shapes that would leak its
     // credential in the first place.
-    expect(() => new HonuaAdminClient({ baseUrl: "http://admin.example.test", adminKey: PLANTED.adminKey })).toThrow(
-      /HTTPS/,
-    );
     expect(
-      () => new HonuaAdminClient({ baseUrl: "https://x:y@admin.example.test", adminKey: PLANTED.adminKey }),
+      () => new HonuaAdminClient({ baseUrl: "http://admin.example.test", adminKey: PLANTED.rootAdminLiteral }),
+    ).toThrow(/HTTPS/);
+    expect(
+      () => new HonuaAdminClient({ baseUrl: "https://x:y@admin.example.test", adminKey: PLANTED.rootAdminLiteral }),
     ).toThrow(/credentials/);
   });
 
@@ -329,7 +329,7 @@ describe("shared-admin fallback :: the honua admin escape hatch", () => {
       "--base-url",
       BASE_URL,
       "--admin-key",
-      PLANTED.adminKey,
+      PLANTED.rootAdminLiteral,
     ]);
 
     expect(exitCode).not.toBe(0);
