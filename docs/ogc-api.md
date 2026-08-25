@@ -217,6 +217,15 @@ Four properties hold whichever server is on the other end:
   can branch without parsing messages. `capabilityPolicy: "strict"`
   additionally resolves conformance and the process description first and
   refuses a job whose status or results route was never advertised.
+  Silence is a refusal, not a wildcard: a description or process summary
+  this handle has read that carries no `jobControlOptions` advertises no
+  execution mode, so an explicit `mode` against it is refused (pass
+  `jobControlOptions` on the request to speak for a server that publishes
+  its modes somewhere else). Under `"strict"` a `/conformance` document
+  that declares no Core class refuses execution, and cancellation refuses
+  unless something actually declared `dismiss`. Conformance URIs are
+  matched as whole classes, so an unrecognised neighbour such as
+  `…/conf/dismiss-disabled` never widens what the client will send.
 - **Bounded, cancellable polling.** `results()` runs under the caller's
   `JobResultsOptions`, then the handle's `pollBudget`, then a default
   10-minute deadline — never an unbounded loop — and stops immediately

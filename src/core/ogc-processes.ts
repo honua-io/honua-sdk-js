@@ -38,7 +38,6 @@ import { isJobTerminal } from "../contract/jobs.js";
 import type { HonuaClient } from "./client.js";
 import { HonuaCapabilityNotSupportedError } from "./errors.js";
 import { JobRunLifecycle } from "./job-run-lifecycle.js";
-import { hasOgcConformanceClass } from "./ogc-conformance.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   HonuaOgcConformanceResponse,
@@ -81,14 +80,19 @@ export interface HonuaOgcProcessesOptions {
    * How hard to gate on server declarations.
    *
    * - `"advertised"` (default) — gate on declarations already in hand
-   *   (`conformance`, a `describe()` already performed on this handle, or an
-   *   explicit `jobControlOptions`), and fall back to the Core-mandated route
-   *   templates when a server advertises no link. No extra requests; existing
-   *   callers and the Honua facade are unaffected.
+   *   (`conformance`, a `describe()`/`list()` already performed on this handle,
+   *   or an explicit `jobControlOptions`), and fall back to the Core-mandated
+   *   route templates when a server advertises no link. No extra requests.
+   *   What was read counts, including silence: a description this handle has
+   *   seen that carries no `jobControlOptions` advertises no execution mode,
+   *   and an explicit `mode` against it is refused. Only a process this handle
+   *   has never read is treated as unknown rather than undeclared.
    * - `"strict"` — resolve the conformance declaration and the process
    *   description first (both through the metadata cache) and refuse anything
-   *   the server has not declared, including a job lifecycle whose status and
-   *   results routes are not advertised as links.
+   *   the server has not declared, including a `/conformance` document that
+   *   declares no Core class, a description that declares no execution mode, a
+   *   `cancel()` nothing declared as `dismiss`, and a job lifecycle whose
+   *   status and results routes are not advertised as links.
    */
   capabilityPolicy?: "advertised" | "strict";
   /**
@@ -149,7 +153,11 @@ const PROCESSES_CONFORMANCE = {
   dismiss: "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/dismiss",
 } as const;
 
-/** Substring matchers tolerant of OGC re-issuing the class URIs under a new part number. */
+/**
+ * Suffix matchers tolerant of a server publishing the class under a different
+ * host or path prefix, but *not* of a different class that merely starts with
+ * one of these. See {@link declaresConformanceClass}.
+ */
 const PROCESSES_CONFORMANCE_MATCH = {
   core: "processes-1/1.0/conf/core",
   dismiss: "processes-1/1.0/conf/dismiss",
@@ -183,6 +191,31 @@ function capabilityRefusal(
   context: Record<string, string>,
 ): HonuaCapabilityNotSupportedError {
   return new HonuaCapabilityNotSupportedError(capability, "ogc-processes", sourceId, { context });
+}
+
+/**
+ * `true` when the server declares exactly the named conformance class.
+ *
+ * The public `hasOgcConformanceClass()` is a documented *substring* test, which
+ * is the right tool for a caller probing an extension they already recognise.
+ * It is the wrong tool for a fail-closed gate: an unrecognised class that
+ * happens to extend one of ours — `…/conf/dismiss-disabled`, `…/conf/core-lite`,
+ * or a vendor class carrying the URI in a query string — would widen what the
+ * client is willing to send. So the gate anchors the match at the end of the
+ * class URI (ignoring a trailing slash, query, or fragment): a prefix the
+ * server chose is still tolerated, an unknown longer class is not.
+ */
+function declaresConformanceClass(
+  conformance: HonuaOgcProcessesConformanceInput | undefined,
+  classSuffix: string,
+): boolean {
+  for (const uri of conformance?.conformsTo ?? []) {
+    if (typeof uri !== "string") continue;
+    const withoutFragment = uri.split("#")[0] ?? "";
+    const path = (withoutFragment.split("?")[0] ?? "").replace(/\/+$/, "");
+    if (path.endsWith(classSuffix)) return true;
+  }
+  return false;
 }
 
 /** `true` when the declaration list contains `option` (case-insensitive). */
@@ -368,18 +401,19 @@ export class HonuaOgcProcesses {
   public async list(request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessesResponse> {
     const response = await this.client.listOgcProcesses(this.withBase(request));
     for (const process of response?.processes ?? []) {
-      if (process?.id && process.jobControlOptions) {
-        this.jobControlByProcess.set(process.id, [...process.jobControlOptions]);
-      }
+      // A summary that omits `jobControlOptions` advertises no execution mode;
+      // recorded as an empty declaration so the mode gate refuses rather than
+      // reading silence as consent. A later `describe()` overwrites it with
+      // whatever the full description declares.
+      if (process?.id) this.jobControlByProcess.set(process.id, [...(process.jobControlOptions ?? [])]);
     }
     return response;
   }
 
   public async describe(processId: string, request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessDescription> {
     const description = await this.client.getOgcProcess(this.withBase({ ...request, processId }));
-    if (description?.jobControlOptions) {
-      this.jobControlByProcess.set(processId, [...description.jobControlOptions]);
-    }
+    // As in `list()`: an omitted `jobControlOptions` is an empty declaration.
+    this.jobControlByProcess.set(processId, [...(description?.jobControlOptions ?? [])]);
     return description;
   }
 
@@ -489,7 +523,11 @@ export class HonuaOgcProcesses {
     request: OgcProcessExecuteRequest,
   ): Promise<HonuaOgcProcessesConformanceInput | undefined> {
     const conformance = await this.resolveConformance(request.signal);
-    if (conformance?.conformsTo && !hasOgcConformanceClass(conformance, PROCESSES_CONFORMANCE_MATCH.core)) {
+    // Under `"strict"` the declaration was fetched, so silence is an answer:
+    // a document that declares no Core class — or none at all — refuses. Under
+    // `"advertised"` only a declaration actually in hand can refuse.
+    const declarationInHand = conformance?.conformsTo !== undefined || this.capabilityPolicy === "strict";
+    if (declarationInHand && !declaresConformanceClass(conformance, PROCESSES_CONFORMANCE_MATCH.core)) {
       throw capabilityRefusal("processes.execute", request.processId, {
         missingClass: PROCESSES_CONFORMANCE.core,
         construct: "execute",
@@ -504,8 +542,12 @@ export class HonuaOgcProcesses {
     let jobControlOptions = request.jobControlOptions ?? this.jobControlByProcess.get(request.processId);
     if (!jobControlOptions && this.capabilityPolicy === "strict") {
       const description = await this.describe(request.processId, request.signal ? { signal: request.signal } : {});
-      jobControlOptions = description.jobControlOptions;
+      // An omitted `jobControlOptions` is an empty declaration, never a wildcard:
+      // the server was asked and advertised no execution mode at all.
+      jobControlOptions = description.jobControlOptions ?? [];
     }
+    // Only a process this handle has never seen described is unknown; every
+    // observed description contributes a declaration, empty or otherwise.
     if (!jobControlOptions) return conformance;
 
     const required = mode === "sync" ? JOB_CONTROL.sync : JOB_CONTROL.async;
@@ -752,6 +794,10 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
    * in hand and neither the Dismiss conformance class nor the process's
    * `jobControlOptions` includes `dismiss`, refuse before issuing a DELETE the
    * server never advertised.
+   *
+   * Under `"strict"` the absence of any declaration refuses too: a handle that
+   * resolves declarations for itself has no honest reason to DELETE a job on a
+   * server that never said it could be dismissed.
    */
   private assertDismissDeclared(): void {
     // Under `"strict"` the DELETE route must have been advertised, exactly as
@@ -764,8 +810,8 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
     }
     if (declares(this.jobControlOptions, JOB_CONTROL.dismiss)) return;
     const conformsTo = this.conformance?.conformsTo;
-    if (!conformsTo) return;
-    if (hasOgcConformanceClass(this.conformance, PROCESSES_CONFORMANCE_MATCH.dismiss)) return;
+    if (!conformsTo && this.capabilityPolicy !== "strict") return;
+    if (declaresConformanceClass(this.conformance, PROCESSES_CONFORMANCE_MATCH.dismiss)) return;
     throw capabilityRefusal("processes.dismiss", this.type, {
       missingClass: PROCESSES_CONFORMANCE.dismiss,
       construct: JOB_CONTROL.dismiss,
