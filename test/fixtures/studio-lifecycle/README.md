@@ -73,6 +73,57 @@ an RFC 7807 problem document with `type:
   /content-items/{itemId}/rollback-requests`.
 - `internal-error.v1.json` — a `500` RFC 7807 body.
 
+## Content-item and draft enumeration (`honua-server#3003`)
+
+`GET /content-items` and `GET /package-drafts` share one filter/pagination
+contract: `family` (comma-separated), `workspaceId`, `owner`, `q` (a
+case-insensitive substring match on `packageKey`), plus `cursor`/`limit`
+opaque keyset pagination ordered by `updatedAt` then row id descending;
+`GET /content-items` additionally accepts `state`
+(`draft`/`current`/`published`). Both answer with `{ items, total, nextCursor }`
+where `total` counts every matching row across all pages and `nextCursor` is
+`null` (and therefore omitted by the source-generated JSON context) on the last
+page. These fixtures add a `request.query` member the request/response
+fixtures above do not need.
+
+Every `cursor` value below is produced with the server's own codec
+(`StudioListCursor`: `base64(utf8("<updatedAt.UtcTicks>:<id>"))`), so replaying
+one is a faithful round trip rather than an opaque placeholder string.
+
+- `content-item-list-page-1.v1.json` / `content-item-list-page-2.v1.json` —
+  the doc's `?family=map&state=published&limit=2` example walked to
+  completion. Page 1's two rows carry a joined publication badge; the second
+  row is `published` in Studio while its *route* is `suspended`, which is why
+  the badge lifecycle is a separate vocabulary from the item state. Page 2's
+  row omits `publication` entirely (the registry join found nothing) and ends
+  the walk with `nextCursor: null`.
+- `content-item-list-empty.v1.json` — a zero-row page: `total: 0` and no
+  `nextCursor` member at all, pinning that "absent" reads as exhausted.
+- `content-item-list-owner-scoped.v1.json` — a non-admin caller under
+  `Studio:EndUserAuthorization:Enabled` asked for another principal's content;
+  the server force-scoped the effective `owner` filter to the caller and
+  answered with the caller's own rows. The client must report the `ownerId`
+  the server sent, never the one it asked for.
+- `content-item-list-forbidden.v1.json` — `403` with
+  `code: "studio_authorization/authentication_required"`, the denial for a
+  caller whose id cannot be resolved for a scoped listing. The server refuses
+  rather than falling through to an unscoped list.
+- `content-item-list-invalid-state.v1.json` /
+  `draft-list-invalid-family.v1.json` — `400` for an unknown `state` / `family`
+  filter value, in the server's `"<filter> filter is invalid: unknown value
+  '<raw>'"` wording.
+- `content-item-list-stalled-cursor.v1.json` — a misbehaving server handing
+  back the very cursor it was queried with. The bounded walk refuses to page
+  forever on it.
+- `draft-list-page-1.v1.json` / `draft-list-page-2.v1.json` — the draft walk.
+  Rows are full `StudioPackageDraft` objects, identical to
+  `GET /package-drafts/{draftId}`, and carry no publication badge: drafts are
+  mutable and pre-publication by definition.
+- `draft-list-not-deployed.v1.json` — a `404` with **no body**, which is what a
+  deployment predating `honua-server#3003` returns for a route it does not map.
+  The client classifies it `not-found` from the status alone; reporting "no
+  drafts" for a missing endpoint would be a silent lie.
+
 `envelopes/*.json` are standalone `StudioPackageEnvelope` documents (not
 request/response wrappers), one per package family, used for the lossless
 serialize/parse round-trip test. `map.v1.json` and `app.v1.json` bodies are

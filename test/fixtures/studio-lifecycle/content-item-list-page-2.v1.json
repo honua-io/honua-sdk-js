@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/content-items",
+    "query": {
+      "family": "map",
+      "state": "published",
+      "limit": "2",
+      "cursor": "NjM5MTU3MzkyMDAwMDAwMDAwOjBkNGY4YjIxLTZjM2UtNGE3ZC05ZjE4LTJiNWU3YzBhNGQ2Mw=="
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "items": [
+          {
+            "itemId": "3ac91e75-58d2-4f0b-8e64-71c9d3a5b208",
+            "packageKey": "hydrants-overview",
+            "workspaceId": "studio",
+            "family": "map",
+            "state": "published",
+            "currentVersionId": "4d92b0e6-7c15-4a83-b0f9-52c7e1a6d038",
+            "publishedVersionId": "4d92b0e6-7c15-4a83-b0f9-52c7e1a6d038",
+            "ownerId": "actor-alice",
+            "createdBy": "alice",
+            "updatedBy": "alice",
+            "createdAt": "2026-05-18T00:00:00Z",
+            "updatedAt": "2026-05-29T06:45:00Z"
+          }
+        ],
+        "total": 3,
+        "nextCursor": null
+      },
+      "timestamp": "2026-06-01T00:15:01Z"
+    }
+  }
+}

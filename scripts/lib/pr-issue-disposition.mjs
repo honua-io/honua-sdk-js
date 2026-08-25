@@ -13,6 +13,40 @@ const DERIVED_ARTIFACT_BRANCH_PATTERN = /^automation\/derived-artifacts-[1-9][0-
 const MCP_CERTIFICATION_BRANCH_PATTERN = /^automation\/mcp-certification-[1-9][0-9]*-[1-9][0-9]*$/u;
 const KEPLER_AUDIT_RENEWAL_BRANCH_PATTERN = /^automation\/kepler-audit-renewal-\d{4}-\d{2}-\d{2}$/u;
 
+/**
+ * GitHub App slugs allowed to author the exempt automation pull requests.
+ *
+ * GitHub reports an App actor's login in three interchangeable forms — `slug`,
+ * `slug[bot]`, and `app/slug` — depending on which API surface produced the
+ * metadata, so every slug here is accepted in all three.
+ *
+ * `honua-release` is the release identity honua-sdk-js#1093 provisions to
+ * author `release-please--branches--trunk` and `automation/derived-artifacts-*`
+ * pull requests once the org-side App exists. Listing it before the token
+ * switch is what keeps the required `PR Issue Disposition` check from
+ * rejecting the first pull request that identity opens. If the provisioned App
+ * is given a different slug, this array is the single place to change.
+ *
+ * The set is source-bound on purpose. The disposition gate executes from the
+ * pull request's own checkout, so reading the accepted logins from the
+ * environment would let a pull request widen the identity set it is judged by.
+ */
+export const RELEASE_AUTOMATION_APP_SLUGS = Object.freeze(["github-actions", "honua-release"]);
+
+function appLoginForms(slugs) {
+  return new Set(slugs.flatMap((slug) => [slug, `${slug}[bot]`, `app/${slug}`]));
+}
+
+/** Logins accepted for the release-please and derived-artifact lanes. */
+const RELEASE_AUTOMATION_LOGINS = appLoginForms(RELEASE_AUTOMATION_APP_SLUGS);
+
+/**
+ * Logins accepted for the scheduled report lanes. These run on the workflow's
+ * own `GITHUB_TOKEN` and are not part of the release-identity switch, so they
+ * stay pinned to GitHub Actions rather than inheriting the wider set.
+ */
+const GITHUB_ACTIONS_LOGINS = appLoginForms(["github-actions"]);
+
 export const DERIVED_ARTIFACT_EXEMPTION = "Derived-artifact regeneration";
 export const MCP_CERTIFICATION_EXEMPTION = "MCP scheduled certification publication";
 export const KEPLER_AUDIT_RENEWAL_EXEMPTION = "Scheduled Kepler audit exception review";
@@ -61,7 +95,7 @@ export function automationExemption(input) {
     normalizeRepository(input.headRepository) === repository;
   if (
     botActor &&
-    (login === "github-actions" || login === "github-actions[bot]" || login === "app/github-actions") &&
+    RELEASE_AUTOMATION_LOGINS.has(login) &&
     sameRepositoryAutomation &&
     String(input.baseRefName ?? "") === "trunk" &&
     head === "release-please--branches--trunk" &&
@@ -73,7 +107,7 @@ export function automationExemption(input) {
   }
   if (
     botActor &&
-    (login === "github-actions" || login === "github-actions[bot]" || login === "app/github-actions") &&
+    RELEASE_AUTOMATION_LOGINS.has(login) &&
     sameRepositoryAutomation &&
     String(input.baseRefName ?? "") === "trunk" &&
     DERIVED_ARTIFACT_BRANCH_PATTERN.test(head) &&
@@ -90,7 +124,7 @@ export function automationExemption(input) {
   // (honua-sdk-js#1351).
   if (
     botActor &&
-    (login === "github-actions" || login === "github-actions[bot]" || login === "app/github-actions") &&
+    GITHUB_ACTIONS_LOGINS.has(login) &&
     sameRepositoryAutomation &&
     String(input.baseRefName ?? "") === "trunk" &&
     MCP_CERTIFICATION_BRANCH_PATTERN.test(head) &&
@@ -102,7 +136,7 @@ export function automationExemption(input) {
   }
   if (
     botActor &&
-    (login === "github-actions" || login === "github-actions[bot]" || login === "app/github-actions") &&
+    GITHUB_ACTIONS_LOGINS.has(login) &&
     sameRepositoryAutomation &&
     String(input.baseRefName ?? "") === "trunk" &&
     KEPLER_AUDIT_RENEWAL_BRANCH_PATTERN.test(head) &&

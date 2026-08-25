@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/content-items",
+    "query": {
+      "state": "archived"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "type": "https://honua.io/problems/studio",
+      "title": "Bad Request",
+      "status": 400,
+      "detail": "state filter is invalid: unknown value 'archived'"
+    }
+  }
+}

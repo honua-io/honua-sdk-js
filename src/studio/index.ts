@@ -17,9 +17,11 @@
  * (`/api/v{version}/studio`): package-family discovery, draft CRUD with
  * optimistic-generation checking, validate, preview-plan, immutable content
  * versions and comparisons, publish requests, reopen, and rollback requests.
- * See that module's doc comment for the documented enumeration-endpoint gap
- * (`honua-server#3003`) and how the client absorbs it without a breaking
- * change.
+ * It also enumerates: `contentItems.list()` and `drafts.list()` page the
+ * `honua-server#3003` content-browser endpoints with filters, opaque keyset
+ * cursors, and a joined publication-registry lifecycle badge per content-item
+ * row — plus bounded `listAll()`/`collect()` cursor walks. See that module's
+ * doc comment.
  *
  * Publication proposals are submitted, read and polled to a final state
  * through `publicationRequests` — `create`, `get` and a bounded, cancellable
@@ -176,12 +178,21 @@ export {
 export type {
   StudioApiResponse,
   StudioBindingRef,
+  StudioContentItemListOptions,
+  StudioContentItemListResponse,
+  StudioContentItemListRow,
   StudioContentItemPointers,
+  StudioContentItemPublicationBadge,
+  StudioContentItemState,
   StudioContentVersion,
   StudioContentVersionListResponse,
   StudioDependencyRef,
+  StudioListFilterOptions,
+  StudioListPage,
   StudioPackageDraft,
   StudioPackageDraftCreateRequest,
+  StudioPackageDraftListOptions,
+  StudioPackageDraftListResponse,
   StudioPackageDraftReplaceRequest,
   StudioPackageEnvelope,
   StudioPackageFamilyCapabilities,
@@ -197,6 +208,7 @@ export type {
   StudioPublicationRequest,
   StudioPublicationRequestInput,
   StudioPublicationRequestStatus,
+  StudioPublicationRouteLifecycle,
   StudioReopenVersionRequest,
   StudioRollbackPointer,
   StudioRollbackRequest,
@@ -211,8 +223,12 @@ export type {
 
 export {
   HONUA_STUDIO_LIFECYCLE_BASE_PATH,
+  HONUA_STUDIO_LIST_DEFAULT_LIMIT,
+  HONUA_STUDIO_LIST_MAX_LIMIT,
+  HONUA_STUDIO_LIST_MAX_PAGES,
   HONUA_STUDIO_PUBLICATION_POLL_INTERVAL_MS,
   HONUA_STUDIO_PUBLICATION_POLL_MAX_ATTEMPTS,
+  HonuaStudioContentItemsClient,
   HonuaStudioContentVersionsClient,
   HonuaStudioDraftsClient,
   HonuaStudioLifecycleClient,
@@ -220,11 +236,14 @@ export {
   HonuaStudioPublicationRequestsClient,
   HonuaStudioRollbackRequestsClient,
   createHonuaStudioLifecycleClient,
+  isStudioListExhausted,
 } from "./lifecycle-client.js";
 export type {
   HonuaStudioLifecycleClientOptions,
+  HonuaStudioPaginationOptions,
   HonuaStudioPublicationPollOptions,
   HonuaStudioRawRequest,
   HonuaStudioRequestOptions,
+  StudioListCollection,
   StudioPublicationPollOutcome,
 } from "./lifecycle-client.js";
