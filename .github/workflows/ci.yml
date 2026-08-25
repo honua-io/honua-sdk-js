@@ -329,6 +329,9 @@ jobs:
       - name: Verify pinned PROJJSON validator
         run: npm run verify:projjson-validator
 
+      - name: Verify generated MapPackage schema validator
+        run: npm run verify:map-package-schema
+
       # Reported here, enforced at the end of the job (honua-io/honua-sdk-js#1266
       # REQ-003). This gate sits ~25 steps ahead of the correctness suite, so a
       # failure here used to mean no pull request in the repo ran a single test --

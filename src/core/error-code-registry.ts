@@ -460,6 +460,8 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "runtime.map-package.fetch": classification("runtime", "network", true, "Map package fetch failed"),
   "runtime.map-package.load": classification("runtime", "internal", false, "Map package load failed"),
   "runtime.map-package.validate": classification("runtime", "validation", false, "Map package validation failed"),
+  "runtime.map-package.export": classification("runtime", "validation", false, "Map package export refused"),
+  "runtime.map-package.import": classification("runtime", "validation", false, "Map package import refused"),
   "runtime.map-package.update": classification("runtime", "internal", false, "Map package update failed"),
   "runtime.map-package.style-compose": classification(
     "runtime",

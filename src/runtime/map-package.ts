@@ -159,6 +159,82 @@ export interface HonuaMapPackageLabelBinding {
 }
 
 /**
+ * Package-level attribution the host is expected to display.
+ *
+ * Per-binding `attribution` on {@link HonuaMapPackageSourceBinding} stays the
+ * source-of-record for a single service; this collection is for the
+ * package-wide notices (basemap credit, licence text) that no single binding
+ * owns.
+ */
+export interface HonuaMapPackageAttribution {
+  /** Attribution text. Plain text; hosts escape before rendering. */
+  text: string;
+  /** Optional link target for the attribution. */
+  url?: string;
+  /** Bindings this notice covers. Omitted means package-wide. */
+  sourceIds?: readonly string[];
+  /** Whether the host must display this notice (licence obligation). */
+  required?: boolean;
+}
+
+/**
+ * A renderer-neutral widget/component declared by the package.
+ *
+ * `type` is an open string rather than a closed union: the widget catalogue
+ * belongs to the host application, and closing it here would make every new
+ * component a breaking change to the artifact. Unknown types are carried
+ * through the round trip and ignored by hosts that cannot render them.
+ */
+export interface HonuaMapPackageWidget {
+  widgetId: string;
+  /** Widget kind, e.g. `legend`, `layer-list`, `basemap-gallery`, `search`. */
+  type: string;
+  position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  label?: string;
+  /** Whether the widget starts visible. Defaults to `true` when omitted. */
+  visible?: boolean;
+  /** Widget-specific configuration, carried through unmodified. */
+  config?: Record<string, unknown>;
+}
+
+/**
+ * An external capability the package needs in order to render. Declarative
+ * only — nothing in the SDK installs or resolves these; hosts use them to
+ * report a fidelity gap before rendering rather than after.
+ */
+export interface HonuaMapPackageDependency {
+  /** Dependency name, e.g. `maplibre-gl`, `@honua/sdk-js`, `pmtiles`. */
+  name: string;
+  /** semver range the package was authored against. */
+  versionRange?: string;
+  kind?: "renderer" | "protocol" | "sdk" | "plugin" | "font" | "sprite" | "basemap";
+  /** Whether the package still renders (degraded) without it. */
+  optional?: boolean;
+}
+
+/**
+ * How this package was produced. Descriptive only.
+ *
+ * Deliberately carries no content hash, actor/tenant, authorization scope, or
+ * audit/correlation identifier. Those are identity and governance concerns
+ * owned by the canonical honua-server composition contract and projected into
+ * the SDK through #1397 / #1398; minting them here would fork the identity
+ * model, which is the failure mode #1426 exists to prevent.
+ */
+export interface HonuaMapPackageProvenance {
+  /** Tool that produced the package, e.g. `honua-cli`, `@honua/mcp-server`. */
+  generatedBy?: string;
+  /** Version of that tool. */
+  generatorVersion?: string;
+  /** ISO-8601 timestamp of production. */
+  generatedAt?: string;
+  /** Ids of upstream artifacts this package was composed from. */
+  derivedFrom?: readonly string[];
+  /** Free-text note for humans reading the artifact. */
+  notes?: string;
+}
+
+/**
  * v1 MapPackage shape — mirrors the draft server type in
  * `/home/makani/honua-server/src/Honua.Core/Features/Geoprocessing/Domain/MapPackage.cs`.
  * Unknown fields are preserved through `updatePackage` round-trip so
@@ -194,6 +270,15 @@ export interface HonuaMapPackage {
   popupBindings?: readonly HonuaMapPackagePopupBinding[];
   labelBindings?: readonly HonuaMapPackageLabelBinding[];
   boundArtifacts?: readonly string[];
+
+  /** Package-wide attribution notices. */
+  attribution?: readonly HonuaMapPackageAttribution[];
+  /** Renderer-neutral widgets/components declared by the package. */
+  widgets?: readonly HonuaMapPackageWidget[];
+  /** External capabilities required to render at full fidelity. */
+  dependencies?: readonly HonuaMapPackageDependency[];
+  /** How the package was produced. Descriptive; carries no identity. */
+  provenance?: HonuaMapPackageProvenance;
 
   /** Preserve additive fields through round-trip without forcing a type bump. */
   [extra: string]: unknown;

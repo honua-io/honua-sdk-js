@@ -1,0 +1,459 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/honua-map-package.v1.json",
+  "title": "Honua Map Package (honua_map_package.v1)",
+  "description": "Canonical, portable, versioned description of one Honua map. This is the single map artifact JS, the CLI, the MCP server, and Studio all read and write (honua-sdk-js#1426); `src/studio/types.ts` re-tags this shape for the `map` package family rather than declaring a Studio-only twin. The schema covers sources/layers, style, popup and label (interaction) configuration, viewport, attribution, widgets/components, dependencies, and provenance. It deliberately does NOT model lifecycle states, content-hash identity, optimistic concurrency, actor/tenant, authorization scope, or audit/correlation identifiers: those belong to the canonical honua-server composition contract and are projected into the SDK through honua-sdk-js#1397 and #1398. The one lifecycle-adjacent field present, `status`, is a pre-existing server-produced value mirrored here verbatim, not a lifecycle model minted by the SDK. This file is the source of truth for `validateMapPackage`: `scripts/generate-map-package-validator.mjs` compiles it to a zero-dependency standalone validator, and `test/runtime/map-package-schema-drift.test.ts` fails when it and the TypeScript type in `src/runtime/map-package.ts` disagree.",
+  "type": "object",
+  "required": ["mapPackageId", "format", "sourceBindings", "mapSpec"],
+  "$comment": "Unknown properties are permitted at every level. The wire format is additively forward-compatible and the runtime preserves unrecognized fields through `updatePackage`; rejecting them would make every additive server revision a client-breaking change. Drift between the known-field set here and `src/runtime/map-package.ts` is caught by the drift test instead.",
+  "additionalProperties": true,
+  "properties": {
+    "mapPackageId": {
+      "description": "Server-assigned identifier for the package. Opaque to the SDK.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "format": {
+      "description": "Canonical format string. The version gate: the runtime loader refuses any other value.",
+      "type": "string",
+      "const": "honua_map_package.v1"
+    },
+    "status": {
+      "description": "Server-reported composition state, mirrored verbatim from the honua-server MapPackage contract. This is NOT an SDK-minted lifecycle model; the ephemeral-preview / draft / saved-version / proposal / publication states named in honua-sdk-js#1426 are owned by the server contract and land through #1397 / #1398.",
+      "type": "string",
+      "enum": ["Draft", "Composing", "Ready", "Failed", "Expired"]
+    },
+    "createdAt": {
+      "description": "ISO-8601 creation timestamp.",
+      "type": "string",
+      "maxLength": 64
+    },
+    "updatedAt": {
+      "description": "ISO-8601 last-modification timestamp.",
+      "type": "string",
+      "maxLength": 64
+    },
+    "expiresAt": {
+      "description": "Server retention / hosting expiry timestamp. A package past this instant validates as expired.",
+      "type": "string",
+      "maxLength": 64
+    },
+    "templateId": {
+      "description": "Composition template the package was produced from.",
+      "type": "string",
+      "maxLength": 256
+    },
+    "themeId": {
+      "description": "Out-of-band theme identifier, resolved by the host when `theme` is absent.",
+      "type": "string",
+      "maxLength": 256
+    },
+    "theme": {
+      "description": "Inline theme body. Overrides out-of-band theme lookup.",
+      "$ref": "#/$defs/themeSpec"
+    },
+    "previewArtifactId": {
+      "description": "Identifier of a rendered preview artifact. A preview reference only; carries no assertion that the package is persisted or published.",
+      "type": "string",
+      "maxLength": 256
+    },
+    "sourceBindings": {
+      "description": "Protocol-neutral source bindings. Each entry is projected into a `Dataset`/`Source` by the runtime source bridge and exposed to the style as a named source.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/sourceBinding" }
+    },
+    "styleRefs": {
+      "description": "Style overrides layered onto `mapSpec` during composition.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/styleRef" }
+    },
+    "mapSpec": {
+      "description": "MapLibre-compatible style document carrying the layers and inline sources.",
+      "$ref": "#/$defs/mapSpec"
+    },
+    "initialView": {
+      "description": "Initial camera / extent (viewport) for the composed map.",
+      "$ref": "#/$defs/initialView"
+    },
+    "legend": {
+      "description": "Legend swatches rendered by the runtime.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/legendEntry" }
+    },
+    "popupBindings": {
+      "description": "Popup (click-interaction) configuration, resolved into click handlers by the runtime.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/popupBinding" }
+    },
+    "labelBindings": {
+      "description": "Label configuration; v1 is pass-through metadata for the runtime.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/labelBinding" }
+    },
+    "boundArtifacts": {
+      "description": "Identifiers of workspace artifacts bound into this package.",
+      "type": "array",
+      "items": { "type": "string", "maxLength": 256 }
+    },
+    "attribution": {
+      "description": "Package-wide attribution notices. Per-source credit stays on the binding.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/attribution" }
+    },
+    "widgets": {
+      "description": "Renderer-neutral widgets/components declared by the package.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/widget" }
+    },
+    "dependencies": {
+      "description": "External capabilities required to render at full fidelity. Declarative: nothing in the SDK installs or resolves these.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/dependency" }
+    },
+    "provenance": {
+      "description": "How the package was produced. Descriptive only; carries no identity or governance semantics.",
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "$defs": {
+    "sourceBinding": {
+      "description": "One inlined source binding. `sourceId` is the stable diff key and the name layers reference.",
+      "type": "object",
+      "required": ["sourceId", "protocol", "locator"],
+      "additionalProperties": true,
+      "properties": {
+        "sourceId": {
+          "description": "Stable, package-unique source name. Referenced by `mapSpec.layers[].source`.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "protocol": {
+          "description": "Wire protocol, in the server's snake_case form. Translated to the SDK's kebab-case `Protocol` union in `source-bridge.ts`.",
+          "type": "string",
+          "enum": [
+            "geoservices_feature_service",
+            "geoservices_map_service",
+            "ogc_features",
+            "ogc_maps",
+            "ogc_tiles",
+            "wfs",
+            "wms",
+            "wmts",
+            "odata",
+            "vector_tile",
+            "raster_tile",
+            "pmtiles",
+            "workspace_artifact"
+          ]
+        },
+        "locator": { "$ref": "#/$defs/locator" },
+        "filter": {
+          "description": "Server-side, protocol-specific filter expression.",
+          "type": "string",
+          "maxLength": 8192
+        },
+        "attribution": {
+          "description": "Free-form attribution text for this source.",
+          "type": "string",
+          "maxLength": 1024
+        },
+        "metadata": {
+          "description": "Out-of-band binding metadata, preserved round-trip. Never a credential store: `exportMapPackage` strips any key whose name reads as a secret.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "maxLength": 4096 }
+        }
+      }
+    },
+    "locator": {
+      "description": "Protocol-specific endpoint information. Additive by design; newer server revisions add fields here without a format bump.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "url": {
+          "description": "Service endpoint. Required in practice by `validateMapPackage`; optional in the shape so a locator addressed purely by `serviceId` still parses.",
+          "type": "string",
+          "maxLength": 4096
+        },
+        "serviceId": { "type": "string", "maxLength": 256 },
+        "layerId": {
+          "description": "Layer index or id. The server's canonical type is a string; numeric forms are accepted for historical SDK compatibility and coerced before `createDataset`.",
+          "type": ["integer", "string"]
+        },
+        "collectionId": { "type": ["string", "integer"] },
+        "typeName": { "type": "string", "maxLength": 256 },
+        "entitySet": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "styleRef": {
+      "description": "A style reference carried inline on the package body. When `body` is absent the host resolves it out-of-band through `resolveStyleRef`.",
+      "type": "object",
+      "required": ["styleId"],
+      "additionalProperties": true,
+      "properties": {
+        "styleId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "label": { "type": "string", "maxLength": 256 },
+        "presetId": { "type": "string", "maxLength": 256 },
+        "body": { "$ref": "#/$defs/styleRefBody" }
+      }
+    },
+    "styleRefBody": {
+      "description": "Resolved style-ref body: MapLibre layer overrides keyed by layer id. `{theme:key}` token placeholders are substituted from the active theme during composition.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/styleRefLayerOverride" }
+    },
+    "styleRefLayerOverride": {
+      "description": "Partial layer specification applied on top of `mapSpec.layers[i]`.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "paint": { "type": "object", "additionalProperties": true },
+        "layout": { "type": "object", "additionalProperties": true },
+        "minzoom": { "type": "number" },
+        "maxzoom": { "type": "number" },
+        "filter": true,
+        "metadata": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "themeSpec": {
+      "description": "Flat, name-keyed design-token map. Richer ramp/typography shapes can be added without breaking the runtime surface.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "themeId": { "type": "string", "maxLength": 256 },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number"] }
+        }
+      }
+    },
+    "mapSpec": {
+      "description": "MapLibre style document. Only the structural invariants the runtime depends on are asserted here — `version`, a `sources` map, and a `layers` array. Full MapLibre validity is delegated to `@maplibre/maplibre-gl-style-spec` through `src/runtime/style-spec-validation.ts`; restating the entire style spec in this file would create a second style contract that immediately drifts from the upstream one.",
+      "type": "object",
+      "required": ["version", "sources", "layers"],
+      "additionalProperties": true,
+      "properties": {
+        "version": { "const": 8 },
+        "name": { "type": "string", "maxLength": 256 },
+        "metadata": { "type": "object", "additionalProperties": true },
+        "center": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "number" }
+        },
+        "zoom": { "type": "number" },
+        "bearing": { "type": "number" },
+        "pitch": { "type": "number" },
+        "sources": {
+          "description": "Inline MapLibre sources, keyed by source name. Names here and `sourceBindings[].sourceId` share one namespace: a layer may reference either.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["type"],
+            "additionalProperties": true,
+            "properties": { "type": { "type": "string", "maxLength": 128 } }
+          }
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type"],
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "type": { "type": "string", "maxLength": 64 },
+              "source": { "type": "string", "maxLength": 256 }
+            }
+          }
+        },
+        "sprite": {
+          "type": ["string", "array"],
+          "items": {
+            "type": "object",
+            "required": ["id", "url"],
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": "string", "maxLength": 256 },
+              "url": { "type": "string", "maxLength": 4096 }
+            }
+          }
+        },
+        "glyphs": { "type": "string", "maxLength": 4096 },
+        "transition": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "duration": { "type": "number" },
+            "delay": { "type": "number" }
+          }
+        }
+      }
+    },
+    "initialView": {
+      "description": "Viewport. `bbox` and `center`/`zoom` may both be present; the runtime prefers `bbox` when it is well-formed.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "bbox": {
+          "description": "[west, south, east, north] in `crs`, defaulting to CRS84.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "type": "number" }
+        },
+        "center": {
+          "description": "[longitude, latitude].",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "number" }
+        },
+        "zoom": { "type": "number" },
+        "pitch": { "type": "number" },
+        "bearing": { "type": "number" },
+        "crs": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "legendEntry": {
+      "type": "object",
+      "required": ["label"],
+      "additionalProperties": true,
+      "properties": {
+        "label": { "type": "string", "maxLength": 512 },
+        "color": { "type": "string", "maxLength": 128 },
+        "minValue": { "type": "number" },
+        "maxValue": { "type": "number" },
+        "iconUrl": {
+          "description": "Symbol URL for icon-based legends.",
+          "type": "string",
+          "maxLength": 4096
+        }
+      }
+    },
+    "popupBinding": {
+      "description": "Click-interaction configuration for one source.",
+      "type": "object",
+      "required": ["sourceId"],
+      "additionalProperties": true,
+      "properties": {
+        "sourceId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "fieldName": {
+          "description": "Source field to render. Optional when `template` is set.",
+          "type": "string",
+          "maxLength": 256
+        },
+        "template": {
+          "description": "Popup template. Defaults to neutral `key: value` rows.",
+          "type": "string",
+          "maxLength": 16384
+        },
+        "title": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "labelBinding": {
+      "type": "object",
+      "required": ["sourceId", "fieldName"],
+      "additionalProperties": true,
+      "properties": {
+        "sourceId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "fieldName": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "placement": { "type": "string", "enum": ["point", "line", "polygon"] }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": true,
+      "properties": {
+        "text": {
+          "description": "Plain text; hosts escape before rendering.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "url": { "type": "string", "maxLength": 4096 },
+        "sourceIds": {
+          "description": "Bindings this notice covers. Omitted means package-wide.",
+          "type": "array",
+          "items": { "type": "string", "maxLength": 256 }
+        },
+        "required": {
+          "description": "Whether the host must display this notice (licence obligation).",
+          "type": "boolean"
+        }
+      }
+    },
+    "widget": {
+      "description": "A declared map component. `type` is an open string: the widget catalogue belongs to the host application, and closing it here would make every new component a breaking change to the artifact.",
+      "type": "object",
+      "required": ["widgetId", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "widgetId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "type": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "position": {
+          "type": "string",
+          "enum": ["top-left", "top-right", "bottom-left", "bottom-right"]
+        },
+        "label": { "type": "string", "maxLength": 512 },
+        "visible": {
+          "description": "Whether the widget starts visible. Defaults to true when omitted.",
+          "type": "boolean"
+        },
+        "config": {
+          "description": "Widget-specific configuration, carried through unmodified.",
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "versionRange": {
+          "description": "semver range the package was authored against.",
+          "type": "string",
+          "maxLength": 128
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["renderer", "protocol", "sdk", "plugin", "font", "sprite", "basemap"]
+        },
+        "optional": {
+          "description": "Whether the package still renders (degraded) without it.",
+          "type": "boolean"
+        }
+      }
+    },
+    "provenance": {
+      "description": "Descriptive production record. Deliberately carries no content hash, actor/tenant, authorization scope, or audit/correlation identifier — those are identity and governance concerns owned by the honua-server composition contract (honua-sdk-js#1397 / #1398).",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "generatedBy": {
+          "description": "Tool that produced the package, e.g. `honua-cli`, `@honua/mcp-server`.",
+          "type": "string",
+          "maxLength": 256
+        },
+        "generatorVersion": { "type": "string", "maxLength": 128 },
+        "generatedAt": {
+          "description": "ISO-8601 timestamp of production.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "derivedFrom": {
+          "description": "Ids of upstream artifacts this package was composed from.",
+          "type": "array",
+          "items": { "type": "string", "maxLength": 256 }
+        },
+        "notes": { "type": "string", "maxLength": 4096 }
+      }
+    }
+  }
+}

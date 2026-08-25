@@ -33,6 +33,25 @@ their leaf modules (`runtime/map-package`, `generated-app/manifest`), so a
 consumer reaches every family from one path without taking on the MapLibre
 runtime.
 
+The `map` family additionally has a published JSON Schema,
+[`schemas/honua-map-package.v1.json`](../schemas/honua-map-package.v1.json)
+(`https://honua.io/schemas/honua-map-package.v1.json`). It is the canonical
+description of the artifact for JS, the CLI, MCP, and Studio alike
+(honua-sdk-js#1426), and it is not documentation *about* the validator — it is
+what the validator is built from: `npm run map-package-schema:generate`
+compiles it into the standalone function `validateMapPackage` runs, and
+`test/runtime/map-package-schema-drift.test.ts` fails the build if the schema
+and `HonuaMapPackage` stop agreeing. `exportMapPackage` / `importMapPackage`
+(`@honua/sdk-js/runtime`) move that artifact between clients without embedded
+credentials or unbounded data.
+
+The schema deliberately stops at the artifact. Lifecycle states (ephemeral
+preview, mutable draft, immutable saved version, publication proposal, active
+publication, superseded), content-hash identity, optimistic concurrency, and
+actor/tenant/authorization fields belong to the canonical honua-server
+composition contract and are projected into the SDK through honua-sdk-js#1397
+and #1398 — never minted client-side.
+
 ## Package families and format constants
 
 Each family is gated by a `format` constant — the canonical version string,

@@ -121,6 +121,8 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
   "runtime.map-package.fetch": runtimeClassification("runtime", "network", true),
   "runtime.map-package.load": runtimeClassification("runtime", "internal", false),
   "runtime.map-package.validate": runtimeClassification("runtime", "validation", false),
+  "runtime.map-package.export": runtimeClassification("runtime", "validation", false),
+  "runtime.map-package.import": runtimeClassification("runtime", "validation", false),
   "runtime.map-package.update": runtimeClassification("runtime", "internal", false),
   "runtime.map-package.style-compose": runtimeClassification("runtime", "validation", false),
   "runtime.map-package.source-bind": runtimeClassification("runtime", "internal", false),
