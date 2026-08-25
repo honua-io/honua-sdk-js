@@ -12,6 +12,8 @@ import * as servicesResource from "./resources/services.js";
 import * as stylesResource from "./resources/styles.js";
 import * as adminInstallLocal from "./tools/admin-install-local.js";
 import * as applyStylePreset from "./tools/apply-style-preset.js";
+import type { ControlPlaneCommandMcpHost } from "./tools/control-plane-command.js";
+import * as controlPlaneCommand from "./tools/control-plane-command.js";
 import * as countFeatures from "./tools/count-features.js";
 import * as describeLayer from "./tools/describe-layer.js";
 import * as docsSearch from "./tools/docs-search.js";
@@ -27,6 +29,13 @@ export {
   createNlMapControlMcpHost,
   registerNlMapControlMcpTools,
 } from "./nl-map-control.js";
+export {
+  CONTROL_PLANE_COMMAND_TOOL_PREFIX,
+  controlPlaneCommandToolName,
+  controlPlaneCommandToolSchema,
+  registerControlPlaneCommandTools,
+} from "./tools/control-plane-command.js";
+export type { ControlPlaneCommandMcpHost } from "./tools/control-plane-command.js";
 export type {
   CreateNlMapControlMcpHostOptions,
   McpNlMapExecutionResponse,
@@ -47,6 +56,13 @@ export interface RuntimeOptions {
 export interface CreateServerOptions {
   /** Optional BYO-LLM/map-runtime host for the experimental NL map-plan tools. */
   readonly nlMapControl?: NlMapControlMcpHost;
+  /**
+   * Optional control-plane command runtime. When supplied, the server also
+   * publishes one generated thin adapter per shared command (see
+   * {@link registerControlPlaneCommandTools}). Omitted by default so the
+   * standalone catalog stays platform-free and read-only.
+   */
+  readonly controlPlaneCommands?: ControlPlaneCommandMcpHost;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -202,6 +218,13 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
  * deployment. Standalone is the front door; the proxy is the upgrade path.
  * Local installation is intentionally absent from this catalog and is exposed
  * only by {@link createBootstrapServer}.
+ *
+ * Control-plane MUTATION is likewise absent by default, and when a host does
+ * enable it ({@link CreateServerOptions.controlPlaneCommands}) MCP does not get
+ * a workflow of its own: the tools are generated from the shared command
+ * catalog in `@honua/sdk-js/control-plane`, so an MCP invocation and the
+ * equivalent `honua` CLI, Studio, or direct-JS invocation share one
+ * implementation and one receipt `auditKey`.
  */
 export function createServer(client: HonuaClient, options: CreateServerOptions = {}) {
   const server = new McpServer({
@@ -284,6 +307,12 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     applyStylePreset.schema.shape,
     async (args) => applyStylePreset.execute(client, applyStylePreset.schema.parse(args)),
   );
+
+  if (options.controlPlaneCommands) {
+    // Thin adapters generated from the shared command catalog. Registered last
+    // so the platform-free read-only surface keeps its stable tool order.
+    controlPlaneCommand.registerControlPlaneCommandTools(server, options.controlPlaneCommands);
+  }
 
   server.tool(
     "honua_docs_search",
