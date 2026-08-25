@@ -91,6 +91,21 @@ function provenanceStatement(target, tarball, overrides = {}) {
   return overrides.mutate ? (overrides.mutate(statement), statement) : statement;
 }
 
+function publishStatement(target, tarball, overrides = {}) {
+  const statement = {
+    _type: "https://in-toto.io/Statement/v1",
+    subject: [
+      {
+        name: subjectPurl(target.npmName, target.version),
+        digest: { sha512: createHash("sha512").update(tarball).digest("hex") },
+      },
+    ],
+    predicateType: PUBLISH_PREDICATE_TYPE,
+    predicate: { name: target.npmName, version: target.version, registry: DEFAULT_REGISTRY },
+  };
+  return overrides.mutate ? (overrides.mutate(statement), statement) : statement;
+}
+
 function envelope(statement) {
   return {
     predicateType: statement.predicateType,
@@ -133,25 +148,19 @@ function fakeRegistry(targets, mutate = () => {}) {
       },
     });
     attestations.set(attestationsUrl(DEFAULT_REGISTRY, target.npmName, target.version), {
-      attestations: [
-        envelope(provenanceStatement(target, tarball)),
-        {
-          predicateType: PUBLISH_PREDICATE_TYPE,
-          bundle: {
-            dsseEnvelope: {
-              payloadType: "application/vnd.in-toto+json",
-              payload: Buffer.from(
-                JSON.stringify({ predicateType: PUBLISH_PREDICATE_TYPE, subject: [] }),
-                "utf8",
-              ).toString("base64"),
-            },
-          },
-        },
-      ],
+      attestations: [envelope(provenanceStatement(target, tarball)), envelope(publishStatement(target, tarball))],
     });
   }
 
-  const registry = { packuments, attestations, tarballs, envelope, provenanceStatement, tarballFor };
+  const registry = {
+    packuments,
+    attestations,
+    tarballs,
+    envelope,
+    provenanceStatement,
+    publishStatement,
+    tarballFor,
+  };
   mutate(registry);
 
   return async (url) => {
@@ -444,6 +453,161 @@ test("an artifact built from a commit the sealed tag does not name fails the cut
   );
 });
 
+const SDK_TARGET = {
+  npmName: "@honua/sdk",
+  version: VERSION,
+  tag: SEALED_TAG,
+  commit: SEALED_COMMIT,
+  workflow: ".github/workflows/publish-js-sdk.yml",
+};
+
+/** Replace the publish attestation npm holds for one package. */
+function replacePublishAttestation(registry, npmName, build) {
+  const url = attestationsUrl(DEFAULT_REGISTRY, npmName, VERSION);
+  const held = registry.attestations.get(url);
+  const index = held.attestations.findIndex((entry) => entry.predicateType === PUBLISH_PREDICATE_TYPE);
+  held.attestations[index] = build(registry.tarballFor(npmName, VERSION));
+}
+
+test("a publish attestation whose envelope carries no payload fails the cut", async () => {
+  // The outer `predicateType` is unsigned registry metadata. An entry that
+  // claims to be a publish attestation but carries nothing signed must not
+  // count as one.
+  const receipt = await verify((registry) => {
+    replacePublishAttestation(registry, "@honua/sdk", () => ({
+      predicateType: PUBLISH_PREDICATE_TYPE,
+      bundle: { dsseEnvelope: { payloadType: "application/vnd.in-toto+json" } },
+    }));
+  });
+  assert.equal(receipt.status, "failed");
+  assert.match(failedCheck(receipt, "@honua/sdk", "publish-attestation").detail, /no dsseEnvelope payload/u);
+});
+
+test("a publish attestation whose payload names another predicate fails the cut", async () => {
+  const receipt = await verify((registry) => {
+    // The registry entry still advertises the publish predicate; only the
+    // signed payload inside disagrees.
+    replacePublishAttestation(registry, "@honua/sdk", (tarball) => ({
+      ...registry.envelope({
+        ...registry.publishStatement(SDK_TARGET, tarball),
+        predicateType: PROVENANCE_PREDICATE_TYPE,
+      }),
+      predicateType: PUBLISH_PREDICATE_TYPE,
+    }));
+  });
+  assert.equal(receipt.status, "failed");
+  assert.match(
+    failedCheck(receipt, "@honua/sdk", "publish-attestation").detail,
+    /but the statement says https:\/\/slsa\.dev\/provenance\/v1/u,
+  );
+});
+
+test("a publish attestation for another tarball fails the cut", async () => {
+  const receipt = await verify((registry) => {
+    replacePublishAttestation(registry, "@honua/sdk", () =>
+      registry.envelope(registry.publishStatement(SDK_TARGET, Buffer.from("other bytes", "utf8"))),
+    );
+  });
+  assert.equal(receipt.status, "failed");
+  assert.match(
+    failedCheck(receipt, "@honua/sdk", "publish-attestation").detail,
+    /is not the served tarball's sha512/u,
+  );
+});
+
+test("a publish attestation with no subject at all fails the cut", async () => {
+  const receipt = await verify((registry) => {
+    replacePublishAttestation(registry, "@honua/sdk", (tarball) =>
+      registry.envelope(
+        registry.publishStatement(SDK_TARGET, tarball, {
+          mutate: (built) => {
+            built.subject = [];
+          },
+        }),
+      ),
+    );
+  });
+  assert.equal(receipt.status, "failed");
+  assert.match(failedCheck(receipt, "@honua/sdk", "publish-attestation").detail, /<no subject>/u);
+});
+
+test("the guarded branch recovery publish verifies against the branch ref it really used", async () => {
+  // publish-js-sdk.yml supports a non-dry-run recovery publish from a branch
+  // (allow_branch_publish, with release_version and source_revision pinned).
+  // npm then records refs/heads/trunk in provenance. Requiring the tag ref
+  // there would fail every recovered artifact *after* it is already on the
+  // registry, so the caller declares the ref it published from.
+  const receipt = await verify(
+    (registry) => {
+      const sealed = manifest.included
+        .filter((artifact) => artifact.sourceBinding === "sealed-js-sdk-tag")
+        .map((artifact) => artifact.npmName);
+      for (const npmName of sealed) {
+        const url = attestationsUrl(DEFAULT_REGISTRY, npmName, VERSION);
+        const held = registry.attestations.get(url);
+        held.attestations[0] = registry.envelope(
+          registry.provenanceStatement(
+            { npmName, version: VERSION, tag: SEALED_TAG, commit: SEALED_COMMIT, workflow: ".github/workflows/publish-js-sdk.yml" },
+            registry.tarballFor(npmName, VERSION),
+            {
+              mutate: (built) => {
+                built.predicate.buildDefinition.externalParameters.workflow.ref = "refs/heads/trunk";
+              },
+            },
+          ),
+        );
+      }
+    },
+    { publishRef: "refs/heads/trunk" },
+  );
+  assert.equal(receipt.status, "verified", JSON.stringify(receipt.failures, null, 2));
+  assert.equal(artifactOf(receipt, "@honua/sdk").sourceRef, "refs/heads/trunk");
+  // The commit binding is untouched: a branch ref proves nothing on its own.
+  assert.equal(artifactOf(receipt, "@honua/sdk").sourceRevision, SEALED_COMMIT);
+  // Artifacts that publish from their own Release Please tag through their own
+  // workflow are unaffected by the SDK run's ref.
+  assert.equal(artifactOf(receipt, "@honua/mcp-server").sourceRef, `refs/tags/mcp-server-v${VERSION}`);
+});
+
+test("a branch recovery still fails when the provenance names the wrong commit", async () => {
+  const unsealed = "4".repeat(40);
+  const receipt = await verify(
+    (registry) => {
+      const url = attestationsUrl(DEFAULT_REGISTRY, "@honua/sdk", VERSION);
+      registry.attestations.get(url).attestations[0] = registry.envelope(
+        registry.provenanceStatement(
+          { ...SDK_TARGET, commit: unsealed },
+          registry.tarballFor("@honua/sdk", VERSION),
+          {
+            mutate: (built) => {
+              built.predicate.buildDefinition.externalParameters.workflow.ref = "refs/heads/trunk";
+            },
+          },
+        ),
+      );
+    },
+    { publishRef: "refs/heads/trunk" },
+  );
+  assert.equal(receipt.status, "failed");
+  assert.match(failedCheck(receipt, "@honua/sdk", "source-revision").detail, new RegExp(unsealed, "u"));
+});
+
+test("an arbitrary --publish-ref is refused rather than verified against", () => {
+  for (const ref of ["refs/tags/js-sdk-v0.0.1", "refs/pull/1/merge", "trunk"]) {
+    const { errors } = planReal({ publishRef: ref });
+    assert.ok(
+      errors.some((error) => error.includes("--publish-ref")),
+      `${ref}: ${errors.join("\n")}`,
+    );
+  }
+  // The sealed tag's own ref is always acceptable and is the default.
+  assert.deepEqual(planReal({ publishRef: `refs/tags/${SEALED_TAG}` }).errors, []);
+  assert.equal(
+    planReal().targets.find((target) => target.npmName === "@honua/sdk").expectedRef,
+    `refs/tags/${SEALED_TAG}`,
+  );
+});
+
 test("an artifact built from a ref other than its release tag fails the cut", async () => {
   const receipt = await verify((registry) => {
     const url = attestationsUrl(DEFAULT_REGISTRY, "@honua/sdk-js", VERSION);
@@ -533,4 +697,15 @@ test("the CLI requires both the tag and the sealed commit", () => {
   const options = parseVerifyPublishedReleaseArgs(["--tag", SEALED_TAG, "--commit", SEALED_COMMIT]);
   assert.equal(options.registry, DEFAULT_REGISTRY);
   assert.equal(options.tag, SEALED_TAG);
+  assert.equal(options.publishRef, undefined);
+
+  const recovery = parseVerifyPublishedReleaseArgs([
+    "--tag",
+    SEALED_TAG,
+    "--commit",
+    SEALED_COMMIT,
+    "--publish-ref",
+    "refs/heads/trunk",
+  ]);
+  assert.equal(recovery.publishRef, "refs/heads/trunk");
 });

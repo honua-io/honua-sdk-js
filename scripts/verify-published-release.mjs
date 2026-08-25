@@ -23,7 +23,11 @@
 //                   workflow the manifest names.
 //   4. SOURCE SHA   the provenance's source revision is the commit the release
 //                   tag names -- for the SDK family, the sealed commit
-//                   release-please.yml created the tag on.
+//                   release-please.yml created the tag on -- and the ref the
+//                   publish actually ran from is the one the caller declares
+//                   (`--publish-ref`), so the guarded branch recovery
+//                   publish-js-sdk.yml supports is verified rather than
+//                   failed for not being a tag run.
 //
 // It fails closed: an unreachable registry, a missing field, a malformed
 // attestation, or an unparseable envelope is a failure, never a skip. A
@@ -51,6 +55,15 @@ export const PUBLISH_PREDICATE_TYPE = "https://github.com/npm/attestation/tree/m
 
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
 const INTEGRITY_PATTERN = /^sha512-[A-Za-z0-9+/]+={0,2}$/u;
+/**
+ * The only refs a publish of this cut may legitimately have run from: the
+ * release tag itself, or a branch during the guarded branch recovery publish
+ * `publish-js-sdk.yml` supports (`allow_branch_publish=true`, which requires a
+ * matching `release_version` and an exact `source_revision`). A branch ref
+ * relaxes nothing else -- the commit check below still pins the artifact to the
+ * commit the release tag names.
+ */
+const BRANCH_REF_PATTERN = /^refs\/heads\/[^\s]+$/u;
 
 /**
  * The dist-tag `publish-js-sdk.yml`'s `resolve_dist_tag` computes. Kept
@@ -91,12 +104,22 @@ export function subjectPurl(npmName, version) {
  * names, which is resolved through `resolveTagCommit` and is a hard failure
  * when it cannot be resolved.
  *
+ * `publishRef` is the ref the publish run actually used (`github.ref`). It
+ * defaults to the sealed tag's ref, and may only be that same ref or a branch
+ * ref -- the guarded branch recovery run publish-js-sdk.yml supports records
+ * `refs/heads/<branch>` in npm provenance, and requiring the tag ref there
+ * would fail every recovered artifact after a successful publish. It applies
+ * only to artifacts bound to the sealed cut; artifacts that publish from their
+ * own Release Please tag through their own workflow are always expected to name
+ * that tag's ref.
+ *
  * @returns {{targets: object[], errors: string[]}}
  */
 export function planPublishedReleaseTargets({
   manifest,
   sealedTag,
   sealedCommit,
+  publishRef,
   readPackageVersion,
   resolveTagCommit,
 }) {
@@ -109,6 +132,18 @@ export function planPublishedReleaseTargets({
   const sealedPrefix = manifest?.cut?.sealedTagPrefix;
   if (typeof sealedPrefix !== "string" || !sealedTag?.startsWith(sealedPrefix)) {
     errors.push(`--tag "${sealedTag ?? ""}" is not a ${sealedPrefix} release tag`);
+  }
+
+  const sealedTagRef = `refs/tags/${sealedTag}`;
+  let sealedRef = sealedTagRef;
+  if (publishRef !== undefined && publishRef !== null && publishRef !== "") {
+    if (typeof publishRef !== "string" || !(publishRef === sealedTagRef || BRANCH_REF_PATTERN.test(publishRef))) {
+      errors.push(
+        `--publish-ref "${publishRef}" is neither ${sealedTagRef} nor a refs/heads/<branch> recovery ref; refusing to verify against an arbitrary ref`,
+      );
+    } else {
+      sealedRef = publishRef;
+    }
   }
 
   for (const artifact of manifest?.included ?? []) {
@@ -158,6 +193,7 @@ export function planPublishedReleaseTargets({
       distTag: resolveDistTag(version),
       tag,
       commit,
+      expectedRef: sealed ? sealedRef : `refs/tags/${tag}`,
       workflow: artifact.publish.workflow,
       sourceBinding: artifact.sourceBinding,
     });
@@ -211,6 +247,27 @@ function check(id, description, evaluate) {
 
 function expect(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+/**
+ * An in-toto statement only vouches for what it names. Both the provenance and
+ * the npm publish attestation must carry this exact package@version as a
+ * subject whose sha512 is the tarball the registry actually served, or the
+ * attestation is about some other artifact.
+ */
+function expectSubjectIsTarball(statement, target, tarballSha512Hex) {
+  const subjects = Array.isArray(statement?.subject) ? statement.subject : [];
+  const expectedName = subjectPurl(target.npmName, target.version);
+  const subject = subjects.find((entry) => entry?.name === expectedName);
+  expect(
+    subject !== undefined,
+    `attestation names ${subjects.map((entry) => entry?.name).join(", ") || "<no subject>"}, not ${expectedName}`,
+  );
+  expect(
+    subject.digest?.sha512 === tarballSha512Hex,
+    `attestation subject digest ${subject.digest?.sha512 ?? "<missing>"} is not the served tarball's sha512`,
+  );
+  return expectedName;
 }
 
 /**
@@ -298,9 +355,20 @@ async function verifyTarget(target, { registry, repository, fetchImpl }) {
 
   const entries = Array.isArray(attestations?.attestations) ? attestations.attestations : [];
   checks.push(
-    check("publish-attestation", "npm recorded a publish attestation", () => {
+    check("publish-attestation", "npm recorded a publish attestation bound to the published tarball", () => {
       const found = entries.find((entry) => entry.predicateType === PUBLISH_PREDICATE_TYPE);
       expect(found !== undefined, `no ${PUBLISH_PREDICATE_TYPE} attestation`);
+      // The outer `predicateType` is registry metadata, not a signed claim. The
+      // DSSE payload is the attestation, so decode it and hold it to the same
+      // bar as provenance: a missing, unparseable, mislabelled, or
+      // differently-subjected envelope must fail rather than count as
+      // "attested".
+      const statement = decodeAttestationStatement(found);
+      expect(
+        statement.predicateType === PUBLISH_PREDICATE_TYPE,
+        `envelope declares ${PUBLISH_PREDICATE_TYPE} but the statement says ${statement.predicateType ?? "<missing>"}`,
+      );
+      expectSubjectIsTarball(statement, target, tarballSha512Hex);
       return PUBLISH_PREDICATE_TYPE;
     }),
   );
@@ -321,20 +389,9 @@ async function verifyTarget(target, { registry, repository, fetchImpl }) {
   if (!statement) return finishTarget(target, checks, { integrity, tarball: tarballUrl });
 
   checks.push(
-    check("provenance-subject", "the provenance is bound to the exact published tarball", () => {
-      const subjects = Array.isArray(statement.subject) ? statement.subject : [];
-      const expectedName = subjectPurl(target.npmName, target.version);
-      const subject = subjects.find((entry) => entry?.name === expectedName);
-      expect(
-        subject !== undefined,
-        `provenance names ${subjects.map((entry) => entry?.name).join(", ") || "<no subject>"}, not ${expectedName}`,
-      );
-      expect(
-        subject.digest?.sha512 === tarballSha512Hex,
-        `provenance subject digest ${subject.digest?.sha512 ?? "<missing>"} is not the served tarball's sha512`,
-      );
-      return expectedName;
-    }),
+    check("provenance-subject", "the provenance is bound to the exact published tarball", () =>
+      expectSubjectIsTarball(statement, target, tarballSha512Hex),
+    ),
   );
 
   const build = statement.predicate?.buildDefinition;
@@ -358,7 +415,7 @@ async function verifyTarget(target, { registry, repository, fetchImpl }) {
   checks.push(
     check("source-revision", `the published artifact was built from ${target.commit}`, () => {
       const workflowRef = build?.externalParameters?.workflow?.ref;
-      const expectedRef = `refs/tags/${target.tag}`;
+      const expectedRef = target.expectedRef ?? `refs/tags/${target.tag}`;
       expect(
         workflowRef === expectedRef,
         `provenance was built from ${workflowRef ?? "<missing>"}, not ${expectedRef}`,
@@ -397,6 +454,7 @@ function finishTarget(target, checks, extras) {
     distTag: target.distTag,
     tag: target.tag,
     sourceBinding: target.sourceBinding,
+    sourceRef: target.expectedRef ?? null,
     sourceRevision: extras.sourceRevision ?? null,
     workflow: target.workflow,
     tarball: extras.tarball ?? null,
@@ -461,6 +519,7 @@ export function parseVerifyPublishedReleaseArgs(argv) {
     const value = argv[index + 1];
     if (flag === "--tag") options.tag = value;
     else if (flag === "--commit") options.commit = value;
+    else if (flag === "--publish-ref") options.publishRef = value;
     else if (flag === "--registry") options.registry = value;
     else if (flag === "--receipt") options.receipt = value;
     else throw new Error(`Unknown verify-published-release argument: ${flag}`);
@@ -491,6 +550,7 @@ async function main(argv) {
     manifest,
     sealedTag: options.tag,
     sealedCommit: options.commit,
+    publishRef: options.publishRef,
     readPackageVersion: readPackageVersionFrom(ROOT),
     resolveTagCommit: resolveTagCommitWith(ROOT),
   });

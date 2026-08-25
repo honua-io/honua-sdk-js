@@ -367,6 +367,14 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('js-sdk-v{0}', github.event.inputs.release_version) }}
           SEALED_COMMIT: ${{ github.sha }}
+          # npm provenance records the ref the publish job actually ran from.
+          # A tag run records refs/tags/js-sdk-v*, but the guarded branch
+          # recovery publish this workflow supports (allow_branch_publish, which
+          # already pins release_version and source_revision) records
+          # refs/heads/<branch>. Pass the real ref so a recovered publish is
+          # verified rather than failed after the packages are already live;
+          # the commit check still pins every artifact to SEALED_COMMIT.
+          PUBLISH_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           # npm's attestation endpoint trails the publish by seconds to a couple
@@ -377,6 +385,7 @@ jobs:
             if node scripts/verify-published-release.mjs \
               --tag "${RELEASE_TAG}" \
               --commit "${SEALED_COMMIT}" \
+              --publish-ref "${PUBLISH_REF}" \
               --receipt test-results/published-release-verification.v1.json; then
               exit 0
             fi
