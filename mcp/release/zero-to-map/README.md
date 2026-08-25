@@ -40,8 +40,8 @@ the deployment requires bearer authentication; do not put credentials in the
 journey plan or a release receipt.
 Credential-bearing proxy and live-journey endpoints require HTTPS, except for
 exact loopback HTTP used by the bounded local-Docker profile. User information,
-query parameters, fragments, cross-origin redirects, and catalogs other than
-the exact 432-tool default roster fail closed before the first mutation.
+query parameters, fragments, cross-origin redirects, and any catalog that is not
+exactly the enabled-profile roster fail closed before the first mutation.
 
 ## Run a live candidate
 
@@ -51,9 +51,10 @@ Prerequisites:
 - the 2026.1 `honua` CLI work from `honua-sdk-js#1370-#1373`
 - a server build exposing the complete default 432-tool roster (47 static plus
   385 `honua_admin_*` tools), with all eleven secret/session Admin operations
-  absent, plus the three
-  `honua_esri_gp_*` tools, `honua_buffer_features`, and the Studio lifecycle
-  tools including `honua_studio_save_version`, `honua_studio_get_version`, and
+  absent, **and** the `analysis` and `esri-gp` server profiles enabled so the
+  three `honua_esri_gp_*` tools and `honua_buffer_features` are advertised
+  (441 tools in total), plus the Studio lifecycle tools including
+  `honua_studio_save_version`, `honua_studio_get_version`, and
   `honua_studio_reopen_version`
 - the `geoprocessing/Buffer` GPServer task seeded by the deployment
 - these fixtures available to the server at an HTTP(S) base URL
@@ -107,9 +108,28 @@ whose reference digest is verified against the producer's Secrets Manager ARN;
 it does not invoke or pretend to invoke the Docker installer.
 
 The catalog is checked in full before the first MCP call. Missing tools or
-input-schema drift block the run without sending that call. The preflight
-requires the exact 385-tool Admin roster and at least the 47-tool default static
-surface; additive opt-in analysis/Esri tools are allowed. The connection is
+input-schema drift block the run without sending that call.
+
+The preflight verifies each enabled server profile independently and *derives*
+the expected total from them; it never compares the catalog against a single
+hardcoded number:
+
+| Profile | Members | Verified by |
+| --- | --- | --- |
+| `base` | 47 static + 385 `honua_admin_*` = 432 | the generated Admin contract, plus the 11 audited secret/session exclusions proven absent |
+| `analysis` | 6 | `honua_buffer_features` by name; the rest by declared size (the server has not published an `analysis` roster - honua-server#3363) |
+| `esri-gp` | 3 | exactly `honua_esri_gp_list_tasks`, `honua_esri_gp_describe_task`, `honua_esri_gp_execute_task` from `contracts/esri-gp-mcp.v1.json` |
+
+The enabled candidate therefore advertises 432 + 6 + 3 = 441 tools. A missing,
+unexpected, duplicate, excluded, truncated, or schema-drifted member fails with
+its own labelled finding naming the journey stage and action that needs the
+tool; a short catalog is reported as a pagination fault rather than a roster
+decision. The pagination safety ceiling in `listAllTools` is deliberately
+separate from every roster number, so reading a larger profile-enabled catalog
+is never mistaken for a hostile server. Default-profile certification
+(`certifyAdminCatalogParity`) continues to require exactly 432.
+
+The connection is
 created with `secretReference` + `secretType`; raw database credentials never
 enter MCP arguments, checkpoints, or receipts. One-time-secret and session-bound
 operations (including API-key issuance) are deliberately absent from MCP and

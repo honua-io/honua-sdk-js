@@ -7,7 +7,10 @@ import {
   type JourneyResumePoint,
   type JourneyResumeState,
   type JourneyStageReceipt,
+  ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA,
   ZERO_TO_MAP_CONSOLE_RECEIPT_REQUEST_SCHEMA,
+  type ZeroToMapCatalogReceipt,
+  type ZeroToMapProfileReceipt,
 } from "./zero-to-map.js";
 
 export const ZERO_TO_MAP_CHECKPOINT_SCHEMA = "honua.zero-to-map.checkpoint/v1" as const;
@@ -57,6 +60,10 @@ export function createZeroToMapCheckpoint(
       capturedVariables: snapshot.capturedVariables,
       completedStages: snapshot.completedStages,
       resumeAt: snapshot.resumeAt,
+      // Carried across the Console boundary because no post-checkpoint stage
+      // can re-derive it; the resumed run's final receipt would otherwise
+      // overwrite the pre-pause receipt with one that has no catalog evidence.
+      ...(snapshot.catalog ? { catalog: snapshot.catalog } : {}),
     },
     consoleReceiptRequest: snapshot.consoleReceiptRequest,
   };
@@ -230,7 +237,7 @@ function canonicalJson(value: unknown): string {
 
 function parseResume(value: unknown): JourneyResumeState {
   const resume = object(value, "checkpoint.resume");
-  exactKeys(resume, ["startedAt", "capturedVariables", "completedStages", "resumeAt"], "checkpoint.resume");
+  exactKeys(resume, ["startedAt", "capturedVariables", "completedStages", "resumeAt", "catalog"], "checkpoint.resume");
   const capturedVariables = object(resume.capturedVariables, "checkpoint.resume.capturedVariables");
   if (!Array.isArray(resume.completedStages)) throw new Error("checkpoint.resume.completedStages must be an array");
   return {
@@ -238,6 +245,70 @@ function parseResume(value: unknown): JourneyResumeState {
     capturedVariables,
     completedStages: resume.completedStages.map(parseStageReceipt),
     resumeAt: parseResumePoint(resume.resumeAt),
+    ...(resume.catalog === undefined ? {} : { catalog: parseCatalogReceipt(resume.catalog) }),
+  };
+}
+
+/**
+ * Catalog preflight evidence restored from the checkpoint. Validated as
+ * strictly as the rest of the payload: it is re-emitted onto the final release
+ * receipt, so a malformed or padded catalog block must not survive the parse.
+ */
+function parseCatalogReceipt(value: unknown): ZeroToMapCatalogReceipt {
+  const path = "checkpoint.resume.catalog";
+  const catalog = object(value, path);
+  exactKeys(
+    catalog,
+    [
+      "schemaVersion",
+      "activeProfiles",
+      "expectedTotalTools",
+      "advertisedTotalTools",
+      "baseStaticTools",
+      "baseAdminTools",
+      "auditedExclusions",
+      "profiles",
+      "catalogSha256",
+      "adminRosterSha256",
+      "staticRosterSha256",
+      "exclusionRosterSha256",
+    ],
+    path,
+  );
+  if (catalog.schemaVersion !== ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA) {
+    throw new Error(`${path}.schemaVersion must be ${ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA}`);
+  }
+  if (!Array.isArray(catalog.profiles)) throw new Error(`${path}.profiles must be an array`);
+  return {
+    schemaVersion: ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA,
+    activeProfiles: stringList(catalog.activeProfiles, `${path}.activeProfiles`),
+    expectedTotalTools: count(catalog.expectedTotalTools, `${path}.expectedTotalTools`),
+    advertisedTotalTools: count(catalog.advertisedTotalTools, `${path}.advertisedTotalTools`),
+    baseStaticTools: count(catalog.baseStaticTools, `${path}.baseStaticTools`),
+    baseAdminTools: count(catalog.baseAdminTools, `${path}.baseAdminTools`),
+    auditedExclusions: count(catalog.auditedExclusions, `${path}.auditedExclusions`),
+    profiles: catalog.profiles.map((profile, index) => parseProfileReceipt(profile, `${path}.profiles[${index}]`)),
+    catalogSha256: sha256(catalog.catalogSha256, `${path}.catalogSha256`),
+    adminRosterSha256: sha256(catalog.adminRosterSha256, `${path}.adminRosterSha256`),
+    staticRosterSha256: sha256(catalog.staticRosterSha256, `${path}.staticRosterSha256`),
+    exclusionRosterSha256: sha256(catalog.exclusionRosterSha256, `${path}.exclusionRosterSha256`),
+  };
+}
+
+function parseProfileReceipt(value: unknown, path: string): ZeroToMapProfileReceipt {
+  const profile = object(value, path);
+  exactKeys(
+    profile,
+    ["id", "expectedMembers", "advertisedMembers", "confirmedMembers", "nameResolvedMembers", "rosterSha256"],
+    path,
+  );
+  return {
+    id: text(profile.id, `${path}.id`),
+    expectedMembers: count(profile.expectedMembers, `${path}.expectedMembers`),
+    advertisedMembers: count(profile.advertisedMembers, `${path}.advertisedMembers`),
+    confirmedMembers: stringList(profile.confirmedMembers, `${path}.confirmedMembers`),
+    nameResolvedMembers: stringList(profile.nameResolvedMembers, `${path}.nameResolvedMembers`),
+    rosterSha256: sha256(profile.rosterSha256, `${path}.rosterSha256`),
   };
 }
 
@@ -368,6 +439,11 @@ function target(value: unknown): ZeroToMapCheckpointBindings["target"] {
     throw new Error("checkpoint.target must be local-docker or aws-ecs");
   }
   return value;
+}
+
+function count(value: unknown, path: string): number {
+  if (!Number.isInteger(value) || (value as number) < 0) throw new Error(`${path} must be a non-negative integer`);
+  return value as number;
 }
 
 function stringList(value: unknown, path: string): string[] {

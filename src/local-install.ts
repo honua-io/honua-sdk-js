@@ -96,7 +96,40 @@ export interface LocalInstallStatus {
 }
 
 export const LOCAL_INSTALL_SERVER_IMAGE = ADMIN_LOCAL_SERVER_IMAGE;
-export const LOCAL_INSTALL_MCP_PACKAGE = "@honua/mcp-server@0.1.7-beta.0";
+
+/**
+ * Candidate MCP/CLI artifact emitted into generated terminal MCP client
+ * configurations.
+ *
+ * This must name a version that is actually published to the public registry:
+ * the generated `.mcp.json` / `claude_desktop_config.json` run
+ * `npx -y --package <pin> honua-mcp-proxy`, so a pin that only exists in this
+ * repository's release lineage produces an uninstallable configuration on a
+ * clean machine. Repository release tags and `mcp/CHANGELOG.md` entries are
+ * *not* evidence of publication - a tagged version whose npm publish failed
+ * still appears there.
+ *
+ * The pin previously read `0.1.7-beta.0`, which the registry has never served.
+ * `@honua/sdk-js@0.1.7-beta.0` was published from a recovery branch rather than
+ * from the sealed tag commit, so the coordinated 0.1.7 cut of `@honua/mcp-server`
+ * (and `create-honua-app`) never happened at all. The pin is therefore held at
+ * the highest version the registry actually serves rather than bumped to match
+ * this repository's version; advancing it requires a real coordinated publish,
+ * not an edit here.
+ *
+ * `test/local-install.test.ts` proves the pin belongs to the repository's own
+ * release lineage and never runs ahead of `mcp/package.json`; the registry
+ * itself is only queried by the opt-in
+ * `HONUA_MCP_PIN_LIVE_ENABLED=true npm run verify:mcp-pin:live` lane, never in
+ * PR CI.
+ */
+export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";
+/** Highest `@honua/mcp-server` version actually published to the public npm registry. */
+export const LOCAL_INSTALL_MCP_PACKAGE_VERSION = "0.1.4-beta.0";
+/** Registry tarball integrity for {@link LOCAL_INSTALL_MCP_PACKAGE_VERSION}. */
+export const LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY =
+  "sha512-TqqVscgNZMg+y+qUs3f9ShpKT8n38W3njXkTciqXKdXsk5PILG1fjwQur5/Da0KVg895L0qH5EqXRAwnjzO30w==";
+export const LOCAL_INSTALL_MCP_PACKAGE = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`;
 
 function isAdminReleaseContractCompatible(): boolean {
   return Boolean(ADMIN_RELEASE_CONTRACT_COMPATIBLE);
@@ -267,6 +300,20 @@ export async function getHonuaLocalStatus(
   };
 }
 
+/**
+ * Render the local Docker compose file for an install profile.
+ *
+ * KNOWN GAP (honua-server#3363/#3430/#3431): `gp-dev` grants the Pro edition
+ * but cannot yet request the `base`, `analysis`, and `esri-gp` MCP server
+ * profiles that the zero-to-map journey needs, because the server has not
+ * published the configuration key that enables them. Nothing in this checkout -
+ * fixture, journey plan, generated Admin contract, or documentation - names
+ * that key, and emitting a guessed environment variable would produce a compose
+ * file that silently does nothing. The key is deliberately left unset until the
+ * server contract lands; `mcp/src/release/zero-to-map.ts` fails the preflight
+ * with an actionable "enable the <profile> server profile" diagnostic in the
+ * meantime.
+ */
 export function renderLocalCompose(options: { readonly profile: LocalInstallProfile }): string {
   const gpEdition = options.profile === "gp-dev" ? "Pro" : "";
   return `name: honua-local

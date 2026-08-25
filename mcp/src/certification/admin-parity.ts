@@ -186,9 +186,38 @@ export function normalizeAdminTools(tools: readonly Tool[]) {
 }
 
 /**
+ * Hostile-server safety ceiling on the number of `tools/list` pages a single
+ * catalog read may consume.
+ *
+ * This is deliberately NOT the expected roster size. A roster assertion says
+ * "this catalog is wrong"; this ceiling says "this server never stopped
+ * paging". Conflating the two produced a single unactionable diagnostic and,
+ * worse, made an opt-in profile catalog (base + analysis + Esri GP) impossible
+ * to read at all because the *transport* refused any catalog larger than the
+ * default roster.
+ */
+export const MCP_TOOLS_LIST_MAX_PAGES = 1_024;
+
+/**
+ * Hostile-server safety ceiling on the number of tools a single catalog read
+ * may accumulate. Independent of {@link MCP_DEFAULT_TOTAL_TOOL_COUNT} so that
+ * enabling additive server profiles is a roster question, not a transport
+ * failure.
+ */
+export const MCP_TOOLS_LIST_MAX_TOOLS = 8_192;
+
+/** Maximum accepted `tools/list` continuation cursor length, in characters. */
+export const MCP_TOOLS_LIST_MAX_CURSOR_LENGTH = 1_024;
+
+/**
  * Read the complete MCP tool catalog. The server deliberately pages large
  * catalogs, so a single tools/list response is not certification evidence for
  * the 432-tool default roster (47 static plus 385 Admin MCP tools).
+ *
+ * Roster size is *not* enforced here. This function is responsible only for
+ * retrieving a complete, non-hostile catalog; deciding whether that catalog is
+ * the 432-tool default roster or a profile-enabled superset belongs to the
+ * certification and preflight callers.
  */
 export async function listAllTools(client: {
   listTools(request?: { cursor?: string }): Promise<{ tools: Tool[]; nextCursor?: string }>;
@@ -199,16 +228,20 @@ export async function listAllTools(client: {
   let pageCount = 0;
   do {
     pageCount += 1;
-    if (pageCount > MCP_DEFAULT_TOTAL_TOOL_COUNT) {
-      throw new Error(`MCP tools/list exceeded ${MCP_DEFAULT_TOTAL_TOOL_COUNT} bounded pages`);
+    if (pageCount > MCP_TOOLS_LIST_MAX_PAGES) {
+      throw new Error(
+        `MCP tools/list exceeded the ${MCP_TOOLS_LIST_MAX_PAGES}-page pagination safety ceiling after ${tools.length} tools; the server did not terminate its cursor chain. This is a pagination fault, not a roster assertion.`,
+      );
     }
     const page = await client.listTools(cursor ? { cursor } : undefined);
-    if (tools.length + page.tools.length > MCP_DEFAULT_TOTAL_TOOL_COUNT) {
-      throw new Error(`MCP tools/list exceeded the exact ${MCP_DEFAULT_TOTAL_TOOL_COUNT}-tool default roster`);
+    if (tools.length + page.tools.length > MCP_TOOLS_LIST_MAX_TOOLS) {
+      throw new Error(
+        `MCP tools/list exceeded the ${MCP_TOOLS_LIST_MAX_TOOLS}-tool pagination safety ceiling on page ${pageCount}; the server returned an implausible catalog. This is a pagination fault, not a roster assertion.`,
+      );
     }
     tools.push(...page.tools);
     cursor = page.nextCursor;
-    if (cursor !== undefined && (cursor.length === 0 || cursor.length > 1_024)) {
+    if (cursor !== undefined && (cursor.length === 0 || cursor.length > MCP_TOOLS_LIST_MAX_CURSOR_LENGTH)) {
       throw new Error("MCP tools/list returned an invalid bounded cursor");
     }
     if (cursor && seenCursors.has(cursor)) {

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import {
   ADMIN_MCP_EXCLUDED_OPERATIONS,
+  ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
   ADMIN_MCP_PUBLISHED_TOOL_NAMES,
   MCP_DEFAULT_STATIC_TOOL_COUNT,
 } from "@honua/sdk-js/control-plane";
@@ -16,7 +17,11 @@ import {
   type JourneyBlockedError,
   type JourneyExecutionResult,
   type JourneyPauseSnapshot,
+  ZERO_TO_MAP_ADDITIVE_PROFILES,
+  ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT,
   ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
+  ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT,
+  ZERO_TO_MAP_REQUIRED_PROFILES,
   parseZeroToMapPlan,
   runZeroToMapJourney,
   validateJourneyResume,
@@ -28,16 +33,39 @@ async function loadPlan() {
   return parseZeroToMapPlan(JSON.parse(await readFile(`${bundleRoot}/journey.v1.json`, "utf8")) as unknown);
 }
 
+/** Members of every additive profile the candidate must advertise (6 analysis + 3 Esri GP). */
+function profileMemberNames(): string[] {
+  return ZERO_TO_MAP_ADDITIVE_PROFILES.flatMap((profile) => [
+    ...profile.confirmedMembers,
+    ...Array.from(
+      { length: profile.memberCount - profile.confirmedMembers.length },
+      (_, index) => `honua_fixture_${profile.id.replace(/-/g, "_")}_${String(index).padStart(2, "0")}`,
+    ),
+  ]);
+}
+
+/**
+ * A profile-enabled candidate catalog: the 432-tool base roster (47 static plus
+ * 385 published Admin projections) plus the additive analysis and Esri GP
+ * profile members. The total is derived from the profile contract, never
+ * written down.
+ */
 function completeCatalog(
   requiredTools: readonly string[],
   inputSchema: (name: string) => Readonly<Record<string, unknown>> = () => ({ type: "object" }),
 ) {
-  const admin = ADMIN_MCP_PUBLISHED_TOOL_NAMES.map((name) => ({ name, inputSchema: inputSchema(name) }));
-  const staticNames = new Set(requiredTools.filter((name) => !name.startsWith("honua_admin_")));
+  const profileNames = profileMemberNames();
+  const profileSet = new Set(profileNames);
+  const staticNames = new Set(
+    requiredTools.filter((name) => !name.startsWith("honua_admin_") && !profileSet.has(name)),
+  );
   for (let index = 0; staticNames.size < MCP_DEFAULT_STATIC_TOOL_COUNT; index += 1) {
     staticNames.add(`honua_fixture_static_${String(index).padStart(2, "0")}`);
   }
-  return [...admin, ...[...staticNames].map((name) => ({ name, inputSchema: inputSchema(name) }))];
+  return [...ADMIN_MCP_PUBLISHED_TOOL_NAMES, ...staticNames, ...profileNames].map((name) => ({
+    name,
+    inputSchema: inputSchema(name),
+  }));
 }
 
 describe("zero-to-map D9.3 release journey", () => {
@@ -515,7 +543,7 @@ describe("zero-to-map D9.3 release journey", () => {
     ]);
   });
 
-  it("rejects a live catalog with tools beyond the exact 432-tool default roster", async () => {
+  it("rejects a live catalog with tools beyond the derived base + profile roster", async () => {
     const plan = await loadPlan();
     const requiredTools = plan.stages.flatMap((stage) =>
       stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
@@ -551,6 +579,140 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(receipt.status).toBe("blocked");
     expect(receipt.stages[1]?.actions[0]).toMatchObject({ code: "mcp-catalog-incomplete" });
     expect(mutationCalled).toBe(false);
+  });
+
+  it("derives the enabled candidate total from the base roster plus the enabled profiles", () => {
+    expect(ZERO_TO_MAP_REQUIRED_PROFILES).toEqual(["base", "analysis", "esri-gp"]);
+    expect(ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT).toBe(
+      MCP_DEFAULT_STATIC_TOOL_COUNT + ADMIN_MCP_PUBLISHED_TOOL_NAMES.length,
+    );
+    expect(ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT).toBe(432);
+    expect(ZERO_TO_MAP_ADDITIVE_PROFILES.map((profile) => [profile.id, profile.memberCount])).toEqual([
+      ["analysis", 6],
+      ["esri-gp", 3],
+    ]);
+    // 441 is derived, never written down: base + analysis + esri-gp.
+    expect(ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT).toBe(
+      ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT +
+        ZERO_TO_MAP_ADDITIVE_PROFILES.reduce((total, profile) => total + profile.memberCount, 0),
+    );
+    expect(ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT).toBe(441);
+  });
+
+  it("names the disabled profile, its stage and its action when only the base roster is advertised", async () => {
+    const plan = await loadPlan();
+    const baseOnly = [
+      ...ADMIN_MCP_PUBLISHED_TOOL_NAMES,
+      ...Array.from(
+        { length: MCP_DEFAULT_STATIC_TOOL_COUNT },
+        (_, index) => `honua_fixture_static_${String(index).padStart(2, "0")}`,
+      ),
+    ].map((name) => ({ name, inputSchema: { type: "object" } }));
+
+    const receipt = await runZeroToMapJourney(plan, catalogAdapter(baseOnly), {
+      execute: true,
+      now: deterministicClock(),
+    });
+
+    expect(receipt.status).toBe("blocked");
+    const action = receipt.stages[1]?.actions[0];
+    expect(action).toMatchObject({ status: "blocked", code: "mcp-catalog-incomplete" });
+    expect(action?.message).toContain("the esri-gp profile is not advertised");
+    expect(action?.message).toContain("honua_esri_gp_list_tasks (stage 3 ");
+    expect(action?.message).toContain("the analysis profile is not advertised");
+    expect(action?.message).toContain("honua_buffer_features (stage 3 ");
+    expect(action?.message).toContain("Enable the esri-gp server profile on the candidate and rerun.");
+    // The base roster itself is intact, so nothing accuses it of being wrong.
+    expect(action?.message).not.toContain("published Admin projections are absent");
+    expect(receipt.catalog).toBeUndefined();
+  });
+
+  it("reports a short catalog as a pagination truncation rather than a roster decision", async () => {
+    const plan = await loadPlan();
+    const requiredTools = plan.stages.flatMap((stage) =>
+      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+    );
+    const truncated = completeCatalog(requiredTools).slice(0, -3);
+
+    const receipt = await runZeroToMapJourney(plan, catalogAdapter(truncated), {
+      execute: true,
+      now: deterministicClock(),
+    });
+
+    const action = receipt.stages[1]?.actions[0];
+    expect(action).toMatchObject({ status: "blocked", code: "mcp-catalog-incomplete" });
+    expect(action?.message).toContain(
+      `truncated: the catalog returned ${ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT - 3} of ${ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT} tools (3 short)`,
+    );
+    expect(action?.message).toContain("pagination fault, not a roster decision");
+  });
+
+  it("separates duplicate, excluded and unexpected members into distinct findings", async () => {
+    const plan = await loadPlan();
+    const requiredTools = plan.stages.flatMap((stage) =>
+      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+    );
+    const excluded = ADMIN_MCP_EXCLUDED_OPERATIONS[0]?.toolName as string;
+    const catalog = completeCatalog(requiredTools);
+    const drifted = [
+      ...catalog,
+      { name: excluded, inputSchema: { type: "object" } },
+      { name: catalog[0]?.name as string, inputSchema: { type: "object" } },
+    ];
+
+    const receipt = await runZeroToMapJourney(plan, catalogAdapter(drifted), {
+      execute: true,
+      now: deterministicClock(),
+    });
+
+    const action = receipt.stages[1]?.actions[0];
+    expect(action).toMatchObject({ status: "blocked", code: "mcp-catalog-incomplete" });
+    expect(action?.message).toContain(`duplicate: the catalog advertises ${catalog[0]?.name} more than once`);
+    expect(action?.message).toContain(`excluded: the catalog advertises audited secret/session operations ${excluded}`);
+    expect(action?.message).toContain("unexpected: the catalog advertises unpublished Admin tools");
+    expect(action?.message).not.toContain("truncated:");
+  });
+
+  it("records the active profiles, roster digests and audited exclusions on the receipt", async () => {
+    const plan = await loadPlan();
+    const requiredTools = plan.stages.flatMap((stage) =>
+      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+    );
+    const catalog = completeCatalog(requiredTools);
+    const adapter: JourneyAdapter = {
+      ...catalogAdapter(catalog),
+      async callTool(tool) {
+        throw new Error(`stopping the journey after the catalog preflight at ${tool}`);
+      },
+    };
+
+    const receipt = await runZeroToMapJourney(plan, adapter, { execute: true, now: deterministicClock() });
+
+    expect(receipt.status).toBe("failed");
+    expect(receipt.catalog).toMatchObject({
+      schemaVersion: "honua.zero-to-map.catalog/v1",
+      activeProfiles: ["base", "analysis", "esri-gp"],
+      expectedTotalTools: ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT,
+      advertisedTotalTools: ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT,
+      baseStaticTools: MCP_DEFAULT_STATIC_TOOL_COUNT,
+      baseAdminTools: ADMIN_MCP_PUBLISHED_TOOL_NAMES.length,
+      auditedExclusions: ADMIN_MCP_EXCLUDED_OPERATIONS.length,
+      exclusionRosterSha256: ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
+    });
+    expect(receipt.catalog?.auditedExclusions).toBe(11);
+    expect(receipt.catalog?.profiles.map((profile) => [profile.id, profile.advertisedMembers])).toEqual([
+      ["esri-gp", 3],
+      ["analysis", 6],
+    ]);
+    for (const digest of [
+      receipt.catalog?.catalogSha256,
+      receipt.catalog?.adminRosterSha256,
+      receipt.catalog?.staticRosterSha256,
+      ...(receipt.catalog?.profiles ?? []).map((profile) => profile.rosterSha256),
+    ]) {
+      expect(digest).toMatch(/^[0-9a-f]{64}$/);
+    }
+    expect(receipt.catalog?.adminRosterSha256).not.toBe(receipt.catalog?.staticRosterSha256);
   });
 
   it("fails closed before mutation until the exact Studio version lifecycle tools are advertised", async () => {
@@ -1256,6 +1418,35 @@ function neverCalledAdapter(): JourneyAdapter {
     runGpServer: fail,
     readReceipt: fail,
     checkHttp: fail,
+  };
+}
+
+/** Minimal adapter that only serves the CLI install stage and one catalog read. */
+function catalogAdapter(
+  tools: readonly { name: string; inputSchema: Readonly<Record<string, unknown>> }[],
+): JourneyAdapter {
+  return {
+    async runCli(args) {
+      return cliResult(args);
+    },
+    async listTools() {
+      return tools;
+    },
+    async callTool() {
+      throw new Error("a blocked catalog preflight must not reach tools/call");
+    },
+    async readResource() {
+      throw new Error("a blocked catalog preflight must not read MCP resources");
+    },
+    async runGpServer() {
+      throw new Error("a blocked catalog preflight must not execute GPServer jobs");
+    },
+    async readReceipt() {
+      return undefined;
+    },
+    async checkHttp() {
+      throw new Error("a blocked catalog preflight must not make HTTP requests");
+    },
   };
 }
 

@@ -338,6 +338,8 @@
     "build:split-packages": "npm run prepare:test-sdk --silent && node scripts/prepare-split-packages.mjs && npm run prepare:test-sdk:adopt --silent",
     "build:split-packages:prepared": "npm run prepare:test-sdk:already --silent && node scripts/prepare-split-packages.mjs && npm run prepare:test-sdk:adopt --silent",
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
+    "verify:mcp-pin": "npm run build --silent && node scripts/verify-mcp-pin.mjs",
+    "verify:mcp-pin:live": "HONUA_MCP_PIN_LIVE_ENABLED=true npm run verify:mcp-pin",
     "verify:split-packages:prepared": "npm run build:split-packages:prepared --silent && node scripts/verify-split-packages.mjs",
     "security:binary-artifacts": "node scripts/check-binary-artifacts.mjs",
     "verify:publish-surface": "node scripts/verify-publish-surface.mjs",

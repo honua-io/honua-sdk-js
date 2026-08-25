@@ -5,6 +5,9 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  LOCAL_INSTALL_MCP_PACKAGE,
+  LOCAL_INSTALL_MCP_PACKAGE_NAME,
+  LOCAL_INSTALL_MCP_PACKAGE_VERSION,
   LOCAL_INSTALL_SERVER_IMAGE,
   cloudInstallHandoff,
   getHonuaLocalStatus,
@@ -71,5 +74,18 @@ describe("local Honua installer", () => {
         },
       },
     });
+  });
+
+  it("pins the generated MCP configuration to an exact candidate artifact, never a floating package", () => {
+    const config = JSON.parse(renderMcpConfig("http://127.0.0.1:9090", "key")) as {
+      mcpServers: { honua: { args: string[] } };
+    };
+    expect(config.mcpServers.honua.args).toEqual(["-y", "--package", LOCAL_INSTALL_MCP_PACKAGE, "honua-mcp-proxy"]);
+    expect(LOCAL_INSTALL_MCP_PACKAGE).toBe(`${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`);
+    // `npx -y --package @honua/mcp-server@latest` would resolve to whatever the
+    // registry serves at run time; the terminal journey must install a reviewed,
+    // digest-recorded candidate. See test/verify-mcp-pin.test.ts for the lineage
+    // and registry proofs.
+    expect(LOCAL_INSTALL_MCP_PACKAGE_VERSION).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
   });
 });

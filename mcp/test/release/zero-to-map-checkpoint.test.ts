@@ -19,6 +19,7 @@ import { assertAwsEcsProvisionBindings, parseAwsEcsProvisionBinding } from "../.
 import {
   type JourneyAdapter,
   type JourneyPauseSnapshot,
+  ZERO_TO_MAP_ADDITIVE_PROFILES,
   ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
   parseZeroToMapPlan,
   runZeroToMapJourney,
@@ -36,14 +37,21 @@ const bindings: ZeroToMapCheckpointBindings = {
 };
 
 function completeCatalog(requiredTool: string) {
-  const staticNames = new Set([requiredTool]);
+  const profileNames = ZERO_TO_MAP_ADDITIVE_PROFILES.flatMap((profile) => [
+    ...profile.confirmedMembers,
+    ...Array.from(
+      { length: profile.memberCount - profile.confirmedMembers.length },
+      (_, index) => `honua_fixture_${profile.id.replace(/-/g, "_")}_${String(index).padStart(2, "0")}`,
+    ),
+  ]);
+  const staticNames = new Set(profileNames.includes(requiredTool) ? [] : [requiredTool]);
   for (let index = 0; staticNames.size < MCP_DEFAULT_STATIC_TOOL_COUNT; index += 1) {
     staticNames.add(`honua_fixture_static_${String(index).padStart(2, "0")}`);
   }
-  return [
-    ...ADMIN_MCP_PUBLISHED_TOOL_NAMES.map((name) => ({ name, inputSchema: { type: "object" } })),
-    ...[...staticNames].map((name) => ({ name, inputSchema: { type: "object" } })),
-  ];
+  return [...ADMIN_MCP_PUBLISHED_TOOL_NAMES, ...staticNames, ...profileNames].map((name) => ({
+    name,
+    inputSchema: { type: "object" },
+  }));
 }
 
 function fixturePlan() {
@@ -349,6 +357,108 @@ describe("zero-to-map pause/resume checkpoint", () => {
     ).toThrow("not scoped to the required release grants");
   });
 
+  it("carries the catalog preflight evidence across the Console pause onto the resumed receipt", async () => {
+    // Stages 6 and 7 issue no MCP action, so a resumed run has nothing to
+    // re-derive the preflight from. Its receipt overwrites the pre-pause one,
+    // so without the checkpoint carrying it every successful release receipt
+    // would lose the active-profile and roster-digest evidence entirely.
+    const plan = catalogFixturePlan();
+    let snapshot: JourneyPauseSnapshot | undefined;
+    let listToolsCalls = 0;
+    const paused = await runZeroToMapJourney(
+      plan,
+      adapter({
+        runCli: async () => ({ value: { id: "runtime" } }),
+        listTools: async () => {
+          listToolsCalls += 1;
+          return completeCatalog("honua_studio_propose_publication");
+        },
+        callTool: async () => ({ value: { structuredContent: { id: "runtime-5", recorded: true } } }),
+      }),
+      {
+        execute: true,
+        now: clock(),
+        onExternalReceiptMissing: (value) => {
+          snapshot = value;
+        },
+      },
+    );
+    expect(paused.status).toBe("blocked");
+    expect(listToolsCalls).toBe(1);
+    expect(paused.catalog?.schemaVersion).toBe("honua.zero-to-map.catalog/v1");
+    expect(paused.catalog?.activeProfiles.length).toBeGreaterThan(0);
+
+    const sealed = createZeroToMapCheckpoint(bindings, snapshot as JourneyPauseSnapshot, "2026-08-20T12:00:00Z");
+    expect(sealed.resume.catalog).toEqual(paused.catalog);
+    // Survives the strict parse, integrity digest included.
+    const parsed = parseZeroToMapCheckpoint(JSON.parse(JSON.stringify(sealed)) as unknown);
+    expect(parsed.resume.catalog).toEqual(paused.catalog);
+
+    const resumed = await runZeroToMapJourney(
+      plan,
+      adapter({
+        runCli: async () => {
+          throw new Error("mutations must not replay");
+        },
+        readReceipt: async () => ({
+          value: {
+            schemaVersion: ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
+            journeyId: bindings.journeyId,
+            status: "passed",
+            resourceId: "runtime-5",
+            approvalId: "approval-1",
+            shareUrl: "https://example.test/app",
+          },
+        }),
+        checkHttp: async () => ({ evidence: { status: 200 } }),
+      }),
+      { execute: true, resume: parsed.resume, now: clock() },
+    );
+
+    expect(resumed.status).toBe("passed");
+    // The evidence the successful receipt is judged on, not just any catalog.
+    expect(resumed.catalog).toEqual(paused.catalog);
+    // Restored, never re-derived: stages 6 and 7 never reach the adapter.
+    expect(listToolsCalls).toBe(1);
+  });
+
+  it("refuses a checkpoint whose catalog evidence was padded or malformed", async () => {
+    const snapshot = await pausedSnapshot();
+    const withCatalog: JourneyPauseSnapshot = {
+      ...snapshot,
+      catalog: {
+        schemaVersion: "honua.zero-to-map.catalog/v1",
+        activeProfiles: ["base"],
+        expectedTotalTools: 441,
+        advertisedTotalTools: 441,
+        baseStaticTools: 47,
+        baseAdminTools: 385,
+        auditedExclusions: 11,
+        profiles: [],
+        catalogSha256: "a".repeat(64),
+        adminRosterSha256: "b".repeat(64),
+        staticRosterSha256: "c".repeat(64),
+        exclusionRosterSha256: "d".repeat(64),
+      },
+    };
+    const sealed = createZeroToMapCheckpoint(bindings, withCatalog, "2026-08-20T12:00:00Z");
+    expect(parseZeroToMapCheckpoint(JSON.parse(JSON.stringify(sealed)) as unknown).resume.catalog).toEqual(
+      withCatalog.catalog,
+    );
+
+    for (const [mutate, message] of [
+      [(catalog: Record<string, unknown>) => ({ ...catalog, smuggled: "extra" }), "unknown fields"],
+      [(catalog: Record<string, unknown>) => ({ ...catalog, schemaVersion: "honua.other/v1" }), "schemaVersion"],
+      [(catalog: Record<string, unknown>) => ({ ...catalog, catalogSha256: "not-a-digest" }), "catalogSha256"],
+      [(catalog: Record<string, unknown>) => ({ ...catalog, advertisedTotalTools: -1 }), "advertisedTotalTools"],
+    ] as const) {
+      const broken = JSON.parse(JSON.stringify(sealed)) as Record<string, unknown>;
+      const resume = broken.resume as Record<string, unknown>;
+      resume.catalog = mutate(resume.catalog as Record<string, unknown>);
+      expect(() => parseZeroToMapCheckpoint(broken)).toThrow(message);
+    }
+  });
+
   it("rejects publication identity or URL leakage before Console approval", async () => {
     const source = fixturePlan();
     const plan = {
@@ -396,6 +506,31 @@ describe("zero-to-map pause/resume checkpoint", () => {
     });
   });
 });
+
+/** The fixture plan with stage 5 replaced by a passing MCP action. */
+function catalogFixturePlan() {
+  const source = fixturePlan();
+  return {
+    ...source,
+    stages: source.stages.map((stage) =>
+      stage.number === 5
+        ? {
+            ...stage,
+            actions: [
+              {
+                id: "propose-map-publication",
+                title: "Propose map",
+                kind: "mcp" as const,
+                tool: "honua_studio_propose_publication",
+                arguments: {},
+                captures: [{ variable: "id5", pointers: ["/structuredContent/id"] }],
+              },
+            ],
+          }
+        : stage,
+    ),
+  };
+}
 
 async function pausedSnapshot(): Promise<JourneyPauseSnapshot> {
   let snapshot: JourneyPauseSnapshot | undefined;
