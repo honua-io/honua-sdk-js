@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Query, Result, SourceDescriptor } from "../src/contract/index.js";
 import type {
@@ -10,6 +10,7 @@ import type {
   HonuaSelectionChangeDetail,
 } from "../src/web-components/index.js";
 import {
+  createHonuaApplicationContext,
   createHonuaFeatureTable,
   createHonuaWebComponentController,
   defineHonuaWebComponents,
@@ -18,6 +19,7 @@ import {
   featureTableGridHtml,
   featureTableViewModel,
   legacyFeatureTableViewModel,
+  mountHonuaApplication,
 } from "../src/web-components/index.js";
 
 /**
@@ -107,12 +109,62 @@ describe("<honua-feature-table> bounded lane", () => {
     expect(cells[1]?.textContent).toBe("Incident 1");
   });
 
+  it("joins application selection, filters, authorization, status, and diagnostics without a second owner", async () => {
+    defineHonuaWebComponents();
+    const engine = makeEngine();
+    const element = document.createElement("honua-feature-table") as HonuaFeatureTableElement<Row>;
+    element.table = engine;
+    const host = document.createElement("main");
+    host.append(element);
+    document.body.append(host);
+    const context = createHonuaApplicationContext<Row>({
+      status: "ready",
+      binding: { sourceIdentity: "incidents" },
+      authorization: { status: "authorized", scopes: ["incidents:read"] },
+    });
+    const application = await mountHonuaApplication({ host, context, register: false });
+    await engine.refresh();
+
+    context.update({ selection: [{ sourceId: "incidents", id: 1 }] });
+    expect(engine.snapshot.selection).toEqual(["incidents:1"]);
+
+    engine.select(["incidents:2"]);
+    expect(context.snapshot.selection).toEqual([
+      expect.objectContaining({ sourceId: "incidents", id: 2, attributes: expect.objectContaining({ OBJECTID: 2 }) }),
+    ]);
+
+    const inboundFilter = {
+      id: "application-status",
+      owner: { kind: "table" as const, id: "application" },
+      field: "NAME",
+      operator: "=" as const,
+      value: "Incident 2",
+      effect: "filter" as const,
+    };
+    context.update({ filters: [inboundFilter] });
+    await vi.waitFor(() => expect(engine.snapshot.filters).toEqual([inboundFilter]));
+
+    const localFilter = { ...inboundFilter, id: "local-status", value: "Incident 3" };
+    await engine.setFilters([localFilter]);
+    expect(context.snapshot.filters).toEqual([localFilter]);
+
+    context.replaceAuthorization({ status: "unauthorized", scopes: [] });
+    expect(element.getAttribute("aria-disabled")).toBe("");
+    expect(element.shadowRoot?.querySelector("[data-application-status]")?.textContent).toBe(
+      "Authorization is required",
+    );
+
+    application.dispose();
+    context.dispose();
+    engine.dispose();
+  });
+
   it("keeps the panel shrinkable without forcing horizontal overflow", () => {
     const stylesheet = shadow(mount()).querySelector("style")?.textContent ?? "";
 
     expect(stylesheet).toContain(".table-panel { max-width: 100%; min-width: 0; }");
     expect(stylesheet).toContain(".table-wrap { max-width: 100%; overflow-x: auto; overflow-y: auto; }");
-    expect(stylesheet).toContain(".table-wrap table { min-width: 100%; width: 100%; }");
+    expect(stylesheet).toContain(".table-wrap table { min-width: 100%; width: max-content; }");
   });
 
   it("keeps exactly one tabbable cell (roving tabindex)", async () => {
@@ -217,6 +269,57 @@ describe("<honua-feature-table> bounded lane", () => {
     );
   });
 
+  it("offers accessible column visibility controls", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    const controls = shadow(element).querySelector("[data-column-controls]");
+    expect(controls?.querySelector("summary")?.textContent).toBe("Columns");
+    const name = controls?.querySelector<HTMLInputElement>("[data-column-field='NAME']");
+    expect(name?.checked).toBe(true);
+    if (!name) throw new Error("missing column control");
+    name.checked = false;
+    name.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(engine.snapshot.visibleColumns.map((column) => column.field)).not.toContain("NAME"));
+    expect(shadow(element).querySelector("[role='columnheader'][data-field='NAME']")).toBeNull();
+  });
+
+  it("virtualizes columns horizontally while preserving absolute ARIA positions", async () => {
+    const columns = Array.from({ length: 40 }, (_unused, index) => ({
+      field: `FIELD_${index}`,
+      label: `Field ${index}`,
+    }));
+    const attributes = Object.fromEntries(columns.map((column, index) => [column.field, index]));
+    attributes.FIELD_0 = 1;
+    const engine = createHonuaFeatureTable<Record<string, unknown>>({
+      source: {
+        descriptor: { ...descriptor(), schema: { primaryKey: "FIELD_0" } },
+        query: async () => ({ features: [{ attributes }], totalCount: 1, exceededTransferLimit: false }),
+      },
+      sourceId: "incidents",
+      columns,
+      budgets: { pageSize: 1, maxFields: 32, maxRenderedColumns: 5 },
+    });
+    defineHonuaWebComponents();
+    const element = document.createElement("honua-feature-table") as HonuaFeatureTableElement<Record<string, unknown>>;
+    element.table = engine;
+    document.body.append(element);
+    await engine.refresh();
+    engine.setColumnScroll({ scrollLeft: 20 * 160, columnWidth: 160, viewportWidth: 3 * 160 });
+
+    const root = element.shadowRoot;
+    const grid = root?.querySelector("[role='grid']");
+    expect(grid?.getAttribute("aria-colcount")).toBe("32");
+    const headers = [...(root?.querySelectorAll("[role='columnheader']") ?? [])];
+    expect(headers).toHaveLength(5);
+    expect(headers.map((header) => header.getAttribute("aria-colindex"))).toEqual(["20", "21", "22", "23", "24"]);
+    expect(root?.querySelectorAll("tbody [role='gridcell']")).toHaveLength(5);
+    expect(root?.querySelector("[data-column-leading]")).not.toBeNull();
+    expect(root?.querySelector("[data-column-trailing]")).not.toBeNull();
+  });
+
   it("sizes virtualization spacers so scroll height reflects the known total", async () => {
     const element = mount();
     element.setAttribute("row-height", "40");
@@ -293,6 +396,84 @@ describe("<honua-feature-table> bounded lane", () => {
     void engine.refresh();
 
     expect(shadow(element).querySelector("[role='grid']")?.getAttribute("aria-busy")).toBe("true");
+  });
+
+  it("renders accepted-plan execution tiers as accessible diagnostics", async () => {
+    const element = mount();
+    const engine = createHonuaFeatureTable<Row>({
+      source: {
+        descriptor: descriptor(),
+        query: async () => ({
+          features: [{ attributes: { OBJECTID: 1, NAME: "Incident 1", SEVERITY: 1 } }],
+          exceededTransferLimit: false,
+          totalCount: 1,
+        }),
+      },
+      sourceId: "incidents",
+      columns: [{ field: "OBJECTID" }, { field: "NAME", format: (value) => String(value) }],
+      planner: () =>
+        ({
+          id: "table-plan",
+          fingerprint: "sha256:table-plan",
+          pushdown: "partial",
+          fidelity: "exact",
+          estimates: {},
+          steps: [
+            {
+              id: "remote-page",
+              engine: "remote",
+              operation: "query",
+              pushdown: "partial",
+              fidelity: "exact",
+              reason: "server filter and page",
+            },
+            {
+              id: "local-residual",
+              engine: "client",
+              operation: "filter",
+              pushdown: "none",
+              fidelity: "exact",
+              reason: "bounded residual",
+              inputStepId: "remote-page",
+              maxRows: 20,
+            },
+          ],
+        }) as never,
+    });
+    element.table = engine;
+    await engine.refresh();
+
+    const diagnostics = shadow(element).querySelector("[data-work-badges]");
+    expect(diagnostics?.getAttribute("aria-label")).toBe("Query execution");
+    expect(diagnostics?.querySelector("[data-work-tier='server']")?.textContent).toBe("Server · 1");
+    expect(diagnostics?.querySelector("[data-work-tier='client']")?.textContent).toBe("Client · 3");
+    expect(diagnostics?.querySelector("[data-work-tier='client']")?.getAttribute("title")).toContain(
+      "bounded residual",
+    );
+    expect(diagnostics?.querySelector("[data-work-tier='client']")?.getAttribute("aria-label")).toContain(
+      "filter: residual",
+    );
+  });
+
+  it("keeps bounded query, paging, sorting, and realtime conflicts free of console errors", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const element = mount();
+      const engine = makeEngine();
+      element.table = engine;
+      await engine.refresh();
+      await engine.setScroll({ scrollTop: 200 * 32, rowHeight: 32, viewportHeight: 10 * 32 });
+      await engine.setSort([{ field: "SEVERITY", direction: "desc" }]);
+      engine.applyRealtimeDiff({ changes: [{ kind: "delete", key: "incidents:201", id: 201 }], reset: false });
+      element.remove();
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
   });
 
   it("stops observing the engine after detach", async () => {
@@ -443,6 +624,62 @@ describe("feature-table view helpers", () => {
     const model = featureTableViewModel(engine.snapshot);
     expect(model.ariaRowCount).toBe(-1);
     expect(featureTableGridHtml(model)).toContain('aria-rowcount="-1"');
+  });
+
+  // Unchecking every column control left `renderedColumns` empty, and the
+  // fallback rendered the first declared column anyway -- the checkbox said
+  // hidden while its values stayed on screen and `totalColumnCount` read zero.
+  it("renders a real no-column state after every column is hidden", async () => {
+    const engine = makeEngine();
+    await engine.refresh();
+    await engine.setColumns([
+      { field: "OBJECTID", label: "ID", type: "integer", visible: false },
+      { field: "NAME", label: "Name", type: "string", visible: false },
+      { field: "SEVERITY", label: "Severity", type: "number", visible: false },
+    ]);
+
+    const model = featureTableViewModel(engine.snapshot);
+    expect(model.columnsHidden).toBe(true);
+    expect(model.columns).toHaveLength(0);
+    expect(model.totalColumnCount).toBe(0);
+    // The controls stay available so the user can restore a column.
+    expect(model.columnControls.every((control) => control.visible === false)).toBe(true);
+    expect(model.columnControls).toHaveLength(3);
+
+    const html = featureTableGridHtml(model);
+    expect(html).toContain("data-columns-hidden");
+    expect(html).not.toContain('data-field="NAME"');
+    expect(html).not.toContain("Incident 1");
+    expect(html).toContain("No visible columns");
+  });
+
+  it("keeps the first-column fallback when an empty window is only a virtualization artifact", async () => {
+    const engine = makeEngine();
+    await engine.refresh();
+
+    const model = featureTableViewModel({ ...engine.snapshot, renderedColumns: Object.freeze([]) });
+    expect(model.columnsHidden).toBe(false);
+    expect(model.columns).toHaveLength(1);
+    expect(model.columns[0]?.field).toBe("OBJECTID");
+  });
+
+  it("announces the hidden-column state in the live region", async () => {
+    const engine = makeEngine();
+    await engine.refresh();
+    await engine.setColumns([{ field: "OBJECTID", label: "ID", type: "integer", visible: false }]);
+
+    const html = featureTableGridHtml(featureTableViewModel(engine.snapshot));
+    const status = html.slice(html.indexOf("data-status"));
+    expect(status).toContain("No visible columns");
+  });
+
+  it("does not claim server execution without accepted-plan evidence", async () => {
+    const engine = makeEngine();
+    await engine.setSort([{ field: "NAME", direction: "asc" }]);
+
+    const model = featureTableViewModel(engine.snapshot);
+    expect(model.workBadges.some((badge) => badge.tier === "server")).toBe(false);
+    expect(model.workBadges.some((badge) => badge.tier === "client")).toBe(true);
   });
 });
 

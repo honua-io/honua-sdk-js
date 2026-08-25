@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/release-artifacts.v1.schema.json",
+  "title": "Honua JavaScript SDK coordinated release artifact manifest",
+  "description": "Declares every npm artifact this repository can publish. Each is either included in the coordinated release cut, with the workflow that publishes it, or explicitly excluded with a reason. scripts/verify-release-artifacts.mjs enforces this file against scripts/prepare-split-packages.mjs, the publish workflows, and release-please-config.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schemaVersion", "registry", "repository", "cut", "included", "excluded"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.release-artifacts.v1" },
+    "schemaVersion": { "const": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "registry": { "type": "string", "format": "uri" },
+    "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "cut": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sealedTagPrefix",
+        "sealedBy",
+        "sealedByFunction",
+        "driftGate",
+        "publishedReleaseVerifier"
+      ],
+      "properties": {
+        "sealedTagPrefix": { "type": "string", "minLength": 1 },
+        "sealedBy": { "type": "string", "minLength": 1 },
+        "sealedByFunction": { "type": "string", "minLength": 1 },
+        "driftGate": { "type": "string", "minLength": 1 },
+        "publishedReleaseVerifier": { "type": "string", "minLength": 1 }
+      }
+    },
+    "included": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/includedArtifact" }
+    },
+    "excluded": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/excludedArtifact" }
+    }
+  },
+  "$defs": {
+    "artifactId": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "npmName": { "type": "string", "pattern": "^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$" },
+    "repositoryPath": { "type": "string", "pattern": "^[^/][^\\\\]*$" },
+    "includedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "npmName", "source", "versionSource", "publish", "sourceBinding", "notes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/artifactId" },
+        "npmName": { "$ref": "#/$defs/npmName" },
+        "source": {
+          "oneOf": [{ "$ref": "#/$defs/workspacePackageSource" }, { "$ref": "#/$defs/splitPackageSource" }]
+        },
+        "versionSource": {
+          "description": "Repository-relative package.json the published version is read from. Split packages inherit the root manifest's version.",
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "publish": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workflow",
+            "workingDirectory",
+            "publishArgument",
+            "releaseTagPrefix",
+            "releasePleasePackage"
+          ],
+          "properties": {
+            "workflow": { "$ref": "#/$defs/repositoryPath" },
+            "workingDirectory": {
+              "description": "Repository-relative directory the workflow's publish step runs in.",
+              "type": "string",
+              "minLength": 1
+            },
+            "publishArgument": {
+              "description": "Exact path argument the workflow passes to npm publish. Empty when the workflow omits it and publishes the working directory itself.",
+              "type": "string"
+            },
+            "releaseTagPrefix": { "type": "string", "minLength": 1 },
+            "releasePleasePackage": { "type": "string", "minLength": 1 }
+          }
+        },
+        "sourceBinding": {
+          "description": "sealed-js-sdk-tag: published from the tag release-please.yml creates on the resealed commit. own-release-tag: published from its own Release Please tag, which names the version-bump commit.",
+          "enum": ["sealed-js-sdk-tag", "own-release-tag"]
+        },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "excludedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "reason"],
+      "properties": {
+        "id": { "$ref": "#/$defs/artifactId" },
+        "npmName": { "$ref": "#/$defs/npmName" },
+        "source": {
+          "oneOf": [
+            { "$ref": "#/$defs/workspacePackageSource" },
+            { "$ref": "#/$defs/workspaceTreeSource" },
+            { "$ref": "#/$defs/externalRepositorySource" },
+            { "$ref": "#/$defs/nonRegistryArtifactSource" }
+          ]
+        },
+        "reason": { "type": "string", "minLength": 40 }
+      }
+    },
+    "workspacePackageSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "packageManifest"],
+      "properties": {
+        "kind": { "const": "workspace-package" },
+        "packageManifest": { "$ref": "#/$defs/repositoryPath" }
+      }
+    },
+    "splitPackageSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "generator", "splitPackageDirectory"],
+      "properties": {
+        "kind": { "const": "split-package" },
+        "generator": { "const": "scripts/prepare-split-packages.mjs" },
+        "splitPackageDirectory": {
+          "description": "Directory name under dist/packages/ the generator writes this package to.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      }
+    },
+    "workspaceTreeSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceTree"],
+      "properties": {
+        "kind": { "const": "workspace-tree" },
+        "sourceTree": {
+          "description": "Repository-relative directory in which every package manifest must stay private.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:[-/][a-z0-9]+)*$"
+        }
+      }
+    },
+    "externalRepositorySource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "repository"],
+      "properties": {
+        "kind": { "const": "external-repository" },
+        "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" }
+      }
+    },
+    "nonRegistryArtifactSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "workflow"],
+      "properties": {
+        "kind": { "const": "non-registry-artifact" },
+        "workflow": { "$ref": "#/$defs/repositoryPath" }
+      }
+    }
+  }
+}

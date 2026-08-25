@@ -167,10 +167,10 @@ describe("gate completion and catalog support tier are distinct axes", () => {
     }
   });
 
-  it("records the promoted feature editor explicitly", () => {
+  it("records the promoted application components explicitly", () => {
     expect(
       HONUA_COMPONENT_CATALOG.filter((entry) => isComponentProductionQualified(entry.id)).map((entry) => entry.id),
-    ).toEqual(["web-components.feature-editor"]);
+    ).toEqual(["web-components.feature-inspection", "web-components.feature-editor"]);
   });
 });
 

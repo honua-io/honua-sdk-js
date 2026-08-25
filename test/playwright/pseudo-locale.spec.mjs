@@ -21,6 +21,7 @@ const HOSTS = {
   "web-components.layer-list": "honua-layer-list",
   "web-components.legend": "honua-legend",
   "web-components.feature-table": "honua-feature-table",
+  "web-components.feature-inspection": "honua-feature-inspection",
   "web-components.search": "honua-search",
   "web-components.editor": "honua-editor",
   "web-components.feature-editor": "honua-feature-editor",
@@ -71,6 +72,11 @@ test.describe("pseudo-locale component qualification", () => {
         basemapControl.setAttribute("for", "ops-map");
         document.body.append(basemapControl);
 
+        const featureInspection = document.createElement("honua-feature-inspection");
+        featureInspection.id = "pseudo-feature-inspection";
+        featureInspection.setAttribute("label", "Incident inspection");
+        document.body.append(featureInspection);
+
         const controlsLayerList = document.createElement("honua-controls-layer-list");
         controlsLayerList.id = "pseudo-controls-layer-list";
         controlsLayerList.map = map?.map;
@@ -98,7 +104,9 @@ test.describe("pseudo-locale component qualification", () => {
                 ? document.querySelector("#pseudo-feature-editor")
                 : id === "web-components.basemap-control"
                   ? document.querySelector("#pseudo-basemap-control")
-                : candidates[0];
+                  : id === "web-components.feature-inspection"
+                    ? document.querySelector("#pseudo-feature-inspection")
+                    : candidates[0];
           if (element) byId.set(id, element);
         }
 
