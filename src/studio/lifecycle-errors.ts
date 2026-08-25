@@ -3,7 +3,8 @@
  *
  * Every non-2xx response from the Studio package lifecycle API
  * (`/api/v{version}/studio`) is either a handler-generated client error
- * (`400`/`404`/`409`) or a caught internal failure (`500`), and both use
+ * (`400`/`401`/`403`/`404`/`409`) or a caught internal failure (`500`), and
+ * both use
  * RFC 7807 problem details with `type: "https://honua.io/problems/studio"`
  * (see `docs/internal/admin-api/studio-package-lifecycle.md` in
  * `honua-server`). {@link HonuaStudioError} normalizes both into one typed
@@ -31,6 +32,11 @@
  * status code of the failed response:
  *
  * - `validation` — `400`, request or envelope failed validation.
+ * - `unauthorized` — `401`, the request carried no usable principal.
+ * - `forbidden` — `403`, the principal is authenticated but is not permitted
+ *   to perform the operation — the owner/tenant scope ceiling, and the
+ *   separate-approver rule that stops a proposer from approving their own
+ *   publication (see {@link HonuaStudioPublicationRequestsClient}).
  * - `not-found` — `404`, the draft/version/content item does not exist (or,
  *   per the API doc, is not reachable from the given `itemId`/`versionId`
  *   pair — cross-item ids are treated as not found).
@@ -42,7 +48,14 @@
  *
  * @experimental
  */
-export type HonuaStudioProblemKind = "validation" | "not-found" | "generation-conflict" | "internal" | "unknown";
+export type HonuaStudioProblemKind =
+  | "validation"
+  | "unauthorized"
+  | "forbidden"
+  | "not-found"
+  | "generation-conflict"
+  | "internal"
+  | "unknown";
 
 /**
  * RFC 7807 problem-details body returned by the Studio package lifecycle API.
@@ -113,6 +126,10 @@ export function classifyStudioProblemStatus(statusCode: number): HonuaStudioProb
   switch (statusCode) {
     case 400:
       return "validation";
+    case 401:
+      return "unauthorized";
+    case 403:
+      return "forbidden";
     case 404:
       return "not-found";
     case 409:
