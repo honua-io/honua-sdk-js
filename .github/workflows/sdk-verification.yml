@@ -411,6 +411,14 @@ jobs:
       - name: Validate release-seal policy
         run: npm run release:seal:test
 
+      # Release artifact manifest drift gate (#1337). Reads the git tree and the
+      # workflow files only, so it neither consumes nor invalidates the prepared
+      # build the surrounding gates share.
+      - name: Validate release artifact manifest
+        run: |
+          npm run verify:release-artifacts
+          node --test test/scripts/verify-published-release.test.mjs
+
       - name: Code style
         run: npm run check
 
