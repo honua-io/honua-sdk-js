@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { HonuaClient } from "../../src/index.js";
+import { HonuaClient, HonuaTimeoutError } from "../../src/index.js";
 import * as studio from "../../src/studio/index.js";
 import {
   HONUA_STUDIO_PUBLICATION_POLL_INTERVAL_MS,
@@ -69,6 +69,47 @@ function clientForSequence(contracts: readonly LifecycleFixture[]): {
         const url = new URL(String(input));
         const body = typeof init?.body === "string" && init.body.length > 0 ? JSON.parse(init.body) : undefined;
         requests.push({ method: init?.method ?? "GET", url, body });
+        const contract = contracts[Math.min(requests.length - 1, contracts.length - 1)] as LifecycleFixture;
+        return new Response(contract.response.body === undefined ? null : JSON.stringify(contract.response.body), {
+          status: contract.response.status,
+        });
+      },
+    }),
+  });
+  return { client, requests };
+}
+
+/**
+ * Serves `contracts` until request number `hangAtRequest`, which is then held
+ * open until its `AbortSignal` fires — the shape of a `GET` honua-server
+ * accepts and never answers. Only usable where the poll supplies a signal
+ * (a caller `signal`, a `timeoutMs`, or both); otherwise it would hang the run.
+ */
+function clientForHangingSequence(
+  contracts: readonly LifecycleFixture[],
+  hangAtRequest: number,
+): { client: HonuaStudioLifecycleClient; requests: CapturedRequest[] } {
+  const requests: CapturedRequest[] = [];
+  const client = createHonuaStudioLifecycleClient({
+    client: new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (input, init) => {
+        const url = new URL(String(input));
+        requests.push({ method: init?.method ?? "GET", url, body: undefined });
+        if (requests.length >= hangAtRequest) {
+          return new Promise<Response>((_resolve, reject) => {
+            const abort = (): void => {
+              const error = new Error("The operation was aborted.");
+              error.name = "AbortError";
+              reject(error);
+            };
+            if (init?.signal?.aborted) {
+              abort();
+              return;
+            }
+            init?.signal?.addEventListener("abort", abort, { once: true });
+          });
+        }
         const contract = contracts[Math.min(requests.length - 1, contracts.length - 1)] as LifecycleFixture;
         return new Response(contract.response.body === undefined ? null : JSON.stringify(contract.response.body), {
           status: contract.response.status,
@@ -318,6 +359,62 @@ describe("publicationRequests.poll", () => {
 
     expect(outcome.exhausted).toBe("timeout");
     expect(outcome.terminal).toBe(false);
+    expect(requests).toHaveLength(1);
+  });
+
+  it("enforces timeoutMs against a GET that is accepted and never answered", async () => {
+    // No `timeoutMs` on the HonuaClient itself: the poll's own deadline is the
+    // only thing that can end this, which is exactly the reported hole.
+    const { client, requests } = clientForHangingSequence([fixture("publish-request-executing.v1.json")], 2);
+
+    const outcome = await client.publicationRequests.poll(ITEM, VERSION, REQUEST_ID, {
+      intervalMs: 0,
+      maxAttempts: 50,
+      timeoutMs: 1_000,
+    });
+
+    expect(outcome.exhausted).toBe("timeout");
+    expect(outcome.terminal).toBe(false);
+    expect(outcome.state).toBe("Executing");
+    // The first GET was observed; the second was aborted by the deadline.
+    expect(outcome.attempts).toBe(1);
+    expect(requests).toHaveLength(2);
+  });
+
+  it("throws HonuaTimeoutError when the deadline expires before the first response", async () => {
+    const { client, requests } = clientForHangingSequence([], 1);
+
+    await expect(
+      client.publicationRequests.poll(ITEM, VERSION, REQUEST_ID, { intervalMs: 0, timeoutMs: 20 }),
+    ).rejects.toBeInstanceOf(HonuaTimeoutError);
+    expect(requests).toHaveLength(1);
+  });
+
+  it("never sleeps past the deadline when intervalMs overshoots it", async () => {
+    const { client, requests } = clientForSequence([fixture("publish-request-executing.v1.json")]);
+
+    const startedAt = Date.now();
+    const outcome = await client.publicationRequests.poll(ITEM, VERSION, REQUEST_ID, {
+      intervalMs: 30_000,
+      maxAttempts: 50,
+      timeoutMs: 800,
+    });
+
+    expect(outcome.exhausted).toBe("timeout");
+    // Without the clamp this would still be inside a 30s `delay()`.
+    expect(Date.now() - startedAt).toBeLessThan(10_000);
+    expect(requests).toHaveLength(1);
+  });
+
+  it("rejects with the caller's abort reason when the abort lands mid-request", async () => {
+    const { client, requests } = clientForHangingSequence([], 1);
+    const reason = new Error("caller went away mid-flight");
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(reason), 10);
+
+    await expect(
+      client.publicationRequests.poll(ITEM, VERSION, REQUEST_ID, { intervalMs: 0, signal: controller.signal }),
+    ).rejects.toBe(reason);
     expect(requests).toHaveLength(1);
   });
 

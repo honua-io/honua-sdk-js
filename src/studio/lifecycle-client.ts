@@ -52,7 +52,7 @@
  */
 
 import type { HonuaClient } from "../core/client.js";
-import { isHonuaError } from "../core/errors.js";
+import { HonuaTimeoutError, isHonuaError } from "../core/errors.js";
 import type { QueryMethod } from "../core/types.js";
 import { HonuaStudioError, type HonuaStudioProblemDetails, classifyStudioProblemStatus } from "./lifecycle-errors.js";
 import type {
@@ -510,7 +510,17 @@ export class HonuaStudioPublicationRequestsClient {
    *   `state: undefined, terminal: false, active: false`.
    * - **Cancellable.** `options.signal` aborts the in-flight request and the
    *   wait between attempts; the returned promise rejects with the signal's
-   *   abort reason.
+   *   abort reason — including when the abort lands mid-request, where the
+   *   underlying `HonuaClient` would otherwise normalize the rejection to a
+   *   generic SDK abort error.
+   * - **`timeoutMs` is a real wall-clock bound.** It aborts an in-flight `GET`
+   *   as well as being checked between attempts, and the inter-attempt wait is
+   *   clamped to the time left, so a hung response cannot leave the poll
+   *   pending past the deadline even when the underlying `HonuaClient` has no
+   *   `timeoutMs` of its own. A deadline reached with at least one observation
+   *   returns `exhausted: "timeout"`; a deadline that expires before the very
+   *   first response arrives has nothing to report and throws
+   *   {@link HonuaTimeoutError}.
    * - **Standard error handling.** Every non-2xx surfaces as
    *   {@link HonuaStudioError} with its RFC 7807 problem details, exactly as
    *   for every other method on this client.
@@ -523,27 +533,56 @@ export class HonuaStudioPublicationRequestsClient {
   ): Promise<StudioPublicationPollOutcome> {
     const maxAttempts = normalizePollBound(options.maxAttempts, HONUA_STUDIO_PUBLICATION_POLL_MAX_ATTEMPTS);
     const intervalMs = normalizeInterval(options.intervalMs);
-    const deadline = options.timeoutMs === undefined ? undefined : Date.now() + normalizeInterval(options.timeoutMs);
-    const requestOptions: HonuaStudioRequestOptions = { signal: options.signal, headers: options.headers };
+    const timeoutMs = options.timeoutMs === undefined ? undefined : normalizeInterval(options.timeoutMs);
+    // The wall-clock bound owns its own abort signal rather than being a
+    // between-attempts `Date.now()` check alone: `HonuaClient` carries no
+    // request timeout unless the consumer configured one, so a `GET` that is
+    // accepted and never answered would otherwise hold the poll open forever
+    // in spite of a finite `timeoutMs`.
+    const deadline = createPollDeadline(timeoutMs, options.signal);
+    const requestOptions: HonuaStudioRequestOptions = { signal: deadline.signal, headers: options.headers };
+    let observed: { request: StudioPublicationRequest; state: StudioPublicationLifecycleState | undefined } | undefined;
 
-    // Bounded by construction: the loop counter is the only thing that drives
-    // it, `maxAttempts` is validated to be a finite integer >= 1, and every
-    // path out of the body either returns or advances the counter.
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      throwIfAborted(options.signal);
-      const request = await this.get(itemId, versionId, requestId, requestOptions);
-      const state = normalizeStudioPublicationStatus(request.status);
-      options.onStatus?.(request, state);
-      if (isStudioPublicationTerminal(request.status)) {
-        return toPollOutcome(request, state, attempt, undefined);
+    try {
+      // Bounded by construction: the loop counter is the only thing that drives
+      // it, `maxAttempts` is validated to be a finite integer >= 1, and every
+      // path out of the body either returns or advances the counter.
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        throwIfAborted(options.signal);
+        let request: StudioPublicationRequest;
+        try {
+          request = await this.get(itemId, versionId, requestId, requestOptions);
+        } catch (error) {
+          // The caller's cancellation is reported with the caller's own
+          // `reason`. `HonuaClient.pipelineFetch` normalizes an in-flight fetch
+          // abort into a generic SDK abort error, which would otherwise lose it.
+          throwIfAborted(options.signal);
+          if (deadline.expired()) return this.#timedOut(observed, attempt - 1, timeoutMs);
+          throw error;
+        }
+        const state = normalizeStudioPublicationStatus(request.status);
+        observed = { request, state };
+        options.onStatus?.(request, state);
+        if (isStudioPublicationTerminal(request.status)) {
+          return toPollOutcome(request, state, attempt, undefined);
+        }
+        if (attempt >= maxAttempts) {
+          return toPollOutcome(request, state, attempt, "max-attempts");
+        }
+        const remainingMs = deadline.remainingMs();
+        if (remainingMs !== undefined && remainingMs <= 0) {
+          return toPollOutcome(request, state, attempt, "timeout");
+        }
+        // Never sleep past the deadline: a `intervalMs` larger than the time
+        // left would overshoot the documented bound by a whole interval.
+        await delay(remainingMs === undefined ? intervalMs : Math.min(intervalMs, remainingMs), options.signal);
+        const leftAfterWait = deadline.remainingMs();
+        if (leftAfterWait !== undefined && leftAfterWait <= 0) {
+          return toPollOutcome(request, state, attempt, "timeout");
+        }
       }
-      if (attempt >= maxAttempts) {
-        return toPollOutcome(request, state, attempt, "max-attempts");
-      }
-      if (deadline !== undefined && Date.now() >= deadline) {
-        return toPollOutcome(request, state, attempt, "timeout");
-      }
-      await delay(intervalMs, options.signal);
+    } finally {
+      deadline.dispose();
     }
 
     // Unreachable while `maxAttempts >= 1`; kept so the bound is enforced by
@@ -551,9 +590,72 @@ export class HonuaStudioPublicationRequestsClient {
     throw new TypeError(`maxAttempts must be an integer >= 1, received ${String(maxAttempts)}.`);
   }
 
+  /**
+   * The wall-clock bound fired. With at least one observation the poll reports
+   * it the documented way (`exhausted: "timeout"`); with none there is no
+   * proposal to report, so the deadline surfaces as the SDK's own
+   * {@link HonuaTimeoutError} rather than an invented empty outcome.
+   */
+  #timedOut(
+    observed: { request: StudioPublicationRequest; state: StudioPublicationLifecycleState | undefined } | undefined,
+    attempts: number,
+    timeoutMs: number | undefined,
+  ): StudioPublicationPollOutcome {
+    if (!observed) throw new HonuaTimeoutError(timeoutMs ?? 0);
+    return toPollOutcome(observed.request, observed.state, attempts, "timeout");
+  }
+
   #path(itemId: string, versionId: string): string {
     return `/content-items/${encodeURIComponent(itemId)}/versions/${encodeURIComponent(versionId)}`;
   }
+}
+
+/**
+ * The poll's wall-clock bound as an abort signal the in-flight `GET` actually
+ * receives, merged with the caller's own signal so one `signal` covers both.
+ * `expired()` distinguishes "the deadline fired" from "the caller cancelled",
+ * which decide different outcomes.
+ */
+interface PollDeadline {
+  /** Passed to every `GET`; `undefined` only when there is neither a caller signal nor a timeout. */
+  readonly signal: AbortSignal | undefined;
+  /** True once the wall-clock bound fired (never for a caller abort). */
+  readonly expired: () => boolean;
+  /** Milliseconds left, or `undefined` when no `timeoutMs` was given. */
+  readonly remainingMs: () => number | undefined;
+  readonly dispose: () => void;
+}
+
+function createPollDeadline(timeoutMs: number | undefined, callerSignal: AbortSignal | undefined): PollDeadline {
+  if (timeoutMs === undefined) {
+    return {
+      signal: callerSignal,
+      expired: () => false,
+      remainingMs: () => undefined,
+      dispose: () => undefined,
+    };
+  }
+  const controller = new AbortController();
+  const expiresAt = Date.now() + timeoutMs;
+  let expired = false;
+  const timer = setTimeout(() => {
+    expired = true;
+    controller.abort();
+  }, timeoutMs);
+  const onCallerAbort = (): void => {
+    controller.abort(callerSignal ? abortReason(callerSignal) : undefined);
+  };
+  if (callerSignal?.aborted) onCallerAbort();
+  else callerSignal?.addEventListener("abort", onCallerAbort, { once: true });
+  return {
+    signal: controller.signal,
+    expired: () => expired,
+    remainingMs: () => expiresAt - Date.now(),
+    dispose: () => {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener("abort", onCallerAbort);
+    },
+  };
 }
 
 function toPollOutcome(
