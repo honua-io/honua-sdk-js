@@ -63,7 +63,7 @@ import type {
   StudioAiToolChoice,
   StudioAiToolDefinition,
 } from "./ai-contract.js";
-import { McpClient } from "./mcp-client.js";
+import { McpClient, type McpToolListing } from "./mcp-client.js";
 import { isMcpGenerationConflict, isMcpToolError } from "./mcp-errors.js";
 import {
   HONUA_STUDIO_MCP_TOOL_NAMES,
@@ -112,6 +112,17 @@ export interface StudioAgentSessionOptions {
    * @default false
    */
   readonly disableToolDiscovery?: boolean;
+  /**
+   * Wall-clock bound on one `tools/list` discovery pass (handshake plus every
+   * page). An MCP endpoint that accepts the request and never answers would
+   * otherwise hold every `chat()` open forever, since `fetch` has no deadline
+   * of its own. On expiry the pass fails like any other discovery failure: the
+   * turn degrades to runtime-kit tools, the reason is reported on
+   * {@link StudioAgentSession.toolDiscovery}, and the next turn retries.
+   * `0` disables the bound.
+   * @default 15000
+   */
+  readonly toolDiscoveryTimeoutMs?: number;
   /**
    * System prompt. A function is awaited once per `chat()` call, so a kit's
    * `systemPrompt()` re-reads live map context on every turn.
@@ -222,6 +233,13 @@ export interface StudioAgentSession {
 }
 
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
+/** Wall-clock bound on one `tools/list` discovery pass. See `toolDiscoveryTimeoutMs`. */
+const DEFAULT_TOOL_DISCOVERY_TIMEOUT_MS = 15_000;
+
+/** A turn the caller cancelled before it did any work. */
+function cancelledTurn(): StudioAgentTurn {
+  return { status: "cancelled", text: "", toolCalls: [], events: [], rounds: 0 };
+}
 
 export function createStudioAgentSession(options: StudioAgentSessionOptions): StudioAgentSession {
   return new StudioAgentSessionImpl(options);
@@ -240,6 +258,14 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   #catalog: StudioToolCatalog = StudioToolCatalog.empty();
   #discovery: Promise<StudioToolDiscoveryReport> | undefined;
   #discoveryReport: StudioToolDiscoveryReport | undefined;
+  /**
+   * Bumped by every `refreshTools()`/`reconnect()`. A pass that started under
+   * an older generation may not publish its result: `tools/list` already in
+   * flight when a reconnect lands describes the PREVIOUS MCP session and
+   * principal, and the reconnect contract says nothing derived from that
+   * catalog survives.
+   */
+  #discoveryGeneration = 0;
   #mcpClient: McpClient | undefined;
   #draft: StudioAgentDraftBinding | undefined;
   #capabilities: Promise<StudioAiCapabilitiesResponse> | undefined;
@@ -301,12 +327,17 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   }
 
   public refreshTools(): Promise<StudioToolDiscoveryReport> {
+    this.#discoveryGeneration += 1;
     this.#discovery = undefined;
     return this.#ensureToolCatalog();
   }
 
   public reconnect(): void {
     this.#mcpClient?.resetSession();
+    // Invalidate before clearing: a `tools/list` pass still in flight resolves
+    // with the old session's descriptors, and must not repopulate what the two
+    // lines below are clearing.
+    this.#discoveryGeneration += 1;
     this.#discovery = undefined;
     this.#catalog = StudioToolCatalog.empty();
     this.#tools = this.#runtimeTools;
@@ -355,19 +386,25 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       return this.#discovery;
     }
     if (!this.#discovery) {
-      this.#discovery = this.#discoverTools().catch((error: unknown) => {
-        this.#discovery = undefined;
-        return this.#publishDiscovery({
+      const generation = this.#discoveryGeneration;
+      this.#discovery = this.#discoverTools(generation).catch((error: unknown) => {
+        const report = {
           ...this.#catalog.report(0),
           errorMessage: `Studio tool discovery failed: ${errorMessage(error)}`,
-        });
+        };
+        // A superseded pass reports its own failure to whoever was awaiting it,
+        // but neither clears the newer pass's cache entry nor publishes over
+        // the newer pass's report.
+        if (generation !== this.#discoveryGeneration) return report;
+        this.#discovery = undefined;
+        return this.#publishDiscovery(report);
       });
     }
     return this.#discovery;
   }
 
-  async #discoverTools(): Promise<StudioToolDiscoveryReport> {
-    const listing = await this.#ensureMcpClient().listAllTools();
+  async #discoverTools(generation: number): Promise<StudioToolDiscoveryReport> {
+    const listing = await this.#listAllToolsBounded();
     const policy = this.#options.studioTools ?? {};
     const catalog = StudioToolCatalog.fromDescriptors(listing.tools, {
       ...policy,
@@ -377,6 +414,15 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       // routed on the strength of appearing in this list.
       required: policy.required ?? HONUA_STUDIO_MCP_TOOL_NAMES,
     });
+    const report = catalog.report(listing.pages);
+    if (generation !== this.#discoveryGeneration) {
+      // `refreshTools()`/`reconnect()` superseded this pass while `tools/list`
+      // was in flight. These descriptors belong to the previous MCP session and
+      // principal, so they are returned to this pass's own awaiter and go no
+      // further — the catalog, the advertised tool set, and the published
+      // report all stay with the newer pass.
+      return report;
+    }
     this.#catalog = catalog;
     // Runtime tools first and unconditionally; a discovered descriptor sharing a
     // runtime verb's name is dropped rather than merged, so a server can never
@@ -385,7 +431,53 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       ...this.#runtimeTools,
       ...catalog.toolDefinitions().filter((tool) => !this.#runtimeToolNames.has(tool.name)),
     ];
-    return this.#publishDiscovery(catalog.report(listing.pages));
+    return this.#publishDiscovery(report);
+  }
+
+  /**
+   * One `tools/list` walk under a wall-clock bound. `fetch` imposes no deadline
+   * of its own, so without this an endpoint that accepts the POST and never
+   * responds blocks every `chat()` indefinitely. Expiry is surfaced as a plain
+   * discovery failure, which the caller already degrades to runtime-only tools
+   * and retries on the next turn.
+   */
+  async #listAllToolsBounded(): Promise<McpToolListing> {
+    const timeoutMs = this.#options.toolDiscoveryTimeoutMs ?? DEFAULT_TOOL_DISCOVERY_TIMEOUT_MS;
+    const client = this.#ensureMcpClient();
+    if (!(timeoutMs > 0)) return client.listAllTools();
+
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    try {
+      return await client.listAllTools({ signal: controller.signal });
+    } catch (error) {
+      if (timedOut) throw new Error(`tools/list did not respond within ${timeoutMs}ms.`);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Awaits the shared discovery pass, but stops waiting the moment `signal`
+   * aborts. The pass itself is deliberately NOT cancelled: it is shared by
+   * every concurrent turn, and one caller walking away must not strip the
+   * composition plane from the others.
+   */
+  #awaitDiscovery(signal: AbortSignal): Promise<void> {
+    const discovery = this.#ensureToolCatalog().then(() => undefined);
+    return new Promise<void>((resolve) => {
+      const onAbort = (): void => resolve();
+      signal.addEventListener("abort", onAbort, { once: true });
+      void discovery.then(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      });
+    });
   }
 
   #publishDiscovery(report: StudioToolDiscoveryReport): StudioToolDiscoveryReport {
@@ -395,9 +487,23 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   }
 
   public async chat(text: string, chatOptions: StudioAgentChatOptions = {}): Promise<StudioAgentTurn> {
-    // Discovery first: the refusal check and the advertised tool set both read
-    // `#tools`, and a tool-carrying turn must know its full vocabulary.
-    await this.#ensureToolCatalog();
+    const signal = chatOptions.signal ?? new AbortController().signal;
+    // Read the caller's cancellation BEFORE anything else. Discovery is an MCP
+    // `initialize` plus a full `tools/list` walk; an already-cancelled turn
+    // must not perform it.
+    if (signal.aborted) {
+      return cancelledTurn();
+    }
+
+    // Discovery next: the refusal check and the advertised tool set both read
+    // `#tools`, and a tool-carrying turn must know its full vocabulary. The
+    // wait is bounded by the caller's signal as well as by the pass's own
+    // timeout, so a hung MCP endpoint can no longer pin `chat()` open.
+    await this.#awaitDiscovery(signal);
+    if (signal.aborted) {
+      return cancelledTurn();
+    }
+
     const refusal = await this.#refusalReason();
     if (refusal) {
       return { status: "refused", text: "", toolCalls: [], events: [], errorMessage: refusal, rounds: 0 };
@@ -405,7 +511,6 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 
     this.#messages.push({ role: "user", content: text });
 
-    const signal = chatOptions.signal ?? new AbortController().signal;
     const maxRounds = this.#options.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
     const events: StudioAiChatEvent[] = [];
     const dispatches: StudioAgentToolDispatch[] = [];

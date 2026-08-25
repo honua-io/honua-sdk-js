@@ -263,7 +263,38 @@ function makeRuntime(): HonuaAgentRuntime & { readonly log: string[] } {
   };
 }
 
-type SessionOverrides = Pick<StudioAgentSessionOptions, "studioTools" | "disableToolDiscovery" | "tools" | "execute">;
+type SessionOverrides = Pick<
+  StudioAgentSessionOptions,
+  "studioTools" | "disableToolDiscovery" | "tools" | "execute" | "toolDiscoveryTimeoutMs"
+>;
+
+/**
+ * Wraps a scripted server so `tools/list` is accepted and never answered,
+ * settling only when the request's own `AbortSignal` fires — the shape a
+ * discovery bound has to defend against.
+ */
+function hangingToolList(inner: typeof fetch): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (String(input).endsWith("/mcp")) {
+      const envelope = JSON.parse(String(init?.body)) as { readonly method: string };
+      if (envelope.method === "tools/list") {
+        return new Promise<Response>((_resolve, reject) => {
+          const abort = (): void => {
+            const error = new Error("The operation was aborted.");
+            error.name = "AbortError";
+            reject(error);
+          };
+          if (init?.signal?.aborted) {
+            abort();
+            return;
+          }
+          init?.signal?.addEventListener("abort", abort, { once: true });
+        });
+      }
+    }
+    return inner(input, init);
+  }) as typeof fetch;
+}
 
 function makeSession(
   options: ScriptOptions & {
@@ -798,6 +829,92 @@ describe("createStudioAgentSession tool discovery", () => {
     await session.chat("again");
     expect(session.compositionTools).toContain("honua_studio_add_layer");
     expect(session.toolDiscovery?.errorMessage).toBeUndefined();
+  });
+
+  it("performs no MCP work at all when the turn is already cancelled", async () => {
+    const { server, session } = makeSession({ turns: [textTurn("never")] });
+    const controller = new AbortController();
+    controller.abort();
+
+    const turn = await session.chat("hello", { signal: controller.signal });
+
+    expect(turn.status).toBe("cancelled");
+    // Neither the discovery walk nor the chat turn was started.
+    expect(server.toolListCursors).toEqual([]);
+    expect(server.chatRequests).toEqual([]);
+  });
+
+  it("bounds a tools/list that never answers instead of pinning the turn open", async () => {
+    const server = createScriptedServer({ turns: [textTurn("ok")] });
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: hangingToolList(server.fetchImpl),
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      toolDiscoveryTimeoutMs: 60,
+    });
+
+    const turn = await session.chat("hello");
+
+    // The turn still ran, on runtime tools alone, and says why.
+    expect(turn.status).toBe("completed");
+    expect(session.compositionTools).toEqual([]);
+    expect(session.tools.map((tool) => tool.name)).toContain("setViewport");
+    expect(session.toolDiscovery?.errorMessage).toContain("tools/list did not respond within 60ms");
+  });
+
+  it("stops waiting on a hung discovery pass the moment the caller aborts", async () => {
+    const server = createScriptedServer({ turns: [textTurn("ok")] });
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: hangingToolList(server.fetchImpl),
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      toolDiscoveryTimeoutMs: 500,
+    });
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 20);
+
+    const turn = await session.chat("hello", { signal: controller.signal });
+
+    expect(turn.status).toBe("cancelled");
+    expect(server.chatRequests).toEqual([]);
+  });
+
+  it("never lets a tools/list pass that predates reconnect repopulate the catalog", async () => {
+    const server = createScriptedServer({ turns: [textTurn("ok")] });
+    let releaseToolList: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseToolList = resolve;
+    });
+    let gated = true;
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/mcp")) {
+          const envelope = JSON.parse(String(init?.body)) as { readonly method: string };
+          if (envelope.method === "tools/list" && gated) await gate;
+        }
+        return server.fetchImpl(input, init);
+      }) as typeof fetch,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    const stalePass = session.refreshTools();
+    // The reconnect lands while the first `tools/list` page is still in flight.
+    session.reconnect();
+    gated = false;
+    releaseToolList?.();
+    const staleReport = await stalePass;
+
+    // The superseded pass still reports what it saw to its own awaiter…
+    expect(staleReport.routed).toContain("honua_studio_add_layer");
+    // …but nothing derived from the previous MCP session survives the reconnect.
+    expect(session.compositionTools).toEqual([]);
+    expect(session.tools.map((tool) => tool.name)).not.toContain("honua_studio_add_layer");
+    expect(session.toolDiscovery).toBeUndefined();
+
+    // And the next turn discovers afresh.
+    await session.chat("hello");
+    expect(session.compositionTools).toContain("honua_studio_add_layer");
   });
 
   it("skips discovery entirely when the host disables it", async () => {
