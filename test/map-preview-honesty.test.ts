@@ -141,6 +141,85 @@ describe("the portable map artifact never asserts where the map is published", (
     // Not merely an integrity complaint: the fingerprint agrees with the body.
     expect(() => importMapPackage(forged)).not.toThrow(/fingerprint/i);
   });
+
+  it("refuses a publication claim smuggled onto the envelope beside the package", () => {
+    // The package body is untouched and its fingerprint is correct, so every
+    // check that looks only at `mapPackage` passes. The claim rides on the
+    // envelope — which is itself an artifact a reader will believe.
+    for (const smuggled of [{ publicationUrl: PUBLICATION_URL }, { links: { self: PUBLICATION_URL } }]) {
+      const forged = { ...JSON.parse(JSON.stringify(exportMapPackage(previewPackage()))), ...smuggled };
+      const key = Object.keys(smuggled)[0];
+      expect(() => importMapPackage(forged), key).toThrow(HonuaMapPackageError);
+      expect(() => importMapPackage(forged), key).toThrow(new RegExp(`location pointer.*\\b${key}\\b`, "i"));
+      expect(() => importMapPackage(forged), key).not.toThrow(/fingerprint/i);
+    }
+  });
+
+  it("refuses a publication claim smuggled beneath an open container in the package", () => {
+    // `honua_map_package.v1` is `additionalProperties: true` at every level, so
+    // a producer can put the claim anywhere. A name that means "published"
+    // means it at every depth.
+    const nested: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
+      ["mapPackage.metadata.publicationUrl", { metadata: { publicationUrl: PUBLICATION_URL } }],
+      ["mapPackage.metadata.records[0].embedUrl", { metadata: { records: [{ embedUrl: PUBLICATION_URL }] } }],
+      [
+        "mapPackage.widgets[0].config.permalink",
+        { widgets: [{ widgetId: "w", type: "legend", config: { permalink: PUBLICATION_URL } }] },
+      ],
+    ];
+    for (const [path, smuggled] of nested) {
+      const forged = JSON.parse(JSON.stringify(exportMapPackage(previewPackage()))) as {
+        fingerprint: string;
+        mapPackage: Record<string, unknown>;
+      };
+      Object.assign(forged.mapPackage, smuggled);
+      forged.fingerprint = mapPackageFingerprint(forged.mapPackage as unknown as HonuaMapPackage);
+
+      expect(() => importMapPackage(forged), path).toThrow(HonuaMapPackageError);
+      expect(() => importMapPackage(forged), path).toThrow(new RegExp(path.replace(/[.[\]]/g, "\\$&"), "i"));
+      expect(() => importMapPackage(forged), path).not.toThrow(/fingerprint/i);
+    }
+  });
+
+  it("withholds a nested publication claim on export, so the exporter never emits what its importer refuses", () => {
+    const pkg = previewPackage({
+      metadata: { publicationUrl: PUBLICATION_URL, note: "composed for review" },
+    });
+    const envelope = exportMapPackage(pkg);
+    const bytes = JSON.stringify(envelope);
+
+    expect(bytes).not.toContain(PUBLICATION_URL);
+    expect(envelope.redactions).toContainEqual({ path: "metadata.publicationUrl", reason: "publication-pointer" });
+
+    // Asserted on the imported package, not on the exporter's intermediate:
+    // the container survives, only the claim is gone, and the artifact the
+    // exporter produced is one its own importer accepts.
+    const imported = importMapPackage(JSON.parse(bytes)).mapPackage as unknown as {
+      metadata: Record<string, unknown>;
+    };
+    expect(imported.metadata).toEqual({ note: "composed for review" });
+  });
+
+  it("leaves every URL that addresses data, a sprite, a credit, or a symbol byte-identical", () => {
+    // The counterweight to the two tests above. The rule is name-directed, so
+    // deepening the scan must not start refusing the nested URLs a map package
+    // legitimately carries — `mapSpec.sprite[i].url` is required by the schema.
+    const pkg = previewPackage({
+      mapSpec: {
+        version: 8,
+        sources: { basemap: { type: "vector", url: "https://tiles.example.com/basemap/tiles.json" } },
+        sprite: [{ id: "default", url: "https://tiles.example.com/sprites/default" }],
+        glyphs: "https://tiles.example.com/fonts/{fontstack}/{range}.pbf",
+        layers: [{ id: "parcels-fill", type: "fill", source: "parcels" }],
+      },
+      legend: [{ label: "Parcels", iconUrl: "https://cdn.example.com/icons/parcel.svg" }],
+      widgets: [{ widgetId: "info", type: "info", config: { links: [{ href: "https://example.com/help" }] } }],
+    });
+
+    const envelope = exportMapPackage(pkg);
+    expect(envelope.redactions).toEqual([]);
+    expect(importMapPackage(JSON.parse(JSON.stringify(envelope))).mapPackage).toEqual(pkg);
+  });
 });
 
 describe("a command receipt never links to a resource the command did not create", () => {

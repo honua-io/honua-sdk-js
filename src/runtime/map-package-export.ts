@@ -21,18 +21,28 @@
  *    GeoJSON bodies are measured and refused above an explicit budget, and the
  *    whole envelope is refused above a second one, so a package cannot become
  *    a de facto dataset that no client can afford to open.
- * 3. **No claim that the map is hosted, saved, or published.** A package-level
- *    location pointer — `links`, `href`, `publicationUrl`, `embedUrl`,
- *    `permalink`, and their spelling variants — is withheld on export and
- *    refused on import. This exporter deliberately holds *no* lifecycle
+ * 3. **No claim that the map is hosted, saved, or published.** A location
+ *    pointer is withheld on export and refused on import, on the envelope as
+ *    well as on the package. This exporter deliberately holds *no* lifecycle
  *    information (see below), so it cannot tell an ephemeral preview from an
  *    immutable saved version; an artifact that cannot know it was published
  *    must not carry a URL that says it was. #1426's "preview is never reported
  *    as persisted or published" is therefore enforced by absence, at the
  *    bytes, rather than by a client-minted lifecycle flag that a producer
- *    could set wrongly. Per-source `locator.url`, `attribution[].url`, and
- *    `legend[].iconUrl` are untouched: those address data and credit, not a
- *    publication of this map.
+ *    could set wrongly.
+ *
+ *    The rule is *name*-directed, not URL-shaped, and has two tiers.
+ *    `publicationUrl`, `embedUrl`, `permalink` and their kin assert a
+ *    publication whatever owns them, so they are refused at **any depth** —
+ *    the wire format is `additionalProperties: true` everywhere, and a claim
+ *    hidden under `mapPackage.metadata` is still a claim. The generic relation
+ *    names — `links`, `self`, `href`, `url`, `uri` — assert one only at the
+ *    **root** of the envelope or of the package, because below that they
+ *    belong to whatever owns them: `mapSpec.sources.<id>.url` is a TileJSON
+ *    endpoint, `mapSpec.sprite[i].url` is required by the schema,
+ *    `locator.url` is where the *data* lives, `attribution[i].url` is a
+ *    credit, and `legend[i].iconUrl` is a symbol. None of those says anything
+ *    about this map having been saved or published, and all of them survive.
  *
  * The envelope stamps {@link mapPackageFingerprint} so an import can prove the
  * bytes it read are the bytes that were written. That fingerprint is a
@@ -262,7 +272,7 @@ export function importMapPackage(value: unknown, options: ImportMapPackageOption
 
   const serialized = JSON.stringify(value);
   assertWithinPackageBudget(serialized, maxPackageBytes, packageId, "import");
-  assertNoPublicationPointers(value.mapPackage as Record<string, unknown>, packageId);
+  assertNoPublicationPointers(value, packageId);
   assertEmbeddedDataWithinBudget(mapPackage, "mapPackage", maxEmbeddedBytes, packageId, "import");
   assertCredentialFreeExportText(scrubDataUriPayloads(serialized), "Imported MapPackage");
 
@@ -313,82 +323,149 @@ export function importMapPackage(value: unknown, options: ImportMapPackageOption
 // ── preview honesty ──────────────────────────────────────────────────────
 
 /**
- * Package-level property names that assert *where this map lives* — a hosted
- * location, a publication, a share or embed target, a link relation set.
+ * Property names that assert a *publication of the artifact* wherever they
+ * appear.
  *
- * Matched against whole property names at the package root only, so
- * `sourceBindings[i].locator.url` (where the *data* is), `attribution[i].url`
- * (whose data it is) and `legend[i].iconUrl` (a symbol) all survive: none of
- * them claims anything about this map having been saved or published.
- *
- * The names are matched case-insensitively and ignoring `-`/`_` separators, so
- * `publicationUrl`, `publication_url`, and `PUBLICATION-URL` are one name.
+ * These words have exactly one meaning: here is where this thing is hosted,
+ * published, shared, or embedded. No part of a map *description* needs one —
+ * not a source, not a sprite, not a legend swatch — so they are refused at any
+ * depth, inside any container the open wire format permits. That is what
+ * closes `mapPackage.metadata.publicationUrl` and every variation on it.
  */
-const PUBLICATION_POINTER_KEYS: ReadonlySet<string> = new Set([
-  "links",
-  "link",
-  "self",
-  "selflink",
-  "href",
-  "url",
-  "uri",
-  "weburl",
-  "publicurl",
-  "publishedurl",
+const PUBLICATION_POINTER_KEYS_ANYWHERE: ReadonlySet<string> = new Set([
   "publicationurl",
+  "publishedurl",
   "publishurl",
+  "publicurl",
   "portalurl",
   "itemurl",
   "viewerurl",
   "shareurl",
   "embedurl",
   "permalink",
+  "weburl",
+  "selflink",
 ]);
 
+/**
+ * Generic relation names that assert a publication *only at the root of the
+ * thing they describe*.
+ *
+ * `url` is the clearest case: at the root of a package it means "this map is
+ * at ...", but `mapSpec.sources.<id>.url` is a TileJSON endpoint,
+ * `mapSpec.sprite[i].url` is required by the schema, `locator.url` is where the
+ * *data* lives, and `attribution[i].url` is a credit link. Position, not
+ * spelling, is what makes these a claim about the artifact, so they are refused
+ * at the package root and at the envelope root and left alone below.
+ *
+ * The consequence is deliberate: a generic pointer buried in an open container
+ * (`widgets[i].config.links`) is not refused, because at that depth it belongs
+ * to whatever owns it. Refusing it there would reject legitimate artifacts on
+ * the strength of a word rather than a claim, and the names that *are* a claim
+ * on their own are already handled above.
+ */
+const PUBLICATION_POINTER_KEYS_AT_ROOT: ReadonlySet<string> = new Set(["links", "link", "self", "href", "url", "uri"]);
+
+/**
+ * Comparison form: case-insensitive and separator-insensitive, so
+ * `publicationUrl`, `publication_url`, and `PUBLICATION-URL` are one name.
+ */
 function publicationPointerName(key: string): string {
   return key.toLowerCase().replace(/[-_\s]/g, "");
 }
 
-function isPublicationPointerKey(key: string): boolean {
-  return PUBLICATION_POINTER_KEYS.has(publicationPointerName(key));
+function isPublicationPointerKey(key: string, atRoot: boolean): boolean {
+  const name = publicationPointerName(key);
+  return PUBLICATION_POINTER_KEYS_ANYWHERE.has(name) || (atRoot && PUBLICATION_POINTER_KEYS_AT_ROOT.has(name));
 }
 
 /**
- * Rebuild `pkg` without its package-level location pointers, recording each
- * withheld key on `redactions`.
+ * Collect the paths of every location pointer in `value`.
  *
- * Root-level only, and deliberately not routed through
- * {@link ExportMapPackageOptions.credentials} `"reject"`: a publication pointer
- * is not a secret that leaked, it is a claim the artifact is not entitled to
- * make. Dropping it always — rather than refusing the export — keeps a package
- * that a server happened to stamp with a self-link exportable, while making it
- * impossible for those bytes to say the map is published.
+ * `atRoot` applies to the properties of `value` itself; everything reached
+ * through them is below a root and is judged by the "anywhere" names alone. A
+ * withheld subtree is not descended into: the whole claim is going, and naming
+ * its interior would only add noise.
+ *
+ * Safe against cycles by construction at both call sites — the exporter walks a
+ * tree `sanitizeValue` has already rebuilt, and the importer walks a value
+ * `JSON.stringify` has already survived.
  */
-function withholdPublicationPointers(pkg: HonuaMapPackage, redactions: HonuaExportRedaction[]): HonuaMapPackage {
-  if (!Object.keys(pkg).some(isPublicationPointerKey)) return pkg;
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(pkg)) {
-    if (isPublicationPointerKey(key)) {
-      redactions.push({ path: key, reason: "publication-pointer" });
+function collectPublicationPointerPaths(value: unknown, path: string, atRoot: boolean, out: string[]): void {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      collectPublicationPointerPaths(value[i], `${path}[${i}]`, false, out);
+    }
+    return;
+  }
+  if (!isRecord(value)) return;
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = path.length === 0 ? key : `${path}.${key}`;
+    if (isPublicationPointerKey(key, atRoot)) {
+      out.push(childPath);
       continue;
     }
-    out[key] = value;
+    collectPublicationPointerPaths(child, childPath, false, out);
   }
-  return out as unknown as HonuaMapPackage;
+}
+
+/** Rebuild `value` with every location pointer removed. Mirrors the collector. */
+function stripPublicationPointers(value: unknown, atRoot: boolean): unknown {
+  if (Array.isArray(value)) return value.map((item) => stripPublicationPointers(item, false));
+  if (!isRecord(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (isPublicationPointerKey(key, atRoot)) continue;
+    out[key] = stripPublicationPointers(child, false);
+  }
+  return out;
 }
 
 /**
- * Refuse an envelope whose package carries a location pointer.
+ * Rebuild `pkg` without its location pointers, recording each withheld path on
+ * `redactions`.
  *
- * `exportMapPackage` never emits one, so reaching this means the file was
- * hand-edited or written by something else — exactly the case where a reader
- * would otherwise believe a URL that nothing in the artifact can substantiate.
+ * Deliberately not routed through {@link ExportMapPackageOptions.credentials}
+ * `"reject"`: a publication pointer is not a secret that leaked, it is a claim
+ * the artifact is not entitled to make. Dropping it always — rather than
+ * refusing the export — keeps a package that a server happened to stamp with a
+ * self-link exportable, while making it impossible for those bytes to say the
+ * map is published.
+ *
+ * The exporter withholds exactly what {@link importMapPackage} refuses. That
+ * equality is load-bearing: an exporter that emitted an artifact its own
+ * importer rejects would not be producing a portable artifact at all, which is
+ * the same invariant the post-sanitization validation below exists to keep.
  */
-function assertNoPublicationPointers(pkg: Record<string, unknown>, packageId: string | undefined): void {
-  const offending = Object.keys(pkg).filter(isPublicationPointerKey).sort();
+function withholdPublicationPointers(pkg: HonuaMapPackage, redactions: HonuaExportRedaction[]): HonuaMapPackage {
+  const withheld: string[] = [];
+  collectPublicationPointerPaths(pkg, "", true, withheld);
+  if (withheld.length === 0) return pkg;
+  for (const path of withheld) redactions.push({ path, reason: "publication-pointer" });
+  return stripPublicationPointers(pkg, true) as HonuaMapPackage;
+}
+
+/**
+ * Refuse an envelope that asserts a publication anywhere.
+ *
+ * The envelope and the package it carries are each an artifact with its own
+ * root, so both get the root treatment; everything below either one is judged
+ * by the unambiguous names alone. `exportMapPackage` never emits any of them,
+ * so reaching this means the file was hand-edited or written by something else
+ * — exactly the case where a reader would otherwise believe a URL that nothing
+ * in the artifact can substantiate.
+ */
+function assertNoPublicationPointers(envelope: Record<string, unknown>, packageId: string | undefined): void {
+  const offending: string[] = [];
+  // Split so that `mapPackage` is walked as a root in its own right rather
+  // than as an ordinary property of the envelope.
+  const { mapPackage, ...envelopeRest } = envelope;
+  collectPublicationPointerPaths(envelopeRest, "", true, offending);
+  collectPublicationPointerPaths(mapPackage, "mapPackage", true, offending);
   if (offending.length === 0) return;
+  offending.sort();
   throw new HonuaMapPackageError(
-    `Imported MapPackage carries package-level location pointer(s): ${offending.join(", ")}. A portable map artifact describes a map; it cannot assert where that map is hosted or published, because nothing in it records whether the map was ever persisted.`,
+    `MapPackage export carries location pointer(s): ${offending.join(", ")}. A portable map artifact describes a map; it cannot assert where that map is hosted or published, because nothing in it records whether the map was ever persisted.`,
     { packageId, stage: "import", detail: { properties: offending } },
   );
 }
