@@ -1730,7 +1730,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-24 at commit `f62fbcff`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-25 at commit `7faa12b4`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11732,7 +11732,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-24 at commit `f62fbcff`._
+_Generated 2026-08-25 at commit `7faa12b4`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11747,7 +11747,7 @@ _Generated 2026-08-24 at commit `f62fbcff`._
 | `/agent-safety` | 68.7 KiB | 73.2 KiB | 19.0 KiB | 20.5 KiB |
 | `/nl-map-control` | 87.2 KiB | 94.2 KiB | 25.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
-| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 26.1 KiB | 27.9 KiB | 8.3 KiB | 8.9 KiB |
+| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 32.1 KiB | 34.4 KiB | 10.3 KiB | 11.0 KiB |
 | `/runtime` | 609.7 KiB | 612.2 KiB | 164.8 KiB | 180.4 KiB |
 | `/realtime` | 80.6 KiB | 86.2 KiB | 23.1 KiB | 25.0 KiB |
 | `/offline` | 171.1 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
@@ -11765,8 +11765,8 @@ _Generated 2026-08-24 at commit `f62fbcff`._
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 346.1 KiB | 364.2 KiB | 95.3 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1026.4 KiB | 1037.6 KiB | 278.2 KiB | 305.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1103.1 KiB | 1120.1 KiB | 301.4 KiB | 321.9 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1076.8 KiB | 1158.7 KiB | 292.9 KiB | 312.7 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1180.3 KiB | 1268.1 KiB | 323.8 KiB | 356.1 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
@@ -12349,6 +12349,12 @@ See [the decision record](./decisions/release-tag-sealing-under-immutable-releas
 for why the tag can never be repaired after the fact.
 
 ### Re-running trusted CI for an existing Release Please PR
+
+A release PR that reports `mergeable_state=blocked` is usually missing its
+required checks rather than a review. See
+[the review-policy decision record](./decisions/release-automation-review-bypass.md)
+for how bot-authored release PRs are meant to satisfy branch protection, and
+why the Copilot review rule is currently disabled rather than bypassed.
 
 The `release-please-ci` job dispatches canonical CI when Release Please creates
 or refreshes its PR, and `release-please-disposition` publishes the required
