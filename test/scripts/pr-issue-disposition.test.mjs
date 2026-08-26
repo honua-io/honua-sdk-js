@@ -13,6 +13,7 @@ import {
   MCP_CERTIFICATION_EXEMPTION,
   PullRequestDispositionError,
   RELEASE_AUTOMATION_APP_SLUGS,
+  SCHEDULED_AUTOMATION_APP_SLUGS,
   automationExemption,
   parsePullRequestDisposition,
   validatePullRequestDisposition,
@@ -529,16 +530,16 @@ describe("pull request issue disposition policy", () => {
     // a GitHub App. The gate has to accept the App login before the token is
     // switched, or the first pull request that identity opens fails the
     // required check.
-    assert.deepEqual([...RELEASE_AUTOMATION_APP_SLUGS], ["github-actions", "honua-release"]);
+    assert.deepEqual([...RELEASE_AUTOMATION_APP_SLUGS], ["github-actions", "honua-io-bot"]);
 
     const acceptedLogins = [
       "github-actions",
       "github-actions[bot]",
       "app/github-actions",
-      "honua-release",
-      "honua-release[bot]",
-      "app/honua-release",
-      "HONUA-RELEASE[BOT]",
+      "honua-io-bot",
+      "honua-io-bot[bot]",
+      "app/honua-io-bot",
+      "HONUA-IO-BOT[BOT]",
     ];
     const derivedArtifactFixture = {
       repository,
@@ -569,11 +570,11 @@ describe("pull request issue disposition policy", () => {
     // An arbitrary bot login stays refused: only the listed App slugs pass.
     for (const authorLogin of [
       "honua-release-dispatch[bot]",
-      "honua-releases[bot]",
+      "honua-io-bots[bot]",
       "release-please[bot]",
       "octocat[bot]",
       "app/octocat",
-      "honua-release-impostor",
+      "honua-io-bot-impostor",
     ]) {
       assert.equal(
         automationExemption({ ...releasePleaseFixture, authorLogin }),
@@ -601,7 +602,7 @@ describe("pull request issue disposition policy", () => {
       { repository: "mallory/honua-sdk-js" },
     ]) {
       assert.equal(
-        automationExemption({ ...releasePleaseFixture, authorLogin: "honua-release[bot]", ...override }),
+        automationExemption({ ...releasePleaseFixture, authorLogin: "honua-io-bot[bot]", ...override }),
         null,
         `unexpected release-please exemption for ${JSON.stringify(override)}`,
       );
@@ -618,16 +619,19 @@ describe("pull request issue disposition policy", () => {
       { baseRepository: "mallory/honua-sdk-js" },
     ]) {
       assert.equal(
-        automationExemption({ ...derivedArtifactFixture, authorLogin: "honua-release[bot]", ...override }),
+        automationExemption({ ...derivedArtifactFixture, authorLogin: "honua-io-bot[bot]", ...override }),
         null,
         `unexpected derived-artifact exemption for ${JSON.stringify(override)}`,
       );
     }
   });
 
-  it("keeps the scheduled report lanes pinned to the GitHub Actions identity", () => {
-    // These lanes publish on the workflow's own `GITHUB_TOKEN`; the release
-    // identity has no business authoring them, so it must not inherit them.
+  it("accepts both automation identities on the scheduled report lanes and nothing else", () => {
+    // honua-sdk-js#1093: these lanes now mint the same `honua-io-bot` App token
+    // the release lanes do, so the ruleset bypass actor covers the pull request
+    // they open and merge. `github-actions` stays accepted because every lane
+    // falls back to `GITHUB_TOKEN` when `BOT_APP_ID` is absent.
+    assert.deepEqual([...SCHEDULED_AUTOMATION_APP_SLUGS], ["github-actions", "honua-io-bot"]);
     const scheduled = [
       {
         headRefName: "automation/mcp-certification-32007819760-1",
@@ -653,9 +657,50 @@ describe("pull request issue disposition policy", () => {
         baseRepository: repository,
         title,
       };
-      assert.equal(automationExemption({ ...fixture, authorLogin: "github-actions[bot]" }), exemption);
-      assert.equal(automationExemption({ ...fixture, authorLogin: "honua-release[bot]" }), null);
-      assert.equal(automationExemption({ ...fixture, authorLogin: "app/honua-release" }), null);
+      for (const authorLogin of [
+        "github-actions",
+        "github-actions[bot]",
+        "app/github-actions",
+        "honua-io-bot",
+        "honua-io-bot[bot]",
+        "app/honua-io-bot",
+        "HONUA-IO-BOT[BOT]",
+      ]) {
+        assert.equal(
+          automationExemption({ ...fixture, authorLogin }),
+          exemption,
+          `scheduled exemption refused for ${authorLogin}`,
+        );
+      }
+      for (const authorLogin of [
+        "honua-release-dispatch[bot]",
+        "honua-io-bots[bot]",
+        "honua-io-bot-impostor",
+        "octocat[bot]",
+        "app/octocat",
+      ]) {
+        assert.equal(
+          automationExemption({ ...fixture, authorLogin }),
+          null,
+          `unexpected scheduled exemption for ${authorLogin}`,
+        );
+      }
+      // The wider login set relaxes no other condition on these lanes either.
+      for (const override of [
+        { authorType: "User" },
+        { baseRefName: "release/next" },
+        { title: `${title} (lookalike)` },
+        { headSha: "not-a-commit" },
+        { baseSha: "not-a-commit" },
+        { headRepository: "mallory/honua-sdk-js" },
+        { baseRepository: "mallory/honua-sdk-js" },
+      ]) {
+        assert.equal(
+          automationExemption({ ...fixture, authorLogin: "honua-io-bot[bot]", ...override }),
+          null,
+          `unexpected scheduled exemption for ${JSON.stringify(override)}`,
+        );
+      }
     }
   });
 

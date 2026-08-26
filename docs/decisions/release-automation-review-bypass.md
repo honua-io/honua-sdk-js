@@ -79,29 +79,45 @@ two rather than keeping them as fallbacks:
 
 ## Why this is not landed in this repository
 
-The chosen architecture cannot be committed as a file here. Two things are
-needed, both outside this repository:
+Only half of the chosen architecture can be committed as a file here.
 
 - **An org owner must re-enable ruleset `19494022` with a bypass actor.**
   Ruleset configuration is repository/org settings, not source. Nothing in
-  `.github/` can express it.
-- **A release identity that can actually author the release PR.** Today
-  `release-please.yml:40` uses `secrets.GITHUB_TOKEN`, and no workflow in this
-  repository uses `create-github-app-token`. The existing
-  `honua-release-dispatch` app holds only `Actions: write` and
-  `Metadata: read`, so it cannot author or update a pull request even if it were
-  wired in. Minting a token that can requires an org-installed app with
-  `Contents: write` and `Pull requests: write`, and its App ID plus private key
-  provisioned as repository secrets.
+  `.github/` can express it. This is still the open half.
+- **A release identity that can actually author the release PR.** *Provisioned.*
+  The org bot App `honua-io-bot` holds `Contents: write`, `Pull requests: write`,
+  `Actions: write`, `Issues: write`, `Workflows: write`, `Checks: read`, and
+  `Metadata: read`, and reaches this repository through the org Actions secrets
+  `BOT_APP_ID` / `BOT_APP_PRIVATE_KEY`. The older `honua-release-dispatch` app
+  holds only `Actions: write` and `Metadata: read`, so it could never have
+  authored or updated a pull request and is not the identity used here.
 
-Until that identity exists, wiring `create-github-app-token` into
-`release-please.yml` would add a code path that cannot be exercised, so it is
-deliberately not done here.
+### The workflow half, as landed
 
-With the login set widened (below), **the in-repo half of this issue is
-cleared**: the remaining work is org settings — re-enable ruleset `19494022`
-with the release identity as a bypass actor, and provision the App plus its
-secrets. No further code change is a prerequisite for either.
+Every lane in this repository that authors or merges an automation pull request
+now mints a `honua-io-bot` installation token with
+`actions/create-github-app-token` and uses it for exactly the operations the
+ruleset judges — the branch push, the pull request, and (where the lane merges
+itself) the merge:
+
+| Lane | Workflow | What now runs as `honua-io-bot` |
+| --- | --- | --- |
+| Release Please | `.github/workflows/release-please.yml` | the action's `token:`, so the release branch push and `chore: release trunk` pull request; plus the `PUT /pulls/{n}/update-branch` base refresh |
+| Derived artifacts | `.github/workflows/regenerate-derived-artifacts.yml` | checkout token for the `automation/derived-artifacts-*` push, `gh pr create`, `gh pr merge` |
+| MCP certification | `.github/workflows/mcp-cert-scheduled.yml` | checkout token for the `automation/mcp-certification-*` push, `gh pr create`, `gh pr merge` |
+| Kepler audit renewal | `.github/workflows/kepler-audit-renewal.yml` | `gh auth setup-git` push of `automation/kepler-audit-renewal-*` and `gh pr create` |
+
+Each lane detects `BOT_APP_ID` first and mints only when it is present, so a
+fork or a rotated secret degrades to the previous `GITHUB_TOKEN` behaviour
+instead of hard-failing. Everything that is *not* an authorship operation stays
+on `github.token` on purpose: dispatching workflows, approving held check runs,
+watching checks, and publishing the release-please disposition check runs (which
+`publishReleasePleaseDispositionCheck()` verifies were created by the GitHub
+Actions integration).
+
+**The remaining work is org settings**: re-enable ruleset `19494022` with
+`honua-io-bot` as a bypass actor and set it Active, then prove it with a real
+release pull request. No further code change is a prerequisite.
 
 ### Swapping the token is not a one-line change
 
@@ -111,24 +127,26 @@ moment the first App-authored PR appears.
 **The disposition gate recognised exactly one bot login. Fixed.**
 `automationExemption()` in `scripts/lib/pr-issue-disposition.mjs` used to grant
 the Release Please exemption only when the actor login was `github-actions`,
-`github-actions[bot]`, or `app/github-actions`, so a PR authored by a new App —
-`honua-release[bot]` — matched none of the login forms and the required
+`github-actions[bot]`, or `app/github-actions`, so a PR authored by the bot App —
+`honua-io-bot[bot]` — matched none of the login forms and the required
 `PR Issue Disposition` check would have rejected the very first release PR the
 new identity opened.
 
 The accepted logins are now derived from `RELEASE_AUTOMATION_APP_SLUGS`, an
-exported array of GitHub App slugs (`github-actions`, `honua-release`), each
+exported array of GitHub App slugs (`github-actions`, `honua-io-bot`), each
 accepted in the three forms GitHub reports an App actor under — `slug`,
-`slug[bot]`, and `app/slug`. Adding a future identity is one array entry rather
-than three literals repeated per lane, and if the provisioned App is given a
-slug other than `honua-release` that array is the single place to change.
+`slug[bot]`, and `app/slug`. `github-actions` stays listed because every lane
+keeps the `GITHUB_TOKEN` fallback above, and that fallback must not fail the
+required check. Adding a future identity is one array entry rather than three
+literals repeated per lane, and if the App is ever re-slugged that array is the
+single place to change.
 
 Only the login set widened. Same-repository origin, base `trunk`, the exact
 head branch, both full-SHA shapes, and the exact title are unchanged, and
-`test/scripts/pr-issue-disposition.test.mjs` pins that: every accepted login
-form for both lanes, an arbitrary bot login (`octocat[bot]`,
-`honua-release-dispatch[bot]`) still refused, and each other condition still
-refused under the new login.
+`test/scripts/pr-issue-disposition.test.mjs` pins that for all four lanes:
+every accepted login form, an arbitrary bot login (`octocat[bot]`,
+`honua-release-dispatch[bot]`, `honua-io-bot-impostor`) still refused, and each
+other condition still refused under the new login.
 
 The set is source-bound on purpose — no environment-variable override. The
 disposition gate executes from the pull request's own checkout, so reading the
@@ -145,10 +163,15 @@ is about. Whatever bypass actor is provisioned still has to cover that workflow
 on the org side.
 
 The two scheduled report lanes — `automation/mcp-certification-*` and
-`automation/kepler-audit-renewal-*` — were deliberately **not** widened. They
-publish on the workflow's own `GITHUB_TOKEN` and are no part of the release
-identity, so they stay pinned to the GitHub Actions logins; a test asserts the
-release App login is refused on both.
+`automation/kepler-audit-renewal-*` — were originally left pinned to the GitHub
+Actions logins, because they published on the workflow's own `GITHUB_TOKEN`.
+They no longer do: a re-enabled ruleset would deadlock them exactly as it
+deadlocked the release lane, since Copilot does not review their pull requests
+either and the MCP lane merges its own. They now mint the same `honua-io-bot`
+token, and their accepted logins come from a second exported array,
+`SCHEDULED_AUTOMATION_APP_SLUGS`. It names the same two slugs today; it stays a
+separate array so a future identity split has somewhere to land without
+widening the release lanes by accident.
 
 Nothing else in the repository needs the wider set.
 `publishReleasePleaseDispositionCheck()` verifies `GITHUB_ACTIONS_APP_ID` on the
@@ -164,6 +187,6 @@ today's behaviour rather than breaking the release.
 
 The validation on #1093 is behavioural, not a diff: *a fresh release-please PR
 merges via auto-merge with green required checks and no admin flag.* That needs
-the ruleset re-enabled with the bypass actor and a real release PR to prove it
-against. Until then the issue stays open, and the disabled rule stays a recorded
-mitigation rather than an accident.
+the ruleset re-enabled with `honua-io-bot` as its bypass actor and a real
+release PR to prove it against. Until then the issue stays open, and the
+disabled rule stays a recorded mitigation rather than an accident.

@@ -34,10 +34,40 @@ jobs:
       prs_created: ${{ steps.release.outputs.prs_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      # Release identity (#1093). The release pull request must be authored by
+      # the org bot App `honua-io-bot`, because that App -- not `github-actions`
+      # -- is the bypass actor on the trunk `copilot_code_review` ruleset. Detect
+      # first, mint second: without `BOT_APP_ID` the lane degrades to today's
+      # `GITHUB_TOKEN` behaviour rather than failing, and
+      # `RELEASE_AUTOMATION_APP_SLUGS` in scripts/lib/pr-issue-disposition.mjs
+      # accepts both identities so the required disposition check passes either
+      # way.
+      - name: Detect bot App credentials
+        id: creds
+        env:
+          BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+          BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$BOT_APP_ID" ] && [ -n "$BOT_APP_PRIVATE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::BOT_APP_ID/BOT_APP_PRIVATE_KEY not configured; the release pull request is authored by github-actions and stays subject to the ruleset."
+          fi
+
+      - name: Mint release automation token
+        id: app-token
+        if: steps.creds.outputs.available == 'true'
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: honua-io
+
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
@@ -368,11 +398,38 @@ jobs:
         with:
           node-version: "20.19.0"
 
+      # The base refresh is a `PUT /pulls/{n}/update-branch`, so the merge commit
+      # it lands on `release-please--branches--trunk` carries the token's
+      # identity (#1093). Mint the same App token the release job authors with,
+      # so the branch never mixes two bot identities, and fall back to
+      # `GITHUB_TOKEN` when the secret is absent.
+      - name: Detect bot App credentials
+        id: creds
+        env:
+          BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+          BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$BOT_APP_ID" ] && [ -n "$BOT_APP_PRIVATE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::BOT_APP_ID/BOT_APP_PRIVATE_KEY not configured; the base refresh pushes as github-actions."
+          fi
+
+      - name: Mint release automation token
+        id: app-token
+        if: steps.creds.outputs.available == 'true'
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: honua-io
+
       - name: Refresh the unchanged exact Release Please branch onto trusted trunk
         id: refresh
         working-directory: trusted-refresh-policy
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           RELEASE_PLEASE_PRS_CREATED: ${{ needs.release-please.outputs.prs_created }}
           TRUSTED_POLICY_SHA: ${{ github.sha }}
         run: |

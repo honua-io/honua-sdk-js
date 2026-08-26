@@ -752,10 +752,44 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      # Release identity (#1093). The branch push, the pull request, and the
+      # merge below all have to come from the org bot App `honua-io-bot`, which
+      # is the bypass actor on the trunk `copilot_code_review` ruleset --
+      # `github-actions` is not, and a Copilot review never arrives on a
+      # bot-authored pull request. Detect first, mint second, so a missing
+      # `BOT_APP_ID` degrades to today's `GITHUB_TOKEN` behaviour instead of
+      # failing the regeneration. `RELEASE_AUTOMATION_APP_SLUGS` in
+      # scripts/lib/pr-issue-disposition.mjs accepts both identities, so the
+      # required disposition check passes either way.
+      - name: Detect bot App credentials
+        id: creds
+        env:
+          BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+          BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$BOT_APP_ID" ] && [ -n "$BOT_APP_PRIVATE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::BOT_APP_ID/BOT_APP_PRIVATE_KEY not configured; the regeneration pull request is authored and merged by github-actions."
+          fi
+
+      - name: Mint release automation token
+        id: app-token
+        if: steps.creds.outputs.available == 'true'
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: honua-io
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: true
+          # The generated branch is pushed from this checkout's credentials, so
+          # the push identity is decided here.
+          token: ${{ steps.app-token.outputs.token || github.token }}
 
       - name: Download local regeneration commits
         if: needs.regenerate.outputs.changed == 'true'
@@ -769,7 +803,7 @@ jobs:
         if: needs.regenerate.outputs.changed == 'true'
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
         run: |
           set -euo pipefail
           git fetch .derived-artifacts-bundle/derived-artifacts.bundle \
@@ -857,9 +891,12 @@ jobs:
           fi
           echo "ci_run_id=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
 
-      # GitHub holds pull_request workflows created by GITHUB_TOKEN for approval.
-      # Approve only the expected workflows attached to the exact generated head;
-      # their native PR check runs are what the trunk ruleset recognizes.
+      # GitHub holds pull_request workflows created by GITHUB_TOKEN for approval;
+      # a pull request opened by the bot App starts its runs unheld. This step
+      # covers both: it waits for the expected workflows on the exact generated
+      # head and approves only the ones GitHub actually held. It keeps
+      # `github.token` deliberately -- approving a run is an Actions operation,
+      # not an authorship one, so it does not need the release identity.
       - name: Approve native checks for regeneration PR
         if: needs.regenerate.outputs.changed == 'true'
         env:
@@ -902,7 +939,9 @@ jobs:
         if: needs.regenerate.outputs.changed == 'true'
         timeout-minutes: 50
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The merge itself is the operation the trunk ruleset judges, so it
+          # runs under the same bot App identity that opened the pull request.
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           GENERATED: ${{ steps.publish.outputs.generated }}
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
           STRICT_CI_RUN_ID: ${{ steps.strict.outputs.ci_run_id }}
@@ -978,9 +1017,12 @@ jobs:
             --merge \
             --delete-branch \
             --match-head-commit "$GENERATED"
-          # Merges performed with GITHUB_TOKEN do not emit a push workflow.
-          # Explicitly re-enter this workflow: the topology-aware guard skips
-          # a clean regeneration merge and dispatches strict trunk validation.
+          # Merges performed with GITHUB_TOKEN emit no push workflow at all, and
+          # the narrowed `paths:` filter above deliberately ignores most of what
+          # a bot-App merge changes. Re-enter this workflow explicitly rather
+          # than relying on either: the topology-aware guard skips a clean
+          # regeneration merge and dispatches strict trunk validation, so a
+          # duplicate entry is a fast no-op.
           gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk
 
       - name: Dispatch strict trunk CI and docs validation
