@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.1.8-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.7-beta.0...mcp-server-v0.1.8-beta.0) (2026-08-26)
+
+
+### Features
+
+* **agent:** release-scoped terminal skills and local documentation MCP ([#1454](https://github.com/honua-io/honua-sdk-js/issues/1454)) ([f0d040e](https://github.com/honua-io/honua-sdk-js/commit/f0d040ec381039f35dfd2c2d7db504e733bf3dee))
+* complete the 2026.1 AI control-plane and map journey ([#1375](https://github.com/honua-io/honua-sdk-js/issues/1375)) ([8698811](https://github.com/honua-io/honua-sdk-js/commit/86988113f5f84301546e1b8a848d327e8cede5a2))
+
+
+### Bug Fixes
+
+* **ci:** make the two scheduled lanes able to succeed ([#1355](https://github.com/honua-io/honua-sdk-js/issues/1355)) ([9dd5a70](https://github.com/honua-io/honua-sdk-js/commit/9dd5a707e2eb24bec5d0529b0ec53a7ecc662a58))
+* **mcp:** fail closed on ambiguous proxy auth ([abc002b](https://github.com/honua-io/honua-sdk-js/commit/abc002b7d798390e1c96b8a53012eb9e937738d8))
+* **mcp:** fail closed on ambiguous proxy auth ([8477a9d](https://github.com/honua-io/honua-sdk-js/commit/8477a9dd932c029a557ad53d7411e5a74184b854))
+* **release:** derive the zero-to-map catalog roster and pin an installable MCP package ([#1457](https://github.com/honua-io/honua-sdk-js/issues/1457)) ([f3ba8b2](https://github.com/honua-io/honua-sdk-js/commit/f3ba8b2d21525b51764d238cd630b07df0b47c0c))
+
+
+### Documentation
+
+* harden GIS SDK truth, packaging, and MCP boundaries ([#1434](https://github.com/honua-io/honua-sdk-js/issues/1434)) ([7dfb669](https://github.com/honua-io/honua-sdk-js/commit/7dfb6695fe4e2a2ad886317873c7eae8ba4ff52d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.8-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.7-beta.0 to ^0.1.8-beta.0
+
 ## [0.1.7-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.6-beta.0...mcp-server-v0.1.7-beta.0) (2026-08-13)
 
 
