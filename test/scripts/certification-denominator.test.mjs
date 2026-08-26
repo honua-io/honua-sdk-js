@@ -11,9 +11,13 @@ import {
   mapLibreNativeBindings,
   DENOMINATOR_PATH,
   DENOMINATOR_SCHEMA_PATH,
-  digestBytes,
+  digestCertificationDenominatorInput,
   evaluateCertificationRun,
   loadCertificationDenominatorInputs,
+  PROTOCOL_CERTIFICATION_PATH,
+  RELEASE_PLEASE_CONFIG_PATH,
+  releaseManagedVersionFields,
+  SDK_COVERAGE_PATH,
   SUPPORT_MANIFEST_PATH,
   validateCertificationDenominatorSchema,
 } from "../../scripts/certification-denominator.mjs";
@@ -39,6 +43,9 @@ import { evaluateCertificationDenominator } from "../../scripts/verify-certifica
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 const inputs = loadCertificationDenominatorInputs();
+const managedFields = releaseManagedVersionFields(
+  JSON.parse(fs.readFileSync(path.join(ROOT, RELEASE_PLEASE_CONFIG_PATH), "utf8")),
+);
 const frozenText = fs.readFileSync(path.join(ROOT, DENOMINATOR_PATH), "utf8");
 const frozen = JSON.parse(frozenText);
 const schema = JSON.parse(fs.readFileSync(path.join(ROOT, DENOMINATOR_SCHEMA_PATH), "utf8"));
@@ -68,11 +75,13 @@ function cloneInputs() {
  * situation the gate is being asked about.
  */
 function redigest(copy, relativePath, value) {
-  const text = `${JSON.stringify(value, null, 2)}\n`;
-  const entry = copy.inputDigests.find((input) => input.path === relativePath);
-  assert.ok(entry, `${relativePath} is not a declared denominator input`);
-  entry.bytes = Buffer.byteLength(text, "utf8");
-  entry.sha256 = digestBytes(text);
+  const index = copy.inputDigests.findIndex((input) => input.path === relativePath);
+  assert.ok(index >= 0, `${relativePath} is not a declared denominator input`);
+  copy.inputDigests[index] = digestCertificationDenominatorInput(
+    relativePath,
+    `${JSON.stringify(value, null, 2)}\n`,
+    managedFields,
+  );
 }
 
 /** Evaluate the real frozen artifact against mutated inputs. */
@@ -361,9 +370,112 @@ test("the frozen digests cover every manifest the denominator was derived from",
     assert.ok(digested.includes(required), `${required} is not digested into the freeze`);
   }
   for (const input of frozen.inputs) {
-    const onDisk = digestBytes(fs.readFileSync(path.join(ROOT, input.path), "utf8"));
-    assert.equal(input.sha256, onDisk, `${input.path} digest is stale`);
+    const onDisk = digestCertificationDenominatorInput(
+      input.path,
+      fs.readFileSync(path.join(ROOT, input.path), "utf8"),
+      managedFields,
+    );
+    assert.equal(input.sha256, onDisk.sha256, `${input.path} digest is stale`);
+    assert.deepEqual(input.releaseManagedFields ?? [], onDisk.releaseManagedFields ?? []);
   }
+});
+
+// --- Surviving a release cut (#1512) -----------------------------------------
+//
+// Release Please rewrites `clientVersion` in config/protocol-certification.v1.json
+// and `sdk.version` in config/sdk-coverage.v1.json on every version bump, and
+// neither is read by any derivation. A freeze taken over the raw bytes of those
+// files therefore froze the release it was generated in: the version-bump commit
+// changed two digested inputs and could not regenerate the denominator, so every
+// release pull request was red before it was opened. These drive an actual bump.
+
+test("release-please declares which denominator inputs it version-stamps", () => {
+  assert.deepEqual(
+    Object.fromEntries([...managedFields].sort()),
+    { [PROTOCOL_CERTIFICATION_PATH]: ["clientVersion"], [SDK_COVERAGE_PATH]: ["sdk.version"] },
+    "the release-managed field set is read out of release-please-config.json, not restated",
+  );
+  for (const declared of managedFields.keys()) {
+    const entry = frozen.inputs.find((input) => input.path === declared);
+    assert.ok(entry, `${declared} is not a digested denominator input`);
+    assert.deepEqual(entry.releaseManagedFields, managedFields.get(declared));
+  }
+});
+
+test("a release version bump of the version-stamped inputs is not denominator drift", () => {
+  const errors = withInputs((copy) => {
+    copy.protocolCertification.clientVersion = "99.9.9-beta.0";
+    redigest(copy, PROTOCOL_CERTIFICATION_PATH, copy.protocolCertification);
+    copy.sdkCoverage.sdk.version = "99.9.9-beta.0";
+    redigest(copy, SDK_COVERAGE_PATH, copy.sdkCoverage);
+  });
+  assert.deepEqual(errors, [], "a release-please version bump must leave the freeze intact");
+});
+
+test("a non-version change to a version-stamped input is still drift", () => {
+  const errors = withInputs((copy) => {
+    // Same file, same release, real content: a certification operation added
+    // after the freeze must still be reported.
+    copy.protocolCertification.clientVersion = "99.9.9-beta.0";
+    copy.protocolCertification.operations = [
+      ...copy.protocolCertification.operations,
+      {
+        ...copy.protocolCertification.operations[0],
+        operation: "queryAggregateAfterFreeze",
+      },
+    ];
+    redigest(copy, PROTOCOL_CERTIFICATION_PATH, copy.protocolCertification);
+  });
+  assert.ok(
+    errors.some(
+      (error) =>
+        error.includes(PROTOCOL_CERTIFICATION_PATH) &&
+        error.includes("was frozen against") &&
+        error.includes("release-managed clientVersion is excluded"),
+    ),
+    errors.join("\n"),
+  );
+  assert.ok(
+    errors.some((error) => error.includes("queryAggregateAfterFreeze") && error.includes("is absent from")),
+    errors.join("\n"),
+  );
+});
+
+test("a freeze that neutralises nothing fails loudly instead of recoupling to the release", () => {
+  // The guard against this fix silently coming undone: strip the extra-files
+  // declarations and the digests go back to being byte-exact over two version
+  // strings, which is the defect, not a passing gate.
+  const uncoupled = buildCertificationDenominator({
+    ...cloneInputs(),
+    inputDigests: inputs.inputDigests.map((entry) => {
+      const { releaseManagedFields: _dropped, ...rest } = entry;
+      return rest;
+    }),
+  });
+  assert.ok(
+    uncoupled.errors.some((error) => error.includes("release-managed version field")),
+    uncoupled.errors.join("\n"),
+  );
+});
+
+test("a jsonpath the denominator cannot neutralise is refused, not ignored", () => {
+  assert.throws(
+    () =>
+      releaseManagedVersionFields({
+        packages: {
+          ".": { "extra-files": [{ type: "json", path: SDK_COVERAGE_PATH, jsonpath: "$.capabilities[*].status" }] },
+        },
+      }),
+    /cannot neutralise/u,
+  );
+});
+
+test("a declared release-managed field the input does not carry is an error", () => {
+  const fields = new Map([[SDK_COVERAGE_PATH, ["sdk.releaseTrain"]]]);
+  assert.throws(
+    () => digestCertificationDenominatorInput(SDK_COVERAGE_PATH, `${JSON.stringify(inputs.sdkCoverage)}\n`, fields),
+    /cannot neutralise a field it cannot find/u,
+  );
 });
 
 // --- Negative controls -------------------------------------------------------

@@ -28,6 +28,15 @@
 //                         with the Admin MCP tools joined to their generated REST
 //                         projection in config/admin-mcp-coverage.v1.json
 //
+// Each input is frozen by digest, but a digest over raw bytes would freeze the
+// RELEASE the artifact was generated in as well as its content: release-please
+// rewrites `clientVersion` in config/protocol-certification.v1.json and
+// `sdk.version` in config/sdk-coverage.v1.json on every version bump, and no
+// derivation here reads either. So the fields release-please-config.json
+// declares as release-managed are neutralised before digesting -- see
+// releaseManagedVersionFields() -- and each frozen input says which ones
+// (honua-io/honua-sdk-js#1512).
+//
 // A protocol-operation row is additionally tagged portableMapArtifact when
 // schemas/honua-map-package.v1.json can bind a source to it, so "representative
 // MapLibre rendering from the portable map artifact" names rows the canonical
@@ -62,6 +71,7 @@ export const ADMIN_MCP_COVERAGE_PATH = "config/admin-mcp-coverage.v1.json";
 export const APP_PLATFORM_QUALIFICATION_PATH = "config/app-platform-reference-qualification.v1.json";
 export const JOURNEY_PATH = "mcp/release/zero-to-map/journey.v1.json";
 export const MAP_PACKAGE_SCHEMA_PATH = "schemas/honua-map-package.v1.json";
+export const RELEASE_PLEASE_CONFIG_PATH = "release-please-config.json";
 export const SOURCE_BRIDGE_PATH = "src/runtime/source-bridge.ts";
 
 /** Every file the denominator is derived from, digested into the frozen artifact. */
@@ -73,6 +83,7 @@ export const INPUT_PATHS = [
   MAP_PACKAGE_SCHEMA_PATH,
   PROTOCOL_CERTIFICATION_PATH,
   RELEASE_ARTIFACTS_PATH,
+  RELEASE_PLEASE_CONFIG_PATH,
   SDK_COVERAGE_CROSSWALK_PATH,
   SDK_COVERAGE_PATH,
   SOURCE_BRIDGE_PATH,
@@ -203,6 +214,103 @@ export function digestBytes(text) {
 
 function sortedUnique(values) {
   return [...new Set(values)].sort();
+}
+
+/**
+ * The value a release-managed version is rewritten to before its file is
+ * digested. Its only job is to be a fixed string that is not a real version.
+ */
+export const RELEASE_MANAGED_VERSION_PLACEHOLDER = "0.0.0-release-managed";
+
+/**
+ * Which denominator inputs carry a version string release-please rewrites,
+ * read out of release-please-config.json's `extra-files` rather than restated.
+ *
+ * Two inputs are on that list -- config/protocol-certification.v1.json's
+ * `clientVersion` and config/sdk-coverage.v1.json's `sdk.version` -- and both
+ * change on every release cut. Neither is read by any derivation here: the
+ * certification rows come from `operations[].{capability_key,surface,operation}`
+ * and the coverage join from `capabilities[].{key,status}`, so a version bump
+ * cannot move a row, a tier, a count or a profile digest. Freezing the raw bytes
+ * of those two files therefore froze the release the artifact was generated in,
+ * which made every release pull request red by construction and taught nobody
+ * anything (honua-io/honua-sdk-js#1512).
+ *
+ * Reading the declaration instead of restating it is the same discipline the
+ * rest of this file follows: release-please-config.json IS the statement of
+ * which fields release automation owns, and it is itself a digested input, so
+ * the neutralised set cannot be widened without a conscious refreeze.
+ *
+ * @returns {Map<string, string[]>} input path -> dotted field paths, sorted
+ */
+export function releaseManagedVersionFields(releasePleaseConfig, inputPaths = INPUT_PATHS) {
+  const managed = new Map();
+  for (const [packageDir, packageConfig] of Object.entries(releasePleaseConfig?.packages ?? {})) {
+    for (const extra of packageConfig?.["extra-files"] ?? []) {
+      if (extra?.type !== "json" || typeof extra.path !== "string" || typeof extra.jsonpath !== "string") continue;
+      const prefix = packageDir === "." ? "" : packageDir;
+      const inputPath = prefix ? `${prefix.replace(/\/+$/u, "")}/${extra.path}` : extra.path;
+      if (!inputPaths.includes(inputPath)) continue;
+      // Only a plain dotted path can be neutralised field-for-field. An
+      // `extra-files` entry reaching a denominator input through anything else
+      // (an array index, a filter, a wildcard) is refused rather than ignored:
+      // ignoring it would silently restore the release-coupled freeze.
+      if (!/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)+$/u.test(extra.jsonpath)) {
+        throw new Error(
+          `${RELEASE_PLEASE_CONFIG_PATH} rewrites denominator input ${inputPath} through jsonpath "${extra.jsonpath}", which ${DENOMINATOR_PATH} cannot neutralise; express it as a plain dotted path or drop the input`,
+        );
+      }
+      const field = extra.jsonpath.slice(2);
+      managed.set(inputPath, sortedUnique([...(managed.get(inputPath) ?? []), field]));
+    }
+  }
+  return managed;
+}
+
+/**
+ * Rewrite each release-managed version in one input's text to the placeholder,
+ * so its digest describes the manifest's content rather than the release it was
+ * taken in. A field the declaration names but the file does not carry as a
+ * string is an error: a neutralisation that silently matches nothing is the
+ * defect, not the fix.
+ *
+ * A normalised input is re-serialized canonically, so its digest covers content
+ * rather than layout. That is the right scope for this gate -- every derivation
+ * reads parsed values -- and it costs nothing today: both managed inputs are
+ * already emitted by their generators as canonical two-space JSON.
+ */
+export function normalizeReleaseManagedVersions(text, fields) {
+  if (!fields || fields.length === 0) return text;
+  const parsed = JSON.parse(text);
+  for (const field of fields) {
+    const segments = field.split(".");
+    let node = parsed;
+    for (const segment of segments.slice(0, -1)) {
+      node = node && typeof node === "object" ? node[segment] : undefined;
+    }
+    const leaf = segments[segments.length - 1];
+    if (!node || typeof node !== "object" || typeof node[leaf] !== "string") {
+      throw new Error(
+        `${RELEASE_PLEASE_CONFIG_PATH} declares release-managed version field "${field}", which is not a string in the input it names; the denominator cannot neutralise a field it cannot find`,
+      );
+    }
+    node[leaf] = RELEASE_MANAGED_VERSION_PLACEHOLDER;
+  }
+  return `${JSON.stringify(parsed, null, 2)}\n`;
+}
+
+/**
+ * One input's frozen digest entry. `bytes` and `sha256` describe exactly the
+ * text that was digested, and `releaseManagedFields` names every version the
+ * digest was taken blind to, so the artifact states what its freeze does and
+ * does not cover instead of leaving a reader to infer it.
+ */
+export function digestCertificationDenominatorInput(relativePath, text, managedFields = new Map()) {
+  const fields = managedFields.get(relativePath) ?? [];
+  const normalized = normalizeReleaseManagedVersions(text, fields);
+  const entry = { path: relativePath, bytes: Buffer.byteLength(normalized, "utf8"), sha256: digestBytes(normalized) };
+  if (fields.length > 0) entry.releaseManagedFields = fields;
+  return entry;
 }
 
 function strongestTier(statuses) {
@@ -631,6 +739,18 @@ export function assertCertificationDenominatorInvariants(denominator) {
       `the denominator contains no counting row that is BOTH a renderer row and bound to the portable map artifact, so representative MapLibre rendering from the portable map artifact cannot be certified; check that ${SOURCE_BRIDGE_PATH} still projects map-package source bindings onto MapLibre-native sources`,
     );
   }
+  // The release-coupling guard (#1512). Two digested inputs carry the SDK's own
+  // version, and release-please rewrites both on every release cut. If nothing
+  // in the frozen artifact records a neutralised field, the freeze has silently
+  // gone back to being byte-exact over those versions and the next release
+  // pull request is red before it is opened -- a failure this gate must name
+  // now rather than leave for the release lane to discover.
+  if (!(denominator.inputs ?? []).some((input) => (input.releaseManagedFields ?? []).length > 0)) {
+    errors.push(
+      `no denominator input records a release-managed version field, so the freeze is coupled to the release it was taken in; check that ${RELEASE_PLEASE_CONFIG_PATH} still declares the extra-files that stamp ${PROTOCOL_CERTIFICATION_PATH} and ${SDK_COVERAGE_PATH}`,
+    );
+  }
+
   const journeyTools = new Set(rows.filter((row) => row.family === "terminal-journey").map((row) => row.tool));
   for (const tool of STUDIO_LIFECYCLE_TOOLS) {
     if (!journeyTools.has(tool)) {
@@ -773,8 +893,15 @@ export function evaluateCertificationDenominatorDrift({ frozen, generated }) {
       continue;
     }
     if (recorded.sha256 !== entry.sha256) {
+      // Name the release-managed fields the digest is blind to, so a reader
+      // does not diagnose a real content change as a version bump (#1512).
+      const managed = entry.releaseManagedFields ?? [];
+      const scope =
+        managed.length > 0
+          ? ` -- its release-managed ${managed.join(", ")} is excluded from this digest, so something else in the file changed`
+          : "";
       errors.push(
-        `${inputPath} changed (${entry.sha256}) but ${DENOMINATOR_PATH} was frozen against ${recorded.sha256}`,
+        `${inputPath} changed (${entry.sha256}) but ${DENOMINATOR_PATH} was frozen against ${recorded.sha256}${scope}`,
       );
     }
   }
@@ -914,12 +1041,21 @@ export function evaluateRendererRequirement({ denominator, results }) {
   return [];
 }
 
-/** Read every input the builder needs from a checkout, digesting each file's bytes. */
+/**
+ * Read every input the builder needs from a checkout, digesting each file's
+ * bytes -- with the version fields release-please-config.json declares that
+ * release automation rewrites neutralised first, so the freeze survives a
+ * release cut.
+ */
 export function loadCertificationDenominatorInputs(projectRoot = PROJECT_ROOT) {
-  const inputDigests = INPUT_PATHS.map((relativePath) => {
-    const text = fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
-    return { path: relativePath, bytes: Buffer.byteLength(text, "utf8"), sha256: digestBytes(text) };
-  });
+  const managedFields = releaseManagedVersionFields(readJson(RELEASE_PLEASE_CONFIG_PATH, projectRoot));
+  const inputDigests = INPUT_PATHS.map((relativePath) =>
+    digestCertificationDenominatorInput(
+      relativePath,
+      fs.readFileSync(path.join(projectRoot, relativePath), "utf8"),
+      managedFields,
+    ),
+  );
   return {
     supportManifest: readJson(SUPPORT_MANIFEST_PATH, projectRoot),
     protocolCertification: readJson(PROTOCOL_CERTIFICATION_PATH, projectRoot),
