@@ -190,6 +190,184 @@
           "published": false
         }
       ]
+    },
+    {
+      "id": "2026-08-25-maplibre-arcgis-migration",
+      "query": "maplibre arcgis migration",
+      "observedAt": "2026-08-25",
+      "expiresAt": "2026-11-25",
+      "totalResults": 20325,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": true,
+          "published": true,
+          "rank": 86,
+          "version": "0.1.7-beta.0"
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "2026-08-25-arcgis-migration",
+      "query": "arcgis migration",
+      "observedAt": "2026-08-25",
+      "expiresAt": "2026-11-25",
+      "totalResults": 19260,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": true,
+          "published": true,
+          "rank": 2,
+          "version": "0.1.7-beta.0"
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "2026-08-25-maplibre-gis-sdk",
+      "query": "maplibre gis sdk",
+      "observedAt": "2026-08-25",
+      "expiresAt": "2026-11-25",
+      "totalResults": 163397,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": true,
+          "published": true,
+          "rank": 130,
+          "version": "0.1.7-beta.0"
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "2026-08-25-ogc-api-features-client",
+      "query": "ogc api features client",
+      "observedAt": "2026-08-25",
+      "expiresAt": "2026-11-25",
+      "totalResults": 1013526,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": true,
+          "published": true,
+          "rank": 209,
+          "version": "0.1.4-beta.0"
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "2026-08-25-stac-client-typescript",
+      "query": "stac client typescript",
+      "observedAt": "2026-08-25",
+      "expiresAt": "2026-11-25",
+      "totalResults": 600845,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "2026-08-25-geocoding-maplibre",
+      "query": "geocoding maplibre",
+      "observedAt": "2026-08-25",
+      "expiresAt": "2026-11-25",
+      "totalResults": 2446,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": true,
+          "published": true,
+          "rank": 96,
+          "version": "0.1.7-beta.0"
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": true
+        }
+      ]
+    },
+    {
+      "id": "2026-08-25-mcp-server-geospatial",
+      "query": "mcp server geospatial",
+      "observedAt": "2026-08-25",
+      "expiresAt": "2026-11-25",
+      "totalResults": 382631,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": true
+        }
+      ]
     }
   ]
 }
