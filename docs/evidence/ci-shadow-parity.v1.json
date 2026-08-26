@@ -4,68 +4,104 @@
   "event": "pull_request",
   "graphWorkflow": "sdk-verification.yml",
   "authoritativeWorkflow": "ci.yml",
-  "collectedAt": "2026-08-17T23:51:23Z",
+  "collectedAt": "2026-08-25T21:37:03Z",
   "observationWindowStart": "2026-08-16T23:50:35Z",
   "threshold": 20,
   "summary": {
-    "observed": 18,
-    "comparable": 3,
-    "agreed": 3,
-    "disagreed": 0,
-    "agreementRate": 1,
+    "observed": 109,
+    "comparable": 53,
+    "agreed": 50,
+    "disagreed": 3,
+    "agreementRate": 0.9433962264150944,
     "exclusions": {
-      "pre-deployment": 14,
-      "missing-graph-run": 1
+      "graph-gate-missing": 26,
+      "graph-run-cancelled": 12,
+      "missing-graph-run": 9,
+      "missing-authoritative-run": 9
     },
     "threshold": 20,
     "promotionReady": false,
-    "disagreements": [],
+    "disagreements": [
+      {
+        "headSha": "5aea747c22bfe9544a57404869a2596c4dcd1b74",
+        "graph": {
+          "runId": "32827497160",
+          "verdict": "failure"
+        },
+        "authoritative": {
+          "runId": "32827497167",
+          "verdict": "success"
+        }
+      },
+      {
+        "headSha": "badc94643c71ab8d8de7ba3c776b9c38a278e902",
+        "graph": {
+          "runId": "32801912275",
+          "verdict": "failure"
+        },
+        "authoritative": {
+          "runId": "32801912270",
+          "verdict": "success"
+        }
+      },
+      {
+        "headSha": "d7bac561dff7a5808fc379637d6c1fcb2670291e",
+        "graph": {
+          "runId": "32800420282",
+          "verdict": "failure"
+        },
+        "authoritative": {
+          "runId": "32800420261",
+          "verdict": "success"
+        }
+      }
+    ],
     "cost": {
       "graph": {
-        "samples": 3,
+        "samples": 53,
         "billed": {
-          "p50": 46.099999999999994,
-          "p90": 49.199999999999996
+          "p50": 49.28333333333334,
+          "p90": 51.95
         },
         "criticalPath": {
-          "p50": 11.6,
-          "p90": 14.783333333333333
+          "p50": 14.933333333333334,
+          "p90": 16
         }
       },
       "authoritative": {
-        "samples": 3,
+        "samples": 53,
         "billed": {
-          "p50": 20.866666666666667,
-          "p90": 21.46666666666667
+          "p50": 40.916666666666664,
+          "p90": 42.91666666666667
         },
         "criticalPath": {
-          "p50": 18.166666666666668,
-          "p90": 18.75
+          "p50": 38.233333333333334,
+          "p90": 40.05
         }
       }
     }
   },
   "observations": [
     {
-      "headSha": "1fcbdffcfc78d3e290c878644218f4e8bae10bc9",
+      "headSha": "009acc4bdc786e77416b521439e125bfae1031b4",
       "comparable": true,
       "agrees": true,
       "graph": {
-        "runId": "31994996452",
-        "verdict": "failure",
+        "runId": "32809324887",
+        "verdict": "success",
         "cost": {
           "jobCount": 12,
-          "billedMinutes": 46.099999999999994,
-          "criticalPathMinutes": 11.6
+          "billedMinutes": 47.83333333333333,
+          "criticalPathMinutes": 15.616666666666667
         }
       },
       "authoritative": {
-        "runId": "31994996462",
-        "verdict": "failure",
+        "runId": "32809324928",
+        "verdict": "success",
         "jobs": [
           {
             "name": "JS SDK",
-            "conclusion": "failure"
+            "conclusion": "success"
           },
           {
             "name": "MCP SDK",
@@ -74,48 +110,1337 @@
         ],
         "cost": {
           "jobCount": 2,
-          "billedMinutes": 20.866666666666667,
-          "criticalPathMinutes": 18.166666666666668
+          "billedMinutes": 39.71666666666666,
+          "criticalPathMinutes": 37.18333333333333
         }
       }
     },
     {
-      "headSha": "21a9bc3076c31e8ddad15a5c0680465b74bcda23",
-      "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "headSha": "030ffc482d0ead307de16a0c90b964e7bf2f5bb3",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32816964525",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.033333333333324,
+          "criticalPathMinutes": 16.033333333333335
+        }
+      },
+      "authoritative": {
+        "runId": "32816964599",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 37.9,
+          "criticalPathMinutes": 35.4
+        }
+      }
     },
     {
-      "headSha": "3bc5f483d4ae87eceec76458aefb0008db9d77af",
-      "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "headSha": "069a13746b952f9d157e7899c98eb60b80df4ec7",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32825398532",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 51.98333333333334,
+          "criticalPathMinutes": 15.466666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32825398401",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.099999999999994,
+          "criticalPathMinutes": 39.666666666666664
+        }
+      }
     },
     {
-      "headSha": "59ffb50e023f782cd301ad8a53e506782d75738e",
+      "headSha": "07037dddcd29f0195432db503a80f5f3d22a4adb",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "0945153c2d76fdffdd37ab0522f476aaaffdd25c",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "0ee84e03fea2de9ef84888ee4fa622623f6a4311",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "18665c6d3fa55581a39f220888e6580835f48719",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "1cc1e04af29e294032f5356e863eed150b613bb5",
       "comparable": false,
       "reason": "missing-graph-run"
     },
     {
-      "headSha": "60f6478eac975110664b9e0c0deae10e66d76c68",
+      "headSha": "1cd5b754bee01b718dc4f9b36c2a8c9a37a31921",
       "comparable": true,
       "agrees": true,
       "graph": {
-        "runId": "31995001366",
+        "runId": "32785576311",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 47.033333333333324,
+          "criticalPathMinutes": 13.6
+        }
+      },
+      "authoritative": {
+        "runId": "32785576186",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.983333333333334,
+          "criticalPathMinutes": 38.86666666666667
+        }
+      }
+    },
+    {
+      "headSha": "1dc981c277fa3649bdd5bdb4a0770e6cb0ea4541",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "1f58f69d546b967d258c17ace23a3dc86eba0b9d",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "2b48a9e5165abc684bfc908b27e3a043786c08cf",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32801513520",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 47.13333333333333,
+          "criticalPathMinutes": 12.466666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32801513383",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.98333333333333,
+          "criticalPathMinutes": 40.05
+        }
+      }
+    },
+    {
+      "headSha": "2fbf4720c3629c74817c5b490a7d6508b47e8568",
+      "comparable": false,
+      "reason": "missing-authoritative-run"
+    },
+    {
+      "headSha": "308f9cbdd82145cc6f7de11e499aa30f94a533ba",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32797255987",
         "verdict": "failure",
         "cost": {
           "jobCount": 12,
-          "billedMinutes": 45.78333333333333,
+          "billedMinutes": 37.55,
+          "criticalPathMinutes": 8.233333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32797255954",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "failure"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 15.1,
+          "criticalPathMinutes": 12.483333333333333
+        }
+      }
+    },
+    {
+      "headSha": "31bec2b565185bb1a14cb9ba58e69cfdfd00fefc",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32798905667",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 45.71666666666666,
+          "criticalPathMinutes": 12.133333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32798905771",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "failure"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.68333333333334,
+          "criticalPathMinutes": 39.31666666666667
+        }
+      }
+    },
+    {
+      "headSha": "35231fa98be1470467eff7ed13a83dbbef663dd7",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "35e0ce1613a148a72e705eb985fd5556176993dc",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32791403203",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 7,
+          "billedMinutes": 0.5666666666666667,
+          "criticalPathMinutes": 0.5
+        }
+      },
+      "authoritative": {
+        "runId": "32791403139",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "failure"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 15.05,
+          "criticalPathMinutes": 12.583333333333334
+        }
+      }
+    },
+    {
+      "headSha": "3da7ea242041172a90955f71d3fdaa40ab7c1f70",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32787171813",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 49.033333333333346,
+          "criticalPathMinutes": 14.583333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "32787171754",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.56666666666666,
+          "criticalPathMinutes": 37.516666666666666
+        }
+      }
+    },
+    {
+      "headSha": "3df7577a00978140663ccb8677c74133e38e0772",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "3ec9839725d21ff70ca5dd1d6b5d22db2283ec84",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "3f4b68cb87d0d02f94097749a616bd8d7bc321a2",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32797728816",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.78333333333333,
+          "criticalPathMinutes": 14.75
+        }
+      },
+      "authoritative": {
+        "runId": "32797728819",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.083333333333336,
+          "criticalPathMinutes": 39.38333333333333
+        }
+      }
+    },
+    {
+      "headSha": "40afaaee646d895166476af10ce3418b5bc4c53a",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32811429508",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 51.333333333333336,
+          "criticalPathMinutes": 15.583333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "32811429472",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.599999999999994,
+          "criticalPathMinutes": 39.666666666666664
+        }
+      }
+    },
+    {
+      "headSha": "498ad92c1f8a0bc3b92a6779a25e87886ead005a",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32801449057",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 46.46666666666667,
+          "criticalPathMinutes": 13.383333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32801449069",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.8,
+          "criticalPathMinutes": 37.916666666666664
+        }
+      }
+    },
+    {
+      "headSha": "4cfe9874c7315848fd120e642b3d43ab32cd8aa1",
+      "comparable": false,
+      "reason": "missing-authoritative-run"
+    },
+    {
+      "headSha": "4ea64e3566c0556b44b825c3c147fbe737e7309a",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "500faf6d3d3284ce433a07d903cd3ed9c27b29b7",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "539509ea495a39c6ed00e952a2de5991d171eba6",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "562e5ed86db714de517280595198b2068d9587aa",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32821924070",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 51.55,
+          "criticalPathMinutes": 16.05
+        }
+      },
+      "authoritative": {
+        "runId": "32821923933",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.8,
+          "criticalPathMinutes": 37.65
+        }
+      }
+    },
+    {
+      "headSha": "563638ef6901b6f5fd7542125e734d021bd0c0ce",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32796536720",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 45.283333333333324,
+          "criticalPathMinutes": 11.883333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32796536699",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 28.383333333333333,
+          "criticalPathMinutes": 25.55
+        }
+      }
+    },
+    {
+      "headSha": "58582920d7303035ec52f734b238a0c436c4c158",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "58a4e244523e444e3351a1271fc91cd55ad4c612",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32825195848",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 51.33333333333334,
+          "criticalPathMinutes": 16
+        }
+      },
+      "authoritative": {
+        "runId": "32825195850",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.91666666666667,
+          "criticalPathMinutes": 40.71666666666667
+        }
+      }
+    },
+    {
+      "headSha": "5aea747c22bfe9544a57404869a2596c4dcd1b74",
+      "comparable": true,
+      "agrees": false,
+      "graph": {
+        "runId": "32827497160",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 34.449999999999996,
+          "criticalPathMinutes": 6.666666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32827497167",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 43.516666666666666,
+          "criticalPathMinutes": 40.733333333333334
+        }
+      }
+    },
+    {
+      "headSha": "5b7ec89f7adbcee6adfc8d81b417f7cbfc58e29d",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "61a9f6a5065fece147dfae48a70cd1166ab85801",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "627d6ec2db8ef21941e5a279de5087a85349fa4e",
+      "comparable": false,
+      "reason": "missing-authoritative-run"
+    },
+    {
+      "headSha": "636512ef4bf5245c4fbb6b0cf0b3180db6242ed1",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32795774951",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 51.95,
+          "criticalPathMinutes": 15.833333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "32795774975",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.58333333333333,
+          "criticalPathMinutes": 37.65
+        }
+      }
+    },
+    {
+      "headSha": "646a92bb6dadc3e1469b9a945458c1c62450d70a",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32794987420",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 49.16666666666667,
+          "criticalPathMinutes": 15.3
+        }
+      },
+      "authoritative": {
+        "runId": "32794987301",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.916666666666664,
+          "criticalPathMinutes": 38.11666666666667
+        }
+      }
+    },
+    {
+      "headSha": "677e85199376b49a66ec24b9b7f59146ecf65e52",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "6d36ad0acba6327bad6d629504010551b199e8c3",
+      "comparable": false,
+      "reason": "missing-authoritative-run"
+    },
+    {
+      "headSha": "6faa4362dcd75a406f94ec8acf5d8fc675757bd5",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "70a39bfb2b62f5bfc96e0d6b0696d260f2d66eab",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32786944744",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 51.25000000000001,
+          "criticalPathMinutes": 15.5
+        }
+      },
+      "authoritative": {
+        "runId": "32786944850",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.93333333333334,
+          "criticalPathMinutes": 39.11666666666667
+        }
+      }
+    },
+    {
+      "headSha": "714e47bc3ebd94aebd4760ba4b721443756fe6a2",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32813818148",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 48.98333333333333,
+          "criticalPathMinutes": 14.9
+        }
+      },
+      "authoritative": {
+        "runId": "32813818136",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.53333333333333,
+          "criticalPathMinutes": 38.483333333333334
+        }
+      }
+    },
+    {
+      "headSha": "74132a3de1b8b227a893a7a176d586534ac8555d",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32813039565",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 48.583333333333336,
+          "criticalPathMinutes": 15.333333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "32813039520",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 30.5,
+          "criticalPathMinutes": 28.1
+        }
+      }
+    },
+    {
+      "headSha": "7a98ef17c325c309c97939154c154c643fb71666",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "830892d55c62750721fcecb28c34f81bdb3b14dd",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "85291aa7526cdaeefce869e84c0ccf2c108ce2a3",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "8555715a61aa6600af81ed92505ae3ee13fd9c66",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "859b9ac6bdcb9783d5eda7669551cd25c309d470",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "86e4f1a658cc33ed53d32ace795f37d0bbd21fa5",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32804282741",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 49.63333333333333,
+          "criticalPathMinutes": 14.233333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32804282707",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.400000000000006,
+          "criticalPathMinutes": 38.31666666666667
+        }
+      }
+    },
+    {
+      "headSha": "887a7f14ab7c0dd28033bf4180fa114cf486ebc7",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32801462412",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 52.51666666666667,
+          "criticalPathMinutes": 14.933333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "32801462470",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.16666666666667,
+          "criticalPathMinutes": 37.35
+        }
+      }
+    },
+    {
+      "headSha": "88e9b6f587f6b07e738fbd0e2cbec23570f4ee27",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "8904ffab677973e37aabf943e518da90169ac170",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32807581091",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.3,
+          "criticalPathMinutes": 15.766666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32807581099",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 45.016666666666666,
+          "criticalPathMinutes": 42.18333333333333
+        }
+      }
+    },
+    {
+      "headSha": "8e0771062d2a8e4a17eada2d5bce12ec53b5e31c",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32803262487",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 6,
+          "billedMinutes": 3.3333333333333335,
+          "criticalPathMinutes": 1.2833333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "32803262478",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "failure"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 32.95,
+          "criticalPathMinutes": 30.116666666666667
+        }
+      }
+    },
+    {
+      "headSha": "944caa72fe39e5a0557b4e79ebd8e715d71421f8",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32804247778",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.083333333333336,
+          "criticalPathMinutes": 15.866666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32804247781",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.55,
+          "criticalPathMinutes": 39.55
+        }
+      }
+    },
+    {
+      "headSha": "993494af7f49f5aa605d74332db3c5b96c3f84e1",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32804273181",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 48.26666666666666,
+          "criticalPathMinutes": 12.733333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32804273152",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 43.81666666666666,
+          "criticalPathMinutes": 41.03333333333333
+        }
+      }
+    },
+    {
+      "headSha": "99724cd0fd08cedc416b266673db79690274c7aa",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "a173655358bc5f040f1aa97fe667c8ebf47db1e2",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "a57e9a815f0807b396d93eeacaca02fa0afe9431",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32796560488",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.833333333333336,
+          "criticalPathMinutes": 15.5
+        }
+      },
+      "authoritative": {
+        "runId": "32796560491",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.699999999999996,
+          "criticalPathMinutes": 38.53333333333333
+        }
+      }
+    },
+    {
+      "headSha": "a5a4a3479f07e316a6b0a8b9a2c1de3622c6ff39",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "a615f9a3cc5077406d129c6ddb7e7094e711ee5a",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32827814833",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 51.983333333333334,
+          "criticalPathMinutes": 16.416666666666668
+        }
+      },
+      "authoritative": {
+        "runId": "32827814835",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.45,
+          "criticalPathMinutes": 40.083333333333336
+        }
+      }
+    },
+    {
+      "headSha": "a65bc03c821eb9ea2d489696d5c12002a800fb60",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32794235131",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 49.54999999999999,
+          "criticalPathMinutes": 16.15
+        }
+      },
+      "authoritative": {
+        "runId": "32794235100",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 29.633333333333333,
+          "criticalPathMinutes": 26.916666666666668
+        }
+      }
+    },
+    {
+      "headSha": "a915bfbf4e4880876a439e19646a271cfe295a68",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32795745944",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 49.616666666666674,
+          "criticalPathMinutes": 15.966666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32795745977",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.016666666666666,
+          "criticalPathMinutes": 38.233333333333334
+        }
+      }
+    },
+    {
+      "headSha": "acb0502eea5b4f73d665bd68e83d4edfdb64df7b",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "ae933853d620a0be0645f37fbe7a43a9c543073f",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32832853989",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.4,
+          "criticalPathMinutes": 16.6
+        }
+      },
+      "authoritative": {
+        "runId": "32832853569",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 43,
+          "criticalPathMinutes": 39.85
+        }
+      }
+    },
+    {
+      "headSha": "b069d1230d3a928f0b4c61c04d684ec57e5d074b",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32805450182",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.933333333333344,
+          "criticalPathMinutes": 15.233333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32805449941",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.21666666666667,
+          "criticalPathMinutes": 39.31666666666667
+        }
+      }
+    },
+    {
+      "headSha": "b0d78e73804de802695894f9e7eb5c7c7de78cf7",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "b42f10595d81f435c264abd632caf63e5985b124",
+      "comparable": false,
+      "reason": "missing-authoritative-run"
+    },
+    {
+      "headSha": "b6693c5521e77abcd32a4076613b8ae217ae98da",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32793350419",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 9,
+          "billedMinutes": 1.3333333333333335,
+          "criticalPathMinutes": 1.3
+        }
+      },
+      "authoritative": {
+        "runId": "32793350415",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "failure"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 14.033333333333333,
+          "criticalPathMinutes": 11.9
+        }
+      }
+    },
+    {
+      "headSha": "b7af976c569d61de7368178a9acb89180f955fb9",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32819790361",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 52.16666666666667,
+          "criticalPathMinutes": 15.766666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32819790389",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 38.95,
+          "criticalPathMinutes": 37
+        }
+      }
+    },
+    {
+      "headSha": "b8bf6803f1dbf5b86b8984628413e6e2eec47f4a",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32796864538",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 44.96666666666667,
           "criticalPathMinutes": 11.433333333333334
         }
       },
       "authoritative": {
-        "runId": "31995001365",
-        "verdict": "failure",
+        "runId": "32796864625",
+        "verdict": "success",
         "jobs": [
           {
             "name": "JS SDK",
-            "conclusion": "failure"
+            "conclusion": "success"
           },
           {
             "name": "MCP SDK",
@@ -124,38 +1449,504 @@
         ],
         "cost": {
           "jobCount": 2,
-          "billedMinutes": 21.46666666666667,
-          "criticalPathMinutes": 18.75
+          "billedMinutes": 39.41666666666667,
+          "criticalPathMinutes": 36.56666666666667
         }
       }
     },
     {
-      "headSha": "6f2bfedb7eb5d65ad0d546678e759ebf7c4e7ade",
-      "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
-    },
-    {
-      "headSha": "7503781f60cea753b0987d1e47167831a0de8acb",
-      "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
-    },
-    {
-      "headSha": "76d134118e603236f38a9c1581d97216948a2a5d",
+      "headSha": "badc94643c71ab8d8de7ba3c776b9c38a278e902",
       "comparable": true,
-      "agrees": true,
+      "agrees": false,
       "graph": {
-        "runId": "31994983259",
+        "runId": "32801912275",
         "verdict": "failure",
         "cost": {
           "jobCount": 12,
-          "billedMinutes": 49.199999999999996,
+          "billedMinutes": 35.46666666666667,
+          "criticalPathMinutes": 6.583333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32801912270",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.38333333333333,
+          "criticalPathMinutes": 39.43333333333333
+        }
+      }
+    },
+    {
+      "headSha": "bb49a05dd44fc1faf23c926e0abce0f2cdd905a9",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "bdf169c04d97306b1ad1ed529ed84fb28cd959fa",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "c0bb03ee3955e380c0c11ae118e4bd51d4172ce1",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "c24b205a53e3b933bacb7fbfba45b835992a6b3b",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "c2eca760807d6b923d7316a744eff627e240bcc9",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "c312b36772eba4bc052be00e233185e3fc569066",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32812486787",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.78333333333333,
+          "criticalPathMinutes": 15.283333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32812486786",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 34.38333333333333,
+          "criticalPathMinutes": 31.466666666666665
+        }
+      }
+    },
+    {
+      "headSha": "c6334409307d7418fa1a53c03681b88cf0919709",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32799211708",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 48.56666666666667,
           "criticalPathMinutes": 14.783333333333333
         }
       },
       "authoritative": {
-        "runId": "31994983250",
+        "runId": "32799211679",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.516666666666666,
+          "criticalPathMinutes": 38.68333333333333
+        }
+      }
+    },
+    {
+      "headSha": "c651f37c1f6531dde387b8a177a8c54616d94d54",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32817804703",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 51.5,
+          "criticalPathMinutes": 15.75
+        }
+      },
+      "authoritative": {
+        "runId": "32817804853",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 39.266666666666666,
+          "criticalPathMinutes": 36.233333333333334
+        }
+      }
+    },
+    {
+      "headSha": "c7d319125089b3694265f2cb84d512617abb2325",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32829015262",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 46.68333333333332,
+          "criticalPathMinutes": 12.283333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32829015292",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.81666666666666,
+          "criticalPathMinutes": 39.03333333333333
+        }
+      }
+    },
+    {
+      "headSha": "c8080cd78fbe023ffe399e89b59da165c35d164b",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "c92611d5c097d1fc7f8117e245f39512852c7641",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "c928bff51851ec9d026c20a19ae15b983d31f489",
+      "comparable": false,
+      "reason": "missing-authoritative-run"
+    },
+    {
+      "headSha": "c9b9680c37c1424fca4a9c78db64b8f65ce44250",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "cac2afe7b73c022ab274de9271fa86ad2a6ffff7",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32828372380",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 49.766666666666666,
+          "criticalPathMinutes": 15.266666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32828372367",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.28333333333333,
+          "criticalPathMinutes": 39.35
+        }
+      }
+    },
+    {
+      "headSha": "cb3b2cfbd10b3a77050f8ea4d1caaa9d0d9336dd",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32799454367",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 46.01666666666667,
+          "criticalPathMinutes": 12.033333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32799454349",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 38.28333333333334,
+          "criticalPathMinutes": 35.56666666666667
+        }
+      }
+    },
+    {
+      "headSha": "cbbb1a4bf582950efa77e3f0af7b32d905875d55",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "cbecd8ad123a4314fe1cf50672542b50ec07551f",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "cfb9e62046f4c43e205bae8b3ed896a5d0b5b1cb",
+      "comparable": false,
+      "reason": "missing-authoritative-run"
+    },
+    {
+      "headSha": "d4684380d9328e0fa49e6da0508dbf2fe8390d29",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32801505272",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.533333333333346,
+          "criticalPathMinutes": 15.333333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "32801505199",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.11666666666667,
+          "criticalPathMinutes": 38.266666666666666
+        }
+      }
+    },
+    {
+      "headSha": "d52f84199f79e541eff6fd8ee06c1e1b75cca559",
+      "comparable": false,
+      "reason": "graph-run-cancelled"
+    },
+    {
+      "headSha": "d5fc04e21d80747d8c4a2a3fd5f959ea53c3d60c",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32785297203",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 48.7,
+          "criticalPathMinutes": 14.683333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "32785297282",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 39.93333333333333,
+          "criticalPathMinutes": 37
+        }
+      }
+    },
+    {
+      "headSha": "d6cda9079af274a7f0cc1f8d22ab163363a90e95",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32785639938",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 49.28333333333334,
+          "criticalPathMinutes": 15.3
+        }
+      },
+      "authoritative": {
+        "runId": "32785639806",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41,
+          "criticalPathMinutes": 37.88333333333333
+        }
+      }
+    },
+    {
+      "headSha": "d7bac561dff7a5808fc379637d6c1fcb2670291e",
+      "comparable": true,
+      "agrees": false,
+      "graph": {
+        "runId": "32800420282",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 37.099999999999994,
+          "criticalPathMinutes": 8.45
+        }
+      },
+      "authoritative": {
+        "runId": "32800420261",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.9,
+          "criticalPathMinutes": 40.03333333333333
+        }
+      }
+    },
+    {
+      "headSha": "d9976a80d6d41c0e6ac908f34d009c70da36768b",
+      "comparable": false,
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
+    },
+    {
+      "headSha": "d9de819fb332c45a40eb2e9c5a44eeb36485b807",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32805550947",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.449999999999996,
+          "criticalPathMinutes": 14.416666666666666
+        }
+      },
+      "authoritative": {
+        "runId": "32805550953",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 42.25,
+          "criticalPathMinutes": 39.43333333333333
+        }
+      }
+    },
+    {
+      "headSha": "daca9bd3d47a26193c9961c6561dfbc9a455a15f",
+      "comparable": false,
+      "reason": "missing-authoritative-run"
+    },
+    {
+      "headSha": "dd0fd8e13a2bf37567aa2f25eee725e9ba2e10c0",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32816322292",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 40.949999999999996,
+          "criticalPathMinutes": 8.966666666666667
+        }
+      },
+      "authoritative": {
+        "runId": "32816322289",
         "verdict": "failure",
         "jobs": [
           {
@@ -169,70 +1960,182 @@
         ],
         "cost": {
           "jobCount": 2,
-          "billedMinutes": 16.633333333333333,
-          "criticalPathMinutes": 13.833333333333334
+          "billedMinutes": 5.300000000000001,
+          "criticalPathMinutes": 2.85
         }
       }
     },
     {
-      "headSha": "835848775eb34fc623ad27a09650a65051fb4cf2",
+      "headSha": "dfac2cdc8d4d8ee8812998c69aa31b426f4a2f70",
       "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
     },
     {
-      "headSha": "8c389c7a06076221968241f668f0dd08191336a9",
-      "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "headSha": "e381abef24681392b82eab68797bfc6e32132368",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32823574045",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 52.20000000000001,
+          "criticalPathMinutes": 15.483333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32823574066",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 38.46666666666667,
+          "criticalPathMinutes": 35.56666666666667
+        }
+      }
     },
     {
-      "headSha": "90aba3cc4e8f73cbdd7a3b9e1e31aa8e8edc1df5",
-      "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "headSha": "e48d9f39e87a910d5e9749299acb075200517010",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32793856679",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 46.599999999999994,
+          "criticalPathMinutes": 13.883333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "32793856716",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "failure"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 14.916666666666666,
+          "criticalPathMinutes": 11.816666666666666
+        }
+      }
     },
     {
-      "headSha": "9b3d18f3c222a335420388805ff17fafab2e32b2",
+      "headSha": "e6cd3b92589550f19d4c36f5fec725b9a873f6a7",
       "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
     },
     {
-      "headSha": "a5dbd435840059b8f2db6d33681ae651cc323577",
-      "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "headSha": "ee9ba95cdc1b2c6ebe0622828fcb58a07628d12c",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32787314876",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 48.31666666666667,
+          "criticalPathMinutes": 12.4
+        }
+      },
+      "authoritative": {
+        "runId": "32787314857",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 41.31666666666666,
+          "criticalPathMinutes": 38.28333333333333
+        }
+      }
     },
     {
-      "headSha": "b2cf9a4cad98dd55c6dd1a95701edc419d49bd2f",
+      "headSha": "f63d27691046617fbf301e6f8d41e40a548c952b",
       "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
     },
     {
-      "headSha": "c277923317eb10ca79097567e899f843d337bfc9",
+      "headSha": "f82046d85fe845143a7f97a96f5825964fc10cd5",
       "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
     },
     {
-      "headSha": "eb9327079d65cd2cb10779c5c98795553735f490",
+      "headSha": "fa06106aa6e1a210fc5b34253c5e123a373c7c20",
       "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "reason": "graph-gate-missing",
+      "detail": "SDK verified"
     },
     {
-      "headSha": "eef20512f5fdc5641c8976173bec13437a0cb45d",
+      "headSha": "fbc3387c7d0bb823e59747cb9cca9d675ac51e1e",
       "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "reason": "missing-authoritative-run"
     },
     {
-      "headSha": "f3d92c2a959c87c7cbeb28c00dc5b257357ff2d6",
+      "headSha": "fc6450f71fcb3863e7757fc766e69893fa81061c",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "32798532654",
+        "verdict": "success",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 50.78333333333334,
+          "criticalPathMinutes": 15.05
+        }
+      },
+      "authoritative": {
+        "runId": "32798532531",
+        "verdict": "success",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "success"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 40.199999999999996,
+          "criticalPathMinutes": 37.43333333333333
+        }
+      }
+    },
+    {
+      "headSha": "ff95c7af85f7c9e94480640bb9cd9841a828d684",
       "comparable": false,
-      "reason": "pre-deployment",
-      "detail": "2026-08-16T23:50:35Z"
+      "reason": "graph-run-cancelled"
     }
   ]
 }
