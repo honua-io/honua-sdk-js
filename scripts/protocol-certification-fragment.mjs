@@ -190,12 +190,12 @@ function operationRequestUrl(surface, operation, context) {
     "grpc-web": "/geospatial.v1.FeatureService/QueryFeatures",
     imageserver: `/rest/services/${encodeURIComponent(context.imageServiceId ?? context.serviceId)}/ImageServer${operation === "metadata" ? "" : "/exportImage"}`,
     mapserver: `/rest/services/${service}/MapServer${operation === "metadata" || operation === "export" ? operation === "export" ? "/export" : "" : `/${layer}/query`}`,
-    odata: `${context.odataBasePath ?? "/odata"}/${operation === "metadata" ? "$metadata" : context.odataEntitySet}`,
+    odata: `${context.odataBasePath ?? "/odata"}/${operation === "metadata" ? "$metadata" : context.odataEntitySet ?? `Layers(${context.layerId})/Features`}`,
     "ogc-features": operation === "landing" ? "/ogc/features" : operation === "conformance" ? "/ogc/features/conformance" : operation === "collections" ? "/ogc/features/collections" : `/ogc/features/collections/${collection}/items${operation === "item" ? "/1" : ""}`,
     "ogc-maps": operation === "landing" ? "/ogc/maps" : operation === "conformance" ? "/ogc/maps/conformance" : `/ogc/maps/collections/${collection}/map`,
     "ogc-processes": operation === "landing" ? "/ogc/processes" : operation === "conformance" ? "/ogc/processes/conformance" : "/ogc/processes/processes",
     "ogc-records": operation === "landing" ? "/ogc/records" : operation === "conformance" ? "/ogc/records/conformance" : operation === "collections" ? "/ogc/records/collections" : "/ogc/records/collections/metadata:main/items",
-    "ogc-tiles": operation === "landing" ? "/ogc/tiles" : operation === "conformance" ? "/ogc/tiles/conformance" : operation === "tile-matrix-sets" ? "/ogc/tiles/tileMatrixSets" : `/ogc/tiles/collections/${collection}/tiles`,
+    "ogc-tiles": operation === "landing" ? "/ogc/tiles" : operation === "conformance" ? "/ogc/tiles/conformance" : operation === "tile-matrix-sets" ? "/ogc/tiles/tileMatrixSets" : `/ogc/tiles/collections/${collection}/tiles${operation === "tile" ? `/${encodeURIComponent(context.tileMatrixSetId ?? "WebMercatorQuad")}/0/0/0` : ""}`,
     "ogc-coverages": operation === "landing" ? "/ogc/coverages" : operation === "conformance" ? "/ogc/coverages/conformance" : `/ogc/coverages/collections/${collection}/coverage`,
     realtime: `/api/v1/streaming/features?serviceId=${service}&layers=${layer}`,
     routing: "/api/v1/routing/solve",
@@ -371,7 +371,13 @@ export function validateCertificationIdentity(identity) {
   try {
     const baseUrl = new URL(identity.requestContext?.baseUrl);
     if (!["http:", "https:"].includes(baseUrl.protocol)) throw new Error();
-  } catch {
+    // Emitted request_urls land in uploaded artifacts; a credentialed base URL
+    // would publish the credential. Fail closed rather than redact.
+    if (baseUrl.username || baseUrl.password) {
+      throw new Error("request context baseUrl must not contain credentials");
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("credentials")) throw error;
     throw new Error("request context baseUrl must be an absolute HTTP(S) URL");
   }
   const entitlementValues = [

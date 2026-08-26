@@ -168,6 +168,27 @@ test("normalizes execution and preserves missing operation gaps", () => {
   assert.deepEqual(missing.exercised_capabilities, []);
 });
 
+test("credentialed base URLs are rejected before any evidence is emitted", () => {
+  const poisoned = structuredClone(identity);
+  poisoned.requestContext.baseUrl = "https://user:secret@candidate.test/root/";
+  assert.throws(() => buildFragment({ identity: poisoned, reports: [] }), /must not contain credentials/);
+});
+
+test("odata entity pages default to the harness entity set instead of undefined", () => {
+  const bare = structuredClone(identity);
+  delete bare.requestContext.odataEntitySet;
+  const fragment = buildFragment({ identity: bare, reports: [] });
+  const odata = fragment.observations.find((o) => o.surface === "odata" && o.operation !== "metadata");
+  assert.ok(odata.request_url.endsWith("/odata/Layers(0)/Features"));
+  assert.ok(!odata.request_url.includes("undefined"));
+});
+
+test("the tile operation certifies a tile request URL, not tileset discovery", () => {
+  const fragment = buildFragment({ identity, reports: [] });
+  const tile = fragment.observations.find((o) => o.surface === "ogc-tiles" && o.operation === "tile");
+  assert.ok(tile.request_url.includes("/tiles/WebMercatorQuad/0/0/0"));
+});
+
 test("every observation satisfies the truthful identity ingest assertions", () => {
   const fragment = buildFragment({ identity, reports: [] });
   for (const observation of fragment.observations) {
