@@ -11,6 +11,33 @@ export const LICENSED_ENTITLEMENT_POLICY_REVISION = "honua-pro-feature-subscript
 export const LICENSED_PROOF_SCHEMA = "honua.licensed-certification-proof/v1";
 export const LICENSED_PROOF_PATH = "test-results/licensed-certification-proof.json";
 const LICENSED_CAPABILITY_KEY = "streaming.feature-subscriptions";
+const CLIENT_ID = "@honua/sdk-js";
+const RUNNER_LANE = "sdk-js-certification";
+
+const PROTOCOL_CONTEXT = {
+  alerts: ["1.0", "Honua Alerts REST"],
+  featureserver: ["11.0", "GeoServices REST"],
+  geocoding: ["11.0", "GeoServices REST"],
+  geometryserver: ["11.0", "GeoServices REST"],
+  gpserver: ["11.0", "GeoServices REST"],
+  "grpc-web": ["geospatial.v1", "Connect/gRPC-Web"],
+  imageserver: ["11.0", "GeoServices REST"],
+  mapserver: ["11.0", "GeoServices REST"],
+  odata: ["4.0", "core"],
+  "ogc-features": ["1.0", "core"],
+  "ogc-maps": ["1.0", "core"],
+  "ogc-processes": ["1.0", "core"],
+  "ogc-records": ["1.0", "core"],
+  "ogc-tiles": ["1.0", "core"],
+  "ogc-coverages": ["1.0", "core"],
+  realtime: ["1.0", "SSE"],
+  routing: ["1.0", "Honua Routing REST"],
+  stac: ["1.0.0", "core"],
+  wcs: ["2.0.1", "core"],
+  wfs: ["2.0.0", "core"],
+  wms: ["1.3.0", "core"],
+  wmts: ["1.0.0", "core"],
+};
 
 const CAPABILITIES = {
   alerts: "alerts.evaluation",
@@ -149,6 +176,38 @@ function facetsFor(operation) {
   return facets;
 }
 
+function operationRequestUrl(surface, operation, context) {
+  const base = new URL(context.baseUrl);
+  const service = encodeURIComponent(context.serviceId);
+  const layer = encodeURIComponent(String(context.layerId));
+  const collection = encodeURIComponent(context.collectionId);
+  const paths = {
+    alerts: "/api/v1/alerts/evaluate",
+    featureserver: `/rest/services/${service}/FeatureServer/${layer}${operation === "metadata" ? "" : `/${operation === "object-ids" || operation === "count" ? "query" : operation.replaceAll("-", "")}`}`,
+    geocoding: `/rest/services/${encodeURIComponent(context.geocodingLocatorName ?? "locator")}/GeocodeServer/${operation === "forward" ? "findAddressCandidates" : "reverseGeocode"}`,
+    geometryserver: `/rest/services/Utilities/Geometry/GeometryServer/${operation}`,
+    gpserver: `/rest/services/${encodeURIComponent(context.gpServiceId ?? context.serviceId)}/GPServer${context.gpTaskName ? `/${encodeURIComponent(context.gpTaskName)}` : ""}/${operation === "submit-job" ? "submitJob" : "jobs"}`,
+    "grpc-web": "/geospatial.v1.FeatureService/QueryFeatures",
+    imageserver: `/rest/services/${encodeURIComponent(context.imageServiceId ?? context.serviceId)}/ImageServer${operation === "metadata" ? "" : "/exportImage"}`,
+    mapserver: `/rest/services/${service}/MapServer${operation === "metadata" || operation === "export" ? operation === "export" ? "/export" : "" : `/${layer}/query`}`,
+    odata: `${context.odataBasePath ?? "/odata"}/${operation === "metadata" ? "$metadata" : context.odataEntitySet}`,
+    "ogc-features": operation === "landing" ? "/ogc/features" : operation === "conformance" ? "/ogc/features/conformance" : operation === "collections" ? "/ogc/features/collections" : `/ogc/features/collections/${collection}/items${operation === "item" ? "/1" : ""}`,
+    "ogc-maps": operation === "landing" ? "/ogc/maps" : operation === "conformance" ? "/ogc/maps/conformance" : `/ogc/maps/collections/${collection}/map`,
+    "ogc-processes": operation === "landing" ? "/ogc/processes" : operation === "conformance" ? "/ogc/processes/conformance" : "/ogc/processes/processes",
+    "ogc-records": operation === "landing" ? "/ogc/records" : operation === "conformance" ? "/ogc/records/conformance" : operation === "collections" ? "/ogc/records/collections" : "/ogc/records/collections/metadata:main/items",
+    "ogc-tiles": operation === "landing" ? "/ogc/tiles" : operation === "conformance" ? "/ogc/tiles/conformance" : operation === "tile-matrix-sets" ? "/ogc/tiles/tileMatrixSets" : `/ogc/tiles/collections/${collection}/tiles`,
+    "ogc-coverages": operation === "landing" ? "/ogc/coverages" : operation === "conformance" ? "/ogc/coverages/conformance" : `/ogc/coverages/collections/${collection}/coverage`,
+    realtime: `/api/v1/streaming/features?serviceId=${service}&layers=${layer}`,
+    routing: "/api/v1/routing/solve",
+    stac: operation === "landing" ? "/stac" : operation === "collections" ? "/stac/collections" : operation === "collection" ? `/stac/collections/${encodeURIComponent(context.stacCollectionId ?? context.collectionId)}` : "/stac/search",
+    wcs: "/wcs",
+    wfs: context.wfsEndpointUrl ?? "/wfs",
+    wms: `/rest/services/${service}/MapServer/WMSServer`,
+    wmts: `/rest/services/${service}/MapServer/WMTS`,
+  };
+  return new URL(paths[surface], base).href;
+}
+
 export function buildFragment({ reports, identity, licensedProof, complete = true, now = new Date().toISOString() }) {
   const resolvedIdentity = resolveCertificationIdentity(identity, licensedProof);
   const startedAt = resolvedIdentity.startedAt ?? now;
@@ -182,6 +241,8 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
         surfacePattern.test(text) && operationPattern.test(text) && (!titlePattern || titlePattern.test(title))
       );
       const scenarioFacets = facetsFor(operation);
+      const [protocolVersion, protocolProfile] = PROTOCOL_CONTEXT[surface];
+      const requestUrl = operationRequestUrl(surface, operation, resolvedIdentity.requestContext);
       const facetStatuses = Object.fromEntries(
         scenarioFacets.map((facet) => [facet, facetStatus(surface, operation, facet, matches)]),
       );
@@ -201,7 +262,7 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
           capability_key: CAPABILITIES[surface],
           surface,
           operation,
-          canonical_client: "@honua/sdk-js",
+          canonical_client: CLIENT_ID,
           client_version: resolvedIdentity.clientVersion,
           deployment_target: resolvedIdentity.deploymentTarget,
           ...(licensed ? { entitlement_policy_revision: resolvedIdentity.entitlementPolicyRevision } : {}),
@@ -236,7 +297,14 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
         surface,
         operation,
         scenario_facets: scenarioFacets,
-        canonical_client: "@honua/sdk-js",
+        canonical_client: CLIENT_ID,
+        client_id: CLIENT_ID,
+        runner_lane: RUNNER_LANE,
+        protocol_version: protocolVersion,
+        protocol_profile: protocolProfile,
+        performed_by: CLIENT_ID,
+        request_url: requestUrl,
+        exercised_capabilities: scenarioFacets.filter((facet) => facetStatuses[facet] === "pass"),
         client_version: resolvedIdentity.clientVersion,
         deployment_target: resolvedIdentity.deploymentTarget,
         result,
@@ -299,6 +367,12 @@ export function validateCertificationIdentity(identity) {
   }
   if (!isStrictUtcTimestamp(identity.cutAt)) {
     throw new Error("candidate-cut-at must be a valid UTC ISO-8601 timestamp");
+  }
+  try {
+    const baseUrl = new URL(identity.requestContext?.baseUrl);
+    if (!["http:", "https:"].includes(baseUrl.protocol)) throw new Error();
+  } catch {
+    throw new Error("request context baseUrl must be an absolute HTTP(S) URL");
   }
   const entitlementValues = [
     identity.entitlementPolicyRevision,
@@ -453,6 +527,21 @@ async function main() {
     evidenceUri: required("evidence-uri", argument("evidence-uri", process.env.HONUA_EVIDENCE_URI)),
     cutAt: required("candidate-cut-at", argument("candidate-cut-at", metadata.candidateCutAt ?? process.env.HONUA_CANDIDATE_CUT_AT)),
     startedAt: argument("started-at", process.env.HONUA_CERTIFICATION_STARTED_AT ?? metadata.startedAt),
+    requestContext: {
+      baseUrl: required("base-url", metadata.baseUrl ?? process.env.HONUA_INTEGRATION_BASE_URL),
+      serviceId: metadata.serviceId ?? process.env.HONUA_INTEGRATION_SERVICE_ID ?? "test_service_gw0",
+      layerId: metadata.layerId ?? process.env.HONUA_INTEGRATION_LAYER_ID ?? 1000,
+      collectionId: metadata.collectionId ?? process.env.HONUA_INTEGRATION_COLLECTION_ID ?? "1000",
+      tileMatrixSetId: metadata.tileMatrixSetId ?? process.env.HONUA_INTEGRATION_TILE_MATRIX_SET ?? "WebMercatorQuad",
+      imageServiceId: process.env.HONUA_INTEGRATION_IMAGE_SERVICE_ID,
+      gpServiceId: process.env.HONUA_INTEGRATION_GP_SERVICE_ID,
+      gpTaskName: process.env.HONUA_INTEGRATION_GP_TASK_NAME,
+      stacCollectionId: process.env.HONUA_INTEGRATION_STAC_COLLECTION_ID,
+      wfsEndpointUrl: process.env.HONUA_INTEGRATION_WFS_ENDPOINT_URL,
+      odataBasePath: process.env.HONUA_INTEGRATION_ODATA_BASE_PATH,
+      odataEntitySet: process.env.HONUA_INTEGRATION_ODATA_ENTITY_SET,
+      geocodingLocatorName: process.env.HONUA_INTEGRATION_GEOCODING_LOCATOR,
+    },
   };
   validateCertificationIdentity(identity);
   let licensedProof;

@@ -24,6 +24,16 @@ const identity = {
   fixtureRevision: "fixture-1",
   evidenceUri: "https://github.com/honua-io/honua-sdk-js/actions/runs/1",
   cutAt: "2026-08-19T00:00:00Z",
+  requestContext: {
+    baseUrl: "https://candidate.test/root/",
+    serviceId: "places",
+    layerId: 0,
+    collectionId: "places",
+    tileMatrixSetId: "WebMercatorQuad",
+    wfsEndpointUrl: "/wfs",
+    odataBasePath: "/odata",
+    odataEntitySet: "Layers(0)/Features",
+  },
 };
 
 function canonicalJson(value) {
@@ -133,6 +143,13 @@ test("normalizes execution and preserves missing operation gaps", () => {
   assert.equal(metadata.capability_key, "serve.geoservices-featureserver");
   assert.deepEqual(metadata.scenario_facets, ["positive", "metadata", "media-schema"]);
   assert.equal(metadata.canonical_client, "@honua/sdk-js");
+  assert.equal(metadata.client_id, metadata.canonical_client);
+  assert.equal(metadata.runner_lane, "sdk-js-certification");
+  assert.equal(metadata.protocol_version, "11.0");
+  assert.equal(metadata.protocol_profile, "GeoServices REST");
+  assert.equal(metadata.performed_by, metadata.client_id);
+  assert.equal(metadata.request_url, "https://candidate.test/rest/services/places/FeatureServer/0");
+  assert.deepEqual(metadata.exercised_capabilities, metadata.scenario_facets);
   assert.equal(metadata.contract_revision, `sdk-js-certification@${identity.producerSourceSha}`);
   assert.equal(metadata.auth_policy_revision, "anonymous-public-v1");
   assert.match(metadata.evidence_digest, /^sha256:[0-9a-f]{64}$/);
@@ -147,6 +164,25 @@ test("normalizes execution and preserves missing operation gaps", () => {
   assert.equal(missing.evidence_digest, null);
   assert.equal(missing.facet_results, null);
   assert.match(missing.skip_reason, new RegExp(GAP_OWNER));
+  assert.equal(missing.protocol_version, "2.0.1");
+  assert.deepEqual(missing.exercised_capabilities, []);
+});
+
+test("every observation satisfies the truthful identity ingest assertions", () => {
+  const fragment = buildFragment({ identity, reports: [] });
+  for (const observation of fragment.observations) {
+    assert.equal(observation.client_id, observation.canonical_client);
+    assert.equal(observation.runner_lane, "sdk-js-certification");
+    assert.equal(observation.performed_by, observation.client_id);
+    assert.ok(observation.protocol_version.length > 0);
+    assert.ok(observation.protocol_profile.length > 0);
+    const requestUrl = new URL(observation.request_url);
+    assert.ok(["http:", "https:"].includes(requestUrl.protocol));
+    assert.ok(Array.isArray(observation.exercised_capabilities));
+    if (observation.result === "pass") {
+      assert.ok(observation.scenario_facets.every((facet) => observation.exercised_capabilities.includes(facet)));
+    }
+  }
 });
 
 test("marks evidence incomplete when a suite report is unavailable", () => {
