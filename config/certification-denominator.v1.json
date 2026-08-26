@@ -120,13 +120,21 @@
     },
     {
       "path": "config/protocol-certification.v1.json",
-      "bytes": 14413,
-      "sha256": "sha256:5879140085f8e41d6eb39cc2b80d652e6af4dcb0a7c410d422901f533ae07537"
+      "bytes": 14422,
+      "sha256": "sha256:fbf2c8c9b8ea74ad724be7351b48acd01d13f796ed6fef1849129e1020e86900",
+      "releaseManagedFields": [
+        "clientVersion"
+      ]
     },
     {
       "path": "config/release-artifacts.v1.json",
       "bytes": 8938,
       "sha256": "sha256:fc0146817e4bb0cb0f97423863613650a264d0f2dfaed1aeaf469848471840c9"
+    },
+    {
+      "path": "release-please-config.json",
+      "bytes": 4414,
+      "sha256": "sha256:7bd7238d154a45ee1400bc74d20b541b008a0b2232be2a817bb847335c43efd4"
     },
     {
       "path": "config/sdk-coverage-crosswalk.v1.json",
@@ -135,8 +143,11 @@
     },
     {
       "path": "config/sdk-coverage.v1.json",
-      "bytes": 20672,
-      "sha256": "sha256:603126953a82eaeec6ff702ea9803d65d119f2a4be4e02878046d3b071f3c944"
+      "bytes": 20681,
+      "sha256": "sha256:321a18c68f0f8fa670a590a9feac0b4c75f44b2233bc4aa5bb336fb6a232e665",
+      "releaseManagedFields": [
+        "sdk.version"
+      ]
     },
     {
       "path": "src/runtime/source-bridge.ts",
@@ -514,7 +525,7 @@
     }
   },
   "digests": {
-    "inputs": "sha256:0c685e1b8d5a74ce1b133a9dac3747e422a46d9e861a2d50bd073a3f2b1311bc",
+    "inputs": "sha256:a08f0788db96b00caa97e5cfdaa0f175de9b00462bb3f40c699c5a2fd19af996",
     "capabilityProfile": "sha256:b39f35595f99d6b11e87c0bdf5752a09a34eae8cc01006c0d67d654afdf079f3",
     "supportProfile": "sha256:7aaa73ac15c045a52c790ca0fb6a27f4ec9665fe71b5051389a676da2c85be90",
     "rows": "sha256:ceaa63dd8e89a32007e37d23ec06b2878ac008d96bc8b70cd30c09f2a3346f21"
