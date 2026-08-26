@@ -127,18 +127,50 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      # contents+pull-requests publish the automation branch and its pull request;
-      # actions releases the pull_request check runs GitHub holds for approval
-      # because the pull request was opened with GITHUB_TOKEN.
+      # contents+pull-requests publish the automation branch and its pull request
+      # on the GITHUB_TOKEN fallback path; actions releases the pull_request
+      # check runs GitHub holds for approval when the pull request was opened
+      # with GITHUB_TOKEN rather than the bot App.
       contents: write
       pull-requests: write
       actions: write
     steps:
+      # Automation identity (#1093). This lane opens *and merges* its own pull
+      # request, so both operations have to run as the org bot App
+      # `honua-io-bot` -- the bypass actor on the trunk `copilot_code_review`
+      # ruleset. Detect first, mint second: without `BOT_APP_ID` the lane
+      # degrades to today's `GITHUB_TOKEN` behaviour rather than failing, and
+      # `SCHEDULED_AUTOMATION_APP_SLUGS` in scripts/lib/pr-issue-disposition.mjs
+      # accepts both identities so the required disposition check passes either
+      # way.
+      - name: Detect bot App credentials
+        id: creds
+        env:
+          BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+        run: |
+          if [ -n "$BOT_APP_ID" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::BOT_APP_ID/BOT_APP_PRIVATE_KEY not configured; the certification pull request is authored and merged by github-actions."
+          fi
+
+      - name: Mint publication token
+        id: app-token
+        if: steps.creds.outputs.available == 'true'
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: honua-io
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The publication branch is pushed from this checkout, so it needs real
           # history rather than the default shallow one.
           fetch-depth: 0
+          # ...and its credentials decide the push identity.
+          token: ${{ steps.app-token.outputs.token || github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -173,7 +205,7 @@ jobs:
       - name: Open the publication pull request
         id: publish
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
         run: |
           set -euo pipefail
           git config user.name "honua-ci[bot]"
@@ -213,9 +245,12 @@ jobs:
           echo "pr_number=${pr_url##*/}" >> "$GITHUB_OUTPUT"
           echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
 
-      # GitHub holds pull_request workflows created by GITHUB_TOKEN for approval.
-      # Release only the runs attached to the exact published commit; their native
-      # pull-request check runs are what the trunk ruleset recognizes.
+      # GitHub holds pull_request workflows created by GITHUB_TOKEN for approval;
+      # a pull request opened by the bot App starts its runs unheld. This step
+      # covers both: it waits for the expected workflows on the exact published
+      # commit and approves only the ones GitHub actually held. It keeps
+      # `github.token` deliberately -- approving a run is an Actions operation,
+      # not an authorship one, so it does not need the publication identity.
       - name: Approve native checks for the publication pull request
         if: steps.publish.outputs.changed == 'true'
         env:
@@ -261,7 +296,9 @@ jobs:
       - name: Merge the validated publication pull request
         if: steps.publish.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The merge itself is the operation the trunk ruleset judges, so it
+          # runs under the same bot App identity that opened the pull request.
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           PUBLISHED: ${{ steps.publish.outputs.published }}
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
         run: |
@@ -288,14 +325,15 @@ jobs:
             --merge \
             --delete-branch \
             --match-head-commit "$PUBLISHED"
-          # Merges performed with GITHUB_TOKEN emit no push event, so nothing would
-          # run against the resulting trunk head and it would carry no core check
-          # runs at all. Re-enter the derived-artifact automation, exactly as it
-          # does after its own token merge: it reseals whatever the new head made
-          # stale and then dispatches strict trunk CI itself. Dispatching ci.yml
-          # directly would run trunk's STRICT validation against a head whose
-          # derived artifacts have not been resealed yet, which fails on golden
-          # gate-receipt source digests for reasons this report did not cause.
+          # Merges performed with GITHUB_TOKEN emit no push event, so on the
+          # fallback path nothing runs against the resulting trunk head and it
+          # carries no core check runs at all. Re-enter the derived-artifact
+          # automation either way, exactly as it does after its own token merge:
+          # it reseals whatever the new head made stale and then dispatches
+          # strict trunk CI itself. Dispatching ci.yml directly would run trunk's
+          # STRICT validation against a head whose derived artifacts have not
+          # been resealed yet, which fails on golden gate-receipt source digests
+          # for reasons this report did not cause.
           gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk
 
       - name: Summarize publication
