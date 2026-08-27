@@ -447,6 +447,10 @@ jobs:
             --reporter=default --reporter=json \
             --outputFile=test-results/integration-community-vitest.json
 
+      - name: Run Pro alerts integration surface
+        if: ${{ always() && steps.mode.outputs.mode == 'self-contained' }}
+        run: |
+          set -euo pipefail
           # POST /rules/test is a documented Pro surface (honua-server ADR-0024).
           # Exercise it on the same immutable candidate with the server's
           # non-Production CI entitlement hook, without changing the Production
@@ -475,18 +479,29 @@ jobs:
           done
 
           HONUA_INTEGRATION_BASE_URL=http://localhost:8081 \
+            HONUA_INTEGRATION_META_APPEND=true \
             npx vitest run --config vitest.integration.config.ts \
               test/integration/surfaces/alerts-evaluation.integration.ts \
               --reporter=default --reporter=json \
               --outputFile=test-results/integration-alerts-vitest.json
 
+      - name: Merge integration surface reports
+        if: ${{ always() && steps.mode.outputs.mode == 'self-contained' }}
+        run: |
           node --input-type=module <<'EOF'
           import { readFile, writeFile } from "node:fs/promises";
           const paths = [
             "test-results/integration-community-vitest.json",
             "test-results/integration-alerts-vitest.json",
           ];
-          const reports = await Promise.all(paths.map(async (path) => JSON.parse(await readFile(path, "utf8"))));
+          const reports = await Promise.all(paths.map(async (path) => {
+            try {
+              return JSON.parse(await readFile(path, "utf8"));
+            } catch (error) {
+              if (error?.code === "ENOENT") return { success: false, testResults: [] };
+              throw error;
+            }
+          }));
           const merged = { ...reports[0] };
           for (const key of ["numTotalTestSuites", "numPassedTestSuites", "numFailedTestSuites", "numPendingTestSuites", "numTotalTests", "numPassedTests", "numFailedTests", "numPendingTests", "numTodoTests"]) {
             merged[key] = reports.reduce((total, report) => total + (report[key] ?? 0), 0);
