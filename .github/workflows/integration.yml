@@ -435,7 +435,81 @@ jobs:
           echo "HONUA_CONFORMANCE_FIXTURES_DIR=${GITHUB_WORKSPACE}/conformance-fixtures" >> "$GITHUB_ENV"
 
       - name: Run integration surfaces
-        run: npm run test:integration -- --reporter=default --reporter=json --outputFile=test-results/integration-vitest.json
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.mode.outputs.mode }}" != "self-contained" ]; then
+            npm run test:integration -- --reporter=default --reporter=json --outputFile=test-results/integration-vitest.json
+            exit 0
+          fi
+
+          npm run test:integration -- \
+            --exclude test/integration/surfaces/alerts-evaluation.integration.ts \
+            --reporter=default --reporter=json \
+            --outputFile=test-results/integration-community-vitest.json
+
+      - name: Run Pro alerts integration surface
+        if: ${{ always() && steps.mode.outputs.mode == 'self-contained' }}
+        run: |
+          set -euo pipefail
+          # POST /rules/test is a documented Pro surface (honua-server ADR-0024).
+          # Exercise it on the same immutable candidate with the server's
+          # non-Production CI entitlement hook, without changing the Production
+          # Community target used by every other surface and conformance.
+          docker run -d --name honua-server-alerts --network honua-integration -p 8081:8080 \
+            -e ASPNETCORE_ENVIRONMENT=Development \
+            -e Licensing__DevGrantEdition=Pro \
+            -e ASPNETCORE_URLS=http://+:8080 \
+            -e Kestrel__Endpoints__Http__Protocols=Http1AndHttp2 \
+            -e PUBLIC_BASE_URL=http://localhost:8081 \
+            -e HONUA_ADMIN_PASSWORD="$SELF_CONTAINED_ADMIN_PASSWORD" \
+            -e "ConnectionStrings__DefaultConnection=Server=honua-pg;Port=5432;Database=honua_integration;User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
+            -e "ConnectionStrings__honua=Server=honua-pg;Port=5432;Database=honua_integration;User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
+            -e ConnectionStrings__Redis=honua-redis:6379 \
+            -e Security__ConnectionEncryption__MasterKey="$SELF_CONTAINED_ENC_MASTER_KEY" \
+            -e Security__ConnectionEncryption__Salt="$SELF_CONTAINED_ENC_SALT" \
+            -e HostValidation__AllowedHosts__0=localhost \
+            -e HostValidation__AllowedHosts__1=127.0.0.1 \
+            "$HONUA_INTEGRATION_SERVER_IMAGE"
+          trap 'docker rm -f honua-server-alerts >/dev/null 2>&1 || true' EXIT
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8081/healthz/ready >/dev/null 2>&1; then break; fi
+            if [ "$i" -eq 60 ]; then docker logs honua-server-alerts; exit 1; fi
+            sleep 5
+          done
+
+          HONUA_INTEGRATION_BASE_URL=http://localhost:8081 \
+            HONUA_INTEGRATION_META_APPEND=true \
+            npx vitest run --config vitest.integration.config.ts \
+              test/integration/surfaces/alerts-evaluation.integration.ts \
+              --reporter=default --reporter=json \
+              --outputFile=test-results/integration-alerts-vitest.json
+
+      - name: Merge integration surface reports
+        if: ${{ always() && steps.mode.outputs.mode == 'self-contained' }}
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFile, writeFile } from "node:fs/promises";
+          const paths = [
+            "test-results/integration-community-vitest.json",
+            "test-results/integration-alerts-vitest.json",
+          ];
+          const reports = await Promise.all(paths.map(async (path) => {
+            try {
+              return JSON.parse(await readFile(path, "utf8"));
+            } catch (error) {
+              if (error?.code === "ENOENT") return { success: false, testResults: [] };
+              throw error;
+            }
+          }));
+          const merged = { ...reports[0] };
+          for (const key of ["numTotalTestSuites", "numPassedTestSuites", "numFailedTestSuites", "numPendingTestSuites", "numTotalTests", "numPassedTests", "numFailedTests", "numPendingTests", "numTodoTests"]) {
+            merged[key] = reports.reduce((total, report) => total + (report[key] ?? 0), 0);
+          }
+          merged.success = reports.every((report) => report.success === true);
+          merged.testResults = reports.flatMap((report) => report.testResults ?? []);
+          await writeFile("test-results/integration-vitest.json", `${JSON.stringify(merged)}\n`);
+          EOF
 
       - name: Run protocol certification unit tests
         run: node --test test/protocol-certification-fragment.test.mjs
@@ -454,6 +528,7 @@ jobs:
         if: ${{ failure() && steps.mode.outputs.mode == 'self-contained' }}
         run: |
           echo "::group::honua-server logs"; docker logs honua-server || true; echo "::endgroup::"
+          echo "::group::honua-server-alerts logs"; docker logs honua-server-alerts || true; echo "::endgroup::"
           echo "::group::postgres logs"; docker logs honua-pg || true; echo "::endgroup::"
 
       - name: Upload integration metadata
@@ -519,7 +594,7 @@ jobs:
       - name: Tear down self-contained stack
         if: ${{ always() && steps.mode.outputs.mode == 'self-contained' }}
         run: |
-          docker rm -f honua-server honua-pg honua-redis >/dev/null 2>&1 || true
+          docker rm -f honua-server-alerts honua-server honua-pg honua-redis >/dev/null 2>&1 || true
           docker network rm honua-integration >/dev/null 2>&1 || true
 
   conformance-guardrail:
