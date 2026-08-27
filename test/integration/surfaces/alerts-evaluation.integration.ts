@@ -24,10 +24,23 @@ integrationSuite("Alert draft evaluation", SURFACE, ({ client, config, context }
       operate.alertRules.test({
         rule: {
           serviceId: config.serviceId,
-          layerId: config.layerId,
+          // Draft validation requires a positive layer identifier even though
+          // the self-contained protocol fixture uses GeoServices layer 0.
+          layerId: Math.max(config.layerId, 1),
           ruleName: `sdk-candidate-${candidateCutAt}`,
-          triggerType: "threshold",
-          conditionsJson: JSON.stringify({ field: "OBJECTID", operator: "gt", value: 0 }),
+          triggerType: "enter",
+          conditionsJson: "{}",
+          cooldownSeconds: 0,
+          severity: "warning",
+          editionRequired: "pro",
+          channels: [],
+          isActive: true,
+        },
+        zone: {
+          serviceId: config.serviceId,
+          zoneName: `sdk-candidate-zone-${candidateCutAt}`,
+          wkt: "POLYGON ((-158 21, -157 21, -157 22, -158 22, -158 21))",
+          srid: 4326,
         },
       }),
     );
