@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  ADMIN_JOURNEY_GROUPS,
+  ADMIN_JOURNEY_OPERATIONS,
   runtimeSmokeSource,
   supportedEntrypoints,
   typeSmokeSource,
@@ -116,4 +118,34 @@ test("rejects missing and package-escaping bin and export targets", (t) => {
       "installed honua bin target is missing: ./missing-bin.js",
     ],
   );
+});
+
+test("admin journey coverage names the honua-release#123 stages that need a client verb", () => {
+  const stages = new Set(ADMIN_JOURNEY_OPERATIONS.map((entry) => entry.stage));
+  assert.deepEqual([...stages].sort(), [2, 3, 8]);
+  for (const entry of ADMIN_JOURNEY_OPERATIONS) {
+    assert.ok(ADMIN_JOURNEY_GROUPS.includes(entry.group), `${entry.operationId} names a journey group`);
+  }
+});
+
+test("admin journey operations match the generated admin inventory", async () => {
+  let inventory;
+  try {
+    ({ ADMIN_OPERATIONS: inventory } = await import("../../dist/src/control-plane/index.js"));
+  } catch {
+    // The pure-helper suite runs before the build in some lanes; the packed run that
+    // consumes these entries always executes against built output.
+    return;
+  }
+  for (const { group, operationId } of ADMIN_JOURNEY_OPERATIONS) {
+    const descriptor = inventory[operationId];
+    assert.ok(descriptor, `${operationId} exists in the generated admin inventory`);
+    assert.equal(descriptor.group, group, `${operationId} belongs to the ${group} group`);
+  }
+});
+
+test("the stage 8 entry carries the exact honua-release#123 approval command shape", () => {
+  const stage8 = ADMIN_JOURNEY_OPERATIONS.find((entry) => entry.stage === 8);
+  assert.equal(stage8.operationId, "approveOperationProposal");
+  assert.deepEqual([...stage8.args], ["--path", "id=packed-proposal", "--profile", "approver", "--yes"]);
 });

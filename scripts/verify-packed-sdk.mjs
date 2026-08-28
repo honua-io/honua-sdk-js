@@ -7,6 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ADMIN_JOURNEY_GROUPS,
+  ADMIN_JOURNEY_OPERATIONS,
   runtimeSmokeSource,
   supportedEntrypoints,
   typeSmokeSource,
@@ -503,7 +505,9 @@ void module;
   );
 
   const installedHonua = (...args) => npmExecLocalArgs("honua", args);
-  run("installed honua --help", "npm", installedHonua("--help"), { cwd: consumerRoot });
+  const installedHelp = run("installed honua --help", "npm", installedHonua("--help"), {
+    cwd: consumerRoot,
+  });
 
   const exchangePath = path.join(consumerRoot, "doctor-exchange.json");
   const bundlePath = path.join(consumerRoot, "doctor-bundle.json");
@@ -581,8 +585,81 @@ void module;
     { cwd: consumerRoot },
   );
 
+  // Admin control-plane surface (#1530). honua-release#123 stages 2, 3 and 8 drive the
+  // release journey entirely through `honua admin`, and honua-release#205 found a pinned
+  // artifact that shipped no admin verb at all — a defect only visible from packed bytes,
+  // because repository source had the command the whole time. Assert the surface here, from
+  // the isolated consumer install, so a publishable SDK that cannot run those stages fails
+  // certification rather than a release driver in another repository.
+  const adminHelp = run("installed honua admin help", "npm", installedHonua("admin"), {
+    cwd: consumerRoot,
+  });
+  for (const group of ADMIN_JOURNEY_GROUPS) {
+    if (!adminHelp.includes(group)) {
+      throw new Error(`installed honua admin help omitted the ${group} journey group`);
+    }
+  }
+  if (!installedHelp.includes("honua admin")) {
+    throw new Error("installed honua --help did not advertise the admin control plane");
+  }
+
+  // The exact operation ids honua-release#123 names, resolved through the packed generated
+  // client. --dry-run keeps this offline and deterministic: it proves the operation exists
+  // and its arguments bind, without a server.
+  for (const { stage, group, operationId, args } of ADMIN_JOURNEY_OPERATIONS) {
+    const dryRun = run(
+      `installed honua admin ${group} ${operationId} (stage ${stage})`,
+      "npm",
+      installedHonua("admin", group, operationId, ...args, "--dry-run"),
+      { cwd: consumerRoot },
+    );
+    const resolved = JSON.parse(dryRun);
+    if (resolved.operationId !== operationId) {
+      throw new Error(`installed honua admin resolved ${resolved.operationId} for ${operationId}`);
+    }
+    if (resolved.group !== group) {
+      throw new Error(`installed ${operationId} reported group ${resolved.group}, expected ${group}`);
+    }
+    if (resolved.executed !== false) {
+      throw new Error(`installed honua admin --dry-run executed ${operationId}`);
+    }
+  }
+
+  // --profile is what lets stage 8 approve from a second human principal, so an unknown
+  // profile must fail closed rather than silently falling back to ambient credentials.
+  runFailure(
+    "installed honua admin unknown profile",
+    "npm",
+    installedHonua(
+      "admin",
+      "operate",
+      "approveOperationProposal",
+      "--path",
+      "id=packed-proposal",
+      "--profile",
+      "packed-missing-profile",
+      "--yes",
+    ),
+    { cwd: consumerRoot },
+  );
+
+  // Mutation and one-time-secret guards are the CLI's fail-closed contract; a packed build
+  // that lost either would let the journey mutate or leak without the operator asking.
+  runFailure(
+    "installed honua admin mutation guard",
+    "npm",
+    installedHonua("admin", "operate", "approveOperationProposal", "--path", "id=packed-proposal"),
+    { cwd: consumerRoot },
+  );
+  runFailure(
+    "installed honua admin one-time-secret guard",
+    "npm",
+    installedHonua("admin", "secure", "createAdminApiKey", "--body", '{"name":"packed"}', "--yes"),
+    { cwd: consumerRoot },
+  );
+
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range wfsProtocol=runtime+types+authority rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range wfsProtocol=runtime+types+authority rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal admin=groups+stage2+stage3+stage8+profile+mutation-guard+secret-guard registryInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(

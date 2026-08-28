@@ -89,3 +89,55 @@ export function typeSmokeSource(packageName, entrypoints) {
     .join("\n")}
 `;
 }
+
+/**
+ * The seven `honua admin` groups the honua-release#123 terminal journey drives.
+ */
+export const ADMIN_JOURNEY_GROUPS = Object.freeze([
+  "connect",
+  "import",
+  "publish",
+  "configure",
+  "secure",
+  "release",
+  "operate",
+]);
+
+/**
+ * The exact Admin operations honua-release#123 names in its numbered stages.
+ *
+ * honua-release#205 certified a pinned artifact that shipped no `honua admin` verb at all,
+ * which stalled stages 2, 3 and 8 regardless of server readiness. Repository source carried
+ * the command throughout, so only a check against packed bytes can catch a recurrence. Each
+ * entry is asserted through `--dry-run`, which resolves the operation and binds its arguments
+ * without contacting a server.
+ */
+export const ADMIN_JOURNEY_OPERATIONS = Object.freeze([
+  Object.freeze({ stage: 2, group: "secure", operationId: "listAdminApiKeys", args: Object.freeze([]) }),
+  Object.freeze({
+    stage: 2,
+    group: "secure",
+    operationId: "getAdminApiKeyEffectivePermissions",
+    args: Object.freeze(["--path", "id=packed-key"]),
+  }),
+  Object.freeze({
+    stage: 3,
+    group: "connect",
+    operationId: "createConnection",
+    args: Object.freeze(["--body", '{"name":"packed"}']),
+  }),
+  Object.freeze({
+    stage: 3,
+    group: "connect",
+    operationId: "testConnection",
+    args: Object.freeze(["--path", "id=packed-connection"]),
+  }),
+  // The literal stage-8 command shape from honua-release#123: a second human principal
+  // approving a proposal through a named profile.
+  Object.freeze({
+    stage: 8,
+    group: "operate",
+    operationId: "approveOperationProposal",
+    args: Object.freeze(["--path", "id=packed-proposal", "--profile", "approver", "--yes"]),
+  }),
+]);
