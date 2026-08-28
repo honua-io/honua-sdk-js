@@ -54,6 +54,12 @@ function runReleaseStep({
   draftReadFails = false,
   publishDraftFails = false,
   publishedDraftState = "false",
+  // One conclusion per `gh run view` on a reseal run, last entry repeating.
+  resealConclusions = ["success"],
+  // One id per `gh run list`, last entry repeating; `EMPTY` answers with no
+  // run at all. The first call is the pre-dispatch `before_id`, the second
+  // finds the dispatched reseal, and each later one is a supersession lookup.
+  runListIds = ["100", "101"],
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), "honua-release-tag-seal-"));
   const bin = join(root, "bin");
@@ -62,6 +68,8 @@ function runReleaseStep({
   writeFileSync(summary, "");
   writeFileSync(join(root, "trace"), "");
   writeFileSync(join(root, "tag-resolves"), `${tagResolves.join("\n")}\n`);
+  writeFileSync(join(root, "reseal-conclusions"), `${resealConclusions.join("\n")}\n`);
+  writeFileSync(join(root, "run-list-ids"), `${runListIds.join("\n")}\n`);
 
   // A tiny `gh` that answers only the calls this step makes. Every unexpected
   // call is fatal, so the test cannot pass by accident.
@@ -69,9 +77,24 @@ function runReleaseStep({
     join(bin, "gh"),
     `#!/usr/bin/env bash
 set -uo pipefail
+# Answer a scripted sequence, one entry per call, the last entry repeating.
+# "EMPTY" answers with nothing, which is how "no such run exists" is expressed.
+next_line() {
+  local seq="$1"
+  local idx_file="$2"
+  local idx
+  idx="$(cat "$idx_file" 2>/dev/null || echo 0)"
+  echo "$((idx + 1))" > "$idx_file"
+  local line
+  line="$(sed -n "$((idx + 1))p" "$seq")"
+  if [[ -z "$line" ]]; then line="$(tail -n 1 "$seq")"; fi
+  if [[ "$line" == "EMPTY" ]]; then return 0; fi
+  echo "$line"
+}
 ARGS="$*"
 case "$ARGS" in
-  "run list"*) echo "100" ;;
+  "run list"*) next_line "${root}/run-list-ids" "${root}/run-list-index" ;;
+  "run view"*) next_line "${root}/reseal-conclusions" "${root}/reseal-index" ;;
   "workflow run regenerate-derived-artifacts.yml"*) echo "reseal-dispatch" >> "${root}/trace" ;;
   "run watch"*) ;;
   *"git/ref/heads/trunk"*) echo "${RESEALED_COMMIT}" ;;
@@ -180,6 +203,61 @@ test("the release tag is created on the resealed commit and only then is the dra
     "npm-publish-dispatch",
     "smoke-dispatch",
   ]);
+});
+
+test("a reseal cancelled by the derived-artifacts concurrency group is followed to its successor", () => {
+  // The js-sdk-v0.1.8-beta.0 stranding (#1337). `derived-artifacts` uses
+  // cancel-in-progress: false, and GitHub keeps only ONE run pending per group,
+  // so the reseal this step dispatches queues behind the push-triggered reseal
+  // of the same release commit and is cancelled when the next pair arrives.
+  // Release run 33007925674 refused to tag for exactly this reason while a
+  // successful reseal of that very commit already existed. A cancelled reseal
+  // means a newer run is doing the same job, so the chain is followed.
+  const result = runReleaseStep({
+    resealConclusions: ["cancelled", "success"],
+    runListIds: ["100", "101", "102"],
+    tagResolves: [RESEALED_COMMIT, RESEALED_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /Reseal run 101 was superseded in the derived-artifacts concurrency group/u);
+  assert.match(result.output, /following the chain to 102/u);
+  assert.match(result.output, /reseal run 102 succeeded/u);
+  assert.match(result.output, /published on resealed commit/u);
+  assert.ok(result.trace.includes("npm-publish-dispatch"));
+});
+
+test("a reseal that genuinely fails still stops the release", () => {
+  // Following supersession must not soften a real reseal failure: only
+  // `cancelled` is retryable, and anything else aborts before the tag exists.
+  const result = runReleaseStep({ resealConclusions: ["failure"] });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /::error title=Release blocked for js-sdk-v9\.9\.9-beta\.0::/u);
+  assert.match(result.output, /concluded 'failure'/u);
+  assert.deepEqual(result.trace, ["reseal-dispatch"]);
+  assert.match(result.summary, /Nothing was published for this tag/u);
+});
+
+test("a cancelled reseal with no superseding run stops the release", () => {
+  const result = runReleaseStep({
+    resealConclusions: ["cancelled"],
+    runListIds: ["100", "101", "EMPTY"],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /no superseding reseal run appeared/u);
+  assert.deepEqual(result.trace, ["reseal-dispatch"]);
+  assert.match(result.summary, /Nothing was published for this tag/u);
+});
+
+test("endless reseal supersession is bounded rather than followed forever", () => {
+  // A permanently busy trunk must end the release with a diagnosis, not spin.
+  const result = runReleaseStep({
+    resealConclusions: ["cancelled"],
+    runListIds: ["100", "101", "102", "103", "104", "105", "106"],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /superseded repeatedly without reaching a successful run/u);
+  assert.match(result.output, /Trunk is too busy to seal this release/u);
+  assert.deepEqual(result.trace, ["reseal-dispatch"]);
 });
 
 test("a release Release Please published instead of drafting is refused before the reseal", () => {
