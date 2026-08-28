@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -18,6 +17,7 @@ import {
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { requireSecureCredentialEndpoint } from "./credential-endpoint.js";
+import { isMainEntrypoint } from "./entrypoint.js";
 import { SERVER_VERSION } from "./index.js";
 
 /**
@@ -197,7 +197,7 @@ export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<vo
   await server.connect(transport);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainEntrypoint(import.meta.url)) {
   runProxy().catch((err) => {
     process.stderr.write(`Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
