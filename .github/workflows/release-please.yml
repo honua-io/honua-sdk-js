@@ -182,18 +182,32 @@ jobs:
               --repo "${GITHUB_REPOSITORY}" \
               --ref trunk
             # gh workflow run does not reliably expose the created run's id, so
-            # poll for the first run newer than the pre-dispatch newest one.
-            # Watching a concurrent schedule/dispatch run instead of ours is
-            # fine: the concurrency group serializes them and every run reseals
-            # the then-current trunk tip.
+            # poll for the first TRUNK run newer than the pre-dispatch newest
+            # one. Watching a concurrent schedule/dispatch run instead of ours
+            # is fine: the concurrency group serializes them and every trunk run
+            # reseals the then-current trunk tip.
+            #
+            # Trunk-scoping is load-bearing, not tidiness. The concurrency group
+            # `derived-artifacts` carries no ref, and the workflow accepts
+            # `workflow_dispatch` on an arbitrary ref, so a run started from a
+            # feature branch joins the very same group. Selecting one of those
+            # would mean this release concluded "a reseal succeeded" on the
+            # strength of a run that never checked out trunk -- and since the
+            # comparison below accepts `identical`, an unresealed trunk would
+            # then take the tag on the UNSEALED version-bump commit, which is
+            # precisely the #1337 failure this ordering exists to prevent.
+            # Filtered twice on purpose: `--branch` asks the server for trunk
+            # runs, and the `headBranch` assertion re-checks each row, so the
+            # guarantee does not rest on a CLI flag alone.
             local reseal_run_id=""
             for attempt in {1..30}; do
               sleep 10
               reseal_run_id="$(gh run list \
                 --repo "${GITHUB_REPOSITORY}" \
                 --workflow regenerate-derived-artifacts.yml \
-                --limit 10 --json databaseId \
-                --jq "[.[].databaseId | select(. > ${before_id})] | min // empty")"
+                --branch trunk \
+                --limit 20 --json databaseId,headBranch \
+                --jq "[.[] | select(.headBranch == \"trunk\") | .databaseId | select(. > ${before_id})] | min // empty")"
               if [[ -n "${reseal_run_id}" ]]; then
                 break
               fi
@@ -235,13 +249,18 @@ jobs:
                 fail "Reseal run ${reseal_run_id} for release commit ${GITHUB_SHA} concluded '${reseal_conclusion}', so there is no sealed commit to create ${tag} on and its draft release stays unpublished. Fix the reseal and re-run this workflow. Nothing was published."
               fi
               # Cancelled: find the run that evicted it and watch that instead.
+              # Trunk-scoped for the same reason as the poll above -- a
+              # feature-ref dispatch shares this concurrency group and can be
+              # the very run that superseded ours, so it is exactly the wrong
+              # thing to follow. Skip it and keep looking for a trunk run.
               local superseding_run_id=""
               for attempt in {1..30}; do
                 superseding_run_id="$(gh run list \
                   --repo "${GITHUB_REPOSITORY}" \
                   --workflow regenerate-derived-artifacts.yml \
-                  --limit 20 --json databaseId \
-                  --jq "[.[].databaseId | select(. > ${reseal_run_id})] | min // empty")"
+                  --branch trunk \
+                  --limit 20 --json databaseId,headBranch \
+                  --jq "[.[] | select(.headBranch == \"trunk\") | .databaseId | select(. > ${reseal_run_id})] | min // empty")"
                 if [[ -n "${superseding_run_id}" ]]; then
                   break
                 fi

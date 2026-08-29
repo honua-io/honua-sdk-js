@@ -56,10 +56,19 @@ function runReleaseStep({
   publishedDraftState = "false",
   // One conclusion per `gh run view` on a reseal run, last entry repeating.
   resealConclusions = ["success"],
-  // One id per `gh run list`, last entry repeating; `EMPTY` answers with no
+  // One answer per `gh run list`, last entry repeating; `EMPTY` answers with no
   // run at all. The first call is the pre-dispatch `before_id`, the second
   // finds the dispatched reseal, and each later one is a supersession lookup.
+  //
+  // A bare id is answered verbatim. An entry that is a JSON array of run rows
+  // (newest first, e.g. `[{"databaseId":102,"headBranch":"trunk"}]`) is instead
+  // fed through the step's real `--branch` / `--jq` selection, so the filter
+  // itself is executed rather than assumed.
   runListIds = ["100", "101"],
+  // When false the stub ignores `--branch`, modelling a `gh` that returns
+  // unfiltered rows. The `headBranch` assertion in the jq must then carry the
+  // guarantee on its own.
+  runListHonoursBranchFlag = true,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), "honua-release-tag-seal-"));
   const bin = join(root, "bin");
@@ -93,7 +102,33 @@ next_line() {
 }
 ARGS="$*"
 case "$ARGS" in
-  "run list"*) next_line "${root}/run-list-ids" "${root}/run-list-index" ;;
+  "run list"*)
+    entry="$(next_line "${root}/run-list-ids" "${root}/run-list-index")"
+    if [[ "$entry" == \\[* ]]; then
+      # Model \`gh run list\`: honour --branch, then evaluate --jq over the rows.
+      branch=""
+      jqexpr=""
+      prev=""
+      for a in "$@"; do
+        case "$prev" in
+          --branch) branch="$a" ;;
+          --jq) jqexpr="$a" ;;
+        esac
+        prev="$a"
+      done
+      rows="$entry"
+      if [[ -n "$branch" && "${runListHonoursBranchFlag ? "1" : "0"}" == "1" ]]; then
+        rows="$(jq -c --arg b "$branch" '[.[] | select(.headBranch == $b)]' <<<"$rows")"
+      fi
+      if [[ -n "$jqexpr" ]]; then
+        jq -r "$jqexpr" <<<"$rows"
+      else
+        echo "$rows"
+      fi
+    else
+      echo "$entry"
+    fi
+    ;;
   "run view"*) next_line "${root}/reseal-conclusions" "${root}/reseal-index" ;;
   "workflow run regenerate-derived-artifacts.yml"*) echo "reseal-dispatch" >> "${root}/trace" ;;
   "run watch"*) ;;
@@ -224,6 +259,77 @@ test("a reseal cancelled by the derived-artifacts concurrency group is followed 
   assert.match(result.output, /reseal run 102 succeeded/u);
   assert.match(result.output, /published on resealed commit/u);
   assert.ok(result.trace.includes("npm-publish-dispatch"));
+});
+
+// The `derived-artifacts` concurrency group carries no ref, and the reseal
+// workflow accepts `workflow_dispatch` on an arbitrary ref, so a run started
+// from a feature branch joins the very same group and can be the run that
+// evicted ours. Following one would conclude "a reseal succeeded" from a run
+// that never checked out trunk; because the comparison downstream accepts
+// `identical`, an unresealed trunk would then take the tag on the UNSEALED
+// version-bump commit -- the exact #1337 failure this ordering prevents.
+const TRUNK_THEN_FEATURE = '[{"databaseId":102,"headBranch":"trunk"},{"databaseId":101,"headBranch":"feat/rogue"}]';
+const FEATURE_SUPERSESSOR = '[{"databaseId":104,"headBranch":"trunk"},{"databaseId":103,"headBranch":"feat/rogue"}]';
+
+test("a feature-ref run sharing the concurrency group is never followed as the supersessor", () => {
+  const result = runReleaseStep({
+    runListIds: ["100", TRUNK_THEN_FEATURE, FEATURE_SUPERSESSOR],
+    resealConclusions: ["cancelled", "success"],
+    tagResolves: [RESEALED_COMMIT, RESEALED_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  // 103 is the next-newer run, and is skipped because it is not on trunk.
+  assert.match(result.output, /following the chain to 104/u);
+  assert.doesNotMatch(result.output, /chain to 103/u);
+  assert.match(result.output, /reseal run 104 succeeded/u);
+  assert.ok(result.trace.includes("npm-publish-dispatch"));
+});
+
+test("the headBranch assertion skips a feature-ref run even when --branch is ignored", () => {
+  // Defence in depth: the guarantee must not rest on the CLI flag alone, so the
+  // stub returns unfiltered rows and the jq assertion has to carry it.
+  const result = runReleaseStep({
+    runListIds: ["100", TRUNK_THEN_FEATURE, FEATURE_SUPERSESSOR],
+    runListHonoursBranchFlag: false,
+    resealConclusions: ["cancelled", "success"],
+    tagResolves: [RESEALED_COMMIT, RESEALED_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /following the chain to 104/u);
+  assert.doesNotMatch(result.output, /chain to 103/u);
+  assert.ok(result.trace.includes("npm-publish-dispatch"));
+});
+
+test("a feature-ref run is not mistaken for the dispatched reseal", () => {
+  // The same hazard at the first selection rather than the supersession hop: if
+  // the only newer run is a feature-ref dispatch, the release must time out and
+  // say so, not adopt it.
+  const result = runReleaseStep({
+    runListIds: ["100", '[{"databaseId":101,"headBranch":"feat/rogue"}]'],
+    runListHonoursBranchFlag: false,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /never appeared in the run list/u);
+  assert.deepEqual(result.trace, ["reseal-dispatch"]);
+  assert.match(result.summary, /Nothing was published for this tag/u);
+});
+
+test("both reseal-run selections are scoped to trunk", () => {
+  // Belt to the braces above: the flag and the assertion must both be present
+  // at both selection sites, so neither can be dropped as redundant.
+  const block = runBlock("Dispatch package publish workflows");
+  const selections = block.match(/gh run list \\\n(?:.*\\\n)*?.*--jq[^\n]*\n/gu) ?? [];
+  // Only the queries that pick a run to watch. The pre-dispatch `before_id`
+  // watermark is deliberately unscoped: it is a high-water mark over all runs,
+  // and a higher one is strictly safer than a trunk-only one.
+  const resealSelections = selections.filter(
+    (s) => s.includes("regenerate-derived-artifacts.yml") && s.includes("select(. >"),
+  );
+  assert.equal(resealSelections.length, 2, "expected the poll and the supersession lookup");
+  for (const selection of resealSelections) {
+    assert.match(selection, /--branch trunk/u);
+    assert.match(selection, /select\(\.headBranch == \\"trunk\\"\)/u);
+  }
 });
 
 test("a reseal that genuinely fails still stops the release", () => {
