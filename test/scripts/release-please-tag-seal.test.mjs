@@ -69,6 +69,17 @@ function runReleaseStep({
   // unfiltered rows. The `headBranch` assertion in the jq must then carry the
   // guarantee on its own.
   runListHonoursBranchFlag = true,
+  // Stranded-draft re-entry (#1337).
+  finishStrandedDraft = "",
+  eventName = "workflow_dispatch",
+  jsSdkReleaseCreated = "false",
+  // Releases the stubbed `gh` lists, so the resolve-by-tag jq is executed.
+  releases = [{ id: Number(RELEASE_ID), tag_name: TAG, draft: true }],
+  // Whether `git/ref/tags/<tag>` resolves, i.e. the tag already exists.
+  strandedTagExists = false,
+  // When false the step's own trailing `if` blocks decide what runs, which is
+  // what the re-entry path needs; the default drives the function directly.
+  directInvoke = true,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), "honua-release-tag-seal-"));
   const bin = join(root, "bin");
@@ -79,6 +90,7 @@ function runReleaseStep({
   writeFileSync(join(root, "tag-resolves"), `${tagResolves.join("\n")}\n`);
   writeFileSync(join(root, "reseal-conclusions"), `${resealConclusions.join("\n")}\n`);
   writeFileSync(join(root, "run-list-ids"), `${runListIds.join("\n")}\n`);
+  writeFileSync(join(root, "releases.json"), JSON.stringify(releases));
 
   // A tiny `gh` that answers only the calls this step makes. Every unexpected
   // call is fatal, so the test cannot pass by accident.
@@ -133,6 +145,24 @@ case "$ARGS" in
   "workflow run regenerate-derived-artifacts.yml"*) echo "reseal-dispatch" >> "${root}/trace" ;;
   "run watch"*) ;;
   *"git/ref/heads/trunk"*) echo "${RESEALED_COMMIT}" ;;
+  *"git/ref/tags/"*)
+    if [[ "${strandedTagExists ? "1" : "0"}" == "1" ]]; then
+      echo "${RESEALED_COMMIT}"
+    else
+      echo "gh: Not Found (HTTP 404)" >&2
+      exit 1
+    fi
+    ;;
+  *"/releases --paginate"*)
+    # Evaluate the step's real resolve-by-tag jq against the release fixture.
+    jqexpr=""
+    prev=""
+    for a in "$@"; do
+      case "$prev" in --jq) jqexpr="$a" ;; esac
+      prev="$a"
+    done
+    jq -r "$jqexpr" "${root}/releases.json"
+    ;;
   *"compare/"*)
     echo '{"status":"ahead","merge_base_commit":{"sha":"${RELEASE_COMMIT}"},"files":[{"filename":"llms.txt"}]}'
     ;;
@@ -178,9 +208,10 @@ esac
   chmodSync(join(bin, "gh"), 0o755);
   chmodSync(join(bin, "sleep"), 0o755);
 
-  const script =
-    `${runBlock("Dispatch package publish workflows")}\n` +
-    `dispatch_resealed_js_publish "${TAG}" "${releaseId}" "${releaseDraft}"\n`;
+  const script = directInvoke
+    ? `${runBlock("Dispatch package publish workflows")}\n` +
+      `dispatch_resealed_js_publish "${TAG}" "${releaseId}" "${releaseDraft}"\n`
+    : `${runBlock("Dispatch package publish workflows")}\n`;
   const scriptPath = join(root, "step.sh");
   writeFileSync(scriptPath, script);
   try {
@@ -192,9 +223,11 @@ esac
         GITHUB_SHA: RELEASE_COMMIT,
         GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
         GITHUB_STEP_SUMMARY: summary,
-        JS_SDK_RELEASE_CREATED: "false",
+        JS_SDK_RELEASE_CREATED: jsSdkReleaseCreated,
         MCP_RELEASE_CREATED: "false",
         CREATE_APP_RELEASE_CREATED: "false",
+        FINISH_STRANDED_DRAFT: finishStrandedDraft,
+        GITHUB_EVENT_NAME: eventName,
         JS_SDK_TAG_NAME: TAG,
         JS_SDK_RELEASE_ID: releaseId,
         JS_SDK_RELEASE_DRAFT: releaseDraft,
@@ -491,4 +524,116 @@ test("the js-sdk release is configured to be cut as a draft", () => {
   assert.equal(config.packages["."].draft, true);
   // force-tag-creation would put the tag back on the unsealed bump commit.
   assert.equal(config.packages["."]["force-tag-creation"], undefined);
+});
+
+// Stranded-draft re-entry (#1337). Release Please's tag/id/draft outputs exist
+// only in the run that cuts the release, so a draft whose run died afterwards
+// is unreachable: every re-run and re-dispatch skips the finish sequence and
+// reports success having done nothing. js-sdk-v0.1.8-beta.0 sat in exactly that
+// state from 2026-08-26.
+
+test("a stranded draft is resolved by tag and finished through the full seal path", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    releases: [{ id: Number(RELEASE_ID), tag_name: TAG, draft: true }],
+    tagResolves: [RESEALED_COMMIT, RESEALED_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /Re-entering the release finish sequence for stranded draft release 424242/u);
+  assert.match(result.summary, /Finishing stranded draft/u);
+  // The whole sequence runs, not a shortcut: reseal, tag on the sealed commit,
+  // publish the draft, then the gated npm publish and the smoke.
+  assert.deepEqual(result.trace, [
+    "reseal-dispatch",
+    "tag-create",
+    "draft-publish",
+    "npm-publish-dispatch",
+    "smoke-dispatch",
+  ]);
+  assert.match(result.output, /verified on resealed commit/u);
+});
+
+test("the re-entry input is refused when the release is already published", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    releases: [{ id: Number(RELEASE_ID), tag_name: TAG, draft: false }],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /already published, not a stranded draft/u);
+  assert.deepEqual(result.trace, []);
+  assert.match(result.summary, /Nothing was published for this tag/u);
+});
+
+test("the re-entry input is refused when the tag already exists", () => {
+  // A tag that exists means the release is not stranded before tagging, and
+  // immutable releases forbid moving it.
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    strandedTagExists: true,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /already exists and names/u);
+  assert.match(result.output, /Refusing to re-enter/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("the re-entry input is refused when no release matches the tag", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    releases: [{ id: 1, tag_name: "js-sdk-v0.0.1-beta.0", draft: true }],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /No release found for tag js-sdk-v9\.9\.9-beta\.0/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("the re-entry input is refused on a non-dispatch event", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    eventName: "push",
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /only accepted on a workflow_dispatch run/u);
+  assert.match(result.output, /this run's event is push/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("a normal-path run ignores the re-entry input instead of double-dispatching", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    jsSdkReleaseCreated: "true",
+    finishStrandedDraft: "js-sdk-v0.0.9-beta.0",
+    tagResolves: [RESEALED_COMMIT, RESEALED_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /finish_stranded_draft=js-sdk-v0\.0\.9-beta\.0 was ignored/u);
+  assert.match(result.summary, /`finish_stranded_draft` ignored/u);
+  // Exactly one finish sequence, for the tag Release Please actually cut.
+  assert.equal(result.trace.filter((entry) => entry === "tag-create").length, 1);
+  assert.deepEqual(result.trace, [
+    "reseal-dispatch",
+    "tag-create",
+    "draft-publish",
+    "npm-publish-dispatch",
+    "smoke-dispatch",
+  ]);
+});
+
+test("the release step runs on a dispatch that only finishes a stranded draft", () => {
+  // The gap that made the draft unreachable is the STEP-level condition, not
+  // the code inside it: guarded on `releases_created` alone, the step is
+  // skipped outright on a re-dispatch and the job succeeds having done nothing.
+  const source = readFileSync(WORKFLOW, "utf8");
+  assert.match(
+    source,
+    /- name: Dispatch package publish workflows\n\s+if: >-\n[\s\S]{0,400}?inputs\.finish_stranded_draft != ''\) \}\}/u,
+  );
+  // And the input has to exist to be passed in.
+  assert.match(source, /workflow_dispatch:\n\s+inputs:\n\s+finish_stranded_draft:/u);
+  assert.match(source, /FINISH_STRANDED_DRAFT: \$\{\{ inputs\.finish_stranded_draft \}\}/u);
 });

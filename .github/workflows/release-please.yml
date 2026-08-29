@@ -5,6 +5,16 @@ on:
     branches:
       - trunk
   workflow_dispatch:
+    inputs:
+      finish_stranded_draft:
+        description: >-
+          The js-sdk-* tag name of an existing DRAFT release stranded by a prior
+          run, e.g. js-sdk-v0.1.8-beta.0. Leave empty for a normal release run.
+          Release Please's tag/id/draft outputs exist only in the run that cuts
+          the release, so a draft whose run died afterwards can never be finished
+          by re-running this workflow; this input is the way back in.
+        required: false
+        default: ""
 
 permissions: read-all
 
@@ -71,10 +81,19 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # The stranded-draft re-entry (#1337) must be able to run in a dispatch
+      # where Release Please creates nothing. Without the second clause this
+      # step is skipped outright on such a run and the job "succeeds" having
+      # done nothing at all -- which is exactly how the js-sdk-v0.1.8-beta.0
+      # draft became unreachable to every re-run.
       - name: Dispatch package publish workflows
-        if: ${{ steps.release.outputs.releases_created == 'true' }}
+        if: >-
+          ${{ steps.release.outputs.releases_created == 'true' ||
+              (github.event_name == 'workflow_dispatch' &&
+               inputs.finish_stranded_draft != '') }}
         env:
           GH_TOKEN: ${{ github.token }}
+          FINISH_STRANDED_DRAFT: ${{ inputs.finish_stranded_draft }}
           JS_SDK_RELEASE_CREATED: ${{ steps.release.outputs.release_created || steps.release.outputs['.--release_created'] }}
           JS_SDK_TAG_NAME: ${{ steps.release.outputs.tag_name || steps.release.outputs['.--tag_name'] }}
           # The JS SDK release is cut as a DRAFT (release-please-config.json,
@@ -433,6 +452,61 @@ jobs:
               --ref "${tag}"
           }
 
+          # Stranded-draft re-entry (#1337). Everything above runs only when
+          # Release Please created the release in THIS run, because the tag, id
+          # and draft outputs exist nowhere else. So a draft whose run died
+          # after the draft was cut has no way back: re-running or re-dispatching
+          # this workflow finds no outputs, skips the whole finish sequence, and
+          # reports success having done nothing. That is not hypothetical --
+          # js-sdk-v0.1.8-beta.0 was cut as a draft on 2026-08-26, its run
+          # aborted when the reseal it was watching was cancelled, and every
+          # subsequent run no-opped past it.
+          #
+          # This rebuilds those three values from the existing draft and then
+          # calls the SAME function, so nothing here is a shortcut: the tag-shape
+          # check, the reseal dispatch and its supersession chain, the merge-base
+          # and generated-only-paths checks, both tag-on-sealed-commit
+          # post-conditions, and the gated publish dispatch all apply unchanged.
+          finish_stranded_draft_release() {
+            local tag="$1"
+            RELEASE_FAILURE_TAG="${tag}"
+
+            if [[ "${tag}" != js-sdk-* ]]; then
+              fail "finish_stranded_draft must name a js-sdk-* tag; got '${tag}'. Nothing was published."
+            fi
+
+            # A tag that already exists means this release is not stranded
+            # before tagging -- it was finished, or the tag was created
+            # elsewhere. Either way immutable releases forbid moving it, so
+            # re-entering here could only make things worse.
+            local existing_tag_sha
+            if existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq .object.sha 2>/dev/null)"; then
+              fail "Tag ${tag} already exists and names ${existing_tag_sha}, so its release is not a draft stranded before tagging. Refusing to re-enter. Nothing was published."
+            fi
+
+            local release_state
+            release_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+              --jq "[.[] | select(.tag_name == \"${tag}\")] | (first // empty) | \"\(.id) \(.draft)\"")"
+            if [[ -z "${release_state}" ]]; then
+              fail "No release found for tag ${tag}, so there is no stranded draft to finish. Nothing was published."
+            fi
+            local release_id="${release_state%% *}"
+            local release_draft="${release_state##* }"
+            if [[ "${release_draft}" != "true" ]]; then
+              fail "Release ${release_id} for ${tag} is already published, not a stranded draft. Nothing was published."
+            fi
+
+            echo "::notice::Re-entering the release finish sequence for stranded draft release ${release_id} (${tag})."
+            {
+              echo "## Finishing stranded draft: \`${tag}\`"
+              echo
+              echo "- draft release: \`${release_id}\`"
+              echo "- re-entered by the \`finish_stranded_draft\` dispatch input"
+            } >> "${GITHUB_STEP_SUMMARY}"
+
+            dispatch_resealed_js_publish "${tag}" "${release_id}" "true"
+          }
+
           if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
             dispatch_resealed_js_publish "${JS_SDK_TAG_NAME}" "${JS_SDK_RELEASE_ID}" "${JS_SDK_RELEASE_DRAFT}"
           fi
@@ -441,6 +515,26 @@ jobs:
           fi
           if [[ "${CREATE_APP_RELEASE_CREATED}" == "true" ]]; then
             dispatch_tag_publish publish-create-honua-app.yml "${CREATE_APP_TAG_NAME}"
+          fi
+
+          if [[ -n "${FINISH_STRANDED_DRAFT}" ]]; then
+            if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]]; then
+              RELEASE_FAILURE_TAG="${FINISH_STRANDED_DRAFT}"
+              fail "finish_stranded_draft is only accepted on a workflow_dispatch run; this run's event is ${GITHUB_EVENT_NAME}. Nothing was published."
+            fi
+            if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
+              # Mutual exclusion. Release Please cut a release in this very run
+              # and the normal path already finished it, so honouring the input
+              # would drive a second finish sequence against a different tag.
+              echo "::notice::Release Please created ${JS_SDK_TAG_NAME} in this run, so finish_stranded_draft=${FINISH_STRANDED_DRAFT} was ignored."
+              {
+                echo "## \`finish_stranded_draft\` ignored"
+                echo
+                echo "Release Please created \`${JS_SDK_TAG_NAME}\` in this run, so the normal release path ran and the \`finish_stranded_draft=${FINISH_STRANDED_DRAFT}\` input was ignored."
+              } >> "${GITHUB_STEP_SUMMARY}"
+            else
+              finish_stranded_draft_release "${FINISH_STRANDED_DRAFT}"
+            fi
           fi
 
   release-please-refresh:
