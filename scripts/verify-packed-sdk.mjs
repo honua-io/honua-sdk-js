@@ -7,6 +7,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ADMIN_JOURNEY_GROUPS,
+  ADMIN_JOURNEY_OPERATIONS,
+  adminJourneyCliArgs,
+  adminRequestProbeSource,
   runtimeSmokeSource,
   supportedEntrypoints,
   typeSmokeSource,
@@ -503,7 +507,9 @@ void module;
   );
 
   const installedHonua = (...args) => npmExecLocalArgs("honua", args);
-  run("installed honua --help", "npm", installedHonua("--help"), { cwd: consumerRoot });
+  const installedHelp = run("installed honua --help", "npm", installedHonua("--help"), {
+    cwd: consumerRoot,
+  });
 
   const exchangePath = path.join(consumerRoot, "doctor-exchange.json");
   const bundlePath = path.join(consumerRoot, "doctor-bundle.json");
@@ -581,8 +587,148 @@ void module;
     { cwd: consumerRoot },
   );
 
+  // Admin control-plane surface (#1530). honua-release#123 stages 2, 3 and 8 drive the
+  // release journey entirely through `honua admin`, and honua-release#205 found a pinned
+  // artifact that shipped no admin verb at all — a defect only visible from packed bytes,
+  // because repository source had the command the whole time. Assert the surface here, from
+  // the isolated consumer install, so a publishable SDK that cannot run those stages fails
+  // certification rather than a release driver in another repository.
+  const adminHelp = run("installed honua admin help", "npm", installedHonua("admin"), {
+    cwd: consumerRoot,
+  });
+  for (const group of ADMIN_JOURNEY_GROUPS) {
+    if (!adminHelp.includes(group)) {
+      throw new Error(`installed honua admin help omitted the ${group} journey group`);
+    }
+  }
+  if (!installedHelp.includes("honua admin")) {
+    throw new Error("installed honua --help did not advertise the admin control plane");
+  }
+
+  // Inherited HONUA_* state (a developer shell, a self-hosted runner) would let a negative
+  // probe fail for the wrong reason and still look green. Strip it and point the CLI at an
+  // empty config home, so no host profile can satisfy or divert these probes.
+  const adminConfigHome = path.join(consumerRoot, "admin-config-home");
+  fs.mkdirSync(adminConfigHome, { recursive: true });
+  const adminEnv = { ...process.env };
+  for (const key of Object.keys(adminEnv)) {
+    if (key.startsWith("HONUA_")) delete adminEnv[key];
+  }
+  adminEnv.HONUA_CONFIG_HOME = adminConfigHome;
+  const adminOptions = { cwd: consumerRoot, env: adminEnv };
+
+  // Every group must resolve a real operation. Help text alone cannot certify a group: stale
+  // help would keep advertising one whose operations no longer resolve.
+  for (const entry of ADMIN_JOURNEY_OPERATIONS) {
+    const { stage, group, operationId, pathParams } = entry;
+    const label = stage === null ? `${group} group coverage` : `stage ${stage}`;
+    const dryRun = run(
+      `installed honua admin ${group} ${operationId} (${label})`,
+      "npm",
+      installedHonua(...adminJourneyCliArgs(entry), "--dry-run"),
+      adminOptions,
+    );
+    const resolved = JSON.parse(dryRun);
+    if (resolved.operationId !== operationId) {
+      throw new Error(`installed honua admin resolved ${resolved.operationId} for ${operationId}`);
+    }
+    if (resolved.group !== group) {
+      throw new Error(`installed ${operationId} reported group ${resolved.group}, expected ${group}`);
+    }
+    if (resolved.executed !== false) {
+      throw new Error(`installed honua admin --dry-run executed ${operationId}`);
+    }
+    // The descriptor the CLI echoes back is pre-interpolation, so it cannot see a renamed
+    // placeholder on its own. Require the supplied parameters to be exactly the placeholders
+    // the packed descriptor declares; the request probe below then proves they interpolate.
+    const declared = [...resolved.path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]).sort();
+    const supplied = Object.keys(pathParams).sort();
+    if (declared.join(",") !== supplied.join(",")) {
+      throw new Error(
+        `installed ${operationId} declares path placeholders [${declared}] but the gate supplies [${supplied}]`,
+      );
+    }
+  }
+
+  // `--dry-run` returns before HonuaAdminClient interpolates the path, so drive the same
+  // operations through the packed request compiler with a capturing fetch and assert the URL
+  // that would actually be sent. Placeholder drift fails here rather than passing silently.
+  fs.writeFileSync(
+    path.join(consumerRoot, "admin-request-probe.mjs"),
+    adminRequestProbeSource(packageJson.name, ADMIN_JOURNEY_OPERATIONS),
+  );
+  run("installed honua admin request compilation", process.execPath, ["admin-request-probe.mjs"], {
+    cwd: consumerRoot,
+  });
+
+  // Negative probes must fail for the reason under test. Asserting only a nonzero exit would
+  // stay green if the guard were deleted, because a later stage would refuse anyway — so each
+  // case names the diagnostic it expects, and supplies a base URL and key so connection
+  // resolution cannot be the thing that fails.
+  const expectAdminFailure = (label, args, expected) => {
+    const output = runFailure(label, "npm", installedHonua(...args), adminOptions);
+    if (!output.includes(expected)) {
+      throw new Error(`${label} failed for the wrong reason; expected ${JSON.stringify(expected)} in: ${output}`);
+    }
+  };
+
+  // --profile is what lets stage 8 approve from a second human principal, so an unknown
+  // profile must fail closed rather than silently falling back to ambient credentials.
+  expectAdminFailure(
+    "installed honua admin unknown profile",
+    [
+      "admin",
+      "operate",
+      "approveOperationProposal",
+      "--path",
+      "id=packed-proposal",
+      "--profile",
+      "packed-missing-profile",
+      "--yes",
+      "--base-url",
+      "http://127.0.0.1:9",
+      "--admin-key",
+      "packed-probe",
+    ],
+    'Honua profile "packed-missing-profile" was not found',
+  );
+
+  // Mutation and one-time-secret guards are the CLI's fail-closed contract; a packed build
+  // that lost either would let the journey mutate or leak without the operator asking.
+  expectAdminFailure(
+    "installed honua admin mutation guard",
+    [
+      "admin",
+      "operate",
+      "approveOperationProposal",
+      "--path",
+      "id=packed-proposal",
+      "--base-url",
+      "http://127.0.0.1:9",
+      "--admin-key",
+      "packed-probe",
+    ],
+    "Admin operation approveOperationProposal mutates state. Re-run with --yes",
+  );
+  expectAdminFailure(
+    "installed honua admin one-time-secret guard",
+    [
+      "admin",
+      "secure",
+      "createAdminApiKey",
+      "--body",
+      '{"name":"packed"}',
+      "--yes",
+      "--base-url",
+      "http://127.0.0.1:9",
+      "--admin-key",
+      "packed-probe",
+    ],
+    "Admin operation createAdminApiKey returns one-time secret material. Re-run with --secret-output",
+  );
+
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range wfsProtocol=runtime+types+authority rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal registryInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range wfsProtocol=runtime+types+authority rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal admin=all-7-groups+stage2+stage3+stage8+compiled-paths+profile+mutation-guard+secret-guard registryInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(
