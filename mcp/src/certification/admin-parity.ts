@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import {
   ADMIN_MCP_CONTRACT_SERVER_SHA,
   ADMIN_MCP_COVERAGE_SHA256,
@@ -15,6 +14,7 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { isMainEntrypoint } from "../entrypoint.js";
 import { connectUpstream, createProxyServer, resolveProxyOptions } from "../proxy.js";
 
 export interface AdminParityReceipt {
@@ -295,7 +295,7 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value) ?? "undefined";
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainEntrypoint(import.meta.url)) {
   runAdminParityCertification(process.env, process.argv[2]).catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

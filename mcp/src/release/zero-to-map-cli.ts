@@ -11,6 +11,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { listAllTools } from "../certification/admin-parity.js";
 import { validateAgainstSchema } from "../certification/json-schema.js";
 import { requireSecureCredentialEndpoint } from "../credential-endpoint.js";
+import { isMainEntrypoint } from "../entrypoint.js";
 import { type ProxyOptions, resolveProxyOptions } from "../proxy.js";
 import {
   type ZeroToMapCheckpoint,
@@ -995,7 +996,7 @@ function printHelp(): void {
 
 class HelpRequested extends Error {}
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainEntrypoint(import.meta.url)) {
   runZeroToMapCli().then(
     (code) => {
       process.exitCode = code;
