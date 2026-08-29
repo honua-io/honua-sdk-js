@@ -16,6 +16,8 @@ import test from "node:test";
 const WORKFLOW = resolve(".github/workflows/release-please.yml");
 const RELEASE_COMMIT = "1".repeat(40);
 const RESEALED_COMMIT = "2".repeat(40);
+// The commit an already-created release tag names, in the half-stranded case.
+const SEALED_TAG_COMMIT = "3".repeat(40);
 const TAG = "js-sdk-v9.9.9-beta.0";
 const RELEASE_ID = "424242";
 
@@ -77,6 +79,12 @@ function runReleaseStep({
   releases = [{ id: Number(RELEASE_ID), tag_name: TAG, draft: true }],
   // Whether `git/ref/tags/<tag>` resolves, i.e. the tag already exists.
   strandedTagExists = false,
+  // package.json version at trunk, for the recovery version anchor. The default
+  // matches TAG so recovery proceeds.
+  trunkVersion = "9.9.9-beta.0",
+  // `compare/<tag sha>...<trunk head>` status: "behind" means the tag is an
+  // ancestor of trunk, which is what a real sealed release commit looks like.
+  tagAncestryStatus = "behind",
   // When false the step's own trailing `if` blocks decide what runs, which is
   // what the re-entry path needs; the default drives the function directly.
   directInvoke = true,
@@ -147,12 +155,15 @@ case "$ARGS" in
   *"git/ref/heads/trunk"*) echo "${RESEALED_COMMIT}" ;;
   *"git/ref/tags/"*)
     if [[ "${strandedTagExists ? "1" : "0"}" == "1" ]]; then
-      echo "${RESEALED_COMMIT}"
+      echo "${SEALED_TAG_COMMIT}"
     else
       echo "gh: Not Found (HTTP 404)" >&2
       exit 1
     fi
     ;;
+  *"contents/package.json"*) echo "${trunkVersion}" ;;
+  # This call uses gh's own --jq .status, so the stub answers the resolved value.
+  *"compare/${SEALED_TAG_COMMIT}"*) echo "${tagAncestryStatus}" ;;
   *"/releases --paginate"*)
     # Evaluate the step's real resolve-by-tag jq against the release fixture.
     jqexpr=""
@@ -566,18 +577,78 @@ test("the re-entry input is refused when the release is already published", () =
   assert.match(result.summary, /Nothing was published for this tag/u);
 });
 
-test("the re-entry input is refused when the tag already exists", () => {
-  // A tag that exists means the release is not stranded before tagging, and
-  // immutable releases forbid moving it.
+test("a half-stranded release whose tag is already sealed resumes at publication", () => {
+  // The second failure shape: the original run created the tag on a sealed
+  // commit and died before publishing the draft. Nothing needs resealing and
+  // the tag must not be rewritten, so recovery resumes at publication.
   const result = runReleaseStep({
     directInvoke: false,
     finishStrandedDraft: TAG,
     strandedTagExists: true,
+    tagResolves: [SEALED_TAG_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /already names sealed commit/u);
+  assert.match(result.output, /resuming at the draft publication step/u);
+  assert.match(result.summary, /Resuming half-finished release/u);
+  // No reseal and no tag write -- that is the whole point of this path.
+  assert.deepEqual(result.trace, ["draft-publish", "npm-publish-dispatch", "smoke-dispatch"]);
+});
+
+test("a half-stranded resume is refused when the tag is not an ancestor of trunk", () => {
+  // A tag pointing at a side branch is not a sealed release commit; publishing
+  // it would ship bytes trunk never carried.
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    strandedTagExists: true,
+    tagAncestryStatus: "diverged",
+    tagResolves: [SEALED_TAG_COMMIT],
   });
   assert.equal(result.ok, false);
-  assert.match(result.output, /already exists and names/u);
-  assert.match(result.output, /Refusing to re-enter/u);
+  assert.match(result.output, /is 'diverged' relative to trunk rather than an ancestor of it/u);
   assert.deepEqual(result.trace, []);
+});
+
+test("an already-published release is refused even when its tag exists", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    strandedTagExists: true,
+    releases: [{ id: Number(RELEASE_ID), tag_name: TAG, draft: false }],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /already published, not a stranded draft/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("recovery is refused when trunk has moved to a different version", () => {
+  // On a normal cut GITHUB_SHA is the bump commit, so version consistency is
+  // structural. A recovery dispatch runs on whatever trunk is now, and tagging
+  // this release onto a tree carrying another version would be caught only
+  // after the tag and release are immutable.
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    trunkVersion: "9.9.10-beta.0",
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /Trunk's package\.json is version 9\.9\.10-beta\.0/u);
+  assert.match(result.output, /would publish 9\.9\.9-beta\.0/u);
+  assert.match(result.output, /Re-cut the release instead/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("the release iterator is skipped during a draft recovery", () => {
+  // A stranded draft is by definition inside the draft-no-tag window this
+  // workflow's own concurrency comment calls dangerous: the release iterator
+  // cannot see a tagless draft and would rebuild the release pull request from
+  // far too much history. Recovery must touch nothing but the finish path.
+  const source = readFileSync(WORKFLOW, "utf8");
+  assert.match(
+    source,
+    /uses: googleapis\/release-please-action@[0-9a-f]+ # v5\n\s+id: release\n\s+if: >-\n[\s\S]{0,200}?inputs\.finish_stranded_draft == ''/u,
+  );
 });
 
 test("the re-entry input is refused when no release matches the tag", () => {
