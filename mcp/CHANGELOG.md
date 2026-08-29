@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.9-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.8-beta.0...mcp-server-v0.1.9-beta.0) (2026-08-29)
+
+
+### Bug Fixes
+
+* **mcp:** match the bin entrypoint through npm's .bin symlink ([#1533](https://github.com/honua-io/honua-sdk-js/issues/1533)) ([f3dbb78](https://github.com/honua-io/honua-sdk-js/commit/f3dbb78bdc80e5272cefadc27e7e91a63d9fe067))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.9-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.8-beta.0 to ^0.1.9-beta.0
+
 ## [0.1.8-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.7-beta.0...mcp-server-v0.1.8-beta.0) (2026-08-26)
 
 
