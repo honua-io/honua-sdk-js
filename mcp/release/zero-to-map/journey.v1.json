@@ -426,7 +426,7 @@
         },
         {
           "id": "render-published-map",
-          "title": "Render the published, canonically styled layer to a PNG artifact",
+          "title": "Render the published, canonically styled layer to a PNG artifact at the fixture extent",
           "kind": "mcp",
           "tool": "honua_render_map",
           "arguments": {
@@ -437,10 +437,10 @@
               }
             ],
             "bbox": [
-              -122.68,
-              45.5,
-              -122.6,
-              45.56
+              -157.862,
+              21.3064,
+              -157.8595,
+              21.3083
             ],
             "bboxSrid": 4326,
             "width": 512,

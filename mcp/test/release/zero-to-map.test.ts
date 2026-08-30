@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { deflateSync } from "node:zlib";
 import {
   ADMIN_MCP_EXCLUDED_OPERATIONS,
   ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
@@ -1478,6 +1479,35 @@ describe("zero-to-map D9.3 release journey", () => {
         expect.objectContaining({ variable: "renderedStyleId", equals: "${discoveredStylePresetId}" }),
       ]),
     });
+    // The render must frame the ground the fixtures actually occupy. A bbox
+    // pointing anywhere else yields a valid, correctly sized, empty PNG - which
+    // is precisely the outcome the artifact judgment exists to refuse.
+    const render = actions.get("render-published-map") as { arguments: { bbox: number[] } };
+    const parcels = JSON.parse(await readFile(`${bundleRoot}/fixtures/parcels.geojson`, "utf8")) as {
+      features: { geometry: { coordinates: unknown } }[];
+    };
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node) && typeof node[0] === "number" && typeof node[1] === "number") {
+        xs.push(node[0]);
+        ys.push(node[1]);
+        return;
+      }
+      if (Array.isArray(node)) for (const child of node) walk(child);
+    };
+    for (const feature of parcels.features) walk(feature.geometry.coordinates);
+    const [minX, minY, maxX, maxY] = render.arguments.bbox as [number, number, number, number];
+    expect(minX).toBeLessThanOrEqual(Math.min(...xs));
+    expect(minY).toBeLessThanOrEqual(Math.min(...ys));
+    expect(maxX).toBeGreaterThanOrEqual(Math.max(...xs));
+    expect(maxY).toBeGreaterThanOrEqual(Math.max(...ys));
+    // ...and the same extent the Studio stage frames, so the two never drift.
+    const studioView = plan.stages[4]?.actions.find((action) => action.id === "set-map-view") as {
+      arguments: { view: { bbox: number[] } };
+    };
+    expect(render.arguments.bbox).toEqual(studioView.arguments.view.bbox);
+
     expect(actions.get("read-rendered-map")).toMatchObject({
       kind: "mcp-image",
       uri: "${renderImageUri}",
@@ -1566,6 +1596,41 @@ describe("zero-to-map D9.3 release journey", () => {
     ).toThrow(/a style\/render no-op returns/);
   });
 
+  it("refuses an artifact no PNG decoder could render", () => {
+    const expected = {
+      uri: "honua://renders/parcels.png",
+      mediaType: "image/png",
+      width: 64,
+      height: 64,
+      minByteLength: 32,
+    };
+    // Structural plausibility is not decodability. Each of these is a blob that
+    // a chunk-counting check would wave through.
+    expect(() => assertRenderedPng(pngFixture(64, 64, { corruptIdat: true }), "image/png", expected)).toThrow(
+      /IDAT stream that does not inflate/,
+    );
+    expect(() => assertRenderedPng(pngFixture(64, 64, { badCrc: true }), "image/png", expected)).toThrow(
+      /fails its IHDR chunk CRC/,
+    );
+    expect(() => assertRenderedPng(pngFixture(64, 64, { iend: false }), "image/png", expected)).toThrow(
+      /never terminates in an IEND chunk/,
+    );
+  });
+
+  it("refuses a correctly sized render that decodes to a single flat colour", () => {
+    // The residual gap a bbox fix alone would leave: a valid, decodable,
+    // right-sized PNG of nothing but background.
+    expect(() =>
+      assertRenderedPng(pngFixture(64, 64, { flat: true }), "image/png", {
+        uri: "honua://renders/parcels.png",
+        mediaType: "image/png",
+        width: 64,
+        height: 64,
+        minByteLength: 32,
+      }),
+    ).toThrow(/decodes to a single flat colour/);
+  });
+
   it("names the stage, action and tool when a style application is a silent no-op", async () => {
     const plan = await loadPlan();
     const receipt = await runZeroToMapJourney(styleStagePlan(plan), styleNoOpAdapter(plan), {
@@ -1589,24 +1654,74 @@ describe("zero-to-map D9.3 release journey", () => {
  * geometry, an IDAT chunk padded past the journey's byte floor unless the
  * caller asks for the degenerate no-IDAT form, and IEND.
  */
-function pngFixture(width: number, height: number, options: { idat?: boolean } = {}): Uint8Array {
-  const chunks: number[] = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  const push = (type: string, data: readonly number[]) => {
-    const length = data.length;
-    chunks.push((length >>> 24) & 0xff, (length >>> 16) & 0xff, (length >>> 8) & 0xff, length & 0xff);
-    for (const character of type) chunks.push(character.charCodeAt(0));
-    chunks.push(...data);
-    chunks.push(0, 0, 0, 0); // CRC placeholder: the validator reads structure, not checksums.
+function pngFixture(
+  width: number,
+  height: number,
+  options: {
+    /** Omit the IDAT chunk entirely. */
+    idat?: boolean;
+    /** Emit an IDAT whose payload is not a valid deflate stream. */
+    corruptIdat?: boolean;
+    /** Write a deliberately wrong CRC on every chunk. */
+    badCrc?: boolean;
+    /** Stop before IEND. */
+    iend?: boolean;
+    /** Paint every pixel the same colour. */
+    flat?: boolean;
+  } = {},
+): Uint8Array {
+  // A real PNG: correct chunk CRCs, a genuine deflate stream, and by default a
+  // raster with more than one colour in it. The validator decodes what it is
+  // given, so a fixture that only looked like a PNG would prove nothing.
+  const parts: Buffer[] = [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])];
+  const push = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const typed = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(options.badCrc === true ? 0 : crc32Fixture(typed));
+    parts.push(length, typed, crc);
   };
-  const be32 = (value: number) => [(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
-  push("IHDR", [...be32(width), ...be32(height), 8, 6, 0, 0, 0]);
-  if (options.idat !== false)
-    push(
-      "IDAT",
-      Array.from({ length: 2048 }, (_, index) => index % 251),
-    );
-  push("IEND", []);
-  return Uint8Array.from(chunks);
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 6; // RGBA
+  push("IHDR", ihdr);
+
+  if (options.idat !== false) {
+    const bytesPerRow = width * 4;
+    const raster = Buffer.alloc(height * (bytesPerRow + 1));
+    for (let row = 0; row < height; row += 1) {
+      const rowStart = row * (bytesPerRow + 1);
+      raster[rowStart] = 0; // filter type: none
+      for (let column = 0; column < width; column += 1) {
+        const at = rowStart + 1 + column * 4;
+        // A flat fixture is a uniform canvas - the "painted but nothing drawn"
+        // shape. Otherwise vary by position so the raster has real content.
+        const shade = options.flat === true ? 0x20 : (row * 7 + column * 13) % 256;
+        raster[at] = shade;
+        raster[at + 1] = options.flat === true ? 0x20 : (shade * 3) % 256;
+        raster[at + 2] = options.flat === true ? 0x20 : (shade * 5) % 256;
+        raster[at + 3] = 0xff;
+      }
+    }
+    push("IDAT", options.corruptIdat === true ? Buffer.from("not a deflate stream at all") : deflateSync(raster));
+  }
+
+  if (options.iend !== false) push("IEND", Buffer.alloc(0));
+  return new Uint8Array(Buffer.concat(parts));
+}
+
+/** PNG chunk CRC-32, independently implemented so the fixture does not borrow the validator's. */
+function crc32Fixture(bytes: Buffer): number {
+  let crc = 0xff_ff_ff_ff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = crc & 1 ? 0xed_b8_83_20 ^ (crc >>> 1) : crc >>> 1;
+  }
+  return (crc ^ 0xff_ff_ff_ff) >>> 0;
 }
 
 function value(structuredContent: unknown): JourneyExecutionResult {

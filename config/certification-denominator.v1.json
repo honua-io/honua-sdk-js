@@ -111,8 +111,8 @@
     },
     {
       "path": "mcp/release/zero-to-map/journey.v1.json",
-      "bytes": 70789,
-      "sha256": "sha256:23f4d68415d962239b97d8ca50bc1dfa15eda582e1f273949fc5613f84573745"
+      "bytes": 70820,
+      "sha256": "sha256:5c2b267695e9748a24fc6b72c732b7f71b0a764e8239691b216fdedddb4c313b"
     },
     {
       "path": "schemas/honua-map-package.v1.json",
@@ -526,10 +526,10 @@
     }
   },
   "digests": {
-    "inputs": "sha256:b8a2e08aab1553c98f4eaef3d995545efc079aa0941864d50876350ba75586bb",
+    "inputs": "sha256:0157467a4291a058f8fd2d160eb59e408597566ae5acb9dbad9b9448351bcf32",
     "capabilityProfile": "sha256:b39f35595f99d6b11e87c0bdf5752a09a34eae8cc01006c0d67d654afdf079f3",
     "supportProfile": "sha256:7aaa73ac15c045a52c790ca0fb6a27f4ec9665fe71b5051389a676da2c85be90",
-    "rows": "sha256:4415adde27b03cf7e85eafeb6007091b7912742527f360251af79aca7f043e99"
+    "rows": "sha256:b03cc9f0f64871c7c3fe69f68667595b7365b52d7f8de16f9929aa1525d2eb2d"
   },
   "summary": {
     "rows": 300,
@@ -7755,7 +7755,7 @@
       "id": "terminal-journey:style:render-published-map",
       "family": "terminal-journey",
       "subject": "style",
-      "label": "Render the published, canonically styled layer to a PNG artifact",
+      "label": "Render the published, canonically styled layer to a PNG artifact at the fixture extent",
       "operation": "render-published-map",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",

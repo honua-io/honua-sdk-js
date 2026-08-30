@@ -10,6 +10,7 @@ import { publicHttps } from "./zero-to-map-provision.js";
  */
 
 import { createHash } from "node:crypto";
+import { inflateSync } from "node:zlib";
 
 import {
   ADMIN_MCP_EXCLUDED_OPERATIONS,
@@ -297,16 +298,95 @@ export interface RenderedImageEvidence {
 
 const PNG_SIGNATURE = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
+/** Channels per pixel for each PNG colour type; `undefined` marks a reserved value. */
+const PNG_CHANNELS: Readonly<Record<number, number | undefined>> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) value = value & 1 ? 0xed_b8_83_20 ^ (value >>> 1) : value >>> 1;
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+/** PNG chunk CRC-32 over the type bytes followed by the chunk data. */
+function crc32(bytes: Uint8Array, start: number, end: number): number {
+  let crc = 0xff_ff_ff_ff;
+  for (let index = start; index < end; index += 1) crc = CRC_TABLE[(crc ^ bytes[index]!) & 0xff]! ^ (crc >>> 8);
+  return (crc ^ 0xff_ff_ff_ff) >>> 0;
+}
+
 /**
- * Validate that fetched bytes are a PNG of the declared size carrying actual
- * compressed pixel data.
+ * Reverse the PNG per-scanline filters so the raster can be inspected as pixels
+ * rather than as filtered bytes. Filter types are PNG spec 9.2; an unknown type
+ * is a corrupt raster, not something to skip past.
+ */
+function unfilterRaster(
+  raster: Uint8Array,
+  height: number,
+  bytesPerPixel: number,
+  bytesPerRow: number,
+  where: string,
+): Uint8Array {
+  const out = new Uint8Array(height * bytesPerRow);
+  const step = Math.max(1, bytesPerPixel);
+  for (let row = 0; row < height; row += 1) {
+    const filter = raster[row * (bytesPerRow + 1)]!;
+    const from = row * (bytesPerRow + 1) + 1;
+    const to = row * bytesPerRow;
+    const above = (row - 1) * bytesPerRow;
+    for (let index = 0; index < bytesPerRow; index += 1) {
+      const raw = raster[from + index]!;
+      const left = index >= step ? out[to + index - step]! : 0;
+      const up = row > 0 ? out[above + index]! : 0;
+      const upLeft = row > 0 && index >= step ? out[above + index - step]! : 0;
+      let value: number;
+      switch (filter) {
+        case 0:
+          value = raw;
+          break;
+        case 1:
+          value = raw + left;
+          break;
+        case 2:
+          value = raw + up;
+          break;
+        case 3:
+          value = raw + ((left + up) >> 1);
+          break;
+        case 4: {
+          const estimate = left + up - upLeft;
+          const dLeft = Math.abs(estimate - left);
+          const dUp = Math.abs(estimate - up);
+          const dUpLeft = Math.abs(estimate - upLeft);
+          value = raw + (dLeft <= dUp && dLeft <= dUpLeft ? left : dUp <= dUpLeft ? up : upLeft);
+          break;
+        }
+        default:
+          throw new Error(`${where} uses unknown PNG filter type ${filter} on row ${row}; the raster is corrupt`);
+      }
+      out[to + index] = value & 0xff;
+    }
+  }
+  return out;
+}
+
+/**
+ * Validate that fetched bytes are a PNG of the declared size that actually
+ * decodes to a drawn map.
  *
  * A style/render no-op is not a transport failure: the tool answers, the
- * resource resolves, and the bytes are a syntactically valid PNG. The three
- * things that separate that from a drawn map are the signature and IHDR
- * geometry agreeing with what the renderer reported, at least one non-empty
- * IDAT chunk, and a byte length above the floor an empty raster would produce -
- * so all three are asserted here with diagnostics that name the artifact.
+ * resource resolves, and the bytes may even be a syntactically plausible PNG.
+ * Structural checks alone are not enough to tell those apart - a blob whose
+ * chunks are merely *labelled* IDAT passes any counter that only sums chunk
+ * lengths, and a correctly-sized PNG of uniform background is a valid image
+ * that proves nothing about the style under test. So this decodes: every chunk
+ * CRC is verified, the stream must terminate in IEND, the concatenated IDAT
+ * payload must inflate, the inflated raster must be exactly the size the IHDR
+ * geometry implies, and the unfiltered pixels must not be a single flat colour.
+ * Each failure names the artifact and the property that was not met.
  */
 export function assertRenderedPng(
   bytes: Uint8Array,
@@ -320,37 +400,98 @@ export function assertRenderedPng(
   if (bytes.length < PNG_SIGNATURE.length || !PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {
     throw new Error(`${where} is not a PNG: the 8-byte PNG signature is absent`);
   }
+
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let offset = PNG_SIGNATURE.length;
-  let ihdr: { width: number; height: number } | undefined;
-  let idatBytes = 0;
+  let header: { width: number; height: number; bitDepth: number; colorType: number; interlace: number } | undefined;
+  const idatParts: Uint8Array[] = [];
+  let sawEnd = false;
+
   while (offset + 8 <= bytes.length) {
     const length = view.getUint32(offset);
     const type = String.fromCharCode(bytes[offset + 4]!, bytes[offset + 5]!, bytes[offset + 6]!, bytes[offset + 7]!);
     const dataStart = offset + 8;
-    if (dataStart + length > bytes.length) {
+    if (dataStart + length + 4 > bytes.length) {
       throw new Error(`${where} is truncated: chunk ${type} declares ${length} bytes past the end of the artifact`);
     }
+    const declaredCrc = view.getUint32(dataStart + length);
+    const actualCrc = crc32(bytes, offset + 4, dataStart + length);
+    if (declaredCrc !== actualCrc) {
+      throw new Error(
+        `${where} fails its ${type} chunk CRC (declared ${declaredCrc.toString(16)}, computed ${actualCrc.toString(16)}); the artifact is corrupt and no decoder would accept it`,
+      );
+    }
     if (type === "IHDR") {
-      if (length < 8) throw new Error(`${where} has a malformed IHDR chunk`);
-      ihdr = { width: view.getUint32(dataStart), height: view.getUint32(dataStart + 4) };
+      if (length !== 13) throw new Error(`${where} has a malformed IHDR chunk: ${length} bytes, expected 13`);
+      header = {
+        width: view.getUint32(dataStart),
+        height: view.getUint32(dataStart + 4),
+        bitDepth: bytes[dataStart + 8]!,
+        colorType: bytes[dataStart + 9]!,
+        interlace: bytes[dataStart + 12]!,
+      };
     } else if (type === "IDAT") {
-      idatBytes += length;
+      idatParts.push(bytes.subarray(dataStart, dataStart + length));
     } else if (type === "IEND") {
+      sawEnd = true;
       break;
     }
     offset = dataStart + length + 4;
   }
 
-  if (!ihdr) throw new Error(`${where} carries no IHDR chunk, so it declares no image dimensions`);
-  if (ihdr.width !== expected.width || ihdr.height !== expected.height) {
+  if (!header) throw new Error(`${where} carries no IHDR chunk, so it declares no image dimensions`);
+  if (!sawEnd) throw new Error(`${where} never terminates in an IEND chunk; the artifact is incomplete`);
+  if (header.width !== expected.width || header.height !== expected.height) {
     throw new Error(
-      `${where} is ${ihdr.width}x${ihdr.height}; the renderer reported ${expected.width}x${expected.height}`,
+      `${where} is ${header.width}x${header.height}; the renderer reported ${expected.width}x${expected.height}`,
     );
   }
+  const channels = PNG_CHANNELS[header.colorType];
+  if (channels === undefined) throw new Error(`${where} declares reserved PNG colour type ${header.colorType}`);
+  const idatBytes = idatParts.reduce((total, part) => total + part.length, 0);
   if (idatBytes === 0) {
     throw new Error(`${where} carries no IDAT pixel data: the artifact declares a canvas but nothing was drawn on it`);
   }
+
+  // The decode. A blob whose chunks are merely labelled IDAT fails here.
+  const compressed = Buffer.concat(idatParts.map((part) => Buffer.from(part.buffer, part.byteOffset, part.length)));
+  let raster: Buffer;
+  try {
+    raster = inflateSync(compressed);
+  } catch (error) {
+    throw new Error(
+      `${where} has an IDAT stream that does not inflate (${error instanceof Error ? error.message : String(error)}); no PNG decoder could render this artifact`,
+    );
+  }
+
+  const bytesPerRow = Math.ceil((header.width * channels * header.bitDepth) / 8);
+  // Adam7 lays the raster out in seven reduced passes, so the row arithmetic
+  // below does not describe it. Interlaced renders still had to inflate, keep
+  // their CRCs and terminate; the raster-shape and flat-colour checks are the
+  // two that are skipped rather than faked.
+  const interlaced = header.interlace === 1;
+  let distinctPixels = 0;
+  if (!interlaced) {
+    const expectedRaster = header.height * (bytesPerRow + 1);
+    if (raster.length !== expectedRaster) {
+      throw new Error(
+        `${where} inflates to ${raster.length} raster bytes; a ${header.width}x${header.height} image at bit depth ${header.bitDepth} and colour type ${header.colorType} needs exactly ${expectedRaster}`,
+      );
+    }
+    const bytesPerPixel = Math.ceil((channels * header.bitDepth) / 8);
+    const pixels = unfilterRaster(new Uint8Array(raster), header.height, bytesPerPixel, bytesPerRow, where);
+    const seen = new Set<string>();
+    for (let index = 0; index + bytesPerPixel <= pixels.length && seen.size < 2; index += bytesPerPixel) {
+      seen.add(String(pixels.subarray(index, index + bytesPerPixel)));
+    }
+    distinctPixels = seen.size;
+    if (distinctPixels < 2) {
+      throw new Error(
+        `${where} decodes to a single flat colour across all ${header.width}x${header.height} pixels: the canvas was painted but no feature was drawn on it, which is what a style/render no-op produces`,
+      );
+    }
+  }
+
   // Checked last, so a structurally explicable artifact is diagnosed by its
   // structure and only a well-formed but implausibly small render falls through
   // to the size floor.
@@ -364,8 +505,8 @@ export function assertRenderedPng(
   return {
     uri: expected.uri,
     mediaType: expected.mediaType,
-    width: ihdr.width,
-    height: ihdr.height,
+    width: header.width,
+    height: header.height,
     byteLength: bytes.length,
     imageSha256: createHash("sha256").update(bytes).digest("hex"),
   };
