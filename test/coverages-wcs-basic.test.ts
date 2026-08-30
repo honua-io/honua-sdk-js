@@ -224,6 +224,7 @@ describe("Coverage and WCS sample", () => {
     expect(readme).toContain("support remain **experimental**");
     expect(readme).toContain("planned but missing");
     expect(readme).toContain("configure or discover");
-    expect(readme).toContain("Issue #1115");
+    expect(readme).toContain("canonical raster source registry");
+    expect(readme).not.toMatch(/issues\/(?:1114|1115)/u);
   });
 });

@@ -10,6 +10,7 @@ import {
   EXECUTION_MODE_VOCABULARY,
   MANIFEST_PATH,
   PROJECT_ROOT,
+  RASTER_SOURCE_REGISTRY_PATH,
   STATUS_VOCABULARY,
   buildPublicSurface,
   buildSupportProjection,
@@ -59,6 +60,13 @@ test("all support statuses are explicit and the repository evidence exists", () 
   assert.deepEqual(manifest.environmentVocabulary, ENVIRONMENT_VOCABULARY);
   assert.deepEqual(manifest.executionModeVocabulary, EXECUTION_MODE_VOCABULARY);
   assert.deepEqual(validateSupportManifest(manifest), []);
+});
+
+test("raster source registry drift fails the support-manifest check", () => {
+  assert.equal(manifest.rasterSourceRegistry, RASTER_SOURCE_REGISTRY_PATH);
+  const wrong = clone(manifest);
+  wrong.rasterSourceRegistry = "config/another-raster-registry.json";
+  assert.match(validateSupportManifest(wrong).join("\n"), /must reference config\/raster-source-registry\.v1\.json/);
 });
 
 test("the discovery inventory covers every protocol and keeps static ownership fail-closed", () => {

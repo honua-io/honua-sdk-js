@@ -242,6 +242,7 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
+        deployment: "honua",
         id: "oahu-imagery",
         baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Oahu",
@@ -276,6 +277,7 @@ describe("unified raster session", () => {
       openRasterSession(
         {
           kind: "image-server",
+          deployment: "honua",
           id: "bound-imagery",
           baseUrl: "https://honua.example/arcgis",
           serviceId: "Imagery/Bound",
@@ -295,6 +297,7 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
+        deployment: "honua",
         id: "adversarial-base-url",
         baseUrl: `${baseUrl}///`,
         serviceId: "Imagery/Adversarial",
@@ -310,6 +313,7 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
+        deployment: "honua",
         id: "oahu-imagery",
         baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Oahu",
@@ -345,6 +349,7 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
+        deployment: "honua",
         id: "styled-imagery",
         baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Styled",
@@ -379,6 +384,7 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
+        deployment: "honua",
         id: "banded-imagery",
         baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Banded",
@@ -396,6 +402,7 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
+        deployment: "honua",
         id: "projected-imagery",
         baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Projected",
@@ -443,6 +450,7 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
+        deployment: "honua",
         id: "geographic-imagery",
         baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Geographic",
@@ -577,7 +585,7 @@ describe("unified raster session", () => {
       client: "experimental",
       endToEnd: "experimental",
     });
-    expect(RASTER_FORMAT_MATURITY).toMatchObject({ zarr: "unavailable", netcdf: "unavailable" });
+    expect(RASTER_FORMAT_MATURITY).toMatchObject({ zarr: "experimental", netcdf: "unavailable" });
   });
 
   it("fails closed when a style has no legend implementation", async () => {
