@@ -472,7 +472,9 @@ function operationsFor(
     case "geoparquet":
       return ["discover", "inspect-metadata", "query", "render"];
     case "geoarrow":
+      return ["discover", "inspect-metadata"];
   }
+  throw new Error(`Cloud-native source kind ${kind} has no canonical operation registry entry`);
 }
 
 function findProtocol(protocols: Record<string, unknown>, kind: CloudNativeSourceKind): unknown {

@@ -177,7 +177,7 @@ export interface RasterExecutionPlan {
   readonly bounded: boolean;
   readonly decoder: "main-thread" | "worker" | "server" | "none";
   readonly cache: RasterCachePolicy;
-  readonly capability: RasterCapabilityStatus;
+  readonly capability: RasterCapabilityRecord;
   readonly reason: string;
 }
 
