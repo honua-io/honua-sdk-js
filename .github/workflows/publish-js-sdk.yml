@@ -266,6 +266,14 @@ jobs:
           # Exercise the exact root tarball through an offline installation,
           # Node/TypeScript package resolution, and its packaged CLI shim.
           npm run verify:packed-sdk
+          # verify:packed-sdk installs with --legacy-peer-deps (the SDK's own
+          # dependency tree needs it), so it cannot see a peer range that
+          # excludes the artifact beside it. Install the pinned client pair --
+          # this tarball plus the @honua/mcp-server pin the generated .mcp.json
+          # names -- under DEFAULT peer resolution, the way a customer does.
+          # A cut whose pair only installs with --legacy-peer-deps stops here
+          # rather than reaching the registry (#1529).
+          npm run verify:client-pair
 
           flags=""
           if [[ "${DRY_RUN}" == "true" ]]; then

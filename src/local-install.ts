@@ -112,23 +112,43 @@ export const LOCAL_INSTALL_SERVER_IMAGE = ADMIN_LOCAL_SERVER_IMAGE;
  * The pin previously read `0.1.7-beta.0`, which the registry has never served.
  * `@honua/sdk-js@0.1.7-beta.0` was published from a recovery branch rather than
  * from the sealed tag commit, so the coordinated 0.1.7 cut of `@honua/mcp-server`
- * (and `create-honua-app`) never happened at all. The pin is therefore held at
- * the highest version the registry actually serves rather than bumped to match
- * this repository's version; advancing it requires a real coordinated publish,
- * not an edit here.
+ * (and `create-honua-app`) never happened at all. It was then held at
+ * `0.1.4-beta.0`, the highest version the registry actually served, because
+ * advancing it requires a real coordinated publish rather than an edit here.
+ *
+ * Publication is necessary but not sufficient, and holding the pin back is what
+ * exposed the second half of the rule (#1529). `@honua/mcp-server`
+ * peer-depends on `@honua/sdk-js`, so the two are a **pair**, and npm's default
+ * resolver rejects a pair whose peer range does not admit the SDK installed
+ * beside it. A caret range over a prerelease admits exactly one
+ * `major.minor.patch` tuple -- `^0.1.4-beta.0` does not accept
+ * `0.1.9-beta.0`, and no widening of it would, because a prerelease satisfies a
+ * range only when some comparator carries a prerelease on the *same* tuple.
+ * Held at `0.1.4-beta.0` beside an `0.1.9-beta.0` SDK, the pinned pair therefore
+ * failed `npm install` outright with ERESOLVE unless the customer passed
+ * `--legacy-peer-deps`.
+ *
+ * The pin consequently has to move in lockstep with this package's own version,
+ * one coordinated cut at a time. `0.1.9-beta.0` is that cut: both halves were
+ * published on 2026-08-29 and co-install with no flags.
  *
  * `test/local-install.test.ts` proves the pin belongs to the repository's own
- * release lineage and never runs ahead of `mcp/package.json`; the registry
- * itself is only queried by the opt-in
- * `HONUA_MCP_PIN_LIVE_ENABLED=true npm run verify:mcp-pin:live` lane, never in
- * PR CI.
+ * release lineage and never runs ahead of `mcp/package.json`;
+ * `npm run verify:mcp-pin` additionally proves the pinned pair is co-installable
+ * offline, and `npm run verify:client-pair` proves it by really installing both
+ * halves with default npm resolution. The registry itself is only queried by
+ * the opt-in `HONUA_MCP_PIN_LIVE_ENABLED=true npm run verify:mcp-pin:live` lane,
+ * never in PR CI.
  */
 export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";
-/** Highest `@honua/mcp-server` version actually published to the public npm registry. */
-export const LOCAL_INSTALL_MCP_PACKAGE_VERSION = "0.1.4-beta.0";
+/**
+ * Published `@honua/mcp-server` version whose `@honua/sdk-js` peer range admits
+ * this package's own version, so the pinned pair co-installs with no flags.
+ */
+export const LOCAL_INSTALL_MCP_PACKAGE_VERSION = "0.1.9-beta.0";
 /** Registry tarball integrity for {@link LOCAL_INSTALL_MCP_PACKAGE_VERSION}. */
 export const LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY =
-  "sha512-TqqVscgNZMg+y+qUs3f9ShpKT8n38W3njXkTciqXKdXsk5PILG1fjwQur5/Da0KVg895L0qH5EqXRAwnjzO30w==";
+  "sha512-rQhUrwTB7JK0kW0h41gOj4DWM3V0QV541I43FiWHHjqxbeRrb7oiegZswzehNkzufOttrmbxHB4zmb9IB2b3Og==";
 export const LOCAL_INSTALL_MCP_PACKAGE = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`;
 
 function isAdminReleaseContractCompatible(): boolean {
