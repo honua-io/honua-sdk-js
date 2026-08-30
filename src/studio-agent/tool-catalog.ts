@@ -20,22 +20,23 @@
  * bearer credentials. Selection therefore requires one of exactly two positive
  * signals:
  *
- *  1. **Server-owned classification metadata** (preferred). honua-server
- *     attaches a family/view classification to each Studio descriptor, and the
- *     session policy names the families (and optionally the views) it accepts.
- *     This is the mechanism the issue calls for and it is the only one that can
- *     express a per-principal, server-authorized catalog.
+ *  1. **Server-owned classification metadata** (preferred, and what a current
+ *     honua-server actually sends). The server attaches a family/view
+ *     classification to each Studio descriptor, and the session policy names the
+ *     families (and optionally the views) it accepts. This is the only mechanism
+ *     that can express a per-principal, server-authorized catalog.
  *  2. **An explicit configured allowlist** (fallback). Exact names, supplied by
  *     the consumer. Never a pattern, never a prefix.
  *
  * Everything else is rejected, with a recorded reason.
  *
- * ## The metadata shape, and why the fallback exists today
+ * ## The metadata shape
  *
- * **The server field does not exist yet — it is honua-server#3428.** Until that
- * lands, every real descriptor arrives unclassified and the allowlist fallback
- * is what actually selects tools. The shape this module expects the moment the
- * server starts emitting it is:
+ * honua-server publishes this classification as of
+ * honua-io/honua-server#3695 (commit `ebb2cc6a4`, the in-server scope of
+ * honua-server#3428): `McpWorkflowViewDescriptorClassifier` stamps every Studio
+ * draft tool that belongs to the server-authored `setup` workflow view, in both
+ * the full paginated catalog and the narrowed view projection.
  *
  * ```jsonc
  * {
@@ -45,24 +46,33 @@
  *     "honua.studio": {
  *       "family": "honua.studio.composition",  // required; matched against policy.families
  *       "view": "setup",                       // optional; matched against policy.views
- *       "revision": "2026-08-01"               // optional; advisory, surfaced for drift reporting
+ *       "revision": "setup.v1"                 // optional; advisory, surfaced on the discovery report
  *     }
  *   }
  * }
  * ```
  *
+ * Two things about that payload are easy to get wrong:
+ *
+ *  - `view` is the **view** name, not the stage id. Every classified Studio
+ *    descriptor carries `"setup"`, including the ones the server files under its
+ *    `compose` and `publication` stages. A `policy.views` of `["setup"]` matches
+ *    the whole live family; a policy naming stages does not.
+ *  - Membership in the `setup` view is NOT itself classification. That view also
+ *    contains `honua_query_features`, `honua_publish_service` and friends, and
+ *    the server deliberately leaves those unclassified so this catalog never
+ *    routes them into the composition plane.
+ *
  * `_meta` is the canonical location (MCP's forward-compatible extension slot).
- * The same object is also read off `annotations["honua.studio"]`, because the
- * server-side design is not final and either carrier satisfies "server-owned
- * classification"; both are read, `_meta` wins. When neither is present the
- * descriptor is `unclassified` and only the configured allowlist can select it.
+ * The same object is also read off `annotations["honua.studio"]` as an alternate
+ * carrier; both are read, `_meta` wins. When neither is present the descriptor is
+ * `unclassified`, and only the configured allowlist can select it — which is the
+ * migration path for a server older than #3695.
  *
  * Discovery can only ever NARROW what the session routes. It cannot widen
  * server RBAC: the server still authorizes every `tools/call` independently, and
  * a descriptor the principal is not entitled to simply never appears in the
  * `tools/list` result this catalog is built from.
- *
- * @experimental Tracks honua-server#3428's descriptor classification contract.
  *
  * @module
  */
@@ -70,19 +80,34 @@
 import type { StudioAiToolDefinition } from "./ai-contract.js";
 import type { McpToolDescriptor } from "./mcp-protocol.js";
 
-/** The `_meta` / `annotations` key honua-server#3428 will hang Studio classification off. */
+/**
+ * The `_meta` / `annotations` key honua-server hangs Studio classification off
+ * (`McpWorkflowViewDescriptorClassifier.StudioMetadataKey`).
+ */
 export const HONUA_STUDIO_TOOL_METADATA_KEY = "honua.studio";
 
-/** The classification family honua-server assigns to the Studio composition/lifecycle tool set. */
+/**
+ * The classification family honua-server assigns to the Studio
+ * composition/lifecycle tool set
+ * (`McpWorkflowViewDescriptorClassifier.StudioCompositionFamily`).
+ */
 export const HONUA_STUDIO_TOOL_FAMILY = "honua.studio.composition";
 
-/** Server-owned classification for one Studio tool descriptor (honua-server#3428). */
+/**
+ * The server-authored workflow view Studio descriptors are classified into
+ * (`McpWorkflowViewCatalog.SetupViewName`). Provided so a consumer that wants to
+ * pin `policy.views` names the view the server actually stamps rather than a
+ * stage id.
+ */
+export const HONUA_STUDIO_TOOL_SETUP_VIEW = "setup";
+
+/** Server-owned classification for one Studio tool descriptor. */
 export interface StudioToolClassification {
   /** The server-owned tool family, e.g. `"honua.studio.composition"`. */
   readonly family?: string;
-  /** The server-authored setup/composition view this descriptor belongs to, e.g. `"setup"`. */
+  /** The server-authored workflow view this descriptor belongs to, e.g. `"setup"`. */
   readonly view?: string;
-  /** Advisory revision of the server's catalog, surfaced for drift reporting. */
+  /** Advisory revision of the server's view definition, e.g. `"setup.v1"`. */
   readonly revision?: string;
 }
 
@@ -118,9 +143,12 @@ export interface StudioToolRejection {
 
 /**
  * The session's approval policy. Defaults approve the canonical
- * {@link HONUA_STUDIO_TOOL_FAMILY} in every view and allowlist nothing — so an
- * unclassified server (today's server, pending honua-server#3428) routes no
- * composition tools until a consumer configures {@link allowlist} explicitly.
+ * {@link HONUA_STUDIO_TOOL_FAMILY} in every view and allowlist nothing, which is
+ * the whole live catalog against a current honua-server and nothing at all
+ * against one that classifies nothing — a server older than honua-server#3695
+ * routes no composition tools until a consumer configures {@link allowlist}
+ * explicitly. That asymmetry is deliberate: a visible, diagnosable no-op is the
+ * only safe default when the server declines to say what it is serving.
  */
 export interface StudioToolPolicy {
   /**
@@ -136,8 +164,9 @@ export interface StudioToolPolicy {
   readonly views?: readonly string[];
   /**
    * Exact tool names to route when the server supplied NO classification
-   * metadata for them. This is the honua-server#3428 fallback; it is matched by
-   * exact string equality and is never interpreted as a prefix or pattern.
+   * metadata for them. This is the migration path for a server older than
+   * honua-server#3695; it is matched by exact string equality and is never
+   * interpreted as a prefix or pattern.
    * @default []
    */
   readonly allowlist?: readonly string[];
@@ -152,6 +181,29 @@ export interface StudioToolPolicy {
   readonly approve?: (entry: StudioToolCatalogEntry) => boolean;
 }
 
+/**
+ * The distinct server-owned classification values behind the routed set, in
+ * server order.
+ *
+ * The server stamps a `revision` on every classified descriptor so a host can
+ * tell "the same catalog, re-listed" apart from "the server's view definition
+ * changed". Comparing this block across two
+ * {@link StudioAgentSession.toolDiscovery} reports — the natural thing to do
+ * after a `tools/list_changed` refresh — is what makes that revision actionable,
+ * so it is surfaced here rather than left buried on each entry.
+ *
+ * All three arrays are empty when nothing was routed, and `revisions` is empty
+ * when the routed entries came from an allowlist rather than from metadata.
+ */
+export interface StudioToolClassificationSummary {
+  /** Distinct approved families across the routed entries. */
+  readonly families: readonly string[];
+  /** Distinct approved views across the routed entries. */
+  readonly views: readonly string[];
+  /** Distinct server view revisions across the routed entries. */
+  readonly revisions: readonly string[];
+}
+
 /** What one discovery pass found, kept for consumer migration diagnostics. */
 export interface StudioToolDiscoveryReport {
   /** Every descriptor `tools/list` returned, across all pages. */
@@ -160,6 +212,8 @@ export interface StudioToolDiscoveryReport {
   readonly pages: number;
   /** Names selected for routing, in server order. */
   readonly routed: readonly string[];
+  /** The server-owned classification behind {@link routed}. See {@link StudioToolClassificationSummary}. */
+  readonly classification: StudioToolClassificationSummary;
   /** Discovered descriptors the policy refused, with reasons. */
   readonly rejected: readonly StudioToolRejection[];
   /** Policy-`required` names discovery did not end up routing. */
@@ -228,7 +282,7 @@ function decide(
       approved: false,
       source: "allowlist",
       reason: "unclassified",
-      detail: `"${descriptor.name}" carries no server-owned "${HONUA_STUDIO_TOOL_METADATA_KEY}" family classification (pending honua-server#3428) and is not on this session's configured allowlist, so it is not routed. Add it to \`studioTools.allowlist\` to route it before the server publishes classification metadata.`,
+      detail: `"${descriptor.name}" carries no server-owned "${HONUA_STUDIO_TOOL_METADATA_KEY}" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to \`studioTools.allowlist\` to route it.`,
     };
   }
 
@@ -355,12 +409,35 @@ export class StudioToolCatalog {
     return this.#missingRequired;
   }
 
+  /** The distinct classification values behind the routed set, in server order. */
+  public get classification(): StudioToolClassificationSummary {
+    const families: string[] = [];
+    const views: string[] = [];
+    const revisions: string[] = [];
+    const push = (into: string[], value: string | undefined): void => {
+      if (value !== undefined && !into.includes(value)) into.push(value);
+    };
+    for (const entry of this.#entries.values()) {
+      push(families, entry.classification?.family);
+      push(views, entry.classification?.view);
+      push(revisions, entry.classification?.revision);
+    }
+    return { families, views, revisions };
+  }
+
   /**
    * The routed descriptors in the proxy's HTTP tool shape. The server's exact
    * `name`, `description`, and `inputSchema` are passed through untouched;
    * `title`/`outputSchema`/`annotations` are retained on the catalog entry (see
    * {@link descriptor}) but are not part of the proxy's wire contract
    * ({@link StudioAiToolDefinition}), which carries only the triple.
+   *
+   * honua-server does send `annotations` and `outputSchema` on every classified
+   * Studio descriptor, so the loss is at the proxy hop, not at discovery:
+   * widening this to reach the model needs honua-server's
+   * `StudioAiToolDefinition` (`Features/StudioAiProxy/Domain/StudioAiChatModels.cs`)
+   * to grow the fields first, which honua-server#3695 did not do. Adding them
+   * here alone would only produce request fields the proxy drops.
    */
   public toolDefinitions(): readonly StudioAiToolDefinition[] {
     return this.entries.map((entry) => ({
@@ -385,6 +462,7 @@ export class StudioToolCatalog {
       discovered: this.#discovered,
       pages,
       routed: this.names,
+      classification: this.classification,
       rejected: this.#rejections,
       missingRequired: this.#missingRequired,
       diagnostics,

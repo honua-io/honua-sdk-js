@@ -486,10 +486,11 @@ describe("tools/list_changed subscription", () => {
 // (`src/mcp/studio-tools.ts`) plus a `StudioMcpToolName` union derived from it,
 // and routes composition tools off a static bridge table. This block pins the
 // exported SDK surface that lets it delete that table: the SDK's own name list
-// is usable verbatim as an EXACT allowlist while honua-server#3428's
-// classification metadata is pending, discovery narrows it to what the live
-// server actually advertises, and the report names the gap. Nothing here
-// declares a tool-name array of its own — that is the point.
+// is usable verbatim as an EXACT allowlist against a server older than
+// honua-server#3695 (a current one classifies the family and needs no allowlist
+// at all — see `studio-agent-server-classification.test.ts`), discovery narrows
+// it to what the live server actually advertises, and the report names the gap.
+// Nothing here declares a tool-name array of its own — that is the point.
 
 describe("StudioToolCatalog as a downstream consumer's migration target", () => {
   it("routes the server catalog with the SDK's name table as the exact allowlist", () => {
