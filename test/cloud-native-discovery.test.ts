@@ -187,16 +187,17 @@ describe("cloud-native source capability discovery", () => {
     expect(() => assertCloudNativeOperation(source, "query", { allowExperimental: true })).not.toThrow();
   });
 
-  it("keeps Zarr and NetCDF as non-executable maturity markers", async () => {
-    for (const [url, format] of [
-      ["https://objects.example.test/climate.zarr", "zarr"],
-      ["https://objects.example.test/climate.nc", "netcdf"],
+  it("keeps Zarr experimental and NetCDF unavailable without inventing execution", async () => {
+    for (const [url, format, maturity] of [
+      ["https://objects.example.test/climate.zarr", "zarr", "experimental"],
+      ["https://objects.example.test/climate.nc", "netcdf", "unavailable"],
     ] as const) {
       const document = await discoverCloudNativeSources({ type: "direct-asset", url, format });
       const source = document.sources[0];
       if (!source) throw new Error("fixture source missing");
-      expect(source.maturity).toBe("unavailable");
+      expect(source.maturity).toBe(maturity);
       expect(() => assertCloudNativeOperation(source, "inspect-metadata")).toThrow(HonuaCloudNativeDiscoveryError);
+      expect(source.operations).toEqual(["discover", "inspect-metadata"]);
     }
   });
 

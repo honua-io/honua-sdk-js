@@ -41,6 +41,18 @@ test("the support manifest satisfies its versioned schema", () => {
   assert.equal(validateManifestSchema(manifest), true, JSON.stringify(validateManifestSchema.errors));
 });
 
+test("the authoritative raster source registry satisfies its versioned schema", () => {
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const schema = JSON.parse(
+    fs.readFileSync(path.join(PROJECT_ROOT, "config/raster-source-registry.schema.json"), "utf8"),
+  );
+  const registry = JSON.parse(
+    fs.readFileSync(path.join(PROJECT_ROOT, RASTER_SOURCE_REGISTRY_PATH), "utf8"),
+  );
+  const validate = ajv.compile(schema);
+  assert.equal(validate(registry), true, JSON.stringify(validate.errors));
+});
+
 test("the generic projection schema compiles and validates in an isolated offline Ajv", () => {
   const projectionSchema = JSON.parse(
     fs.readFileSync(

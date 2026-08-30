@@ -111,6 +111,22 @@ function rasterCoverageFetch(requests: URL[]): typeof fetch {
 }
 
 describe("unified raster session", () => {
+  it("keeps Honua and third-party ImageServer identities distinct without endpoint guessing", () => {
+    const common = {
+      kind: "image-server" as const,
+      id: "imagery",
+      baseUrl: "https://same.example.test/arcgis",
+      serviceId: "Imagery",
+    };
+    const honua = planRasterOperation({ ...common, deployment: "honua" }, "render");
+    const thirdParty = planRasterOperation({ ...common, deployment: "arcgis" }, "render");
+
+    expect(honua.capability.identity).toBe("honua-service");
+    expect(honua.capability.server).toBe("supported");
+    expect(thirdParty.capability.identity).toBe("third-party-service");
+    expect(thirdParty.capability.server).toBe("not-applicable");
+  });
+
   it("structurally validates direct COG input and never requests the whole large asset", async () => {
     const ranges: string[] = [];
     const source = directCogSource({
@@ -242,7 +258,6 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
-        deployment: "honua",
         id: "oahu-imagery",
         baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Oahu",
@@ -313,7 +328,6 @@ describe("unified raster session", () => {
     const session = await openRasterSession(
       {
         kind: "image-server",
-        deployment: "honua",
         id: "oahu-imagery",
         baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Oahu",
