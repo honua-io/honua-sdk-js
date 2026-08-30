@@ -99,7 +99,7 @@ describe("cloud-native source capability discovery", () => {
     expect(document.capabilities.find((capability) => capability.kind === "zarr")).toEqual({
       kind: "zarr",
       maturity: "unavailable",
-      status: { client: "unavailable", server: "unavailable", endToEnd: "unavailable" },
+      status: { client: "experimental", server: "unavailable", endToEnd: "unavailable" },
       advertised: false,
       sourceCount: 0,
     });

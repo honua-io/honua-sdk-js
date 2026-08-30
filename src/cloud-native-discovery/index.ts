@@ -24,6 +24,7 @@ import type {
   HonuaRequestContext,
   HonuaRequestInterceptor,
 } from "../core/types.js";
+import { rasterDiscoveryRegistryEntry } from "../raster/source-registry.js";
 
 export const HONUA_CLOUD_NATIVE_DISCOVERY_FORMAT = "honua.cloud-native-discovery.v1";
 export const HONUA_CLOUD_NATIVE_DISCOVERY_SCHEMA_VERSION = "1.0.0";
@@ -434,8 +435,16 @@ function capabilityFor(
   advertised: boolean,
   sourceCount: number,
 ): CloudNativeCapabilityDescriptor {
-  const client = CLIENT_MATURITY[kind];
-  const server = origin === "direct-asset" ? "not-applicable" : advertised ? SERVER_MATURITY[kind] : "unavailable";
+  const registry = RASTER_DISCOVERY_KINDS.has(kind as RasterDiscoveryKind)
+    ? rasterDiscoveryRegistryEntry(kind as RasterDiscoveryKind)
+    : undefined;
+  const client = registry?.client ?? CLIENT_MATURITY[kind];
+  const server =
+    origin === "direct-asset"
+      ? "not-applicable"
+      : advertised
+        ? (registry?.server ?? SERVER_MATURITY[kind])
+        : "unavailable";
   const endToEnd = !advertised ? "unavailable" : origin === "direct-asset" ? client : weakerMaturity(client, server);
   return { kind, maturity: endToEnd, status: { client, server, endToEnd }, advertised, sourceCount };
 }
@@ -449,9 +458,11 @@ function operationsFor(
   kind: CloudNativeSourceKind,
   locator?: CloudNativeAssetLocator | CloudNativeApiLocator | CloudNativeStacLocator,
 ): readonly CloudNativeOperation[] {
+  if (RASTER_DISCOVERY_KINDS.has(kind as RasterDiscoveryKind)) {
+    return rasterDiscoveryRegistryEntry(kind as RasterDiscoveryKind)
+      .discoveryOperations as readonly CloudNativeOperation[];
+  }
   switch (kind) {
-    case "cog":
-      return ["discover", "inspect-metadata", "read-ranges", "render"];
     case "stac":
       return locator?.type === "stac-api" && locator.searchHref
         ? ["discover", "inspect-metadata", "search"]
@@ -461,12 +472,6 @@ function operationsFor(
     case "geoparquet":
       return ["discover", "inspect-metadata", "query", "render"];
     case "geoarrow":
-    case "zarr":
-    case "netcdf":
-      return ["discover", "inspect-metadata"];
-    case "ogc-coverages":
-    case "wcs":
-      return ["discover", "inspect-metadata", "read-coverage"];
   }
 }
 
@@ -821,14 +826,14 @@ function sortJson(value: unknown): unknown {
 }
 
 const CLIENT_MATURITY = {
-  cog: "supported",
+  cog: "experimental",
   stac: "supported",
   pmtiles: "supported",
   geoparquet: "experimental",
   geoarrow: "metadata-only",
-  "ogc-coverages": "unavailable",
-  wcs: "unavailable",
-  zarr: "unavailable",
+  "ogc-coverages": "experimental",
+  wcs: "experimental",
+  zarr: "experimental",
   netcdf: "unavailable",
 } as const satisfies Record<CloudNativeSourceKind, CloudNativeMaturity>;
 
@@ -862,3 +867,12 @@ const PROTOCOL_KEYS = {
   zarr: ["zarr"],
   netcdf: ["netcdf", "netCdf"],
 } as const satisfies Record<CloudNativeSourceKind, readonly string[]>;
+
+type RasterDiscoveryKind = "cog" | "ogc-coverages" | "wcs" | "zarr" | "netcdf";
+const RASTER_DISCOVERY_KINDS: ReadonlySet<RasterDiscoveryKind> = new Set([
+  "cog",
+  "ogc-coverages",
+  "wcs",
+  "zarr",
+  "netcdf",
+]);

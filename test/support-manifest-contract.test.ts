@@ -20,6 +20,7 @@ import type {
   HonuaGeoprocessingService,
   HonuaImageService,
 } from "../src/core/surfaces.js";
+import { RASTER_SOURCE_REGISTRY } from "../src/raster/source-registry.js";
 
 interface OperationClaim {
   readonly operations: readonly string[];
@@ -32,6 +33,7 @@ interface ProtocolClaim {
 }
 
 interface SupportManifest {
+  readonly rasterSourceRegistry: string;
   readonly connectProtocols: readonly Protocol[];
   readonly discoveryInventory: {
     readonly protocols: readonly {
@@ -116,6 +118,28 @@ const manifest = JSON.parse(
 ) as SupportManifest;
 
 describe("support manifest contract parity", () => {
+  it("projects the authoritative raster registry into runtime contracts and the support manifest", () => {
+    expect(manifest.rasterSourceRegistry).toBe("config/raster-source-registry.v1.json");
+    expect(RASTER_SOURCE_REGISTRY.map((entry) => entry.id)).toEqual([
+      "direct-cog",
+      "honua-image-server",
+      "third-party-image-server",
+      "ogc-api-coverages",
+      "wcs-2.0.1",
+      "zarr",
+      "netcdf",
+    ]);
+    expect(new Set(RASTER_SOURCE_REGISTRY.map((entry) => entry.identity))).toEqual(
+      new Set([
+        "client-only-asset",
+        "honua-service",
+        "third-party-service",
+        "server-backed-api",
+        "server-backed-asset",
+      ]),
+    );
+  });
+
   it("tracks the canonical protocol and operation vocabularies in declaration order", () => {
     expect(manifest.protocols.map((protocol) => protocol.id)).toEqual(PROTOCOLS);
     expect(manifest.protocolOperations).toEqual(CAPABILITIES);
