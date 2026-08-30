@@ -706,7 +706,7 @@ describe("createStudioAgentSession tool discovery", () => {
   it("routes an unclassified descriptor only when it is on the explicit allowlist", async () => {
     const { server, session } = makeSession({
       draft: { draftId: "draft-1", generation: 4 },
-      // The pre-honua-server#3428 world: a server that classifies nothing.
+      // A server older than honua-server#3695: it classifies nothing.
       toolPages: onePage([descriptor("honua_studio_add_layer"), descriptor("honua_studio_shadow_export")]),
       turns: [
         toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layer: { id: "l" } } }]),

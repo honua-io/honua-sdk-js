@@ -1,0 +1,464 @@
+{
+  "_fixture": "MCP `tools/list` result, page 1 of 2 \u2014 the live honua-server candidate contract, transcribed from honua-server trunk @ ebb2cc6a4 (PR honua-io/honua-server#3695, closing the classification scope of honua-server#3428). Tool names, titles, `annotations` and the `_meta[\"honua.studio\"]` block are the server's; descriptions and schemas are abridged (the SDK forwards both opaquely and asserts nothing about their contents). Every classified descriptor carries view `setup` and revision `setup.v1`: the server stamps the VIEW name, not the stage id, so `compose` and `publication` stage members share one view. Page 2 (`tools-list.candidate-setup.page2.v1.json`) is fetched with `cursor: \"candidate-setup-page-2\"`.",
+  "tools": [
+    {
+      "name": "honua_studio_create_draft",
+      "title": "Create Studio draft",
+      "description": "Create a mutable Studio package lifecycle draft and return its identity and first generation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "family": {
+            "type": "string"
+          },
+          "packageKey": {
+            "type": "string"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "family"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Create Studio draft",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_get_draft",
+      "title": "Get Studio draft",
+      "description": "Read a Studio package lifecycle draft by id, including its current generation for the next optimistic-concurrency call.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Get Studio draft",
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_update_draft",
+      "title": "Update Studio draft",
+      "description": "Apply a partial envelope update to a Studio package lifecycle draft, with optimistic-generation checking.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Update Studio draft",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_validate_draft",
+      "title": "Validate Studio draft",
+      "description": "Validate a Studio draft against its family schema and return structured problem details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "valid"
+        ]
+      },
+      "annotations": {
+        "title": "Validate Studio draft",
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_preview_draft",
+      "title": "Preview Studio draft",
+      "description": "Produce a preview plan for a Studio draft without mutating it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "object"
+          }
+        }
+      },
+      "annotations": {
+        "title": "Preview Studio draft",
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_add_layer",
+      "title": "Add Studio layer",
+      "description": "Add a layer to a map/app-family Studio draft's composition, with optimistic-generation checking.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "layer": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "layer"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Add Studio layer",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_remove_layer",
+      "title": "Remove Studio layer",
+      "description": "Remove a layer from a map/app-family Studio draft's composition by id, with optimistic-generation checking.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "layerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "layerId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Remove Studio layer",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_set_layer_style",
+      "title": "Set Studio layer style",
+      "description": "Set or clear a layer's bound style reference in a map/app-family Studio draft's composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "layerId": {
+            "type": "string"
+          },
+          "styleRef": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "layerId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Set Studio layer style",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_set_layer_visibility",
+      "title": "Set Studio layer visibility",
+      "description": "Show or hide a layer in a map/app-family Studio draft's composition, with optimistic-generation checking.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "layerId": {
+            "type": "string"
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "layerId",
+          "visible"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Set Studio layer visibility",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    }
+  ],
+  "nextCursor": "candidate-setup-page-2"
+}

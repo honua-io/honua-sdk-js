@@ -93,12 +93,14 @@ export type {
 export {
   HONUA_STUDIO_TOOL_FAMILY,
   HONUA_STUDIO_TOOL_METADATA_KEY,
+  HONUA_STUDIO_TOOL_SETUP_VIEW,
   StudioToolCatalog,
   readStudioToolClassification,
 } from "./tool-catalog.js";
 export type {
   StudioToolCatalogEntry,
   StudioToolClassification,
+  StudioToolClassificationSummary,
   StudioToolDiscoveryReport,
   StudioToolPolicy,
   StudioToolRejection,
