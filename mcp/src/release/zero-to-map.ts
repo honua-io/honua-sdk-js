@@ -27,6 +27,14 @@ export const ZERO_TO_MAP_CONSOLE_RECEIPT_REQUEST_SCHEMA = "honua.zero-to-map.con
 export const ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA = "honua.zero-to-map.catalog/v1" as const;
 
 /**
+ * Stages in the release journey: install, admin, style, geoprocessing, studio,
+ * proposal, console, artifact. `style` proves a canonical style applied to a
+ * *published* layer reaches rendered pixels - the Studio-draft styling in the
+ * `studio` stage never leaves a draft and so never proved that.
+ */
+export const ZERO_TO_MAP_STAGE_COUNT = 8;
+
+/**
  * A server MCP profile whose members are additive to the default 432-tool base
  * roster (47 static plus 385 `honua_admin_*` tools).
  *
@@ -82,6 +90,28 @@ export const ZERO_TO_MAP_ADDITIVE_PROFILES: readonly ZeroToMapProfileRoster[] = 
   },
 ];
 
+/**
+ * The reserved `tools/list` view name that opts a request back out of any
+ * server-configured or session-negotiated workflow view and returns the
+ * complete paginated catalog (honua-server#3428).
+ *
+ * The candidate server may publish a bounded workflow view - today `setup` - and
+ * may make one the profile default through the configuration key named by
+ * {@link ZERO_TO_MAP_WORKFLOW_VIEW_CONFIG_KEY}. Selecting a view can only
+ * *narrow* discovery, so a host that configures a default view would serve the
+ * roster preflight a short catalog and the preflight would blame a missing
+ * server profile for what is actually a discovery setting. The preflight
+ * therefore always selects this escape hatch explicitly rather than relying on
+ * the candidate having no default configured.
+ */
+export const ZERO_TO_MAP_FULL_CATALOG_VIEW = "full";
+
+/** Configuration key whose value would narrow the candidate's default `tools/list`. */
+export const ZERO_TO_MAP_WORKFLOW_VIEW_CONFIG_KEY = "Mcp:WorkflowViews:DefaultView";
+
+/** Environment-variable spelling of {@link ZERO_TO_MAP_WORKFLOW_VIEW_CONFIG_KEY}. */
+export const ZERO_TO_MAP_WORKFLOW_VIEW_ENV_KEY = "Mcp__WorkflowViews__DefaultView";
+
 /** Profiles the candidate must advertise before the journey is executable. */
 export const ZERO_TO_MAP_REQUIRED_PROFILES: readonly string[] = [
   ZERO_TO_MAP_BASE_PROFILE_ID,
@@ -116,6 +146,13 @@ export interface ZeroToMapProfileReceipt {
 export interface ZeroToMapCatalogReceipt {
   readonly schemaVersion: typeof ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA;
   readonly activeProfiles: readonly string[];
+  /**
+   * The `tools/list` view the preflight selected. Always the reserved
+   * full-catalog escape hatch, recorded so the receipt states that the roster
+   * was judged against the complete catalog rather than a narrowed workflow
+   * view the candidate happened to have configured.
+   */
+  readonly requestedView: typeof ZERO_TO_MAP_FULL_CATALOG_VIEW;
   /** Derived: base roster plus every enabled additive profile roster. */
   readonly expectedTotalTools: number;
   readonly advertisedTotalTools: number;
@@ -154,7 +191,7 @@ const STUDIO_PUBLICATION_GENERATION_CAPTURE_POINTERS = [
   "/structuredContent/generation",
 ] as const;
 
-export type JourneyActionKind = "cli" | "mcp" | "mcp-resource" | "gpserver" | "receipt" | "http";
+export type JourneyActionKind = "cli" | "mcp" | "mcp-resource" | "mcp-image" | "gpserver" | "receipt" | "http";
 export type JourneyActionStatus = "passed" | "blocked" | "failed" | "skipped";
 export type JourneyStatus = "passed" | "blocked" | "failed";
 export type JourneyTarget = "local-docker" | "aws-ecs";
@@ -212,6 +249,128 @@ export interface JourneyMcpResourceAction extends JourneyActionBase {
  * runner. Parameters stay schema-driven: the Buffer alias keeps Honua's
  * advertised geometry.buffer parameter contract.
  */
+/**
+ * Read a rendered image artifact the server returned by reference and prove it
+ * is real pixels rather than an empty or non-image placeholder.
+ *
+ * `honua_render_map` returns the PNG as a fetchable `resource_link` by default
+ * (`image.uri`), inlining base64 only under an explicit `maxInlineBytes`
+ * ceiling. Reading that reference and validating the bytes is the difference
+ * between "the tool returned 200" and "a styled map was actually drawn", which
+ * is the whole point of the published-style render proof.
+ */
+export interface JourneyMcpImageAction extends JourneyActionBase {
+  readonly kind: "mcp-image";
+  readonly uri: string;
+  /** Media type the resource contents must declare, e.g. `image/png`. */
+  readonly expectedMediaType: string;
+  /** Template resolving to the pixel width the renderer reported. */
+  readonly expectedWidth: string | number;
+  /** Template resolving to the pixel height the renderer reported. */
+  readonly expectedHeight: string | number;
+  /**
+   * Smallest byte length that can still be a drawn map. A PNG header plus an
+   * empty IDAT is a few dozen bytes, so a floor here refuses the degenerate
+   * "valid PNG, nothing rendered" result a style/render no-op would produce.
+   */
+  readonly minByteLength: number;
+}
+
+/** Resolved expectations a fetched render artifact is judged against. */
+export interface RenderedImageExpectation {
+  readonly uri: string;
+  readonly mediaType: string;
+  readonly width: number;
+  readonly height: number;
+  readonly minByteLength: number;
+}
+
+/** Proven properties of a fetched render artifact, retained as receipt evidence. */
+export interface RenderedImageEvidence {
+  readonly uri: string;
+  readonly mediaType: string;
+  readonly width: number;
+  readonly height: number;
+  readonly byteLength: number;
+  readonly imageSha256: string;
+}
+
+const PNG_SIGNATURE = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * Validate that fetched bytes are a PNG of the declared size carrying actual
+ * compressed pixel data.
+ *
+ * A style/render no-op is not a transport failure: the tool answers, the
+ * resource resolves, and the bytes are a syntactically valid PNG. The three
+ * things that separate that from a drawn map are the signature and IHDR
+ * geometry agreeing with what the renderer reported, at least one non-empty
+ * IDAT chunk, and a byte length above the floor an empty raster would produce -
+ * so all three are asserted here with diagnostics that name the artifact.
+ */
+export function assertRenderedPng(
+  bytes: Uint8Array,
+  mediaType: string | undefined,
+  expected: RenderedImageExpectation,
+): RenderedImageEvidence {
+  const where = `rendered artifact ${expected.uri}`;
+  if (mediaType !== undefined && mediaType !== expected.mediaType) {
+    throw new Error(`${where} declared media type ${mediaType}; expected ${expected.mediaType}`);
+  }
+  if (bytes.length < PNG_SIGNATURE.length || !PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {
+    throw new Error(`${where} is not a PNG: the 8-byte PNG signature is absent`);
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = PNG_SIGNATURE.length;
+  let ihdr: { width: number; height: number } | undefined;
+  let idatBytes = 0;
+  while (offset + 8 <= bytes.length) {
+    const length = view.getUint32(offset);
+    const type = String.fromCharCode(bytes[offset + 4]!, bytes[offset + 5]!, bytes[offset + 6]!, bytes[offset + 7]!);
+    const dataStart = offset + 8;
+    if (dataStart + length > bytes.length) {
+      throw new Error(`${where} is truncated: chunk ${type} declares ${length} bytes past the end of the artifact`);
+    }
+    if (type === "IHDR") {
+      if (length < 8) throw new Error(`${where} has a malformed IHDR chunk`);
+      ihdr = { width: view.getUint32(dataStart), height: view.getUint32(dataStart + 4) };
+    } else if (type === "IDAT") {
+      idatBytes += length;
+    } else if (type === "IEND") {
+      break;
+    }
+    offset = dataStart + length + 4;
+  }
+
+  if (!ihdr) throw new Error(`${where} carries no IHDR chunk, so it declares no image dimensions`);
+  if (ihdr.width !== expected.width || ihdr.height !== expected.height) {
+    throw new Error(
+      `${where} is ${ihdr.width}x${ihdr.height}; the renderer reported ${expected.width}x${expected.height}`,
+    );
+  }
+  if (idatBytes === 0) {
+    throw new Error(`${where} carries no IDAT pixel data: the artifact declares a canvas but nothing was drawn on it`);
+  }
+  // Checked last, so a structurally explicable artifact is diagnosed by its
+  // structure and only a well-formed but implausibly small render falls through
+  // to the size floor.
+  if (bytes.length < expected.minByteLength) {
+    throw new Error(
+      `${where} is ${bytes.length} bytes; a drawn ${expected.width}x${expected.height} map is at least ` +
+        `${expected.minByteLength}. An empty raster of the right dimensions is what a style/render no-op returns.`,
+    );
+  }
+
+  return {
+    uri: expected.uri,
+    mediaType: expected.mediaType,
+    width: ihdr.width,
+    height: ihdr.height,
+    byteLength: bytes.length,
+    imageSha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
 export interface JourneyGpServerAction extends JourneyActionBase {
   readonly kind: "gpserver";
   readonly serviceId: string;
@@ -242,6 +401,7 @@ export type JourneyAction =
   | JourneyCliAction
   | JourneyMcpAction
   | JourneyMcpResourceAction
+  | JourneyMcpImageAction
   | JourneyGpServerAction
   | JourneyReceiptAction
   | JourneyHttpAction;
@@ -275,11 +435,22 @@ export interface JourneyMcpToolDescriptor {
   readonly inputSchema: Readonly<Record<string, unknown>>;
 }
 
+/** How the roster preflight asks the candidate for its catalog. */
+export interface JourneyCatalogListOptions {
+  /**
+   * Workflow view to select on `tools/list`. The preflight always passes
+   * {@link ZERO_TO_MAP_FULL_CATALOG_VIEW} so a candidate configured with a
+   * default workflow view cannot narrow the roster the preflight judges.
+   */
+  readonly view?: string;
+}
+
 export interface JourneyAdapter {
   runCli(args: readonly string[]): Promise<JourneyExecutionResult>;
-  listTools(): Promise<readonly JourneyMcpToolDescriptor[]>;
+  listTools(options?: JourneyCatalogListOptions): Promise<readonly JourneyMcpToolDescriptor[]>;
   callTool(tool: string, args: Readonly<Record<string, unknown>>): Promise<JourneyExecutionResult>;
   readResource(action: JourneyMcpResourceAction): Promise<JourneyExecutionResult>;
+  readImageResource(action: JourneyMcpImageAction, expected: RenderedImageExpectation): Promise<JourneyExecutionResult>;
   runGpServer(action: JourneyGpServerAction): Promise<JourneyExecutionResult>;
   readReceipt(actionId: string): Promise<JourneyExecutionResult | undefined>;
   checkHttp(url: string, expectedStatus: number): Promise<JourneyExecutionResult>;
@@ -392,8 +563,8 @@ export function parseZeroToMapPlan(value: unknown): ZeroToMapPlan {
   const releaseContract = nonEmptyString(plan.releaseContract, "plan.releaseContract");
   const fixtures = stringArray(plan.fixtures, "plan.fixtures");
   const dependencyRefs = stringArray(plan.dependencyRefs, "plan.dependencyRefs");
-  if (!Array.isArray(plan.stages) || plan.stages.length !== 7) {
-    throw new Error("plan.stages must contain the seven D9.3 stages");
+  if (!Array.isArray(plan.stages) || plan.stages.length !== ZERO_TO_MAP_STAGE_COUNT) {
+    throw new Error(`plan.stages must contain the ${ZERO_TO_MAP_STAGE_COUNT} D9.3 stages`);
   }
 
   const actionIds = new Set<string>();
@@ -504,7 +675,21 @@ export async function runZeroToMapJourney(
               throw new Error(`${action.id} disclosed forbidden pre-approval evidence at ${pointer}`);
             }
           }
-          const captures = captureValues(action.captures, result.value, variables);
+          // Capture contracts are where a silent no-op surfaces: the tool
+          // answers without error but the value it was supposed to change did
+          // not change. Name the stage, the action and the tool so the operator
+          // is told which step of the journey did nothing, not merely that some
+          // pointer disagreed.
+          let captures: Record<string, unknown>;
+          try {
+            captures = captureValues(action.captures, result.value, variables);
+          } catch (captureError) {
+            const message = captureError instanceof Error ? captureError.message : String(captureError);
+            throw new Error(
+              `stage ${stage.number} ${stage.id}, action ${action.id}` +
+                `${action.kind === "mcp" ? ` (${action.tool})` : ""}: ${message}`,
+            );
+          }
           Object.assign(variables, captures);
           Object.assign(capturedVariables, captures);
           actions.push({
@@ -865,6 +1050,23 @@ function describeToolUse(use: RequiredToolUse): string {
   return `${use.tool} (stage ${use.stageNumber} ${use.stageId}, action ${use.actionId})`;
 }
 
+function dimensionTemplate(value: unknown, path: string): string | number {
+  if (typeof value === "string") {
+    if (value.trim().length === 0) throw new Error(`${path} must not be empty`);
+    return value;
+  }
+  if (Number.isInteger(value) && (value as number) > 0) return value as number;
+  throw new Error(`${path} must be a positive integer or a template resolving to one`);
+}
+
+function resolveDimension(value: string | number, variables: Readonly<Record<string, unknown>>, path: string): number {
+  const resolved = typeof value === "string" ? resolveTemplateValue(value, variables) : value;
+  if (!Number.isInteger(resolved) || (resolved as number) < 1) {
+    throw new Error(`${path} resolved to ${JSON.stringify(resolved)}, which is not a positive integer`);
+  }
+  return resolved as number;
+}
+
 function rosterDigest(names: readonly string[]): string {
   return createHash("sha256")
     .update(`${[...names].sort().join("\n")}\n`)
@@ -893,7 +1095,11 @@ function summarizeNames(names: readonly string[], limit = 10): string {
  */
 async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): Promise<ZeroToMapCatalogReceipt> {
   const requiredUses = requiredMcpToolUses(plan);
-  const catalog = await adapter.listTools();
+  // Explicitly opt out of any server-configured or session-negotiated workflow
+  // view. A candidate with `Mcp:WorkflowViews:DefaultView` set would otherwise
+  // serve a deliberately narrowed catalog and every roster finding below would
+  // name a missing server profile for what is really a discovery setting.
+  const catalog = await adapter.listTools({ view: ZERO_TO_MAP_FULL_CATALOG_VIEW });
   const names = catalog.map((tool) => tool.name);
   const findings: string[] = [];
 
@@ -1028,7 +1234,7 @@ async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): P
     const shortfall = expectedTotal - names.length;
     findings.push(
       shortfall > 0 && duplicateNames.length === 0 && unexpectedAdmin.length === 0
-        ? `truncated: the catalog returned ${names.length} of ${expectedTotal} tools (${shortfall} short). Every tools/list page must be drained before the roster is judged; a short read is a pagination fault, not a roster decision.`
+        ? `truncated: the catalog returned ${names.length} of ${expectedTotal} tools (${shortfall} short). Every tools/list page must be drained before the roster is judged; a short read is a pagination fault, not a roster decision. This preflight already selects view="${ZERO_TO_MAP_FULL_CATALOG_VIEW}", so a candidate workflow view configured through ${ZERO_TO_MAP_WORKFLOW_VIEW_CONFIG_KEY} (${ZERO_TO_MAP_WORKFLOW_VIEW_ENV_KEY}) is not the cause.`
         : `unexpected: the catalog advertises ${names.length} tools; the enabled profiles ` +
             `(${ZERO_TO_MAP_REQUIRED_PROFILES.join(" + ")}) derive ${expectedTotal}`,
     );
@@ -1079,6 +1285,7 @@ async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): P
   return {
     schemaVersion: ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA,
     activeProfiles: [...ZERO_TO_MAP_REQUIRED_PROFILES],
+    requestedView: ZERO_TO_MAP_FULL_CATALOG_VIEW,
     expectedTotalTools: expectedTotal,
     advertisedTotalTools: names.length,
     baseStaticTools,
@@ -1168,6 +1375,17 @@ async function executeAction(
         ...action,
         uri: resolveTemplateString(action.uri, variables),
       });
+    case "mcp-image": {
+      const uri = resolveTemplateString(action.uri, variables);
+      const resolved: JourneyMcpImageAction = { ...action, uri };
+      return adapter.readImageResource(resolved, {
+        uri,
+        mediaType: action.expectedMediaType,
+        width: resolveDimension(action.expectedWidth, variables, `${action.id}.expectedWidth`),
+        height: resolveDimension(action.expectedHeight, variables, `${action.id}.expectedHeight`),
+        minByteLength: action.minByteLength,
+      });
+    }
     case "gpserver":
       return adapter.runGpServer({
         ...action,
@@ -1225,6 +1443,7 @@ function parseAction(value: unknown, path: string, ids: Set<string>): JourneyAct
     kind !== "cli" &&
     kind !== "mcp" &&
     kind !== "mcp-resource" &&
+    kind !== "mcp-image" &&
     kind !== "gpserver" &&
     kind !== "receipt" &&
     kind !== "http"
@@ -1260,6 +1479,20 @@ function parseAction(value: unknown, path: string, ids: Set<string>): JourneyAct
         uri: nonEmptyString(action.uri, `${path}.uri`),
         ...(action.waitFor === undefined ? {} : { waitFor: parseResourceWait(action.waitFor, `${path}.waitFor`) }),
       };
+    case "mcp-image": {
+      if (!Number.isInteger(action.minByteLength) || (action.minByteLength as number) < 1) {
+        throw new Error(`${path}.minByteLength must be a positive integer`);
+      }
+      return {
+        ...common,
+        kind,
+        uri: nonEmptyString(action.uri, `${path}.uri`),
+        expectedMediaType: nonEmptyString(action.expectedMediaType, `${path}.expectedMediaType`),
+        expectedWidth: dimensionTemplate(action.expectedWidth, `${path}.expectedWidth`),
+        expectedHeight: dimensionTemplate(action.expectedHeight, `${path}.expectedHeight`),
+        minByteLength: action.minByteLength as number,
+      };
+    }
     case "gpserver":
       return {
         ...common,
