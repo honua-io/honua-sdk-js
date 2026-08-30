@@ -31,7 +31,7 @@ repository does not publish, or leaves a journey stage with no skill.
 | [`honua-local-setup`](./honua-local-setup/SKILL.md) | `install` | Installing Honua on a laptop for the first time and handing the resulting credential to an agent — running the control-plane Docker installer, verifying API/MCP/Console readiness, and wiring an MCP client to the local deployment without ever reading or echoing secret material. |
 | [`honua-map-composition`](./honua-map-composition/SKILL.md) | `studio`, `proposal` | Composing a Honua map, app, or dashboard through Studio MCP tools and getting it toward publication — creating a draft, adding layers/widgets/controls/interactions, validating, saving an immutable version, reopening it, and recording publication intent without bypassing the human approval gate. |
 | [`honua-publish-layers`](./honua-publish-layers/SKILL.md) | `admin` | Turning an imported table into a served Honua layer and setting who can read it — publishing a layer from a tested connection, capturing the layer id, setting the service access policy, and confirming the layer is queryable. |
-| [`honua-style-verify`](./honua-style-verify/SKILL.md) | `studio`, `artifact` | Applying a style to a Honua layer or Studio draft and proving the rendered map is actually correct — resolving styles from the server, applying a preset client-side, setting a draft layer's style and visibility, framing the view, and verifying the approved public URL responds. |
+| [`honua-style-verify`](./honua-style-verify/SKILL.md) | `style`, `studio`, `artifact` | Applying a style to a Honua published layer or Studio draft and proving the rendered map is actually correct — resolving styles from the server, applying a preset to a published layer and rendering it to a PNG, applying a preset client-side, setting a draft layer's style and visibility, framing the view, and verifying the approved public URL responds. |
 
 ### Supporting skills
 
@@ -51,11 +51,12 @@ no skill fails `npm run verify:skills`.
 | --- | --- | --- |
 | 1 | `install` — Install Honua locally and verify the handoff surfaces | [`honua-local-setup`](./honua-local-setup/SKILL.md) |
 | 2 | `admin` — Configure a connection, import data, publish layers, and set access | [`honua-datasource-connect`](./honua-datasource-connect/SKILL.md) · [`honua-publish-layers`](./honua-publish-layers/SKILL.md) |
-| 3 | `geoprocessing` — Execute Buffer through AI-facing Esri MCP, GPServer compatibility, and direct analysis | [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) |
-| 4 | `studio` — Compose, validate, save, read, and reopen distinct map, app, and dashboard families | [`honua-map-composition`](./honua-map-composition/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
-| 5 | `proposal` — Propose publication without bypassing human confirmation | [`honua-map-composition`](./honua-map-composition/SKILL.md) |
-| 6 | `console` — Inspect and approve the candidate in Console | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) |
-| 7 | `artifact` — Verify the stable map, app, and dashboard URLs | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
+| 3 | `style` — Apply a canonical style to the published layer and prove it reaches rendered pixels | [`honua-style-verify`](./honua-style-verify/SKILL.md) |
+| 4 | `geoprocessing` — Execute Buffer through AI-facing Esri MCP, GPServer compatibility, and direct analysis | [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) |
+| 5 | `studio` — Compose, validate, save, read, and reopen distinct map, app, and dashboard families | [`honua-map-composition`](./honua-map-composition/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
+| 6 | `proposal` — Propose publication without bypassing human confirmation | [`honua-map-composition`](./honua-map-composition/SKILL.md) |
+| 7 | `console` — Inspect and approve the candidate in Console | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) |
+| 8 | `artifact` — Verify the stable map, app, and dashboard URLs | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
 
 <!-- skills-table:end -->
 

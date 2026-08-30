@@ -1,14 +1,15 @@
 ---
 name: honua-style-verify
-description: Use when applying a style to a Honua layer or Studio draft and proving the rendered map is actually correct — resolving styles from the server, applying a preset client-side, setting a draft layer's style and visibility, framing the view, and verifying the approved public URL responds. Covers styling in 2026.1 zero-to-map stage 4 (studio) and the URL check in stage 7 (artifact).
+description: Use when applying a style to a Honua published layer or Studio draft and proving the rendered map is actually correct — resolving styles from the server, applying a preset to a published layer and rendering it to a PNG, applying a preset client-side, setting a draft layer's style and visibility, framing the view, and verifying the approved public URL responds. Covers the published-layer style/render proof in 2026.1 zero-to-map stage 3 (style), styling in stage 5 (studio), and the URL check in stage 8 (artifact).
 release: "2026.1"
-stages: [studio, artifact]
+stages: [style, studio, artifact]
 ---
 
-# Style and rendered-map verification (stages 4 and 7)
+# Style and rendered-map verification (stages 3, 5 and 8)
 
 Styling is a claim; a rendered, reachable map is the evidence. This skill covers
-both halves.
+all three halves of that: the published-layer render proof, draft styling, and
+the final URL check.
 
 ## Resolve a style from the server
 
@@ -22,14 +23,52 @@ On a plain FeatureServer with no styling surface it returns a structured
 result. That is a *capability* answer, not a failure — do not retry it, and do
 not report "no styles found" as if the server had an empty catalog.
 
-## Apply a preset
+## Apply a preset — two different tools with the same name
 
-`honua_apply_style_preset` (`mcp/src/tools/apply-style-preset.ts`) resolves a
-preset and returns its MapLibre stylesheet **for the client to apply locally**.
-It is read-only: it does not mutate server state. If the user wants the served
-layer's default style changed, that is the admin path
-(`updateAdminLayerStyle`, or `suggestLayerStyle` for a proposal) — see
-`docs/admin-cli-reference.md`.
+There are two `honua_apply_style_preset` implementations, and confusing them is
+the usual reason a style "doesn't take":
+
+- **This SDK's tool** (`mcp/src/tools/apply-style-preset.ts`) resolves a preset
+  and returns its MapLibre stylesheet **for the client to apply locally**. It is
+  read-only and does not mutate server state.
+- **The Honua server's tool**, reached through `honua-mcp-proxy`, binds a
+  catalog preset as a published layer's primary/default style, addressed by
+  `serviceId` + `layerId`. It mutates. This is what stage `style` calls.
+
+If you want the served layer's default style changed and you are not going
+through the server tool, that is the admin path (`updateAdminLayerStyle`, or
+`suggestLayerStyle` for a proposal) — see `docs/admin-cli-reference.md`.
+
+## Prove a published layer's style reaches pixels (stage `style`)
+
+Stage 3 is the only place the journey proves that styling a *published* layer —
+not a draft — changes what gets drawn. Six steps, in order:
+
+1. `honua_get_style` with `serviceId` + `layerId` — the layer's style before
+   anything is applied. Keep the `styleVersion`; it is the baseline a reviewer
+   compares against.
+2. `honua_get_style` with **no arguments** — list mode, the catalog of presets
+   this server actually publishes. Discover the preset here rather than naming
+   one: a preset id you invented is not evidence.
+3. `honua_apply_style_preset` with `serviceId`, `layerId`, `styleId`. Check
+   `applied` in the response. `applied: false` is a silent no-op — the call
+   succeeded and nothing changed.
+4. `honua_get_style` again — the read-back must now report the preset as the
+   layer's primary style, at the version the apply returned. A read-back that
+   still shows the baseline means step 3 lied.
+5. `honua_render_map` with `layers: [{ serviceId, layerId }]` and a `bbox`. The
+   response's `layers[].styleId` is the server's own statement of which style it
+   drew with — that, not the apply response, is the style-identity evidence.
+6. Fetch the artifact. By default `honua_render_map` returns a `resource_link`
+   (`image.uri`) rather than inline base64, so the PNG must be read back with
+   `resources/read` and judged: PNG signature, IHDR dimensions matching what the
+   renderer reported, at least one non-empty IDAT chunk, and a plausible byte
+   length. A valid PNG of the right size with no pixel data is exactly what a
+   render no-op produces, which is why the byte count alone is not enough.
+
+Set `maxInlineBytes` only if you genuinely want the image in the model context;
+a 512x512 render inlined as base64 is a large amount of context for something a
+validator can check without reading.
 
 ## Style a Studio draft layer
 
@@ -88,4 +127,5 @@ URL, the app share URL, and the dashboard public URL).
 - `docs/studio-package-contracts.md` — package families, format constants, and
   the validation envelope.
 - `mcp/README.md` — the styling tools' graceful-degradation contract.
-- `mcp/release/zero-to-map/journey.v1.json` — stages `studio` and `artifact`.
+- `mcp/release/zero-to-map/journey.v1.json` — stages `style`, `studio` and
+  `artifact`.
