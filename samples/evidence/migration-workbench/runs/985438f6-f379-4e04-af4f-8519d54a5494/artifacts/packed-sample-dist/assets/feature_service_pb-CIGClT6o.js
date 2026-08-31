@@ -1,2 +1,0 @@
-import { a as FeatureService, c as file_geospatial_v1_feature_service, i as FeaturePageSchema, n as ApplyEditsResponseSchema, o as QueryFeaturesRequestSchema, r as EditResultSchema, s as QueryFeaturesResponseSchema, t as ApplyEditsRequestSchema } from "./feature_service_pb-YQiQe493.js";
-export { ApplyEditsRequestSchema, ApplyEditsResponseSchema, EditResultSchema, FeaturePageSchema, FeatureService, QueryFeaturesRequestSchema, QueryFeaturesResponseSchema, file_geospatial_v1_feature_service };
