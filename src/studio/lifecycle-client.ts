@@ -32,7 +32,7 @@
  *
  * `contentItems.list()` (`GET /content-items`) and `drafts.list()`
  * (`GET /package-drafts`) are the content-browser entry points added by
- * `honua-server#3003`: filters (`family`, `workspaceId`, `owner`, `q`, plus
+ * `honua-server#3003`: filters (`family`, `workspaceId`, `ownerId`, `search`, plus
  * `state` for content items), opaque keyset-cursor pagination ordered by
  * `updatedAt` then row id descending, and — for content items — a joined
  * Content Publication Registry lifecycle badge per row, so a lifecycle badge
@@ -214,7 +214,7 @@ export class HonuaStudioDraftsClient {
 
   /**
    * `GET /package-drafts` — one page of mutable drafts matching `filters`
-   * (`family`, `workspaceId`, `owner`, `q`), ordered by `updatedAt` then
+   * (`family`, `workspaceId`, `ownerId`, `search`), ordered by `updatedAt` then
    * `draftId` descending.
    *
    * Rows are full {@link StudioPackageDraft} objects. Pass the response's
@@ -391,7 +391,7 @@ export class HonuaStudioContentItemsClient {
 
   /**
    * `GET /content-items` — one page of content items matching `filters`
-   * (`family`, `workspaceId`, `owner`, `state`, `q`), ordered by `updatedAt`
+   * (`family`, `workspaceId`, `ownerId`, `state`, `search`), ordered by `updatedAt`
    * then `itemId` descending so pages stay stable while other rows are
    * concurrently created or updated.
    *
@@ -530,28 +530,20 @@ function normalizePageBound(value: number | undefined): number {
 /**
  * Serialize the shared Studio list filters onto `path`.
  *
- * `family` and `state` accept one value or several and are sent in the
- * server's comma-separated form. Blank strings are dropped rather than sent as
- * an empty filter the server would trim to `null` anyway.
+ * Blank strings are dropped rather than sent as an empty filter the server
+ * would trim to `null` anyway.
  */
 function withStudioListQuery(path: string, filters: StudioContentItemListOptions): string {
   const params = new URLSearchParams();
-  const family = joinListFilter(filters.family);
-  if (family) params.set("family", family);
-  const state = joinListFilter(filters.state);
-  if (state) params.set("state", state);
+  if (filters.family?.trim()) params.set("family", filters.family);
+  if (filters.state?.trim()) params.set("state", filters.state);
   if (filters.workspaceId?.trim()) params.set("workspaceId", filters.workspaceId);
-  if (filters.owner?.trim()) params.set("owner", filters.owner);
-  if (filters.q?.trim()) params.set("q", filters.q);
+  if (filters.ownerId?.trim()) params.set("ownerId", filters.ownerId);
+  if (filters.search?.trim()) params.set("search", filters.search);
   if (filters.cursor) params.set("cursor", filters.cursor);
   if (filters.limit !== undefined) params.set("limit", String(normalizeListLimit(filters.limit)));
   const query = params.toString();
   return query ? `${path}?${query}` : path;
-}
-
-function joinListFilter(value: string | readonly string[] | undefined): string | undefined {
-  const values = (typeof value === "string" ? [value] : (value ?? [])).map((entry) => entry.trim()).filter(Boolean);
-  return values.length > 0 ? values.join(",") : undefined;
 }
 
 /**

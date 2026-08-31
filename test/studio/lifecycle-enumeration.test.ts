@@ -119,15 +119,17 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     expect(isStudioListExhausted(page)).toBe(false);
   });
 
-  it("sends multi-valued family and state filters in the server's comma-separated form", async () => {
+  it("sends the canonical scalar family, state, ownerId, and search parameters", async () => {
     const contract = fixture("content-item-list-page-1.v1.json");
     const { client, requests } = clientFor(contract);
 
-    await client.contentItems.list({ family: ["map", "dashboard"], state: ["current", "published"] });
+    await client.contentItems.list({ family: "dashboard", state: "current", ownerId: "actor-alice", search: "ops" });
 
     expect(queryOf(requests[0] as CapturedRequest)).toEqual({
-      family: "map,dashboard",
-      state: "current,published",
+      family: "dashboard",
+      state: "current",
+      ownerId: "actor-alice",
+      search: "ops",
     });
   });
 
@@ -272,10 +274,10 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const contract = fixture("content-item-list-owner-scoped.v1.json");
     const { client, requests } = clientFor(contract);
 
-    const page = await client.contentItems.list({ owner: "actor-mallory" });
+    const page = await client.contentItems.list({ ownerId: "actor-mallory" });
 
     // The SDK sends what it is asked to send...
-    expect(queryOf(requests[0] as CapturedRequest)).toEqual({ owner: "actor-mallory" });
+    expect(queryOf(requests[0] as CapturedRequest)).toEqual({ ownerId: "actor-mallory" });
     // ...and reports what the server actually scoped the listing to. The client
     // never re-labels rows with the requested owner.
     expect(page.items).toHaveLength(1);
@@ -303,7 +305,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const contract = fixture("content-item-list-invalid-state.v1.json");
     const { client } = clientFor(contract);
 
-    const failure = await client.contentItems.list({ state: "archived" }).then(
+    const failure = await client.contentItems.list({ state: "archived" } as never).then(
       () => undefined,
       (error: unknown) => error,
     );
@@ -329,7 +331,7 @@ describe("Studio draft enumeration (GET /package-drafts)", () => {
     const second = fixture("draft-list-page-2.v1.json");
     const { client, requests } = clientForSequence([first, second]);
 
-    const collected = await client.drafts.collect({ family: "query", q: "parcels", limit: 1 });
+    const collected = await client.drafts.collect({ family: "query", search: "parcels", limit: 1 });
 
     expect(requests).toHaveLength(2);
     expect(queryOf(requests[0] as CapturedRequest)).toEqual(first.request.query);
@@ -350,7 +352,7 @@ describe("Studio draft enumeration (GET /package-drafts)", () => {
 
     const page: StudioPackageDraftListResponse = await client.drafts.list({
       family: "query",
-      q: "parcels",
+      search: "parcels",
       limit: 1,
     });
 
@@ -364,7 +366,7 @@ describe("Studio draft enumeration (GET /package-drafts)", () => {
     const contract = fixture("draft-list-invalid-family.v1.json");
     const { client } = clientFor(contract);
 
-    const failure = await client.drafts.list({ family: "chart" }).then(
+    const failure = await client.drafts.list({ family: "chart" } as never).then(
       () => undefined,
       (error: unknown) => error,
     );
