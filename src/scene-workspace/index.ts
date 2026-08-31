@@ -107,6 +107,7 @@ export {
   MAPLIBRE_SCENE_CAPABILITIES,
   RENDERER_WGS84_SPATIAL_CAPABILITIES,
   applyMapLibreScenePrimitives,
+  compileMapLibreFilterSet,
   compileMapLibreFilters,
   createMapLibreSceneAdapter,
   createSceneRuntimeAdapter,
@@ -308,6 +309,8 @@ export type {
 export { SCENE_WORKSPACE_SLICES } from "./types.js";
 export type {
   MapLibreExtrusionLayerSpecification,
+  MapLibreFilterCompilation,
+  MapLibreFilterOmission,
   MapLibreSceneRuntimeTarget,
   MapLibreTerrainOptions,
   MapLibreTerrainPatch,

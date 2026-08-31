@@ -45,7 +45,7 @@ a tier from the directory it lives in.
 
 | Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
 | --- | --- | :-: | --- | --- | --- |
-| `@honua/app-platform/scene-workspace` | `beta` | 205 | 82 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
+| `@honua/app-platform/scene-workspace` | `beta` | 208 | 82 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
 
 ### `@honua/app-platform/scene-workspace`
 
