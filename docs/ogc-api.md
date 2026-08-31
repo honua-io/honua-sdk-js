@@ -234,6 +234,26 @@ Four properties hold whichever server is on the other end:
   10-minute deadline — never an unbounded loop — and stops immediately
   when the supplied `AbortSignal` fires.
 
+#### Exact-candidate qualification
+
+`npm run qualification:ogc-processes:candidate` is the mutation-gated release
+qualification lane. It must be run from an installed, packed SDK against a
+locally bound candidate and requires
+`HONUA_OGC_PROCESSES_QUALIFICATION_ENABLED=true`. The runner discovers and
+describes `geometry.buffer`, validates its declared inputs and outputs, and
+then exercises only the sync, async, and dismiss modes advertised by that
+candidate. Undeclared modes are retained as typed `unsupported` observations,
+never skips or inferred passes. A bounded invalid-input execution proves the
+failure path.
+
+The generated JSON records the installed package version and integrity, SDK
+and server source SHAs, server image digest, manifest revision, and fixture
+digest. Request observations retain only method, path, status, and the standard
+`Prefer: respond-async` value; the API key and all authorization headers are
+excluded and a final redaction gate rejects credential-shaped output. This is
+candidate qualification input for the at-cut release join, not that release
+receipt itself.
+
 ### STAC API
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
