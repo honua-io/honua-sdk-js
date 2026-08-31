@@ -1,0 +1,43 @@
+{
+  "format": "honua.sdk.sample-performance-gate.v1",
+  "sampleId": "maplibre-quickstart",
+  "sourceRevision": "79bc59161a2a2939d19b253db76d4db7c0a16862",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:quickstart",
+    "--",
+    "--reporter=json"
+  ],
+  "measurement": {
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "source": "browser-performance-api",
+    "metric": "sample-ready-duration",
+    "unit": "ms",
+    "budget": {
+      "operator": "<=",
+      "value": 5000
+    },
+    "value": 530.0999999999767,
+    "observations": {
+      "navigation": {
+        "entryType": "navigation",
+        "sampleReadyMs": 530.0999999999767,
+        "responseStartMs": 13.900000000023283,
+        "domContentLoadedMs": 155.80000000004657,
+        "loadEventMs": 177.90000000002328
+      },
+      "resources": {
+        "count": 6,
+        "transferBytes": 3455785,
+        "decodedBodyBytes": 3453985,
+        "completedByMs": 240.30000000004657
+      },
+      "interaction": {
+        "name": "evidence-drawer-keyboard-workflow",
+        "durationMs": 54
+      }
+    }
+  }
+}
