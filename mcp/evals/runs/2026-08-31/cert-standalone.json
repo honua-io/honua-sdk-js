@@ -1,0 +1,531 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-31T14:55:46.467Z",
+  "server": {
+    "name": "honua",
+    "version": "0.1.9-beta.0"
+  },
+  "protocol": {
+    "mcpTransport": "streamable-http",
+    "honuaTransport": "rest",
+    "backend": "live",
+    "targetMode": "standalone",
+    "surface": "honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces)"
+  },
+  "standard": {
+    "source": "geospatial-mcp@54cbd49 (spec/schemas)",
+    "indexDate": "2026-07-06",
+    "dialect": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "provenance": {
+    "suiteGitSha": "0c9bdb7ec07317515e4494494bf7d9aee8b4f8d5",
+    "suiteGitShaSource": "env",
+    "targetUrl": "honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces)",
+    "protocolVersion": null,
+    "toolCount": 11,
+    "authMode": "anonymous"
+  },
+  "summary": {
+    "pass": false,
+    "toolsDiscovered": 11,
+    "toolsSchemaValid": 11,
+    "toolsConformanceChecked": 3,
+    "toolsConformant": 3,
+    "toolsRoundTripped": 9,
+    "toolsOutputValidated": 0,
+    "resourcesDiscovered": 2,
+    "promptsDiscovered": 0,
+    "contractsChecked": 1,
+    "contractsPassed": 1,
+    "contractsFailed": 0,
+    "contractsSkipped": 8,
+    "knownGaps": 40,
+    "failures": 1
+  },
+  "tools": [
+    {
+      "name": "honua_list_sources",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_list_services",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_describe_layer",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_query_features",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "query_features",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised",
+        "advertises non-standard property \"source\"",
+        "advertises non-standard property \"layout\"",
+        "advertises non-standard property \"filter\"",
+        "advertises non-standard property \"geometry\"",
+        "advertises non-standard property \"geometryType\"",
+        "advertises non-standard property \"spatialRel\"",
+        "advertises non-standard property \"temporal\"",
+        "advertises non-standard property \"orderBy\"",
+        "advertises non-standard property \"offset\"",
+        "advertises non-standard property \"geometryFormat\"",
+        "advertises non-standard property \"outSr\""
+      ]
+    },
+    {
+      "name": "honua_count_features",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_get_extent",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_statistics",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_explain_capability_gap",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_get_style",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "get_style",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_apply_style_preset",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "apply_style_preset",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised",
+        "degrades platform binding: omits required \"serviceId\" (platform-free target has no publishing surface)",
+        "degrades platform binding: omits required \"layerId\" (platform-free target has no publishing surface)"
+      ]
+    },
+    {
+      "name": "honua_docs_search",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised",
+        "round-trip skipped: no fixture input"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "name": "services-catalog",
+      "uri": "honua://services",
+      "discovered": true
+    },
+    {
+      "name": "styles-catalog",
+      "uri": "honua://styles",
+      "discovered": true
+    }
+  ],
+  "prompts": [],
+  "contracts": [
+    {
+      "contract": "list-pagination",
+      "target": "tools",
+      "status": "skipped",
+      "detail": "tools list is a single page (no nextCursor advertised)"
+    },
+    {
+      "contract": "list-pagination",
+      "target": "resources",
+      "status": "skipped",
+      "detail": "resources list is a single page (no nextCursor advertised)"
+    },
+    {
+      "contract": "error-shape",
+      "target": "honua_query_features",
+      "status": "passed",
+      "detail": "contract satisfied"
+    },
+    {
+      "contract": "auth-unauthenticated",
+      "target": "tools/call",
+      "status": "skipped",
+      "detail": "target does not support an unauthenticated pass"
+    },
+    {
+      "contract": "auth-unauthenticated",
+      "target": "resources/read",
+      "status": "skipped",
+      "detail": "target does not support an unauthenticated pass"
+    },
+    {
+      "contract": "mutating-round-trip",
+      "target": "honua_edit_features",
+      "status": "skipped",
+      "detail": "honua_edit_features/honua_query_features not advertised by this surface (pre-P1 or read-only)"
+    },
+    {
+      "contract": "mutating-permission-denied",
+      "target": "honua_edit_features",
+      "status": "skipped",
+      "detail": "honua_edit_features not advertised by this surface (pre-P1)"
+    },
+    {
+      "contract": "async-job-lifecycle",
+      "target": "honua_execute_plan",
+      "status": "skipped",
+      "detail": "honua_execute_plan not advertised by this surface (pre-P1)"
+    },
+    {
+      "contract": "query-pagination",
+      "target": "honua_query_features",
+      "status": "skipped",
+      "detail": "surface returned a single page with no nextCursor (pagination not exercised — pre-P1 surface or fewer than 2 features)"
+    }
+  ],
+  "knownGaps": [
+    {
+      "kind": "standard-tool",
+      "name": "plan_analysis",
+      "family": "Intent and planning",
+      "detail": "reference tool honua_plan_analysis not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "ground_candidates",
+      "family": "Intent and planning",
+      "detail": "reference tool honua_ground_candidates not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "clarify_intent",
+      "family": "Intent and planning",
+      "detail": "reference tool honua_clarify_intent not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "validate_plan",
+      "family": "Intent and planning",
+      "detail": "reference tool honua_validate_plan not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "execute_plan",
+      "family": "Execution",
+      "detail": "reference tool honua_execute_plan not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "create_map_package",
+      "family": "Map composition",
+      "detail": "reference tool honua_create_map_package not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "refine_map_package",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "compose_mixed_protocol_map",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "preview_map_package",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "create_app_package",
+      "family": "App composition",
+      "detail": "reference tool honua_create_app_package not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "preview_app_package",
+      "family": "App composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "publish_result",
+      "family": "Publishing",
+      "detail": "reference tool honua_publish_result not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "list_layers",
+      "family": "Discovery and query (reference shape)",
+      "detail": "reference tool honua_list_layers not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "edit_features",
+      "family": "Feature editing",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "render_map",
+      "family": "Discovery and query (reference shape)",
+      "detail": "reference tool honua_render_map not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "geocode_address",
+      "family": "Analysis and geoprocessing (reference shape)",
+      "detail": "reference tool honua_geocode_address not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "geocode_addresses",
+      "family": "Analysis and geoprocessing (reference shape)",
+      "detail": "reference tool honua_geocode_addresses not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "solve_route",
+      "family": "Analysis and geoprocessing (reference shape)",
+      "detail": "reference tool honua_solve_route not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "buffer_features",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "overlay_features",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "summarize_statistics",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "reproject_features",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "join_features",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "export_dataset",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "cancel_job",
+      "family": "Execution (reference shape)",
+      "detail": "reference tool honua_cancel_job not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "propose_operation",
+      "family": "Control-plane proposal (reference shape)",
+      "detail": "reference tool honua_propose_operation not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "ingest_dataset",
+      "family": "Publishing",
+      "detail": "reference tool honua_ingest_dataset not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "publish_service",
+      "family": "Publishing",
+      "detail": "reference tool honua_publish_service not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "validate_package",
+      "family": "Composition review (reference shape)",
+      "detail": "reference tool honua_validate_package not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "preview_package",
+      "family": "Composition review (reference shape)",
+      "detail": "reference tool honua_preview_package not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "resolve_entity",
+      "family": "Discovery and grounding (Honua extension)",
+      "detail": "reference tool honua_resolve_entity not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "list_capabilities",
+      "family": "Discovery and grounding (Honua extension)",
+      "detail": "reference tool honua_list_capabilities not advertised by the certified surface"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_list_sources",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_list_services",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_describe_layer",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_count_features",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_get_extent",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_statistics",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_explain_capability_gap",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_docs_search",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    }
+  ]
+}
