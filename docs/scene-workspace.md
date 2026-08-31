@@ -225,16 +225,24 @@ a clock declares `time` outbound-`unsupported`, and the synchronizer reports
 `unsupported-target` instead of pretending the state landed.
 
 The same rule applies *within* a slice the renderer mostly supports. The 2D
-filter language has no expression for `like`, and none for a comparison,
-membership or range clause whose published value has the wrong shape, while the
-globe evaluates all of them against entity properties. So the 2D `filters`
-mapping is `equivalent` rather than `exact`, and a clause addressed at a layer's
-source that compiles to nothing is reported as `filters-clause-not-expressible`
-naming the clause, operator and field, instead of vanishing from the composed
-filter. `compileMapLibreFilterSet()` is the compiler that returns that report
-alongside the filter; `compileMapLibreFilters()` is the same call with the
-report discarded. A clause whose `appliesTo` excludes the layer's source was
-never addressed there and is not reported.
+filter language has no expression for `like`, none for a comparison, membership
+or range clause whose published value has the wrong shape, and none for an
+equality clause carrying no operand at all — `FilterClause.value` is optional
+and a valueless clause survives normalization — while the globe evaluates all of
+them against entity properties. So the 2D `filters` mapping is `equivalent`
+rather than `exact`, and a clause addressed at a layer's source that compiles to
+nothing is reported as `filters-clause-not-expressible` naming the clause,
+operator and field, instead of vanishing from the composed filter.
+`compileMapLibreFilterSet()` is the compiler that returns that report alongside
+the filter; `compileMapLibreFilters()` is the same call with the report
+discarded.
+
+Two things are deliberately *not* reported. A clause whose `appliesTo` excludes
+the layer's source was never addressed there. And omissions are reported when the
+`filters` slice is applied, not again on each `time` delivery that recomposes the
+same clauses — the shortfall belongs to the filter state, and re-reporting it
+would attribute a filter problem to time revisions and, during playback, evict
+unrelated diagnostics from the bounded degradation history.
 
 The globe's `time` slice goes through `sceneTimelineToCesiumClockPlan()` and
 `applyCesiumClockPlan()` rather than writing the clock itself, so shared time and

@@ -40,7 +40,14 @@ interface FakeMap extends MapLibreStateSyncTarget {
   pan(center: [number, number], zoom?: number): void;
 }
 
-function fakeMap(options: { readonly maxPitch?: number; readonly maxZoom?: number } = {}): FakeMap {
+function fakeMap(
+  options: {
+    readonly maxPitch?: number;
+    readonly maxZoom?: number;
+    /** Extra filterable style layers, for multi-source filter cases. */
+    readonly extraLayers?: readonly { readonly id: string; readonly type: string; readonly source: string }[];
+  } = {},
+): FakeMap {
   const listeners = new Map<string, Set<() => void>>();
   const featureState = new Map<string, Record<string, unknown>>();
   const filters = new Map<string, unknown>([["incidents", ["!=", "archived", true]]]);
@@ -94,6 +101,7 @@ function fakeMap(options: { readonly maxPitch?: number; readonly maxZoom?: numbe
       layers: [
         { id: "basemap", type: "raster", source: "tiles" },
         { id: "incidents", type: "circle", source: "live-incidents" },
+        ...(options.extraLayers ?? []),
       ],
     }),
     getFilter: (id) => filters.get(id),
@@ -542,6 +550,100 @@ describe("MapLibre state-sync port", () => {
     synchronizer.dispose();
   });
 
+  it("keeps clause and source identity separate when deduplicating omissions", async () => {
+    // `SAFE_ID` permits `:` in both filter keys and source ids, so a
+    // `${key}:${source}` signature is ambiguous: clause `a:b` on source `c` and
+    // clause `a` on source `b:c` both flatten to `a:b:c`, and the second
+    // omission was skipped and reported nowhere.
+    const map = fakeMap({
+      extraLayers: [
+        { id: "layer-c", type: "circle", source: "c" },
+        { id: "layer-bc", type: "circle", source: "b:c" },
+      ],
+    });
+    const port = createMapLibreStateSyncPort(map, {
+      identity: IDENTITY,
+      filterLayers: ["layer-c", "layer-bc"],
+    });
+    const synchronizer = createSceneStateSynchronizer({ applicationId: "app", ports: [port], coalesceMs: 0 });
+    const peer = attachProbePort(synchronizer);
+
+    // `a:b` + `c` and `a` + `b:c` both flatten to the same `a:b:c`.
+    peer.emit("filters", {
+      "a:b": { field: "label", operator: "like", value: "x%", appliesTo: ["c"] },
+      a: { field: "label", operator: "like", value: "y%", appliesTo: ["b:c"] },
+    });
+    await synchronizer.flush();
+
+    const messages = port.degradations
+      .filter((entry) => entry.code === "filters-clause-not-expressible")
+      .map((entry) => entry.message)
+      .sort();
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toContain("Clause a ");
+    expect(messages[1]).toContain("Clause a:b ");
+
+    port.dispose();
+    synchronizer.dispose();
+  });
+
+  it("does not re-report unchanged filter omissions on every time delivery", async () => {
+    // A time delivery recomposes the same clauses through the same code path.
+    // Re-reporting there would attribute a filter shortfall to `time` revisions
+    // and, during playback, evict unrelated diagnostics from the bounded
+    // 256-entry degradation history.
+    const map = fakeMap();
+    const port = createMapLibreStateSyncPort(map, { identity: IDENTITY, timeField: "observed_at" });
+    const synchronizer = createSceneStateSynchronizer({ applicationId: "app", ports: [port], coalesceMs: 0 });
+    const peer = attachProbePort(synchronizer);
+
+    peer.emit("filters", { label: { field: "label", operator: "like", value: "flood%" } });
+    await synchronizer.flush();
+    expect(port.degradations.map((entry) => entry.code)).toEqual(["filters-clause-not-expressible"]);
+    expect(port.degradations[0]?.slice).toBe("filters");
+
+    for (let tick = 1; tick <= 3; tick += 1) {
+      peer.emit("time", {
+        currentTime: `2026-07-11T12:00:0${tick}.000Z`,
+        startTime: "2026-07-11T00:00:00.000Z",
+      });
+      await synchronizer.flush();
+    }
+
+    // Still exactly one, and still attributed to the slice that caused it.
+    expect(port.degradations.map((entry) => entry.code)).toEqual(["filters-clause-not-expressible"]);
+    expect(port.degradations.every((entry) => entry.slice === "filters")).toBe(true);
+
+    port.dispose();
+    synchronizer.dispose();
+  });
+
+  it("reports an equality clause published with no operand", async () => {
+    // `FilterClause.value` is optional and the normalizer keeps a valueless
+    // clause, so `=` used to compile to ["==", field, undefined] and count as
+    // successfully compiled -- an unserializable filter that can take valid
+    // sibling clauses down with it, with no clause-specific degradation.
+    const map = fakeMap();
+    const port = createMapLibreStateSyncPort(map, { identity: IDENTITY });
+    const synchronizer = createSceneStateSynchronizer({ applicationId: "app", ports: [port], coalesceMs: 0 });
+    const peer = attachProbePort(synchronizer);
+
+    peer.emit("filters", {
+      severity: { field: "severity", operator: ">=", value: 3 },
+      orphan: { field: "status", operator: "=" },
+    });
+    await synchronizer.flush();
+
+    // The valid sibling still lands, and nothing undefined reaches the renderer.
+    expect(map.filters.get("incidents")).toEqual(["all", ["!=", "archived", true], [">=", "severity", 3]]);
+    expect(JSON.stringify(map.filters.get("incidents"))).not.toContain("null");
+    expect(port.degradations.map((entry) => entry.code)).toEqual(["filters-clause-not-expressible"]);
+    expect(port.degradations[0]?.message).toContain("orphan");
+
+    port.dispose();
+    synchronizer.dispose();
+  });
+
   it("declares time outbound-unsupported when no temporal field is configured", async () => {
     const map = fakeMap();
     const port = createMapLibreStateSyncPort(map, { identity: IDENTITY });
@@ -809,6 +911,24 @@ describe("shared filter compilation", () => {
     expect(
       compileMapLibreFilters({ label: { field: "label", operator: "like", value: "x%" } }, "live-incidents"),
     ).toEqual(["all"]);
+  });
+
+  it("omits an equality clause with no operand but keeps an explicit null", () => {
+    const compilation = compileMapLibreFilterSet(
+      {
+        missing: { field: "status", operator: "=" },
+        alsoMissing: { field: "status", operator: "!=" },
+        explicitNull: { field: "closed_at", operator: "=", value: null },
+      },
+      "live-incidents",
+    );
+
+    // `null` is a legitimate MapLibre operand; `undefined` is not.
+    expect(compilation.filter).toEqual(["all", ["==", "closed_at", null]]);
+    expect(compilation.omitted).toEqual([
+      { key: "missing", operator: "=", field: "status" },
+      { key: "alsoMissing", operator: "!=", field: "status" },
+    ]);
   });
 });
 

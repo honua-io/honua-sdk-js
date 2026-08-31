@@ -2085,8 +2085,9 @@ export interface MapLibreFilterCompilation {
  * Clauses with an `appliesTo` list that excludes `sourceId` are skipped and are
  * not omissions — they were never addressed at this source. A clause that *is*
  * addressed here and still compiles to nothing is: `like`, which the 2D filter
- * language cannot express at all, and the comparison, membership and range
- * operators when the published value has the wrong shape. Those are collected
+ * language cannot express at all, the comparison, membership and range
+ * operators when the published value has the wrong shape, and an equality
+ * clause carrying no operand at all. Those are collected
  * in `omitted` rather than vanishing, so a caller can report the shortfall
  * instead of claiming the filter landed intact (issue #1304).
  *
@@ -2128,10 +2129,16 @@ export function compileMapLibreFilters(filters: Readonly<Record<string, FilterCl
 
 function clauseToMapLibreFilter(clause: FilterClause): unknown[] | undefined {
   switch (clause.operator) {
+    // `FilterClause.value` is optional and the state-sync normalizer keeps a
+    // valueless clause, so an equality clause can arrive with nothing to
+    // compare against. Emitting `["==", field, undefined]` produced an
+    // unserializable filter that the renderer can reject wholesale, taking
+    // valid sibling clauses down with it; an absent operand is an omission.
+    // `null` is a legitimate operand and stays one.
     case "=":
-      return ["==", clause.field, clause.value];
+      return clause.value === undefined ? undefined : ["==", clause.field, clause.value];
     case "!=":
-      return ["!=", clause.field, clause.value];
+      return clause.value === undefined ? undefined : ["!=", clause.field, clause.value];
     case "<":
     case "<=":
     case ">":

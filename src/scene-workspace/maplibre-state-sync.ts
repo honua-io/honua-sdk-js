@@ -288,7 +288,17 @@ export function createMapLibreStateSyncPort(
       return;
     }
     const time = timeClauses();
-    const reported = new Set<string>();
+    // An omission is a property of the filter state, so it is reported when the
+    // `filters` slice is applied and not again on every `time` delivery that
+    // recomposes the same clauses. Re-reporting would attribute a filter
+    // shortfall to time revisions and, during playback, evict unrelated
+    // diagnostics from the bounded degradation history.
+    const reportOmissions = slice === "filters";
+    // Keyed by source, then clause key. Both are `SAFE_ID`s, which permit `:`,
+    // so concatenating them into one string is genuinely ambiguous -- clause
+    // `a:b` on source `c` and clause `a` on source `b:c` would collide and the
+    // second omission would be silently skipped.
+    const reported = new Map<string, Set<string>>();
     for (const layer of layers) {
       if (!baselineFilters.has(layer.id)) baselineFilters.set(layer.id, map.getFilter?.(layer.id));
       const baseline = baselineFilters.get(layer.id);
@@ -298,18 +308,24 @@ export function createMapLibreStateSyncPort(
       // comparison, membership and range operators have none for a value of the
       // wrong shape. Reporting it is what keeps the slice from claiming a
       // filter landed that the renderer silently discarded (#1304). Reported
-      // once per clause rather than once per layer, since the shortfall is a
-      // property of the clause and the source, not of the layer.
-      for (const omission of compilation.omitted) {
-        const signature = `${omission.key}:${layer.source}`;
-        if (reported.has(signature)) continue;
-        reported.add(signature);
-        core.degrade(
-          slice,
-          "filters-clause-not-expressible",
-          `Clause ${omission.key} (${omission.operator} on ${omission.field}) has no 2D layer-filter expression for source ${layer.source}, so it was not applied.`,
-          { revision },
-        );
+      // once per clause and source rather than once per layer, since the
+      // shortfall is a property of the clause and the source, not of the layer.
+      if (reportOmissions) {
+        let reportedForSource = reported.get(layer.source);
+        if (!reportedForSource) {
+          reportedForSource = new Set<string>();
+          reported.set(layer.source, reportedForSource);
+        }
+        for (const omission of compilation.omitted) {
+          if (reportedForSource.has(omission.key)) continue;
+          reportedForSource.add(omission.key);
+          core.degrade(
+            slice,
+            "filters-clause-not-expressible",
+            `Clause ${omission.key} (${omission.operator} on ${omission.field}) has no 2D layer-filter expression for source ${layer.source}, so it was not applied.`,
+            { revision },
+          );
+        }
       }
       const compiled = compilation.filter.slice(1);
       const parts = [...(baseline === undefined ? [] : [baseline]), ...compiled, ...time];
