@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  PIN_SYNC_REMEDY,
   compareVersions,
   isMcpPinLiveVerificationEnabled,
   parsePackagePin,
@@ -218,6 +219,31 @@ describe("pinned client pair co-installability (#1529)", () => {
     expect(satisfiesUnderNpmDefaults("0.2.0", "0.1.x")).toBe(false);
   });
 
+  it("keeps caret semantics when the range carries a wildcard", () => {
+    // A caret over an X-range holds the leftmost part the token actually
+    // specifies, which is not the band the X-range alone denotes: `^1.2.x`
+    // reaches into 1.9.x, while `1.2.x` and `~1.2.x` stop below 1.3.0.
+    expect(satisfiesUnderNpmDefaults("1.9.9", "^1.2.x")).toBe(true);
+    expect(satisfiesUnderNpmDefaults("1.9.9", "~1.2.x")).toBe(false);
+    expect(satisfiesUnderNpmDefaults("1.9.9", "1.2.x")).toBe(false);
+    expect(satisfiesUnderNpmDefaults("2.0.0", "^1.2.x")).toBe(false);
+    expect(satisfiesUnderNpmDefaults("1.2.0", "^1.2")).toBe(true);
+    expect(satisfiesUnderNpmDefaults("1.9.9", "^1.2")).toBe(true);
+    // A wildcard minor widens caret and tilde alike to the whole major.
+    expect(satisfiesUnderNpmDefaults("1.9.9", "^1.x")).toBe(true);
+    expect(satisfiesUnderNpmDefaults("1.9.9", "~1.x")).toBe(true);
+    expect(satisfiesUnderNpmDefaults("2.0.0", "~1.x")).toBe(false);
+    // Zero majors: the parts the token omits must not be read as a
+    // leftmost-zero, so `^0.0.x` covers the minor rather than a single patch.
+    expect(satisfiesUnderNpmDefaults("0.0.5", "^0.0.x")).toBe(true);
+    expect(satisfiesUnderNpmDefaults("0.1.0", "^0.0.x")).toBe(false);
+    expect(satisfiesUnderNpmDefaults("0.0.5", "^0.0.4")).toBe(false);
+    expect(satisfiesUnderNpmDefaults("0.2.9", "^0.2.x")).toBe(true);
+    expect(satisfiesUnderNpmDefaults("0.3.0", "^0.2.x")).toBe(false);
+    expect(satisfiesUnderNpmDefaults("0.9.9", "^0.x")).toBe(true);
+    expect(satisfiesUnderNpmDefaults("1.0.0", "^0.x")).toBe(false);
+  });
+
   it("refuses a range shape it cannot reason about rather than assuming it is satisfied", () => {
     // Failing closed matters more than coverage here: a parser that shrugs at
     // an unfamiliar token would report every pair as co-installable.
@@ -281,19 +307,49 @@ describe("pinned client pair co-installability (#1529)", () => {
     ).not.toThrow();
   });
 
-  it("proves the pinned pair a customer installs co-installs", async () => {
+  it("either co-installs the pinned pair or is exactly the state the publish gate refuses", async () => {
     const sdk = await readManifest("package.json");
     // release-please writes the peer range as a caret on the MCP version at the
     // commit that cut it, so that is the range the pinned tarball carries; the
     // live lane re-reads it from the registry rather than trusting this.
-    expect(() =>
+    const pinned = {
+      sdkName: sdk.name,
+      sdkVersion: sdk.version,
+      mcpName: LOCAL_INSTALL_MCP_PACKAGE_NAME,
+      mcpVersion: LOCAL_INSTALL_MCP_PACKAGE_VERSION,
+      peerRange: `^${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`,
+    };
+    if (LOCAL_INSTALL_MCP_PACKAGE_VERSION === sdk.version) {
+      expect(() => verifyClientPairCoInstallable(pinned)).not.toThrow();
+      return;
+    }
+    // Between a release-please bump and the coordinated MCP publish the pin
+    // legitimately lags, and no edit can fix it until the MCP half reaches the
+    // registry -- asserting green here would redden every release PR with
+    // nothing a contributor could do about it. The state is still not allowed
+    // to ship, so assert the gate that stops it actually fires.
+    expect(() => verifyClientPairCoInstallable(pinned)).toThrow(/does NOT consider satisfied/);
+  });
+
+  it("tells a lagging pin exactly how to catch up, publish first", () => {
+    // A gate that fails without naming its remedy is a gate people route
+    // around. The pin cannot advance before the coordinated publish, so the
+    // message has to say that rather than just "update the pin".
+    let message = "";
+    try {
       verifyClientPairCoInstallable({
-        sdkName: sdk.name,
-        sdkVersion: sdk.version,
-        mcpName: LOCAL_INSTALL_MCP_PACKAGE_NAME,
-        mcpVersion: LOCAL_INSTALL_MCP_PACKAGE_VERSION,
-        peerRange: `^${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`,
-      }),
-    ).not.toThrow();
+        sdkName: "@honua/sdk-js",
+        sdkVersion: "0.1.10-beta.0",
+        mcpName: "@honua/mcp-server",
+        mcpVersion: "0.1.9-beta.0",
+        peerRange: "^0.1.9-beta.0",
+        remedy: PIN_SYNC_REMEDY,
+      });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/npm run sync:mcp-pin/);
+    expect(message).toMatch(/publish the coordinated @honua\/mcp-server cut/);
+    expect(message).toMatch(/LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY/);
   });
 });

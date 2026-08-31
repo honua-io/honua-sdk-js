@@ -174,6 +174,13 @@ function isWildcard(part) {
  * Desugar an X-range into its bounds, or return null when the token names a
  * complete version and the caller should parse it directly.
  *
+ * A caret over an X-range is not the same as the band the X-range alone
+ * denotes, and it is not the caret of the zero-filled floor either: `^1.2.x`
+ * holds the *major*, so it reaches `<2.0.0-0` rather than the `<1.3.0-0` that
+ * `1.2.x` and `~1.2.x` stop at. Only the parts the token actually specifies
+ * count when picking the part to hold, so `^0.0.x` widens to `<0.1.0-0` rather
+ * than the `<0.0.1-0` that caret over a literal `0.0.0` would give.
+ *
  * Both bounds are stable versions, so no comparator carries a prerelease --
  * which is precisely why `0.1.x` excludes `0.1.9-beta.0` under npm defaults.
  */
@@ -183,16 +190,25 @@ function expandXRange(op, raw) {
   const [, majorPart, minorPart] = match;
   if (isWildcard(majorPart)) return [{ op: ">=", version: ANY }];
   const major = Number(majorPart);
-  const floor = isWildcard(minorPart) ? `${major}.0.0` : `${major}.${Number(minorPart)}.0`;
-  const ceiling = isWildcard(minorPart) ? `${major + 1}.0.0-0` : `${major}.${Number(minorPart) + 1}.0-0`;
+  const minorWildcard = isWildcard(minorPart);
+  const floor = minorWildcard ? `${major}.0.0` : `${major}.${Number(minorPart)}.0`;
+  // The band the X-range itself denotes: the whole major for `1.x`, the minor
+  // for `1.2.x`.
+  const band = minorWildcard ? `${major + 1}.0.0-0` : `${major}.${Number(minorPart) + 1}.0-0`;
   if (op === ">" || op === ">=") return [comparator(">=", floor)];
   if (op === "<") return [comparator("<", floor)];
-  if (op === "<=") return [comparator("<", ceiling)];
+  if (op === "<=") return [comparator("<", band)];
   invariant(
     op === "" || op === "=" || op === "^" || op === "~",
     `${op}${raw} is not a comparator this verifier understands`,
   );
-  return [comparator(">=", floor), comparator("<", ceiling)];
+  // `^1.2.x` holds the major; `^0.2.x` and `^0.0.x` fall back to the band,
+  // which is already the minor for both. `^1.x`/`~1.x` widen to the whole
+  // major because the minor is the wildcard, so the band is right there too.
+  if (op === "^" && !minorWildcard && major !== 0) {
+    return [comparator(">=", floor), comparator("<", `${major + 1}.0.0-0`)];
+  }
+  return [comparator(">=", floor), comparator("<", band)];
 }
 
 /**
@@ -285,7 +301,7 @@ export function satisfiesUnderNpmDefaults(version, range) {
  * anyone following the documented install, which is exactly how the pinned
  * client pair reached a customer uninstallable (#1529).
  */
-export function verifyClientPairCoInstallable({ sdkName, sdkVersion, mcpName, mcpVersion, peerRange }) {
+export function verifyClientPairCoInstallable({ sdkName, sdkVersion, mcpName, mcpVersion, peerRange, remedy }) {
   invariant(
     typeof peerRange === "string" && peerRange !== "",
     `${mcpName}@${mcpVersion} must declare a ${sdkName} peer range`,
@@ -296,10 +312,25 @@ export function verifyClientPairCoInstallable({ sdkName, sdkVersion, mcpName, mc
       `consider satisfied by ${sdkName}@${sdkVersion}. Installing the pair fails ERESOLVE unless the consumer ` +
       "passes --legacy-peer-deps or --force, so the documented install is broken. A prerelease satisfies a range " +
       "only when a comparator in it carries a prerelease on the same major.minor.patch tuple, so widening the " +
-      "range cannot fix this -- the pair has to be cut, pinned, and published on one tuple.",
+      `range cannot fix this -- the pair has to be cut, pinned, and published on one tuple.${
+        remedy ? `\n\nTo fix: ${remedy}` : ""
+      }`,
   );
   return { sdkName, sdkVersion, mcpName, mcpVersion, peerRange };
 }
+
+/**
+ * How a lagging generated-config pin is put right.
+ *
+ * Named in the failure message rather than left to the reader: the pin can only
+ * legitimately advance after the coordinated MCP publish, so "update the pin"
+ * is not actionable on its own -- the operator needs to know that the publish
+ * comes first and that one command records both the version and its integrity.
+ */
+export const PIN_SYNC_REMEDY =
+  "publish the coordinated @honua/mcp-server cut for this SDK version, then run `npm run sync:mcp-pin` to advance " +
+  "LOCAL_INSTALL_MCP_PACKAGE_VERSION and LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY in src/local-install.ts onto it. Do " +
+  "not hand-edit the pin to a version the registry does not serve.";
 
 /** Every version this repository has cut a release entry for, newest first. */
 export function releaseLineage(changelog) {
@@ -393,12 +424,21 @@ async function main() {
   // caret on the MCP version at the commit that cut it, so that is the range
   // the published tarball carries; the live lane below re-reads it from the
   // registry rather than trusting this reconstruction.
+  //
+  // This check is a publish gate, not a PR gate. Between a release-please bump
+  // and the coordinated MCP publish the pin legitimately lags the SDK version,
+  // and no edit can fix that until the MCP half is on the registry -- so
+  // reddening every release PR here would only make releases impossible. PR CI
+  // asserts the source pair above (which release-please keeps in lockstep) and
+  // that this rule rejects the lagging pin; `verify:client-pair` in
+  // publish-js-sdk.yml is what stops a lagging pin from actually shipping.
   verifyClientPairCoInstallable({
     sdkName,
     sdkVersion,
     mcpName: lineage.name,
     mcpVersion: lineage.version,
     peerRange: `^${lineage.version}`,
+    remedy: PIN_SYNC_REMEDY,
   });
   process.stdout.write(`pinned pair co-installable: ${lineage.name}@${lineage.version} + ${sdkName}@${sdkVersion}\n`);
 
@@ -418,6 +458,7 @@ async function main() {
     mcpName: published.name,
     mcpVersion: published.version,
     peerRange: published.peerDependencies?.[sdkName],
+    remedy: PIN_SYNC_REMEDY,
   });
   process.stdout.write(
     `published pair co-installable: ${published.name}@${published.version} peer ${sdkName}@"${published.peerDependencies?.[sdkName]}"\n`,

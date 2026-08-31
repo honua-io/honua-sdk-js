@@ -132,6 +132,16 @@ export const LOCAL_INSTALL_SERVER_IMAGE = ADMIN_LOCAL_SERVER_IMAGE;
  * one coordinated cut at a time. `0.1.9-beta.0` is that cut: both halves were
  * published on 2026-08-29 and co-install with no flags.
  *
+ * Advancing it is `npm run sync:mcp-pin`, run *after* the coordinated
+ * `@honua/mcp-server` publish, which rewrites this version and the integrity
+ * below together from the registry. It is deliberately not a release-please
+ * `extra-files` bump: release-please would advance the version at release-PR
+ * time, before either half is published -- reintroducing exactly the
+ * unpublished-pin failure described above -- and it cannot compute the tarball
+ * integrity that has to move with it. Between a release bump and that publish
+ * the pin legitimately lags this package's version; `verify:client-pair` is
+ * what refuses to ship while it does.
+ *
  * `test/local-install.test.ts` proves the pin belongs to the repository's own
  * release lineage and never runs ahead of `mcp/package.json`;
  * `npm run verify:mcp-pin` additionally proves the pinned pair is co-installable
