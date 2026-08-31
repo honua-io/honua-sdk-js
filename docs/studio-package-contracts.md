@@ -28,10 +28,9 @@ can import `@honua/sdk-js/studio` without pulling renderer code or triggering a
 build error from Console/Esri internals. This boundary is enforced by a source
 scan in `test/studio/studio-contracts.test.ts`.
 
-The established `map` and `dashboard`/`app` shapes are re-exported here from
-their leaf modules (`runtime/map-package`, `generated-app/manifest`), so a
-consumer reaches every family from one path without taking on the MapLibre
-runtime.
+The established `map` and `app` shapes are re-exported from their leaf modules.
+The distinct `dashboard` artifact is authored by the sdk-js Studio agent path;
+Console and other renderers consume the validated package read-only.
 
 The `map` family additionally has a published JSON Schema,
 [`schemas/honua-map-package.v1.json`](../schemas/honua-map-package.v1.json)
@@ -62,7 +61,7 @@ exactly as on `MapPackage`. A loader refuses any other value.
 | query | `HONUA_QUERY_PACKAGE_FORMAT_V1` | `honua_query_package.v1` | `HonuaQueryPackage` | experimental (stub) |
 | analysis | `HONUA_ANALYSIS_PACKAGE_FORMAT_V1` | `honua_analysis_package.v1` | `HonuaAnalysisPackage` | experimental (stub) |
 | map | `HONUA_MAP_PACKAGE_FORMAT_V1` | `honua_map_package.v1` | `HonuaMapPackage` | stable family, re-exported |
-| dashboard | `HONUA_GENERATED_APP_MANIFEST_FORMAT_V1` | `honua_generated_app_manifest.v1` | `HonuaGeneratedAppManifest` | re-exported |
+| dashboard | `HONUA_DASHBOARD_PACKAGE_FORMAT_V1` | `honua_dashboard_package.v1` | `HonuaDashboardPackage` | experimental, Studio-authored |
 | report | `HONUA_REPORT_PACKAGE_FORMAT_V1` | `honua_report_package.v1` | `HonuaReportPackage` | experimental (stub) |
 | form | `HONUA_FORM_PACKAGE_FORMAT_V1` | `honua_form_package.v1` | `HonuaFormPackage` | experimental (stub) |
 | app | — (uses `HonuaGeneratedAppPackage.version`) | — | `HonuaGeneratedAppPackage` | re-exported |
@@ -74,8 +73,8 @@ The **stub** families (query, analysis, report, form, workflow, gp, etl) have no
 finalized server contract yet. Their interfaces are minimal and open-ended
 (every field optional beyond `packageId`/`format`, plus `[extra: string]:
 unknown`) so additive server changes never break a client. They expand once the
-matching server contract lands. The `map` and generated-app (`dashboard`/`app`)
-families are the established, landed shapes.
+matching server contract lands. The `map` and generated-app (`app`) families
+are established shapes; `dashboard` is a dedicated Studio-authored artifact.
 
 Lifecycle status is shared across families via `HonuaStudioPackageStatus`
 (`"Draft" | "Composing" | "Ready" | "Failed" | "Expired"`), the same union as
@@ -177,9 +176,9 @@ descriptor; the type does not imply a token-minting call inside the SDK.
 
 Generated apps consume published `map`, `dashboard`, `report`, and `app`
 package projections from `@honua/sdk-js/studio` without importing Console or
-MapLibre code — the `dashboard` family is `HonuaGeneratedAppManifest` and the
-`app` family is `HonuaGeneratedAppPackage`, both re-exported here. For the
-preview runtime that hydrates these manifests, see
+MapLibre code. `HonuaDashboardPackage` is the authored dashboard artifact;
+`HonuaGeneratedAppManifest` remains a runtime hydration projection rather than
+the dashboard authoring wire format. For the preview runtime, see
 [`docs/generated-app-runtime.md`](./generated-app-runtime.md).
 
 ## Versioning
@@ -188,6 +187,19 @@ Every new export is tagged `@experimental` in JSDoc and is subpath-only (not
 re-exported from the root barrels), so it is outside the SDK semver contract
 until the matching server contracts land. The format constants follow the
 `HONUA_X_PACKAGE_FORMAT_V1 = "honua_x_package.v1"` pattern.
+
+For `dashboard`, additive optional fields remain compatible within
+`honua_dashboard_package.v1`. Removing or renaming a field, changing its
+meaning, or changing requiredness requires a new format discriminator. Readers
+preserve unknown properties, writers emit only explicitly supported formats,
+and validators never guess, downgrade, or rewrite an unknown format. Renderer
+state is derived and must not be serialized back into the authored package.
+
+The dashboard artifact may reference the portable map artifact from
+honua-sdk-js#1426 through `mapPackageId`; it does not embed credentials or mint
+another map representation. Publication state, stable lifecycle identity,
+tenant/actor, authorization, optimistic concurrency, audit, and correlation
+remain outside the package and are coordinated through honua-sdk-js#1398.
 
 ## Cross-surface parity (MCP / QGIS)
 
@@ -201,8 +213,6 @@ documented in [`studio-package-parity.md`](./studio-package-parity.md)
 
 These are tracked for follow-up once the server shapes are finalized:
 
-- Whether `dashboard` is exactly `HonuaGeneratedAppManifest` or a distinct
-  server `DashboardPackage` wrapper.
 - The fetch path for `StudioCapabilityManifest` (dedicated endpoint vs.
   embedded in another response).
 - Full ETL/workflow/GP package shapes (currently stub-only).
