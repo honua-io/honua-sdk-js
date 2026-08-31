@@ -47,7 +47,8 @@ import {
 } from "./verify-mcp-pin.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PIN_SOURCE = path.join(PROJECT_ROOT, "src", "local-install.ts");
+const PIN_SOURCE_RELATIVE = "src/local-install.ts";
+const PIN_SOURCE = path.join(PROJECT_ROOT, PIN_SOURCE_RELATIVE);
 const REGISTRY = "https://registry.npmjs.org";
 const VERSION_LINE = /(export const LOCAL_INSTALL_MCP_PACKAGE_VERSION = ")([^"]+)(";)/;
 const INTEGRITY_LINE = /(export const LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY =\s*\n\s*")([^"]+)(";)/;
@@ -155,6 +156,36 @@ export function applyConfigPin(source, nextPin, relativePath) {
   return updated;
 }
 
+/**
+ * Compute every rewrite, running every invariant, before anything is written.
+ *
+ * The rewrites validate as they build -- `applyConfigPin` refuses a config
+ * whose pin token is ambiguous, and that refusal is only reachable here, not in
+ * the `readConfigPin` pass that decides which sites are stale. Writing inside
+ * that loop would therefore let a refusal on the second config land after the
+ * source constant and the first config were already on disk, leaving exactly
+ * the half-migrated tree this command exists to prevent. Planning first makes
+ * the write phase pure I/O over contents that have all already been proven.
+ */
+export function planPinWrites({ source, sourceStale, version, integrity, staleConfigs, expectedPin }) {
+  const writes = [];
+  if (sourceStale) {
+    writes.push({
+      relativePath: PIN_SOURCE_RELATIVE,
+      file: PIN_SOURCE,
+      contents: applyPin(source, version, integrity),
+    });
+  }
+  for (const config of staleConfigs) {
+    writes.push({
+      relativePath: config.relativePath,
+      file: config.file,
+      contents: applyConfigPin(config.source, expectedPin, config.relativePath),
+    });
+  }
+  return writes;
+}
+
 /** Every file that carries the pin, with what it names today. */
 function readPinSites(expectedPin) {
   return ZERO_TO_MAP_CONFIGS.map((relativePath) => {
@@ -220,10 +251,9 @@ async function main(argv) {
     return;
   }
 
-  if (sourceStale) fs.writeFileSync(PIN_SOURCE, applyPin(source, version, integrity));
-  for (const config of staleConfigs) {
-    fs.writeFileSync(config.file, applyConfigPin(config.source, expectedPin, config.relativePath));
-  }
+  // Validate every rewrite first; a refusal here leaves the tree untouched.
+  const writes = planPinWrites({ source, sourceStale, version, integrity, staleConfigs, expectedPin });
+  for (const write of writes) fs.writeFileSync(write.file, write.contents);
   // Same discipline as the pre-write co-install check: prove the bytes just
   // written actually satisfy the gate rather than trusting the edit.
   verifyZeroToMapConfigPins({ expectedPin });
