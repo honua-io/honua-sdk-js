@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 /**
- * Advance the generated-config MCP pin onto this SDK's own coordinated cut.
+ * Advance every MCP pin in the tree onto this SDK's own coordinated cut.
  *
- * `src/local-install.ts` pins an exact `@honua/mcp-server` version into every
- * generated `.mcp.json` / `claude_desktop_config.json`. That pin carries two
- * obligations that pull against each other:
+ * The pin has two homes, and they must name the identical `name@version`:
+ * `src/local-install.ts`, which writes it into `.mcp.json` /
+ * `claude_desktop_config.json` generated on a user's machine, and the
+ * zero-to-map configs under `mcp/release/`, which ship it as committed bytes.
+ * `verify-mcp-pin` enforces that equality, so this command has to move both --
+ * advancing only the source constant would leave the tree failing its own gate
+ * the moment this command succeeded (#1545).
+ *
+ * That pin carries two obligations that pull against each other:
  *
  * - it must name a version the registry actually serves (#1401 -- a pin that
  *   exists only in this repository's release lineage cannot install on a clean
@@ -33,7 +39,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseSemver, verifyClientPairCoInstallable } from "./verify-mcp-pin.mjs";
+import {
+  ZERO_TO_MAP_CONFIGS,
+  parseSemver,
+  verifyClientPairCoInstallable,
+  verifyZeroToMapConfigPins,
+} from "./verify-mcp-pin.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PIN_SOURCE = path.join(PROJECT_ROOT, "src", "local-install.ts");
@@ -101,6 +112,59 @@ export function readPin(source) {
   };
 }
 
+/** The exact `name@version` a shipped zero-to-map config hands `npx --package`. */
+export function readConfigPin(source, relativePath) {
+  let config;
+  try {
+    config = JSON.parse(source);
+  } catch (error) {
+    throw new Error(`${relativePath} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const args = config?.mcpServers?.honua?.args;
+  invariant(Array.isArray(args), `${relativePath} must declare mcpServers.honua.args`);
+  const packageFlag = args.indexOf("--package");
+  invariant(packageFlag >= 0, `${relativePath} must invoke npx with --package`);
+  const pin = args[packageFlag + 1];
+  invariant(typeof pin === "string", `${relativePath} must put an exact package pin after --package`);
+  return pin;
+}
+
+/**
+ * Repoint one shipped config at `nextPin`, preserving its formatting.
+ *
+ * A parse/serialise round-trip would reflow these hand-formatted files (the
+ * `args` array lives on one line), so the pin is replaced as an exact quoted
+ * token instead -- but only after the structure has been validated, and the
+ * result is re-read through the parser so a formatting-preserving edit still
+ * has to produce a config that genuinely names the intended pin.
+ */
+export function applyConfigPin(source, nextPin, relativePath) {
+  const current = readConfigPin(source, relativePath);
+  if (current === nextPin) return source;
+  const token = JSON.stringify(current);
+  const occurrences = source.split(token).length - 1;
+  invariant(
+    occurrences === 1,
+    `${relativePath} must name ${current} exactly once so the rewrite is unambiguous; found ${occurrences}`,
+  );
+  const updated = source.replace(token, JSON.stringify(nextPin));
+  invariant(
+    readConfigPin(updated, relativePath) === nextPin,
+    `${relativePath} pin rewrite did not take effect`,
+  );
+  return updated;
+}
+
+/** Every file that carries the pin, with what it names today. */
+function readPinSites(expectedPin) {
+  return ZERO_TO_MAP_CONFIGS.map((relativePath) => {
+    const file = path.join(PROJECT_ROOT, relativePath);
+    const source = fs.readFileSync(file, "utf8");
+    const pin = readConfigPin(source, relativePath);
+    return { relativePath, file, source, pin, stale: pin !== expectedPin };
+  });
+}
+
 async function main(argv) {
   const check = argv.includes("--check");
   for (const arg of argv) {
@@ -126,20 +190,50 @@ async function main(argv) {
     peerRange: manifest.peerDependencies?.[sdk.name],
   });
 
-  if (current.version === version && current.integrity === integrity) {
-    process.stdout.write(`mcp pin already current: ${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${version}\n`);
+  // The pin lives in more than one place. `src/local-install.ts` writes it into
+  // configurations generated on a user's machine; the zero-to-map configs under
+  // mcp/release/ ship it as committed bytes. `verify-mcp-pin` requires all of
+  // them to name the identical pin, so advancing only the source constant would
+  // leave the tree failing its own gate the moment this command succeeded.
+  const expectedPin = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${version}`;
+  const configs = readPinSites(expectedPin);
+  const staleConfigs = configs.filter((config) => config.stale);
+  const sourceStale = current.version !== version || current.integrity !== integrity;
+
+  if (!sourceStale && staleConfigs.length === 0) {
+    process.stdout.write(
+      `mcp pin already current: ${expectedPin} in src/local-install.ts and ${configs.length} shipped configs\n`,
+    );
     return;
   }
   if (check) {
-    process.stderr.write(
-      `mcp pin is stale: recorded ${current.version}, coordinated cut is ${version}. Run \`npm run sync:mcp-pin\`.\n`,
-    );
+    if (sourceStale) {
+      process.stderr.write(
+        `mcp pin is stale: src/local-install.ts records ${current.version}, coordinated cut is ${version}.\n`,
+      );
+    }
+    for (const config of staleConfigs) {
+      process.stderr.write(`mcp pin is stale: ${config.relativePath} pins ${config.pin}, coordinated cut is ${expectedPin}.\n`);
+    }
+    process.stderr.write("Run `npm run sync:mcp-pin`.\n");
     process.exitCode = 1;
     return;
   }
-  fs.writeFileSync(PIN_SOURCE, applyPin(source, version, integrity));
+
+  if (sourceStale) fs.writeFileSync(PIN_SOURCE, applyPin(source, version, integrity));
+  for (const config of staleConfigs) {
+    fs.writeFileSync(config.file, applyConfigPin(config.source, expectedPin, config.relativePath));
+  }
+  // Same discipline as the pre-write co-install check: prove the bytes just
+  // written actually satisfy the gate rather than trusting the edit.
+  verifyZeroToMapConfigPins({ expectedPin });
+
+  const advanced = [
+    sourceStale ? `src/local-install.ts ${current.version} -> ${version}` : null,
+    staleConfigs.length > 0 ? `${staleConfigs.length} shipped config${staleConfigs.length === 1 ? "" : "s"}` : null,
+  ].filter(Boolean);
   process.stdout.write(
-    `mcp pin advanced: ${current.version} -> ${version} (integrity recorded from ${REGISTRY})\n` +
+    `mcp pin advanced: ${advanced.join(", ")} (integrity recorded from ${REGISTRY})\n` +
       "Rebuild and re-run `npm run verify:client-pair` before publishing.\n",
   );
 }
