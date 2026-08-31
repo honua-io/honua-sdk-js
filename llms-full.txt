@@ -1730,7 +1730,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-31 at commit `5a7b8a47`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-31 at commit `754a4dccd`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -8053,10 +8053,10 @@ produced it. Nothing here is hand-typed, and the generator recomputes every rate
 per-scenario rows before publishing it, so a summary that disagreed with its own graded
 evidence would fail the build instead of reaching this page.
 
-**Observation window:** 2026-07-05 → 2026-08-24
-(5 distinct observation dates,
+**Observation window:** 2026-07-05 → 2026-08-31
+(6 distinct observation dates,
 3 cross-model eval artifacts,
-7 certification artifacts).
+9 certification artifacts).
 
 > This is a small, honest corpus, not a benchmark leaderboard. Read
 > [What this does and does not measure](#what-this-does-and-does-not-measure) before citing a
@@ -8158,10 +8158,12 @@ schedule and it fails loudly.
 | 2026-08-18 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 10 | 3/3 | 1/1 | 0 | 8 | 39 | ❌ fail | `9dd5a707e2eb` |
 | 2026-08-24 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 1 | 5 | 38 | ❌ fail | `53a13832554c` |
 | 2026-08-24 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 10 | 3/3 | 1/1 | 0 | 8 | 39 | ❌ fail | `53a13832554c` |
+| 2026-08-31 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 1 | 5 | 38 | ❌ fail | `0c9bdb7ec073` |
+| 2026-08-31 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 8 | 40 | ❌ fail | `0c9bdb7ec073` |
 
-### Certification failures and skips — 2026-08-24
+### Certification failures and skips — 2026-08-31
 
-From [`mcp/evals/runs/2026-08-24/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-24/cert-standalone.json). Failures are real conformance defects in the
+From [`mcp/evals/runs/2026-08-31/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-31/cert-standalone.json). Failures are real conformance defects in the
 certified surface, published unedited; skips name the reason they could not be checked.
 
 | Contract | Target | Status | Detail |
@@ -8175,9 +8177,9 @@ certified surface, published unedited; skips name the reason they could not be c
 | `async-job-lifecycle` | `honua_execute_plan` | skipped | honua_execute_plan not advertised by this surface (pre-P1) |
 | `query-pagination` | `honua_query_features` | skipped | surface returned a single page with no nextCursor (pagination not exercised — pre-P1 surface or fewer than 2 features) |
 
-The same run recorded **39 known standard gaps** — tool families in the
+The same run recorded **40 known standard gaps** — tool families in the
 geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), Analysis verbs, App composition, Composition review (reference shape), Control-plane proposal (reference shape), Discovery and grounding (Honua extension), Discovery and query (reference shape), Execution, Execution (reference shape), Feature editing, Intent and planning, Map composition, Publishing, unclassified).
-They are enumerated in [`mcp/evals/runs/2026-08-24/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-24/cert-standalone.json) under `knownGaps`.
+They are enumerated in [`mcp/evals/runs/2026-08-31/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-31/cert-standalone.json) under `knownGaps`.
 
 ## What this does and does not measure
 
@@ -8223,6 +8225,8 @@ Every artifact behind this page, with the surface it targeted and the suite that
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-18/cert-standalone.json) | 2026-08-18 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 10 | `anonymous` | `9dd5a707e2eb` |
 | [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-24/cert-demo.json) | 2026-08-24 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 52 | `anonymous` | `53a13832554c` |
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-24/cert-standalone.json) | 2026-08-24 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 10 | `anonymous` | `53a13832554c` |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-31/cert-demo.json) | 2026-08-31 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 52 | `anonymous` | `0c9bdb7ec073` |
+| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-31/cert-standalone.json) | 2026-08-31 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `0c9bdb7ec073` |
 
 3 of the artifacts above predate the self-proving provenance
 block and therefore carry no suite SHA or negotiated protocol version. They are published
@@ -10145,7 +10149,7 @@ a tier from the directory it lives in.
 
 | Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
 | --- | --- | :-: | --- | --- | --- |
-| `@honua/app-platform/scene-workspace` | `beta` | 205 | 82 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
+| `@honua/app-platform/scene-workspace` | `beta` | 208 | 82 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
 
 ### `@honua/app-platform/scene-workspace`
 
@@ -11763,7 +11767,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-31 at commit `5a7b8a47`._
+_Generated 2026-08-31 at commit `754a4dccd`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11783,7 +11787,7 @@ _Generated 2026-08-31 at commit `5a7b8a47`._
 | `/realtime` | 80.7 KiB | 86.2 KiB | 23.1 KiB | 25.0 KiB |
 | `/offline` | 171.2 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 766.3 KiB | 778.7 KiB | 173.5 KiB | 182.9 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 169.1 KiB | 183.6 KiB | 51.2 KiB | 55.8 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 169.9 KiB | 183.6 KiB | 51.4 KiB | 55.8 KiB |
 | `/esri-compat` | 1035.0 KiB | 1139.7 KiB | 261.4 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
@@ -13364,6 +13368,44 @@ Four properties hold whichever server is on the other end:
   `JobResultsOptions`, then the handle's `pollBudget`, then a default
   10-minute deadline — never an unbounded loop — and stops immediately
   when the supplied `AbortSignal` fires.
+
+#### Exact-candidate qualification
+
+`npm run qualification:ogc-processes:candidate` is the mutation-gated release
+qualification lane. It must be run from an installed, packed SDK against a
+locally bound candidate and requires
+`HONUA_OGC_PROCESSES_QUALIFICATION_ENABLED=true`. The runner discovers and
+describes `geometry.buffer`, validates its declared inputs and outputs, and
+then exercises only the sync, async, and dismiss modes advertised by that
+candidate. Undeclared modes are retained as typed `unsupported` observations,
+never skips or inferred passes.
+
+Result validation and the cancellation probe run on separate async executions.
+Dismissal drives a job to the terminal `dismissed` state, and `IJobRun.results()`
+rejects on any non-success terminal, so awaiting results on the run that was just
+cancelled would fail the lane exactly when the candidate demonstrates dismissal
+correctly. When `dismiss` is declared, the probe requires the job to settle at
+`dismissed` and then requires that dismissed job to refuse to yield results; a
+job that reached its own terminal before the DELETE landed is recorded as a
+`terminal-race` and is never reported as a dismissal proof. When `dismiss` is not
+declared, `cancel()` must refuse locally before issuing a DELETE — which is why
+the negative also needs a live job, since `cancel()` short-circuits on an
+already-terminal run and would never reach the capability check.
+
+A bounded invalid-input execution proves the failure path, and only two outcomes
+satisfy it: an `HonuaHttpError` carrying 400 or 422, or an `HonuaJobFailedError`
+whose terminal status is `failed`. Any other error — a local capability refusal,
+a 401/403, a 5xx, a poll timeout — fails the lane rather than being recorded as a
+rejection, so the run can never report `result: "passed"` for a candidate that
+never validated the governed input.
+
+The generated JSON records the installed package version and integrity, SDK
+and server source SHAs, server image digest, manifest revision, and fixture
+digest. Request observations retain only method, path, status, and the standard
+`Prefer: respond-async` value; the API key and all authorization headers are
+excluded and a final redaction gate rejects credential-shaped output. This is
+candidate qualification input for the at-cut release join, not that release
+receipt itself.
 
 ### STAC API
 
