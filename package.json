@@ -547,6 +547,7 @@
     "evidence:pmtiles:live": "npm run build --silent && node scripts/pmtiles-live-evidence.mjs --output test-results/pmtiles-live-evidence.json --strict",
     "evidence:planning:live": "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
     "evidence:live-conformance": "npm run build --silent && node scripts/live-conformance-evidence.mjs --output test-results/live-conformance-evidence.json --strict",
+    "qualification:ogc-processes:candidate": "node scripts/ogc-processes-candidate-qualification.mjs",
     "evidence:realtime:fixture": "npm run build --silent && node scripts/realtime-conformance-evidence.mjs --lane fixture --output test-results/realtime-fixture-conformance-evidence.json --strict",
     "evidence:realtime:live": "npm run build --silent && node scripts/realtime-conformance-evidence.mjs --lane live --output test-results/realtime-live-conformance-evidence.json --strict",
     "demo:geocoding": "vite --config examples/geocoding-quickstart/vite.config.ts",
