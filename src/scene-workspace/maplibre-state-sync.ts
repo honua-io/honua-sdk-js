@@ -23,7 +23,7 @@ import {
   mapLibreViewToSceneCamera,
   sceneCameraToMapLibreView,
 } from "./camera-correspondence.js";
-import { compileMapLibreFilters } from "./primitives.js";
+import { compileMapLibreFilterSet } from "./primitives.js";
 import {
   type SceneStateSyncPortDegradation,
   type SceneStateSyncRendererPort,
@@ -288,10 +288,30 @@ export function createMapLibreStateSyncPort(
       return;
     }
     const time = timeClauses();
+    const reported = new Set<string>();
     for (const layer of layers) {
       if (!baselineFilters.has(layer.id)) baselineFilters.set(layer.id, map.getFilter?.(layer.id));
       const baseline = baselineFilters.get(layer.id);
-      const compiled = compileMapLibreFilters(currentFilters, layer.source).slice(1);
+      const compilation = compileMapLibreFilterSet(currentFilters, layer.source);
+      // A clause addressed at this source that compiles to nothing is dropped
+      // by the 2D filter language -- `like` has no expression at all, and the
+      // comparison, membership and range operators have none for a value of the
+      // wrong shape. Reporting it is what keeps the slice from claiming a
+      // filter landed that the renderer silently discarded (#1304). Reported
+      // once per clause rather than once per layer, since the shortfall is a
+      // property of the clause and the source, not of the layer.
+      for (const omission of compilation.omitted) {
+        const signature = `${omission.key}:${layer.source}`;
+        if (reported.has(signature)) continue;
+        reported.add(signature);
+        core.degrade(
+          slice,
+          "filters-clause-not-expressible",
+          `Clause ${omission.key} (${omission.operator} on ${omission.field}) has no 2D layer-filter expression for source ${layer.source}, so it was not applied.`,
+          { revision },
+        );
+      }
+      const compiled = compilation.filter.slice(1);
       const parts = [...(baseline === undefined ? [] : [baseline]), ...compiled, ...time];
       try {
         map.setFilter?.(layer.id, parts.length === 0 ? undefined : ["all", ...parts]);
@@ -515,9 +535,9 @@ function buildMappings(capabilities: {
     filters: capabilities.filterCapable
       ? mapping(
           "exact",
-          "exact",
+          "equivalent",
           "maplibre-layer-filter",
-          "Protocol-neutral clauses compile to layer filters composed on top of the style's own filter.",
+          "Protocol-neutral clauses compile to layer filters composed on top of the style's own filter. The 2D filter language has no expression for `like`, and none for a comparison, membership or range clause whose value has the wrong shape; such a clause is not applied and is reported as a degradation.",
         )
       : mapping(
           "exact",

@@ -9,6 +9,7 @@ import {
   SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK,
   SCENE_WORKSPACE_SLICES,
   type SceneStateSyncIdentity,
+  compileMapLibreFilterSet,
   compileMapLibreFilters,
   createCesiumStateSyncPort,
   createMapLibreStateSyncPort,
@@ -470,6 +471,77 @@ describe("MapLibre state-sync port", () => {
     synchronizer.dispose();
   });
 
+  it("reports a clause the 2D filter language cannot express instead of claiming it landed", async () => {
+    // #1304: `like` is part of the public clause vocabulary and the Cesium port
+    // evaluates it, but the MapLibre compiler has no expression for it. It used
+    // to vanish while the slice still declared `exact`, so a filter published
+    // from the globe hid entities in 3D and changed nothing in 2D with no
+    // report anywhere.
+    const map = fakeMap();
+    const port = createMapLibreStateSyncPort(map, { identity: IDENTITY });
+    const synchronizer = createSceneStateSynchronizer({ applicationId: "app", ports: [port], coalesceMs: 0 });
+    const peer = attachProbePort(synchronizer);
+
+    peer.emit("filters", {
+      severity: { field: "severity", operator: ">=", value: 3 },
+      label: { field: "label", operator: "like", value: "flood%" },
+    });
+    await synchronizer.flush();
+
+    // The expressible clause still lands on top of the style's own filter.
+    expect(map.filters.get("incidents")).toEqual(["all", ["!=", "archived", true], [">=", "severity", 3]]);
+
+    // The inexpressible one is reported, naming the clause, operator and field.
+    expect(port.degradations.map((entry) => entry.code)).toEqual(["filters-clause-not-expressible"]);
+    expect(port.degradations[0]?.message).toContain("label");
+    expect(port.degradations[0]?.message).toContain("like");
+
+    // The slice does not claim exactness it cannot honour.
+    expect(port.mappings.filters).toMatchObject({ outbound: "equivalent", code: "maplibre-layer-filter" });
+    expect(port.mappings.filters.message).toContain("like");
+
+    port.dispose();
+    synchronizer.dispose();
+  });
+
+  it("does not report a clause scoped away from the layer's source as inexpressible", async () => {
+    const map = fakeMap();
+    const port = createMapLibreStateSyncPort(map, { identity: IDENTITY });
+    const synchronizer = createSceneStateSynchronizer({ applicationId: "app", ports: [port], coalesceMs: 0 });
+    const peer = attachProbePort(synchronizer);
+
+    // `appliesTo` excludes the only filterable layer's source, so the clause was
+    // never addressed here and its inexpressibility is not this port's shortfall.
+    peer.emit("filters", {
+      label: { field: "label", operator: "like", value: "flood%", appliesTo: ["other-source"] },
+    });
+    await synchronizer.flush();
+
+    expect(port.degradations).toEqual([]);
+
+    port.dispose();
+    synchronizer.dispose();
+  });
+
+  it("reports a comparison clause whose published value has the wrong shape", async () => {
+    const map = fakeMap();
+    const port = createMapLibreStateSyncPort(map, { identity: IDENTITY });
+    const synchronizer = createSceneStateSynchronizer({ applicationId: "app", ports: [port], coalesceMs: 0 });
+    const peer = attachProbePort(synchronizer);
+
+    // `>=` against a non-numeric value compiles to nothing for the same reason
+    // `like` does, and was silently dropped by the same path.
+    peer.emit("filters", { severity: { field: "severity", operator: ">=", value: "high" } });
+    await synchronizer.flush();
+
+    expect(map.filters.get("incidents")).toEqual(["all", ["!=", "archived", true]]);
+    expect(port.degradations.map((entry) => entry.code)).toEqual(["filters-clause-not-expressible"]);
+    expect(port.degradations[0]?.message).toContain("severity");
+
+    port.dispose();
+    synchronizer.dispose();
+  });
+
   it("declares time outbound-unsupported when no temporal field is configured", async () => {
     const map = fakeMap();
     const port = createMapLibreStateSyncPort(map, { identity: IDENTITY });
@@ -715,6 +787,28 @@ describe("shared filter compilation", () => {
         "live-incidents",
       ),
     ).toEqual(["all", [">=", "severity", 3]]);
+  });
+
+  it("separates clauses it could not express from clauses scoped to another source", () => {
+    const compilation = compileMapLibreFilterSet(
+      {
+        severity: { field: "severity", operator: ">=", value: 3 },
+        label: { field: "label", operator: "like", value: "flood%" },
+        members: { field: "crew", operator: "in", value: "not-an-array" },
+        elsewhere: { field: "kind", operator: "like", value: "fire%", appliesTo: ["another-source"] },
+      },
+      "live-incidents",
+    );
+
+    expect(compilation.filter).toEqual(["all", [">=", "severity", 3]]);
+    expect(compilation.omitted).toEqual([
+      { key: "label", operator: "like", field: "label" },
+      { key: "members", operator: "in", field: "crew" },
+    ]);
+    // The legacy signature is the same compiler with the report discarded.
+    expect(
+      compileMapLibreFilters({ label: { field: "label", operator: "like", value: "x%" } }, "live-incidents"),
+    ).toEqual(["all"]);
   });
 });
 
