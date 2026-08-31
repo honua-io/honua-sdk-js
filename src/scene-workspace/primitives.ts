@@ -2060,32 +2060,85 @@ function assertSceneModelPrimitiveSerializable(primitive: SceneModelLayerPrimiti
   }
 }
 
+/** One clause that applied to the source but had no 2D filter expression. */
+export interface MapLibreFilterOmission {
+  /** Key the clause was published under. */
+  readonly key: string;
+  /** Operator that has no legacy-filter expression, or none for this value shape. */
+  readonly operator: FilterClause["operator"];
+  /** Field the clause addressed. */
+  readonly field: string;
+}
+
+/** A compiled 2D filter alongside the eligible clauses it could not express. */
+export interface MapLibreFilterCompilation {
+  /** Legacy-style filter, always starting with `"all"`. */
+  readonly filter: unknown[];
+  /** Clauses scoped to this source that produced no expression. */
+  readonly omitted: readonly MapLibreFilterOmission[];
+}
+
 /**
  * Compile protocol-neutral filter clauses into a legacy-style 2D layer filter
- * scoped to one source.
+ * scoped to one source, reporting every eligible clause that had no expression.
  *
- * Clauses with an `appliesTo` list that excludes `sourceId` are skipped, and a
- * clause the 2D filter language cannot express (`like`) is dropped rather than
- * emitted as something weaker. The result always starts with `"all"`, so an
- * empty clause set compiles to a filter that keeps everything.
+ * Clauses with an `appliesTo` list that excludes `sourceId` are skipped and are
+ * not omissions — they were never addressed at this source. A clause that *is*
+ * addressed here and still compiles to nothing is: `like`, which the 2D filter
+ * language cannot express at all, the comparison, membership and range
+ * operators when the published value has the wrong shape, and an equality
+ * clause carrying no operand at all. Those are collected
+ * in `omitted` rather than vanishing, so a caller can report the shortfall
+ * instead of claiming the filter landed intact (issue #1304).
+ *
+ * The result always starts with `"all"`, so an empty clause set compiles to a
+ * filter that keeps everything.
  *
  * Exported so the shipped state-sync port applies the same compiler the
  * extrusion binding uses instead of re-deriving it (issue #1049).
  */
+export function compileMapLibreFilterSet(
+  filters: Readonly<Record<string, FilterClause>>,
+  sourceId: string,
+): MapLibreFilterCompilation {
+  const compiled: unknown[][] = [];
+  const omitted: MapLibreFilterOmission[] = [];
+  for (const [key, clause] of Object.entries(filters)) {
+    if (clause.appliesTo && clause.appliesTo.length > 0 && !clause.appliesTo.includes(sourceId)) continue;
+    const expression = clauseToMapLibreFilter(clause);
+    if (Array.isArray(expression)) compiled.push(expression);
+    else omitted.push(Object.freeze({ key, operator: clause.operator, field: clause.field }));
+  }
+  return Object.freeze({
+    filter: compiled.length === 0 ? ["all"] : ["all", ...compiled],
+    omitted: Object.freeze(omitted),
+  });
+}
+
+/**
+ * Compile protocol-neutral filter clauses into a legacy-style 2D layer filter
+ * scoped to one source.
+ *
+ * Equivalent to {@link compileMapLibreFilterSet} with the omission report
+ * discarded. Prefer the reporting form wherever the caller can surface what the
+ * renderer could not express.
+ */
 export function compileMapLibreFilters(filters: Readonly<Record<string, FilterClause>>, sourceId: string): unknown[] {
-  const compiled = Object.values(filters)
-    .filter((clause) => !clause.appliesTo || clause.appliesTo.length === 0 || clause.appliesTo.includes(sourceId))
-    .map(clauseToMapLibreFilter)
-    .filter((entry): entry is unknown[] => Array.isArray(entry));
-  return compiled.length === 0 ? ["all"] : ["all", ...compiled];
+  return compileMapLibreFilterSet(filters, sourceId).filter;
 }
 
 function clauseToMapLibreFilter(clause: FilterClause): unknown[] | undefined {
   switch (clause.operator) {
+    // `FilterClause.value` is optional and the state-sync normalizer keeps a
+    // valueless clause, so an equality clause can arrive with nothing to
+    // compare against. Emitting `["==", field, undefined]` produced an
+    // unserializable filter that the renderer can reject wholesale, taking
+    // valid sibling clauses down with it; an absent operand is an omission.
+    // `null` is a legitimate operand and stays one.
     case "=":
-      return ["==", clause.field, clause.value];
+      return clause.value === undefined ? undefined : ["==", clause.field, clause.value];
     case "!=":
-      return ["!=", clause.field, clause.value];
+      return clause.value === undefined ? undefined : ["!=", clause.field, clause.value];
     case "<":
     case "<=":
     case ">":
