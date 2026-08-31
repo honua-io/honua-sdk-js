@@ -27,8 +27,11 @@ bytes can differ and the tag still names exactly this release's source.
 
 ## What went wrong
 
-The three failures had different mechanisms and one shared symptom — no
-diagnostic naming the tag.
+The three failures below had different mechanisms and one shared symptom — no
+diagnostic naming the tag. A fourth version, `0.1.8-beta.0`, was stranded later
+under the *new* ordering by a different mechanism and with the opposite symptom;
+it is recorded in [Reseal supersession](#reseal-supersession-1532) rather than
+here.
 
 | Release | Release Please run | Mechanism |
 | --- | --- | --- |
@@ -151,6 +154,33 @@ side effects is exactly reseal → create tag → publish release → publish np
 plus every abort above. It runs in `SDK CI`, so the guards cannot be removed
 without failing a check.
 
+### Reseal supersession (#1532)
+
+The reordering above was correct and still stranded one more version, because
+waiting on *the dispatched run* is not the same as waiting on *a sealed commit*.
+`regenerate-derived-artifacts.yml` serializes on concurrency group
+`derived-artifacts` with `cancel-in-progress: false`, and GitHub holds at most
+one run pending per group: when a third run enters, the pending one is
+**cancelled**. The release commit's own push always starts a reseal, so the
+reseal the release dispatches is always queued behind one, and is evicted by
+whatever lands next.
+
+That is what happened to `js-sdk-v0.1.8-beta.0` on 2026-08-26. Release Please
+run [`33007925674`](https://github.com/honua-io/honua-sdk-js/actions/runs/33007925674)
+(release commit `883302cc`) dispatched reseal `33008321316` at `20:02:18Z`; it
+never started a single job, sat pending for 61 minutes behind the push-triggered
+reseal `33007925640` of the same commit, and was cancelled at `21:03:49Z` when
+the next reseal pair arrived. The release then refused to tag — correctly by its
+own post-condition, and wrongly in fact, because `33007925640` had **succeeded**
+and a sealed descendant did exist.
+
+[#1532](https://github.com/honua-io/honua-sdk-js/pull/1532) makes the step follow
+the supersession chain, bounded to five hops: only a `cancelled` conclusion is
+retryable, every other non-success still aborts before a tag exists, and the
+merge-base plus generated-only-paths checks still decide whether the resulting
+tip may carry the tag. It merged on 2026-08-29, before the `0.1.9-beta.0` cut
+below.
+
 ## Disposition of the stranded versions
 
 - **`0.1.5-beta.0` and `0.1.6-beta.0`: deliberately skipped, not published.**
@@ -164,6 +194,28 @@ without failing a check.
 - **`0.1.7-beta.0`: published through the workflow's guarded branch-recovery
   path** from the resealed commit `2327a2a63`, because its tag was already
   frozen by the time the reseal existed.
+- **`0.1.8-beta.0`: skipped, and skippable — the version line continues from
+  `0.1.9-beta.0`.** Its disposition is materially better than the three above,
+  which is the point of the reordering: because the tag is created *after* the
+  reseal, the refusal left `js-sdk-v0.1.8-beta.0` with **no tag at all** and its
+  GitHub Release still a **draft** (created `2026-08-26T19:58:03Z`, never
+  published), so nothing is frozen and nothing on npm is unnamed by a tag.
+  `@honua/sdk-js@0.1.8-beta.0` is absent from the registry. The version is not
+  re-cut because `0.1.9-beta.0` has since taken the line forward; the draft is
+  deliberately left untouched as evidence.
+
+  One asymmetry belongs in the record: that cut was coordinated, and only the
+  JS SDK half was stranded. `mcp-server-v0.1.8-beta.0` and
+  `create-honua-app-v0.1.3` were published from the same run, and
+  `@honua/mcp-server@0.1.8-beta.0` reached npm at `2026-08-26T20:00:08Z` with no
+  `@honua/sdk-js` partner on the same tuple. The mirror-image gap exists one
+  version earlier — `@honua/sdk-js@0.1.7-beta.0` is on npm while
+  `@honua/mcp-server@0.1.7-beta.0` never was, despite its GitHub Release. Two
+  successive half-published pairs are why the shipped zero-to-map client configs
+  pinned an `@honua/mcp-server` version the registry never served
+  ([#1545](https://github.com/honua-io/honua-sdk-js/issues/1545)), and why the
+  pair is now cut and gated on one tuple
+  ([#1529](https://github.com/honua-io/honua-sdk-js/issues/1529)).
 
 ## Residual
 
@@ -224,8 +276,9 @@ ordering against the repository's live immutable-release enforcement:
   package manifest.
 
 This discharges the remaining acceptance criteria in #1337. The earlier
-`0.1.5-beta.0`, `0.1.6-beta.0`, and `0.1.7-beta.0` dispositions remain exactly
-as recorded above; this cut does not attempt to mutate those immutable releases.
+`0.1.5-beta.0`, `0.1.6-beta.0`, `0.1.7-beta.0`, and `0.1.8-beta.0` dispositions
+remain exactly as recorded above; this cut does not attempt to mutate the three
+immutable releases, and does not re-cut the tagless `0.1.8-beta.0` draft.
 
 The first-release terminal journey has separate server-feature blockers. In
 particular, honua-server#3695 landed the mechanical setup-view portion of
