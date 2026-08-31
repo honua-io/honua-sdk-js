@@ -192,6 +192,48 @@ were rejected on merit:
   evidence-neutral source digest, which is weakening the seal rather than
   reordering around it.
 
+## First proven cut: `0.1.9-beta.0`
+
+`js-sdk-v0.1.9-beta.0` is the first public release that proves the chosen
+ordering against the repository's live immutable-release enforcement:
+
+- Release Please created the draft against version-bump commit
+  `640535afe475020fb11cddfb4d2261dafae07736`.
+- The first regeneration run
+  [stalled while merging its green automation PR](https://github.com/honua-io/honua-sdk-js/actions/runs/33272463337),
+  the failure tracked by [#1541](https://github.com/honua-io/honua-sdk-js/issues/1541).
+  Its re-dispatch
+  [completed the reseal](https://github.com/honua-io/honua-sdk-js/actions/runs/33275381277)
+  and merged generated-only PR #1539 as
+  `c99e71197dd940ed952aecb024c6de273456f2ae`.
+- The public `js-sdk-v0.1.9-beta.0` tag was created on that resealed commit. It
+  was not moved from the version-bump commit, and publication did not use a
+  recovery branch.
+- The [GitHub Release](https://github.com/honua-io/honua-sdk-js/releases/tag/js-sdk-v0.1.9-beta.0)
+  was published at `2026-08-29T22:49:54Z`, after the resealed commit and tag
+  existed, and GitHub reports the release as immutable.
+- The [package publication run](https://github.com/honua-io/honua-sdk-js/actions/runs/33279534389)
+  checked out `c99e71197dd940ed952aecb024c6de273456f2ae`, passed its `Verify
+  release seal` step, and published from the tag rather than a branch recovery.
+- Re-verification from a pristine checkout of the tag reports
+  `releaseSeal=ok`, version `0.1.9-beta.0`, all 36 gate receipts bound to source
+  digest `abb3489b7f0e`, and all eight artifacts declared by
+  `config/release-artifacts.v1.json` verified against their registry integrity,
+  npm provenance, and publish attestations. The coordinated artifact versions
+  are `0.1.9-beta.0`, except `create-honua-app@0.1.3` as declared by its own
+  package manifest.
+
+This discharges the remaining acceptance criteria in #1337. The earlier
+`0.1.5-beta.0`, `0.1.6-beta.0`, and `0.1.7-beta.0` dispositions remain exactly
+as recorded above; this cut does not attempt to mutate those immutable releases.
+
+The first-release terminal journey has separate server-feature blockers. In
+particular, honua-server#3695 landed the mechanical setup-view portion of
+honua-server#3428, while that issue still retains live-model qualification and
+the honua-server#3431 scope-narrowing matrix. Those features govern journey
+qualification, not whether this already-published SDK tag is a sealed immutable
+cut, and are therefore not blockers for #1337.
+
 The chosen ordering leaves `release-please--branches--trunk` untouched: the fix
 lives in `release-please-config.json` and `release-please.yml` on trunk, both
 read fresh on every run, so it survives any regeneration of the bot branch and
