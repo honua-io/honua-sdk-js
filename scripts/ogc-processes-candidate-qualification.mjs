@@ -38,12 +38,97 @@ export function assertCandidateEvidenceRedacted(value) {
   }
 }
 
+/**
+ * Structural, credential-free projection of a thrown error.
+ *
+ * `HonuaHttpError` carries the transport code on `statusCode`, while
+ * `HonuaJobFailedError` carries a `JobStatus` *string* on `status`. Reading only
+ * a numeric `status` recorded `null` for both, which is exactly the evidence a
+ * reader needs to tell a governed validation rejection from an auth failure.
+ * Never records `message`, which can quote request material.
+ */
 function safeError(error) {
   return {
     name: error instanceof Error ? error.name : "Error",
-    status: typeof error?.status === "number" ? error.status : null,
+    statusCode: typeof error?.statusCode === "number" ? error.statusCode : null,
+    jobStatus: typeof error?.status === "string" ? error.status : null,
     errorCode: typeof error?.errorCode === "string" ? error.errorCode : null,
   };
+}
+
+/** HTTP codes that mean "the server read the request and refused it as invalid". */
+const GOVERNED_INPUT_REJECTION_STATUS_CODES = Object.freeze([400, 422]);
+
+/**
+ * Decide whether a thrown error is the *intended* governed-input rejection.
+ *
+ * Only two shapes prove the candidate validated the malformed WKB:
+ *
+ * - `HonuaHttpError` with a 400/422 — the server parsed the request and refused
+ *   it synchronously; and
+ * - `HonuaJobFailedError` whose terminal `status` is `failed` — the server
+ *   accepted the job and failed it on the input.
+ *
+ * Everything else means the execution failed for an unrelated reason and the
+ * candidate never demonstrated validation: a local
+ * `HonuaCapabilityNotSupportedError` raised before any request, a 401/403 that
+ * proves only that the credential is wrong, a 5xx that is a defect rather than
+ * a refusal, a `HonuaJobPollTimeoutError` that never observed a terminal, or a
+ * transport timeout. Accepting those would let the lane emit `result: "passed"`
+ * for a candidate that never validated anything, so they are refused.
+ */
+export function classifyGovernedInputRejection(error) {
+  const projection = safeError(error);
+  if (projection.name === "HonuaHttpError" && GOVERNED_INPUT_REJECTION_STATUS_CODES.includes(projection.statusCode)) {
+    return { accepted: true, kind: "request-rejected", error: projection };
+  }
+  if (projection.name === "HonuaJobFailedError" && projection.jobStatus === "failed") {
+    return { accepted: true, kind: "job-failed", error: projection };
+  }
+  return { accepted: false, kind: "unrelated-failure", error: projection };
+}
+
+/**
+ * Exercise the candidate's declared cancellation behaviour on a job of its own.
+ *
+ * Declared `dismiss`: the DELETE must actually take, and the dismissed job must
+ * then refuse to yield results. A job that reached its own terminal before the
+ * DELETE landed is a real race the client is documented to resolve in the
+ * server's favour, so it is recorded as `terminal-race` and never reported as a
+ * dismissal proof.
+ *
+ * Undeclared `dismiss`: `cancel()` must refuse locally, before any DELETE. This
+ * has to run on a live job -- `IJobRun.cancel()` short-circuits on an
+ * already-terminal run and would return its status without ever reaching the
+ * capability check, turning the negative into a silent no-op.
+ */
+async function probeCancellation(processes, modes) {
+  const run = await processes.execute({
+    processId: PROCESS_ID,
+    mode: "async",
+    inputs: FIXTURE.inputs,
+    jobControlOptions: modes,
+  });
+  if (!modes.includes("dismiss")) {
+    try {
+      await run.cancel();
+      throw new Error("cancel unexpectedly succeeded without a dismiss declaration");
+    } catch (error) {
+      if (error?.name !== "HonuaCapabilityNotSupportedError") throw error;
+      return { declared: false, outcome: "refused", status: "unsupported", error: safeError(error) };
+    }
+  }
+  const status = await run.cancel();
+  if (status !== "dismissed") {
+    return { declared: true, outcome: "terminal-race", status, resultsRejected: null };
+  }
+  try {
+    await run.results();
+  } catch (error) {
+    if (error?.name !== "HonuaJobFailedError" || error?.status !== "dismissed") throw error;
+    return { declared: true, outcome: "dismissed", status, resultsRejected: true, error: safeError(error) };
+  }
+  throw new Error("a dismissed job returned results");
 }
 
 export async function collectOgcProcessesCandidateQualification(options) {
@@ -74,6 +159,13 @@ export async function collectOgcProcessesCandidateQualification(options) {
   if (!summary) throw new Error(`${PROCESS_ID} is not published by the candidate`);
   const description = await processes.describe(PROCESS_ID);
   const modes = [...(description.jobControlOptions ?? [])];
+  // Without a declared execution mode there is nothing to qualify: every
+  // execution below would refuse locally and, before the classification added
+  // here, would still have been recorded as an honest "unsupported" alongside
+  // result: "passed".
+  if (!modes.includes("sync-execute") && !modes.includes("async-execute")) {
+    throw new Error(`${PROCESS_ID} declares no executable jobControlOptions; there is nothing to qualify`);
+  }
   for (const required of ["wkb", "srid", "distance"]) {
     if (!description.inputs?.[required]) throw new Error(`${PROCESS_ID} does not describe required input ${required}`);
   }
@@ -93,20 +185,14 @@ export async function collectOgcProcessesCandidateQualification(options) {
 
   if (modes.includes("async-execute")) {
     const start = requests.length;
+    // Result validation and the cancellation probe get their own executions.
+    // Dismissal drives a job to the terminal `dismissed` state, and
+    // `IJobRun.results()` rejects with HonuaJobFailedError on any non-success
+    // terminal -- so awaiting results on the run we just cancelled failed the
+    // lane precisely when the candidate demonstrated dismissal correctly.
     const run = await processes.execute({ processId: PROCESS_ID, mode: "async", inputs: FIXTURE.inputs, jobControlOptions: modes });
-    let cancellation;
-    if (modes.includes("dismiss")) {
-      cancellation = { declared: true, status: await run.cancel() };
-    } else {
-      try {
-        await run.cancel();
-        throw new Error("cancel unexpectedly succeeded without a dismiss declaration");
-      } catch (error) {
-        if (error?.name !== "HonuaCapabilityNotSupportedError") throw error;
-        cancellation = { declared: false, status: "unsupported", error: safeError(error) };
-      }
-    }
     const result = await run.results();
+    const cancellation = await probeCancellation(processes, modes);
     executions.async = {
       status: run.status,
       outputNames: Object.keys(result.outputs),
@@ -130,7 +216,27 @@ export async function collectOgcProcessesCandidateQualification(options) {
     throw new Error("invalid governed input unexpectedly succeeded");
   } catch (error) {
     if (error instanceof Error && error.message === "invalid governed input unexpectedly succeeded") throw error;
-    failure = { outcome: "rejected", error: safeError(error), requests: requests.slice(failureStart) };
+    // Any thrown error used to be recorded as `outcome: "rejected"` while the
+    // evidence still reported `result: "passed"`. An auth failure, a 5xx, a
+    // poll timeout or a local capability refusal would each have produced green
+    // release evidence for a candidate that never validated the governed input,
+    // so only the two shapes that actually prove validation are accepted.
+    const classification = classifyGovernedInputRejection(error);
+    if (!classification.accepted) {
+      const { name, statusCode, jobStatus } = classification.error;
+      throw new Error(
+        `invalid governed input did not produce a validation rejection: ${name}` +
+          `${statusCode === null ? "" : ` (HTTP ${statusCode})`}` +
+          `${jobStatus === null ? "" : ` (job ${jobStatus})`}` +
+          "; the candidate never demonstrated governed-input validation",
+      );
+    }
+    failure = {
+      outcome: "rejected",
+      kind: classification.kind,
+      error: classification.error,
+      requests: requests.slice(failureStart),
+    };
   }
 
   const evidence = {

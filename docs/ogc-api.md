@@ -243,8 +243,26 @@ locally bound candidate and requires
 describes `geometry.buffer`, validates its declared inputs and outputs, and
 then exercises only the sync, async, and dismiss modes advertised by that
 candidate. Undeclared modes are retained as typed `unsupported` observations,
-never skips or inferred passes. A bounded invalid-input execution proves the
-failure path.
+never skips or inferred passes.
+
+Result validation and the cancellation probe run on separate async executions.
+Dismissal drives a job to the terminal `dismissed` state, and `IJobRun.results()`
+rejects on any non-success terminal, so awaiting results on the run that was just
+cancelled would fail the lane exactly when the candidate demonstrates dismissal
+correctly. When `dismiss` is declared, the probe requires the job to settle at
+`dismissed` and then requires that dismissed job to refuse to yield results; a
+job that reached its own terminal before the DELETE landed is recorded as a
+`terminal-race` and is never reported as a dismissal proof. When `dismiss` is not
+declared, `cancel()` must refuse locally before issuing a DELETE — which is why
+the negative also needs a live job, since `cancel()` short-circuits on an
+already-terminal run and would never reach the capability check.
+
+A bounded invalid-input execution proves the failure path, and only two outcomes
+satisfy it: an `HonuaHttpError` carrying 400 or 422, or an `HonuaJobFailedError`
+whose terminal status is `failed`. Any other error — a local capability refusal,
+a 401/403, a 5xx, a poll timeout — fails the lane rather than being recorded as a
+rejection, so the run can never report `result: "passed"` for a candidate that
+never validated the governed input.
 
 The generated JSON records the installed package version and integrity, SDK
 and server source SHAs, server image digest, manifest revision, and fixture
