@@ -2,7 +2,7 @@
   "mcpServers": {
     "honua": {
       "command": "npx",
-      "args": ["-y", "--package", "@honua/mcp-server@0.1.7-beta.0", "honua-mcp-proxy"],
+      "args": ["-y", "--package", "@honua/mcp-server@0.1.9-beta.0", "honua-mcp-proxy"],
       "env": {
         "HONUA_MCP_REMOTE_URL": "http://localhost:8080/mcp"
       }

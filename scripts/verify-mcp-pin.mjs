@@ -47,6 +47,11 @@ const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
  */
 const PACKAGE_NAME = /^(?:@[a-z0-9~][a-z0-9._~-]*\/)?[a-z0-9~][a-z0-9._~-]*$/;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]{86}==$/;
+export const ZERO_TO_MAP_CONFIGS = [
+  "mcp/release/zero-to-map/configs/claude-code.mcp.json",
+  "mcp/release/zero-to-map/configs/claude-desktop.json",
+  "mcp/release/zero-to-map/configs/cursor.json",
+];
 
 /** The dedicated live gate for the registry lane. Never enabled in PR CI. */
 export function isMcpPinLiveVerificationEnabled(env = process.env) {
@@ -112,6 +117,26 @@ export function compareVersions(left, right) {
 
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, relativePath), "utf8"));
+}
+
+/** Read and verify the exact package pins shipped in the zero-to-map configs. */
+export function verifyZeroToMapConfigPins({ expectedPin, readConfig = readJson }) {
+  return ZERO_TO_MAP_CONFIGS.map((relativePath) => {
+    const config = readConfig(relativePath);
+    const args = config?.mcpServers?.honua?.args;
+    invariant(Array.isArray(args), `${relativePath} must declare mcpServers.honua.args`);
+    const packageFlag = args.indexOf("--package");
+    invariant(packageFlag >= 0, `${relativePath} must invoke npx with --package`);
+    const pin = args[packageFlag + 1];
+    invariant(typeof pin === "string", `${relativePath} must put an exact package pin after --package`);
+    parsePackagePin(pin);
+    invariant(
+      pin === expectedPin,
+      `${relativePath} pins ${pin}, but generated client configurations pin ${expectedPin}. Advance every shipped ` +
+        "config to the coordinated, registry-served pair.",
+    );
+    return { relativePath, pin };
+  });
 }
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -403,6 +428,8 @@ async function main() {
     packageName: LOCAL_INSTALL_MCP_PACKAGE_NAME,
   });
   process.stdout.write(`mcp pin lineage ok: ${lineage.name}@${lineage.version}\n`);
+  const zeroToMapConfigs = verifyZeroToMapConfigPins({ expectedPin: LOCAL_INSTALL_MCP_PACKAGE });
+  process.stdout.write(`zero-to-map config pins ok: ${zeroToMapConfigs.length} configs name ${LOCAL_INSTALL_MCP_PACKAGE}\n`);
 
   // The pair this working tree would cut: mcp/package.json's declared peer
   // range against the SDK version sitting beside it.
@@ -451,6 +478,7 @@ async function main() {
     integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
   });
   process.stdout.write(`mcp pin published: ${published.tarball}\n`);
+  process.stdout.write(`zero-to-map config pins published: ${zeroToMapConfigs.length} configs resolve to ${published.tarball}\n`);
   // The published peer range, not the one reconstructed above.
   verifyClientPairCoInstallable({
     sdkName,
