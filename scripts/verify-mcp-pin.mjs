@@ -20,6 +20,14 @@
  *   `verifyMcpPinPublication()` resolves the pin against the public registry and
  *   compares the recorded tarball integrity. This lane touches the network and
  *   must never run in PR CI.
+ *
+ * Publication is necessary but not sufficient. `@honua/mcp-server` peer-depends
+ * on `@honua/sdk-js`, so the two are a *pair*, and npm's default resolver
+ * refuses a pair whose peer range excludes the SDK installed beside it
+ * (#1529). `verifyClientPairCoInstallable()` decides that question offline with
+ * `satisfiesUnderNpmDefaults()`, a faithful implementation of the rule npm
+ * actually applies to prereleases -- see its docstring. `verify:client-pair`
+ * then proves the same thing by really installing the pair.
  */
 
 import fs from "node:fs";
@@ -106,6 +114,224 @@ function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, relativePath), "utf8"));
 }
 
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+/** A range token: an operator (possibly empty) followed by a version. */
+const COMPARATOR = /^(\^|~|>=|<=|>|<|=)?\s*(.+)$/;
+/** Stands in for the unbounded comparator an `*`/`x` range desugars to. */
+const ANY = Symbol("any");
+
+/** Parse a strict semver string into its ordered parts. Throws on anything else. */
+export function parseSemver(raw) {
+  const match = SEMVER.exec(String(raw).trim());
+  invariant(match, `${raw} is not a strict semver version`);
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    prerelease: match[4] === undefined ? [] : match[4].split("."),
+  };
+}
+
+function comparePrerelease(left, right) {
+  if (left.length === 0 && right.length === 0) return 0;
+  // A version without a prerelease outranks the same tuple with one.
+  if (left.length === 0) return 1;
+  if (right.length === 0) return -1;
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const leftId = left[index];
+    const rightId = right[index];
+    if (leftId === undefined) return -1;
+    if (rightId === undefined) return 1;
+    const delta = compareIdentifiers(leftId, rightId);
+    if (delta !== 0) return delta < 0 ? -1 : 1;
+  }
+  return 0;
+}
+
+function compareSemver(left, right) {
+  for (const field of ["major", "minor", "patch"]) {
+    if (left[field] !== right[field]) return left[field] < right[field] ? -1 : 1;
+  }
+  return comparePrerelease(left.prerelease, right.prerelease);
+}
+
+function sameTuple(left, right) {
+  return left.major === right.major && left.minor === right.minor && left.patch === right.patch;
+}
+
+function comparator(op, version) {
+  return { op, version: parseSemver(version) };
+}
+
+/** `1`, `1.2`, `1.x`, `1.2.x` -- a range with a wildcard or omitted part. */
+const X_RANGE = /^(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?$/;
+
+function isWildcard(part) {
+  return part === undefined || part === "x" || part === "X" || part === "*";
+}
+
+/**
+ * Desugar an X-range into its bounds, or return null when the token names a
+ * complete version and the caller should parse it directly.
+ *
+ * A caret over an X-range is not the same as the band the X-range alone
+ * denotes, and it is not the caret of the zero-filled floor either: `^1.2.x`
+ * holds the *major*, so it reaches `<2.0.0-0` rather than the `<1.3.0-0` that
+ * `1.2.x` and `~1.2.x` stop at. Only the parts the token actually specifies
+ * count when picking the part to hold, so `^0.0.x` widens to `<0.1.0-0` rather
+ * than the `<0.0.1-0` that caret over a literal `0.0.0` would give.
+ *
+ * Both bounds are stable versions, so no comparator carries a prerelease --
+ * which is precisely why `0.1.x` excludes `0.1.9-beta.0` under npm defaults.
+ */
+function expandXRange(op, raw) {
+  const match = X_RANGE.exec(raw);
+  if (!match || (!isWildcard(match[2]) && !isWildcard(match[3]))) return null;
+  const [, majorPart, minorPart] = match;
+  if (isWildcard(majorPart)) return [{ op: ">=", version: ANY }];
+  const major = Number(majorPart);
+  const minorWildcard = isWildcard(minorPart);
+  const floor = minorWildcard ? `${major}.0.0` : `${major}.${Number(minorPart)}.0`;
+  // The band the X-range itself denotes: the whole major for `1.x`, the minor
+  // for `1.2.x`.
+  const band = minorWildcard ? `${major + 1}.0.0-0` : `${major}.${Number(minorPart) + 1}.0-0`;
+  if (op === ">" || op === ">=") return [comparator(">=", floor)];
+  if (op === "<") return [comparator("<", floor)];
+  if (op === "<=") return [comparator("<", band)];
+  invariant(
+    op === "" || op === "=" || op === "^" || op === "~",
+    `${op}${raw} is not a comparator this verifier understands`,
+  );
+  // `^1.2.x` holds the major; `^0.2.x` and `^0.0.x` fall back to the band,
+  // which is already the minor for both. `^1.x`/`~1.x` widen to the whole
+  // major because the minor is the wildcard, so the band is right there too.
+  if (op === "^" && !minorWildcard && major !== 0) {
+    return [comparator(">=", floor), comparator("<", `${major + 1}.0.0-0`)];
+  }
+  return [comparator(">=", floor), comparator("<", band)];
+}
+
+/**
+ * Desugar one range token into the comparators npm compares against.
+ *
+ * Only the shapes this repository's manifests can actually contain are
+ * accepted; anything else throws rather than being silently treated as
+ * satisfied. A range parser that shrugs at a token it does not understand is
+ * the failure mode this whole check exists to prevent.
+ */
+function expandToken(token) {
+  if (token === "" || token === "*" || token === "x" || token === "X") return [{ op: ">=", version: ANY }];
+  const match = COMPARATOR.exec(token);
+  invariant(match, `${token} is not a comparator this verifier understands`);
+  const [, op = "", raw] = match;
+  const xRange = expandXRange(op, raw);
+  if (xRange) return xRange;
+  const version = parseSemver(raw);
+  const { major, minor, patch, prerelease } = version;
+  const floor = comparator(">=", raw);
+  if (op === "^") {
+    // npm's caret: the leftmost non-zero part is the one held fixed.
+    if (major !== 0) return [floor, comparator("<", `${major + 1}.0.0-0`)];
+    if (minor !== 0) return [floor, comparator("<", `0.${minor + 1}.0-0`)];
+    return [floor, comparator("<", `0.0.${patch + 1}-0`)];
+  }
+  if (op === "~") return [floor, comparator("<", `${major}.${minor + 1}.0-0`)];
+  if (op === "" || op === "=") {
+    return [
+      comparator(">=", raw),
+      comparator("<=", prerelease.length === 0 ? `${major}.${minor}.${patch}` : raw),
+    ];
+  }
+  return [comparator(op, raw)];
+}
+
+/** Split a range into its `||`-joined comparator sets. */
+export function parseRange(range) {
+  invariant(typeof range === "string" && range.trim() !== "", `${range} is not a version range`);
+  return range.split("||").map((alternative) =>
+    alternative
+      .trim()
+      .split(/\s+/)
+      .filter((token) => token !== "")
+      .flatMap((token) => expandToken(token)),
+  );
+}
+
+function comparatorHolds({ op, version }, candidate) {
+  if (version === ANY) return true;
+  const order = compareSemver(candidate, version);
+  if (op === ">=") return order >= 0;
+  if (op === ">") return order > 0;
+  if (op === "<=") return order <= 0;
+  if (op === "<") return order < 0;
+  return order === 0;
+}
+
+/**
+ * Does `version` satisfy `range` under the resolution `npm install` actually
+ * performs -- that is, without `includePrerelease`?
+ *
+ * The rule that matters here, and the one #1529 was filed against: a version
+ * carrying a prerelease tag satisfies a range only if some comparator in the
+ * *same* comparator set names the identical `[major, minor, patch]` tuple and
+ * itself carries a prerelease. Bounds are irrelevant to that test, which is why
+ * widening the range does not help -- `*` excludes `0.1.9-beta.0` just as
+ * `^0.1.8-beta.0` does. The only ranges that admit a prerelease are ones
+ * anchored on its own tuple.
+ */
+export function satisfiesUnderNpmDefaults(version, range) {
+  const candidate = parseSemver(version);
+  for (const set of parseRange(range)) {
+    if (!set.every((entry) => comparatorHolds(entry, candidate))) continue;
+    if (candidate.prerelease.length === 0) return true;
+    const anchored = set.some(
+      (entry) => entry.version !== ANY && entry.version.prerelease.length > 0 && sameTuple(entry.version, candidate),
+    );
+    if (anchored) return true;
+  }
+  return false;
+}
+
+/**
+ * Prove that a `@honua/sdk-js` + `@honua/mcp-server` pair co-installs under
+ * default npm resolution -- no `--legacy-peer-deps`, no `--force`.
+ *
+ * This is the invariant the caret peer range silently loses the moment the two
+ * halves land on different patch tuples: `npm install` then fails ERESOLVE for
+ * anyone following the documented install, which is exactly how the pinned
+ * client pair reached a customer uninstallable (#1529).
+ */
+export function verifyClientPairCoInstallable({ sdkName, sdkVersion, mcpName, mcpVersion, peerRange, remedy }) {
+  invariant(
+    typeof peerRange === "string" && peerRange !== "",
+    `${mcpName}@${mcpVersion} must declare a ${sdkName} peer range`,
+  );
+  invariant(
+    satisfiesUnderNpmDefaults(sdkVersion, peerRange),
+    `${mcpName}@${mcpVersion} peer-depends on ${sdkName}@"${peerRange}", which npm's default resolver does NOT ` +
+      `consider satisfied by ${sdkName}@${sdkVersion}. Installing the pair fails ERESOLVE unless the consumer ` +
+      "passes --legacy-peer-deps or --force, so the documented install is broken. A prerelease satisfies a range " +
+      "only when a comparator in it carries a prerelease on the same major.minor.patch tuple, so widening the " +
+      `range cannot fix this -- the pair has to be cut, pinned, and published on one tuple.${
+        remedy ? `\n\nTo fix: ${remedy}` : ""
+      }`,
+  );
+  return { sdkName, sdkVersion, mcpName, mcpVersion, peerRange };
+}
+
+/**
+ * How a lagging generated-config pin is put right.
+ *
+ * Named in the failure message rather than left to the reader: the pin can only
+ * legitimately advance after the coordinated MCP publish, so "update the pin"
+ * is not actionable on its own -- the operator needs to know that the publish
+ * comes first and that one command records both the version and its integrity.
+ */
+export const PIN_SYNC_REMEDY =
+  "publish the coordinated @honua/mcp-server cut for this SDK version, then run `npm run sync:mcp-pin` to advance " +
+  "LOCAL_INSTALL_MCP_PACKAGE_VERSION and LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY in src/local-install.ts onto it. Do " +
+  "not hand-edit the pin to a version the registry does not serve.";
+
 /** Every version this repository has cut a release entry for, newest first. */
 export function releaseLineage(changelog) {
   return [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\]/gm)].map((match) => match[1]);
@@ -157,7 +383,13 @@ export async function verifyMcpPinPublication({ pin, integrity, fetchFn = fetch 
     published === integrity,
     `MCP package pin ${pin} integrity drifted: recorded ${integrity}, registry serves ${published}`,
   );
-  return { name, version, integrity: published, tarball: manifest?.dist?.tarball };
+  return {
+    name,
+    version,
+    integrity: published,
+    tarball: manifest?.dist?.tarball,
+    peerDependencies: manifest?.peerDependencies ?? {},
+  };
 }
 
 async function main() {
@@ -171,6 +403,45 @@ async function main() {
     packageName: LOCAL_INSTALL_MCP_PACKAGE_NAME,
   });
   process.stdout.write(`mcp pin lineage ok: ${lineage.name}@${lineage.version}\n`);
+
+  // The pair this working tree would cut: mcp/package.json's declared peer
+  // range against the SDK version sitting beside it.
+  const { name: sdkName, version: sdkVersion } = readJson("package.json");
+  const mcpManifest = readJson("mcp/package.json");
+  verifyClientPairCoInstallable({
+    sdkName,
+    sdkVersion,
+    mcpName: mcpManifest.name,
+    mcpVersion: mcpManifest.version,
+    peerRange: mcpManifest.peerDependencies?.[sdkName],
+  });
+  process.stdout.write(
+    `source pair co-installable: ${mcpManifest.name}@${mcpManifest.version} + ${sdkName}@${sdkVersion}\n`,
+  );
+
+  // The pair a customer actually gets: the *pinned* published MCP artifact
+  // against the SDK this tree ships. release-please writes the peer range as a
+  // caret on the MCP version at the commit that cut it, so that is the range
+  // the published tarball carries; the live lane below re-reads it from the
+  // registry rather than trusting this reconstruction.
+  //
+  // This check is a publish gate, not a PR gate. Between a release-please bump
+  // and the coordinated MCP publish the pin legitimately lags the SDK version,
+  // and no edit can fix that until the MCP half is on the registry -- so
+  // reddening every release PR here would only make releases impossible. PR CI
+  // asserts the source pair above (which release-please keeps in lockstep) and
+  // that this rule rejects the lagging pin; `verify:client-pair` in
+  // publish-js-sdk.yml is what stops a lagging pin from actually shipping.
+  verifyClientPairCoInstallable({
+    sdkName,
+    sdkVersion,
+    mcpName: lineage.name,
+    mcpVersion: lineage.version,
+    peerRange: `^${lineage.version}`,
+    remedy: PIN_SYNC_REMEDY,
+  });
+  process.stdout.write(`pinned pair co-installable: ${lineage.name}@${lineage.version} + ${sdkName}@${sdkVersion}\n`);
+
   if (!isMcpPinLiveVerificationEnabled()) {
     process.stdout.write(`registry lane skipped: set ${NETWORK_GATE}=true to query the public registry\n`);
     return;
@@ -180,6 +451,18 @@ async function main() {
     integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
   });
   process.stdout.write(`mcp pin published: ${published.tarball}\n`);
+  // The published peer range, not the one reconstructed above.
+  verifyClientPairCoInstallable({
+    sdkName,
+    sdkVersion,
+    mcpName: published.name,
+    mcpVersion: published.version,
+    peerRange: published.peerDependencies?.[sdkName],
+    remedy: PIN_SYNC_REMEDY,
+  });
+  process.stdout.write(
+    `published pair co-installable: ${published.name}@${published.version} peer ${sdkName}@"${published.peerDependencies?.[sdkName]}"\n`,
+  );
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
