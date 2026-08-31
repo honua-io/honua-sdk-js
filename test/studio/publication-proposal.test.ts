@@ -406,6 +406,25 @@ describe("publicationRequests.poll", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it("stops on the clamped wait itself rather than re-reading the clock", async () => {
+    // Waking from a wait that covers the whole remaining time *is* the deadline
+    // being reached. Deriving that from `expiresAt - Date.now()` afterwards was
+    // a race: a timer can fire a tick before `Date.now()` passes its target, so
+    // the remainder read back as 1 rather than 0 and the loop issued one more
+    // GET past the documented bound. Repeated because a single pass can get
+    // lucky on an idle machine -- this is exactly how it slipped through.
+    for (let iteration = 0; iteration < 25; iteration += 1) {
+      const { client, requests } = clientForSequence([fixture("publish-request-executing.v1.json")]);
+      const outcome = await client.publicationRequests.poll(ITEM, VERSION, REQUEST_ID, {
+        intervalMs: 25,
+        maxAttempts: 50,
+        timeoutMs: 25,
+      });
+      expect(outcome.exhausted).toBe("timeout");
+      expect(requests).toHaveLength(1);
+    }
+  });
+
   it("rejects with the caller's abort reason when the abort lands mid-request", async () => {
     const { client, requests } = clientForHangingSequence([], 1);
     const reason = new Error("caller went away mid-flight");

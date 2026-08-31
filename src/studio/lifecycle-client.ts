@@ -872,7 +872,19 @@ export class HonuaStudioPublicationRequestsClient {
         }
         // Never sleep past the deadline: a `intervalMs` larger than the time
         // left would overshoot the documented bound by a whole interval.
-        await delay(remainingMs === undefined ? intervalMs : Math.min(intervalMs, remainingMs), options.signal);
+        const waitMs = remainingMs === undefined ? intervalMs : Math.min(intervalMs, remainingMs);
+        // When the wait is the whole remaining time, waking from it *is* the
+        // deadline being reached, and the loop must stop without consulting the
+        // clock again. Re-deriving `expiresAt - Date.now()` here made that a
+        // race: a timer may fire a tick before `Date.now()` passes its target,
+        // so the remainder read back as 1 rather than 0, the `<= 0` guard did
+        // not fire, and the loop issued one more GET *after* the documented
+        // bound -- the exact overshoot this clamp exists to prevent.
+        const waitsOutDeadline = remainingMs !== undefined && waitMs >= remainingMs;
+        await delay(waitMs, options.signal);
+        if (waitsOutDeadline) {
+          return toPollOutcome(request, state, attempt, "timeout");
+        }
         const leftAfterWait = deadline.remainingMs();
         if (leftAfterWait !== undefined && leftAfterWait <= 0) {
           return toPollOutcome(request, state, attempt, "timeout");
