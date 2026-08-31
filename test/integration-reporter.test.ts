@@ -94,6 +94,29 @@ describe("integration reporter", () => {
     expect(ogc.status).toBe("exercised");
   });
 
+  it("preserves existing metadata and surfaces when a second run initializes in append mode", async () => {
+    const firstRun = await loadReporter();
+    firstRun.initializeMeta(META_FIXTURE);
+    firstRun.recordSurface("feature-server");
+
+    vi.resetModules();
+    const secondRun = await loadReporter();
+    secondRun.initializeMeta(
+      {
+        ...META_FIXTURE,
+        baseUrl: "http://localhost:8081",
+        startedAt: "2026-04-28T01:25:00Z",
+      },
+      { append: true },
+    );
+    secondRun.recordSurface("alerts");
+
+    const written = JSON.parse(fs.readFileSync(META_FILE, "utf8"));
+    expect(written.baseUrl).toBe(META_FIXTURE.baseUrl);
+    expect(written.startedAt).toBe(META_FIXTURE.startedAt);
+    expect(written.surfaces.map((entry: { surface: string }) => entry.surface)).toEqual(["feature-server", "alerts"]);
+  });
+
   it("records a skipped surface with the supplied reason from a fresh worker instance", async () => {
     const setupReporter = await loadReporter();
     setupReporter.initializeMeta(META_FIXTURE);

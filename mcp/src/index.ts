@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { HonuaClient } from "@honua/sdk-js";
 import type { HonuaTransport } from "@honua/sdk-js";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { isMainEntrypoint } from "./entrypoint.js";
 
 import { type NlMapControlMcpHost, registerNlMapControlMcpTools } from "./nl-map-control.js";
 import * as layerSchemaResource from "./resources/layer-schema.js";
@@ -386,7 +386,7 @@ async function main() {
   await runStandalone();
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainEntrypoint(import.meta.url)) {
   main().catch((err) => {
     process.stderr.write(`Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);

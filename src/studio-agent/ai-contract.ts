@@ -45,6 +45,14 @@ export interface StudioAiChatMessage {
  * shape. This is the HTTP tool shape the proxy forwards verbatim — the same
  * `{ name, description, inputSchema }` triple
  * `convertHonuaAgentToolDefinitions(tools, "mcp")` produces.
+ *
+ * The triple is the whole contract on purpose: it mirrors honua-server's
+ * `StudioAiToolDefinition`
+ * (`src/Honua.Ai/Features/StudioAiProxy/Domain/StudioAiChatModels.cs`), which
+ * carries exactly `Name` / `Description` / `InputSchema`. A discovered MCP
+ * descriptor's `annotations` and `outputSchema` therefore stop at the proxy —
+ * `StudioToolCatalog` keeps them on the catalog entry, but nothing on this side
+ * of the wire can deliver them to the model until the server model widens.
  */
 export interface StudioAiToolDefinition {
   readonly name: string;

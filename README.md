@@ -26,35 +26,33 @@ widget mapped to its Honua/MapLibre disposition.
 
 ## A public endpoint to a styled map
 
-Nine application lines. No Honua server, no API key, no account — a public Esri Living
-Atlas FeatureServer becomes a styled, interactive MapLibre map:
+Ten application lines. No Honua server, no API key, no account — one lifecycle owner takes a
+public Esri Living Atlas FeatureServer through inspection, a bounded query, an explainable plan,
+and a styled MapLibre map:
 
 ```ts doc-test=compile
-import { connect } from "@honua/sdk-js";
-import { mountSource } from "@honua/sdk-js/map";
+import { createHonua } from "@honua/sdk-js";
+import { maplibreRenderer } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
-
 const endpoint = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
-const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json", center: [-98, 39], zoom: 3 });
-await map.once("load");
-const data = await connect({ endpoint, protocol: "auto", authorizationScopeFingerprint: "public" });
-await mountSource(map, data.source(), {
-  popup: { factory: () => new maplibregl.Popup(), fields: ["NAME", "Seats_2020"] },
-  hover: true,
-  fitBounds: true,
-});
+await using honua = createHonua();
+const data = await honua.connect(endpoint);
+const info = await data.inspect();
+const plan = await data.explain({ returnGeometry: true, pagination: { limit: 100 } }, { sourceId: info.defaultSourceId });
+const result = await data.query(plan);
+const map = await data.mount("#map", { renderer: maplibreRenderer(maplibregl), query: plan, sourceId: info.defaultSourceId });
+await map.ready;
 ```
 
-For those nine lines the bridge selected a materialization strategy from the source's
-declared capabilities, installed geometry-appropriate default styling, wired click popups
-and hover feature-state, fit the map to the data, and returned one owned handle
-(`setFilter()` diff-updates in place; `dispose()` removes everything the bridge added).
+For those ten lines the kernel owns discovery, the connection, cancellation, and the mounted
+map. `result` contains bounded execution evidence, while `plan` explains the accepted query.
+Leaving the `await using` scope disposes the map and connection; every operation also accepts
+an `AbortSignal` for caller cancellation.
 Run the canonical inspected workflow with `npm run demo:quickstart:mock`
 ([`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md)); the focused lower-level cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
-For an application that opens more than one source or needs deterministic
-refresh and shutdown, put discovery under one instance-scoped owner:
+For an application that opens more than one source, keep the same instance-scoped owner:
 
 ```ts doc-test=compile
 import { createHonua } from "@honua/sdk-js";
@@ -79,7 +77,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.1.7-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.1.9-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -303,13 +301,13 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/webmap` | 7.6 KiB |
 | `@honua/sdk-js/style` | 16.2 KiB |
 | `@honua/sdk-js/map` | 51.7 KiB |
-| `@honua/sdk-js` (root) | 208.6 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 67.6 KiB |
-| `{ connect }` from the root (tree-shake guard) | 169.7 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 198.6 KiB |
+| `@honua/sdk-js` (root) | 208.7 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 67.7 KiB |
+| `{ connect }` from the root (tree-shake guard) | 169.9 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 198.8 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 169.7 KiB gzip and `{ createHonua }` 198.6 KiB against the 208.6 KiB root, so size-sensitive
+alone costs 169.9 KiB gzip and `{ createHonua }` 198.8 KiB against the 208.7 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.

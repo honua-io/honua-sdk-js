@@ -5,6 +5,9 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  ADMIN_JOURNEY_GROUPS,
+  ADMIN_JOURNEY_OPERATIONS,
+  adminJourneyCliArgs,
   runtimeSmokeSource,
   supportedEntrypoints,
   typeSmokeSource,
@@ -116,4 +119,57 @@ test("rejects missing and package-escaping bin and export targets", (t) => {
       "installed honua bin target is missing: ./missing-bin.js",
     ],
   );
+});
+
+test("admin journey coverage names the honua-release#123 stages that need a client verb", () => {
+  const stages = ADMIN_JOURNEY_OPERATIONS.filter((entry) => entry.stage !== null).map((entry) => entry.stage);
+  assert.deepEqual([...new Set(stages)].sort(), [2, 3, 8]);
+});
+
+test("admin journey coverage resolves an operation in every group", () => {
+  const covered = new Set(ADMIN_JOURNEY_OPERATIONS.map((entry) => entry.group));
+  for (const group of ADMIN_JOURNEY_GROUPS) {
+    assert.ok(covered.has(group), `${group} is certified by a real operation, not help text alone`);
+  }
+});
+
+test("admin journey operations match the generated admin inventory and interpolate their paths", async () => {
+  let inventory;
+  try {
+    ({ ADMIN_OPERATIONS: inventory } = await import("../../dist/src/control-plane/index.js"));
+  } catch {
+    // The pure-helper suite runs before the build in some lanes; the packed run that
+    // consumes these entries always executes against built output.
+    return;
+  }
+  for (const { group, operationId, pathParams, expectedPath } of ADMIN_JOURNEY_OPERATIONS) {
+    const descriptor = inventory[operationId];
+    assert.ok(descriptor, `${operationId} exists in the generated admin inventory`);
+    assert.equal(descriptor.group, group, `${operationId} belongs to the ${group} group`);
+
+    // The declared placeholders must be exactly what the gate supplies, so a renamed
+    // placeholder fails here instead of passing a pre-interpolation dry-run.
+    const declared = [...descriptor.path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]).sort();
+    assert.deepEqual(declared, Object.keys(pathParams).sort(), `${operationId} placeholders are covered`);
+
+    const interpolated = descriptor.path.replace(/\{([^}]+)\}/g, (_match, name) =>
+      encodeURIComponent(String(pathParams[name])),
+    );
+    assert.equal(interpolated, expectedPath, `${operationId} interpolates to its expected path`);
+  }
+});
+
+test("the stage 8 entry carries the exact honua-release#123 approval command shape", () => {
+  const stage8 = ADMIN_JOURNEY_OPERATIONS.find((entry) => entry.stage === 8);
+  assert.equal(stage8.operationId, "approveOperationProposal");
+  assert.deepEqual(adminJourneyCliArgs(stage8), [
+    "admin",
+    "operate",
+    "approveOperationProposal",
+    "--path",
+    "id=packed-proposal",
+    "--profile",
+    "approver",
+    "--yes",
+  ]);
 });

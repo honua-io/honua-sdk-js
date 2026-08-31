@@ -26,7 +26,7 @@ Vite + TypeScript app that connects to an endpoint, explains a bounded query, an
 
 ## React TypeScript
 
-Vite + React + TypeScript app that mounts the same accepted plan through @honua/sdk-js/react hooks on an app-owned MapLibre map.
+Vite + React + TypeScript app that mounts one accepted plan through the SDK kernel on an app-owned MapLibre map.
 
 - Project directory: `packages/create-honua-app/templates/react-ts`
 - Entry file: `src/App.tsx`

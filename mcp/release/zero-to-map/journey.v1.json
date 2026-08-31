@@ -38,12 +38,41 @@
           "id": "install-local",
           "title": "Run the control-plane Docker installer",
           "kind": "cli",
-          "args": ["admin", "install", "local", "--profile", "gp-dev", "--yes", "--directory", "${installDirectory}"],
+          "args": [
+            "admin",
+            "install",
+            "local",
+            "--profile",
+            "gp-dev",
+            "--yes",
+            "--directory",
+            "${installDirectory}"
+          ],
           "captures": [
-            { "variable": "credentialId", "pointers": ["/accessCredential/id"] },
-            { "variable": "credentialRequestedGrants", "pointers": ["/accessCredential/requestedGrants"] },
-            { "variable": "credentialEffectiveGrants", "pointers": ["/accessCredential/effectiveGrants"] },
-            { "variable": "credentialReferenceDigest", "pointers": ["/accessCredential/referenceDigestSha256"] }
+            {
+              "variable": "credentialId",
+              "pointers": [
+                "/accessCredential/id"
+              ]
+            },
+            {
+              "variable": "credentialRequestedGrants",
+              "pointers": [
+                "/accessCredential/requestedGrants"
+              ]
+            },
+            {
+              "variable": "credentialEffectiveGrants",
+              "pointers": [
+                "/accessCredential/effectiveGrants"
+              ]
+            },
+            {
+              "variable": "credentialReferenceDigest",
+              "pointers": [
+                "/accessCredential/referenceDigestSha256"
+              ]
+            }
           ],
           "forbiddenPointers": [
             "/accessCredential/material",
@@ -56,7 +85,13 @@
           "id": "install-status",
           "title": "Verify API, MCP, and Console readiness",
           "kind": "cli",
-          "args": ["admin", "install", "status", "--directory", "${installDirectory}"]
+          "args": [
+            "admin",
+            "install",
+            "status",
+            "--directory",
+            "${installDirectory}"
+          ]
         }
       ]
     },
@@ -89,30 +124,48 @@
           "title": "Verify the provisioned credential identity and effective grants through MCP",
           "kind": "mcp",
           "tool": "honua_admin_api_key_effective_permissions",
-          "arguments": { "id": "${credentialId}" },
+          "arguments": {
+            "id": "${credentialId}"
+          },
           "captures": [
             {
               "variable": "verifiedCredentialId",
-              "pointers": ["/structuredContent/details/response"],
-              "parsedPointers": ["/data/id"],
+              "pointers": [
+                "/structuredContent/details/response"
+              ],
+              "parsedPointers": [
+                "/data/id"
+              ],
               "equals": "${credentialId}"
             },
             {
               "variable": "verifiedCredentialStatus",
-              "pointers": ["/structuredContent/details/response"],
-              "parsedPointers": ["/data/status"],
+              "pointers": [
+                "/structuredContent/details/response"
+              ],
+              "parsedPointers": [
+                "/data/status"
+              ],
               "equals": "active"
             },
             {
               "variable": "verifiedCredentialCanAuthenticate",
-              "pointers": ["/structuredContent/details/response"],
-              "parsedPointers": ["/data/canAuthenticate"],
+              "pointers": [
+                "/structuredContent/details/response"
+              ],
+              "parsedPointers": [
+                "/data/canAuthenticate"
+              ],
               "equals": true
             },
             {
               "variable": "verifiedCredentialGrants",
-              "pointers": ["/structuredContent/details/response"],
-              "parsedPointers": ["/data/permissions"],
+              "pointers": [
+                "/structuredContent/details/response"
+              ],
+              "parsedPointers": [
+                "/data/permissions"
+              ],
               "equals": "${credentialEffectiveGrants}"
             }
           ],
@@ -144,8 +197,12 @@
           "captures": [
             {
               "variable": "connectionId",
-              "pointers": ["/structuredContent/details/response"],
-              "parsedPointers": ["/data/connectionId"]
+              "pointers": [
+                "/structuredContent/details/response"
+              ],
+              "parsedPointers": [
+                "/data/connectionId"
+              ]
             }
           ]
         },
@@ -154,7 +211,9 @@
           "title": "Test the saved connection",
           "kind": "mcp",
           "tool": "honua_admin_connection_test",
-          "arguments": { "id": "${connectionId}" }
+          "arguments": {
+            "id": "${connectionId}"
+          }
         },
         {
           "id": "import-parcels",
@@ -212,8 +271,12 @@
           "captures": [
             {
               "variable": "parcelsLayerId",
-              "pointers": ["/structuredContent/details/response"],
-              "parsedPointers": ["/data/layerId"]
+              "pointers": [
+                "/structuredContent/details/response"
+              ],
+              "parsedPointers": [
+                "/data/layerId"
+              ]
             }
           ]
         },
@@ -239,8 +302,12 @@
           "captures": [
             {
               "variable": "zoningLayerId",
-              "pointers": ["/structuredContent/details/response"],
-              "parsedPointers": ["/data/layerId"]
+              "pointers": [
+                "/structuredContent/details/response"
+              ],
+              "parsedPointers": [
+                "/data/layerId"
+              ]
             }
           ]
         },
@@ -251,13 +318,178 @@
           "tool": "honua_admin_service_set_access_policy",
           "arguments": {
             "serviceName": "${serviceName}",
-            "body": { "allowAnonymous": true, "allowAnonymousWrite": false }
+            "body": {
+              "allowAnonymous": true,
+              "allowAnonymousWrite": false
+            }
           }
         }
       ]
     },
     {
       "number": 3,
+      "id": "style",
+      "title": "Apply a canonical style to the published layer and prove it reaches rendered pixels",
+      "actions": [
+        {
+          "id": "read-published-style",
+          "title": "Read the published parcel layer's primary style before any preset is applied",
+          "kind": "mcp",
+          "tool": "honua_get_style",
+          "arguments": {
+            "serviceId": "${serviceName}",
+            "layerId": "${parcelsLayerId}",
+            "includeStylesheet": true
+          },
+          "captures": [
+            {
+              "variable": "baselineStyleVersion",
+              "pointers": [
+                "/structuredContent/styleVersion"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "list-style-presets",
+          "title": "Discover the catalog style presets the candidate publishes",
+          "kind": "mcp",
+          "tool": "honua_get_style",
+          "arguments": {},
+          "captures": [
+            {
+              "variable": "discoveredStylePresetId",
+              "pointers": [
+                "/structuredContent/styles/0/styleId"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "apply-canonical-style",
+          "title": "Apply the canonical preset as the published layer's primary style",
+          "kind": "mcp",
+          "tool": "honua_apply_style_preset",
+          "arguments": {
+            "serviceId": "${serviceName}",
+            "layerId": "${parcelsLayerId}",
+            "styleId": "${discoveredStylePresetId}"
+          },
+          "captures": [
+            {
+              "variable": "appliedStyleId",
+              "pointers": [
+                "/structuredContent/styleId"
+              ],
+              "equals": "${discoveredStylePresetId}"
+            },
+            {
+              "variable": "styleApplied",
+              "pointers": [
+                "/structuredContent/applied"
+              ],
+              "equals": true
+            },
+            {
+              "variable": "appliedStyleVersion",
+              "pointers": [
+                "/structuredContent/styleVersion"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "confirm-published-style",
+          "title": "Re-read the published layer and confirm the preset is now its primary style",
+          "kind": "mcp",
+          "tool": "honua_get_style",
+          "arguments": {
+            "serviceId": "${serviceName}",
+            "layerId": "${parcelsLayerId}"
+          },
+          "captures": [
+            {
+              "variable": "confirmedStyleId",
+              "pointers": [
+                "/structuredContent/styleId"
+              ],
+              "equals": "${discoveredStylePresetId}"
+            },
+            {
+              "variable": "confirmedStyleVersion",
+              "pointers": [
+                "/structuredContent/styleVersion"
+              ],
+              "equals": "${appliedStyleVersion}"
+            }
+          ]
+        },
+        {
+          "id": "render-published-map",
+          "title": "Render the published, canonically styled layer to a PNG artifact at the fixture extent",
+          "kind": "mcp",
+          "tool": "honua_render_map",
+          "arguments": {
+            "layers": [
+              {
+                "serviceId": "${serviceName}",
+                "layerId": "${parcelsLayerId}"
+              }
+            ],
+            "bbox": [
+              -157.862,
+              21.3064,
+              -157.8595,
+              21.3083
+            ],
+            "bboxSrid": 4326,
+            "width": 512,
+            "height": 512
+          },
+          "captures": [
+            {
+              "variable": "renderedStyleId",
+              "pointers": [
+                "/structuredContent/layers/0/styleId"
+              ],
+              "equals": "${discoveredStylePresetId}"
+            },
+            {
+              "variable": "renderWidth",
+              "pointers": [
+                "/structuredContent/image/width"
+              ],
+              "equals": 512
+            },
+            {
+              "variable": "renderHeight",
+              "pointers": [
+                "/structuredContent/image/height"
+              ],
+              "equals": 512
+            },
+            {
+              "variable": "renderImageUri",
+              "pointers": [
+                "/structuredContent/image/uri"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "read-rendered-map",
+          "title": "Fetch the rendered artifact and validate it is a non-empty PNG of the reported size",
+          "kind": "mcp-image",
+          "uri": "${renderImageUri}",
+          "expectedMediaType": "image/png",
+          "expectedWidth": "${renderWidth}",
+          "expectedHeight": "${renderHeight}",
+          "minByteLength": 1024
+        }
+      ]
+    },
+    {
+      "number": 4,
       "id": "geoprocessing",
       "title": "Execute Buffer through AI-facing Esri MCP, GPServer compatibility, and direct analysis",
       "actions": [
@@ -268,7 +500,12 @@
           "tool": "honua_esri_gp_list_tasks",
           "arguments": {},
           "captures": [
-            { "variable": "esriGpTasks", "pointers": ["/structuredContent/tasks"] }
+            {
+              "variable": "esriGpTasks",
+              "pointers": [
+                "/structuredContent/tasks"
+              ]
+            }
           ]
         },
         {
@@ -276,10 +513,24 @@
           "title": "Resolve the Esri Buffer alias to the canonical process",
           "kind": "mcp",
           "tool": "honua_esri_gp_describe_task",
-          "arguments": { "taskName": "Buffer" },
+          "arguments": {
+            "taskName": "Buffer"
+          },
           "captures": [
-            { "variable": "esriGpTaskName", "pointers": ["/structuredContent/taskName"], "equals": "Buffer" },
-            { "variable": "esriGpProcessId", "pointers": ["/structuredContent/processId"], "equals": "geometry.buffer" }
+            {
+              "variable": "esriGpTaskName",
+              "pointers": [
+                "/structuredContent/taskName"
+              ],
+              "equals": "Buffer"
+            },
+            {
+              "variable": "esriGpProcessId",
+              "pointers": [
+                "/structuredContent/processId"
+              ],
+              "equals": "geometry.buffer"
+            }
           ]
         },
         {
@@ -293,18 +544,37 @@
             "parameters": {
               "wkb": {
                 "geometryType": "esriGeometryPolygon",
-                "spatialReference": { "wkid": 4326 },
+                "spatialReference": {
+                  "wkid": 4326
+                },
                 "features": [
                   {
-                    "attributes": { "parcel_id": "P-101" },
+                    "attributes": {
+                      "parcel_id": "P-101"
+                    },
                     "geometry": {
                       "rings": [
                         [
-                          [-157.8616, 21.3067],
-                          [-157.8608, 21.3067],
-                          [-157.8608, 21.3073],
-                          [-157.8616, 21.3073],
-                          [-157.8616, 21.3067]
+                          [
+                            -157.8616,
+                            21.3067
+                          ],
+                          [
+                            -157.8608,
+                            21.3067
+                          ],
+                          [
+                            -157.8608,
+                            21.3073
+                          ],
+                          [
+                            -157.8616,
+                            21.3073
+                          ],
+                          [
+                            -157.8616,
+                            21.3067
+                          ]
                         ]
                       ]
                     }
@@ -316,10 +586,33 @@
             "idempotencyKey": "2026.1-zero-to-map-esri-buffer"
           },
           "captures": [
-            { "variable": "esriMcpJobId", "pointers": ["/structuredContent/jobId"] },
-            { "variable": "esriMcpServiceId", "pointers": ["/structuredContent/serviceId"], "equals": "analysis" },
-            { "variable": "esriMcpTaskName", "pointers": ["/structuredContent/taskName"], "equals": "Buffer" },
-            { "variable": "esriMcpProcessId", "pointers": ["/structuredContent/processId"], "equals": "geometry.buffer" }
+            {
+              "variable": "esriMcpJobId",
+              "pointers": [
+                "/structuredContent/jobId"
+              ]
+            },
+            {
+              "variable": "esriMcpServiceId",
+              "pointers": [
+                "/structuredContent/serviceId"
+              ],
+              "equals": "analysis"
+            },
+            {
+              "variable": "esriMcpTaskName",
+              "pointers": [
+                "/structuredContent/taskName"
+              ],
+              "equals": "Buffer"
+            },
+            {
+              "variable": "esriMcpProcessId",
+              "pointers": [
+                "/structuredContent/processId"
+              ],
+              "equals": "geometry.buffer"
+            }
           ]
         },
         {
@@ -330,15 +623,23 @@
           "waitFor": {
             "pointer": "/status",
             "equals": "Succeeded",
-            "terminal": ["Succeeded", "Failed", "Cancelled"],
+            "terminal": [
+              "Succeeded",
+              "Failed",
+              "Cancelled"
+            ],
             "pollIntervalMs": 500,
             "deadlineMs": 120000
           },
           "captures": [
             {
               "variable": "esriMcpResultsUri",
-              "pointers": ["/contents/0/text"],
-              "parsedPointers": ["/resultsUri"]
+              "pointers": [
+                "/contents/0/text"
+              ],
+              "parsedPointers": [
+                "/resultsUri"
+              ]
             }
           ]
         },
@@ -350,19 +651,31 @@
           "captures": [
             {
               "variable": "esriMcpResultJobId",
-              "pointers": ["/contents/0/text"],
-              "parsedPointers": ["/jobId"],
+              "pointers": [
+                "/contents/0/text"
+              ],
+              "parsedPointers": [
+                "/jobId"
+              ],
               "equals": "${esriMcpJobId}"
             },
             {
               "variable": "esriMcpResultPackageId",
-              "pointers": ["/contents/0/text"],
-              "parsedPointers": ["/resultPackageId"]
+              "pointers": [
+                "/contents/0/text"
+              ],
+              "parsedPointers": [
+                "/resultPackageId"
+              ]
             },
             {
               "variable": "esriMcpArtifactId",
-              "pointers": ["/contents/0/text"],
-              "parsedPointers": ["/artifacts/0/artifactId"]
+              "pointers": [
+                "/contents/0/text"
+              ],
+              "parsedPointers": [
+                "/artifacts/0/artifactId"
+              ]
             }
           ]
         },
@@ -378,9 +691,16 @@
             "srid": 4326,
             "distance": 0.00025
           },
-          "resultNames": ["outputFeatureLayer"],
+          "resultNames": [
+            "outputFeatureLayer"
+          ],
           "captures": [
-            { "variable": "gpServerJobId", "pointers": ["/jobId"] }
+            {
+              "variable": "gpServerJobId",
+              "pointers": [
+                "/jobId"
+              ]
+            }
           ]
         },
         {
@@ -389,7 +709,10 @@
           "kind": "mcp",
           "tool": "honua_buffer_features",
           "arguments": {
-            "source": { "serviceId": "${serviceName}", "layerId": "${parcelsLayerId}" },
+            "source": {
+              "serviceId": "${serviceName}",
+              "layerId": "${parcelsLayerId}"
+            },
             "distance": 25,
             "unit": "meters",
             "dissolve": false,
@@ -398,7 +721,9 @@
           "captures": [
             {
               "variable": "directAnalysisJobId",
-              "pointers": ["/structuredContent/jobId"]
+              "pointers": [
+                "/structuredContent/jobId"
+              ]
             }
           ]
         },
@@ -410,15 +735,23 @@
           "waitFor": {
             "pointer": "/status",
             "equals": "Succeeded",
-            "terminal": ["Succeeded", "Failed", "Cancelled"],
+            "terminal": [
+              "Succeeded",
+              "Failed",
+              "Cancelled"
+            ],
             "pollIntervalMs": 500,
             "deadlineMs": 120000
           },
           "captures": [
             {
               "variable": "directAnalysisResultsUri",
-              "pointers": ["/contents/0/text"],
-              "parsedPointers": ["/resultsUri"]
+              "pointers": [
+                "/contents/0/text"
+              ],
+              "parsedPointers": [
+                "/resultsUri"
+              ]
             }
           ]
         },
@@ -430,21 +763,29 @@
           "captures": [
             {
               "variable": "directAnalysisResultJobId",
-              "pointers": ["/contents/0/text"],
-              "parsedPointers": ["/jobId"],
+              "pointers": [
+                "/contents/0/text"
+              ],
+              "parsedPointers": [
+                "/jobId"
+              ],
               "equals": "${directAnalysisJobId}"
             },
             {
               "variable": "bufferArtifactId",
-              "pointers": ["/contents/0/text"],
-              "parsedPointers": ["/artifacts/0/artifactId"]
+              "pointers": [
+                "/contents/0/text"
+              ],
+              "parsedPointers": [
+                "/artifacts/0/artifactId"
+              ]
             }
           ]
         }
       ]
     },
     {
-      "number": 4,
+      "number": 5,
       "id": "studio",
       "title": "Compose, validate, save, read, and reopen distinct map, app, and dashboard families",
       "actions": [
@@ -471,9 +812,24 @@
             }
           },
           "captures": [
-            { "variable": "mapDraftId", "pointers": ["/structuredContent/draftId"] },
-            { "variable": "mapItemId", "pointers": ["/structuredContent/itemId"] },
-            { "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }
+            {
+              "variable": "mapDraftId",
+              "pointers": [
+                "/structuredContent/draftId"
+              ]
+            },
+            {
+              "variable": "mapItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ]
+            },
+            {
+              "variable": "mapGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
           ]
         },
         {
@@ -492,7 +848,14 @@
               "visible": true
             }
           },
-          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "mapGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "add-map-buffer-layer",
@@ -510,7 +873,14 @@
               "visible": true
             }
           },
-          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "mapGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "style-map-buffer-layer",
@@ -523,7 +893,14 @@
             "layerId": "parcel-buffer",
             "styleRef": "zero-to-map-buffer"
           },
-          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "mapGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "set-map-buffer-visibility",
@@ -536,7 +913,14 @@
             "layerId": "parcel-buffer",
             "visible": true
           },
-          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "mapGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "set-map-view",
@@ -546,9 +930,24 @@
           "arguments": {
             "draftId": "${mapDraftId}",
             "generation": "${mapGeneration}",
-            "view": { "bbox": [-157.862, 21.3064, -157.8595, 21.3083], "crs": "EPSG:4326" }
+            "view": {
+              "bbox": [
+                -157.862,
+                21.3064,
+                -157.8595,
+                21.3083
+              ],
+              "crs": "EPSG:4326"
+            }
           },
-          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "mapGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "add-map-widget",
@@ -563,10 +962,21 @@
               "kind": "chart",
               "title": "Assessed value by zone",
               "sourceId": "parcels",
-              "config": { "categoryField": "zone", "valueField": "assessed_value", "aggregate": "sum" }
+              "config": {
+                "categoryField": "zone",
+                "valueField": "assessed_value",
+                "aggregate": "sum"
+              }
             }
           },
-          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "mapGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "add-map-control",
@@ -576,16 +986,30 @@
           "arguments": {
             "draftId": "${mapDraftId}",
             "generation": "${mapGeneration}",
-            "control": { "id": "layers", "kind": "layer-list", "title": "Layers", "sourceId": "parcels" }
+            "control": {
+              "id": "layers",
+              "kind": "layer-list",
+              "title": "Layers",
+              "sourceId": "parcels"
+            }
           },
-          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "mapGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "validate-map-draft",
           "title": "Validate the composed map draft",
           "kind": "mcp",
           "tool": "honua_studio_validate_draft",
-          "arguments": { "draftId": "${mapDraftId}" }
+          "arguments": {
+            "draftId": "${mapDraftId}"
+          }
         },
         {
           "id": "save-map-version",
@@ -598,10 +1022,31 @@
             "changeNote": "2026.1 zero-to-map map"
           },
           "captures": [
-            { "variable": "savedMapItemId", "pointers": ["/structuredContent/itemId"], "equals": "${mapItemId}" },
-            { "variable": "mapVersionId", "pointers": ["/structuredContent/versionId"] },
-            { "variable": "mapVersionNumber", "pointers": ["/structuredContent/versionNumber"] },
-            { "variable": "mapContentHash", "pointers": ["/structuredContent/contentHash"] }
+            {
+              "variable": "savedMapItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${mapItemId}"
+            },
+            {
+              "variable": "mapVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ]
+            },
+            {
+              "variable": "mapVersionNumber",
+              "pointers": [
+                "/structuredContent/versionNumber"
+              ]
+            },
+            {
+              "variable": "mapContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ]
+            }
           ]
         },
         {
@@ -609,10 +1054,25 @@
           "title": "Read the exact immutable map version",
           "kind": "mcp",
           "tool": "honua_studio_get_version",
-          "arguments": { "itemId": "${mapItemId}", "versionId": "${mapVersionId}" },
+          "arguments": {
+            "itemId": "${mapItemId}",
+            "versionId": "${mapVersionId}"
+          },
           "captures": [
-            { "variable": "loadedMapVersionId", "pointers": ["/structuredContent/versionId"], "equals": "${mapVersionId}" },
-            { "variable": "loadedMapContentHash", "pointers": ["/structuredContent/contentHash"], "equals": "${mapContentHash}" }
+            {
+              "variable": "loadedMapVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ],
+              "equals": "${mapVersionId}"
+            },
+            {
+              "variable": "loadedMapContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ],
+              "equals": "${mapContentHash}"
+            }
           ]
         },
         {
@@ -620,12 +1080,37 @@
           "title": "Reopen the immutable map version as a new draft",
           "kind": "mcp",
           "tool": "honua_studio_reopen_version",
-          "arguments": { "itemId": "${mapItemId}", "versionId": "${mapVersionId}" },
+          "arguments": {
+            "itemId": "${mapItemId}",
+            "versionId": "${mapVersionId}"
+          },
           "captures": [
-            { "variable": "mapReopenedDraftId", "pointers": ["/structuredContent/draftId"] },
-            { "variable": "mapReopenedItemId", "pointers": ["/structuredContent/itemId"], "equals": "${mapItemId}" },
-            { "variable": "mapReopenedBaseVersionId", "pointers": ["/structuredContent/baseVersionId"], "equals": "${mapVersionId}" },
-            { "variable": "mapReopenedGeneration", "pointers": ["/structuredContent/generation"] }
+            {
+              "variable": "mapReopenedDraftId",
+              "pointers": [
+                "/structuredContent/draftId"
+              ]
+            },
+            {
+              "variable": "mapReopenedItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${mapItemId}"
+            },
+            {
+              "variable": "mapReopenedBaseVersionId",
+              "pointers": [
+                "/structuredContent/baseVersionId"
+              ],
+              "equals": "${mapVersionId}"
+            },
+            {
+              "variable": "mapReopenedGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
           ]
         },
         {
@@ -645,15 +1130,34 @@
               "generatedFiles": [],
               "assetManifest": [],
               "mapPackageId": "map-zero-to-map",
-              "sharePolicy": { "visibility": "private", "embed": false, "reviewed": false },
+              "sharePolicy": {
+                "visibility": "private",
+                "embed": false,
+                "reviewed": false
+              },
               "boundArtifacts": [],
               "createdAt": "2026-08-20T00:00:00Z"
             }
           },
           "captures": [
-            { "variable": "appDraftId", "pointers": ["/structuredContent/draftId"] },
-            { "variable": "appItemId", "pointers": ["/structuredContent/itemId"] },
-            { "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }
+            {
+              "variable": "appDraftId",
+              "pointers": [
+                "/structuredContent/draftId"
+              ]
+            },
+            {
+              "variable": "appItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ]
+            },
+            {
+              "variable": "appGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
           ]
         },
         {
@@ -672,7 +1176,14 @@
               "visible": true
             }
           },
-          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "appGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "add-app-buffer-layer",
@@ -690,7 +1201,14 @@
               "visible": true
             }
           },
-          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "appGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "style-app-buffer-layer",
@@ -703,7 +1221,14 @@
             "layerId": "parcel-buffer",
             "styleRef": "zero-to-map-buffer"
           },
-          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "appGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "set-app-view",
@@ -713,9 +1238,24 @@
           "arguments": {
             "draftId": "${appDraftId}",
             "generation": "${appGeneration}",
-            "view": { "bbox": [-157.862, 21.3064, -157.8595, 21.3083], "crs": "EPSG:4326" }
+            "view": {
+              "bbox": [
+                -157.862,
+                21.3064,
+                -157.8595,
+                21.3083
+              ],
+              "crs": "EPSG:4326"
+            }
           },
-          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "appGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "add-app-chart",
@@ -730,10 +1270,21 @@
               "kind": "chart",
               "title": "Assessed value by zone",
               "sourceId": "parcels",
-              "config": { "categoryField": "zone", "valueField": "assessed_value", "aggregate": "sum" }
+              "config": {
+                "categoryField": "zone",
+                "valueField": "assessed_value",
+                "aggregate": "sum"
+              }
             }
           },
-          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "appGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "add-app-layer-control",
@@ -743,9 +1294,21 @@
           "arguments": {
             "draftId": "${appDraftId}",
             "generation": "${appGeneration}",
-            "control": { "id": "layers", "kind": "layer-list", "title": "Layers", "sourceId": "parcels" }
+            "control": {
+              "id": "layers",
+              "kind": "layer-list",
+              "title": "Layers",
+              "sourceId": "parcels"
+            }
           },
-          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "appGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "bind-app-chart-interaction",
@@ -757,18 +1320,36 @@
             "generation": "${appGeneration}",
             "interaction": {
               "id": "filter-parcels-by-zone",
-              "on": { "ref": "widget:value-by-zone", "event": "select" },
-              "do": { "ref": "layer:parcels", "verb": "filter", "args": { "where": "zone = '$event.value'" } }
+              "on": {
+                "ref": "widget:value-by-zone",
+                "event": "select"
+              },
+              "do": {
+                "ref": "layer:parcels",
+                "verb": "filter",
+                "args": {
+                  "where": "zone = '$event.value'"
+                }
+              }
             }
           },
-          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "appGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "validate-app-draft",
           "title": "Validate the composed app draft",
           "kind": "mcp",
           "tool": "honua_studio_validate_draft",
-          "arguments": { "draftId": "${appDraftId}" }
+          "arguments": {
+            "draftId": "${appDraftId}"
+          }
         },
         {
           "id": "save-app-version",
@@ -781,10 +1362,31 @@
             "changeNote": "2026.1 zero-to-map app"
           },
           "captures": [
-            { "variable": "savedAppItemId", "pointers": ["/structuredContent/itemId"], "equals": "${appItemId}" },
-            { "variable": "appVersionId", "pointers": ["/structuredContent/versionId"] },
-            { "variable": "appVersionNumber", "pointers": ["/structuredContent/versionNumber"] },
-            { "variable": "appContentHash", "pointers": ["/structuredContent/contentHash"] }
+            {
+              "variable": "savedAppItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${appItemId}"
+            },
+            {
+              "variable": "appVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ]
+            },
+            {
+              "variable": "appVersionNumber",
+              "pointers": [
+                "/structuredContent/versionNumber"
+              ]
+            },
+            {
+              "variable": "appContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ]
+            }
           ]
         },
         {
@@ -792,10 +1394,25 @@
           "title": "Read the exact immutable app version",
           "kind": "mcp",
           "tool": "honua_studio_get_version",
-          "arguments": { "itemId": "${appItemId}", "versionId": "${appVersionId}" },
+          "arguments": {
+            "itemId": "${appItemId}",
+            "versionId": "${appVersionId}"
+          },
           "captures": [
-            { "variable": "loadedAppVersionId", "pointers": ["/structuredContent/versionId"], "equals": "${appVersionId}" },
-            { "variable": "loadedAppContentHash", "pointers": ["/structuredContent/contentHash"], "equals": "${appContentHash}" }
+            {
+              "variable": "loadedAppVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ],
+              "equals": "${appVersionId}"
+            },
+            {
+              "variable": "loadedAppContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ],
+              "equals": "${appContentHash}"
+            }
           ]
         },
         {
@@ -803,12 +1420,37 @@
           "title": "Reopen the immutable app version as a new draft",
           "kind": "mcp",
           "tool": "honua_studio_reopen_version",
-          "arguments": { "itemId": "${appItemId}", "versionId": "${appVersionId}" },
+          "arguments": {
+            "itemId": "${appItemId}",
+            "versionId": "${appVersionId}"
+          },
           "captures": [
-            { "variable": "appReopenedDraftId", "pointers": ["/structuredContent/draftId"] },
-            { "variable": "appReopenedItemId", "pointers": ["/structuredContent/itemId"], "equals": "${appItemId}" },
-            { "variable": "appReopenedBaseVersionId", "pointers": ["/structuredContent/baseVersionId"], "equals": "${appVersionId}" },
-            { "variable": "appReopenedGeneration", "pointers": ["/structuredContent/generation"] }
+            {
+              "variable": "appReopenedDraftId",
+              "pointers": [
+                "/structuredContent/draftId"
+              ]
+            },
+            {
+              "variable": "appReopenedItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${appItemId}"
+            },
+            {
+              "variable": "appReopenedBaseVersionId",
+              "pointers": [
+                "/structuredContent/baseVersionId"
+              ],
+              "equals": "${appVersionId}"
+            },
+            {
+              "variable": "appReopenedGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
           ]
         },
         {
@@ -822,13 +1464,31 @@
             "schemaVersion": "1.0",
             "body": {
               "title": "Parcel assessment dashboard",
-              "map": { "itemId": "${mapItemId}", "versionId": "${mapVersionId}" }
+              "map": {
+                "itemId": "${mapItemId}",
+                "versionId": "${mapVersionId}"
+              }
             }
           },
           "captures": [
-            { "variable": "dashboardDraftId", "pointers": ["/structuredContent/draftId"] },
-            { "variable": "dashboardItemId", "pointers": ["/structuredContent/itemId"] },
-            { "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }
+            {
+              "variable": "dashboardDraftId",
+              "pointers": [
+                "/structuredContent/draftId"
+              ]
+            },
+            {
+              "variable": "dashboardItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ]
+            },
+            {
+              "variable": "dashboardGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
           ]
         },
         {
@@ -847,7 +1507,14 @@
               "visible": true
             }
           },
-          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "dashboardGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "style-dashboard-buffer-layer",
@@ -860,7 +1527,14 @@
             "layerId": "parcel-buffer",
             "styleRef": "zero-to-map-buffer"
           },
-          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "dashboardGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "set-dashboard-view",
@@ -870,9 +1544,24 @@
           "arguments": {
             "draftId": "${dashboardDraftId}",
             "generation": "${dashboardGeneration}",
-            "view": { "bbox": [-157.862, 21.3064, -157.8595, 21.3083], "crs": "EPSG:4326" }
+            "view": {
+              "bbox": [
+                -157.862,
+                21.3064,
+                -157.8595,
+                21.3083
+              ],
+              "crs": "EPSG:4326"
+            }
           },
-          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "dashboardGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "add-dashboard-chart",
@@ -887,10 +1576,21 @@
               "kind": "chart",
               "title": "Assessed value by zone",
               "sourceId": "parcels",
-              "config": { "categoryField": "zone", "valueField": "assessed_value", "aggregate": "sum" }
+              "config": {
+                "categoryField": "zone",
+                "valueField": "assessed_value",
+                "aggregate": "sum"
+              }
             }
           },
-          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "dashboardGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "add-dashboard-layer-control",
@@ -900,16 +1600,30 @@
           "arguments": {
             "draftId": "${dashboardDraftId}",
             "generation": "${dashboardGeneration}",
-            "control": { "id": "layers", "kind": "layer-list", "title": "Layers", "sourceId": "parcels" }
+            "control": {
+              "id": "layers",
+              "kind": "layer-list",
+              "title": "Layers",
+              "sourceId": "parcels"
+            }
           },
-          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+          "captures": [
+            {
+              "variable": "dashboardGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
+          ]
         },
         {
           "id": "validate-dashboard-draft",
           "title": "Validate the composed dashboard envelope",
           "kind": "mcp",
           "tool": "honua_studio_validate_draft",
-          "arguments": { "draftId": "${dashboardDraftId}" }
+          "arguments": {
+            "draftId": "${dashboardDraftId}"
+          }
         },
         {
           "id": "save-dashboard-version",
@@ -922,10 +1636,31 @@
             "changeNote": "2026.1 zero-to-map dashboard"
           },
           "captures": [
-            { "variable": "savedDashboardItemId", "pointers": ["/structuredContent/itemId"], "equals": "${dashboardItemId}" },
-            { "variable": "dashboardVersionId", "pointers": ["/structuredContent/versionId"] },
-            { "variable": "dashboardVersionNumber", "pointers": ["/structuredContent/versionNumber"] },
-            { "variable": "dashboardContentHash", "pointers": ["/structuredContent/contentHash"] }
+            {
+              "variable": "savedDashboardItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${dashboardItemId}"
+            },
+            {
+              "variable": "dashboardVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ]
+            },
+            {
+              "variable": "dashboardVersionNumber",
+              "pointers": [
+                "/structuredContent/versionNumber"
+              ]
+            },
+            {
+              "variable": "dashboardContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ]
+            }
           ]
         },
         {
@@ -933,10 +1668,25 @@
           "title": "Read the exact immutable dashboard version",
           "kind": "mcp",
           "tool": "honua_studio_get_version",
-          "arguments": { "itemId": "${dashboardItemId}", "versionId": "${dashboardVersionId}" },
+          "arguments": {
+            "itemId": "${dashboardItemId}",
+            "versionId": "${dashboardVersionId}"
+          },
           "captures": [
-            { "variable": "loadedDashboardVersionId", "pointers": ["/structuredContent/versionId"], "equals": "${dashboardVersionId}" },
-            { "variable": "loadedDashboardContentHash", "pointers": ["/structuredContent/contentHash"], "equals": "${dashboardContentHash}" }
+            {
+              "variable": "loadedDashboardVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ],
+              "equals": "${dashboardVersionId}"
+            },
+            {
+              "variable": "loadedDashboardContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ],
+              "equals": "${dashboardContentHash}"
+            }
           ]
         },
         {
@@ -944,18 +1694,43 @@
           "title": "Reopen the immutable dashboard version as a new draft",
           "kind": "mcp",
           "tool": "honua_studio_reopen_version",
-          "arguments": { "itemId": "${dashboardItemId}", "versionId": "${dashboardVersionId}" },
+          "arguments": {
+            "itemId": "${dashboardItemId}",
+            "versionId": "${dashboardVersionId}"
+          },
           "captures": [
-            { "variable": "dashboardReopenedDraftId", "pointers": ["/structuredContent/draftId"] },
-            { "variable": "dashboardReopenedItemId", "pointers": ["/structuredContent/itemId"], "equals": "${dashboardItemId}" },
-            { "variable": "dashboardReopenedBaseVersionId", "pointers": ["/structuredContent/baseVersionId"], "equals": "${dashboardVersionId}" },
-            { "variable": "dashboardReopenedGeneration", "pointers": ["/structuredContent/generation"] }
+            {
+              "variable": "dashboardReopenedDraftId",
+              "pointers": [
+                "/structuredContent/draftId"
+              ]
+            },
+            {
+              "variable": "dashboardReopenedItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${dashboardItemId}"
+            },
+            {
+              "variable": "dashboardReopenedBaseVersionId",
+              "pointers": [
+                "/structuredContent/baseVersionId"
+              ],
+              "equals": "${dashboardVersionId}"
+            },
+            {
+              "variable": "dashboardReopenedGeneration",
+              "pointers": [
+                "/structuredContent/generation"
+              ]
+            }
           ]
         }
       ]
     },
     {
-      "number": 5,
+      "number": 6,
       "id": "proposal",
       "title": "Propose publication without bypassing human confirmation",
       "actions": [
@@ -978,10 +1753,34 @@
             "/structuredContent/shareUrl"
           ],
           "captures": [
-            { "variable": "mapReopenedGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
-            { "variable": "mapProposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
-            { "variable": "mapPublicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
-            { "variable": "mapHumanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
+            {
+              "variable": "mapReopenedGeneration",
+              "pointers": [
+                "/structuredContent/draft/generation",
+                "/structuredContent/generation"
+              ]
+            },
+            {
+              "variable": "mapProposalGeneration",
+              "pointers": [
+                "/structuredContent/draft/generation",
+                "/structuredContent/generation"
+              ]
+            },
+            {
+              "variable": "mapPublicationIntentRecorded",
+              "pointers": [
+                "/structuredContent/recorded"
+              ],
+              "equals": true
+            },
+            {
+              "variable": "mapHumanConfirmationRequired",
+              "pointers": [
+                "/structuredContent/humanConfirmationRequired"
+              ],
+              "equals": true
+            }
           ]
         },
         {
@@ -995,9 +1794,25 @@
             "changeNote": "2026.1 zero-to-map map publication intent"
           },
           "captures": [
-            { "variable": "mapPublicationItemId", "pointers": ["/structuredContent/itemId"], "equals": "${mapItemId}" },
-            { "variable": "mapPublicationVersionId", "pointers": ["/structuredContent/versionId"] },
-            { "variable": "mapPublicationContentHash", "pointers": ["/structuredContent/contentHash"] }
+            {
+              "variable": "mapPublicationItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${mapItemId}"
+            },
+            {
+              "variable": "mapPublicationVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ]
+            },
+            {
+              "variable": "mapPublicationContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ]
+            }
           ]
         },
         {
@@ -1019,10 +1834,34 @@
             "/structuredContent/shareUrl"
           ],
           "captures": [
-            { "variable": "appReopenedGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
-            { "variable": "appProposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
-            { "variable": "appPublicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
-            { "variable": "appHumanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
+            {
+              "variable": "appReopenedGeneration",
+              "pointers": [
+                "/structuredContent/draft/generation",
+                "/structuredContent/generation"
+              ]
+            },
+            {
+              "variable": "appProposalGeneration",
+              "pointers": [
+                "/structuredContent/draft/generation",
+                "/structuredContent/generation"
+              ]
+            },
+            {
+              "variable": "appPublicationIntentRecorded",
+              "pointers": [
+                "/structuredContent/recorded"
+              ],
+              "equals": true
+            },
+            {
+              "variable": "appHumanConfirmationRequired",
+              "pointers": [
+                "/structuredContent/humanConfirmationRequired"
+              ],
+              "equals": true
+            }
           ]
         },
         {
@@ -1036,9 +1875,25 @@
             "changeNote": "2026.1 zero-to-map app publication intent"
           },
           "captures": [
-            { "variable": "appPublicationItemId", "pointers": ["/structuredContent/itemId"], "equals": "${appItemId}" },
-            { "variable": "appPublicationVersionId", "pointers": ["/structuredContent/versionId"] },
-            { "variable": "appPublicationContentHash", "pointers": ["/structuredContent/contentHash"] }
+            {
+              "variable": "appPublicationItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${appItemId}"
+            },
+            {
+              "variable": "appPublicationVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ]
+            },
+            {
+              "variable": "appPublicationContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ]
+            }
           ]
         },
         {
@@ -1060,10 +1915,34 @@
             "/structuredContent/shareUrl"
           ],
           "captures": [
-            { "variable": "dashboardReopenedGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
-            { "variable": "dashboardProposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
-            { "variable": "dashboardPublicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
-            { "variable": "dashboardHumanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
+            {
+              "variable": "dashboardReopenedGeneration",
+              "pointers": [
+                "/structuredContent/draft/generation",
+                "/structuredContent/generation"
+              ]
+            },
+            {
+              "variable": "dashboardProposalGeneration",
+              "pointers": [
+                "/structuredContent/draft/generation",
+                "/structuredContent/generation"
+              ]
+            },
+            {
+              "variable": "dashboardPublicationIntentRecorded",
+              "pointers": [
+                "/structuredContent/recorded"
+              ],
+              "equals": true
+            },
+            {
+              "variable": "dashboardHumanConfirmationRequired",
+              "pointers": [
+                "/structuredContent/humanConfirmationRequired"
+              ],
+              "equals": true
+            }
           ]
         },
         {
@@ -1077,15 +1956,31 @@
             "changeNote": "2026.1 zero-to-map dashboard publication intent"
           },
           "captures": [
-            { "variable": "dashboardPublicationItemId", "pointers": ["/structuredContent/itemId"], "equals": "${dashboardItemId}" },
-            { "variable": "dashboardPublicationVersionId", "pointers": ["/structuredContent/versionId"] },
-            { "variable": "dashboardPublicationContentHash", "pointers": ["/structuredContent/contentHash"] }
+            {
+              "variable": "dashboardPublicationItemId",
+              "pointers": [
+                "/structuredContent/itemId"
+              ],
+              "equals": "${dashboardItemId}"
+            },
+            {
+              "variable": "dashboardPublicationVersionId",
+              "pointers": [
+                "/structuredContent/versionId"
+              ]
+            },
+            {
+              "variable": "dashboardPublicationContentHash",
+              "pointers": [
+                "/structuredContent/contentHash"
+              ]
+            }
           ]
         }
       ]
     },
     {
-      "number": 6,
+      "number": 7,
       "id": "console",
       "title": "Inspect and approve the candidate in Console",
       "actions": [
@@ -1175,49 +2070,205 @@
             "/shareUrl"
           ],
           "equalPointers": [
-            ["/proposals/map/proposalId", "/publications/map/requestId"],
-            ["/proposals/map/executionOperationId", "/audit/map/operationId"],
-            ["/proposals/map/draftId", "/resources/studio/map/reopenedDraftId"],
-            ["/proposals/app/proposalId", "/publications/app/requestId"],
-            ["/proposals/app/executionOperationId", "/audit/app/operationId"],
-            ["/proposals/app/draftId", "/resources/studio/app/reopenedDraftId"],
-            ["/proposals/dashboard/proposalId", "/publications/dashboard/requestId"],
-            ["/proposals/dashboard/executionOperationId", "/audit/dashboard/operationId"],
-            ["/proposals/dashboard/draftId", "/resources/studio/dashboard/reopenedDraftId"],
-            ["/shareUrl", "/publications/app/publicUrl"],
-            ["/resources/jobs/esriMcp", "/resources/gp/jobId"]
+            [
+              "/proposals/map/proposalId",
+              "/publications/map/requestId"
+            ],
+            [
+              "/proposals/map/executionOperationId",
+              "/audit/map/operationId"
+            ],
+            [
+              "/proposals/map/draftId",
+              "/resources/studio/map/reopenedDraftId"
+            ],
+            [
+              "/proposals/app/proposalId",
+              "/publications/app/requestId"
+            ],
+            [
+              "/proposals/app/executionOperationId",
+              "/audit/app/operationId"
+            ],
+            [
+              "/proposals/app/draftId",
+              "/resources/studio/app/reopenedDraftId"
+            ],
+            [
+              "/proposals/dashboard/proposalId",
+              "/publications/dashboard/requestId"
+            ],
+            [
+              "/proposals/dashboard/executionOperationId",
+              "/audit/dashboard/operationId"
+            ],
+            [
+              "/proposals/dashboard/draftId",
+              "/resources/studio/dashboard/reopenedDraftId"
+            ],
+            [
+              "/shareUrl",
+              "/publications/app/publicUrl"
+            ],
+            [
+              "/resources/jobs/esriMcp",
+              "/resources/gp/jobId"
+            ]
           ],
           "captures": [
-            { "variable": "candidateId", "pointers": ["/candidate/candidateId"] },
-            { "variable": "releaseId", "pointers": ["/candidate/releaseId"] },
-            { "variable": "mapProposalId", "pointers": ["/proposals/map/proposalId"] },
-            { "variable": "mapExecutionOperationId", "pointers": ["/proposals/map/executionOperationId"] },
-            { "variable": "mapPublicationRequestId", "pointers": ["/publications/map/requestId"] },
-            { "variable": "mapPublicationId", "pointers": ["/publications/map/publicationId"] },
-            { "variable": "mapPublicationStatus", "pointers": ["/publications/map/status"], "equals": "published" },
-            { "variable": "mapPublicUrl", "pointers": ["/publications/map/publicUrl"] },
-            { "variable": "mapAuditCorrelationId", "pointers": ["/audit/map/correlationId"] },
-            { "variable": "appProposalId", "pointers": ["/proposals/app/proposalId"] },
-            { "variable": "appExecutionOperationId", "pointers": ["/proposals/app/executionOperationId"] },
-            { "variable": "appPublicationRequestId", "pointers": ["/publications/app/requestId"] },
-            { "variable": "appPublicationId", "pointers": ["/publications/app/publicationId"] },
-            { "variable": "appPublicationStatus", "pointers": ["/publications/app/status"], "equals": "published" },
-            { "variable": "appPublicUrl", "pointers": ["/publications/app/publicUrl"] },
-            { "variable": "appAuditCorrelationId", "pointers": ["/audit/app/correlationId"] },
-            { "variable": "dashboardProposalId", "pointers": ["/proposals/dashboard/proposalId"] },
-            { "variable": "dashboardExecutionOperationId", "pointers": ["/proposals/dashboard/executionOperationId"] },
-            { "variable": "dashboardPublicationRequestId", "pointers": ["/publications/dashboard/requestId"] },
-            { "variable": "dashboardPublicationId", "pointers": ["/publications/dashboard/publicationId"] },
-            { "variable": "dashboardPublicationStatus", "pointers": ["/publications/dashboard/status"], "equals": "published" },
-            { "variable": "dashboardPublicUrl", "pointers": ["/publications/dashboard/publicUrl"] },
-            { "variable": "dashboardAuditCorrelationId", "pointers": ["/audit/dashboard/correlationId"] },
-            { "variable": "shareUrl", "pointers": ["/shareUrl"] }
+            {
+              "variable": "candidateId",
+              "pointers": [
+                "/candidate/candidateId"
+              ]
+            },
+            {
+              "variable": "releaseId",
+              "pointers": [
+                "/candidate/releaseId"
+              ]
+            },
+            {
+              "variable": "mapProposalId",
+              "pointers": [
+                "/proposals/map/proposalId"
+              ]
+            },
+            {
+              "variable": "mapExecutionOperationId",
+              "pointers": [
+                "/proposals/map/executionOperationId"
+              ]
+            },
+            {
+              "variable": "mapPublicationRequestId",
+              "pointers": [
+                "/publications/map/requestId"
+              ]
+            },
+            {
+              "variable": "mapPublicationId",
+              "pointers": [
+                "/publications/map/publicationId"
+              ]
+            },
+            {
+              "variable": "mapPublicationStatus",
+              "pointers": [
+                "/publications/map/status"
+              ],
+              "equals": "published"
+            },
+            {
+              "variable": "mapPublicUrl",
+              "pointers": [
+                "/publications/map/publicUrl"
+              ]
+            },
+            {
+              "variable": "mapAuditCorrelationId",
+              "pointers": [
+                "/audit/map/correlationId"
+              ]
+            },
+            {
+              "variable": "appProposalId",
+              "pointers": [
+                "/proposals/app/proposalId"
+              ]
+            },
+            {
+              "variable": "appExecutionOperationId",
+              "pointers": [
+                "/proposals/app/executionOperationId"
+              ]
+            },
+            {
+              "variable": "appPublicationRequestId",
+              "pointers": [
+                "/publications/app/requestId"
+              ]
+            },
+            {
+              "variable": "appPublicationId",
+              "pointers": [
+                "/publications/app/publicationId"
+              ]
+            },
+            {
+              "variable": "appPublicationStatus",
+              "pointers": [
+                "/publications/app/status"
+              ],
+              "equals": "published"
+            },
+            {
+              "variable": "appPublicUrl",
+              "pointers": [
+                "/publications/app/publicUrl"
+              ]
+            },
+            {
+              "variable": "appAuditCorrelationId",
+              "pointers": [
+                "/audit/app/correlationId"
+              ]
+            },
+            {
+              "variable": "dashboardProposalId",
+              "pointers": [
+                "/proposals/dashboard/proposalId"
+              ]
+            },
+            {
+              "variable": "dashboardExecutionOperationId",
+              "pointers": [
+                "/proposals/dashboard/executionOperationId"
+              ]
+            },
+            {
+              "variable": "dashboardPublicationRequestId",
+              "pointers": [
+                "/publications/dashboard/requestId"
+              ]
+            },
+            {
+              "variable": "dashboardPublicationId",
+              "pointers": [
+                "/publications/dashboard/publicationId"
+              ]
+            },
+            {
+              "variable": "dashboardPublicationStatus",
+              "pointers": [
+                "/publications/dashboard/status"
+              ],
+              "equals": "published"
+            },
+            {
+              "variable": "dashboardPublicUrl",
+              "pointers": [
+                "/publications/dashboard/publicUrl"
+              ]
+            },
+            {
+              "variable": "dashboardAuditCorrelationId",
+              "pointers": [
+                "/audit/dashboard/correlationId"
+              ]
+            },
+            {
+              "variable": "shareUrl",
+              "pointers": [
+                "/shareUrl"
+              ]
+            }
           ]
         }
       ]
     },
     {
-      "number": 7,
+      "number": 8,
       "id": "artifact",
       "title": "Verify the stable map, app, and dashboard URLs",
       "actions": [

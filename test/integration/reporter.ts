@@ -69,11 +69,19 @@ const surfaceIndex = new Map<string, IntegrationSurfaceEntry>();
  * Initialize the metadata document once per process. Called from the
  * Vitest global setup with the resolved server compatibility envelope so
  * the file already names the SDK and server versions before any surface
- * test runs.
+ * test runs. Append mode restores an existing document so a second Vitest
+ * invocation adds its surfaces without replacing the primary run identity.
  */
-export function initializeMeta(initial: Omit<IntegrationMetaDocument, "surfaces">): void {
-  mutableMeta = { ...initial, surfaces: [] };
+export function initializeMeta(
+  initial: Omit<IntegrationMetaDocument, "surfaces">,
+  options: { append?: boolean } = {},
+): void {
+  const existing = options.append ? restoreMetaFromDisk() : undefined;
+  mutableMeta = existing ?? { ...initial, surfaces: [] };
   surfaceIndex.clear();
+  for (const entry of mutableMeta.surfaces) {
+    surfaceIndex.set(entry.surface, entry);
+  }
   flushMeta();
 }
 

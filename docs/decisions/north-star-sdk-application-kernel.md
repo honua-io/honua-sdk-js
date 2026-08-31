@@ -359,6 +359,35 @@ The arrows are dependencies. Core never points to React, app-platform,
 renderer peers, DuckDB, or model providers. A renderer adapter may depend on
 the kernel contract; the kernel refers only to the adapter interface.
 
+## Stability and migration disposition
+
+`createHonua()`, `HonuaKernel.connect()`, and `HonuaKernelConnection.mount()` are the
+reviewed root application lifecycle. They are no longer experimental front-door
+proposals: the root API report, README, scaffold templates, and flagship First Map
+sample all exercise this same owner. The kernel owns discovery cache bounds,
+connection cancellation, mounts, and cascading disposal.
+
+The standalone `connect()` export remains supported for focused discovery and
+headless callers, while `mountSource()` / `mountSourceToMapLibre()` remain supported
+on `@honua/sdk-js/map` for applications that deliberately manage sources and map
+lifecycle separately. They are advanced building blocks rather than competing
+quickstart paths. Migration is additive: replace standalone `connect(...)` with
+`createHonua().connect(...)`, replace a separate bridge call with
+`connection.mount(..., { renderer, query })`, and dispose the kernel instead of
+coordinating each owned handle. Authorization cache-partition fingerprints remain
+optional connection policy; the anonymous first-run path does not expose them.
+
+The stabilization decision is backed by the repository's existing measured gates:
+
+| Property | Evidence |
+| --- | --- |
+| Clean install to first map | 21.45 s total (13.97 s install + 7.48 s render) in `docs/data/time-to-first-map.json` |
+| Copyable surface | 10 application lines in the root README; `docs:snippets:check` compiles it |
+| Bundle cost | 198.8 KiB gzip for the tree-shaken `createHonua` root path; focused subpaths remain available |
+| Cancellation and disposal | Every async connection operation accepts `AbortSignal`; kernel disposal cascades through connections and owned mounts |
+| Error quality | Credential-safe typed discovery, capability, HTTP, and abort errors; ambiguity and overflow fail explicitly |
+| Published consumers | Root API golden fixture plus source/packed First Map browser lanes and packed scaffold verification |
+
 ## Golden workflows
 
 The authoritative compile fixtures are:

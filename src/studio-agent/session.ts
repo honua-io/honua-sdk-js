@@ -22,7 +22,7 @@
  * set it advertises. Selection requires a positive signal — server-owned
  * family/view classification, or an explicit configured allowlist — never a
  * `honua_studio_` name prefix; `./tool-catalog.ts` documents why and what the
- * server contract (honua-server#3428) looks like. The catalog is cached and
+ * server contract (honua-server#3695) looks like. The catalog is cached and
  * invalidated by {@link StudioAgentSession.refreshTools} and
  * {@link StudioAgentSession.reconnect}. Runtime-kit tools always win a name
  * collision, so a server can never shadow a local runtime verb.

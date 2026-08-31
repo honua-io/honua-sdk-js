@@ -11,6 +11,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { listAllTools } from "../certification/admin-parity.js";
 import { validateAgainstSchema } from "../certification/json-schema.js";
 import { requireSecureCredentialEndpoint } from "../credential-endpoint.js";
+import { isMainEntrypoint } from "../entrypoint.js";
 import { type ProxyOptions, resolveProxyOptions } from "../proxy.js";
 import {
   type ZeroToMapCheckpoint,
@@ -31,9 +32,13 @@ import {
 import {
   type JourneyAdapter,
   JourneyBlockedError,
+  type JourneyCatalogListOptions,
   type JourneyExecutionResult,
   type JourneyGpServerAction,
+  type JourneyMcpImageAction,
   type JourneyMcpResourceAction,
+  type RenderedImageExpectation,
+  assertRenderedPng,
   parseZeroToMapPlan,
   runZeroToMapJourney,
 } from "./zero-to-map.js";
@@ -71,6 +76,9 @@ class ContractAdapter implements JourneyAdapter {
   }
   readResource(): Promise<never> {
     return Promise.reject(new Error("contract adapter must not read MCP resources"));
+  }
+  readImageResource(): Promise<never> {
+    return Promise.reject(new Error("contract adapter must not fetch rendered image artifacts"));
   }
   runGpServer(): Promise<never> {
     return Promise.reject(new Error("contract adapter must not execute GPServer jobs"));
@@ -150,9 +158,11 @@ class LiveAdapter implements JourneyAdapter {
     throw new Error("AWS ECS target encountered an unknown Stage 1 install action");
   }
 
-  async listTools(): Promise<readonly { name: string; inputSchema: Readonly<Record<string, unknown>> }[]> {
+  async listTools(
+    options?: JourneyCatalogListOptions,
+  ): Promise<readonly { name: string; inputSchema: Readonly<Record<string, unknown>> }[]> {
     const client = await this.client();
-    const tools = await listAllTools(client);
+    const tools = await listAllTools(client, options?.view ? { view: options.view } : undefined);
     return tools.map((tool) => ({ name: tool.name, inputSchema: tool.inputSchema }));
   }
 
@@ -182,6 +192,14 @@ class LiveAdapter implements JourneyAdapter {
   async readResource(action: JourneyMcpResourceAction): Promise<JourneyExecutionResult> {
     const client = await this.client();
     return readJourneyMcpResource(action, (uri) => client.readResource({ uri }));
+  }
+
+  async readImageResource(
+    action: JourneyMcpImageAction,
+    expected: RenderedImageExpectation,
+  ): Promise<JourneyExecutionResult> {
+    const client = await this.client();
+    return readJourneyRenderedImage(action, expected, (uri) => client.readResource({ uri }));
   }
 
   async runGpServer(action: JourneyGpServerAction): Promise<JourneyExecutionResult> {
@@ -868,6 +886,49 @@ export async function readJourneyMcpResource(
   }
 }
 
+/**
+ * Fetch a rendered image artifact by reference and prove it is real pixels.
+ *
+ * `resources/read` returns binary contents as a base64 `blob`, so the bytes are
+ * decoded here and handed to the shared PNG validator rather than being trusted
+ * from the tool's own self-reported `byteLength`. The renderer reporting
+ * 512x512 and the artifact actually being 512x512 are two different claims, and
+ * only the second one survives a style/render no-op.
+ */
+export async function readJourneyRenderedImage(
+  action: JourneyMcpImageAction,
+  expected: RenderedImageExpectation,
+  read: (uri: string) => Promise<unknown>,
+): Promise<JourneyExecutionResult> {
+  const result = await read(action.uri);
+  const { bytes, mimeType } = readBlobResource(result, action.uri);
+  const evidence = assertRenderedPng(bytes, mimeType, expected);
+  return { value: result, evidence: { ...evidence } };
+}
+
+function readBlobResource(value: unknown, uri: string): { bytes: Uint8Array; mimeType?: string } {
+  if (!value || typeof value !== "object") throw new Error(`${uri} returned an invalid resources/read response`);
+  const contents = (value as { contents?: unknown }).contents;
+  if (!Array.isArray(contents)) throw new Error(`${uri} returned no resource contents`);
+  const content = contents.find(
+    (candidate): candidate is { blob: string; mimeType?: string } =>
+      Boolean(candidate) && typeof candidate === "object" && typeof (candidate as { blob?: unknown }).blob === "string",
+  );
+  if (!content) {
+    throw new Error(
+      `${uri} returned no binary blob content. A rendered map artifact must come back as base64 resource bytes, not as a text description of one.`,
+    );
+  }
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(Buffer.from(content.blob, "base64"));
+  } catch {
+    throw new Error(`${uri} returned a blob that is not valid base64`);
+  }
+  if (bytes.length === 0) throw new Error(`${uri} returned an empty blob`);
+  return { bytes, ...(typeof content.mimeType === "string" ? { mimeType: content.mimeType } : {}) };
+}
+
 function readJsonResource(value: unknown, uri: string): unknown {
   if (!value || typeof value !== "object") throw new Error(`${uri} returned an invalid resources/read response`);
   const contents = (value as { contents?: unknown }).contents;
@@ -995,7 +1056,7 @@ function printHelp(): void {
 
 class HelpRequested extends Error {}
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainEntrypoint(import.meta.url)) {
   runZeroToMapCli().then(
     (code) => {
       process.exitCode = code;

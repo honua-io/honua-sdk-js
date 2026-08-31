@@ -55,23 +55,26 @@ export async function setup(): Promise<void> {
   }
 
   const sdkPackage = readPackageInfo();
-  initializeMeta({
-    sdkVersion: sdkPackage.version,
-    sdkPackage: sdkPackage.name,
-    serverVersion,
-    serverReleaseChannel: releaseChannel,
-    serverImage: process.env.HONUA_INTEGRATION_SERVER_IMAGE?.trim() || undefined,
-    serverCommit: process.env.HONUA_INTEGRATION_SERVER_COMMIT?.trim() || undefined,
-    candidateCutAt: process.env.HONUA_CANDIDATE_CUT_AT?.trim() || undefined,
-    conformanceFixturesVersion: process.env.HONUA_CONFORMANCE_FIXTURES_VERSION?.trim() || undefined,
-    baseUrl: config.baseUrl,
-    seedProfile: config.seedProfile,
-    serviceId: config.serviceId,
-    layerId: config.layerId,
-    collectionId: config.collectionId,
-    tileMatrixSetId: config.tileMatrixSetId,
-    startedAt: new Date().toISOString(),
-  });
+  initializeMeta(
+    {
+      sdkVersion: sdkPackage.version,
+      sdkPackage: sdkPackage.name,
+      serverVersion,
+      serverReleaseChannel: releaseChannel,
+      serverImage: process.env.HONUA_INTEGRATION_SERVER_IMAGE?.trim() || undefined,
+      serverCommit: process.env.HONUA_INTEGRATION_SERVER_COMMIT?.trim() || undefined,
+      candidateCutAt: process.env.HONUA_CANDIDATE_CUT_AT?.trim() || undefined,
+      conformanceFixturesVersion: process.env.HONUA_CONFORMANCE_FIXTURES_VERSION?.trim() || undefined,
+      baseUrl: config.baseUrl,
+      seedProfile: config.seedProfile,
+      serviceId: config.serviceId,
+      layerId: config.layerId,
+      collectionId: config.collectionId,
+      tileMatrixSetId: config.tileMatrixSetId,
+      startedAt: new Date().toISOString(),
+    },
+    { append: process.env.HONUA_INTEGRATION_META_APPEND === "true" },
+  );
 }
 
 export async function teardown(): Promise<void> {

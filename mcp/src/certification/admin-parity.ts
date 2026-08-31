@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import {
   ADMIN_MCP_CONTRACT_SERVER_SHA,
   ADMIN_MCP_COVERAGE_SHA256,
@@ -15,6 +14,7 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { isMainEntrypoint } from "../entrypoint.js";
 import { connectUpstream, createProxyServer, resolveProxyOptions } from "../proxy.js";
 
 export interface AdminParityReceipt {
@@ -219,9 +219,17 @@ export const MCP_TOOLS_LIST_MAX_CURSOR_LENGTH = 1_024;
  * the 432-tool default roster or a profile-enabled superset belongs to the
  * certification and preflight callers.
  */
-export async function listAllTools(client: {
-  listTools(request?: { cursor?: string }): Promise<{ tools: Tool[]; nextCursor?: string }>;
-}): Promise<Tool[]> {
+export async function listAllTools(
+  client: {
+    listTools(request?: { cursor?: string }): Promise<{ tools: Tool[]; nextCursor?: string }>;
+  },
+  /**
+   * Extra `tools/list` params carried on every page, e.g. the workflow-view
+   * selector (honua-server#3428). Kept out of the cursor loop's own state so a
+   * selector applies uniformly across pages rather than only to the first.
+   */
+  params?: Readonly<Record<string, unknown>>,
+): Promise<Tool[]> {
   const tools: Tool[] = [];
   let cursor: string | undefined;
   const seenCursors = new Set<string>();
@@ -233,7 +241,8 @@ export async function listAllTools(client: {
         `MCP tools/list exceeded the ${MCP_TOOLS_LIST_MAX_PAGES}-page pagination safety ceiling after ${tools.length} tools; the server did not terminate its cursor chain. This is a pagination fault, not a roster assertion.`,
       );
     }
-    const page = await client.listTools(cursor ? { cursor } : undefined);
+    const request = { ...params, ...(cursor ? { cursor } : {}) };
+    const page = await client.listTools(Object.keys(request).length > 0 ? request : undefined);
     if (tools.length + page.tools.length > MCP_TOOLS_LIST_MAX_TOOLS) {
       throw new Error(
         `MCP tools/list exceeded the ${MCP_TOOLS_LIST_MAX_TOOLS}-tool pagination safety ceiling on page ${pageCount}; the server returned an implausible catalog. This is a pagination fault, not a roster assertion.`,
@@ -295,7 +304,7 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value) ?? "undefined";
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainEntrypoint(import.meta.url)) {
   runAdminParityCertification(process.env, process.argv[2]).catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

@@ -212,115 +212,24 @@ right, not that the PR will pass.
 
 ## Specifica Requirement Format
 
-Use the Specifica format for product backlog issues, epics, and cross-repo workstreams. The issue body should be requirement-first and traceable, not a loose idea note.
+Product backlog issues, epics, and cross-repo workstreams use the Specifica
+format: requirement-first and traceable, not a loose idea note. Every
+workstream must be in Specifica.
 
-Every workstream must be in Specifica. If the owning repo already has a
-canonical Specifica source tree or projection workflow, follow that repo's
-pattern instead of hand-editing GitHub as the source of truth. For example,
-`honua-agentflow` uses `scripts/sync_specifica_issue.py` to project
-`spec.md`, `design.md`, and `tasks.md` from a `.specifica/<slug>/` item into a
-GitHub issue. In that style, update the canonical markdown and sync the issue;
-the issue body is a projection.
-
-When no repo-local Specifica tree exists, create the GitHub issue directly with
-the Specifica sections below. Do not file broad workstreams, demo backlogs,
-platform contracts, or epics as free-form notes. If a broad roadmap item needs
-scheduled implementation, split it into child Specifica feature issues before
-work starts.
-
-### Epic / Workstream Issue
-
-```md
-## Specifica
-
-Type: Epic
-Workstream: <short workstream name>
-Owner repo: <repo>
-Affected repos: <repo list>
-Priority: <P0-P4>
-Phase: <MVP/Beta/GA/Future>
-
-## Context
-
-<Why this workstream exists, who it serves, and how it fits the Honua platform.>
-
-## User Outcomes
-
-- <Outcome 1>
-- <Outcome 2>
-
-## Scope
-
-- <In-scope capability>
-- <In-scope capability>
-
-## Non-Goals
-
-- <Explicitly excluded work>
-
-## Requirements
-
-- REQ-001: <testable requirement>
-- REQ-002: <testable requirement>
-
-## Acceptance Criteria
-
-- [ ] <observable acceptance criterion>
-- [ ] <observable acceptance criterion>
-
-## Dependencies
-
-- <dependency or "None">
-
-## Validation
-
-- <tests, demos, CI gates, or manual validation required>
-```
-
-### Child Feature / App Issue
-
-```md
-## Specifica
-
-Type: Feature
-Parent epic: <issue link or "TBD">
-Workstream: <same workstream as epic>
-Owner repo: <repo>
-Affected repos: <repo list>
-Priority: <P0-P4>
-Phase: <MVP/Beta/GA/Future>
-
-## Context
-
-<User problem and product context.>
-
-## User Workflow
-
-1. <User step>
-2. <User step>
-3. <User step>
-
-## Requirements
-
-- REQ-001: <testable functional requirement>
-- REQ-002: <testable functional requirement>
-- NFR-001: <performance, reliability, security, caching, or accessibility requirement>
-
-## Acceptance Criteria
-
-- [ ] <observable acceptance criterion>
-- [ ] <observable acceptance criterion>
-
-## Data, Caching, and Realtime Notes
-
-- <Metadata cache expectations, live-data constraints, realtime cadence, or explicit no-cache decisions.>
-
-## Validation
-
-- <unit/integration/e2e/manual validation required>
-```
-
-For app backlog issues, prefer one epic that carries the workstream context and one child issue per sample application. The incident operations dashboard must be treated as realtime by default; do not describe it as a static dashboard unless the user explicitly changes that requirement.
+- If the owning repo has a canonical Specifica source tree or projection
+  workflow, follow it rather than hand-editing GitHub as the source of truth
+  (`honua-agentflow` projects `.specifica/<slug>/` into its issue via
+  `scripts/sync_specifica_issue.py`; there the issue body is a projection —
+  update the markdown and sync).
+- Otherwise create the issue directly from the canonical templates in
+  `honua-io/agent-delivery-spec`: `templates/specifica-epic-issue.md` and
+  `templates/specifica-feature-issue.md`. Never file workstreams, demo
+  backlogs, platform contracts, or epics as free-form notes.
+- Split a broad roadmap item into child Specifica feature issues before work
+  starts; for app backlogs prefer one epic carrying the workstream context
+  plus one child issue per sample application.
+- The incident operations dashboard is realtime by default; never describe it
+  as a static dashboard unless the user explicitly changes that requirement.
 
 ## Shared dev-environment rules (multi-agent WSL)
 
@@ -331,3 +240,5 @@ This machine runs many agents concurrently (**Codex + Claude**, often via agentf
 2. **Commit and push when you finish a task** so your worktree can be reclaimed. An hourly job (`honua-clean`) removes a worktree ONLY when it is clean AND fully pushed (merged, remote-gone, or idle >=2d). Dirty or unpushed worktrees are NEVER touched — but uncommitted/unpushed work blocks reclamation and is at risk if the instance is reset. Build artifacts (bin/obj and untracked node_modules) are reclaimed automatically and safely.
 
 3. **Commit hygiene — no agent attribution.** Author every commit as the repo owner only (git identity: Mike McDougall <mike@honua.io>). Do **NOT** add any agent/tool attribution to commits: no `Co-Authored-By: Claude ...`, no `Co-Authored-By: Codex ...` (or other bot co-authors), and no "Generated with Claude Code" / "Generated with Codex" / "🤖" lines in the message or PR body. Write a plain, descriptive commit message and stop.
+
+4. **Agents outside this WSL environment (Windows Codex/Claude, other machines).** The build lock and worktree conventions above exist only inside WSL. If you are not running inside it: work from your own checkout and never edit the WSL working trees (e.g. via `\\wsl.localhost`) — git remotes are the only shared surface; claim an issue before starting (assign yourself or leave a claiming comment), because agents that cannot see each other's worktrees cannot avoid collisions any other way; and run at most one heavy build/test at a time, avoiding overlap with active WSL builds — no semaphore protects the host across environments.

@@ -44,47 +44,47 @@ release cycle.
 
 - `@honua/sdk-js`
 - `@honua/mcp-server`
-- `create-honua-app` — not published to npm at the latest observation, so it cannot rank yet
+- `create-honua-app`
 
 ## Observed rankings
 
 | Query | Package | Result | Observed | Registry matches |
 | --- | --- | --- | --- | ---: |
-| `maplibre arcgis migration` | `@honua/sdk-js` | page 3 (rank 53) | 2026-08-04 | 19,070 |
+| `maplibre arcgis migration` | `@honua/sdk-js` | page 5 (rank 86) | 2026-08-25 | 20,325 |
 |  | `@honua/mcp-server` | not in the top 250 |  |  |
-|  | `create-honua-app` | not published at observation time |  |  |
-| `arcgis migration` | `@honua/sdk-js` | **page 1** (rank 1) | 2026-08-04 | 18,090 |
+|  | `create-honua-app` | not in the top 250 |  |  |
+| `arcgis migration` | `@honua/sdk-js` | **page 1** (rank 2) | 2026-08-25 | 19,260 |
 |  | `@honua/mcp-server` | not in the top 250 |  |  |
-|  | `create-honua-app` | not published at observation time |  |  |
-| `maplibre gis sdk` | `@honua/sdk-js` | page 6 (rank 101) | 2026-08-04 | 156,307 |
+|  | `create-honua-app` | not in the top 250 |  |  |
+| `maplibre gis sdk` | `@honua/sdk-js` | page 7 (rank 130) | 2026-08-25 | 163,397 |
 |  | `@honua/mcp-server` | not in the top 250 |  |  |
-|  | `create-honua-app` | not published at observation time |  |  |
-| `ogc api features client` | `@honua/mcp-server` | page 7 (rank 139) | 2026-08-04 | 984,963 |
+|  | `create-honua-app` | not in the top 250 |  |  |
+| `ogc api features client` | `@honua/mcp-server` | page 11 (rank 209) | 2026-08-25 | 1,013,526 |
 |  | `@honua/sdk-js` | not in the top 250 |  |  |
-|  | `create-honua-app` | not published at observation time |  |  |
-| `stac client typescript` | `@honua/sdk-js` | not in the top 250 | 2026-08-04 | 580,293 |
+|  | `create-honua-app` | not in the top 250 |  |  |
+| `stac client typescript` | `@honua/sdk-js` | not in the top 250 | 2026-08-25 | 600,845 |
 |  | `@honua/mcp-server` | not in the top 250 |  |  |
-|  | `create-honua-app` | not published at observation time |  |  |
-| `geocoding maplibre` | `@honua/sdk-js` | page 5 (rank 84) | 2026-08-04 | 2,306 |
+|  | `create-honua-app` | not in the top 250 |  |  |
+| `geocoding maplibre` | `@honua/sdk-js` | page 5 (rank 96) | 2026-08-25 | 2,446 |
 |  | `@honua/mcp-server` | not in the top 250 |  |  |
-|  | `create-honua-app` | not published at observation time |  |  |
-| `mcp server geospatial` | `@honua/sdk-js` | not in the top 250 | 2026-08-04 | 368,718 |
+|  | `create-honua-app` | not in the top 250 |  |  |
+| `mcp server geospatial` | `@honua/sdk-js` | not in the top 250 | 2026-08-25 | 382,631 |
 |  | `@honua/mcp-server` | not in the top 250 |  |  |
-|  | `create-honua-app` | not published at observation time |  |  |
+|  | `create-honua-app` | not in the top 250 |  |  |
 
 ## What each query is for
 
-- `maplibre arcgis migration` **(tracked target)** — the exact success-metric query declared on #499 ("npm search for 'maplibre arcgis migration' surfaces @honua/sdk-js on page one"). Re-observe by 2026-11-04.
-- `arcgis migration` — the `arcgis-migration` keyword's primary discovery term (REQ-004). Re-observe by 2026-11-04.
-- `maplibre gis sdk` — the `maplibre` discovery term as a MapLibre developer shopping for a data client would type it (REQ-004). Re-observe by 2026-11-04.
-- `ogc api features client` — the `ogc-api` discovery term (REQ-004). Re-observe by 2026-11-04.
-- `stac client typescript` — the `stac` discovery term (REQ-004). Re-observe by 2026-11-04.
-- `geocoding maplibre` — the `geocoding` discovery term (REQ-004). Re-observe by 2026-11-04.
-- `mcp server geospatial` — the discovery path to `@honua/mcp-server` for an agent developer. Re-observe by 2026-11-04.
+- `maplibre arcgis migration` **(tracked target)** — the exact success-metric query declared on #499 ("npm search for 'maplibre arcgis migration' surfaces @honua/sdk-js on page one"). Re-observe by 2026-11-25.
+- `arcgis migration` — the `arcgis-migration` keyword's primary discovery term (REQ-004). Re-observe by 2026-11-25.
+- `maplibre gis sdk` — the `maplibre` discovery term as a MapLibre developer shopping for a data client would type it (REQ-004). Re-observe by 2026-11-25.
+- `ogc api features client` — the `ogc-api` discovery term (REQ-004). Re-observe by 2026-11-25.
+- `stac client typescript` — the `stac` discovery term (REQ-004). Re-observe by 2026-11-25.
+- `geocoding maplibre` — the `geocoding` discovery term (REQ-004). Re-observe by 2026-11-25.
+- `mcp server geospatial` — the discovery path to `@honua/mcp-server` for an agent developer. Re-observe by 2026-11-25.
 
 ## Tracked targets
 
-- `maplibre arcgis migration` → `@honua/sdk-js` on page 1: **not met** — page 3 (rank 53) as observed 2026-08-04.
+- `maplibre arcgis migration` → `@honua/sdk-js` on page 1: **not met** — page 5 (rank 86) as observed 2026-08-25.
 
 A target that is not met is reported here rather than removed. These are tracked,
 non-gating metrics on [#499](https://github.com/honua-io/honua-sdk-js/issues/499): CI fails
