@@ -1,14 +1,17 @@
 {
   "schema": "honua.sdk-installed-package-certification-receipt/v1",
-  "generatedAt": "2026-09-01T12:00:02.550Z",
+  "generatedAt": "2026-09-01T12:31:39.967Z",
   "release": "2026.1",
   "server": {
     "image": "ghcr.io/honua-io/honua-server@sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72",
-    "digest": "sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72"
+    "digest": "sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72",
+    "sourceSha": "ac30266fbd153363bebdbed13130accc8ab0c94a",
+    "manifestRevision": "ac30266fbd153363bebdbed13130accc8ab0c94a"
   },
   "package": {
     "coordinate": "@honua/sdk-js",
     "version": "0.1.9-beta.0",
+    "sourceSha": "c99e71197dd940ed952aecb024c6de273456f2ae",
     "registry": "https://registry.npmjs.org",
     "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ=="
   },
@@ -21,9 +24,9 @@
   "verdict": "not-certified",
   "summary": {
     "total": 228,
-    "pass": 0,
+    "pass": 5,
     "fail": 0,
-    "blocked": 228
+    "blocked": 223
   },
   "operations": [
     {
@@ -231,32 +234,52 @@
       "family": "protocol-certification",
       "operation": "conformance",
       "capabilityKey": "process.ogc-api-processes",
-      "verdict": "blocked",
-      "blockedBy": "honua-sdk-js#1113"
+      "verdict": "pass",
+      "diagnostic": {
+        "evidenceUri": "artifact://honua-sdk-js/1328/ogc-processes-candidate-qualification.json",
+        "evidenceSha256": "sha256:c0d360a9b69e5fbc74e0a2b66c10c45099646d920652d2fc4b788c75bed4c3e0",
+        "qualificationFormat": "honua.sdk.ogc-processes-candidate-qualification.v1",
+        "fixtureSha256": "92aabf8cc373fda535e0896c43ab445b203d4f6de7b9dfd6cddcdc4aaf2c9097"
+      }
     },
     {
       "id": "protocol-certification:ogc-processes:describe",
       "family": "protocol-certification",
       "operation": "describe",
       "capabilityKey": "process.ogc-api-processes",
-      "verdict": "blocked",
-      "blockedBy": "honua-sdk-js#1113"
+      "verdict": "pass",
+      "diagnostic": {
+        "evidenceUri": "artifact://honua-sdk-js/1328/ogc-processes-candidate-qualification.json",
+        "evidenceSha256": "sha256:c0d360a9b69e5fbc74e0a2b66c10c45099646d920652d2fc4b788c75bed4c3e0",
+        "qualificationFormat": "honua.sdk.ogc-processes-candidate-qualification.v1",
+        "fixtureSha256": "92aabf8cc373fda535e0896c43ab445b203d4f6de7b9dfd6cddcdc4aaf2c9097"
+      }
     },
     {
       "id": "protocol-certification:ogc-processes:landing",
       "family": "protocol-certification",
       "operation": "landing",
       "capabilityKey": "process.ogc-api-processes",
-      "verdict": "blocked",
-      "blockedBy": "honua-sdk-js#1113"
+      "verdict": "pass",
+      "diagnostic": {
+        "evidenceUri": "artifact://honua-sdk-js/1328/ogc-processes-candidate-qualification.json",
+        "evidenceSha256": "sha256:c0d360a9b69e5fbc74e0a2b66c10c45099646d920652d2fc4b788c75bed4c3e0",
+        "qualificationFormat": "honua.sdk.ogc-processes-candidate-qualification.v1",
+        "fixtureSha256": "92aabf8cc373fda535e0896c43ab445b203d4f6de7b9dfd6cddcdc4aaf2c9097"
+      }
     },
     {
       "id": "protocol-certification:ogc-processes:list",
       "family": "protocol-certification",
       "operation": "list",
       "capabilityKey": "process.ogc-api-processes",
-      "verdict": "blocked",
-      "blockedBy": "honua-sdk-js#1113"
+      "verdict": "pass",
+      "diagnostic": {
+        "evidenceUri": "artifact://honua-sdk-js/1328/ogc-processes-candidate-qualification.json",
+        "evidenceSha256": "sha256:c0d360a9b69e5fbc74e0a2b66c10c45099646d920652d2fc4b788c75bed4c3e0",
+        "qualificationFormat": "honua.sdk.ogc-processes-candidate-qualification.v1",
+        "fixtureSha256": "92aabf8cc373fda535e0896c43ab445b203d4f6de7b9dfd6cddcdc4aaf2c9097"
+      }
     },
     {
       "id": "protocol-certification:stac:collection",
@@ -1028,8 +1051,13 @@
       "id": "sdk-operation:ogc-processes-discovery-standalone:discovery",
       "family": "sdk-operation",
       "operation": "discovery",
-      "verdict": "blocked",
-      "blockedBy": "honua-sdk-js#1113"
+      "verdict": "pass",
+      "diagnostic": {
+        "evidenceUri": "artifact://honua-sdk-js/1328/ogc-processes-candidate-qualification.json",
+        "evidenceSha256": "sha256:c0d360a9b69e5fbc74e0a2b66c10c45099646d920652d2fc4b788c75bed4c3e0",
+        "qualificationFormat": "honua.sdk.ogc-processes-candidate-qualification.v1",
+        "fixtureSha256": "92aabf8cc373fda535e0896c43ab445b203d4f6de7b9dfd6cddcdc4aaf2c9097"
+      }
     },
     {
       "id": "sdk-operation:pmtiles-discovery-client-only:discovery",
@@ -1662,5 +1690,5 @@
       "blockedBy": "honua-sdk-js#1426"
     }
   ],
-  "receiptDigest": "sha256:288145dd30f99df6c7f1122b9925fac14dbb8ff9906271e2c2170fd8fbc439df"
+  "receiptDigest": "sha256:4a96889c1b5fcef2084d41fb1ba19d4247d214dc2d8b58290e07101243f630eb"
 }

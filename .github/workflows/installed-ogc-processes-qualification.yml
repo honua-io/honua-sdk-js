@@ -1,0 +1,59 @@
+name: Installed OGC Processes qualification
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * *"
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: honua-io/honua-server
+          ref: ac30266fbd153363bebdbed13130accc8ab0c94a
+          path: .candidate-server
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20.19.0
+          registry-url: https://registry.npmjs.org
+      - name: Authenticate to the candidate registry
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Start exact candidate
+        env:
+          HONUA_DEV_GRANT_EDITION: Pro
+          HONUA_STORAGE_VOLUME_NAME: honua_sdkjs_1328_storage
+        run: >-
+          docker compose -p honua-sdkjs-1328
+          -f .candidate-server/docker-compose.yml
+          -f .github/fixtures/installed-ogc-processes-candidate.compose.yml
+          up -d --no-build --wait
+      - name: Execute installed SDK against governed process
+        env:
+          HONUA_OGC_PROCESSES_QUALIFICATION_ENABLED: "true"
+          HONUA_INTEGRATION_BASE_URL: http://127.0.0.1:8080
+          HONUA_API_KEY: quickstart-admin-password
+          HONUA_EVIDENCE_URI: artifact://honua-sdk-js/1328/ogc-processes-candidate-qualification.json
+        run: npm run certify:installed-ogc-processes
+      - name: Upload digest-bound receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-js-installed-ogc-processes-qualification
+          path: |
+            test-results/installed-package-certification.json
+            test-results/ogc-processes-candidate-qualification.json
+          if-no-files-found: error
+      - name: Stop candidate
+        if: always()
+        run: >-
+          docker compose -p honua-sdkjs-1328
+          -f .candidate-server/docker-compose.yml
+          -f .github/fixtures/installed-ogc-processes-candidate.compose.yml
+          down --volumes

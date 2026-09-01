@@ -1,0 +1,144 @@
+{
+  "format": "honua.sdk.ogc-processes-candidate-qualification.v1",
+  "schemaVersion": 1,
+  "observedAt": "2026-09-01T12:26:04.116Z",
+  "candidate": {
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.9-beta.0",
+      "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+      "sourceSha": "c99e71197dd940ed952aecb024c6de273456f2ae"
+    },
+    "server": {
+      "sourceSha": "ac30266fbd153363bebdbed13130accc8ab0c94a",
+      "imageDigest": "sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72"
+    },
+    "manifestRevision": "ac30266fbd153363bebdbed13130accc8ab0c94a",
+    "evidenceUri": "artifact://honua-sdk-js/1328/ogc-processes-candidate-qualification.json"
+  },
+  "fixture": {
+    "id": "geometry-buffer-point-4326-v1",
+    "sha256": "92aabf8cc373fda535e0896c43ab445b203d4f6de7b9dfd6cddcdc4aaf2c9097",
+    "processId": "geometry.buffer"
+  },
+  "discovery": {
+    "landingLinkCount": 6,
+    "conformanceClasses": [
+      "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/core",
+      "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/json",
+      "http://www.opengis.net/spec/ogcapi-common-1/1.0/conf/core",
+      "http://www.opengis.net/spec/ogcapi-common-1/1.0/conf/json"
+    ],
+    "processCount": 45,
+    "jobControlOptions": [
+      "async-execute"
+    ],
+    "inputNames": [
+      "distance",
+      "geodesic",
+      "srid",
+      "wkb"
+    ],
+    "outputNames": [
+      "outputFeatureLayer"
+    ]
+  },
+  "executions": {
+    "sync": {
+      "status": "unsupported",
+      "declared": false
+    },
+    "async": {
+      "status": "successful",
+      "outputNames": [
+        "outputFeatureLayer"
+      ],
+      "cancellation": {
+        "declared": false,
+        "outcome": "refused",
+        "status": "unsupported",
+        "error": {
+          "name": "HonuaCapabilityNotSupportedError",
+          "statusCode": null,
+          "jobStatus": null,
+          "errorCode": null
+        }
+      },
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/ogc/processes/processes/geometry.buffer/execution",
+          "status": 201,
+          "prefer": "respond-async"
+        },
+        {
+          "method": "GET",
+          "path": "/ogc/processes/jobs/gp-d4b6cbb6b5564ec0ad0e7ee06267350d",
+          "status": 200,
+          "prefer": null
+        },
+        {
+          "method": "GET",
+          "path": "/ogc/processes/jobs/gp-d4b6cbb6b5564ec0ad0e7ee06267350d",
+          "status": 200,
+          "prefer": null
+        },
+        {
+          "method": "GET",
+          "path": "/ogc/processes/jobs/gp-d4b6cbb6b5564ec0ad0e7ee06267350d",
+          "status": 200,
+          "prefer": null
+        },
+        {
+          "method": "GET",
+          "path": "/ogc/processes/jobs/gp-d4b6cbb6b5564ec0ad0e7ee06267350d",
+          "status": 200,
+          "prefer": null
+        },
+        {
+          "method": "GET",
+          "path": "/ogc/processes/jobs/gp-d4b6cbb6b5564ec0ad0e7ee06267350d",
+          "status": 200,
+          "prefer": null
+        },
+        {
+          "method": "GET",
+          "path": "/ogc/processes/jobs/gp-d4b6cbb6b5564ec0ad0e7ee06267350d",
+          "status": 200,
+          "prefer": null
+        },
+        {
+          "method": "GET",
+          "path": "/ogc/processes/jobs/gp-d4b6cbb6b5564ec0ad0e7ee06267350d/results",
+          "status": 200,
+          "prefer": null
+        },
+        {
+          "method": "POST",
+          "path": "/ogc/processes/processes/geometry.buffer/execution",
+          "status": 201,
+          "prefer": "respond-async"
+        }
+      ]
+    }
+  },
+  "failure": {
+    "outcome": "rejected",
+    "kind": "request-rejected",
+    "error": {
+      "name": "HonuaHttpError",
+      "statusCode": 400,
+      "jobStatus": null,
+      "errorCode": null
+    },
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/ogc/processes/processes/geometry.buffer/execution",
+        "status": 400,
+        "prefer": "respond-async"
+      }
+    ]
+  },
+  "result": "passed"
+}
