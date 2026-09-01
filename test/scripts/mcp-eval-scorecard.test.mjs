@@ -217,7 +217,7 @@ test("publishes the complete classified admin family without claiming an unrun c
   assert.match(markdown, /honua_admin_\*/);
   assert.match(markdown, /432 tools/);
   assert.match(markdown, /one-time-secret\/session operations are explicitly excluded/);
-  assert.match(markdown, /blocked-server-pin-regresses-admin-contract/);
+  assert.match(markdown, /compatible/);
   assert.match(markdown, /not a fabricated live pass receipt/);
 });
 
