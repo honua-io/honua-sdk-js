@@ -12,3 +12,10 @@ registry integrity, server digest, all operation verdicts, and a canonical recei
 
 The scheduled workflow uploads the receipt even when the gate fails, so a missing or unpublished operation can never
 appear as a silent skip.
+
+The OGC Processes slice reuses this same clean install, lockfile integrity check, image inspection, denominator
+projection, and receipt digest through `npm run certify:installed-ogc-processes`. Its observation callback executes
+the governed `geometry.buffer` process through the installed package and emits the detailed candidate qualification
+beside the shared receipt. The slice fails for a live execution defect, but unrelated denominator cells stay
+explicitly blocked in the shared `not-certified` receipt instead of turning a passing OGC operation into a claim that
+the entire release is certified.

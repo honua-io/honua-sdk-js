@@ -272,6 +272,15 @@ excluded and a final redaction gate rejects credential-shaped output. This is
 candidate qualification input for the at-cut release join, not that release
 receipt itself.
 
+At the release join, `npm run certify:installed-ogc-processes` supplies the SDK
+package root from the shared installed-package certification harness rather
+than accepting a caller-selected tree. The joined receipt therefore binds the
+same observed operations to the registry integrity, sealed SDK source SHA,
+server image digest/source SHA, and manifest revision. Operations outside this
+slice retain their shared per-operation `blockedBy` coordinates; an unavailable
+sync or dismiss mode remains an `unsupported` observation in the detailed OGC
+receipt.
+
 ### STAC API
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"

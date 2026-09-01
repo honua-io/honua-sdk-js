@@ -45,7 +45,7 @@ export function buildReceipt({ candidate, denominator, observations = [], genera
   return { ...receipt, receiptDigest: sha256(canonical(receipt)) };
 }
 
-export async function certify({ output, observationsPath } = {}) {
+export async function certify({ output, observationsPath, collectObservations } = {}) {
   const candidate = JSON.parse(await readFile(path.join(root, "config/installed-package-certification.v1.json"), "utf8"));
   const denominator = JSON.parse(await readFile(path.join(root, "config/certification-denominator.v1.json"), "utf8"));
   const work = await mkdtemp(path.join(tmpdir(), "honua-sdk-installed-cert-"));
@@ -60,7 +60,12 @@ export async function certify({ output, observationsPath } = {}) {
     }
     const repoDigests = JSON.parse(run("docker", ["image", "inspect", candidate.server.image, "--format", "{{json .RepoDigests}}"]));
     if (!repoDigests.includes(candidate.server.image)) throw new Error(`local image does not contain pinned digest ${candidate.server.image}`);
-    const observations = observationsPath ? JSON.parse(await readFile(observationsPath, "utf8")) : [];
+    if (observationsPath && collectObservations) throw new Error("choose observationsPath or collectObservations, not both");
+    const observations = observationsPath
+      ? JSON.parse(await readFile(observationsPath, "utf8"))
+      : collectObservations
+        ? await collectObservations({ candidate, packageRoot: path.join(work, "node_modules", candidate.package.coordinate) })
+        : [];
     const receipt = buildReceipt({ candidate: { ...candidate, install: { mode: "clean-npm-ci", localLinks: false,
       resolved: installed.resolved, integrity: installed.integrity }, defaultBlocker: candidate.defaultBlocker }, denominator, observations });
     await writeFile(output, `${JSON.stringify(receipt, null, 2)}\n`);
