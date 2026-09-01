@@ -172,6 +172,7 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
   const mode = sdkMode();
   const resolved = aliases(mode, options.sdkEntrypoints);
   let buildMode = false;
+  let buildFailed = false;
   let outputRoot: string | undefined;
   let emittedBundle: Array<{ fileName: string; kind: "asset" | "chunk" }> | undefined;
 
@@ -201,6 +202,12 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
       },
       {
         name: "honua-sample-sdk-resolution",
+        buildEnd(error) {
+          buildFailed = error !== undefined;
+        },
+        renderError() {
+          buildFailed = true;
+        },
         configResolved(config) {
           buildMode = config.command === "build";
           if (buildMode) outputRoot = path.resolve(config.root, config.build.outDir);
@@ -212,6 +219,10 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
         },
         closeBundle() {
           if (!buildMode) return;
+          // Rollup still calls closeBundle after another hook fails. Preserve
+          // that actionable root error instead of replacing it with a missing
+          // inventory diagnostic from this evidence plugin.
+          if (buildFailed) return;
           if (!outputRoot || !emittedBundle)
             throw new Error("sample bundle closed without a resolved output inventory");
           const finalOutputRoot = outputRoot;

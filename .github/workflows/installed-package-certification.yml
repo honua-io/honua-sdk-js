@@ -28,6 +28,10 @@ jobs:
         run: |
           mkdir -p test-results
           npm run certify:installed-package -- --output test-results/installed-package-certification.json
+      - name: Emit installed-example receipt
+        id: examples
+        continue-on-error: true
+        run: npm run certify:installed-examples -- --output test-results/installed-example-certification.json
       - name: Upload release-ledger receipt
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -35,8 +39,20 @@ jobs:
           name: honua-sdk-js-installed-package-certification
           path: test-results/installed-package-certification.json
           if-no-files-found: error
+      - name: Upload installed-example receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-js-installed-example-certification
+          path: test-results/installed-example-certification.json
+          if-no-files-found: error
       - name: Enforce certification verdict
         if: steps.certify.outcome != 'success'
         run: |
           jq -r '.operations[] | select(.verdict != "pass") | "\(.id): \(.verdict) blocked-by \(.blockedBy // "n/a")"' test-results/installed-package-certification.json
+          exit 1
+      - name: Enforce installed-example verdict
+        if: steps.examples.outcome != 'success'
+        run: |
+          jq -r '.verdicts[] | select(.verdict == "fail") | "\(.id): fail issue \(.issue // "unfiled")"' test-results/installed-example-certification.json
           exit 1

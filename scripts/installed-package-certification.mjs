@@ -45,12 +45,16 @@ export function buildReceipt({ candidate, denominator, observations = [], genera
   return { ...receipt, receiptDigest: sha256(canonical(receipt)) };
 }
 
-export async function certify({ output, observationsPath } = {}) {
-  const candidate = JSON.parse(await readFile(path.join(root, "config/installed-package-certification.v1.json"), "utf8"));
-  const denominator = JSON.parse(await readFile(path.join(root, "config/certification-denominator.v1.json"), "utf8"));
+export async function readInstalledCandidate() {
+  return JSON.parse(await readFile(path.join(root, "config/installed-package-certification.v1.json"), "utf8"));
+}
+
+export async function withInstalledCandidate(candidate, callback, { consumerDependencies = {} } = {}) {
   const work = await mkdtemp(path.join(tmpdir(), "honua-sdk-installed-cert-"));
   try {
-    await writeFile(path.join(work, "package.json"), JSON.stringify({ private: true, type: "module", dependencies: { [candidate.package.coordinate]: candidate.package.version } }, null, 2));
+    await writeFile(path.join(work, "package.json"), JSON.stringify({ private: true, type: "module", dependencies: {
+      [candidate.package.coordinate]: candidate.package.version, ...consumerDependencies,
+    } }, null, 2));
     run("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`], { cwd: work });
     run("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`], { cwd: work });
     const lock = JSON.parse(await readFile(path.join(work, "package-lock.json"), "utf8"));
@@ -60,12 +64,20 @@ export async function certify({ output, observationsPath } = {}) {
     }
     const repoDigests = JSON.parse(run("docker", ["image", "inspect", candidate.server.image, "--format", "{{json .RepoDigests}}"]));
     if (!repoDigests.includes(candidate.server.image)) throw new Error(`local image does not contain pinned digest ${candidate.server.image}`);
+    return await callback({ installed, packageRoot: path.join(work, "node_modules", candidate.package.coordinate), work });
+  } finally { await rm(work, { recursive: true, force: true }); }
+}
+
+export async function certify({ output, observationsPath } = {}) {
+  const candidate = await readInstalledCandidate();
+  const denominator = JSON.parse(await readFile(path.join(root, "config/certification-denominator.v1.json"), "utf8"));
+  return withInstalledCandidate(candidate, async ({ installed }) => {
     const observations = observationsPath ? JSON.parse(await readFile(observationsPath, "utf8")) : [];
     const receipt = buildReceipt({ candidate: { ...candidate, install: { mode: "clean-npm-ci", localLinks: false,
       resolved: installed.resolved, integrity: installed.integrity }, defaultBlocker: candidate.defaultBlocker }, denominator, observations });
     await writeFile(output, `${JSON.stringify(receipt, null, 2)}\n`);
     return receipt;
-  } finally { await rm(work, { recursive: true, force: true }); }
+  });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

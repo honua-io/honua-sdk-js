@@ -12,3 +12,10 @@ registry integrity, server digest, all operation verdicts, and a canonical recei
 
 The scheduled workflow uploads the receipt even when the gate fails, so a missing or unpublished operation can never
 appear as a silent skip.
+
+`npm run certify:installed-examples` reuses that same clean install and image-identity check. It enumerates every
+top-level example directory and every JavaScript/TypeScript documentation fence. Examples that expose the shared
+packed-package Vite mode are built from the installed public exports; examples that still resolve repository source
+are explicit `blockedBy` rows. Compile-directed documentation snippets are checked against the installed package,
+while fences deliberately labeled `doc-test=skip` remain visible as `not-executable` rather than being counted as
+passes. An executed failure must carry a filed defect coordinate and fails the workflow.
