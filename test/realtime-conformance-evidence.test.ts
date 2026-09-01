@@ -1446,6 +1446,52 @@ describe("realtime conformance evidence", () => {
     ]);
   });
 
+  it("observes one minimal baseline per advertised transport without weakening full-history conformance", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions(),
+      baselineOnly: true,
+      fetchFn: () =>
+        Promise.resolve(
+          jsonResponse({
+            serverVersion: SERVER_VERSION,
+            serverRevision: SERVER_REVISION,
+            transports: [
+              { id: "sse", url: `${BASE_URL}/stream` },
+              { id: "websocket", url: "ws://127.0.0.1:4318/stream" },
+            ],
+          }),
+        ),
+      eventSourceFactory: () => createScriptedEventSource([snapshotEvent]),
+      webSocketFactory: () => createScriptedWebSocket([snapshotEvent]),
+    });
+
+    expectSchemaValid(evidence);
+    expect(evidence.summary).toMatchObject({
+      status: "executed",
+      scenarioCount: 1,
+      executionCount: 2,
+      executed: 2,
+      unsupported: 1,
+    });
+    expect(evidence.transports.slice(0, 2).map((transport) => transport.scenarios)).toEqual([
+      [{ id: "baseline-completion", result: "passed" }],
+      [{ id: "baseline-completion", result: "passed" }],
+    ]);
+    expect(evidence.transports.slice(0, 2).map((transport) => transport.diagnostics[0]?.code)).toEqual([
+      "baseline-completed",
+      "baseline-completed",
+    ]);
+    expect(evidence.transports.slice(0, 2).map((transport) => transport.baselineState?.eventCount)).toEqual([1, 1]);
+    expect(evidence.transports.slice(0, 2).every((transport) => transport.acceptedState === undefined)).toBe(true);
+    expect(summarizeRealtimeConformanceEvidence(evidence)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("sse: executed"),
+        expect.stringContaining("websocket: executed"),
+        expect.stringContaining("odata: unsupported"),
+      ]),
+    );
+  });
+
   it("does not certify two replacement snapshots as snapshot-plus-delta history", async () => {
     const evidence = await collectLiveRealtimeConformanceEvidence({
       ...commonLiveOptions({ timeoutMs: 20 }),

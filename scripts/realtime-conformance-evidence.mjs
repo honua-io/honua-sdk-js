@@ -460,6 +460,10 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
     eventSourceFactory: options.eventSourceFactory,
     webSocketFactory: options.webSocketFactory,
     conformanceRecord: run.record,
+    // A leased controlled run still proves the full snapshot-plus-mutation
+    // contract. Baseline-only is the read-only observation used when the lane
+    // has no authority to mutate the reviewed deployment.
+    baselineOnly: options.baselineOnly === true && run.record === undefined,
   };
   const executions = [];
   try {
@@ -733,7 +737,9 @@ function failExecutedTransports(transports, code, message) {
           ...transport,
           status: "failed",
           scenarioCounts: { total: 1, passed: 0, failed: 1 },
-          scenarios: [{ id: "snapshot-delta-contract", result: "failed" }],
+          scenarios: [
+            { id: transport.baselineState ? "baseline-completion" : "snapshot-delta-contract", result: "failed" },
+          ],
           diagnostics: [{ code, message, scenario: "snapshot-delta-contract" }],
         }
       : transport,
@@ -1114,6 +1120,7 @@ function normalizeTransportId(value) {
 }
 
 async function executeAdvertisedTransport(id, descriptor, options) {
+  const scenario = options.baselineOnly ? "baseline-completion" : "snapshot-delta-contract";
   try {
     const observation =
       id === "sse"
@@ -1127,18 +1134,30 @@ async function executeAdvertisedTransport(id, descriptor, options) {
         freshness: id === "odata" ? "poll" : "push",
         advertised: true,
         status: "executed",
-        acceptedState: {
-          eventCount: observation.acceptedEventCount,
-          historySha256: observation.historySha256,
-          finalStateSha256: observation.finalStateSha256,
-        },
+        ...(options.baselineOnly
+          ? {
+              baselineState: {
+                eventCount: observation.acceptedEventCount,
+                historySha256: observation.historySha256,
+                finalStateSha256: observation.finalStateSha256,
+              },
+            }
+          : {
+              acceptedState: {
+                eventCount: observation.acceptedEventCount,
+                historySha256: observation.historySha256,
+                finalStateSha256: observation.finalStateSha256,
+              },
+            }),
         scenarioCounts: { total: 1, passed: 1, failed: 0 },
-        scenarios: [{ id: "snapshot-delta-contract", result: "passed" }],
+        scenarios: [{ id: scenario, result: "passed" }],
         diagnostics: [
           {
-            code: "contract-events-accepted",
-            message: `${String(observation.acceptedEventCount)} snapshot-plus-mutation contract events accepted with normalized state-transition history ${observation.historySha256}, final state ${observation.finalStateSha256}, and redacted checkpoint telemetry.`,
-            scenario: "snapshot-delta-contract",
+            code: options.baselineOnly ? "baseline-completed" : "contract-events-accepted",
+            message: options.baselineOnly
+              ? `Advertised transport completed a baseline with ${String(observation.acceptedEventCount)} accepted event, normalized history ${observation.historySha256}, final state ${observation.finalStateSha256}, and redacted checkpoint telemetry.`
+              : `${String(observation.acceptedEventCount)} snapshot-plus-mutation contract events accepted with normalized state-transition history ${observation.historySha256}, final state ${observation.finalStateSha256}, and redacted checkpoint telemetry.`,
+            scenario,
           },
         ],
       },
@@ -1152,12 +1171,12 @@ async function executeAdvertisedTransport(id, descriptor, options) {
         advertised: true,
         status: failure.status,
         scenarioCounts: { total: 1, passed: 0, failed: 1 },
-        scenarios: [{ id: "snapshot-delta-contract", result: "failed" }],
+        scenarios: [{ id: scenario, result: "failed" }],
         diagnostics: [
           {
             code: failure.code,
             message: failure.message,
-            scenario: "snapshot-delta-contract",
+            scenario,
           },
         ],
       },
@@ -1167,13 +1186,14 @@ async function executeAdvertisedTransport(id, descriptor, options) {
 
 function reconcileExecutedTransportStates(executions) {
   const executed = executions.filter(({ transport }) => transport.status === "executed");
+  const stateOf = ({ transport }) => transport.acceptedState ?? transport.baselineState;
   if (
     executed.length <= 1 ||
     executed.every(
-      ({ transport }) =>
-        transport.acceptedState?.eventCount === executed[0]?.transport.acceptedState?.eventCount &&
-        transport.acceptedState?.historySha256 === executed[0]?.transport.acceptedState?.historySha256 &&
-        transport.acceptedState?.finalStateSha256 === executed[0]?.transport.acceptedState?.finalStateSha256,
+      (execution) =>
+        stateOf(execution)?.eventCount === stateOf(executed[0])?.eventCount &&
+        stateOf(execution)?.historySha256 === stateOf(executed[0])?.historySha256 &&
+        stateOf(execution)?.finalStateSha256 === stateOf(executed[0])?.finalStateSha256,
     )
   ) {
     return executions.map(({ transport }) => transport);
@@ -1188,9 +1208,10 @@ function reconcileExecutedTransportStates(executions) {
           diagnostics: [
             {
               code: "cross-transport-state-divergence",
-              message:
-                "Advertised realtime transports accepted different snapshot-plus-mutation histories or normalized final states.",
-              scenario: "snapshot-delta-contract",
+              message: transport.baselineState
+                ? "Advertised realtime transports accepted different baseline histories or normalized states."
+                : "Advertised realtime transports accepted different snapshot-plus-mutation histories or normalized final states.",
+              scenario: transport.baselineState ? "baseline-completion" : "snapshot-delta-contract",
             },
           ],
         }
@@ -1292,7 +1313,7 @@ async function observeLiveTransport(buildTransport, options) {
   let terminalError;
   const checkDataReady = () => {
     if (
-      hasSnapshotThenMutation(accepted) &&
+      (options.baselineOnly ? accepted.some((event) => event.type === "snapshot") : hasSnapshotThenMutation(accepted)) &&
       telemetry.some((event) => event.acceptedEventCount >= accepted.length && event.checkpoint)
     ) {
       dataReady.resolve();
@@ -1339,11 +1360,13 @@ async function observeLiveTransport(buildTransport, options) {
     },
     complete() {
       completed += 1;
-      if (!hasSnapshotThenMutation(accepted)) {
+      if (!(options.baselineOnly ? accepted.some((event) => event.type === "snapshot") : hasSnapshotThenMutation(accepted))) {
         dataReady.reject(
           new LiveSemanticError(
             "transport-completed-before-history",
-            "Live transport completed before snapshot-plus-delta history was accepted.",
+            options.baselineOnly
+              ? "Live transport completed before a baseline was accepted."
+              : "Live transport completed before snapshot-plus-delta history was accepted.",
           ),
         );
       }
@@ -1355,7 +1378,9 @@ async function observeLiveTransport(buildTransport, options) {
       await withTimeout(
         dataReady.promise,
         options.timeoutMs,
-        "No snapshot-plus-delta contract history was observed within the bounded live window.",
+        options.baselineOnly
+          ? "No baseline was observed within the bounded live window."
+          : "No snapshot-plus-delta contract history was observed within the bounded live window.",
       );
     } catch (error) {
       if (accepted.length === 0 && isLiveAvailabilityFailure(error)) {
@@ -1365,10 +1390,15 @@ async function observeLiveTransport(buildTransport, options) {
           "Advertised realtime transport was unavailable during the bounded observation.",
         );
       }
-      if (!hasSnapshotThenMutation(accepted) && isContractHistoryMissing(error)) {
+      if (
+        !(options.baselineOnly ? accepted.some((event) => event.type === "snapshot") : hasSnapshotThenMutation(accepted)) &&
+        isContractHistoryMissing(error)
+      ) {
         throw new LiveSemanticError(
-          "contract-history-missing",
-          "The advertised transport produced no accepted snapshot-plus-delta history within the bounded observation.",
+          options.baselineOnly ? "baseline-missing" : "contract-history-missing",
+          options.baselineOnly
+            ? "The advertised transport produced no accepted baseline within the bounded observation."
+            : "The advertised transport produced no accepted snapshot-plus-delta history within the bounded observation.",
         );
       }
       throw error;
@@ -1820,11 +1850,17 @@ export function validateRealtimeConformanceEvidence(evidence) {
         `${transport.id} executed status contradicts its scenario results.`,
       );
       if (evidence.lane === "live") {
+        const baselineOnly = transport.scenarios.every(({ id }) => id === "baseline-completion");
+        const state = baselineOnly ? transport.baselineState : transport.acceptedState;
         invariant(
-          transport.acceptedState?.eventCount >= 2 &&
-            /^sha256:[a-f0-9]{64}$/u.test(transport.acceptedState?.historySha256 ?? "") &&
-            /^sha256:[a-f0-9]{64}$/u.test(transport.acceptedState?.finalStateSha256 ?? ""),
-          `${transport.id} live execution lacks a bounded accepted-state fingerprint.`,
+          baselineOnly ? transport.acceptedState === undefined : transport.baselineState === undefined,
+          `${transport.id} live execution mixes baseline and full-history evidence.`,
+        );
+        invariant(state?.eventCount >= (baselineOnly ? 1 : 2), `${transport.id} live execution has too few events.`);
+        invariant(
+          /^sha256:[a-f0-9]{64}$/u.test(state?.historySha256 ?? "") &&
+            /^sha256:[a-f0-9]{64}$/u.test(state?.finalStateSha256 ?? ""),
+          `${transport.id} live execution lacks a bounded state fingerprint.`,
         );
       }
     } else if (transport.status === "unsupported") {
@@ -1874,12 +1910,10 @@ export function validateRealtimeConformanceEvidence(evidence) {
     "Live realtime evidence claimed a fixture revision source.",
   );
   if (evidence.lane === "live") {
-    const executedStates = evidence.transports
-      .filter((transport) => transport.status === "executed")
-      .map(
-        (transport) =>
-          `${String(transport.acceptedState.eventCount)}:${transport.acceptedState.historySha256}:${transport.acceptedState.finalStateSha256}`,
-      );
+    const executedStates = evidence.transports.filter((transport) => transport.status === "executed").map((transport) => {
+      const state = transport.acceptedState ?? transport.baselineState;
+      return `${String(state.eventCount)}:${state.historySha256}:${state.finalStateSha256}`;
+    });
     invariant(
       new Set(executedStates).size <= 1,
       "Executed realtime transports accepted divergent histories or final states.",
@@ -1988,7 +2022,11 @@ export function summarizeRealtimeConformanceEvidence(evidence) {
       (transport) =>
         `${transport.id}: ${transport.status} (${String(transport.scenarioCounts.passed)}/${String(
           transport.scenarioCounts.total,
-        )} scenarios, freshness=${transport.freshness})`,
+        )} scenarios, freshness=${transport.freshness})${
+          transport.diagnostics[0]
+            ? ` — ${transport.diagnostics[0].code}: ${transport.diagnostics[0].message}`
+            : ""
+        }`,
     ),
   ];
 }
@@ -2460,6 +2498,7 @@ function parseArgs(argv) {
     output: "test-results/realtime-conformance-evidence.json",
     strict: false,
     allowDegraded: false,
+    baselineOnly: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -2467,6 +2506,7 @@ function parseArgs(argv) {
     else if (argument === "--output") options.output = argv[++index] ?? "";
     else if (argument === "--strict") options.strict = true;
     else if (argument === "--allow-degraded") options.allowDegraded = true;
+    else if (argument === "--baseline-only") options.baselineOnly = true;
     else throw new Error(`Unknown realtime conformance argument: ${argument}`);
   }
   invariant(options.lane === "fixture" || options.lane === "live", "--lane must be fixture or live.");
@@ -2543,7 +2583,7 @@ async function main() {
     evidence =
       options.lane === "fixture"
         ? await collectFixtureRealtimeConformanceEvidence()
-        : await collectLiveRealtimeConformanceEvidence();
+        : await collectLiveRealtimeConformanceEvidence({ baselineOnly: options.baselineOnly });
   } catch (error) {
     collectorFailed = true;
     process.stderr.write(`Realtime conformance evidence failed: ${errorMessage(error)}\n`);
