@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -5,7 +6,7 @@ import { createServer } from "vite";
 import { describe, expect, it, vi } from "vitest";
 
 import { SampleCleanupRegistry } from "../examples/_kit/cleanup.js";
-import { createSampleViteConfig, resolveContainedExport } from "../examples/_kit/vite.config.js";
+import { createSampleViteConfig, resolveContainedExport, resolveRuntimePeer } from "../examples/_kit/vite.config.js";
 
 describe("shared sample kit", () => {
   it("drains cleanup registered while disposal is in flight and shares one completion", async () => {
@@ -70,6 +71,16 @@ describe("shared sample kit", () => {
       "undeclared public SDK entrypoint",
     );
     expect(() => subpathGuard?.resolveId?.("@honua/sdk-js/esri-compat")).not.toThrow();
+  });
+
+  it("resolves declared runtime peers beside packed SDK bytes", () => {
+    const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    expect(resolveRuntimePeer(path.resolve("."), manifest, "maplibre-gl")).toBe(
+      fs.realpathSync("node_modules/maplibre-gl/dist/maplibre-gl.mjs"),
+    );
+    expect(() => resolveRuntimePeer(path.resolve("."), manifest, "not-a-declared-peer")).toThrow(
+      "not a declared SDK runtime peer",
+    );
   });
 
   it("rejects traversal and symlink package export targets", async () => {

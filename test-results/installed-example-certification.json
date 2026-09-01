@@ -1,6 +1,6 @@
 {
   "schema": "honua.sdk-installed-example-certification-receipt/v1",
-  "generatedAt": "2026-09-01T23:39:42.869Z",
+  "generatedAt": "2026-09-01T23:59:53.794Z",
   "release": "2026.1",
   "package": {
     "coordinate": "@honua/sdk-js",
@@ -17,12 +17,12 @@
     "total": 397,
     "examples": 33,
     "snippets": 364,
-    "pass": 120,
-    "fail": 1,
+    "pass": 121,
+    "fail": 0,
     "blocked": 27,
     "not-executable": 249
   },
-  "verdict": "failed",
+  "verdict": "blocked",
   "verdicts": [
     {
       "id": "ai-spatial-app-builder",
@@ -102,9 +102,7 @@
     {
       "id": "maplibre-quickstart",
       "kind": "example",
-      "verdict": "fail",
-      "issue": "honua-sdk-js#1584",
-      "diagnostic": "✗ Build failed in 1.03s\nerror during build:\nBuild failed with 1 error:\n\n[plugin honua-first-map-bundle-budget]\nError: First Map JavaScript bundle 2936699 bytes / 767117 gzip exceeds 1990000 / 524000.\n    at PluginContextImpl.generateBundle (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/.vite-temp/vite.config.ts.timestamp-1788305975364-79c6501d1514d8.mjs:218:42)\n    at PluginContextImpl.handler (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/chunks/node.js:33513:13)\n    at plugin (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1373:18)\n    at plugin.<computed> (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1625:18)\n    at aggregateBindingErrorsIntoJsError (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/error-BuvQYXuZ.mjs:48:18)\n    at unwrapBindingResult (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/error-BuvQYXuZ.mjs:18:128)\n    at #build (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/rolldown-build-CrPk_lZe.mjs:3246:34)\n    at async buildEnvironment (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/chunks/node.js:33253:64)\n    at async Object.build (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/chunks/node.js:33675:19)\n    at async Object.buildApp (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/chunks/node.js:33672:153)\n    at async CAC.<anonymous> (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/cli.js:777:3) {\n  errors: [Getter/Setter]\n}"
+      "verdict": "pass"
     },
     {
       "id": "mcp-gis-assistant",
@@ -2315,5 +2313,5 @@
       "diagnostic": "partial excerpt requires application host context"
     }
   ],
-  "receiptDigest": "sha256:2145712b49cf3a6d44f2b09f10569223006a78cfa0ec8aa5533c1acbfdd0a484"
+  "receiptDigest": "sha256:ca280ae639b0f697c864ed12fde50321e49596b671316e6eb2b3d81a937a50ee"
 }

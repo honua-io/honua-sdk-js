@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ export type SampleSdkMode = "source" | "packed";
 
 export interface SampleViteOptions {
   readonly sdkEntrypoints: readonly string[];
+  readonly sdkRuntimePeers?: readonly string[];
   readonly define?: Readonly<Record<string, string>>;
 }
 
@@ -20,6 +22,54 @@ interface PackageManifest {
   readonly name: string;
   readonly version: string;
   readonly exports: Readonly<Record<string, { readonly default?: string } | string>>;
+  readonly peerDependencies?: Readonly<Record<string, string>>;
+}
+
+function runtimePeerAliases(
+  mode: SampleSdkMode,
+  sdkRoot: string,
+  manifest: PackageManifest,
+  peers: readonly string[],
+): Array<{ find: RegExp; replacement: string }> {
+  if (mode === "source") return [];
+  const unique = [...new Set(peers)];
+  if (unique.length !== peers.length) throw new Error("sdkRuntimePeers must be a unique list");
+  return unique.map((peer) => {
+    return {
+      find: new RegExp(`^${peer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
+      replacement: resolveRuntimePeer(sdkRoot, manifest, peer),
+    };
+  });
+}
+
+export function resolveRuntimePeer(root: string, manifest: PackageManifest, peer: string): string {
+  if (!/^(?:@[a-z0-9-]+\/)?[a-z0-9-]+$/.test(peer) || !manifest.peerDependencies?.[peer]) {
+    throw new Error(`${peer} is not a declared SDK runtime peer`);
+  }
+  const requireFromSdk = createRequire(path.join(root, "package.json"));
+  const peerManifestPath = fs.realpathSync(requireFromSdk.resolve(`${peer}/package.json`));
+  const peerManifest = JSON.parse(fs.readFileSync(peerManifestPath, "utf8")) as {
+    readonly exports?: Readonly<Record<string, { readonly import?: string; readonly default?: string } | string>>;
+  };
+  const rootExport = peerManifest.exports?.["."];
+  const target = typeof rootExport === "string" ? rootExport : (rootExport?.import ?? rootExport?.default);
+  if (
+    typeof target !== "string" ||
+    !target.startsWith("./") ||
+    `./${path.posix.normalize(target.slice(2))}` !== target
+  ) {
+    throw new Error(`SDK runtime peer has no safe import export: ${peer}`);
+  }
+  const peerRoot = path.dirname(peerManifestPath);
+  const replacement = fs.realpathSync(path.resolve(peerRoot, target));
+  if (!replacement.startsWith(`${peerRoot}${path.sep}`)) {
+    throw new Error(`SDK runtime peer export escapes its package root: ${peer}`);
+  }
+  const metadata = fs.lstatSync(replacement);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > MAX_ENTRYPOINT_BYTES) {
+    throw new Error(`SDK runtime peer must resolve to a bounded regular file: ${peer}`);
+  }
+  return replacement;
 }
 
 const MAX_ENTRYPOINT_BYTES = 4 * 1024 * 1024;
@@ -171,6 +221,12 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
   }
   const mode = sdkMode();
   const resolved = aliases(mode, options.sdkEntrypoints);
+  const peerAliases = runtimePeerAliases(
+    mode,
+    resolved.sdkRoot,
+    resolved.manifest,
+    options.sdkRuntimePeers ?? [],
+  );
   let buildMode = false;
   let buildFailed = false;
   let outputRoot: string | undefined;
@@ -185,7 +241,7 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
       __HONUA_SDK_VERSION__: JSON.stringify(resolved.manifest.version),
       ...options.define,
     },
-    resolve: { alias: resolved.aliases },
+    resolve: { alias: [...resolved.aliases, ...peerAliases] },
     plugins: [
       {
         name: "honua-sample-declared-entrypoints",
