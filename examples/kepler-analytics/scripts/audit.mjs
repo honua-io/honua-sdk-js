@@ -34,8 +34,8 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 // Renew only after repeating those three checks. If a patched image-size is
 // ever published, take the upgrade and delete this exception instead.
 export const IMAGE_SIZE_EXCEPTION = Object.freeze({
-  reviewedOn: "2026-08-23",
-  expiresOn: "2026-09-06",
+  reviewedOn: "2026-09-01",
+  expiresOn: "2026-09-15",
   packageName: "image-size",
   packageVersion: "0.7.5",
   advisories: Object.freeze({
