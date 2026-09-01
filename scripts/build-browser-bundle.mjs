@@ -94,6 +94,24 @@ function assertRuntimePeersExternal(result, label) {
   }
 }
 
+/**
+ * esbuild's `legalComments: "none"` intentionally removes comments from these
+ * minified artifacts. That is safe only while every bundled input is our own
+ * source. A third-party input may carry a notice that must ship with its code,
+ * so fail closed until the build supplies and verifies that notice explicitly.
+ */
+function assertBundledInputsAreFirstParty(result, label) {
+  const thirdPartyInput = Object.keys(result.metafile.inputs).find((input) =>
+    input.replaceAll("\\", "/").includes("/node_modules/"),
+  );
+  if (thirdPartyInput) {
+    throw new Error(
+      `${label} bundles third-party input while legalComments is \"none\": ${thirdPartyInput}. ` +
+        "Preserve and verify its required notice before bundling it.",
+    );
+  }
+}
+
 function formatSize(bytes) {
   return `${(bytes / 1024).toFixed(1)} KiB`;
 }
@@ -120,6 +138,8 @@ async function main() {
   assertNoDirectCogRetention(esmResult, "Browser ESM");
   assertRuntimePeersExternal(iifeResult, "Browser IIFE");
   assertRuntimePeersExternal(esmResult, "Browser ESM");
+  assertBundledInputsAreFirstParty(iifeResult, "Browser IIFE");
+  assertBundledInputsAreFirstParty(esmResult, "Browser ESM");
 
   // Smoke check: the IIFE bundle must declare the global the docs promise.
   const iifeSource = fs.readFileSync(iifeOut, "utf8");
