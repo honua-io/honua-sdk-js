@@ -5,6 +5,16 @@ on:
     branches:
       - trunk
   workflow_dispatch:
+    inputs:
+      finish_stranded_draft:
+        description: >-
+          The js-sdk-* tag name of an existing DRAFT release stranded by a prior
+          run, e.g. js-sdk-v0.1.8-beta.0. Leave empty for a normal release run.
+          Release Please's tag/id/draft outputs exist only in the run that cuts
+          the release, so a draft whose run died afterwards can never be finished
+          by re-running this workflow; this input is the way back in.
+        required: false
+        default: ""
 
 permissions: read-all
 
@@ -64,17 +74,37 @@ jobs:
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
           owner: honua-io
 
+      # Never run the release iterator during a draft recovery (#1337). A
+      # stranded draft is by definition inside the draft-no-tag window this
+      # job's concurrency comment describes: Release Please's release iterator
+      # skips a draft because it has no tag commit, so a run in that window
+      # cannot find the previous release and rebuilds the next release pull
+      # request from far too much history. Recovery must touch nothing but the
+      # finish path, so the iterator is skipped outright rather than serialized
+      # against.
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
+        if: >-
+          ${{ github.event_name != 'workflow_dispatch' ||
+              inputs.finish_stranded_draft == '' }}
         with:
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # The stranded-draft re-entry (#1337) must be able to run in a dispatch
+      # where Release Please creates nothing. Without the second clause this
+      # step is skipped outright on such a run and the job "succeeds" having
+      # done nothing at all -- which is exactly how the js-sdk-v0.1.8-beta.0
+      # draft became unreachable to every re-run.
       - name: Dispatch package publish workflows
-        if: ${{ steps.release.outputs.releases_created == 'true' }}
+        if: >-
+          ${{ steps.release.outputs.releases_created == 'true' ||
+              (github.event_name == 'workflow_dispatch' &&
+               inputs.finish_stranded_draft != '') }}
         env:
           GH_TOKEN: ${{ github.token }}
+          FINISH_STRANDED_DRAFT: ${{ inputs.finish_stranded_draft }}
           JS_SDK_RELEASE_CREATED: ${{ steps.release.outputs.release_created || steps.release.outputs['.--release_created'] }}
           JS_SDK_TAG_NAME: ${{ steps.release.outputs.tag_name || steps.release.outputs['.--tag_name'] }}
           # The JS SDK release is cut as a DRAFT (release-please-config.json,
@@ -149,10 +179,8 @@ jobs:
             if [[ "${tag}" != js-sdk-* ]]; then
               fail "Release Please exposed an invalid JS SDK tag: ${tag}"
             fi
-            local release_version="${tag#js-sdk-}"
-            while [[ "${release_version}" == v* ]]; do
-              release_version="${release_version#v}"
-            done
+            local release_version
+            release_version="$(release_version_from_tag "${tag}")"
 
             # Fail before the ~40-minute reseal rather than after it. If the
             # release is not a draft then Release Please already published it on
@@ -377,6 +405,31 @@ jobs:
             fi
             echo "${tag} verified on resealed commit ${sealed_tag_sha}"
 
+            publish_sealed_draft "${tag}" "${release_id}" "${trunk_sha}" "${release_version}"
+          }
+
+          # js-sdk-v1.2.3 -> 1.2.3. One definition so the normal path and the
+          # re-entry path can never disagree about what version a tag names.
+          release_version_from_tag() {
+            local version="${1#js-sdk-}"
+            while [[ "${version}" == v* ]]; do
+              version="${version#v}"
+            done
+            printf '%s' "${version}"
+          }
+
+          # The publish half of a cut, shared by the normal path and the
+          # stranded-draft re-entry. `sealed_sha` is the commit the tag must
+          # name: the resealed trunk tip on a fresh cut, and the tag's own
+          # existing commit when resuming a release whose tag was already
+          # created but whose run died before publication.
+          publish_sealed_draft() {
+            local tag="$1"
+            local release_id="$2"
+            local sealed_sha="$3"
+            local release_version="$4"
+            RELEASE_FAILURE_TAG="${tag}"
+
             # Publish the draft. Read the release back from GitHub rather than
             # trusting the action's outputs: this is the last moment anything
             # about the release can be corrected.
@@ -387,7 +440,7 @@ jobs:
             fi
             local published_draft
             if ! published_draft="$(gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" -F draft=false --jq .draft)"; then
-              fail "Publishing draft release ${release_id} for ${tag} was rejected by GitHub. Unlike the tag move this replaces, that is recoverable: ${tag} already names the sealed commit ${trunk_sha}, so publish the draft and re-dispatch publish-js-sdk.yml against ${tag}. Nothing was published."
+              fail "Publishing draft release ${release_id} for ${tag} was rejected by GitHub. Unlike the tag move this replaces, that is recoverable: ${tag} already names the sealed commit ${sealed_sha}, so publish the draft and re-dispatch publish-js-sdk.yml against ${tag}. Nothing was published."
             fi
             if [[ "${published_draft}" != "false" ]]; then
               fail "Release ${release_id} for ${tag} is still a draft after being published. Nothing was published."
@@ -400,8 +453,8 @@ jobs:
             # put this release on the wrong commit, and it is re-checked here.
             local published_tag_sha
             published_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
-            if [[ "${published_tag_sha}" != "${trunk_sha}" ]]; then
-              fail "Post-condition failed: publishing release ${release_id} repointed ${tag} to ${published_tag_sha} instead of the resealed commit ${trunk_sha}. Nothing was published."
+            if [[ "${published_tag_sha}" != "${sealed_sha}" ]]; then
+              fail "Post-condition failed: publishing release ${release_id} repointed ${tag} to ${published_tag_sha} instead of the sealed commit ${sealed_sha}. Nothing was published."
             fi
             echo "${tag} published on resealed commit ${published_tag_sha}"
             {
@@ -421,7 +474,7 @@ jobs:
               --ref "${tag}" \
               -f dry_run=false \
               -f release_version="${release_version}" \
-              -f source_revision="${trunk_sha}"
+              -f source_revision="${sealed_sha}"
 
             # The release smoke is dispatched against the tag rather than
             # driven by the `release: published` event: that event's payload SHA
@@ -433,6 +486,104 @@ jobs:
               --ref "${tag}"
           }
 
+          # Stranded-draft re-entry (#1337). Everything above runs only when
+          # Release Please created the release in THIS run, because the tag, id
+          # and draft outputs exist nowhere else. So a draft whose run died
+          # after the draft was cut has no way back: re-running or re-dispatching
+          # this workflow finds no outputs, skips the whole finish sequence, and
+          # reports success having done nothing. That is not hypothetical --
+          # js-sdk-v0.1.8-beta.0 was cut as a draft on 2026-08-26, its run
+          # aborted when the reseal it was watching was cancelled, and every
+          # subsequent run no-opped past it.
+          #
+          # This rebuilds those three values from the existing draft and then
+          # calls the SAME function, so nothing here is a shortcut: the tag-shape
+          # check, the reseal dispatch and its supersession chain, the merge-base
+          # and generated-only-paths checks, both tag-on-sealed-commit
+          # post-conditions, and the gated publish dispatch all apply unchanged.
+          finish_stranded_draft_release() {
+            local tag="$1"
+            RELEASE_FAILURE_TAG="${tag}"
+
+            if [[ "${tag}" != js-sdk-* ]]; then
+              fail "finish_stranded_draft must name a js-sdk-* tag; got '${tag}'. Nothing was published."
+            fi
+
+            local release_state
+            release_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+              --jq "[.[] | select(.tag_name == \"${tag}\")] | (first // empty) | \"\(.id) \(.draft)\"")"
+            if [[ -z "${release_state}" ]]; then
+              fail "No release found for tag ${tag}, so there is no stranded draft to finish. Nothing was published."
+            fi
+            local release_id="${release_state%% *}"
+            local release_draft="${release_state##* }"
+            # A published release is finished, whether or not its tag exists.
+            if [[ "${release_draft}" != "true" ]]; then
+              fail "Release ${release_id} for ${tag} is already published, not a stranded draft. Nothing was published."
+            fi
+
+            local release_version
+            release_version="$(release_version_from_tag "${tag}")"
+
+            # Version anchor (#1337). On a normal cut GITHUB_SHA IS the version
+            # bump commit, so "the tree carries this release's version" holds
+            # structurally and needs no check. A recovery dispatch runs on
+            # whatever trunk is now, so that guarantee is gone and has to be
+            # asserted: tagging js-sdk-v0.1.8-beta.0 on a tree that already says
+            # 0.1.9-beta.0 would be caught only by publish-js-sdk, AFTER the tag
+            # and the release are immutable and unfixable. package.json is not
+            # in the reseal's generated-path allowlist, so the reseal cannot
+            # change it and checking it here is equivalent to checking it after.
+            local trunk_version
+            trunk_version="$(gh api "repos/${GITHUB_REPOSITORY}/contents/package.json?ref=trunk" \
+              -H "Accept: application/vnd.github.raw" --jq .version)"
+            if [[ "${trunk_version}" != "${release_version}" ]]; then
+              fail "Trunk's package.json is version ${trunk_version}, but ${tag} would publish ${release_version}. Recovering this draft onto the current trunk would tag the wrong version. Re-cut the release instead. Nothing was published."
+            fi
+
+            # Half-stranded (the second failure shape). The original run created
+            # the tag on a sealed commit and then died before publishing the
+            # draft or dispatching the publish workflows. Nothing needs
+            # resealing -- the tag already names a sealed commit and moving it
+            # is forbidden -- so resume at publication. This is exactly the
+            # recovery the PATCH failure message above tells operators to
+            # perform by hand.
+            local existing_tag_sha=""
+            existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq .object.sha 2>/dev/null || true)"
+            if [[ -n "${existing_tag_sha}" ]]; then
+              local trunk_head
+              trunk_head="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
+              # It must be a commit trunk actually reaches. A tag pointing at
+              # some side branch is not a sealed release commit, and publishing
+              # it would ship bytes trunk never carried.
+              local tag_ancestry
+              tag_ancestry="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${existing_tag_sha}...${trunk_head}" --jq .status)"
+              if [[ "${tag_ancestry}" != "behind" && "${tag_ancestry}" != "identical" ]]; then
+                fail "Tag ${tag} names ${existing_tag_sha}, which is '${tag_ancestry}' relative to trunk rather than an ancestor of it, so it is not a sealed release commit. Nothing was published."
+              fi
+              echo "::notice::${tag} already names sealed commit ${existing_tag_sha}; resuming at the draft publication step."
+              {
+                echo "## Resuming half-finished release: \`${tag}\`"
+                echo
+                echo "- draft release: \`${release_id}\`"
+                echo "- tag already names sealed commit: \`${existing_tag_sha}\`"
+                echo "- resumed at draft publication; no reseal and no tag write"
+              } >> "${GITHUB_STEP_SUMMARY}"
+              publish_sealed_draft "${tag}" "${release_id}" "${existing_tag_sha}" "${release_version}"
+              return 0
+            fi
+
+            echo "::notice::Re-entering the release finish sequence for stranded draft release ${release_id} (${tag})."
+            {
+              echo "## Finishing stranded draft: \`${tag}\`"
+              echo
+              echo "- draft release: \`${release_id}\`"
+              echo "- re-entered by the \`finish_stranded_draft\` dispatch input"
+            } >> "${GITHUB_STEP_SUMMARY}"
+
+            dispatch_resealed_js_publish "${tag}" "${release_id}" "true"
+          }
+
           if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
             dispatch_resealed_js_publish "${JS_SDK_TAG_NAME}" "${JS_SDK_RELEASE_ID}" "${JS_SDK_RELEASE_DRAFT}"
           fi
@@ -441,6 +592,26 @@ jobs:
           fi
           if [[ "${CREATE_APP_RELEASE_CREATED}" == "true" ]]; then
             dispatch_tag_publish publish-create-honua-app.yml "${CREATE_APP_TAG_NAME}"
+          fi
+
+          if [[ -n "${FINISH_STRANDED_DRAFT}" ]]; then
+            if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]]; then
+              RELEASE_FAILURE_TAG="${FINISH_STRANDED_DRAFT}"
+              fail "finish_stranded_draft is only accepted on a workflow_dispatch run; this run's event is ${GITHUB_EVENT_NAME}. Nothing was published."
+            fi
+            if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
+              # Mutual exclusion. Release Please cut a release in this very run
+              # and the normal path already finished it, so honouring the input
+              # would drive a second finish sequence against a different tag.
+              echo "::notice::Release Please created ${JS_SDK_TAG_NAME} in this run, so finish_stranded_draft=${FINISH_STRANDED_DRAFT} was ignored."
+              {
+                echo "## \`finish_stranded_draft\` ignored"
+                echo
+                echo "Release Please created \`${JS_SDK_TAG_NAME}\` in this run, so the normal release path ran and the \`finish_stranded_draft=${FINISH_STRANDED_DRAFT}\` input was ignored."
+              } >> "${GITHUB_STEP_SUMMARY}"
+            else
+              finish_stranded_draft_release "${FINISH_STRANDED_DRAFT}"
+            fi
           fi
 
   release-please-refresh:
