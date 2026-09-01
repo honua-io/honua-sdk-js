@@ -52,6 +52,11 @@ export const ZERO_TO_MAP_CONFIGS = [
   "mcp/release/zero-to-map/configs/claude-desktop.json",
   "mcp/release/zero-to-map/configs/cursor.json",
 ];
+export const CREATE_APP_PIN_SITES = [
+  "packages/create-honua-app/templates.manifest.json",
+  "packages/create-honua-app/templates/vanilla-ts/package.json",
+  "packages/create-honua-app/templates/react-ts/package.json",
+];
 
 /** The dedicated live gate for the registry lane. Never enabled in PR CI. */
 export function isMcpPinLiveVerificationEnabled(env = process.env) {
@@ -136,6 +141,36 @@ export function verifyZeroToMapConfigPins({ expectedPin, readConfig = readJson }
         "config to the coordinated, registry-served pair.",
     );
     return { relativePath, pin };
+  });
+}
+
+/** Read the SDK coordinate carried by a create-honua-app pin site. */
+export function readCreateAppSdkPin(config, relativePath, sdkName) {
+  const version = relativePath.endsWith("templates.manifest.json")
+    ? config?.sdk?.package === sdkName
+      ? config.sdk.version
+      : undefined
+    : config?.dependencies?.[sdkName];
+  invariant(
+    typeof version === "string",
+    `${relativePath} must pin ${sdkName} in ${
+      relativePath.endsWith("templates.manifest.json") ? "sdk.version" : "dependencies"
+    }`,
+  );
+  invariant(EXACT_VERSION.test(version), `${relativePath} must pin ${sdkName} to an exact version, found ${version}`);
+  return version;
+}
+
+/** Keep every scaffold on the SDK half of the coordinated MCP/SDK pair. */
+export function verifyCreateAppPins({ sdkName, expectedVersion, readConfig = readJson }) {
+  return CREATE_APP_PIN_SITES.map((relativePath) => {
+    const version = readCreateAppSdkPin(readConfig(relativePath), relativePath, sdkName);
+    invariant(
+      version === expectedVersion,
+      `${relativePath} pins ${sdkName}@${version}, but generated MCP clients pin the coordinated ${expectedVersion} pair. ` +
+        "Run `npm run sync:mcp-pin` after the pair is published.",
+    );
+    return { relativePath, pin: `${sdkName}@${version}` };
   });
 }
 
@@ -430,10 +465,12 @@ async function main() {
   process.stdout.write(`mcp pin lineage ok: ${lineage.name}@${lineage.version}\n`);
   const zeroToMapConfigs = verifyZeroToMapConfigPins({ expectedPin: LOCAL_INSTALL_MCP_PACKAGE });
   process.stdout.write(`zero-to-map config pins ok: ${zeroToMapConfigs.length} configs name ${LOCAL_INSTALL_MCP_PACKAGE}\n`);
+  const { name: sdkName, version: sdkVersion } = readJson("package.json");
+  const createAppPins = verifyCreateAppPins({ sdkName, expectedVersion: lineage.version });
+  process.stdout.write(`create-honua-app pins ok: ${createAppPins.length} sites name ${sdkName}@${lineage.version}\n`);
 
   // The pair this working tree would cut: mcp/package.json's declared peer
   // range against the SDK version sitting beside it.
-  const { name: sdkName, version: sdkVersion } = readJson("package.json");
   const mcpManifest = readJson("mcp/package.json");
   verifyClientPairCoInstallable({
     sdkName,

@@ -7,14 +7,22 @@ import { fileURLToPath } from "node:url";
 import os from "node:os";
 
 import {
+  applyCreateAppPin,
   applyConfigPin,
   applyPin,
   planPinWrites,
   readConfigPin,
   readPin,
   selectCoordinatedRelease,
+  writePinPlan,
 } from "../../scripts/sync-mcp-pin.mjs";
-import { ZERO_TO_MAP_CONFIGS, verifyZeroToMapConfigPins } from "../../scripts/verify-mcp-pin.mjs";
+import {
+  CREATE_APP_PIN_SITES,
+  ZERO_TO_MAP_CONFIGS,
+  readCreateAppSdkPin,
+  verifyCreateAppPins,
+  verifyZeroToMapConfigPins,
+} from "../../scripts/verify-mcp-pin.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const pinSource = fs.readFileSync(path.join(projectRoot, "src", "local-install.ts"), "utf8");
@@ -95,6 +103,39 @@ test("advances every config the pin gate enforces, not just the source constant"
   );
 });
 
+test("advances every create-honua-app site enforced by the pin gate", () => {
+  const sdkName = "@honua/sdk-js";
+  const nextVersion = "9.9.9-beta.0";
+  const advanced = new Map(
+    CREATE_APP_PIN_SITES.map((relativePath) => [
+      relativePath,
+      applyCreateAppPin(readConfigSource(relativePath), sdkName, nextVersion, relativePath),
+    ]),
+  );
+  assert.deepEqual(
+    verifyCreateAppPins({
+      sdkName,
+      expectedVersion: nextVersion,
+      readConfig: (relativePath) => JSON.parse(advanced.get(relativePath)),
+    }),
+    CREATE_APP_PIN_SITES.map((relativePath) => ({ relativePath, pin: `${sdkName}@${nextVersion}` })),
+  );
+  for (const [relativePath, source] of advanced) {
+    assert.equal(readCreateAppSdkPin(JSON.parse(source), relativePath, sdkName), nextVersion);
+  }
+});
+
+test("refuses an ambiguous create-honua-app rewrite", () => {
+  const relativePath = CREATE_APP_PIN_SITES.find((site) => site.endsWith("react-ts/package.json"));
+  const original = readConfigSource(relativePath);
+  const current = readCreateAppSdkPin(JSON.parse(original), relativePath, "@honua/sdk-js");
+  const ambiguous = original.replace('"version": "0.0.0"', `"version": "${current}"`);
+  assert.throws(
+    () => applyCreateAppPin(ambiguous, "@honua/sdk-js", "9.9.9-beta.0", relativePath),
+    /exactly once/,
+  );
+});
+
 test("rewrites a shipped config without reflowing it", () => {
   // These files are hand-formatted (the args array is one line); a
   // parse/serialise round-trip would reflow every one of them into a large
@@ -152,8 +193,19 @@ function stageConfigs(mutate = (source) => source) {
   return { root, staleConfigs };
 }
 
+function stageCreateAppPins(root) {
+  return CREATE_APP_PIN_SITES.map((relativePath) => {
+    const file = path.join(root, relativePath);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const source = applyCreateAppPin(readConfigSource(relativePath), "@honua/sdk-js", "0.1.4-beta.0", relativePath);
+    fs.writeFileSync(file, source);
+    return { relativePath, file, source, version: "0.1.4-beta.0", stale: true };
+  });
+}
+
 test("plans every rewrite before writing any of them", (t) => {
   const { root, staleConfigs } = stageConfigs();
+  const staleCreateAppPins = stageCreateAppPins(root);
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const writes = planPinWrites({
     source: pinSource,
@@ -162,14 +214,46 @@ test("plans every rewrite before writing any of them", (t) => {
     integrity: `sha512-${"C".repeat(86)}==`,
     staleConfigs,
     expectedPin: "@honua/mcp-server@9.9.9-beta.0",
+    sdkName: "@honua/sdk-js",
+    staleCreateAppPins,
   });
-  // The source constant plus every config, source first.
-  assert.equal(writes.length, ZERO_TO_MAP_CONFIGS.length + 1);
+  // The source constant, every config, then every scaffold site.
+  assert.equal(writes.length, ZERO_TO_MAP_CONFIGS.length + CREATE_APP_PIN_SITES.length + 1);
   assert.equal(writes[0].relativePath, "src/local-install.ts");
-  assert.deepEqual(writes.slice(1).map((write) => write.relativePath), ZERO_TO_MAP_CONFIGS);
+  assert.deepEqual(
+    writes.slice(1).map((write) => write.relativePath),
+    [...ZERO_TO_MAP_CONFIGS, ...CREATE_APP_PIN_SITES],
+  );
   assert.equal(readPin(writes[0].contents).version, "9.9.9-beta.0");
-  for (const write of writes.slice(1)) {
+  for (const write of writes.slice(1, ZERO_TO_MAP_CONFIGS.length + 1)) {
     assert.equal(readConfigPin(write.contents, write.relativePath), "@honua/mcp-server@9.9.9-beta.0");
+  }
+  for (const write of writes.slice(ZERO_TO_MAP_CONFIGS.length + 1)) {
+    assert.equal(readCreateAppSdkPin(JSON.parse(write.contents), write.relativePath, "@honua/sdk-js"), "9.9.9-beta.0");
+  }
+});
+
+test("writes every planned scaffold update to real files", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "honua-pin-write-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const staleCreateAppPins = stageCreateAppPins(root);
+  const writes = planPinWrites({
+    source: pinSource,
+    sourceStale: false,
+    version: "9.9.9-beta.0",
+    integrity: readPin(pinSource).integrity,
+    staleConfigs: [],
+    expectedPin: "@honua/mcp-server@9.9.9-beta.0",
+    sdkName: "@honua/sdk-js",
+    staleCreateAppPins,
+  });
+
+  writePinPlan(writes);
+
+  assert.equal(writes.length, CREATE_APP_PIN_SITES.length);
+  for (const site of staleCreateAppPins) {
+    const written = JSON.parse(fs.readFileSync(site.file, "utf8"));
+    assert.equal(readCreateAppSdkPin(written, site.relativePath, "@honua/sdk-js"), "9.9.9-beta.0");
   }
 });
 

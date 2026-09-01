@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  CREATE_APP_PIN_SITES,
   PIN_SYNC_REMEDY,
   ZERO_TO_MAP_CONFIGS,
   compareVersions,
@@ -13,6 +14,7 @@ import {
   releaseLineage,
   satisfiesUnderNpmDefaults,
   verifyClientPairCoInstallable,
+  verifyCreateAppPins,
   verifyMcpPinLineage,
   verifyMcpPinPublication,
   verifyZeroToMapConfigPins,
@@ -44,6 +46,29 @@ async function readManifest(relativePath: string) {
 }
 
 describe("generated MCP client configuration pin", () => {
+  it("keeps every create-honua-app SDK pin on the coordinated pair", async () => {
+    const sdk = await readManifest("package.json");
+    expect(verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: LOCAL_INSTALL_MCP_PACKAGE_VERSION })).toEqual(
+      CREATE_APP_PIN_SITES.map((relativePath: string) => ({
+        relativePath,
+        pin: `${sdk.name}@${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`,
+      })),
+    );
+  });
+
+  it("rejects a create-honua-app pin that drifts from the coordinated pair", () => {
+    expect(() =>
+      verifyCreateAppPins({
+        sdkName: "@honua/sdk-js",
+        expectedVersion: "0.1.9-beta.0",
+        readConfig: (relativePath: string) =>
+          relativePath.endsWith("templates.manifest.json")
+            ? { sdk: { package: "@honua/sdk-js", version: "0.1.4-beta.0" } }
+            : { dependencies: { "@honua/sdk-js": "0.1.4-beta.0" } },
+      }),
+    ).toThrow(/sync:mcp-pin/);
+  });
+
   it("keeps every shipped zero-to-map config on the coordinated pin", () => {
     expect(verifyZeroToMapConfigPins({ expectedPin: LOCAL_INSTALL_MCP_PACKAGE })).toEqual(
       ZERO_TO_MAP_CONFIGS.map((relativePath: string) => ({ relativePath, pin: LOCAL_INSTALL_MCP_PACKAGE })),
