@@ -1,0 +1,42 @@
+name: Installed package certification
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 8 * * *"
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20.19.0
+          registry-url: https://registry.npmjs.org
+      - name: Authenticate to the public candidate registry
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Pull exact candidate image
+        run: docker pull ghcr.io/honua-io/honua-server@sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72
+      - name: Emit installed-package receipt
+        id: certify
+        continue-on-error: true
+        run: |
+          mkdir -p test-results
+          npm run certify:installed-package -- --output test-results/installed-package-certification.json
+      - name: Upload release-ledger receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-js-installed-package-certification
+          path: test-results/installed-package-certification.json
+          if-no-files-found: error
+      - name: Enforce certification verdict
+        if: steps.certify.outcome != 'success'
+        run: |
+          jq -r '.operations[] | select(.verdict != "pass") | "\(.id): \(.verdict) blocked-by \(.blockedBy // "n/a")"' test-results/installed-package-certification.json
+          exit 1

@@ -351,6 +351,8 @@
     "verify:release-artifacts": "node --test test/scripts/release-artifacts.test.mjs && node scripts/verify-release-artifacts.mjs",
     "denominator:certification": "node scripts/certification-denominator.mjs write",
     "verify:certification-denominator": "node --test test/scripts/certification-denominator.test.mjs && node scripts/verify-certification-denominator.mjs",
+    "certify:installed-package": "node scripts/installed-package-certification.mjs",
+    "test:installed-package-certification": "node --test test/scripts/installed-package-certification.test.mjs",
     "verify:published-release": "node --test test/scripts/verify-published-release.test.mjs && node scripts/verify-published-release.mjs",
     "verify:packed-sdk": "node --test test/scripts/npm-cli.test.mjs test/scripts/windows-fixture-startup.test.mjs test/scripts/verify-packed-sdk.test.mjs && node scripts/verify-packed-sdk.mjs",
     "verify:public-surface": "node --test test/scripts/verify-public-surface.test.mjs && node scripts/verify-public-surface.mjs",
