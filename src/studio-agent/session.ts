@@ -90,7 +90,7 @@ import {
 } from "./mcp-protocol.js";
 import { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
 import { StudioToolCatalog, type StudioToolDiscoveryReport, type StudioToolPolicy } from "./tool-catalog.js";
-import type { StudioAiTranscriptVerifier } from "./transcript-verifier.js";
+import type { StudioAiTranscriptVerifierLike } from "./transcript-verifier.js";
 import type { ChatTransport } from "./transport.js";
 
 /** The live composition draft `honua_studio_*` calls are applied to. */
@@ -103,7 +103,7 @@ export interface StudioAgentSessionOptions {
   /** Exact candidate/action binding sent to the proxy for every tool-capable round. */
   readonly certification?: StudioAiTranscriptCertification;
   /** Independent verifier required before any model-selected tool is dispatched. */
-  readonly transcriptVerifier?: StudioAiTranscriptVerifier;
+  readonly transcriptVerifier?: StudioAiTranscriptVerifierLike;
   /** Base of the honua-server API — the session calls `${baseUrl}/v1/studio/ai/*` and `${baseUrl}/mcp`. @default "/api" */
   readonly baseUrl?: string;
   /** Bearer-token source. The model's own credentials never leave the server. */

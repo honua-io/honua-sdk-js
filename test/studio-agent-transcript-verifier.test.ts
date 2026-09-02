@@ -21,7 +21,7 @@ const canonical = (value: unknown): string => {
     .map((key) => `${JSON.stringify(key)}:${canonical(object[key])}`)
     .join(",")}}`;
 };
-const digest = async (bytes: Uint8Array): Promise<string> =>
+const digest = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
   Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
 
 async function fixture() {

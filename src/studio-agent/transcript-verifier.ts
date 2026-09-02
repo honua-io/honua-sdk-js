@@ -33,10 +33,20 @@ export interface StudioAiTranscriptVerification {
   readonly transcriptDigest?: string;
 }
 
-function base64Bytes(value: string): Uint8Array {
+export interface StudioAiTranscriptVerifierLike {
+  verify(
+    provenance: StudioAiSignedTranscript,
+    request: StudioAiChatRequest,
+    events: readonly StudioAiChatEvent[],
+  ): Promise<StudioAiTranscriptVerification>;
+}
+
+function base64Bytes(value: string): Uint8Array<ArrayBuffer> {
   try {
     const binary = atob(value);
-    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+    return bytes;
   } catch {
     return new Uint8Array();
   }
@@ -68,7 +78,7 @@ function sameBinding(value: Record<string, unknown>, binding: StudioAiTranscript
 }
 
 /** Independently verifies every server binding before atomically consuming replay state. */
-export class StudioAiTranscriptVerifier {
+export class StudioAiTranscriptVerifier implements StudioAiTranscriptVerifierLike {
   readonly #options: StudioAiTranscriptVerifierOptions;
   public constructor(options: StudioAiTranscriptVerifierOptions) {
     this.#options = options;

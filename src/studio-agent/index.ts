@@ -78,6 +78,7 @@ export { InMemoryStudioAiReplayStore, StudioAiTranscriptVerifier } from "./trans
 export type {
   StudioAiReplayStore,
   StudioAiTranscriptVerification,
+  StudioAiTranscriptVerifierLike,
   StudioAiTranscriptVerifierOptions,
 } from "./transcript-verifier.js";
 
