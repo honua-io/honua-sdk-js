@@ -170,10 +170,10 @@ describe("StudioAiTranscriptVerifier", () => {
   });
 
   it.each([
-    ["revoked key", { revoked: true }, value => value.issuedAt],
-    ["future key", { notBefore: "2026-09-02T10:01:00Z" }, value => value.issuedAt],
-    ["expired key", { notAfter: "2026-09-02T09:59:00Z" }, value => value.issuedAt],
-    ["fingerprint mismatch", { fingerprint: "sha256:deadbeef" }, value => value.issuedAt],
+    ["revoked key", { revoked: true }, (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt],
+    ["future key", { notBefore: "2026-09-02T10:01:00Z" }, (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt],
+    ["expired key", { notAfter: "2026-09-02T09:59:00Z" }, (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt],
+    ["fingerprint mismatch", { fingerprint: "sha256:deadbeef" }, (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt],
   ] as const)("rejects a %s", async (_name, keyPatch, clock) => {
     const value = await fixture();
     const verifier = new StudioAiTranscriptVerifier({
