@@ -24,7 +24,7 @@ const canonical = (value: unknown): string => {
 const digest = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
   Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
 
-async function fixture() {
+async function fixture(requestedProvider: string | undefined = "anthropic") {
   const keys = await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
   const publicKey = new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey));
   const request: StudioAiChatRequest = {
@@ -35,7 +35,7 @@ async function fixture() {
       actionId: "setup",
       runNonce: "nonce-1",
     },
-    provider: "anthropic",
+    ...(requestedProvider === undefined ? {} : { provider: requestedProvider }),
     model: "claude-sonnet",
     messages: [{ role: "user", content: "create the map" }],
   };
@@ -108,6 +108,13 @@ describe("StudioAiTranscriptVerifier", () => {
     await expect(value.verifier.verify(value.provenance, value.request, value.events)).resolves.toEqual({
       ok: false,
       reason: "replay",
+    });
+  });
+
+  it("accepts the signed provider selected by the server default", async () => {
+    const value = await fixture(undefined);
+    await expect(value.verifier.verify(value.provenance, value.request, value.events)).resolves.toMatchObject({
+      ok: true,
     });
   });
 

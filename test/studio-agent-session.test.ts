@@ -845,6 +845,26 @@ describe("createStudioAgentSession tool discovery", () => {
     expect(session.tools.filter((tool) => tool.name === "setViewport")).toHaveLength(1);
   });
 
+  it("converts verifier exceptions into a fail-closed error turn", async () => {
+    const server = createScriptedServer({
+      toolPages: compositionPage("honua_studio_add_layer"),
+      turns: [toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layerId: "roads" } }])],
+    });
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      transcriptVerifier: { verify: async () => Promise.reject(new Error("replay store unavailable")) },
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    const turn = await session.chat("Add roads.");
+
+    expect(turn.status).toBe("error");
+    expect(turn.errorMessage).toBe("Transcript provenance verification failed.");
+    expect(server.mcpCalls).toEqual([]);
+  });
+
   it("degrades to runtime tools when discovery fails and retries on the next turn", async () => {
     const server = createScriptedServer({ turns: [textTurn("a"), textTurn("b")] });
     let mcpDown = true;

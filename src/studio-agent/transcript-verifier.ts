@@ -135,7 +135,7 @@ export class StudioAiTranscriptVerifier implements StudioAiTranscriptVerifierLik
     if (!request.certification || !sameBinding(transcript, request.certification)) return fail("binding-mismatch");
     if (transcript.keyId !== provenance.keyId) return fail("key-binding-mismatch");
     if (
-      transcript.provider !== request.provider ||
+      (request.provider !== undefined && transcript.provider !== request.provider) ||
       transcript.model !== events.find((event) => event.type === "messageStart")?.model
     ) {
       return fail("provider-model-mismatch");

@@ -90,7 +90,7 @@ import {
 } from "./mcp-protocol.js";
 import { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
 import { StudioToolCatalog, type StudioToolDiscoveryReport, type StudioToolPolicy } from "./tool-catalog.js";
-import type { StudioAiTranscriptVerifierLike } from "./transcript-verifier.js";
+import type { StudioAiTranscriptVerification, StudioAiTranscriptVerifierLike } from "./transcript-verifier.js";
 import type { ChatTransport } from "./transport.js";
 
 /** The live composition draft `honua_studio_*` calls are applied to. */
@@ -848,11 +848,20 @@ class StudioAgentSessionImpl implements StudioAgentSession {
         };
       }
       const roundEvents = events.slice(roundEventStart);
-      const verification = await this.#options.transcriptVerifier.verify(
-        provenance,
-        request,
-        roundEvents.filter((event) => event.type !== "transcriptProvenance"),
-      );
+      let verification: StudioAiTranscriptVerification;
+      try {
+        verification = await this.#options.transcriptVerifier.verify(
+          provenance,
+          request,
+          roundEvents.filter((event) => event.type !== "transcriptProvenance"),
+        );
+      } catch {
+        return {
+          pending: [],
+          ...(stopReason ? { stopReason } : {}),
+          errorMessage: "Transcript provenance verification failed.",
+        };
+      }
       if (!verification.ok)
         return {
           pending: [],
