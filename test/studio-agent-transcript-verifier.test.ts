@@ -146,21 +146,36 @@ describe("StudioAiTranscriptVerifier", () => {
   });
 
   it.each([
-    ["unsupported contract", (value: Awaited<ReturnType<typeof fixture>>) => ({
-      provenance: { ...value.provenance, signatureAlgorithm: "RSA" as "Ed25519" },
-    })],
-    ["unknown key", (value: Awaited<ReturnType<typeof fixture>>) => ({
-      provenance: { ...value.provenance, keyId: "missing" },
-    })],
-    ["malformed transcript", (value: Awaited<ReturnType<typeof fixture>>) => ({
-      provenance: { ...value.provenance, canonicalTranscript: "%%%" },
-    })],
-    ["digest mismatch", (value: Awaited<ReturnType<typeof fixture>>) => ({
-      provenance: { ...value.provenance, transcriptDigest: "00".repeat(32) },
-    })],
-    ["invalid signature", (value: Awaited<ReturnType<typeof fixture>>) => ({
-      provenance: { ...value.provenance, signature: b64(new Uint8Array(64)) },
-    })],
+    [
+      "unsupported contract",
+      (value: Awaited<ReturnType<typeof fixture>>) => ({
+        provenance: { ...value.provenance, signatureAlgorithm: "RSA" as "Ed25519" },
+      }),
+    ],
+    [
+      "unknown key",
+      (value: Awaited<ReturnType<typeof fixture>>) => ({
+        provenance: { ...value.provenance, keyId: "missing" },
+      }),
+    ],
+    [
+      "malformed transcript",
+      (value: Awaited<ReturnType<typeof fixture>>) => ({
+        provenance: { ...value.provenance, canonicalTranscript: "%%%" },
+      }),
+    ],
+    [
+      "digest mismatch",
+      (value: Awaited<ReturnType<typeof fixture>>) => ({
+        provenance: { ...value.provenance, transcriptDigest: "00".repeat(32) },
+      }),
+    ],
+    [
+      "invalid signature",
+      (value: Awaited<ReturnType<typeof fixture>>) => ({
+        provenance: { ...value.provenance, signature: b64(new Uint8Array(64)) },
+      }),
+    ],
   ])("rejects an envelope with %s", async (_name, mutate) => {
     const value = await fixture();
     const changed = mutate(value);
@@ -171,9 +186,21 @@ describe("StudioAiTranscriptVerifier", () => {
 
   it.each([
     ["revoked key", { revoked: true }, (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt],
-    ["future key", { notBefore: "2026-09-02T10:01:00Z" }, (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt],
-    ["expired key", { notAfter: "2026-09-02T09:59:00Z" }, (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt],
-    ["fingerprint mismatch", { fingerprint: "sha256:deadbeef" }, (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt],
+    [
+      "future key",
+      { notBefore: "2026-09-02T10:01:00Z" },
+      (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt,
+    ],
+    [
+      "expired key",
+      { notAfter: "2026-09-02T09:59:00Z" },
+      (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt,
+    ],
+    [
+      "fingerprint mismatch",
+      { fingerprint: "sha256:deadbeef" },
+      (value: Awaited<ReturnType<typeof fixture>>) => value.issuedAt,
+    ],
   ] as const)("rejects a %s", async (_name, keyPatch, clock) => {
     const value = await fixture();
     const verifier = new StudioAiTranscriptVerifier({
