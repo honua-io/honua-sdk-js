@@ -65,6 +65,7 @@ const bundleBudget: Plugin = {
 
 const shared = createSampleViteConfig(import.meta.url, {
   sdkEntrypoints: ["@honua/sdk-js", "@honua/sdk-js/runtime"],
+  sdkRuntimePeers: ["maplibre-gl"],
 });
 
 export default defineConfig({
