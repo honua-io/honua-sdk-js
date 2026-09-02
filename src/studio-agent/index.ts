@@ -65,10 +65,21 @@ export type {
   StudioAiRole,
   StudioAiStopReason,
   StudioAiTokenSource,
+  StudioAiSignedTranscript,
+  StudioAiTranscriptCertification,
+  StudioAiTranscriptSigningManifest,
+  StudioAiTranscriptVerificationKey,
   StudioAiToolChoice,
   StudioAiToolChoiceMode,
   StudioAiToolDefinition,
 } from "./ai-contract.js";
+
+export { InMemoryStudioAiReplayStore, StudioAiTranscriptVerifier } from "./transcript-verifier.js";
+export type {
+  StudioAiReplayStore,
+  StudioAiTranscriptVerification,
+  StudioAiTranscriptVerifierOptions,
+} from "./transcript-verifier.js";
 
 export { SseFrameParser } from "./sse-parser.js";
 export type { SseFrame } from "./sse-parser.js";
