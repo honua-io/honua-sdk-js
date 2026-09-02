@@ -78,24 +78,25 @@ async function fixture() {
     signature: b64(await crypto.subtle.sign("Ed25519", keys.privateKey, transcript)),
   };
   const replayStore = new InMemoryStudioAiReplayStore();
+  const manifest = {
+    requiredForCertification: true as const,
+    keys: [
+      {
+        keyId: "key-1",
+        algorithm: "Ed25519" as const,
+        publicKey: b64(publicKey),
+        fingerprint: `sha256:${await digest(publicKey)}`,
+        revoked: false,
+      },
+    ],
+  };
   const verifier = new StudioAiTranscriptVerifier({
-    manifest: {
-      requiredForCertification: true,
-      keys: [
-        {
-          keyId: "key-1",
-          algorithm: "Ed25519",
-          publicKey: b64(publicKey),
-          fingerprint: `sha256:${await digest(publicKey)}`,
-          revoked: false,
-        },
-      ],
-    },
+    manifest,
     replayStore,
     now: () => issuedAt,
     crypto,
   });
-  return { request, events, provenance, verifier };
+  return { request, events, provenance, verifier, manifest, issuedAt };
 }
 
 describe("StudioAiTranscriptVerifier", () => {
@@ -142,5 +143,45 @@ describe("StudioAiTranscriptVerifier", () => {
     await expect(value.verifier.verify(value.provenance, value.request, value.events)).resolves.toMatchObject({
       ok: false,
     });
+  });
+
+  it.each([
+    ["unsupported contract", (value: Awaited<ReturnType<typeof fixture>>) => ({
+      provenance: { ...value.provenance, signatureAlgorithm: "RSA" as "Ed25519" },
+    })],
+    ["unknown key", (value: Awaited<ReturnType<typeof fixture>>) => ({
+      provenance: { ...value.provenance, keyId: "missing" },
+    })],
+    ["malformed transcript", (value: Awaited<ReturnType<typeof fixture>>) => ({
+      provenance: { ...value.provenance, canonicalTranscript: "%%%" },
+    })],
+    ["digest mismatch", (value: Awaited<ReturnType<typeof fixture>>) => ({
+      provenance: { ...value.provenance, transcriptDigest: "00".repeat(32) },
+    })],
+    ["invalid signature", (value: Awaited<ReturnType<typeof fixture>>) => ({
+      provenance: { ...value.provenance, signature: b64(new Uint8Array(64)) },
+    })],
+  ])("rejects an envelope with %s", async (_name, mutate) => {
+    const value = await fixture();
+    const changed = mutate(value);
+    await expect(value.verifier.verify(changed.provenance, value.request, value.events)).resolves.toMatchObject({
+      ok: false,
+    });
+  });
+
+  it.each([
+    ["revoked key", { revoked: true }, value => value.issuedAt],
+    ["future key", { notBefore: "2026-09-02T10:01:00Z" }, value => value.issuedAt],
+    ["expired key", { notAfter: "2026-09-02T09:59:00Z" }, value => value.issuedAt],
+    ["fingerprint mismatch", { fingerprint: "sha256:deadbeef" }, value => value.issuedAt],
+  ] as const)("rejects a %s", async (_name, keyPatch, clock) => {
+    const value = await fixture();
+    const verifier = new StudioAiTranscriptVerifier({
+      manifest: { ...value.manifest, keys: [{ ...value.manifest.keys[0]!, ...keyPatch }] },
+      replayStore: new InMemoryStudioAiReplayStore(),
+      now: () => clock(value),
+      crypto,
+    });
+    await expect(verifier.verify(value.provenance, value.request, value.events)).resolves.toMatchObject({ ok: false });
   });
 });
