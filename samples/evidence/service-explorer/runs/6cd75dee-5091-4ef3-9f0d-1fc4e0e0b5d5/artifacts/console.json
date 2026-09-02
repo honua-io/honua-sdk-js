@@ -1,0 +1,171 @@
+{
+  "format": "honua.sdk.sample-playwright-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "aa9e4f651b236582b771f0fd0e2468add6a31f60",
+  "gate": "console",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:service-explorer",
+    "--",
+    "--reporter=json"
+  ],
+  "playwright": {
+    "config": {
+      "configFile": "playwright.config.mjs",
+      "rootDir": "test/playwright",
+      "forbidOnly": false,
+      "fullyParallel": false,
+      "globalSetup": null,
+      "globalTeardown": null,
+      "globalTimeout": 0,
+      "grep": {},
+      "grepInvert": null,
+      "maxFailures": 0,
+      "metadata": {
+        "actualWorkers": 1
+      },
+      "preserveOutput": "always",
+      "projects": [
+        {
+          "repeatEach": 1,
+          "retries": 1,
+          "metadata": {
+            "actualWorkers": 1
+          },
+          "id": "chromium",
+          "name": "chromium",
+          "testDir": "test/playwright",
+          "testIgnore": [],
+          "testMatch": [
+            "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+          ],
+          "timeout": 30000
+        }
+      ],
+      "quiet": false,
+      "reporter": [
+        [
+          "json"
+        ]
+      ],
+      "reportSlowTests": {
+        "max": 5,
+        "threshold": 300000
+      },
+      "runAgents": "none",
+      "shard": null,
+      "tags": [],
+      "updateSnapshots": "missing",
+      "updateSourceMethod": "patch",
+      "version": "1.58.2",
+      "workers": 1,
+      "webServer": null
+    },
+    "suites": [
+      {
+        "title": "service-explorer.spec.mjs",
+        "file": "service-explorer.spec.mjs",
+        "column": 0,
+        "line": 0,
+        "specs": [
+          {
+            "title": "service explorer follows inspected truth through a bounded accepted query",
+            "ok": true,
+            "tags": [],
+            "tests": [
+              {
+                "timeout": 90000,
+                "annotations": [],
+                "expectedStatus": "passed",
+                "projectId": "chromium",
+                "projectName": "chromium",
+                "results": [
+                  {
+                    "workerIndex": 0,
+                    "parallelIndex": 0,
+                    "status": "passed",
+                    "duration": 3321,
+                    "errors": [],
+                    "stdout": [
+                      {
+                        "buffer": "G1szNm12aXRlIHY4LjAuMTYgG1szMm1idWlsZGluZyBjbGllbnQgZW52aXJvbm1lbnQgZm9yIHByb2R1Y3Rpb24uLi4bWzM2bRtbMzltCg=="
+                      },
+                      {
+                        "buffer": "G1sySw10cmFuc2Zvcm1pbmcuLi4="
+                      },
+                      {
+                        "buffer": "G1szMm3inJMbWzM5bSAzMDggbW9kdWxlcyB0cmFuc2Zvcm1lZC4K"
+                      },
+                      {
+                        "buffer": "cmVuZGVyaW5nIGNodW5rcy4uLgo="
+                      },
+                      {
+                        "buffer": "Y29tcHV0aW5nIGd6aXAgc2l6ZS4uLgo="
+                      },
+                      {
+                        "buffer": "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"
+                      },
+                      {
+                        "buffer": "G1szMm3inJMgYnVpbHQgaW4gNjAwbXMbWzM5bQo="
+                      }
+                    ],
+                    "stderr": [
+                      {
+                        "buffer": "G1szM21bcGx1Z2luIGJ1aWx0aW46dml0ZS1yZXBvcnRlcl0gG1szM20bWzFtCighKSBTb21lIGNodW5rcyBhcmUgbGFyZ2VyIHRoYW4gNTAwIGtCIGFmdGVyIG1pbmlmaWNhdGlvbi4gQ29uc2lkZXI6Ci0gVXNpbmcgZHluYW1pYyBpbXBvcnQoKSB0byBjb2RlLXNwbGl0IHRoZSBhcHBsaWNhdGlvbgotIFVzZSBidWlsZC5yb2xsZG93bk9wdGlvbnMub3V0cHV0LmNvZGVTcGxpdHRpbmcgdG8gaW1wcm92ZSBjaHVua2luZzogaHR0cHM6Ly9yb2xsZG93bi5ycy9yZWZlcmVuY2UvT3V0cHV0T3B0aW9ucy5jb2RlU3BsaXR0aW5nCi0gQWRqdXN0IGNodW5rIHNpemUgbGltaXQgZm9yIHRoaXMgd2FybmluZyB2aWEgYnVpbGQuY2h1bmtTaXplV2FybmluZ0xpbWl0LhtbMG0bWzMzbRtbMzltCg=="
+                      }
+                    ],
+                    "retry": 0,
+                    "startTime": "2026-09-02T14:48:18.691Z",
+                    "annotations": [],
+                    "attachments": [
+                      {
+                        "name": "honua-gate:browser",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJzZXJ2aWNlLWV4cGxvcmVyIiwiZ2F0ZSI6ImJyb3dzZXIiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicnVudGltZVJlYWR5Ijp0cnVlLCJwcm9qZWN0TmFtZSI6ImNocm9taXVtIiwiYnJvd3Nlck5hbWUiOiJjaHJvbWl1bSJ9fQ=="
+                      },
+                      {
+                        "name": "honua-gate:accessibility",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJzZXJ2aWNlLWV4cGxvcmVyIiwiZ2F0ZSI6ImFjY2Vzc2liaWxpdHkiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsiZW5naW5lIjp7Im5hbWUiOiJheGUtY29yZSIsInZlcnNpb24iOiI0LjEyLjEifSwidmlvbGF0aW9ucyI6W10sInBhc3NlcyI6NDksImtleWJvYXJkIjp7InNlbGVjdG9yIjoiW2RhdGEtdGVzdGlkPVwiaG9udWEtc2FtcGxlLWV2aWRlbmNlXCJdID4gc3VtbWFyeSIsInRhYkNvdW50IjoxLCJ0YWJSZWFjaGVkVGFyZ2V0Ijp0cnVlLCJhY3RpdmF0ZWQiOnRydWUsImR1cmF0aW9uTXMiOjEzLjQwMDAwMDAwMDAyMzI4M319fQ=="
+                      },
+                      {
+                        "name": "honua-gate:responsive",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJzZXJ2aWNlLWV4cGxvcmVyIiwiZ2F0ZSI6InJlc3BvbnNpdmUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsidmlld3BvcnRzIjpbeyJ3aWR0aCI6MTI4MCwiaGVpZ2h0Ijo3MjAsImRvY3VtZW50V2lkdGgiOjEyODAsIm5vSG9yaXpvbnRhbE92ZXJmbG93Ijp0cnVlLCJ3b3JrZmxvd3MiOlt7InNlbGVjdG9yIjoiI2VuZHBvaW50LWlucHV0IiwidmlzaWJsZSI6dHJ1ZX0seyJzZWxlY3RvciI6IiNydW4tcXVlcnktYnV0dG9uIiwidmlzaWJsZSI6dHJ1ZX0seyJzZWxlY3RvciI6IiNtYXAiLCJ2aXNpYmxlIjp0cnVlfSx7InNlbGVjdG9yIjoiI3R5cGVzY3JpcHQtY29kZSIsInZpc2libGUiOnRydWV9XX0seyJ3aWR0aCI6MzkwLCJoZWlnaHQiOjg0NCwiZG9jdW1lbnRXaWR0aCI6MzkwLCJub0hvcml6b250YWxPdmVyZmxvdyI6dHJ1ZSwid29ya2Zsb3dzIjpbeyJzZWxlY3RvciI6IiNlbmRwb2ludC1pbnB1dCIsInZpc2libGUiOnRydWV9LHsic2VsZWN0b3IiOiIjcnVuLXF1ZXJ5LWJ1dHRvbiIsInZpc2libGUiOnRydWV9LHsic2VsZWN0b3IiOiIjbWFwIiwidmlzaWJsZSI6dHJ1ZX0seyJzZWxlY3RvciI6IiN0eXBlc2NyaXB0LWNvZGUiLCJ2aXNpYmxlIjp0cnVlfV19XSwid29ya2Zsb3dTZWxlY3RvcnMiOlsiI2VuZHBvaW50LWlucHV0IiwiI3J1bi1xdWVyeS1idXR0b24iLCIjbWFwIiwiI3R5cGVzY3JpcHQtY29kZSJdfX0="
+                      },
+                      {
+                        "name": "honua-gate:fixture",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJzZXJ2aWNlLWV4cGxvcmVyIiwiZ2F0ZSI6ImZpeHR1cmUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicHJvdmlkZXIiOiJzdGFydFNlcnZpY2VFeHBsb3JlckZpeHR1cmVTZXJ2ZXIiLCJ0cmFuc3BvcnQiOiJsb29wYmFjay1odHRwIiwiY2xvc2VkIjp0cnVlfX0="
+                      },
+                      {
+                        "name": "honua-gate:console",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJzZXJ2aWNlLWV4cGxvcmVyIiwiZ2F0ZSI6ImNvbnNvbGUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicGFnZUVycm9ycyI6W10sImNvbnNvbGVFcnJvcnMiOltdLCJwYWdlQ2xvc2VkIjp0cnVlLCJjb250ZXh0Q2xvc2VkIjp0cnVlLCJmaW5hbGl6YXRpb25Cb3VuZGFyeSI6Im93bmVkLXBhZ2UtYW5kLWNvbnRleHQtY2xvc2UiLCJmaW5hbGl6ZWRBZnRlclRlYXJkb3duIjp0cnVlfX0="
+                      }
+                    ]
+                  }
+                ],
+                "status": "expected"
+              }
+            ],
+            "id": "03e9b78064d773196d8c-ac1c7a51bf8467d399cb",
+            "file": "service-explorer.spec.mjs",
+            "line": 8,
+            "column": 1
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "stats": {
+      "startTime": "2026-09-02T14:48:17.778Z",
+      "duration": 4335.7210000000005,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  }
+}
