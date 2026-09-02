@@ -271,7 +271,25 @@ const CAPABILITIES: StudioAiCapabilitiesResponse = {
 };
 
 function sseBody(events: readonly StudioAiChatEvent[]): string {
-  return events
+  const secured = events.some((event) => event.type === "toolCallStop")
+    ? [
+        ...events,
+        {
+          type: "transcriptProvenance",
+          provenance: {
+            schemaVersion: "honua.studio-ai.transcript.v1",
+            canonicalization: "honua-canonical-json-v1",
+            digestAlgorithm: "sha-256",
+            signatureAlgorithm: "Ed25519",
+            keyId: "candidate-fixture",
+            canonicalTranscript: "candidate-fixture",
+            transcriptDigest: "candidate-fixture",
+            signature: "candidate-fixture",
+          },
+        } satisfies StudioAiChatEvent,
+      ]
+    : events;
+  return secured
     .map((event) => {
       const { type, ...rest } = event;
       return `event: ${CHAT_EVENT_TYPE_TO_SSE_NAME[type]}\ndata: ${JSON.stringify({ type, ...rest })}\n\n`;
@@ -394,6 +412,16 @@ describe("StudioAgentSession against the pinned candidate catalog", () => {
       fetchImpl: server.fetchImpl,
       kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
       draft: { draftId: "draft-1", generation: 2 },
+      certification: {
+        candidateId: "candidate-classification-fixture",
+        releaseId: "candidate-release",
+        endpointIdentity: "candidate-proxy",
+        actionId: "classification-dispatch",
+        runNonce: "candidate-run",
+      },
+      transcriptVerifier: {
+        verify: async () => ({ ok: true, transcriptDigest: "candidate-classification-fixture" }),
+      },
     });
 
     const turn = await session.chat("Add a layer list control.");

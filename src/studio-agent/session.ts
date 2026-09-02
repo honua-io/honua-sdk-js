@@ -72,6 +72,7 @@ import type {
   StudioAiTokenSource,
   StudioAiToolChoice,
   StudioAiToolDefinition,
+  StudioAiTranscriptCertification,
 } from "./ai-contract.js";
 import { McpClient, type McpToolListing } from "./mcp-client.js";
 import { isMcpGenerationConflict, isMcpToolError } from "./mcp-errors.js";
@@ -89,6 +90,7 @@ import {
 } from "./mcp-protocol.js";
 import { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
 import { StudioToolCatalog, type StudioToolDiscoveryReport, type StudioToolPolicy } from "./tool-catalog.js";
+import type { StudioAiTranscriptVerification, StudioAiTranscriptVerifierLike } from "./transcript-verifier.js";
 import type { ChatTransport } from "./transport.js";
 
 /** The live composition draft `honua_studio_*` calls are applied to. */
@@ -98,6 +100,10 @@ export interface StudioAgentDraftBinding {
 }
 
 export interface StudioAgentSessionOptions {
+  /** Exact candidate/action binding sent to the proxy for every tool-capable round. */
+  readonly certification?: StudioAiTranscriptCertification;
+  /** Independent verifier required before any model-selected tool is dispatched. */
+  readonly transcriptVerifier?: StudioAiTranscriptVerifierLike;
   /** Base of the honua-server API — the session calls `${baseUrl}/v1/studio/ai/*` and `${baseUrl}/mcp`. @default "/api" */
   readonly baseUrl?: string;
   /** Bearer-token source. The model's own credentials never leave the server. */
@@ -751,14 +757,19 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     readonly errorMessage?: string;
     readonly transportError?: string;
   }> {
+    const roundEventStart = events.length;
     const pending = new Map<string, PendingToolCall>();
     const order: string[] = [];
     const roundText: string[] = [];
     let stopReason: StudioAiStopReason | undefined;
     let inBandError: string | undefined;
+    let provenance: StudioAiChatEvent["provenance"];
+    let provenanceCount = 0;
+    let eventAfterProvenance = false;
 
     try {
       for await (const event of this.#transport.streamChat(request, signal)) {
+        if (provenanceCount > 0) eventAfterProvenance = true;
         events.push(event);
         this.#options.onEvent?.({ type: "chat", event });
         switch (event.type) {
@@ -799,6 +810,10 @@ class StudioAgentSessionImpl implements StudioAgentSession {
           case "error":
             inBandError = event.errorMessage ?? "The Studio AI proxy reported an error.";
             break;
+          case "transcriptProvenance":
+            provenanceCount += 1;
+            provenance = event.provenance;
+            break;
           default:
             break;
         }
@@ -818,6 +833,43 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       .map((id) => pending.get(id))
       .filter((call): call is PendingToolCall => call !== undefined && call.ready === true);
 
+    if (ready.length > 0) {
+      if (
+        !this.#options.certification ||
+        !this.#options.transcriptVerifier ||
+        !provenance ||
+        provenanceCount !== 1 ||
+        eventAfterProvenance
+      ) {
+        return {
+          pending: [],
+          ...(stopReason ? { stopReason } : {}),
+          errorMessage: "Model-selected actions require exactly one terminal verified transcript provenance event.",
+        };
+      }
+      const roundEvents = events.slice(roundEventStart);
+      let verification: StudioAiTranscriptVerification;
+      try {
+        verification = await this.#options.transcriptVerifier.verify(
+          provenance,
+          request,
+          roundEvents.filter((event) => event.type !== "transcriptProvenance"),
+        );
+      } catch {
+        return {
+          pending: [],
+          ...(stopReason ? { stopReason } : {}),
+          errorMessage: "Transcript provenance verification failed.",
+        };
+      }
+      if (!verification.ok)
+        return {
+          pending: [],
+          ...(stopReason ? { stopReason } : {}),
+          errorMessage: `Transcript provenance rejected: ${verification.reason}.`,
+        };
+    }
+
     return {
       pending: ready,
       ...(stopReason ? { stopReason } : {}),
@@ -828,6 +880,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   #buildRequest(system: string | undefined, toolChoice: StudioAiToolChoice | undefined): StudioAiChatRequest {
     const choice = toolChoice ?? this.#options.toolChoice;
     return {
+      ...(this.#options.certification ? { certification: this.#options.certification } : {}),
       ...(this.#options.provider ? { provider: this.#options.provider } : {}),
       ...(this.#options.model ? { model: this.#options.model } : {}),
       ...(system ? { system } : {}),
