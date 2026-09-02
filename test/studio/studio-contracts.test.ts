@@ -82,10 +82,19 @@ const FROZEN_MANIFEST_WIRE = JSON.stringify({
     publicationFamilies: ["map"],
   },
   capabilities: [
-    { id: "studio.map", category: "studio", supported: true, available: true },
+    {
+      id: "studio.map",
+      category: "studio",
+      lifecycle: "Implemented",
+      optInRequired: false,
+      supported: true,
+      available: true,
+    },
     {
       id: "studio.ai.generate",
       category: "studio",
+      lifecycle: "Preview",
+      optInRequired: true,
       supported: true,
       available: false,
       reasonCode: "entitlement-inactive",
@@ -93,6 +102,15 @@ const FROZEN_MANIFEST_WIRE = JSON.stringify({
       entitlementKeys: ["ai.generation"],
       minimumEdition: "enterprise",
       messageKey: "capability.ai.disabled",
+    },
+    {
+      id: "provider.snowflake",
+      category: "provider",
+      lifecycle: "Experimental",
+      optInRequired: true,
+      supported: true,
+      available: false,
+      reasonCode: "configuration-disabled",
     },
   ],
   transports: {
@@ -230,10 +248,19 @@ describe("StudioCapabilityManifest helpers", () => {
   const manifest: StudioCapabilityManifest = {
     schemaVersion: "honua.capability_manifest.v1",
     capabilities: [
-      { id: "studio.map", category: "studio", supported: true, available: true },
+      {
+        id: "studio.map",
+        category: "studio",
+        lifecycle: "Implemented",
+        optInRequired: false,
+        supported: true,
+        available: true,
+      },
       {
         id: "studio.ai.generate",
         category: "studio",
+        lifecycle: "Preview",
+        optInRequired: true,
         supported: true,
         available: false,
         reasonCode: "entitlement-inactive",
@@ -281,7 +308,7 @@ describe("StudioCapabilityManifest helpers", () => {
     expect(wire.scope?.tenantId).toBe("acme");
     expect(wire.server?.serverVersion).toBe("1.9.0");
     expect(wire.environment?.revision).toBe(42);
-    expect(wire.capabilities).toHaveLength(2);
+    expect(wire.capabilities).toHaveLength(3);
     expect(hasCapability(wire, "studio.map")).toBe(true);
     expect(isCapabilitySupported(wire, "studio.ai.generate")).toBe(true);
     expect(hasCapability(wire, "studio.ai.generate")).toBe(false);
@@ -293,6 +320,14 @@ describe("StudioCapabilityManifest helpers", () => {
     expect(wire.transports?.mtlsMode).toBe("disabled");
     expect(wire.policies?.entitlements?.[0]?.active).toBe(false);
     expect(wire.links?.[0]?.type).toBe("application/json");
+
+    const [implemented, preview, experimental] = wire.capabilities;
+    expect(implemented?.lifecycle).toBe("Implemented");
+    expect(implemented?.optInRequired).toBe(false);
+    expect(preview?.lifecycle).toBe("Preview");
+    expect(preview?.optInRequired).toBe(true);
+    expect(experimental?.lifecycle).toBe("Experimental");
+    expect(experimental?.optInRequired).toBe(true);
   });
 });
 

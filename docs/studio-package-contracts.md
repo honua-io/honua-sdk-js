@@ -155,11 +155,13 @@ if (hasCapability(manifest, "package.query")) {
 }
 ```
 
-`hasCapability` is `true` only for an advertised **and enabled** capability;
+`hasCapability` is `true` only for an advertised **and available** capability;
 `getCapability` returns the entry regardless of enabled state.
 
-> The server capability-manifest endpoint is not yet defined (see Open
-> questions). These are client projection types ahead of that contract.
+Every entry preserves the server-owned `lifecycle` and `optInRequired`
+governance fields. Lifecycle remains an open string so future values are not
+coerced to GA; missing governance fields raise
+`HonuaCapabilityManifestContractError` instead of silently defaulting.
 
 ## Publish, share, and embed
 
@@ -203,8 +205,6 @@ These are tracked for follow-up once the server shapes are finalized:
 
 - Whether `dashboard` is exactly `HonuaGeneratedAppManifest` or a distinct
   server `DashboardPackage` wrapper.
-- The fetch path for `StudioCapabilityManifest` (dedicated endpoint vs.
-  embedded in another response).
 - Full ETL/workflow/GP package shapes (currently stub-only).
 - Whether embed-token issuance is in scope for the SDK client.
 - Whether the MCP server (`/mcp`) should import package/validation types from

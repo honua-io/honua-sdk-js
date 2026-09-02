@@ -85,6 +85,10 @@ export interface StudioCapabilityPackages {
 export interface StudioCapabilityEntry {
   readonly id: string;
   readonly category?: string;
+  /** Server-owned governance lifecycle. Unknown future values remain intact. */
+  readonly lifecycle: string;
+  /** Whether server governance requires explicit opt-in before use. */
+  readonly optInRequired: boolean;
   readonly supported: boolean;
   readonly available: boolean;
   readonly reasonCode?: string;
@@ -93,6 +97,37 @@ export interface StudioCapabilityEntry {
   readonly minimumEdition?: string;
   readonly messageKey?: string;
   readonly [extra: string]: unknown;
+}
+
+/** Typed failure raised when a capability manifest drops required governance fields. */
+export class HonuaCapabilityManifestContractError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "HonuaCapabilityManifestContractError";
+  }
+}
+
+/** Validate and narrow an untrusted capability-manifest response. */
+export function assertStudioCapabilityManifest(value: unknown): asserts value is StudioCapabilityManifest {
+  if (
+    !isRecord(value) ||
+    value.schemaVersion !== "honua.capability_manifest.v1" ||
+    !Array.isArray(value.capabilities)
+  ) {
+    throw new HonuaCapabilityManifestContractError("Response is not a honua.capability_manifest.v1 document.");
+  }
+  for (const [index, capability] of value.capabilities.entries()) {
+    if (!isRecord(capability) || typeof capability.lifecycle !== "string" || capability.lifecycle.length === 0) {
+      throw new HonuaCapabilityManifestContractError(`capabilities[${index}].lifecycle is required.`);
+    }
+    if (typeof capability.optInRequired !== "boolean") {
+      throw new HonuaCapabilityManifestContractError(`capabilities[${index}].optInRequired is required.`);
+    }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Availability state of one transport (for example HTTP, gRPC, gRPC-Web). */

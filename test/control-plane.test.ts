@@ -200,10 +200,19 @@ describe("control-plane client", () => {
         JSON.stringify({
           schemaVersion: "honua.capability_manifest.v1",
           capabilities: [
-            { id: "studio.map", category: "studio", supported: true, available: true },
+            {
+              id: "studio.map",
+              category: "studio",
+              lifecycle: "Implemented",
+              optInRequired: false,
+              supported: true,
+              available: true,
+            },
             {
               id: "studio.ai.generate",
               category: "studio",
+              lifecycle: "Preview",
+              optInRequired: true,
               supported: true,
               available: false,
               reasonCode: "entitlement-inactive",
@@ -251,5 +260,21 @@ describe("control-plane client", () => {
     if (result.supported) return;
     expect(result.capability).toBe("capabilities");
     expect(result.statusCode).toBe(404);
+  });
+
+  it("rejects schema drift when a required governance field is absent", async () => {
+    const controlPlane = clientFor(
+      () =>
+        new Response(
+          JSON.stringify({
+            schemaVersion: "honua.capability_manifest.v1",
+            capabilities: [{ id: "studio.map", lifecycle: "Preview", supported: true, available: true }],
+          }),
+        ),
+    );
+
+    await expect(controlPlane.getCapabilityManifest()).rejects.toMatchObject({
+      name: "HonuaCapabilityManifestContractError",
+    });
   });
 });
