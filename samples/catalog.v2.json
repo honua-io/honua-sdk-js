@@ -549,6 +549,21 @@
       },
       "sourcePath": "examples/columnar-query-quickstart",
       "docsPath": "examples/columnar-query-quickstart/README.md",
+      "playground": {
+        "projectPath": "playgrounds/columnar-query-quickstart",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          }
+        ]
+      },
       "capabilities": [
         "cancellation",
         "columnar",
@@ -655,6 +670,21 @@
         "npm run demo:coverages-wcs:build",
         "npm run test:playwright:coverages-wcs"
       ],
+      "playground": {
+        "projectPath": "playgrounds/coverages-wcs-basic",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          }
+        ]
+      },
       "capabilityKeys": [
         "raster.multidim-coverage",
         "serve.ogc-api-coverages",
@@ -2541,6 +2571,21 @@
       },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
+      "playground": {
+        "projectPath": "playgrounds/stac-imagery-browser",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          }
+        ]
+      },
       "capabilities": [
         "cancellation",
         "cog",

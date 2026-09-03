@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Search a bounded Maui STAC catalog and hand selected assets to Honua SDK execution surfaces." />
+    <title>Find recent Maui imagery | Honua STAC</title>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hero">
+        <p class="eyebrow">Walkthrough / Dynamic STAC</p>
+        <h1>Find the clearest recent view of Maui.</h1>
+        <p class="lede">Search by the map and time window, inspect the selected scene, then continue through the SDK surface that can actually open the asset.</p>
+        <div class="status-strip" aria-label="Workflow status">
+          <span>Fixture-backed</span><span>Experimental workflow</span><span id="method-state"></span><span id="page-state"></span><span id="selected-state"></span>
+        </div>
+      </header>
+
+      <main>
+        <section class="search-panel" aria-labelledby="search-heading">
+          <div>
+            <p class="kicker">01 / Search</p>
+            <h2 id="search-heading">A bounded request, not a catalog dump</h2>
+          </div>
+          <form id="search-form">
+            <label>Method<select id="search-method"><option value="POST">POST + CQL2 JSON</option><option value="GET">GET + query parameters</option></select></label>
+            <label>Bounds<output id="query-bounds"></output></label>
+            <label>Time<output id="query-time"></output></label>
+            <button type="submit">Search Maui</button>
+          </form>
+        </section>
+
+        <section class="map-panel" aria-labelledby="results-heading">
+          <div class="map-copy"><p class="kicker">02 / Select</p><h2 id="results-heading">Maui imagery</h2><p>The selected STAC preview is signed, fetched, and georeferenced on the map from the item bounds.</p></div>
+          <div id="imagery-map" role="img" aria-label="Map of the selected Maui imagery asset and its footprint"></div>
+          <img id="asset-preview" alt="Selected Maui imagery preview" hidden />
+          <ol id="result-list"></ol>
+          <div class="button-row"><button id="load-next" type="button">Load next page</button><button id="cancel-pagination" class="secondary" type="button">Cancel request</button></div>
+        </section>
+
+        <section class="detail-panel" aria-labelledby="asset-heading">
+          <div id="item-metadata"></div>
+          <div><p class="kicker">Assets</p><h2 id="asset-heading">Choose the useful representation</h2><ul id="asset-list"></ul><p id="handoff-state"></p><pre id="asset-inspection" aria-live="polite">Select the PMTiles asset to inspect its v3 metadata and exact HTTP range evidence.</pre></div>
+        </section>
+
+        <section class="proof-panel" aria-labelledby="proof-heading">
+          <div><p class="kicker">03 / Verify</p><h2 id="proof-heading">Request evidence</h2><p>The deterministic fetch seam records the same method, relative cursor, cancellation signal, signing hook, and redacted PMTiles byte-range evidence used against deployed assets.</p></div>
+          <pre id="network-log" aria-live="polite"></pre>
+        </section>
+
+        <section class="handoff-panel" aria-labelledby="handoff-heading">
+          <div><p class="kicker">04 / Continue</p><h2 id="handoff-heading">Use the format-specific SDK</h2><p>Discovery does not pretend every asset has the same execution model.</p></div>
+          <ul id="handoff-list"></ul>
+        </section>
+
+        <section class="code-panel" aria-labelledby="code-heading">
+          <div><p class="kicker">Runnable core</p><h2 id="code-heading">The whole search fits in one view</h2><p>This focused Example is the atomic core inside the larger catalog-browser Walkthrough.</p></div>
+          <pre><code>const stac = createDynamicStacClient({ baseUrl, clientOptions });
+
+const result = await stac.search({
+  method: "POST",
+  collections: ["sentinel-2-l2a"],
+  bbox: [-156.75, 20.55, -155.85, 21.05],
+  datetime: "2026-04-01T00:00:00Z/2026-05-05T23:59:59Z",
+  filterLang: "cql2-json",
+  filter: { op: "&lt;=", args: [{ property: "eo:cloud_cover" }, 20] },
+});
+
+const asset = await stac.selectAsset(result.features[0], {
+  formats: ["cog"], roles: ["visual", "data"]
+});</code></pre>
+          <p class="project-links"><a href="https://github.com/honua-io/honua-sdk-js/tree/trunk/examples/stac-imagery-browser">Open the complete project</a><a href="../../docs/walkthroughs/search-stac-and-open-assets.md">Read the task walkthrough</a></p>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

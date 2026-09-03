@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.1.4-beta.0"
+    "version": "0.1.9-beta.0"
   },
   "playgrounds": [
     {
@@ -20,6 +20,44 @@
           "id": "codesandbox",
           "title": "CodeSandbox",
           "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder"
+        }
+      ],
+      "dataOrigin": {
+        "kind": "committed-sample-source"
+      }
+    },
+    {
+      "sampleId": "columnar-query-quickstart",
+      "projectPath": "playgrounds/columnar-query-quickstart",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+        }
+      ],
+      "dataOrigin": {
+        "kind": "committed-sample-source"
+      }
+    },
+    {
+      "sampleId": "coverages-wcs-basic",
+      "projectPath": "playgrounds/coverages-wcs-basic",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
         }
       ],
       "dataOrigin": {
@@ -70,6 +108,25 @@
       }
     },
     {
+      "sampleId": "stac-imagery-browser",
+      "projectPath": "playgrounds/stac-imagery-browser",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+        }
+      ],
+      "dataOrigin": {
+        "kind": "committed-sample-source"
+      }
+    },
+    {
       "sampleId": "temporal-playback",
       "projectPath": "playgrounds/temporal-playback",
       "providers": [
@@ -99,16 +156,6 @@
       "sampleId": "arcgis-source-app",
       "category": "unsupported-support-tier",
       "detail": "Support tier internal may not gain a public runnable surface."
-    },
-    {
-      "sampleId": "columnar-query-quickstart",
-      "category": "unreleased-sdk-surface",
-      "detail": "createApacheArrowResponseDecoder({ importModule }) is not published by @honua/sdk-js@0.1.4-beta.0; the repository sample remains source-mode evidence until a post-merge SDK release is pinned and regenerated."
-    },
-    {
-      "sampleId": "coverages-wcs-basic",
-      "category": "unreleased-sdk-surface",
-      "detail": "@honua/sdk-js/coverages is not published by @honua/sdk-js@0.1.4-beta.0; the repository sample remains source-mode evidence until a post-merge SDK release is pinned and regenerated."
     },
     {
       "sampleId": "edit-workflow-demo",
@@ -199,11 +246,6 @@
       "sampleId": "spatial-analytics-workbench",
       "category": "lifecycle-not-active",
       "detail": "Catalog lifecycle is rework."
-    },
-    {
-      "sampleId": "stac-imagery-browser",
-      "category": "unreleased-sdk-surface",
-      "detail": "@honua/sdk-js/stac and @honua/sdk-js/pmtiles is not published by @honua/sdk-js@0.1.4-beta.0; the repository sample remains source-mode evidence until a post-merge SDK release is pinned and regenerated."
     },
     {
       "sampleId": "storytelling-25d-map",
