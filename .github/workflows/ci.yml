@@ -320,6 +320,9 @@ jobs:
       - name: Verify generated admin REST client freshness
         run: npm run admin-client:check
 
+      - name: Verify generated Studio REST client freshness
+        run: npm run studio-client:check
+
       - name: Verify north-star API design fixtures
         run: npm run verify:north-star-api
 
