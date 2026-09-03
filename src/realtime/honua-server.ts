@@ -105,6 +105,10 @@ export interface HonuaServerFeatureChangeEnvelope<TFeature = unknown> {
   readonly sourceId?: string;
   readonly layerId?: string | number;
   readonly eventId?: string;
+  readonly operationInstanceId?: string;
+  readonly correlationId?: string;
+  readonly auditId?: string;
+  readonly proposalId?: string;
   readonly sequence?: number;
   readonly cursor?: string;
   readonly watermark?: string;
@@ -183,6 +187,16 @@ export function decodeHonuaServerRealtimeEvent<TFeature = unknown>(payload: unkn
 
   const base = {
     eventId: envelope.eventId,
+    ...(optionalNonEmptyText(envelope.operationInstanceId, "operationInstanceId") !== undefined
+      ? { operationInstanceId: envelope.operationInstanceId }
+      : {}),
+    ...(optionalNonEmptyText(envelope.correlationId, "correlationId") !== undefined
+      ? { correlationId: envelope.correlationId }
+      : {}),
+    ...(optionalNonEmptyText(envelope.auditId, "auditId") !== undefined ? { auditId: envelope.auditId } : {}),
+    ...(optionalNonEmptyText(envelope.proposalId, "proposalId") !== undefined
+      ? { proposalId: envelope.proposalId }
+      : {}),
     sequence,
     cursor,
     watermark: envelope.watermark,
