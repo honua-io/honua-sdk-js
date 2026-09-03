@@ -466,8 +466,8 @@ async function main() {
   const zeroToMapConfigs = verifyZeroToMapConfigPins({ expectedPin: LOCAL_INSTALL_MCP_PACKAGE });
   process.stdout.write(`zero-to-map config pins ok: ${zeroToMapConfigs.length} configs name ${LOCAL_INSTALL_MCP_PACKAGE}\n`);
   const { name: sdkName, version: sdkVersion } = readJson("package.json");
-  const createAppPins = verifyCreateAppPins({ sdkName, expectedVersion: lineage.version });
-  process.stdout.write(`create-honua-app pins ok: ${createAppPins.length} sites name ${sdkName}@${lineage.version}\n`);
+  const createAppPins = verifyCreateAppPins({ sdkName, expectedVersion: sdkVersion });
+  process.stdout.write(`create-honua-app pins ok: ${createAppPins.length} sites name ${sdkName}@${sdkVersion}\n`);
 
   // The pair this working tree would cut: mcp/package.json's declared peer
   // range against the SDK version sitting beside it.

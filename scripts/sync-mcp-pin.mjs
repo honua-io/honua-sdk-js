@@ -198,6 +198,7 @@ export function planPinWrites({
   source,
   sourceStale,
   version,
+  sdkVersion,
   integrity,
   staleConfigs,
   expectedPin,
@@ -223,7 +224,7 @@ export function planPinWrites({
     writes.push({
       relativePath: site.relativePath,
       file: site.file,
-      contents: applyCreateAppPin(site.source, sdkName, version, site.relativePath),
+      contents: applyCreateAppPin(site.source, sdkName, sdkVersion, site.relativePath),
     });
   }
   return writes;
@@ -286,7 +287,7 @@ async function main(argv) {
   const expectedPin = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${version}`;
   const configs = readPinSites(expectedPin);
   const staleConfigs = configs.filter((config) => config.stale);
-  const createAppPins = readCreateAppPinSites(sdk.name, version);
+  const createAppPins = readCreateAppPinSites(sdk.name, sdk.version);
   const staleCreateAppPins = createAppPins.filter((site) => site.stale);
   const sourceStale = current.version !== version || current.integrity !== integrity;
 
@@ -307,7 +308,7 @@ async function main(argv) {
     }
     for (const site of staleCreateAppPins) {
       process.stderr.write(
-        `mcp pin is stale: ${site.relativePath} pins ${sdk.name}@${site.version}, coordinated cut is ${sdk.name}@${version}.\n`,
+        `mcp pin is stale: ${site.relativePath} pins ${sdk.name}@${site.version}, coordinated cut is ${sdk.name}@${sdk.version}.\n`,
       );
     }
     process.stderr.write("Run `npm run sync:mcp-pin`.\n");
@@ -320,6 +321,7 @@ async function main(argv) {
     source,
     sourceStale,
     version,
+    sdkVersion: sdk.version,
     integrity,
     staleConfigs,
     expectedPin,
@@ -330,7 +332,7 @@ async function main(argv) {
   // Same discipline as the pre-write co-install check: prove the bytes just
   // written actually satisfy the gate rather than trusting the edit.
   verifyZeroToMapConfigPins({ expectedPin });
-  verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: version });
+  verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: sdk.version });
 
   const advanced = [
     sourceStale ? `src/local-install.ts ${current.version} -> ${version}` : null,

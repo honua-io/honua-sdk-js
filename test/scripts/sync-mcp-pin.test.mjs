@@ -210,10 +210,11 @@ test("plans every rewrite before writing any of them", (t) => {
   const writes = planPinWrites({
     source: pinSource,
     sourceStale: true,
-    version: "9.9.9-beta.0",
+    version: "9.9.9-beta.1",
+    sdkVersion: "9.9.9-beta.0",
     integrity: `sha512-${"C".repeat(86)}==`,
     staleConfigs,
-    expectedPin: "@honua/mcp-server@9.9.9-beta.0",
+    expectedPin: "@honua/mcp-server@9.9.9-beta.1",
     sdkName: "@honua/sdk-js",
     staleCreateAppPins,
   });
@@ -224,9 +225,9 @@ test("plans every rewrite before writing any of them", (t) => {
     writes.slice(1).map((write) => write.relativePath),
     [...ZERO_TO_MAP_CONFIGS, ...CREATE_APP_PIN_SITES],
   );
-  assert.equal(readPin(writes[0].contents).version, "9.9.9-beta.0");
+  assert.equal(readPin(writes[0].contents).version, "9.9.9-beta.1");
   for (const write of writes.slice(1, ZERO_TO_MAP_CONFIGS.length + 1)) {
-    assert.equal(readConfigPin(write.contents, write.relativePath), "@honua/mcp-server@9.9.9-beta.0");
+    assert.equal(readConfigPin(write.contents, write.relativePath), "@honua/mcp-server@9.9.9-beta.1");
   }
   for (const write of writes.slice(ZERO_TO_MAP_CONFIGS.length + 1)) {
     assert.equal(readCreateAppSdkPin(JSON.parse(write.contents), write.relativePath, "@honua/sdk-js"), "9.9.9-beta.0");
@@ -240,10 +241,11 @@ test("writes every planned scaffold update to real files", (t) => {
   const writes = planPinWrites({
     source: pinSource,
     sourceStale: false,
-    version: "9.9.9-beta.0",
+    version: "9.9.9-beta.1",
+    sdkVersion: "9.9.9-beta.0",
     integrity: readPin(pinSource).integrity,
     staleConfigs: [],
-    expectedPin: "@honua/mcp-server@9.9.9-beta.0",
+    expectedPin: "@honua/mcp-server@9.9.9-beta.1",
     sdkName: "@honua/sdk-js",
     staleCreateAppPins,
   });

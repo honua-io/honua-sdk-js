@@ -1,9 +1,9 @@
 {
-  "name": "honua-playground-ai-spatial-app-builder",
+  "name": "honua-playground-stac-imagery-browser",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Zero-install playground generated from examples/ai-spatial-app-builder.",
+  "description": "Zero-install playground generated from examples/stac-imagery-browser.",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -32,7 +32,8 @@
     "@turf/length": "7.3.5",
     "@turf/nearest-point": "7.3.5",
     "@turf/simplify": "7.3.5",
-    "@turf/union": "7.3.5"
+    "@turf/union": "7.3.5",
+    "maplibre-gl": "6.1.0"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
