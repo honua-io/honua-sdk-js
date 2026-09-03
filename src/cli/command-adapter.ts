@@ -60,7 +60,7 @@ function baseDetail(receipt: HonuaCommandReceipt): Record<string, Cell> {
     command: receipt.commandId,
     status: receipt.status,
     request: `${receipt.plan.method} ${receipt.plan.path}`,
-    idempotencyKey: receipt.idempotencyKey,
+    ...(receipt.idempotencyKey ? { idempotencyKey: receipt.idempotencyKey } : {}),
     correlationId: receipt.correlationId,
     authorization: receipt.authorization,
     auditKey: receipt.auditKey,

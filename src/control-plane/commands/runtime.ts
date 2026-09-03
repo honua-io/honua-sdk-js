@@ -418,7 +418,7 @@ function buildReceipt<TInput, TOutput>(parts: {
     commandId: parts.command.id,
     mode: parts.command.mode,
     status: parts.status,
-    idempotencyKey: parts.idempotencyKey,
+    ...(parts.command.mode === "action" ? { idempotencyKey: parts.idempotencyKey } : {}),
     correlationId: parts.correlationId,
     identity: parts.identity,
     authorization: "server-enforced",

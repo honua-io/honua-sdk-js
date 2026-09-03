@@ -31,6 +31,7 @@ export {
 export type { HonuaControlPlaneClientOptions } from "./client.js";
 export * from "./commands/index.js";
 export {
+  assertAdminBaseUrl,
   HonuaAdminApiError,
   HonuaAdminClient,
   createHonuaAdminClient,

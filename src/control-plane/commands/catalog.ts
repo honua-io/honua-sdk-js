@@ -54,8 +54,6 @@ import type { HonuaAnyCommand, HonuaCommand, HonuaCommandResourceRef } from "./t
 export interface ConnectionTestInput {
   /** Existing connection to probe. */
   readonly connectionId: string;
-  /** Workspace the connection belongs to, when the deployment scopes them. */
-  readonly workspaceId?: string;
 }
 
 /** Server probe result. Left open: the probe payload is deployment-specific. */
@@ -69,22 +67,21 @@ export interface ConnectionTestOutput {
 /**
  * `POST /connections/{connectionId}/test` — probe a stored connection.
  *
- * Modelled as an `action` rather than a `read` so repeated probes carry an
- * `Idempotency-Key` and collapse server-side; the probe itself does not mutate
- * the connection.
+ * The server does not consume an idempotency key or a workspace body. Keep the
+ * command identity limited to the connection route so receipts describe the
+ * request the server actually processed.
  */
 export const connectionTestCommand: HonuaCommand<ConnectionTestInput, ConnectionTestOutput> = {
   id: "connection.test",
   title: "Test a connection",
   description: "Probe a stored control-plane connection and report whether the server can reach it.",
-  mode: "action",
+  mode: "read",
   resourceKind: "connection",
   inputSchema: {
     type: "object",
     description: "Identifies the stored connection to probe.",
     properties: {
       connectionId: { type: "string", minLength: 1, description: "Identifier of the stored connection." },
-      workspaceId: { type: "string", minLength: 1, description: "Owning workspace, when the deployment scopes them." },
     },
     required: ["connectionId"],
     additionalProperties: false,
@@ -101,7 +98,6 @@ export const connectionTestCommand: HonuaCommand<ConnectionTestInput, Connection
     const result = await context.controlPlane.raw<ConnectionTestOutput>({
       method: "POST",
       path: connectionTestPath(context.input.connectionId),
-      ...(context.input.workspaceId ? { body: { workspaceId: context.input.workspaceId } } : {}),
       ...context.requestOptions(),
     });
     const value = unwrap(result, this.id, {
@@ -124,7 +120,6 @@ function connectionRef(input: ConnectionTestInput): HonuaCommandResourceRef {
   return {
     type: "connection",
     id: input.connectionId,
-    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
   };
 }
 
@@ -137,7 +132,9 @@ function connectionRef(input: ConnectionTestInput): HonuaCommandResourceRef {
  *
  * The server's own `dryRun` request field is deliberately not exposed: dry run
  * is a command-layer concept here, and two spellings of it would let one
- * transport preview while another executed.
+ * transport preview while another executed. The current file-import endpoint
+ * accepts public source URLs only; stored-connection imports have no matching
+ * server route yet and are rejected before a request is issued.
  */
 export interface ImportCreateInput {
   readonly sourceKind: string;
@@ -148,11 +145,11 @@ export interface ImportCreateInput {
   readonly options?: Record<string, unknown>;
 }
 
-/** `POST /imports` — enqueue an import job. */
+/** `POST /import/upload-url` — enqueue a URL import job. */
 export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPlaneJob> = {
   id: "import.create",
   title: "Create an import job",
-  description: "Enqueue a control-plane import job for a source URL or a stored connection.",
+  description: "Enqueue a control-plane import job for a source URL.",
   mode: "action",
   resourceKind: "import-job",
   inputSchema: {
@@ -161,7 +158,11 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
     properties: {
       sourceKind: { type: "string", minLength: 1, description: "Import source kind, e.g. `geojson` or `postgis`." },
       sourceUrl: { type: "string", minLength: 1, description: "Source URL, when the import reads a location." },
-      connectionId: { type: "string", minLength: 1, description: "Stored connection, when the import reads a system." },
+      connectionId: {
+        type: "string",
+        minLength: 1,
+        description: "Compatibility input; the current /import/upload-url endpoint accepts sourceUrl only.",
+      },
       workspaceId: { type: "string", minLength: 1, description: "Workspace that will own the imported content." },
       title: { type: "string", minLength: 1, description: "Human title for the resulting content." },
       options: { type: "object", description: "Import-kind-specific options, passed through verbatim." },
@@ -170,11 +171,22 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
     additionalProperties: false,
   },
   validate(input) {
-    // JSON Schema cannot say "one of these two", and this has to run before the
-    // dry-run short circuit: a preview that accepts an import with no source
-    // would be a preview of a request the server never sees.
+    // This has to run before the dry-run short circuit: a preview that accepts
+    // an import with no URL would be a preview of a request the server never
+    // sees.
     if (!input.sourceUrl && !input.connectionId) {
-      return [{ path: "", message: "one of `sourceUrl` or `connectionId` is required" }];
+      return [{ path: "sourceUrl", message: "`sourceUrl` is required by /import/upload-url" }];
+    }
+    if (!input.sourceUrl && input.connectionId) {
+      return [
+        {
+          path: "connectionId",
+          message: "stored-connection imports are not supported by /import/upload-url; provide `sourceUrl`",
+        },
+      ];
+    }
+    if (input.sourceUrl && input.connectionId) {
+      return [{ path: "", message: "provide only one of `sourceUrl` or `connectionId`" }];
     }
     return [];
   },
@@ -182,7 +194,7 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
     const { input } = context;
     return {
       method: "POST",
-      path: "/imports",
+      path: "/import/upload-url",
       summary: `Import ${input.sourceKind} from ${input.sourceUrl ?? input.connectionId ?? "(unspecified source)"}`,
       resourceRef: {
         type: "import-job",

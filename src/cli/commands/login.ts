@@ -19,8 +19,10 @@ export async function loginCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     throw new Error("`honua login` requires --base-url <url> (and optionally --api-key <key>).");
   }
   const existing = readConfig();
-  const config = { ...existing, baseUrl: stripTrailingSlashes(baseUrl) };
+  const normalizedBaseUrl = stripTrailingSlashes(baseUrl);
+  const config = { ...existing, baseUrl: normalizedBaseUrl };
   if (apiKey) config.apiKey = apiKey;
+  else if (existing.apiKey && stripTrailingSlashes(existing.baseUrl ?? "") !== normalizedBaseUrl) delete config.apiKey;
   const file = await writeConfig(config);
   printLine(
     renderDetail(
@@ -41,19 +43,15 @@ export async function logoutCommand(_parsed: ParsedArgs, _ctx: CommandContext): 
 }
 
 export async function whoamiCommand(_parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  try {
-    const conn = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
-    printLine(
-      renderDetail(
-        {
-          baseUrl: conn.baseUrl,
-          source: conn.source,
-          auth: conn.apiKey ? "api-key" : "anonymous",
-        },
-        { title: "Current connection" },
-      ),
-    );
-  } catch (err) {
-    printLine((err as Error).message);
-  }
+  const conn = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, profile: ctx.profile });
+  printLine(
+    renderDetail(
+      {
+        baseUrl: conn.baseUrl,
+        source: conn.source,
+        auth: conn.apiKey ? "api-key" : "anonymous",
+      },
+      { title: "Current connection" },
+    ),
+  );
 }
