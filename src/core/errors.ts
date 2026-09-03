@@ -34,10 +34,27 @@
 import {
   type HonuaErrorMetadata,
   type HonuaErrorOptions,
+  type HonuaFailureKind,
+  type HonuaFieldFailure,
+  type HonuaProtocolMetadata,
   HonuaSdkError,
+  type HonuaTerminalFailureReceipt,
   isHonuaSdkError,
   mergeHonuaErrorContext,
 } from "./error-envelope.js";
+
+export type { HonuaFailureKind, HonuaFieldFailure, HonuaProtocolMetadata, HonuaTerminalFailureReceipt };
+
+export interface HonuaHttpErrorOptions extends HonuaErrorOptions {
+  readonly responseHeaders?: Pick<Headers, "entries" | "get"> | Readonly<Record<string, string | readonly string[]>>;
+  readonly protocolCode?: number | string;
+  readonly transportStatus?: number;
+}
+
+export interface HonuaGrpcErrorOptions extends HonuaErrorOptions {
+  readonly initialMetadata?: unknown;
+  readonly trailingMetadata?: unknown;
+}
 
 export type HonuaDiscoveryErrorCode =
   | "ambiguous-protocol"
@@ -101,19 +118,20 @@ export class HonuaGeometryError extends HonuaSdkError {
 export class HonuaHttpError extends HonuaSdkError {
   public readonly statusCode: number;
   public readonly body: unknown;
+  public readonly receipt: HonuaTerminalFailureReceipt;
 
-  public constructor(statusCode: number, message: string, body: unknown, options: HonuaErrorOptions = {}) {
-    super(
-      HTTP_RETRYABLE_STATUSES.has(statusCode) ? "core.http.transient" : "core.http.rejected",
-      `HTTP ${statusCode}: ${message}`,
-      {
-        ...options,
-        context: mergeHonuaErrorContext(options.context, { statusCode }),
-      },
-    );
+  public constructor(statusCode: number, message: string, body: unknown, options: HonuaHttpErrorOptions = {}) {
+    const receipt = httpFailureReceipt(statusCode, body, options);
+    super(receipt.retryable ? "core.http.transient" : "core.http.rejected", `HTTP ${statusCode}: ${message}`, {
+      ...options,
+      requestId: options.requestId ?? receipt.correlationId,
+      terminalReceipt: receipt,
+      context: mergeHonuaErrorContext(options.context, { statusCode }),
+    });
     this.name = "HonuaHttpError";
     this.statusCode = statusCode;
     this.body = body;
+    this.receipt = receipt;
   }
 }
 
@@ -153,19 +171,24 @@ export class HonuaAbortError extends HonuaSdkError {
 /** Thrown when a gRPC-Web request fails, wrapping the underlying ConnectError. */
 export class HonuaGrpcError extends HonuaSdkError {
   public readonly details: unknown;
+  public readonly receipt: HonuaTerminalFailureReceipt;
 
   public constructor(
     public readonly code: number,
     message: string,
     details?: unknown,
-    options: HonuaErrorOptions = {},
+    options: HonuaGrpcErrorOptions = {},
   ) {
-    super(GRPC_RETRYABLE_CODES.has(code) ? "core.grpc.transient" : "core.grpc.rejected", message, {
+    const receipt = grpcFailureReceipt(code, details, options);
+    super(receipt.retryable ? "core.grpc.transient" : "core.grpc.rejected", message, {
       ...options,
+      requestId: options.requestId ?? receipt.correlationId,
+      terminalReceipt: receipt,
       context: mergeHonuaErrorContext(options.context, { grpcCode: code }),
     });
     this.name = "HonuaGrpcError";
     this.details = details;
+    this.receipt = receipt;
   }
 }
 
@@ -297,3 +320,255 @@ const AUTH_ERROR_CODES = {
   refresh_failed: "core.auth.refresh-failed",
   invalid_grant: "core.auth.invalid-grant",
 } as const satisfies Record<HonuaAuthErrorCode, `core.auth.${string}`>;
+
+function httpFailureReceipt(
+  statusCode: number,
+  body: unknown,
+  options: HonuaHttpErrorOptions,
+): HonuaTerminalFailureReceipt {
+  const root = isObject(body) ? body : undefined;
+  const protocolError = root && isObject(root.error) ? root.error : undefined;
+  const source = protocolError ?? root;
+  const protocolCode = options.protocolCode ?? scalarCode(protocolError?.code);
+  const classificationCode = typeof protocolCode === "number" ? protocolCode : statusCode;
+  const metadata = metadataRecord(options.responseHeaders);
+  const bodyKind = stringValue(source?.kind);
+  const kind = isFailureKind(bodyKind) ? bodyKind : failureKindForHttp(classificationCode, statusCode);
+  const code =
+    stringValue(source?.machineCode) ?? stringValue(source?.code) ?? stringValue(root?.code) ?? defaultCode(kind);
+  const explicitRetryable = booleanValue(source?.retryable) ?? booleanValue(root?.retryable);
+  const retryAfterSeconds = numberValue(source?.retryAfterSeconds) ?? numberValue(root?.retryAfterSeconds);
+  const headerDelay = parseRetryAfter(metadataGetter(options.responseHeaders));
+  const correlationId =
+    stringValue(source?.correlationId) ??
+    stringValue(root?.correlationId) ??
+    firstMetadata(metadata, "x-correlation-id", "honua-request-id", "x-request-id");
+  const fieldErrors = parseFieldFailures(source?.errors ?? root?.errors);
+  return freezeReceipt({
+    transportStatus: options.transportStatus ?? statusCode,
+    ...(protocolCode !== undefined ? { protocolCode } : {}),
+    kind,
+    ...(code ? { code } : {}),
+    retryable: explicitRetryable ?? HTTP_RETRYABLE_STATUSES.has(classificationCode),
+    ...(retryAfterSeconds !== undefined
+      ? { retryAfterMs: Math.max(0, retryAfterSeconds * 1_000) }
+      : headerDelay !== undefined
+        ? { retryAfterMs: headerDelay }
+        : {}),
+    ...(correlationId ? { correlationId } : {}),
+    fieldErrors,
+    protocolMetadata: { initial: metadata, trailing: emptyMetadata() },
+  });
+}
+
+function grpcFailureReceipt(
+  code: number,
+  details: unknown,
+  options: HonuaGrpcErrorOptions,
+): HonuaTerminalFailureReceipt {
+  const initial = metadataRecord(options.initialMetadata);
+  const trailing = metadataRecord(options.trailingMetadata);
+  const declaredMachineCode = firstMetadata(trailing, "honua-error-code") ?? firstMetadata(initial, "honua-error-code");
+  const declaredKind = firstMetadata(trailing, "honua-error-kind") ?? firstMetadata(initial, "honua-error-kind");
+  const kind = isFailureKind(declaredKind) ? declaredKind : failureKindForGrpc(code);
+  const machineCode = declaredMachineCode ?? defaultCode(kind);
+  const declaredRetryable =
+    firstMetadata(trailing, "honua-error-retryable") ?? firstMetadata(initial, "honua-error-retryable");
+  const retryAfterMs = parseRetryAfter(metadataGetterFromRecords(trailing, initial));
+  const correlationId =
+    firstMetadata(trailing, "x-correlation-id", "honua-request-id", "x-request-id") ??
+    firstMetadata(initial, "x-correlation-id", "honua-request-id", "x-request-id");
+  const encodedErrors = firstMetadata(trailing, "honua-error-details") ?? firstMetadata(initial, "honua-error-details");
+  return freezeReceipt({
+    protocolCode: code,
+    kind,
+    code: machineCode,
+    retryable: parseBoolean(declaredRetryable) ?? GRPC_RETRYABLE_CODES.has(code),
+    ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+    ...(correlationId ? { correlationId } : {}),
+    fieldErrors: parseEncodedFieldFailures(encodedErrors, details),
+    protocolMetadata: { initial, trailing },
+  });
+}
+
+function failureKindForHttp(code: number, transportStatus: number): HonuaFailureKind {
+  if (code === 401) return "authentication";
+  if (code === 403 || code === 498 || code === 499) return "authorization";
+  if (code === 404) return "not-found";
+  if (code === 400 || code === 422) return "validation";
+  if (code === 409 || code === 412 || code === 428) return "conflict";
+  if (code === 429) return "throttled";
+  if (HTTP_RETRYABLE_STATUSES.has(code) || transportStatus >= 500) return "unavailable";
+  return "unknown";
+}
+
+function failureKindForGrpc(code: number): HonuaFailureKind {
+  if (code === 16) return "authentication";
+  if (code === 7) return "authorization";
+  if (code === 5) return "not-found";
+  if (code === 3) return "validation";
+  if (code === 10 || code === 6) return "conflict";
+  if (code === 8) return "throttled";
+  if (GRPC_RETRYABLE_CODES.has(code)) return "unavailable";
+  return "unknown";
+}
+
+function defaultCode(kind: HonuaFailureKind): string {
+  return {
+    authentication: "authentication_required",
+    authorization: "permission_denied",
+    "not-found": "resource_not_found",
+    validation: "validation_failed",
+    conflict: "resource_conflict",
+    throttled: "rate_limited",
+    unavailable: "service_unavailable",
+    unknown: "unknown_failure",
+  }[kind];
+}
+
+function metadataRecord(value: unknown): Readonly<Record<string, readonly string[]>> {
+  const result: Record<string, readonly string[]> = Object.create(null);
+  const add = (key: string, item: unknown) => {
+    const normalized = key.toLowerCase();
+    if (SENSITIVE_METADATA_KEYS.has(normalized)) return;
+    const values = Array.isArray(item)
+      ? item.filter((entry): entry is string => typeof entry === "string")
+      : [String(item)];
+    if (values.length > 0) result[normalized] = Object.freeze(values.slice(0, 20));
+  };
+  if (value && typeof (value as { entries?: unknown }).entries === "function") {
+    for (const [key, item] of (value as { entries(): IterableIterator<[string, string]> }).entries()) add(key, item);
+  } else if (isObject(value)) {
+    for (const [key, item] of Object.entries(value)) add(key, item);
+  }
+  return Object.freeze(result);
+}
+
+function metadataGetter(value: HonuaHttpErrorOptions["responseHeaders"]): Pick<Headers, "get"> {
+  if (value && typeof (value as { get?: unknown }).get === "function") return value as Pick<Headers, "get">;
+  return metadataGetterFromRecords(metadataRecord(value));
+}
+
+function metadataGetterFromRecords(
+  ...records: readonly Readonly<Record<string, readonly string[]>>[]
+): Pick<Headers, "get"> {
+  return {
+    get(name: string) {
+      for (const record of records) {
+        const value = firstMetadata(record, name);
+        if (value) return value;
+      }
+      return null;
+    },
+  };
+}
+
+function firstMetadata(
+  record: Readonly<Record<string, readonly string[]>>,
+  ...keys: readonly string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = record[key.toLowerCase()]?.[0];
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function parseRetryAfter(headers: Pick<Headers, "get">): number | undefined {
+  const value = headers.get("retry-after");
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+  const target = Date.parse(value);
+  return Number.isFinite(target) ? Math.max(0, target - Date.now()) : undefined;
+}
+
+function parseEncodedFieldFailures(encoded: string | undefined, details: unknown): readonly HonuaFieldFailure[] {
+  if (encoded) {
+    try {
+      return parseFieldFailures(JSON.parse(encoded) as unknown);
+    } catch {
+      return [];
+    }
+  }
+  return parseFieldFailures(details);
+}
+
+function parseFieldFailures(value: unknown): readonly HonuaFieldFailure[] {
+  if (!Array.isArray(value)) return Object.freeze([]);
+  return Object.freeze(
+    value.filter(isObject).map((item) => {
+      const code = stringValue(item.code);
+      const severity = stringValue(item.severity);
+      const path = stringValue(item.path);
+      const fieldId = stringValue(item.fieldId);
+      const itemIndex = numberValue(item.itemIndex);
+      const message = stringValue(item.message);
+      return Object.freeze({
+        ...(code ? { code } : {}),
+        ...(severity ? { severity } : {}),
+        ...(path ? { path } : {}),
+        ...(fieldId ? { fieldId } : {}),
+        ...(itemIndex !== undefined ? { itemIndex } : {}),
+        ...(message ? { message } : {}),
+      });
+    }),
+  );
+}
+
+function freezeReceipt(receipt: HonuaTerminalFailureReceipt): HonuaTerminalFailureReceipt {
+  return Object.freeze({
+    ...receipt,
+    fieldErrors: Object.freeze([...receipt.fieldErrors]),
+    protocolMetadata: Object.freeze({
+      initial: receipt.protocolMetadata.initial,
+      trailing: receipt.protocolMetadata.trailing,
+    }),
+  });
+}
+
+function emptyMetadata(): Readonly<Record<string, readonly string[]>> {
+  return Object.freeze(Object.create(null) as Record<string, readonly string[]>);
+}
+
+function scalarCode(value: unknown): number | string | undefined {
+  return typeof value === "number" || typeof value === "string" ? value : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function parseBoolean(value: string | undefined): boolean | undefined {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function isFailureKind(value: string | undefined): value is HonuaFailureKind {
+  return value !== undefined && FAILURE_KINDS.has(value as HonuaFailureKind);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const FAILURE_KINDS = new Set<HonuaFailureKind>([
+  "authentication",
+  "authorization",
+  "not-found",
+  "validation",
+  "conflict",
+  "throttled",
+  "unavailable",
+  "unknown",
+]);
+const SENSITIVE_METADATA_KEYS = new Set(["authorization", "cookie", "set-cookie", "x-api-key"]);
