@@ -262,13 +262,44 @@ describe("control-plane client", () => {
     expect(result.statusCode).toBe(404);
   });
 
-  it("rejects schema drift when a required governance field is absent", async () => {
+  it.each([
+    ["id", { lifecycle: "Preview", optInRequired: false, supported: true, available: true }],
+    ["lifecycle", { id: "studio.map", optInRequired: false, supported: true, available: true }],
+    ["optInRequired", { id: "studio.map", lifecycle: "Preview", supported: true, available: true }],
+    ["supported", { id: "studio.map", lifecycle: "Preview", optInRequired: false, available: true }],
+    ["available", { id: "studio.map", lifecycle: "Preview", optInRequired: false, supported: true }],
+  ])("rejects schema drift when capability entry %s is absent", async (_field, capability) => {
     const controlPlane = clientFor(
       () =>
         new Response(
           JSON.stringify({
             schemaVersion: "honua.capability_manifest.v1",
-            capabilities: [{ id: "studio.map", lifecycle: "Preview", supported: true, available: true }],
+            capabilities: [capability],
+          }),
+        ),
+    );
+
+    await expect(controlPlane.getCapabilityManifest()).rejects.toMatchObject({
+      name: "HonuaCapabilityManifestContractError",
+    });
+  });
+
+  it.each([
+    ["id", { id: 42, lifecycle: "Preview", optInRequired: false, supported: true, available: true }],
+    ["lifecycle", { id: "studio.map", lifecycle: null, optInRequired: false, supported: true, available: true }],
+    [
+      "optInRequired",
+      { id: "studio.map", lifecycle: "Preview", optInRequired: "false", supported: true, available: true },
+    ],
+    ["supported", { id: "studio.map", lifecycle: "Preview", optInRequired: false, supported: "true", available: true }],
+    ["available", { id: "studio.map", lifecycle: "Preview", optInRequired: false, supported: true, available: "true" }],
+  ])("rejects schema drift when capability entry %s has the wrong type", async (_field, capability) => {
+    const controlPlane = clientFor(
+      () =>
+        new Response(
+          JSON.stringify({
+            schemaVersion: "honua.capability_manifest.v1",
+            capabilities: [capability],
           }),
         ),
     );

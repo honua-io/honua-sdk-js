@@ -117,11 +117,23 @@ export function assertStudioCapabilityManifest(value: unknown): asserts value is
     throw new HonuaCapabilityManifestContractError("Response is not a honua.capability_manifest.v1 document.");
   }
   for (const [index, capability] of value.capabilities.entries()) {
-    if (!isRecord(capability) || typeof capability.lifecycle !== "string" || capability.lifecycle.length === 0) {
+    if (!isRecord(capability)) {
+      throw new HonuaCapabilityManifestContractError(`capabilities[${index}] must be an object.`);
+    }
+    if (typeof capability.id !== "string" || capability.id.length === 0) {
+      throw new HonuaCapabilityManifestContractError(`capabilities[${index}].id is required.`);
+    }
+    if (typeof capability.lifecycle !== "string" || capability.lifecycle.length === 0) {
       throw new HonuaCapabilityManifestContractError(`capabilities[${index}].lifecycle is required.`);
     }
     if (typeof capability.optInRequired !== "boolean") {
       throw new HonuaCapabilityManifestContractError(`capabilities[${index}].optInRequired is required.`);
+    }
+    if (typeof capability.supported !== "boolean") {
+      throw new HonuaCapabilityManifestContractError(`capabilities[${index}].supported is required.`);
+    }
+    if (typeof capability.available !== "boolean") {
+      throw new HonuaCapabilityManifestContractError(`capabilities[${index}].available is required.`);
     }
   }
 }
