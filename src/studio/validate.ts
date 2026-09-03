@@ -149,6 +149,8 @@ const DASHBOARD_LIFECYCLE_FIELDS = [
   "generation",
 ] as const;
 
+const DASHBOARD_WIDGET_KINDS = new Set(["map", "table", "list", "count", "chart", "filter"]);
+
 function appendDashboardDiagnostics(diagnostics: StudioPackageDiagnostic[], value: Record<string, unknown>): void {
   if (!isRecord(value.data)) {
     diagnostics.push({
@@ -157,13 +159,68 @@ function appendDashboardDiagnostics(diagnostics: StudioPackageDiagnostic[], valu
       message: "dashboard package data must be a JSON object.",
       path: "data",
     });
+  } else if (typeof value.data.sourceId !== "string" || value.data.sourceId.trim().length === 0) {
+    diagnostics.push({
+      code: "missing-dashboard-source-id",
+      severity: "error",
+      message: "dashboard package data.sourceId must be a non-empty string.",
+      path: "data.sourceId",
+    });
   }
+
   if (!isRecord(value.layout) || !Array.isArray(value.layout.widgets)) {
     diagnostics.push({
       code: "missing-dashboard-layout",
       severity: "error",
       message: "dashboard package layout.widgets must be an array.",
       path: "layout.widgets",
+    });
+  } else {
+    if (value.layout.kind !== "operations-dashboard") {
+      diagnostics.push({
+        code: "invalid-dashboard-layout-kind",
+        severity: "error",
+        message: 'dashboard package layout.kind must be "operations-dashboard".',
+        path: "layout.kind",
+      });
+    }
+    value.layout.widgets.forEach((widget, index) => {
+      const widgetPath = `layout.widgets[${index}]`;
+      if (!isRecord(widget)) {
+        diagnostics.push({
+          code: "invalid-dashboard-widget",
+          severity: "error",
+          message: "Each dashboard widget must be a JSON object.",
+          path: widgetPath,
+        });
+        return;
+      }
+      if (typeof widget.id !== "string" || widget.id.trim().length === 0) {
+        diagnostics.push({
+          code: "missing-dashboard-widget-id",
+          severity: "error",
+          message: "Each dashboard widget must carry a non-empty id.",
+          path: `${widgetPath}.id`,
+        });
+      }
+      if (typeof widget.kind !== "string" || !DASHBOARD_WIDGET_KINDS.has(widget.kind)) {
+        diagnostics.push({
+          code: "invalid-dashboard-widget-kind",
+          severity: "error",
+          message: "Each dashboard widget must carry a supported kind.",
+          path: `${widgetPath}.kind`,
+          detail: { supported: [...DASHBOARD_WIDGET_KINDS], received: widget.kind },
+        });
+      }
+    });
+  }
+
+  if ("mapPackage" in value) {
+    diagnostics.push({
+      code: "embedded-dashboard-map-package",
+      severity: "error",
+      message: "dashboard package must reference a portable map through mapPackageId rather than embed mapPackage.",
+      path: "mapPackage",
     });
   }
   for (const field of DASHBOARD_LIFECYCLE_FIELDS) {
