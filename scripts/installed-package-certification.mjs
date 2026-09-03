@@ -10,9 +10,10 @@ import { pathToFileURL } from "node:url";
 const root = path.resolve(import.meta.dirname, "..");
 const sha256 = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const canonical = (value) => {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (Array.isArray(value)) return `[${value.map((item) => canonical(item) ?? "null").join(",")}]`;
   if (value && typeof value === "object") {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
+    return `{${Object.keys(value).filter((key) => value[key] !== undefined).sort()
+      .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
   }
   return JSON.stringify(value);
 };
@@ -23,7 +24,11 @@ const run = (command, args, options = {}) => {
 };
 
 export function buildReceipt({ candidate, denominator, observations = [], generatedAt = new Date().toISOString() }) {
-  const byId = new Map(observations.map((row) => [row.id, row]));
+  const byId = new Map();
+  for (const row of observations) {
+    if (byId.has(row.id)) throw new Error(`duplicate observation id ${row.id}`);
+    byId.set(row.id, row);
+  }
   const operations = denominator.rows.filter((row) => row.counts).map((row) => {
     const observed = byId.get(row.id);
     const verdict = observed?.verdict ?? "blocked";
@@ -50,6 +55,10 @@ export async function readInstalledCandidate() {
 }
 
 export async function withInstalledCandidate(candidate, callback, { consumerDependencies = {} } = {}) {
+  const imageDigest = candidate.server?.image?.split("@").at(-1);
+  if (!imageDigest || imageDigest !== candidate.server?.digest) {
+    throw new Error(`server image digest mismatch: ${imageDigest ?? "missing"} vs ${candidate.server?.digest ?? "missing"}`);
+  }
   const work = await mkdtemp(path.join(tmpdir(), "honua-sdk-installed-cert-"));
   try {
     await writeFile(path.join(work, "package.json"), JSON.stringify({ private: true, type: "module", dependencies: {
@@ -80,7 +89,7 @@ export async function certify({ output, observationsPath } = {}) {
   });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const outputIndex = process.argv.indexOf("--output");
   const observationsIndex = process.argv.indexOf("--observations");
   const output = outputIndex >= 0 ? process.argv[outputIndex + 1] : "test-results/installed-package-certification.json";
