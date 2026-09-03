@@ -373,11 +373,12 @@ function grpcFailureReceipt(
   const kind = isFailureKind(declaredKind) ? declaredKind : failureKindForGrpc(code);
   const machineCode = declaredMachineCode ?? defaultCode(kind);
   const declaredRetryable =
-    firstMetadata(trailing, "honua-error-retryable") ?? firstMetadata(initial, "honua-error-retryable");
+    firstMetadata(trailing, "honua-retryable", "honua-error-retryable") ??
+    firstMetadata(initial, "honua-retryable", "honua-error-retryable");
   const retryAfterMs = parseRetryAfter(metadataGetterFromRecords(trailing, initial));
   const correlationId =
-    firstMetadata(trailing, "x-correlation-id", "honua-request-id", "x-request-id") ??
-    firstMetadata(initial, "x-correlation-id", "honua-request-id", "x-request-id");
+    firstMetadata(trailing, "x-correlation-id", "honua-request-id", "x-request-id", "honua-correlation-id") ??
+    firstMetadata(initial, "x-correlation-id", "honua-request-id", "x-request-id", "honua-correlation-id");
   const encodedErrors = firstMetadata(trailing, "honua-error-details") ?? firstMetadata(initial, "honua-error-details");
   return freezeReceipt({
     protocolCode: code,
@@ -420,7 +421,7 @@ function defaultCode(kind: HonuaFailureKind): string {
     "not-found": "resource_not_found",
     validation: "validation_failed",
     conflict: "resource_conflict",
-    throttled: "rate_limited",
+    throttled: "rate_limit_exceeded",
     unavailable: "service_unavailable",
     unknown: "unknown_failure",
   }[kind];
