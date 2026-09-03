@@ -414,7 +414,22 @@
     },
     "columnar-query-quickstart": {
       "track": "recipe",
-      "validationProfile": "browser-recipe"
+      "validationProfile": "browser-recipe",
+      "playground": {
+        "projectPath": "playgrounds/columnar-query-quickstart",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          }
+        ]
+      }
     },
     "node-backend-quickstart": {
       "track": "recipe",
@@ -588,6 +603,21 @@
       "lifecycle": {
         "state": "active",
         "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
+      },
+      "playground": {
+        "projectPath": "playgrounds/stac-imagery-browser",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          }
+        ]
       }
     },
     "storytelling-25d-map": {
@@ -769,7 +799,22 @@
         "npm run demo:coverages-wcs:typecheck",
         "npm run demo:coverages-wcs:build",
         "npm run test:playwright:coverages-wcs"
-      ]
+      ],
+      "playground": {
+        "projectPath": "playgrounds/coverages-wcs-basic",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          }
+        ]
+      }
     },
     {
       "id": "cesium-route-playback",

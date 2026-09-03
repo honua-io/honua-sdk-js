@@ -48,10 +48,10 @@ async function readManifest(relativePath: string) {
 describe("generated MCP client configuration pin", () => {
   it("keeps every create-honua-app SDK pin on the coordinated pair", async () => {
     const sdk = await readManifest("package.json");
-    expect(verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: LOCAL_INSTALL_MCP_PACKAGE_VERSION })).toEqual(
+    expect(verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: sdk.version })).toEqual(
       CREATE_APP_PIN_SITES.map((relativePath: string) => ({
         relativePath,
-        pin: `${sdk.name}@${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`,
+        pin: `${sdk.name}@${sdk.version}`,
       })),
     );
   });
