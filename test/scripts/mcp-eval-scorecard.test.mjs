@@ -217,7 +217,13 @@ test("publishes the complete classified admin family without claiming an unrun c
   assert.match(markdown, /honua_admin_\*/);
   assert.match(markdown, /432 tools/);
   assert.match(markdown, /one-time-secret\/session operations are explicitly excluded/);
-  assert.match(markdown, /compatible/);
+  const adminTable = tables(markdown).find((table) => table[0]?.some((cell) => cell.trim() === "Candidate status"));
+  assert.ok(adminTable, "expected the admin operation family table");
+  const adminRow = adminTable.find((row) => row[1]?.trim() === "`honua_admin_*`");
+  assert.ok(adminRow, "expected the admin operation family row");
+  const candidateStatusColumn = adminTable[0].findIndex((cell) => cell.trim() === "Candidate status");
+  assert.ok(candidateStatusColumn >= 0, "expected the candidate status column");
+  assert.match(adminRow[candidateStatusColumn], /^\s*compatible\s+\(/);
   assert.match(markdown, /not a fabricated live pass receipt/);
 });
 
