@@ -25,6 +25,8 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Authenticate to the candidate registry
         run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Clear previous qualification receipts
+        run: rm -f test-results/installed-package-certification.json test-results/ogc-processes-candidate-qualification.json
       - name: Start exact candidate
         env:
           HONUA_DEV_GRANT_EDITION: Pro

@@ -27,11 +27,15 @@ function required(value, name) {
   return value.trim();
 }
 
-export function observationsFromQualification(evidence, evidenceUri) {
+function serializeQualificationEvidence(evidence) {
+  return `${JSON.stringify(evidence, null, 2)}\n`;
+}
+
+export function observationsFromQualification(evidence, evidenceUri, serializedEvidence = serializeQualificationEvidence(evidence)) {
   if (evidence.result !== "passed") throw new Error("OGC Processes qualification did not pass");
   const diagnostic = {
     evidenceUri,
-    evidenceSha256: `sha256:${createHash("sha256").update(JSON.stringify(evidence)).digest("hex")}`,
+    evidenceSha256: `sha256:${createHash("sha256").update(serializedEvidence).digest("hex")}`,
     qualificationFormat: evidence.format,
     fixtureSha256: evidence.fixture.sha256,
   };
@@ -78,8 +82,9 @@ export async function certifyInstalledOgcProcesses({
         });
       }
       assertCandidateEvidenceRedacted(qualification);
-      await writeFile(required(qualificationOutput, "qualificationOutput"), `${JSON.stringify(qualification, null, 2)}\n`);
-      return observationsFromQualification(qualification, evidenceUri);
+      const serializedEvidence = serializeQualificationEvidence(qualification);
+      await writeFile(required(qualificationOutput, "qualificationOutput"), serializedEvidence);
+      return observationsFromQualification(qualification, evidenceUri, serializedEvidence);
     },
   });
   return { qualification, receipt };
