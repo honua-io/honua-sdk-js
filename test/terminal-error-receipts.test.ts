@@ -52,6 +52,10 @@ function assertReceipt(error: HonuaHttpError | Error, failure: FixtureFailure, t
   expect(error.receipt.fieldErrors).toHaveLength(failure.errors?.length ?? 0);
 }
 
+function assertGeoServicesReceipt(error: HonuaHttpError | Error, failure: FixtureFailure): void {
+  assertReceipt(error, { ...failure, errors: undefined }, 200);
+}
+
 describe("terminal error receipt matrix", () => {
   it("locks the shared denominator at exactly 40 cells", () => {
     expect(fixture.sdkPaths).toHaveLength(8);
@@ -90,18 +94,15 @@ describe("terminal error receipt matrix", () => {
           error: {
             code: failure.geoServicesCode,
             message: failure.detail,
-            kind: failure.kind,
-            machineCode: failure.code,
+            details: [`Correlation ID: corr-${failure.id}`],
             retryable: failure.retryable,
             retryAfterSeconds: failure.retryAfterSeconds,
-            correlationId: `corr-${failure.id}`,
-            errors: failure.errors,
           },
         },
         headersFor(failure),
       );
       expect(error).toBeInstanceOf(HonuaHttpError);
-      assertReceipt(error!, failure, 200);
+      assertGeoServicesReceipt(error!, failure);
       expect(error!.statusCode).toBe(failure.geoServicesCode);
       expect(error!.receipt.protocolCode).toBe(failure.geoServicesCode);
     });
@@ -112,10 +113,10 @@ describe("terminal error receipt matrix", () => {
         rawMessage: failure.detail,
         headers: new Headers({ "X-Test-Initial": failure.id }),
         metadata: new Headers({
-          "X-Correlation-ID": `corr-${failure.id}`,
+          "Honua-Correlation-Id": `corr-${failure.id}`,
           "Honua-Error-Kind": failure.kind,
           "Honua-Error-Code": failure.code,
-          "Honua-Error-Retryable": String(failure.retryable),
+          "Honua-Retryable": String(failure.retryable),
           ...(failure.retryAfterSeconds === undefined ? {} : { "Retry-After": String(failure.retryAfterSeconds) }),
           ...(failure.errors === undefined ? {} : { "Honua-Error-Details": JSON.stringify(failure.errors) }),
         }),
