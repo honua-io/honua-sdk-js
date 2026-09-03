@@ -223,15 +223,19 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /\.headSha == \$generated/u);
     assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
     assert.match(workflow, /\["SDK CI","PR issue disposition","Schema sync gate","Security"\]/u);
-    assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --watch --fail-fast/u);
+    assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --json name,bucket/u);
     const mergeWait = workflow.slice(
       workflow.indexOf("- name: Merge validated regeneration PR"),
       workflow.indexOf("- name: Dispatch strict trunk CI and docs validation"),
     );
-    assert.match(mergeWait, /timeout-minutes: 50/u);
+    assert.match(mergeWait, /timeout-minutes: 60/u);
     assert.doesNotMatch(mergeWait, /--auto/u);
+    assert.doesNotMatch(mergeWait, /--watch/u);
+    assert.match(mergeWait, /all\(\.\[\]; \.bucket == "pass"\)/u);
+    assert.match(mergeWait, /\.bucket == "fail" or \.bucket == "cancel"/u);
+    assert.match(mergeWait, /Required checks did not all pass/u);
     const boundedRequiredCheckWait = mergeWait.indexOf(
-      'gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --watch',
+      'gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name,bucket',
     );
     const postWaitPrRead = mergeWait.indexOf('post_wait_pr="$(gh pr view');
     const postWaitTopologyRead = mergeWait.indexOf(

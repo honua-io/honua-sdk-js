@@ -937,7 +937,7 @@ jobs:
 
       - name: Merge validated regeneration PR
         if: needs.regenerate.outputs.changed == 'true'
-        timeout-minutes: 50
+        timeout-minutes: 60
         env:
           # The merge itself is the operation the trunk ruleset judges, so it
           # runs under the same bot App identity that opened the pull request.
@@ -959,21 +959,34 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --exit-status \
             --interval 10
-          for attempt in {1..30}; do
+          # Do not use GitHub CLI's check watcher here. Its stream has left
+          # this step attached after the required-check snapshot was already
+          # entirely green (#1541), until the job's outer timeout killed it.
+          # Poll snapshots instead, so the predicate is explicit: every
+          # currently required context must report `pass`. This does not soften
+          # branch protection; the merge below remains subject to GitHub's
+          # ruleset, and no unreported or non-passing requirement is accepted.
+          for attempt in {1..270}; do
             required="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name,bucket 2>/dev/null || true)"
             if [[ -z "$required" ]]; then
               required='[]'
             fi
-            if [[ "$(jq 'length' <<<"$required")" -ge 3 ]]; then
+            if jq -e 'length >= 3 and all(.[]; .bucket == "pass")' <<<"$required" >/dev/null; then
+              echo "All required checks passed for regeneration PR #$PR_NUMBER."
               break
             fi
-            if (( attempt == 30 )); then
-              echo "Required checks did not attach to regeneration PR #$PR_NUMBER."
+            if jq -e 'any(.[]; .bucket == "fail" or .bucket == "cancel")' <<<"$required" >/dev/null; then
+              echo "A required check failed or was cancelled for regeneration PR #$PR_NUMBER:"
+              jq -c '.[] | select(.bucket == "fail" or .bucket == "cancel")' <<<"$required"
+              exit 1
+            fi
+            if (( attempt == 270 )); then
+              echo "Required checks did not all pass for regeneration PR #$PR_NUMBER after 45 minutes:"
+              jq -c '.[] | select(.bucket != "pass")' <<<"$required"
               exit 1
             fi
             sleep 10
           done
-          gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --watch --fail-fast --interval 10
 
           # GENERATED passed the commit-subject and changed-path allowlists before
           # publication. Rebind the still-open same-repository PR and its remote
