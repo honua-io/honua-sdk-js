@@ -229,10 +229,10 @@ export class HonuaGeocodingClient {
     }
 
     const url = `${this.serviceBasePath()}/findAddressCandidates?${params.toString()}`;
-    const data = await this.request<FindAddressCandidatesResponse>(url);
+    const { data, responseHeaders } = await this.request<FindAddressCandidatesResponse>(url);
 
     if (data.error) {
-      throw new HonuaHttpError(data.error.code, `Geocode server error: ${data.error.message}`, data.error);
+      throw this.geoServicesError(data.error, "Geocode", responseHeaders);
     }
 
     return (data.candidates ?? []).map((c) => ({
@@ -265,8 +265,9 @@ export class HonuaGeocodingClient {
     const url = `${this.serviceBasePath()}/reverseGeocode?${params.toString()}`;
 
     let data: ReverseGeocodeResponse;
+    let responseHeaders: Headers | undefined;
     try {
-      data = await this.request<ReverseGeocodeResponse>(url);
+      ({ data, responseHeaders } = await this.request<ReverseGeocodeResponse>(url));
     } catch (err) {
       // Some geocode servers return an HTTP error when no address is found.
       if (err instanceof HonuaHttpError && err.statusCode === 400) {
@@ -280,7 +281,7 @@ export class HonuaGeocodingClient {
       if (data.error.code === 400) {
         return null;
       }
-      throw new HonuaHttpError(data.error.code, `Reverse geocode server error: ${data.error.message}`, data.error);
+      throw this.geoServicesError(data.error, "Reverse geocode", responseHeaders);
     }
 
     if (!data.address || !data.location) {
@@ -315,10 +316,10 @@ export class HonuaGeocodingClient {
     }
 
     const url = `${this.serviceBasePath()}/suggest?${params.toString()}`;
-    const data = await this.request<SuggestResponse>(url);
+    const { data, responseHeaders } = await this.request<SuggestResponse>(url);
 
     if (data.error) {
-      throw new HonuaHttpError(data.error.code, `Suggest server error: ${data.error.message}`, data.error);
+      throw this.geoServicesError(data.error, "Suggest", responseHeaders);
     }
 
     return (data.suggestions ?? []).map((s) => ({
@@ -386,7 +387,20 @@ export class HonuaGeocodingClient {
     }
   }
 
-  private async request<T>(url: string): Promise<T> {
+  private geoServicesError(error: ServerError, operation: string, responseHeaders?: Headers): HonuaHttpError {
+    return new HonuaHttpError(
+      error.code,
+      `${operation} server error: ${error.message}`,
+      { error },
+      {
+        transportStatus: 200,
+        protocolCode: error.code,
+        ...(responseHeaders ? { responseHeaders } : {}),
+      },
+    );
+  }
+
+  private async request<T>(url: string): Promise<{ data: T; responseHeaders: Headers }> {
     const controller = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -430,9 +444,11 @@ export class HonuaGeocodingClient {
       } catch {
         body = await response.text().catch(() => null);
       }
-      throw new HonuaHttpError(response.status, `Geocoding request failed with status ${response.status}`, body);
+      throw new HonuaHttpError(response.status, `Geocoding request failed with status ${response.status}`, body, {
+        responseHeaders: response.headers,
+      });
     }
 
-    return (await response.json()) as T;
+    return { data: (await response.json()) as T, responseHeaders: response.headers };
   }
 }

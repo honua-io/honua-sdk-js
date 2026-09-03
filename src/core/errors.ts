@@ -342,14 +342,17 @@ function httpFailureReceipt(
   const correlationId =
     stringValue(source?.correlationId) ??
     stringValue(root?.correlationId) ??
-    firstMetadata(metadata, "x-correlation-id", "honua-request-id", "x-request-id");
+    firstMetadata(metadata, "x-correlation-id", "honua-request-id", "x-request-id", "honua-correlation-id");
   const fieldErrors = parseFieldFailures(source?.errors ?? root?.errors);
   return freezeReceipt({
     transportStatus: options.transportStatus ?? statusCode,
     ...(protocolCode !== undefined ? { protocolCode } : {}),
     kind,
     ...(code ? { code } : {}),
-    retryable: explicitRetryable ?? HTTP_RETRYABLE_STATUSES.has(classificationCode),
+    retryable:
+      explicitRetryable ??
+      (HTTP_RETRYABLE_STATUSES.has(classificationCode) ||
+        HTTP_RETRYABLE_STATUSES.has(options.transportStatus ?? statusCode)),
     ...(retryAfterSeconds !== undefined
       ? { retryAfterMs: Math.max(0, retryAfterSeconds * 1_000) }
       : headerDelay !== undefined
@@ -393,8 +396,8 @@ function grpcFailureReceipt(
 }
 
 function failureKindForHttp(code: number, transportStatus: number): HonuaFailureKind {
-  if (code === 401) return "authentication";
-  if (code === 403 || code === 498 || code === 499) return "authorization";
+  if (code === 401 || code === 498 || code === 499) return "authentication";
+  if (code === 403) return "authorization";
   if (code === 404) return "not-found";
   if (code === 400 || code === 422) return "validation";
   if (code === 409 || code === 412 || code === 428) return "conflict";
