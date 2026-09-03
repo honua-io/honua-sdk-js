@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 export const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MANIFEST_PATH = "config/support-manifest.v1.json";
+export const RASTER_SOURCE_REGISTRY_PATH = "config/raster-source-registry.v1.json";
 export const STATUS_VOCABULARY = [
   "supported",
   "beta",
@@ -50,6 +51,7 @@ const GENERATED_PATHS = {
   supportProjectionSchema: "support/contract/v1/schemas/support-projection.schema.json",
   supportProjection: "support/projections/sdk-support.v1.json",
   discoveryInventory: "support/projections/connect-discovery-inventory.v1.json",
+  rasterSourceRegistry: "support/projections/raster-source-registry.v1.json",
 };
 
 function readJson(filename) {
@@ -239,6 +241,25 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
 
   if (manifest.format !== "honua.sdk.support-manifest.v1" || manifest.schemaVersion !== 1) {
     fail("manifest must use honua.sdk.support-manifest.v1 schema version 1");
+  }
+  if (manifest.rasterSourceRegistry !== RASTER_SOURCE_REGISTRY_PATH) {
+    fail(`rasterSourceRegistry must reference ${RASTER_SOURCE_REGISTRY_PATH}`);
+  } else {
+    try {
+      const registry = readJson(path.join(projectRoot, manifest.rasterSourceRegistry));
+      if (registry.format !== "honua.sdk.raster-source-registry.v1" || registry.schemaVersion !== 1) {
+        fail("raster source registry must use honua.sdk.raster-source-registry.v1 schema version 1");
+      }
+      const ids = (registry.sources ?? []).map((entry) => entry.id);
+      if (!unique(ids)) fail("raster source registry ids must be unique");
+      for (const entry of registry.sources ?? []) {
+        if (!unique(entry.operations ?? []) || !unique(entry.discoveryOperations ?? [])) {
+          fail(`raster source registry ${entry.id} operations must be unique`);
+        }
+      }
+    } catch (error) {
+      fail(`could not read raster source registry: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   if (JSON.stringify(manifest.statusVocabulary) !== JSON.stringify(STATUS_VOCABULARY)) {
     fail(`statusVocabulary must be exactly: ${STATUS_VOCABULARY.join(", ")}`);
@@ -1149,6 +1170,14 @@ export function generateOutputs({ manifest, packageJson, projectRoot = PROJECT_R
       json({
         ...manifest.discoveryInventory,
         generatedFrom: MANIFEST_PATH,
+      }),
+    ],
+    [
+      GENERATED_PATHS.rasterSourceRegistry,
+      json({
+        ...readJson(path.join(projectRoot, manifest.rasterSourceRegistry)),
+        $schema: "../../config/raster-source-registry.schema.json",
+        generatedFrom: manifest.rasterSourceRegistry,
       }),
     ],
   ]);

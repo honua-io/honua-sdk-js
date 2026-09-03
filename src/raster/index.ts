@@ -11,7 +11,6 @@
  * @packageDocumentation
  */
 
-import type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
 import { type StacCogAssetSession, mountStacCogAssetToMapLibre, openStacCogAsset } from "../cog/index.js";
 import type {
   CogBand,
@@ -39,65 +38,73 @@ import type {
 import { coverageToMapLibreImage, createCoverageClient, createWcsClient } from "../coverages/index.js";
 import type { CoverageMapLibreImage, CoverageResult } from "../coverages/index.js";
 import type { DynamicStacAssetDescriptor } from "../stac/index.js";
+import {
+  rasterDiscoveryRegistryEntry,
+  rasterSessionRegistryEntry,
+} from "./source-registry.js";
+import type { RasterRegistryMaturity, RasterRegistryServerStatus, RasterSourceIdentity } from "./source-registry.js";
+
+export {
+  RASTER_SOURCE_REGISTRY,
+  rasterDiscoveryRegistryEntry,
+  rasterRegistryEntry,
+  rasterSessionRegistryEntry,
+} from "./source-registry.js";
+export type {
+  RasterRegistryDiscoveryKind,
+  RasterRegistryMaturity,
+  RasterRegistryServerStatus,
+  RasterRegistrySessionKind,
+  RasterSourceIdentity,
+  RasterSourceRegistryEntry,
+} from "./source-registry.js";
 
 export type RasterSourceKind = "cog" | "image-server" | "ogc-coverage" | "wcs";
-export type RasterMaturity = CloudNativeMaturity;
+export type RasterMaturity = RasterRegistryMaturity;
 export type RasterOperation = "inspect" | "read-window" | "statistics" | "histogram" | "inspect-value" | "render";
 export type RasterExecutionMode = "browser-range" | "worker-decode" | "server-operation" | "unavailable";
 
 export interface RasterCapabilityStatus {
   readonly client: RasterMaturity;
-  readonly server: RasterMaturity;
+  readonly server: RasterRegistryServerStatus;
   readonly endToEnd: RasterMaturity;
 }
 
 export interface RasterCapabilityRecord extends RasterCapabilityStatus {
   readonly source: RasterSourceKind;
+  readonly identity: RasterSourceIdentity;
   readonly operations: readonly RasterOperation[];
   readonly note: string;
 }
 
 /** Runtime-independent truth table. An injected adapter does not upgrade a built-in claim. */
-export const UNIFIED_RASTER_CAPABILITY_MATRIX: Readonly<Record<RasterSourceKind, RasterCapabilityRecord>> = {
-  cog: {
-    source: "cog",
-    client: "experimental",
-    server: "unavailable",
-    endToEnd: "experimental",
-    operations: ["inspect", "read-window", "statistics", "histogram", "inspect-value", "render"],
-    note: "Bounded browser range reads with caller-injected structural decoding; no server is required.",
-  },
-  "image-server": {
-    source: "image-server",
-    client: "supported",
-    server: "supported",
-    endToEnd: "supported",
-    operations: ["inspect", "read-window", "inspect-value", "render"],
-    note: "Uses the existing Honua/GeoServices ImageServer surface and its advertised operations.",
-  },
-  "ogc-coverage": {
-    source: "ogc-coverage",
-    client: "experimental",
-    server: "experimental",
-    endToEnd: "experimental",
-    operations: ["inspect", "read-window", "render"],
-    note: "Uses the bounded OGC API Coverages client at the caller-provided service root.",
-  },
-  wcs: {
-    source: "wcs",
-    client: "experimental",
-    server: "experimental",
-    endToEnd: "experimental",
-    operations: ["inspect", "read-window", "render"],
-    note: "Uses the bounded WCS 2.0.1 client at the caller-provided KVP endpoint.",
-  },
-};
+function capabilityRecord(kind: RasterSourceKind, deployment?: "honua" | "arcgis"): RasterCapabilityRecord {
+  const entry = rasterSessionRegistryEntry(kind, deployment);
+  return Object.freeze({
+    source: kind,
+    identity: entry.identity,
+    client: entry.client,
+    server: entry.server,
+    endToEnd: entry.endToEnd,
+    operations: entry.operations as readonly RasterOperation[],
+    note: entry.note,
+  });
+}
+
+/** Compatibility projection. ImageServer's row is the Honua deployment row; plans use the descriptor's explicit identity. */
+export const UNIFIED_RASTER_CAPABILITY_MATRIX: Readonly<Record<RasterSourceKind, RasterCapabilityRecord>> =
+  Object.freeze({
+    cog: capabilityRecord("cog"),
+    "image-server": capabilityRecord("image-server", "honua"),
+    "ogc-coverage": capabilityRecord("ogc-coverage"),
+    wcs: capabilityRecord("wcs"),
+  });
 
 /** Vocabulary reserved for later cloud-native discovery; these rows are not executable here. */
 export const RASTER_FORMAT_MATURITY = {
-  cog: "experimental",
-  zarr: "unavailable",
-  netcdf: "unavailable",
+  cog: rasterDiscoveryRegistryEntry("cog").client,
+  zarr: rasterDiscoveryRegistryEntry("zarr").client,
+  netcdf: rasterDiscoveryRegistryEntry("netcdf").client,
 } as const satisfies Readonly<Record<"cog" | "zarr" | "netcdf", RasterMaturity>>;
 
 export interface DirectCogCandidateSource {
@@ -124,7 +131,8 @@ export interface ImageServerRasterSource {
   readonly id: string;
   readonly baseUrl: string;
   readonly serviceId: string;
-  readonly deployment?: "honua" | "arcgis";
+  /** Explicit source identity; endpoint labels and URL shapes are never used to infer it. */
+  readonly deployment: "honua" | "arcgis";
 }
 
 export interface OgcCoverageRasterSource {
@@ -169,7 +177,7 @@ export interface RasterExecutionPlan {
   readonly bounded: boolean;
   readonly decoder: "main-thread" | "worker" | "server" | "none";
   readonly cache: RasterCachePolicy;
-  readonly capability: RasterCapabilityStatus;
+  readonly capability: RasterCapabilityRecord;
   readonly reason: string;
 }
 
@@ -373,7 +381,10 @@ export function planRasterOperation(
   options: Pick<OpenRasterSessionOptions, "cache" | "decoderExecution"> = {},
 ): RasterExecutionPlan {
   const cache = options.cache ?? DEFAULT_CACHE_POLICY;
-  const capability = UNIFIED_RASTER_CAPABILITY_MATRIX[source.kind];
+  const capability =
+    source.kind === "image-server"
+      ? capabilityRecord(source.kind, source.deployment)
+      : UNIFIED_RASTER_CAPABILITY_MATRIX[source.kind];
   if (source.kind === "cog") {
     const supported = capability.operations.includes(operation);
     return {

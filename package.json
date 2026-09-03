@@ -820,10 +820,13 @@
   "files": [
     "dist/src",
     "dist/browser",
+    "dist/config/raster-source-registry.v1.json",
     "scripts/run-legacy-migration-cli.mjs",
     "config/public-surface.json",
     "config/support-manifest.v1.json",
     "config/support-manifest.schema.json",
+    "config/raster-source-registry.v1.json",
+    "config/raster-source-registry.schema.json",
     "config/capability-keys.fixture.json",
     "config/capability-crosswalk.v1.json",
     "config/capability-crosswalk.schema.json",
