@@ -33,9 +33,16 @@ describe("run() dispatch", () => {
   });
 
   it("returns exit code 2 for an unknown command", async () => {
-    const code = await run(["frobnicate"]);
-    expect(code).toBe(2);
-    expect(cap.lines.join("")).toContain("Unknown command: frobnicate");
+    // Diagnostics belong on stderr so stdout remains usable for command output
+    // and machine-readable pipelines.
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      const code = await run(["frobnicate"]);
+      expect(code).toBe(2);
+      expect(stderr).toHaveBeenCalledWith(expect.stringContaining("Unknown command: frobnicate"));
+    } finally {
+      stderr.mockRestore();
+    }
   });
 
   it("returns exit code 2 for an unknown flag on a real command", async () => {

@@ -143,7 +143,7 @@ export interface ImportCreateInput {
   readonly options?: Record<string, unknown>;
 }
 
-/** `POST /imports` — enqueue an import job. */
+/** `POST /import/upload-url` — enqueue a URL import job. */
 export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPlaneJob> = {
   id: "import.create",
   title: "Create an import job",
@@ -177,7 +177,7 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
     const { input } = context;
     return {
       method: "POST",
-      path: "/imports",
+      path: "/import/upload-url",
       summary: `Import ${input.sourceKind} from ${input.sourceUrl ?? input.connectionId ?? "(unspecified source)"}`,
       resourceRef: {
         type: "import-job",

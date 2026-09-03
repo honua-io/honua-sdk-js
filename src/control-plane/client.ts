@@ -287,7 +287,7 @@ export class HonuaImportsClient {
   public listJobs(
     options: HonuaControlPlaneListOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaControlPlaneJob>>> {
-    return this.#controlPlane.requestPage("imports", "/imports/jobs", options).then((result) =>
+    return this.#controlPlane.requestPage<HonuaImportJobResponse>("imports", "/import/jobs", options).then((result) =>
       result.supported
         ? {
             supported: true,
@@ -318,11 +318,8 @@ export class HonuaImportsClient {
       trackProgress: true,
     };
     return this.#controlPlane
-      .requestJson<{ readonly jobId?: string; readonly statusUrl?: string; readonly cancelUrl?: string; readonly id?: string; readonly status?: string }>(
-        "imports", "POST", "/imports", body, options)
-      .then((result) => result.supported
-        ? { supported: true, value: normalizeImportJob(result.value) }
-        : result);
+      .requestJson<HonuaImportJobResponse>("imports", "POST", "/import/upload-url", body, options)
+      .then((result) => (result.supported ? { supported: true, value: normalizeImportJob(result.value) } : result));
   }
 
   public getJob(
@@ -330,16 +327,30 @@ export class HonuaImportsClient {
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
     return this.#controlPlane
-      .requestJson("imports", "GET", `/imports/jobs/${encodeURIComponent(jobId)}`, undefined, options)
+      .requestJson<HonuaImportJobResponse>(
+        "imports",
+        "GET",
+        `/import/jobs/${encodeURIComponent(jobId)}`,
+        undefined,
+        options,
+      )
       .then((result) => (result.supported ? { supported: true, value: normalizeImportJob(result.value) } : result));
   }
 
   public job(jobId: string): HonuaControlPlaneJobHandle {
-    return new HonuaControlPlaneJobHandle(this.#controlPlane, "imports", `/imports/jobs/${encodeURIComponent(jobId)}`);
+    return new HonuaControlPlaneJobHandle(this.#controlPlane, "imports", `/import/jobs/${encodeURIComponent(jobId)}`);
   }
 }
 
-function normalizeImportJob(value: { readonly jobId?: string; readonly statusUrl?: string; readonly cancelUrl?: string; readonly id?: string; readonly status?: string }): HonuaControlPlaneJob {
+interface HonuaImportJobResponse {
+  readonly jobId?: string;
+  readonly statusUrl?: string;
+  readonly cancelUrl?: string;
+  readonly id?: string;
+  readonly status?: string;
+}
+
+function normalizeImportJob(value: HonuaImportJobResponse): HonuaControlPlaneJob {
   const id = value.id ?? value.jobId;
   if (!id) throw new Error("Import response did not contain a job identifier.");
   return {
@@ -354,15 +365,15 @@ function normalizeImportJob(value: { readonly jobId?: string; readonly statusUrl
 }
 
 function stringOption(options: Record<string, unknown> | undefined, key: string): string | undefined {
-  return typeof options?.[key] === "string" ? options[key] as string : undefined;
+  return typeof options?.[key] === "string" ? (options[key] as string) : undefined;
 }
 
 function numberOption(options: Record<string, unknown> | undefined, key: string): number | undefined {
-  return typeof options?.[key] === "number" ? options[key] as number : undefined;
+  return typeof options?.[key] === "number" ? (options[key] as number) : undefined;
 }
 
 function booleanOption(options: Record<string, unknown> | undefined, key: string): boolean | undefined {
-  return typeof options?.[key] === "boolean" ? options[key] as boolean : undefined;
+  return typeof options?.[key] === "boolean" ? (options[key] as boolean) : undefined;
 }
 
 function fileNameFromUrl(sourceUrl: string | undefined): string | undefined {
@@ -376,8 +387,17 @@ function fileNameFromUrl(sourceUrl: string | undefined): string | undefined {
 }
 
 function slug(value: string): string {
-  const result = value.trim().replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
-  return result || "imported_data";
+  const normalized = Array.from(value.trim(), (character) => {
+    const code = character.charCodeAt(0);
+    return (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95
+      ? character
+      : "_";
+  }).join("");
+  let start = 0;
+  while (start < normalized.length && normalized[start] === "_") start += 1;
+  let end = normalized.length;
+  while (end > start && normalized[end - 1] === "_") end -= 1;
+  return normalized.slice(start, end) || "imported_data";
 }
 
 export class HonuaApiTokensClient {
@@ -479,7 +499,7 @@ export class HonuaControlPlaneJobHandle {
 
   public poll(options: HonuaControlPlaneRequestOptions = {}): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
     return this.#controlPlane
-      .requestJson(this.#capability, "GET", this.#path, undefined, options)
+      .requestJson<HonuaControlPlaneJob>(this.#capability, "GET", this.#path, undefined, options)
       .then((result) =>
         this.#capability === "imports" && result.supported
           ? { supported: true, value: normalizeImportJob(result.value) }

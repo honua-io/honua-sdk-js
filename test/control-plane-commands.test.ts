@@ -626,7 +626,7 @@ describe("the terminal release journey runs on the shared command layer", () => 
   });
 
   it("produces the same receipt from a CLI-shaped `honua import create` and a direct JS call", async () => {
-    const job = { id: "job-7", status: "queued", links: { self: "/api/v1/admin/imports/job-7" } };
+    const job = { id: "job-7", status: "queued", links: { self: "/api/v1/admin/import/jobs/job-7" } };
 
     const cli = recorder(() => ({ body: job }));
     vi.stubGlobal("fetch", cli.fetchFn);
@@ -697,7 +697,7 @@ describe("the terminal release journey runs on the shared command layer", () => 
       { transport: "sdk" },
     );
 
-    expect(requests[0].path).toBe("/api/v1/admin/imports");
+    expect(requests[0].path).toBe("/api/v1/admin/import/upload-url");
     expect(requests[0].body).toMatchObject({
       sourceUrl: "https://example.test/parcels.geojson",
       fileName: "parcels.geojson",
@@ -713,14 +713,7 @@ describe("the terminal release journey runs on the shared command layer", () => 
     const { requests, fetchFn } = recorder();
     vi.stubGlobal("fetch", fetchFn);
     const output = capture();
-    const exitCode = await run([
-      "connection",
-      "test",
-      "conn-1",
-      "--dry-run",
-      "--base-url",
-      "https://example.test",
-    ]);
+    const exitCode = await run(["connection", "test", "conn-1", "--dry-run", "--base-url", "https://example.test"]);
     vi.restoreAllMocks();
     expect(exitCode).toBe(0);
     expect(requests).toHaveLength(0);

@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 
-import { assertAdminBaseUrl, type HonuaCommandRuntime, createHonuaCommandRuntime } from "../control-plane/index.js";
+import { type HonuaCommandRuntime, assertAdminBaseUrl, createHonuaCommandRuntime } from "../control-plane/index.js";
 import { HonuaClient } from "../core/client.js";
 import { HonuaGeocodingClient } from "../geocoding/index.js";
 import { type ResolveOptions, resolveConnection } from "./config.js";
