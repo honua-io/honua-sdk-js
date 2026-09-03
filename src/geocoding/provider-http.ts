@@ -77,7 +77,9 @@ export async function providerGetJson<T>(url: string, init: ProviderRequestInit)
     } catch {
       body = await response.text().catch(() => null);
     }
-    throw new HonuaHttpError(response.status, `${init.label} request failed with status ${response.status}`, body);
+    throw new HonuaHttpError(response.status, `${init.label} request failed with status ${response.status}`, body, {
+      responseHeaders: response.headers,
+    });
   }
 
   try {
