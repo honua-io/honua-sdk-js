@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.10-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.9-beta.0...mcp-server-v0.1.10-beta.0) (2026-09-03)
+
+
+### Bug Fixes
+
+* **cli:** harden admin and connection command contracts ([#1598](https://github.com/honua-io/honua-sdk-js/issues/1598)) ([b3ad280](https://github.com/honua-io/honua-sdk-js/commit/b3ad28019c865634b9989f7919d6db2d5bb3e7f5))
+* **mcp:** verify zero-to-map config pins ([#1550](https://github.com/honua-io/honua-sdk-js/issues/1550)) ([2ae8bbd](https://github.com/honua-io/honua-sdk-js/commit/2ae8bbd0bca37edf84dfa0695d43fe8317bc3e74))
+* **release:** prove published-layer style rendering and pin the preflight to the full catalog ([#1542](https://github.com/honua-io/honua-sdk-js/issues/1542)) ([f936d37](https://github.com/honua-io/honua-sdk-js/commit/f936d37bf6c41d64f5e7a2daf6d0d89f8faeb8f5))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.10-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.9-beta.0 to ^0.1.10-beta.0
+
 ## [0.1.9-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.8-beta.0...mcp-server-v0.1.9-beta.0) (2026-08-29)
 
 
