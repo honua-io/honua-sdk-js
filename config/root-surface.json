@@ -1,5 +1,5 @@
 {
-  "$comment": "Reviewed final root surface for issues #451, #532, #533, and #534. Generated migration rows partition the b6e89a4 transition-era root; regenerate fixtures and migration documentation after reviewed additions.",
+  "$comment": "Reviewed final root surface for issues #451, #532, #533, #534, and #1599. Generated migration rows partition the b6e89a4 transition-era root; regenerate fixtures and migration documentation after reviewed additions.",
   "schemaVersion": 1,
   "inclusionRule": [
     "Include symbols used directly by the committed connect-query-explain-mount golden root workflow.",
@@ -157,19 +157,25 @@
       "HonuaErrorEnvelopeContextValue",
       "HonuaErrorMetadata",
       "HonuaErrorOptions",
+      "HonuaFailureKind",
+      "HonuaFieldFailure",
       "HonuaGeometryError",
       "HonuaGeometryErrorCode",
       "HonuaGrpcError",
+      "HonuaGrpcErrorOptions",
       "HonuaHttpError",
+      "HonuaHttpErrorOptions",
       "HonuaKernel",
       "HonuaKernelConnection",
       "HonuaKernelConnectOptions",
       "HonuaKernelOptions",
       "HonuaMapLibreSourceAdapterError",
       "HonuaNetworkError",
+      "HonuaProtocolMetadata",
       "HonuaQueryPlanExecutionError",
       "HonuaQueryPlanningError",
       "HonuaSdkError",
+      "HonuaTerminalFailureReceipt",
       "HonuaTimeoutError",
       "HonuaTransport",
       "InspectOptions",
@@ -620,6 +626,30 @@
     },
     {
       "symbol": "QueryTemporalFilter",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaFailureKind",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaFieldFailure",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaGrpcErrorOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaHttpErrorOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaProtocolMetadata",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaTerminalFailureReceipt",
       "kind": "type"
     }
   ],
