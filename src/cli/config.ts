@@ -146,7 +146,6 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
   }
 
   const savedKeyIsBoundToBaseUrl =
-    source === "config" &&
     !options.profile &&
     typeof saved.baseUrl === "string" &&
     stripTrailingSlashes(saved.baseUrl) === stripTrailingSlashes(baseUrl);

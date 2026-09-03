@@ -289,12 +289,7 @@ function readBody(value: string | undefined, contentType: string | undefined): u
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
         throw new Error("not an object");
       }
-      const file = (parsed as Record<string, unknown>).file;
-      if (typeof file === "string" && file.startsWith("@")) {
-        const filePath = file.slice(1);
-        return { ...parsed, file: new File([readFileSync(filePath)], path.basename(filePath)) };
-      }
-      return parsed;
+      return materializeMultipartFiles(parsed as Record<string, unknown>);
     } catch {
       throw new ArgError("--body must be a JSON object or @file for multipart/form-data.");
     }
@@ -308,6 +303,16 @@ function readBody(value: string | undefined, contentType: string | undefined): u
   } catch {
     throw new ArgError("--body must be JSON or @file containing JSON.");
   }
+}
+
+function materializeMultipartFiles(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value).map(([name, field]) => {
+      if (typeof field !== "string" || !field.startsWith("@")) return [name, field];
+      const filePath = field.slice(1);
+      return [name, new File([readFileSync(filePath)], path.basename(filePath))];
+    }),
+  );
 }
 
 function compactRequest(request: {

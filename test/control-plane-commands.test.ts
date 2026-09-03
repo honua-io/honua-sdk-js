@@ -237,8 +237,7 @@ describe("command error taxonomy", () => {
 
   it("rejects a cross-field violation before the dry-run short circuit, not inside execute", async () => {
     // A dry run that approves an input the real invocation rejects is worse
-    // than no dry run: `import.create` needs a source, and the schema alone
-    // cannot say "one of these two".
+    // than no dry run: `import.create` needs the URL required by the server.
     for (const dryRun of [true, false]) {
       const { requests, fetchFn } = recorder();
       const error = await runtimeFor(fetchFn)
@@ -249,17 +248,22 @@ describe("command error taxonomy", () => {
       expect(
         (error as HonuaCommandError).issues?.map((issue) => issue.message),
         `dryRun=${dryRun}`,
-      ).toEqual(["one of `sourceUrl` or `connectionId` is required"]);
+      ).toEqual(["`sourceUrl` is required by /import/upload-url"]);
       expect(requests, `dryRun=${dryRun}`).toHaveLength(0);
     }
 
-    // The same input with a source previews cleanly.
-    const preview = await runtimeFor(recorder().fetchFn).execute(
-      importCreateCommand,
-      { sourceKind: "geojson", connectionId: "conn-1" },
-      { transport: "mcp", dryRun: true },
-    );
-    expect(preview.status).toBe("dry-run");
+    const connectionOnly = await runtimeFor(recorder().fetchFn)
+      .execute(
+        importCreateCommand,
+        { sourceKind: "postgis", connectionId: "conn-1" },
+        { transport: "mcp", dryRun: true },
+      )
+      .catch((thrown: unknown) => thrown);
+    expect(connectionOnly).toBeInstanceOf(HonuaCommandError);
+    expect((connectionOnly as HonuaCommandError).issues?.[0]).toMatchObject({
+      path: "connectionId",
+      message: "stored-connection imports are not supported by /import/upload-url; provide `sourceUrl`",
+    });
   });
 
   it("classifies HTTP failures into the shared taxonomy", async () => {
@@ -766,9 +770,8 @@ describe("the terminal release journey runs on the shared command layer", () => 
   });
 
   it("leaves the cross-field rule to the command, so every transport reports it identically", async () => {
-    // `honua import create` requires neither `--source-url` nor `--connection`
-    // as a terminal-side rule: "one of these two" is the command's own
-    // `validate`, so the CLI cannot drift from MCP, Studio, or JS on it.
+    // `honua import create` leaves the URL requirement to the shared command,
+    // so the CLI cannot drift from MCP, Studio, or JS on it.
     const { requests, fetchFn } = recorder();
     vi.stubGlobal("fetch", fetchFn);
     const output = capture();
@@ -783,7 +786,7 @@ describe("the terminal release journey runs on the shared command layer", () => 
     ]);
     vi.restoreAllMocks();
     expect(exitCode).toBe(2);
-    expect(output.join("")).toContain("one of `sourceUrl` or `connectionId` is required");
+    expect(output.join("")).toContain("`sourceUrl` is required by /import/upload-url");
     expect(requests).toHaveLength(0);
   });
 

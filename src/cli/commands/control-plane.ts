@@ -15,7 +15,7 @@
  *
  * Like `honua map publish`, these verbs parse flags into the command's declared
  * input plus a `HonuaCommandInvocation` and render the receipt. Everything else
- * — validation, the `sourceUrl`-or-`connectionId` cross-field rule, idempotency
+ * — validation, the current endpoint's `sourceUrl` requirement, idempotency
  * derivation, dry run, the typed error taxonomy — belongs to the command.
  *
  * @packageDocumentation
@@ -36,7 +36,7 @@ import type { CommandContext } from "../command.js";
 
 const CONNECTION_USAGE = "Usage: honua connection test <connectionId> [--dry-run] [--yes]";
 const IMPORT_USAGE =
-  "Usage: honua import create --source-kind <kind> [--source-url <url>|--connection <id>] " +
+  "Usage: honua import create --source-kind <kind> --source-url <url> " +
   "[--workspace <id>] [--title <text>] [--options <json|@file>] [--dry-run] [--yes]";
 
 /**
@@ -59,10 +59,10 @@ export function connectionTestInvocation(parsed: ParsedArgs): {
 
 /**
  * Translate `honua import create` flags into the shared command's input and
- * invocation. `--source-url` and `--connection` are both optional here on
- * purpose: "one of these two is required" is the command's `validate` rule, so
- * the terminal and every other transport report the same typed failure instead
- * of each inventing its own usage error.
+ * invocation. `--source-url` remains optional here so the shared command can
+ * report the typed validation error; `--connection` is retained as a
+ * compatibility input and is rejected because the current server route is
+ * URL-only.
  *
  * @internal
  */

@@ -90,4 +90,16 @@ describe("CLI credential config persistence", () => {
       rmSync(directory, { recursive: true, force: true });
     }
   });
+
+  it("reuses a saved key when a flag or environment URL matches its binding", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-cli-config-same-url-"));
+    const env = { HONUA_CONFIG_HOME: directory, HONUA_BASE_URL: "https://prod.example" };
+    try {
+      await writeConfig({ baseUrl: "https://prod.example/", apiKey: "prod-key" }, env);
+      expect(resolveConnection({ baseUrl: "https://prod.example", env }).apiKey).toBe("prod-key");
+      expect(resolveConnection({ env }).apiKey).toBe("prod-key");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });

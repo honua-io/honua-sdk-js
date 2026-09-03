@@ -15,6 +15,7 @@ import {
   type HonuaControlPlaneCapability,
   type HonuaControlPlaneJob,
   type HonuaControlPlaneJobStatus,
+  type HonuaControlPlaneLinks,
   type HonuaControlPlaneListOptions,
   type HonuaControlPlanePage,
   type HonuaControlPlaneRawRequest,
@@ -300,10 +301,18 @@ export class HonuaImportsClient {
     );
   }
 
-  public create(
+  public async create(
     request: HonuaImportCreateRequest,
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
+    if (!request.sourceUrl?.trim()) {
+      throw new TypeError(
+        "Stored-connection imports are not supported by /import/upload-url; provide a sourceUrl for a URL import.",
+      );
+    }
+    if (request.connectionId) {
+      throw new TypeError("connectionId cannot be sent to /import/upload-url; provide only sourceUrl.");
+    }
     const fileName = stringOption(request.options, "fileName") ?? fileNameFromUrl(request.sourceUrl);
     const tableName = stringOption(request.options, "tableName") ?? slug(request.title ?? fileName ?? "imported_data");
     const body = {
@@ -348,20 +357,45 @@ interface HonuaImportJobResponse {
   readonly cancelUrl?: string;
   readonly id?: string;
   readonly status?: string;
+  readonly links?: HonuaControlPlaneLinks;
+  readonly [extra: string]: unknown;
 }
 
 function normalizeImportJob(value: HonuaImportJobResponse): HonuaControlPlaneJob {
   const id = value.id ?? value.jobId;
   if (!id) throw new Error("Import response did not contain a job identifier.");
   return {
+    ...value,
     id,
     type: "import",
-    status: (value.status ?? "queued").toLowerCase() as HonuaControlPlaneJobStatus,
+    status: normalizeImportJobStatus(value.status),
     links: {
+      ...(value.links ?? {}),
       ...(value.statusUrl ? { self: value.statusUrl } : {}),
       ...(value.cancelUrl ? { cancel: value.cancelUrl } : {}),
     },
   };
+}
+
+function normalizeImportJobStatus(status: string | undefined): HonuaControlPlaneJobStatus {
+  switch (status?.toLowerCase()) {
+    case "processing":
+    case "running":
+      return "running";
+    case "completed":
+    case "succeeded":
+    case "success":
+      return "succeeded";
+    case "cancelled":
+    case "canceled":
+      return "cancelled";
+    case "failed":
+      return "failed";
+    case "queued":
+      return "queued";
+    default:
+      return (status ?? "queued").toLowerCase() as HonuaControlPlaneJobStatus;
+  }
 }
 
 function stringOption(options: Record<string, unknown> | undefined, key: string): string | undefined {
@@ -619,7 +653,15 @@ function normalizePage<T>(
   options: { readonly fallbackValidator?: HonuaControlPlaneListOptions["validator"] } = {},
 ): HonuaControlPlanePage<T> {
   const value = isRecord(body) ? body : {};
-  const items = (Array.isArray(value.items) ? value.items : Array.isArray(value.data) ? value.data : []) as T[];
+  const items = (
+    Array.isArray(value.items)
+      ? value.items
+      : Array.isArray(value.data)
+        ? value.data
+        : Array.isArray(value.jobs)
+          ? value.jobs
+          : []
+  ) as T[];
   const pagination = isRecord(value.pagination) ? value.pagination : value;
   const validator = honuaCacheValidatorFromHeaders(response.headers) ?? options.fallbackValidator;
   const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;

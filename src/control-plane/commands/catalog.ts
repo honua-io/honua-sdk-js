@@ -132,7 +132,9 @@ function connectionRef(input: ConnectionTestInput): HonuaCommandResourceRef {
  *
  * The server's own `dryRun` request field is deliberately not exposed: dry run
  * is a command-layer concept here, and two spellings of it would let one
- * transport preview while another executed.
+ * transport preview while another executed. The current file-import endpoint
+ * accepts public source URLs only; stored-connection imports have no matching
+ * server route yet and are rejected before a request is issued.
  */
 export interface ImportCreateInput {
   readonly sourceKind: string;
@@ -147,7 +149,7 @@ export interface ImportCreateInput {
 export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPlaneJob> = {
   id: "import.create",
   title: "Create an import job",
-  description: "Enqueue a control-plane import job for a source URL or a stored connection.",
+  description: "Enqueue a control-plane import job for a source URL.",
   mode: "action",
   resourceKind: "import-job",
   inputSchema: {
@@ -156,7 +158,11 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
     properties: {
       sourceKind: { type: "string", minLength: 1, description: "Import source kind, e.g. `geojson` or `postgis`." },
       sourceUrl: { type: "string", minLength: 1, description: "Source URL, when the import reads a location." },
-      connectionId: { type: "string", minLength: 1, description: "Stored connection, when the import reads a system." },
+      connectionId: {
+        type: "string",
+        minLength: 1,
+        description: "Compatibility input; the current /import/upload-url endpoint accepts sourceUrl only.",
+      },
       workspaceId: { type: "string", minLength: 1, description: "Workspace that will own the imported content." },
       title: { type: "string", minLength: 1, description: "Human title for the resulting content." },
       options: { type: "object", description: "Import-kind-specific options, passed through verbatim." },
@@ -165,11 +171,22 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
     additionalProperties: false,
   },
   validate(input) {
-    // JSON Schema cannot say "one of these two", and this has to run before the
-    // dry-run short circuit: a preview that accepts an import with no source
-    // would be a preview of a request the server never sees.
+    // This has to run before the dry-run short circuit: a preview that accepts
+    // an import with no URL would be a preview of a request the server never
+    // sees.
     if (!input.sourceUrl && !input.connectionId) {
-      return [{ path: "", message: "one of `sourceUrl` or `connectionId` is required" }];
+      return [{ path: "sourceUrl", message: "`sourceUrl` is required by /import/upload-url" }];
+    }
+    if (!input.sourceUrl && input.connectionId) {
+      return [
+        {
+          path: "connectionId",
+          message: "stored-connection imports are not supported by /import/upload-url; provide `sourceUrl`",
+        },
+      ];
+    }
+    if (input.sourceUrl && input.connectionId) {
+      return [{ path: "", message: "provide only one of `sourceUrl` or `connectionId`" }];
     }
     return [];
   },
