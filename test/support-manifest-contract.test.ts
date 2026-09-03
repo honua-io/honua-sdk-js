@@ -20,7 +20,7 @@ import type {
   HonuaGeoprocessingService,
   HonuaImageService,
 } from "../src/core/surfaces.js";
-import { RASTER_SOURCE_REGISTRY } from "../src/raster/source-registry.js";
+import { RASTER_SOURCE_REGISTRY, rasterRegistryEntry } from "../src/raster/source-registry.js";
 
 interface OperationClaim {
   readonly operations: readonly string[];
@@ -138,6 +138,15 @@ describe("support manifest contract parity", () => {
         "server-backed-asset",
       ]),
     );
+  });
+
+  it("deep-freezes canonical operation arrays shared by registry consumers", () => {
+    const zarr = rasterRegistryEntry("zarr");
+    expect(Object.isFrozen(zarr)).toBe(true);
+    expect(Object.isFrozen(zarr.operations)).toBe(true);
+    expect(Object.isFrozen(zarr.discoveryOperations)).toBe(true);
+    expect(() => (zarr.discoveryOperations as string[]).push("render")).toThrow(TypeError);
+    expect(rasterRegistryEntry("zarr").discoveryOperations).toEqual(["discover", "inspect-metadata"]);
   });
 
   it("tracks the canonical protocol and operation vocabularies in declaration order", () => {

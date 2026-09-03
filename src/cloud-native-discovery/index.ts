@@ -445,7 +445,9 @@ function capabilityFor(
       : advertised
         ? (registry?.server ?? SERVER_MATURITY[kind])
         : "unavailable";
-  const endToEnd = !advertised ? "unavailable" : origin === "direct-asset" ? client : weakerMaturity(client, server);
+  const endToEnd = !advertised
+    ? "unavailable"
+    : (registry?.endToEnd ?? (origin === "direct-asset" ? client : weakerMaturity(client, server)));
   return { kind, maturity: endToEnd, status: { client, server, endToEnd }, advertised, sourceCount };
 }
 

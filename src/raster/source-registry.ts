@@ -26,7 +26,13 @@ export interface RasterSourceRegistryEntry {
 }
 
 export const RASTER_SOURCE_REGISTRY = Object.freeze(
-  registryJson.sources.map((entry) => Object.freeze(entry)) as readonly RasterSourceRegistryEntry[],
+  registryJson.sources.map((entry) =>
+    Object.freeze({
+      ...entry,
+      operations: Object.freeze([...entry.operations]),
+      discoveryOperations: Object.freeze([...entry.discoveryOperations]),
+    }),
+  ) as readonly RasterSourceRegistryEntry[],
 );
 
 export function rasterRegistryEntry(id: string): RasterSourceRegistryEntry {

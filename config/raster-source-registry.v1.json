@@ -69,7 +69,7 @@
       "identity": "server-backed-asset",
       "client": "experimental",
       "server": "experimental",
-      "endToEnd": "experimental",
+      "endToEnd": "unavailable",
       "operations": [],
       "discoveryOperations": ["discover", "inspect-metadata"],
       "note": "Zarr metadata and direct client parsing are experimental; bounded server execution remains a distinct server-backed path."
