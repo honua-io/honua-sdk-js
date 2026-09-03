@@ -1,6 +1,6 @@
-# Test and documentation-pipeline evidence is not part of the runtime SDK.
-/samples/
-
-# Published JavaScript is the runtime artifact; embedded-source maps stay in
-# the repository for debugging without inflating the npm tarball.
-*.map
+# Repository-only sample inputs and execution evidence are not part of the
+# runtime SDK. Public projections, schemas, and consumer fixtures are explicitly
+# allowlisted in package.json.
+/samples/evidence/
+/samples/fixtures/
+/samples/scenarios/

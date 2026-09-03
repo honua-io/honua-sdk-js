@@ -101,9 +101,10 @@ function assertRuntimePeersExternal(result, label) {
  * so fail closed until the build supplies and verifies that notice explicitly.
  */
 function assertBundledInputsAreFirstParty(result, label) {
-  const thirdPartyInput = Object.keys(result.metafile.inputs).find((input) =>
-    input.replaceAll("\\", "/").includes("/node_modules/"),
-  );
+  const thirdPartyInput = Object.keys(result.metafile.inputs).find((input) => {
+    const normalized = input.replaceAll("\\", "/");
+    return normalized.startsWith("node_modules/") || normalized.includes("/node_modules/");
+  });
   if (thirdPartyInput) {
     throw new Error(
       `${label} bundles third-party input while legalComments is \"none\": ${thirdPartyInput}. ` +
