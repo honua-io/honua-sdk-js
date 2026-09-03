@@ -4,7 +4,7 @@ import { HonuaHttpError } from "../core/errors.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { QueryMethod } from "../core/types.js";
 import type { HonuaMapPackage } from "../runtime/index.js";
-import type { StudioCapabilityManifest } from "../studio/capability-manifest.js";
+import { type StudioCapabilityManifest, assertStudioCapabilityManifest } from "../studio/capability-manifest.js";
 import {
   HONUA_CAPABILITY_MANIFEST_PATH,
   HONUA_CONTROL_PLANE_BASE_PATH,
@@ -92,13 +92,15 @@ export class HonuaControlPlaneClient {
     options: HonuaCapabilityManifestOptions = {},
   ): Promise<HonuaControlPlaneResult<StudioCapabilityManifest>> {
     const { environment, workspaceId, ...requestOptions } = options;
-    return this.requestJson<StudioCapabilityManifest>(
+    const result = await this.requestJson<StudioCapabilityManifest>(
       "capabilities",
       "GET",
       withManifestQuery(HONUA_CAPABILITY_MANIFEST_PATH, environment, workspaceId),
       undefined,
       requestOptions,
     );
+    if (result.supported) assertStudioCapabilityManifest(result.value);
+    return result;
   }
 
   public async requestJson<T>(
