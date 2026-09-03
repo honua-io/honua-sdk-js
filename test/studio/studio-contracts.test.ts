@@ -7,6 +7,7 @@ import { validateMapPackage } from "../../src/runtime/index.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../../src/runtime/map-package.js";
 import {
   HONUA_ANALYSIS_PACKAGE_FORMAT_V1,
+  HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
   HONUA_ETL_PACKAGE_FORMAT_V1,
   HONUA_FORM_PACKAGE_FORMAT_V1,
   HONUA_GP_PACKAGE_FORMAT_V1,
@@ -26,6 +27,7 @@ import {
 } from "../../src/studio/index.js";
 import type {
   HonuaAnalysisPackage,
+  HonuaDashboardPackage,
   HonuaETLPackage,
   HonuaFormPackage,
   HonuaGPPackage,
@@ -300,6 +302,7 @@ describe("Studio package family projection", () => {
   it("exposes one stable format constant per stub family", () => {
     expect(HONUA_QUERY_PACKAGE_FORMAT_V1).toBe("honua_query_package.v1");
     expect(HONUA_ANALYSIS_PACKAGE_FORMAT_V1).toBe("honua_analysis_package.v1");
+    expect(HONUA_DASHBOARD_PACKAGE_FORMAT_V1).toBe("honua_dashboard_package.v1");
     expect(HONUA_REPORT_PACKAGE_FORMAT_V1).toBe("honua_report_package.v1");
     expect(HONUA_FORM_PACKAGE_FORMAT_V1).toBe("honua_form_package.v1");
     expect(HONUA_WORKFLOW_PACKAGE_FORMAT_V1).toBe("honua_workflow_package.v1");
@@ -333,13 +336,14 @@ describe("Studio package family projection", () => {
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaQueryPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaAnalysisPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaMapPackage>,
+      { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaDashboardPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaReportPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaFormPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaWorkflowPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaGPPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaETLPackage>,
     ];
-    expect(responses).toHaveLength(8);
+    expect(responses).toHaveLength(9);
   });
 });
 

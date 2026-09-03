@@ -1,9 +1,7 @@
 {
-  "format": "honua_generated_app_manifest.v1",
-  "profile": "operations-dashboard.v1",
-  "appId": "app-dash-qgis-002",
+  "format": "honua_dashboard_package.v1",
+  "packageId": "dashboard-qgis-002",
   "title": "Active incidents dashboard",
-  "version": "1.0.0",
   "data": { "sourceId": "incidents", "previewLimit": 500 },
   "mapPackageId": "pkg-map-mcp-001",
   "layout": {
@@ -19,7 +17,7 @@
   "provenance": {
     "format": "honua_package_provenance.v1",
     "origin": "qgis",
-    "packageId": "app-dash-qgis-002",
+    "packageId": "dashboard-qgis-002",
     "generatedAt": "2026-05-21T09:30:00Z",
     "generator": "qgis-plugin@0.3.1",
     "prompt": {

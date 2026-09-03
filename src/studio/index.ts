@@ -8,9 +8,9 @@
  * functions, and one typed HTTP client built on the SDK's standard
  * {@link HonuaClient} transport, and never imports from `operator`,
  * `esri-compat`, `web-components`, `interactions`, or `realtime` (which pull
- * in MapLibre / DOM code). The established `map` and `dashboard`/`app` shapes
- * are re-exported from their leaf modules so consumers reach every family
- * from one import path.
+ * in MapLibre / DOM code). The established `map` and `app` shapes are
+ * re-exported from their leaf modules; the dedicated `dashboard` authoring
+ * contract is owned here so consumers reach every family from one import path.
  *
  * {@link HonuaStudioLifecycleClient} (`./lifecycle-client.js`) covers every
  * endpoint in `honua-server`'s Studio package lifecycle API
@@ -38,6 +38,7 @@
 
 export {
   HONUA_ANALYSIS_PACKAGE_FORMAT_V1,
+  HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
   HONUA_ETL_PACKAGE_FORMAT_V1,
   HONUA_FORM_PACKAGE_FORMAT_V1,
   HONUA_GP_PACKAGE_FORMAT_V1,
@@ -51,6 +52,8 @@ export {
 export type {
   HonuaAnalysisPackage,
   HonuaAnalysisPackageFormat,
+  HonuaDashboardPackage,
+  HonuaDashboardPackageFormat,
   HonuaETLPackage,
   HonuaETLPackageFormat,
   HonuaFormFieldSpec,
