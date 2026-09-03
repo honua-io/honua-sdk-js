@@ -626,6 +626,11 @@ function captureRealtimeEvent<TFeature>(input: unknown): CapturedRealtimeEvent<T
   if (input.eventId !== undefined && typeof input.eventId !== "string") {
     return { conflict: "Realtime eventId must be a string when provided." };
   }
+  for (const name of ["operationInstanceId", "correlationId", "auditId", "proposalId"] as const) {
+    if (input[name] !== undefined && typeof input[name] !== "string") {
+      return { conflict: `Realtime event ${name} must be a string when provided.` };
+    }
+  }
   if (input.checkpoint !== undefined && !isRecord(input.checkpoint)) {
     return { conflict: "Realtime event checkpoint must be an object when provided." };
   }
@@ -636,6 +641,10 @@ function captureRealtimeEvent<TFeature>(input: unknown): CapturedRealtimeEvent<T
   const checkpoint = input.checkpoint ? Object.freeze(projectResumeCheckpoint(input.checkpoint)) : undefined;
   const base = {
     ...(input.eventId !== undefined ? { eventId: input.eventId } : {}),
+    ...(input.operationInstanceId !== undefined ? { operationInstanceId: input.operationInstanceId as string } : {}),
+    ...(input.correlationId !== undefined ? { correlationId: input.correlationId as string } : {}),
+    ...(input.auditId !== undefined ? { auditId: input.auditId as string } : {}),
+    ...(input.proposalId !== undefined ? { proposalId: input.proposalId as string } : {}),
     ...(input.cursor !== undefined ? { cursor: input.cursor as string } : {}),
     ...(input.watermark !== undefined ? { watermark: input.watermark as string } : {}),
     ...(input.timestamp !== undefined ? { timestamp: input.timestamp as string } : {}),
