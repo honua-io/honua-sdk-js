@@ -408,4 +408,20 @@ describe("live realtime evidence with a controlled-conformance run", () => {
     // The lease was taken before the mismatch was detected, so it is released.
     expect(drifted.requests.some((entry) => entry.method === "DELETE")).toBe(true);
   });
+
+  it("keeps a failed passive baseline diagnostic on the baseline scenario", async () => {
+    const drifted = await loopback({ leaseRevisionDrift: true });
+    const evidence = await collectLiveRealtimeConformanceEvidence(liveOptions(drifted, { baselineOnly: true }));
+
+    expectSchemaValid(evidence);
+    expect(evidence.conformance).toMatchObject({
+      status: "failed",
+      reason: { code: "conformance-revision-unbound" },
+    });
+    for (const transport of evidence.transports.filter((entry) => entry.advertised)) {
+      expect(transport.status).toBe("failed");
+      expect(transport.scenarios).toEqual([{ id: "baseline-completion", result: "failed" }]);
+      expect(transport.diagnostics[0]?.scenario).toBe("baseline-completion");
+    }
+  });
 });

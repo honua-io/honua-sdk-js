@@ -1492,6 +1492,33 @@ describe("realtime conformance evidence", () => {
     );
   });
 
+  it("reports sequential passive baselines independently when the source changes between transports", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions(),
+      baselineOnly: true,
+      fetchFn: () =>
+        Promise.resolve(
+          jsonResponse({
+            serverVersion: SERVER_VERSION,
+            serverRevision: SERVER_REVISION,
+            transports: [
+              { id: "sse", url: `${BASE_URL}/stream` },
+              { id: "websocket", url: "ws://127.0.0.1:4318/stream" },
+            ],
+          }),
+        ),
+      eventSourceFactory: () => createScriptedEventSource([currentServerSnapshot("open")]),
+      webSocketFactory: () => createScriptedWebSocket([currentServerSnapshot("assigned")]),
+    });
+
+    expectSchemaValid(evidence);
+    expect(evidence.summary).toMatchObject({ status: "executed", executed: 2, failed: 0, unsupported: 1 });
+    expect(evidence.transports.slice(0, 2).every((transport) => transport.status === "executed")).toBe(true);
+    expect(
+      new Set(evidence.transports.slice(0, 2).map((transport) => transport.baselineState?.finalStateSha256)).size,
+    ).toBe(2);
+  });
+
   it("does not certify two replacement snapshots as snapshot-plus-delta history", async () => {
     const evidence = await collectLiveRealtimeConformanceEvidence({
       ...commonLiveOptions({ timeoutMs: 20 }),

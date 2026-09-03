@@ -512,11 +512,11 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
   const transports =
     conformance.status === "failed"
       ? failExecutedTransports(
-          reconcileExecutedTransportStates(executions),
+          reconcileExecutedTransportStates(executions, { compareStates: !executionOptions.baselineOnly }),
           conformance.reason.code,
           conformance.reason.message,
         )
-      : reconcileExecutedTransportStates(executions);
+      : reconcileExecutedTransportStates(executions, { compareStates: !executionOptions.baselineOnly });
   const attemptedScenarios = transports.flatMap((transport) => transport.scenarios);
   const executionCount = attemptedScenarios.length;
   const scenarioCount = new Set(attemptedScenarios.map((scenario) => scenario.id)).size;
@@ -738,9 +738,18 @@ function failExecutedTransports(transports, code, message) {
           status: "failed",
           scenarioCounts: { total: 1, passed: 0, failed: 1 },
           scenarios: [
-            { id: transport.baselineState ? "baseline-completion" : "snapshot-delta-contract", result: "failed" },
+            {
+              id: transport.baselineState ? "baseline-completion" : "snapshot-delta-contract",
+              result: "failed",
+            },
           ],
-          diagnostics: [{ code, message, scenario: "snapshot-delta-contract" }],
+          diagnostics: [
+            {
+              code,
+              message,
+              scenario: transport.baselineState ? "baseline-completion" : "snapshot-delta-contract",
+            },
+          ],
         }
       : transport,
   );
@@ -1184,8 +1193,9 @@ async function executeAdvertisedTransport(id, descriptor, options) {
   }
 }
 
-function reconcileExecutedTransportStates(executions) {
+function reconcileExecutedTransportStates(executions, { compareStates = true } = {}) {
   const executed = executions.filter(({ transport }) => transport.status === "executed");
+  if (!compareStates) return executions.map(({ transport }) => transport);
   const stateOf = ({ transport }) => transport.acceptedState ?? transport.baselineState;
   if (
     executed.length <= 1 ||
@@ -1910,14 +1920,18 @@ export function validateRealtimeConformanceEvidence(evidence) {
     "Live realtime evidence claimed a fixture revision source.",
   );
   if (evidence.lane === "live") {
-    const executedStates = evidence.transports.filter((transport) => transport.status === "executed").map((transport) => {
-      const state = transport.acceptedState ?? transport.baselineState;
-      return `${String(state.eventCount)}:${state.historySha256}:${state.finalStateSha256}`;
-    });
-    invariant(
-      new Set(executedStates).size <= 1,
-      "Executed realtime transports accepted divergent histories or final states.",
-    );
+    const executed = evidence.transports.filter((transport) => transport.status === "executed");
+    const baselineOnly = executed.some((transport) => transport.baselineState !== undefined);
+    if (!baselineOnly) {
+      const executedStates = executed.map((transport) => {
+        const state = transport.acceptedState;
+        return `${String(state.eventCount)}:${state.historySha256}:${state.finalStateSha256}`;
+      });
+      invariant(
+        new Set(executedStates).size <= 1,
+        "Executed realtime transports accepted divergent histories or final states.",
+      );
+    }
   }
   validateConformanceRun(evidence);
   const scenarioIds = new Set(evidence.transports.flatMap((transport) => transport.scenarios.map((scenario) => scenario.id)));
