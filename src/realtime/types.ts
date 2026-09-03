@@ -62,6 +62,14 @@ export interface RealtimeFeatureTombstone {
 
 export interface RealtimeFeatureEventBase {
   readonly eventId?: string;
+  /** Canonical governed operation instance supplied by honua-server. */
+  readonly operationInstanceId?: string;
+  /** Canonical request correlation identity supplied by honua-server. */
+  readonly correlationId?: string;
+  /** Durable acceptance-audit identity supplied by honua-server. */
+  readonly auditId?: string;
+  /** Approved proposal identity supplied by honua-server, when applicable. */
+  readonly proposalId?: string;
   readonly cursor?: string;
   readonly watermark?: string;
   readonly timestamp?: string;
