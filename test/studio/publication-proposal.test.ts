@@ -545,6 +545,22 @@ describe("publicationRequests.create — submission identity", () => {
     expect(replay.correlationId).toBe(first.correlationId);
     expect(replay.replayed).toBe(true);
   });
+
+  it("translates the deprecated acknowledgement spelling, without overriding the canonical one", async () => {
+    const contract = fixture("publish-request-idempotent-replay.v1.json");
+    const { client, requests } = clientForSequence([contract, contract]);
+
+    await client.publicationRequests.create(ITEM, VERSION, {
+      warningAcknowledgment: "Legacy audit text.",
+    });
+    await client.publicationRequests.create(ITEM, VERSION, {
+      warningAcknowledgment: "Legacy audit text.",
+      warningAcknowledgement: "Canonical audit text.",
+    });
+
+    expect(requests[0]?.body).toEqual({ warningAcknowledgement: "Legacy audit text." });
+    expect(requests[1]?.body).toEqual({ warningAcknowledgement: "Canonical audit text." });
+  });
 });
 
 describe("the proposer cannot approve their own publication", () => {

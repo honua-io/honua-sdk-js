@@ -423,8 +423,9 @@ export type StudioPublicationRequestInput = StudioOpenApiSchemas["CreateStudioPu
  * `Active`; the client never surfaces it from any other state, even if a
  * server sends one.
  */
-export type StudioPublicationRequest = StudioOpenApiSchemas["StudioPublicationRequest"] &
-  StudioPublicationIdentifiers & {
+export type StudioPublicationRequest = Omit<StudioOpenApiSchemas["StudioPublicationRequest"], "status"> & {
+  readonly status: StudioPublicationRequestStatus;
+} & StudioPublicationIdentifiers & {
     /** @deprecated Not present in the canonical Studio OpenAPI contract. */
     readonly contentHash?: string;
     /** @deprecated Not present in the canonical Studio OpenAPI contract. */

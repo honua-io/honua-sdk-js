@@ -760,7 +760,12 @@ export class HonuaStudioPublicationRequestsClient {
     options: HonuaStudioRequestOptions = {},
   ): Promise<StudioPublicationRequest> {
     assertNoApprovalFields(request);
-    return this.#lifecycle.request("POST", `${this.#path(itemId, versionId)}/publish-requests`, request, options);
+    return this.#lifecycle.request(
+      "POST",
+      `${this.#path(itemId, versionId)}/publish-requests`,
+      serializeStudioPublicationRequestInput(request),
+      options,
+    );
   }
 
   /**
@@ -992,6 +997,20 @@ function assertNoApprovalFields(request: StudioPublicationRequestInput): void {
     400,
     `A publication submission must not carry ${offending.join(", ")}: ${rule}`,
   );
+}
+
+/**
+ * Keep the pre-contract acknowledgement spelling source-compatible while
+ * sending only the canonical property understood by the Studio API. An
+ * explicitly supplied canonical value always wins.
+ */
+function serializeStudioPublicationRequestInput(request: StudioPublicationRequestInput): unknown {
+  if (!Object.hasOwn(request, "warningAcknowledgment")) return request;
+  const { warningAcknowledgment, ...canonicalRequest } = request;
+  if (warningAcknowledgment === undefined || Object.hasOwn(request, "warningAcknowledgement")) {
+    return canonicalRequest;
+  }
+  return { ...canonicalRequest, warningAcknowledgement: warningAcknowledgment };
 }
 
 function normalizePollBound(value: number | undefined, fallback: number): number {
