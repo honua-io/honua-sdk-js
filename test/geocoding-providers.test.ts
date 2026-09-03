@@ -121,11 +121,17 @@ describe("nominatimGeocodingProvider", () => {
   });
 
   it("maps non-2xx responses to HonuaHttpError", async () => {
-    const { fetchFn } = fixtureFetch("nominatim-reverse-empty.json", 429);
+    const fetchFn: typeof fetch = async () =>
+      new Response(JSON.stringify(fixture("nominatim-reverse-empty.json")), {
+        status: 429,
+        headers: { "Retry-After": "4", "X-Request-ID": "provider-429" },
+      });
     const provider = nominatimGeocodingProvider({ baseUrl: "https://nominatim.example.test", fetchFn });
     const error = await provider.geocode("Honolulu").catch((err: unknown) => err);
     expect(error).toBeInstanceOf(HonuaHttpError);
     expect((error as HonuaHttpError).statusCode).toBe(429);
+    expect((error as HonuaHttpError).receipt.retryAfterMs).toBe(4_000);
+    expect((error as HonuaHttpError).receipt.correlationId).toBe("provider-429");
   });
 
   it("requires an explicit baseUrl (no default third-party endpoint)", () => {

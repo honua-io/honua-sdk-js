@@ -105,7 +105,8 @@
   "/scene-workspace was reset for the entity refresh diff and the single-owner scene mount (#1050) — the thin headroom #1049 flagged is what this change spent. refresh() no longer discards the snapshot: it diffs on identity (the projected entity id qualified by geometry kind) plus an order-independent per-facet configuration fingerprint, reuses a byte-identical feature's live Entity untouched, writes only the changed facets of a changed feature onto the Entity it already has, replaces on a geometry-kind change or an unfingerprintable feature, releases departures last so a failure cannot leave a hole, and reports every crossing through a CesiumEntityRebuildBoundary vocabulary. mountCesiumScene adds the owner that composes the entity mount with the primitive mount behind one dispose(). Measured 170,924 minified / 51,989 gzip bytes; both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the static graph — the owner delegates to the two existing mounts, the fingerprint reuses the planner's canonicalization the entity path already imported, and CesiumJS is still reached only through a lazy dynamic import — and root, /honua, and browser ceilings are unchanged because the scene surface remains subpath-only.",
   "/pmtiles gained its first dedicated guard with #1118 and was narrowed before promotion: the authenticated bounded inspector uses PMTiles-specific endpoint, identity, hostile-cache validation, and the same HonuaClient.pipelineFetch range primitive as generic connect() without retaining dist/src/connect.js. The corrected public subpath measures 339,031 minified / 91,407 gzip bytes inside its dedicated ceilings, and the 32,718 / 9,293 tree-shake:pmtiles-lifecycle guard remains isolated from generic discovery/render/plugin/runtime inputs. Final review replaced the duplicated generic/focused cache validators with one pure PMTiles v7 validator called by both orchestrators; generic connect does not import the focused high-level runner, and /pmtiles still forbids dist/src/connect.js. Exact base-to-head minified deltas are root +2,646 (774,616 actual), browser-iife +2,588 (775,214), browser-esm +2,724 (773,881), tree-shake:root-createHonua +2,298 (736,588), tree-shake:map-source-workflow +171 (45,994), and tree-shake:error-leaf +37 (15,894); /runtime gzip remains +24 (167,908). Existing root/browser-esm and compact error-family ceilings still hold and are not widened again. Only browser-iife and tree-shake:root-createHonua newly exceed their exact-base ceilings, so those two are reset to actual plus 10%; every other shared ceiling is unchanged.",
   "Canonical geospatial-grpc v0.2.0-alpha.1 replaces the retired single-file Honua binding with the complete generated dependency closure. Only the eleven exceeded metrics are reset from exact-head measurements: /honua 258,855 gzip; /source-schema 211,604 gzip; /source-capability-discovery 221,182 gzip; /esri-compat 1,060,943 minified; /controls 284,766 gzip; HonuaClient 260,855 minified / 69,127 gzip; root-connect 647,035 minified / 173,773 gzip; and FeatureLayerCompat 275,782 minified / 72,330 gzip. Each changed ceiling is ceil(actual * 1.1); all other ceilings remain unchanged.",
-  "Application Experience GA (#1294) landed its remaining app-platform component layer -- the bounded feature-inspection element and the shared application-context plumbing the kit re-exports -- which pushes /web-components past the gzip ceiling the earlier #1294 entry left in place. Measured 331,528 gzip bytes against the 329,668 ceiling; only that one exceeded metric is reset, to 364,681 bytes (ceil(actual * 1.1)). /web-components minified stays inside its existing 1,298,566 ceiling, /controls and every other entrypoint stay inside theirs, and renderer, PDF writer, image encoder, localization framework, and test-only peers remain forbidden static inputs."
+  "Application Experience GA (#1294) landed its remaining app-platform component layer -- the bounded feature-inspection element and the shared application-context plumbing the kit re-exports -- which pushes /web-components past the gzip ceiling the earlier #1294 entry left in place. Measured 331,528 gzip bytes against the 329,668 ceiling; only that one exceeded metric is reset, to 364,681 bytes (ceil(actual * 1.1)). /web-components minified stays inside its existing 1,298,566 ceiling, /controls and every other entrypoint stay inside theirs, and renderer, PDF writer, image encoder, localization framework, and test-only peers remain forbidden static inputs.",
+  "Terminal machine-error receipts (#1599) add HTTP/GeoServices receipt parsing to the public client paths while retaining protocol-native status, headers, retry delay, correlation identity, and structured failures. Exact-head measurements are /honua 962,006 minified, /geocoding 33,452 minified / 9,408 gzip, and /routing 26,720 minified / 7,954 gzip; only those exceeded metrics are reset to ceil(actual * 1.1), and every other ceiling remains unchanged."
  ],
  "entrypoints": {
   ".": {
@@ -113,7 +114,7 @@
    "gzip": 216894
   },
   "/honua": {
-   "min": 959741,
+   "min": 1058207,
    "gzip": 284741
   },
   "/contract": {
@@ -189,12 +190,12 @@
    "gzip": 8476
   },
   "/geocoding": {
-   "min": 32362,
-   "gzip": 9337
+   "min": 36798,
+   "gzip": 10349
   },
   "/routing": {
-   "min": 25201,
-   "gzip": 7820
+   "min": 29392,
+   "gzip": 8750
   },
   "/auth": {
    "min": 31305,

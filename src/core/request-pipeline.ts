@@ -333,22 +333,41 @@ export function createTimeoutSignal(
  * server's structured error message (`error.message`, `message`, or `detail`)
  * and falling back to a generic message while preserving the raw body.
  */
-export function toHttpError(statusCode: number, body: unknown): HonuaHttpError {
+export function toHttpError(statusCode: number, body: unknown, responseHeaders?: Headers): HonuaHttpError {
+  const options = responseHeaders ? { responseHeaders } : undefined;
   const fallback = "Request failed";
   if (isObject(body)) {
     const error = body.error;
     if (isObject(error) && typeof error.message === "string") {
-      return new HonuaHttpError(statusCode, error.message, body);
+      return new HonuaHttpError(statusCode, error.message, body, options);
     }
     if (typeof body.message === "string") {
-      return new HonuaHttpError(statusCode, body.message, body);
+      return new HonuaHttpError(statusCode, body.message, body, options);
     }
     if (typeof body.detail === "string") {
-      return new HonuaHttpError(statusCode, body.detail, body);
+      return new HonuaHttpError(statusCode, body.detail, body, options);
     }
   }
 
-  return new HonuaHttpError(statusCode, fallback, body);
+  return new HonuaHttpError(statusCode, fallback, body, options);
+}
+
+/** Preserve an HTTP-200 GeoServices error envelope without conflating its code with HTTP status. */
+export function toGeoServicesError(
+  transportStatus: number,
+  body: unknown,
+  responseHeaders: Headers,
+): HonuaHttpError | undefined {
+  if (!isObject(body) || !isObject(body.error)) return undefined;
+  const error = body.error;
+  const protocolCode = typeof error.code === "number" ? error.code : undefined;
+  const message = typeof error.message === "string" ? error.message : "Request failed";
+  if (protocolCode === undefined && typeof error.message !== "string") return undefined;
+  return new HonuaHttpError(protocolCode ?? transportStatus, message, body, {
+    protocolCode,
+    transportStatus,
+    responseHeaders,
+  });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
