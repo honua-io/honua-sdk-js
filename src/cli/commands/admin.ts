@@ -264,7 +264,7 @@ function isOperationId(value: string): value is AdminOperationId {
 }
 
 function assignments(values: readonly string[], kind: string): Record<string, unknown> {
-  return Object.fromEntries(values.map((value) => splitAssignment(value, kind, parseScalar)));
+  return Object.fromEntries(values.map((value) => splitAssignment(value, kind, (raw) => raw)));
 }
 
 function stringAssignments(values: readonly string[], kind: string): Record<string, string> {
@@ -277,23 +277,28 @@ function splitAssignment<T>(value: string, kind: string, parse: (raw: string) =>
   return [value.slice(0, separator), parse(value.slice(separator + 1))];
 }
 
-function parseScalar(value: string): unknown {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  if (value === "null") return null;
-  if (value !== "" && Number.isFinite(Number(value))) return Number(value);
-  if (value.startsWith("[") || value.startsWith("{")) {
-    try {
-      return JSON.parse(value);
-    } catch {
-      throw new ArgError(`Invalid JSON parameter value: ${value}`);
-    }
-  }
-  return value;
-}
-
 function readBody(value: string | undefined, contentType: string | undefined): unknown {
   if (!value) return undefined;
+  if (contentType?.toLowerCase().includes("multipart/form-data")) {
+    if (value.startsWith("@")) {
+      const filePath = value.slice(1);
+      return { file: new File([readFileSync(filePath)], path.basename(filePath)) };
+    }
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        throw new Error("not an object");
+      }
+      const file = (parsed as Record<string, unknown>).file;
+      if (typeof file === "string" && file.startsWith("@")) {
+        const filePath = file.slice(1);
+        return { ...parsed, file: new File([readFileSync(filePath)], path.basename(filePath)) };
+      }
+      return parsed;
+    } catch {
+      throw new ArgError("--body must be a JSON object or @file for multipart/form-data.");
+    }
+  }
   const raw = value.startsWith("@")
     ? readFileSync(value.slice(1), isJsonContentType(contentType) ? "utf8" : undefined)
     : value;

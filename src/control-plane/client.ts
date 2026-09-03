@@ -14,6 +14,7 @@ import {
   type HonuaConnectionSummary,
   type HonuaControlPlaneCapability,
   type HonuaControlPlaneJob,
+  type HonuaControlPlaneJobStatus,
   type HonuaControlPlaneListOptions,
   type HonuaControlPlanePage,
   type HonuaControlPlaneRawRequest,
@@ -286,32 +287,97 @@ export class HonuaImportsClient {
   public listJobs(
     options: HonuaControlPlaneListOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaControlPlaneJob>>> {
-    return this.#controlPlane.requestPage("imports", "/imports/jobs", options);
+    return this.#controlPlane.requestPage("imports", "/imports/jobs", options).then((result) =>
+      result.supported
+        ? {
+            supported: true,
+            value: {
+              ...result.value,
+              items: result.value.items.map(normalizeImportJob),
+            },
+          }
+        : result,
+    );
   }
 
   public create(
     request: HonuaImportCreateRequest,
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
-    return this.#controlPlane.requestJson("imports", "POST", "/imports", request, options);
+    const fileName = stringOption(request.options, "fileName") ?? fileNameFromUrl(request.sourceUrl);
+    const tableName = stringOption(request.options, "tableName") ?? slug(request.title ?? fileName ?? "imported_data");
+    const body = {
+      sourceUrl: request.sourceUrl,
+      fileName: fileName ?? "import.geojson",
+      tableName,
+      targetSchema: stringOption(request.options, "targetSchema"),
+      sourceSrid: numberOption(request.options, "sourceSrid"),
+      targetSrid: numberOption(request.options, "targetSrid") ?? 4326,
+      overwriteExisting: booleanOption(request.options, "overwriteExisting") ?? false,
+      forceBackground: true,
+      trackProgress: true,
+    };
+    return this.#controlPlane
+      .requestJson<{ readonly jobId?: string; readonly statusUrl?: string; readonly cancelUrl?: string; readonly id?: string; readonly status?: string }>(
+        "imports", "POST", "/imports", body, options)
+      .then((result) => result.supported
+        ? { supported: true, value: normalizeImportJob(result.value) }
+        : result);
   }
 
   public getJob(
     jobId: string,
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
-    return this.#controlPlane.requestJson(
-      "imports",
-      "GET",
-      `/imports/jobs/${encodeURIComponent(jobId)}`,
-      undefined,
-      options,
-    );
+    return this.#controlPlane
+      .requestJson("imports", "GET", `/imports/jobs/${encodeURIComponent(jobId)}`, undefined, options)
+      .then((result) => (result.supported ? { supported: true, value: normalizeImportJob(result.value) } : result));
   }
 
   public job(jobId: string): HonuaControlPlaneJobHandle {
     return new HonuaControlPlaneJobHandle(this.#controlPlane, "imports", `/imports/jobs/${encodeURIComponent(jobId)}`);
   }
+}
+
+function normalizeImportJob(value: { readonly jobId?: string; readonly statusUrl?: string; readonly cancelUrl?: string; readonly id?: string; readonly status?: string }): HonuaControlPlaneJob {
+  const id = value.id ?? value.jobId;
+  if (!id) throw new Error("Import response did not contain a job identifier.");
+  return {
+    id,
+    type: "import",
+    status: (value.status ?? "queued").toLowerCase() as HonuaControlPlaneJobStatus,
+    links: {
+      ...(value.statusUrl ? { self: value.statusUrl } : {}),
+      ...(value.cancelUrl ? { cancel: value.cancelUrl } : {}),
+    },
+  };
+}
+
+function stringOption(options: Record<string, unknown> | undefined, key: string): string | undefined {
+  return typeof options?.[key] === "string" ? options[key] as string : undefined;
+}
+
+function numberOption(options: Record<string, unknown> | undefined, key: string): number | undefined {
+  return typeof options?.[key] === "number" ? options[key] as number : undefined;
+}
+
+function booleanOption(options: Record<string, unknown> | undefined, key: string): boolean | undefined {
+  return typeof options?.[key] === "boolean" ? options[key] as boolean : undefined;
+}
+
+function fileNameFromUrl(sourceUrl: string | undefined): string | undefined {
+  if (!sourceUrl) return undefined;
+  try {
+    const name = new URL(sourceUrl).pathname.split("/").pop();
+    return name || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function slug(value: string): string {
+  const result = value.trim().replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  return result || "imported_data";
 }
 
 export class HonuaApiTokensClient {
@@ -412,7 +478,13 @@ export class HonuaControlPlaneJobHandle {
   }
 
   public poll(options: HonuaControlPlaneRequestOptions = {}): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
-    return this.#controlPlane.requestJson(this.#capability, "GET", this.#path, undefined, options);
+    return this.#controlPlane
+      .requestJson(this.#capability, "GET", this.#path, undefined, options)
+      .then((result) =>
+        this.#capability === "imports" && result.supported
+          ? { supported: true, value: normalizeImportJob(result.value) }
+          : result,
+      );
   }
 }
 

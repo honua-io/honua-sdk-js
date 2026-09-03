@@ -43,6 +43,12 @@ describe("run() dispatch", () => {
     expect(code).toBe(2);
   });
 
+  it("writes parser errors to stderr", async () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await run(["services", "--bogus"]);
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining("error: Unknown option"));
+  });
+
   it("shows command help without contacting a server", async () => {
     const code = await run(["query", "--help"]);
     expect(code).toBe(0);

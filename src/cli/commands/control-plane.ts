@@ -34,7 +34,7 @@ import { ArgError, getString } from "../args.js";
 import { cliCommandInvocation, runCommandVerb } from "../command-adapter.js";
 import type { CommandContext } from "../command.js";
 
-const CONNECTION_USAGE = "Usage: honua connection test <connectionId> [--workspace <id>] [--dry-run] [--yes]";
+const CONNECTION_USAGE = "Usage: honua connection test <connectionId> [--dry-run] [--yes]";
 const IMPORT_USAGE =
   "Usage: honua import create --source-kind <kind> [--source-url <url>|--connection <id>] " +
   "[--workspace <id>] [--title <text>] [--options <json|@file>] [--dry-run] [--yes]";
@@ -51,12 +51,8 @@ export function connectionTestInvocation(parsed: ParsedArgs): {
 } {
   const connectionId = parsed.positionals[0];
   if (!connectionId) throw new ArgError(CONNECTION_USAGE);
-  const workspaceId = getString(parsed, "workspace");
   return {
-    input: {
-      connectionId,
-      ...(workspaceId ? { workspaceId } : {}),
-    },
+    input: { connectionId },
     invocation: cliCommandInvocation(parsed),
   };
 }
@@ -109,7 +105,6 @@ export async function connectionCommand(parsed: ParsedArgs, ctx: CommandContext)
     confirm: "honua connection test issues a server-side probe. Re-run with --yes, or preview the plan with --dry-run.",
     detail: (receipt) => ({
       connection: receipt.resourceRef?.id ?? "(unknown)",
-      workspace: receipt.resourceRef?.workspaceId ?? "(default)",
       // A dry run deliberately skips the probe, so it has established nothing
       // about reachability. Folding it in with the non-denied statuses printed
       // "reachable: yes" for a connection the terminal never contacted, which

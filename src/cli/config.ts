@@ -145,11 +145,16 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
     );
   }
 
+  const savedKeyIsBoundToBaseUrl =
+    source === "config" &&
+    !options.profile &&
+    typeof saved.baseUrl === "string" &&
+    stripTrailingSlashes(saved.baseUrl) === stripTrailingSlashes(baseUrl);
   const apiKey =
     (options.apiKey && options.apiKey.trim() !== "" ? options.apiKey : undefined) ??
     (env.HONUA_API_KEY && env.HONUA_API_KEY.trim() !== "" ? env.HONUA_API_KEY : undefined) ??
     (profile?.apiKey && profile.apiKey.trim() !== "" ? profile.apiKey : undefined) ??
-    (saved.apiKey && saved.apiKey.trim() !== "" ? saved.apiKey : undefined);
+    (savedKeyIsBoundToBaseUrl && saved.apiKey && saved.apiKey.trim() !== "" ? saved.apiKey : undefined);
 
   return { baseUrl: stripTrailingSlashes(baseUrl), apiKey, source };
 }

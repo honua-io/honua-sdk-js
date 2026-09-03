@@ -54,8 +54,6 @@ import type { HonuaAnyCommand, HonuaCommand, HonuaCommandResourceRef } from "./t
 export interface ConnectionTestInput {
   /** Existing connection to probe. */
   readonly connectionId: string;
-  /** Workspace the connection belongs to, when the deployment scopes them. */
-  readonly workspaceId?: string;
 }
 
 /** Server probe result. Left open: the probe payload is deployment-specific. */
@@ -69,22 +67,21 @@ export interface ConnectionTestOutput {
 /**
  * `POST /connections/{connectionId}/test` — probe a stored connection.
  *
- * Modelled as an `action` rather than a `read` so repeated probes carry an
- * `Idempotency-Key` and collapse server-side; the probe itself does not mutate
- * the connection.
+ * The server does not consume an idempotency key or a workspace body. Keep the
+ * command identity limited to the connection route so receipts describe the
+ * request the server actually processed.
  */
 export const connectionTestCommand: HonuaCommand<ConnectionTestInput, ConnectionTestOutput> = {
   id: "connection.test",
   title: "Test a connection",
   description: "Probe a stored control-plane connection and report whether the server can reach it.",
-  mode: "action",
+  mode: "read",
   resourceKind: "connection",
   inputSchema: {
     type: "object",
     description: "Identifies the stored connection to probe.",
     properties: {
       connectionId: { type: "string", minLength: 1, description: "Identifier of the stored connection." },
-      workspaceId: { type: "string", minLength: 1, description: "Owning workspace, when the deployment scopes them." },
     },
     required: ["connectionId"],
     additionalProperties: false,
@@ -101,7 +98,6 @@ export const connectionTestCommand: HonuaCommand<ConnectionTestInput, Connection
     const result = await context.controlPlane.raw<ConnectionTestOutput>({
       method: "POST",
       path: connectionTestPath(context.input.connectionId),
-      ...(context.input.workspaceId ? { body: { workspaceId: context.input.workspaceId } } : {}),
       ...context.requestOptions(),
     });
     const value = unwrap(result, this.id, {
@@ -124,7 +120,6 @@ function connectionRef(input: ConnectionTestInput): HonuaCommandResourceRef {
   return {
     type: "connection",
     id: input.connectionId,
-    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
   };
 }
 

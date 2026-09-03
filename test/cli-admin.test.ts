@@ -166,6 +166,26 @@ describe("honua admin", () => {
     });
   });
 
+  it("accepts content-type and preserves path/query identifiers as strings", async () => {
+    const output = capture();
+    expect(
+      await run([
+        "admin",
+        "api",
+        "getConnection",
+        "--content-type",
+        "application/json",
+        "--path",
+        "id=00123",
+        "--query",
+        "runId=1e3",
+        "--dry-run",
+        "--json",
+      ]),
+    ).toBe(0);
+    expect(JSON.parse(output.join(""))).toMatchObject({ request: { path: { id: "00123" }, query: { runId: "1e3" } } });
+  });
+
   it("deep-redacts credential-bearing dry-run headers, query values, and bodies", async () => {
     const output = capture();
     const secrets = ["bearer-secret", "cookie-secret", "query-secret", "body-secret", "nested-secret"];

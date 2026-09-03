@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { configPath, readConfig, writeConfig } from "../src/cli/config.js";
+import { configPath, readConfig, resolveConnection, writeConfig } from "../src/cli/config.js";
 
 describe("CLI credential config persistence", () => {
   it("atomically replaces an existing config with an owner-only credential file", async () => {
@@ -67,6 +67,25 @@ describe("CLI credential config persistence", () => {
       expect(() => readConfig(env)).toThrow("unverified private file");
       await expect(writeConfig({ apiKey: "must-not-escape" }, env)).rejects.toThrow("symbolic-link credential file");
       expect(readFileSync(outside, "utf8")).toBe("preserve\n");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not replay a saved key onto a different host or profile", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-cli-config-binding-"));
+    const env = { HONUA_CONFIG_HOME: directory };
+    try {
+      await writeConfig(
+        {
+          baseUrl: "https://prod.example",
+          apiKey: "prod-key",
+          profiles: { staging: { baseUrl: "https://staging.example", apiKey: "staging-key" } },
+        },
+        env,
+      );
+      expect(resolveConnection({ baseUrl: "http://localhost:8080", env }).apiKey).toBeUndefined();
+      expect(resolveConnection({ profile: "staging", env }).apiKey).toBe("staging-key");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

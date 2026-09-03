@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 
-import { type HonuaCommandRuntime, createHonuaCommandRuntime } from "../control-plane/index.js";
+import { assertAdminBaseUrl, type HonuaCommandRuntime, createHonuaCommandRuntime } from "../control-plane/index.js";
 import { HonuaClient } from "../core/client.js";
 import { HonuaGeocodingClient } from "../geocoding/index.js";
 import { type ResolveOptions, resolveConnection } from "./config.js";
@@ -25,7 +25,9 @@ export function createClient(options: ResolveOptions = {}): HonuaClient {
  * an authority header of its own.
  */
 export function createCommandRuntime(options: ResolveOptions = {}): HonuaCommandRuntime {
-  return createHonuaCommandRuntime({ client: createClient(options) });
+  const { baseUrl, apiKey } = resolveConnection(options);
+  assertAdminBaseUrl(baseUrl);
+  return createHonuaCommandRuntime({ client: new HonuaClient({ baseUrl, apiKey }) });
 }
 
 /** Build a {@link HonuaGeocodingClient} from CLI flags / env / saved config. */

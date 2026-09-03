@@ -116,7 +116,7 @@ describe("control-plane command registry", () => {
     for (const id of HONUA_COMMAND_IDS) {
       const command = HONUA_COMMANDS[id];
       expect(command.id).toBe(id);
-      expect(command.mode).toBe("action");
+      expect(command.mode).toBe(id === "connection.test" ? "read" : "action");
       // Closed schemas are what stop one transport from growing a field
       // (an approval, an actor override) the others do not have.
       expect(command.inputSchema.additionalProperties).toBe(false);
@@ -128,6 +128,25 @@ describe("control-plane command registry", () => {
 });
 
 describe("command receipts", () => {
+  it("does not send or record unsupported connection-test scope and idempotency", async () => {
+    const { requests, fetchFn } = recorder(({ path }) =>
+      path.endsWith("/connections/conn-1/test") ? { body: { ok: true } } : { body: PUBLISH_RESPONSE },
+    );
+    const receipt = await runtimeFor(fetchFn).execute(
+      connectionTestCommand,
+      { connectionId: "conn-1" },
+      { transport: "sdk", identity: { actor: "user-1", tenantId: "acme" } },
+    );
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].method).toBe("POST");
+    expect(requests[0].path).toBe("/api/v1/admin/connections/conn-1/test");
+    expect(requests[0].headers["idempotency-key"]).toBeUndefined();
+    expect(requests[0].body).toBeUndefined();
+    expect(receipt.resourceRef).toEqual({ type: "connection", id: "conn-1" });
+    expect(receipt.idempotencyKey).toBeUndefined();
+  });
+
   it("threads Idempotency-Key and If-Match onto the request and echoes identity onto the receipt", async () => {
     const { requests, fetchFn } = recorder();
     const receipt = await runtimeFor(fetchFn).execute(
@@ -657,6 +676,39 @@ describe("the terminal release journey runs on the shared command layer", () => 
     expect(cli.requests[0].headers["idempotency-key"]).toBe(js.requests[0].headers["idempotency-key"]);
   });
 
+  it("adapts import-create to the server's durable URL-import queue and normalizes its job receipt", async () => {
+    const { requests, fetchFn } = recorder(() => ({
+      status: 202,
+      body: {
+        jobId: "job-8",
+        statusUrl: "/api/v1/admin/import/jobs/job-8",
+        cancelUrl: "/api/v1/admin/import/jobs/job-8/cancel",
+      },
+    }));
+
+    const receipt = await runtimeFor(fetchFn).execute(
+      importCreateCommand,
+      {
+        sourceKind: "geojson",
+        sourceUrl: "https://example.test/parcels.geojson",
+        title: "Parcels",
+        options: { targetSchema: "public" },
+      },
+      { transport: "sdk" },
+    );
+
+    expect(requests[0].path).toBe("/api/v1/admin/imports");
+    expect(requests[0].body).toMatchObject({
+      sourceUrl: "https://example.test/parcels.geojson",
+      fileName: "parcels.geojson",
+      tableName: "Parcels",
+      targetSchema: "public",
+      forceBackground: true,
+      trackProgress: true,
+    });
+    expect(receipt.output).toMatchObject({ id: "job-8", type: "import", status: "queued" });
+  });
+
   it("previews `honua connection test` from the terminal without contacting the server", async () => {
     const { requests, fetchFn } = recorder();
     vi.stubGlobal("fetch", fetchFn);
@@ -665,8 +717,6 @@ describe("the terminal release journey runs on the shared command layer", () => 
       "connection",
       "test",
       "conn-1",
-      "--workspace",
-      "ws-1",
       "--dry-run",
       "--base-url",
       "https://example.test",
@@ -679,12 +729,12 @@ describe("the terminal release journey runs on the shared command layer", () => 
     const rendered = output.join("");
     const jsReceipt = await runtimeFor(recorder().fetchFn).execute(
       connectionTestCommand,
-      { connectionId: "conn-1", workspaceId: "ws-1" },
+      { connectionId: "conn-1" },
       { transport: "sdk", dryRun: true },
     );
     expect(rendered).toContain("Connection probe (dry run)");
     expect(rendered).toContain(jsReceipt.auditKey);
-    expect(rendered).toContain(jsReceipt.idempotencyKey);
+    expect(jsReceipt.idempotencyKey).toBeUndefined();
     expect(rendered).toContain("server-enforced");
   });
 
@@ -693,7 +743,7 @@ describe("the terminal release journey runs on the shared command layer", () => 
       positionals: ["conn-1"],
       flags: { workspace: "ws-1", actor: "user-1", tenant: "acme", "dry-run": true },
     });
-    expect(connection.input).toEqual({ connectionId: "conn-1", workspaceId: "ws-1" });
+    expect(connection.input).toEqual({ connectionId: "conn-1" });
     expect(connection.invocation).toEqual({
       transport: "cli",
       identity: { actor: "user-1", tenantId: "acme" },
