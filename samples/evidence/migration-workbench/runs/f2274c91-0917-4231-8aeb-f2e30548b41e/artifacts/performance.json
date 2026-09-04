@@ -1,0 +1,43 @@
+{
+  "format": "honua.sdk.sample-performance-gate.v1",
+  "sampleId": "migration-workbench",
+  "sourceRevision": "a365f0cff30a41a3bca591225f67ab9d0af88ff8",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:migration-workbench",
+    "--",
+    "--reporter=json"
+  ],
+  "measurement": {
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "source": "browser-performance-api",
+    "metric": "sample-ready-duration",
+    "unit": "ms",
+    "budget": {
+      "operator": "<=",
+      "value": 5000
+    },
+    "value": 333.30000000004657,
+    "observations": {
+      "navigation": {
+        "entryType": "navigation",
+        "sampleReadyMs": 333.30000000004657,
+        "responseStartMs": 11.300000000046566,
+        "domContentLoadedMs": 63.5,
+        "loadEventMs": 67.5
+      },
+      "resources": {
+        "count": 15,
+        "transferBytes": 932424,
+        "decodedBodyBytes": 927924,
+        "completedByMs": 322.70000000006985
+      },
+      "interaction": {
+        "name": "evidence-drawer-keyboard-workflow",
+        "durationMs": 20.400000000023283
+      }
+    }
+  }
+}
