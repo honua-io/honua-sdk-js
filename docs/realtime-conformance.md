@@ -207,9 +207,11 @@ field equals
 `sha256("honua-realtime-checkpoint-redaction:v1:<field>:<raw-value>")`.
 Every successfully observed live transport also retains a structured accepted
 event count, normalized state-transition-history SHA-256, and normalized final
-state SHA-256. Multiple executed transports must agree on all three fields or
-all otherwise successful observations fail with
-`cross-transport-state-divergence`.
+state SHA-256. In the mutating snapshot-plus-delta lane, multiple executed
+transports must agree on all three fields or all otherwise successful
+observations fail with `cross-transport-state-divergence`. The read-only
+baseline lane opens transports sequentially, so each transport reports its own
+point-in-time baseline without asserting equality across observations.
 
 Those hashes pass through one transport-neutral semantic boundary after the
 public adapters decode their wire contracts. GeoJSON features from current

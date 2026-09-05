@@ -75,6 +75,11 @@ export interface RealtimeConformanceEvidence {
       readonly historySha256: `sha256:${string}`;
       readonly finalStateSha256: `sha256:${string}`;
     };
+    readonly baselineState?: {
+      readonly eventCount: number;
+      readonly historySha256: `sha256:${string}`;
+      readonly finalStateSha256: `sha256:${string}`;
+    };
     readonly scenarioCounts: { readonly total: number; readonly passed: number; readonly failed: number };
     readonly scenarios: ReadonlyArray<{ readonly id: string; readonly result: "passed" | "failed" }>;
     readonly diagnostics: ReadonlyArray<{
