@@ -1,0 +1,70 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "22f6d551203c6d93322db728e8a1473ea00d9228",
+  "command": [
+    "npm",
+    "run",
+    "demo:service-explorer:live-evidence"
+  ],
+  "evidencePath": "samples/evidence/service-explorer/runs/e4e167c0-fada-46fd-900a-430cdc9adbc7/artifacts/live-evidence.json",
+  "evidence": {
+    "$schema": "../../samples/contract/v1/schemas/sample-evidence.schema.json",
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "service-explorer",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-09-05T06:09:13.449Z",
+    "authMode": "anonymous",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.9-beta.0",
+      "gitCommit": "22f6d551203c6d93322db728e8a1473ea00d9228"
+    },
+    "source": {
+      "provider": "esri-sampleserver6-and-pygeoapi-demo",
+      "identity": "canonical-anonymous-geoservices+canonical-anonymous-ogc-features",
+      "endpoint": "https://demo.pygeoapi.io/master",
+      "deploymentVersion": null,
+      "dataVersion": null
+    },
+    "provenance": {
+      "sourceId": "canonical-anonymous-geoservices+canonical-anonymous-ogc-features",
+      "observedAt": "2026-09-05T06:09:13.449Z",
+      "validAt": null,
+      "state": "live",
+      "attribution": "Esri sample services and the pygeoapi development team."
+    },
+    "semantics": {
+      "operation": "dual-protocol-inspect-plan-query",
+      "outcome": "geoservices-and-ogc-plans-executed",
+      "itemCount": 2,
+      "assertions": [
+        "credential-free-fixed-https-endpoints",
+        "same-origin-path-confined-requests",
+        "bounded-request-and-response-budgets",
+        "geoservices-feature-service-inspected",
+        "ogc-features-conformance-inspected",
+        "strict-query-plans-accepted",
+        "one-result-per-protocol-returned"
+      ]
+    },
+    "timing": {
+      "totalMs": 2544.64229,
+      "firstSuccessfulInteractionMs": 578.655582
+    },
+    "degradation": {
+      "state": "none",
+      "reasons": []
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "examples/service-explorer/live-evidence.mjs",
+        "sha256": "a8c67405185e2c0296d99892c7365a9b49d6cd441a1f645a94f41b5de92a3816"
+      }
+    ]
+  }
+}
