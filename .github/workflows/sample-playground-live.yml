@@ -3,7 +3,7 @@ name: Gallery playground registry smoke
 # Scheduled registry lane for the zero-install gallery playgrounds (#958
 # REQ-001): install a generated playground from the real npm registry, build it,
 # serve the production build, and drive Chromium until the sample's own
-# readiness contract holds — a rendered map, the features the reviewed fixture
+# readiness contract holds â€” a rendered map, the features the reviewed fixture
 # serves, zero console or page errors, and zero off-origin requests. Required PR
 # CI stays offline and only checks the generated projects against their samples
 # and compiles them against SDK source; nothing here belongs in that lane.

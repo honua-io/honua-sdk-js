@@ -93,7 +93,7 @@ jobs:
         run: npm run docs:comparison:check
 
       # Issue #499 REQ-004: the published npm search discoverability page is a
-      # pure function of the committed observations — including the queries
+      # pure function of the committed observations â€” including the queries
       # where a package does not rank.
       - name: Verify npm search discoverability page freshness (gate)
         run: npm run docs:npm-search:check

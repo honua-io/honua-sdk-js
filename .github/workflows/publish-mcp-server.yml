@@ -57,7 +57,7 @@ jobs:
         # The verified tarball is unpacked and run in place rather than handed
         # to a global installer: npm ships its dependencies bundled, so the CLI
         # runs straight from the archive, and the publish step below then
-        # executes exactly the bytes this step hashed — no second, unpinned
+        # executes exactly the bytes this step hashed â€” no second, unpinned
         # resolution between verification and use.
         run: |
           set -euo pipefail
