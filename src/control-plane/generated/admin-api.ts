@@ -1,6 +1,6 @@
 // GENERATED FILE - DO NOT EDIT.
-// Source: honua-io/honua-server@f897700159e2791c9468c6ca85bb4e2a3a8d8433/docs/developer/api-specs/admin-api.json
-// SHA-256: edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a; operations: 396
+// Source: honua-io/honua-server@07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a/docs/developer/api-specs/admin-api.json
+// SHA-256: 65a68c1eac73639b98e5e27e9a572cd833b92053e20d3a85f8f1709eac9cd511; operations: 396
 // Regenerate with: npm run admin-client:generate
 
 export type paths = {
@@ -5230,7 +5230,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Approve Operation Proposal
-         * @description Approves the proposal and applies the underlying operation through the gateway. Requires the RBAC `approve` grant (an explicit deny is rejected; when no per-operation grant is configured the coarse admin policy applies). Separation of duties is enforced: the requester of a proposal cannot approve it. A proposal that cannot be applied in its current state returns 409. Takes no request body.
+         * @description Approves the proposal and applies the underlying operation through the gateway. API keys require full admin authority or the narrow `admin:approve` grant; operator-bearer callers use RBAC `approve`. Separation of duties is enforced: the requester of a proposal cannot approve it. A proposal that cannot be applied in its current state returns 409. Takes no request body.
          */
         readonly post: operations["approveOperationProposal"];
         readonly delete?: never;
@@ -5250,7 +5250,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Reject Operation Proposal
-         * @description Rejects the proposal with a required reason. Requires the RBAC `approve` grant. A missing or blank reason returns 400; a proposal that cannot be rejected in its current state returns 409.
+         * @description Rejects the proposal with a required reason. API keys require full admin authority or the narrow `admin:approve` grant; operator-bearer callers use RBAC `approve`. A missing or blank reason returns 400; a proposal that cannot be rejected in its current state returns 409.
          */
         readonly post: operations["rejectOperationProposal"];
         readonly delete?: never;
@@ -5578,7 +5578,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Ingest Point Cloud Scene
-         * @description Uploads a LAS/LAZ/COPC point cloud (multipart/form-data, `file` field, 256 MiB maximum) and converts it into a 3D Tiles point tileset (`.pnts` quadtree), registering the result as a servable scene. Compressed input and projected source CRSs are dispatched to the out-of-tree point-cloud translate worker when one is configured; otherwise they are rejected with 400. Enterprise-gated: an operator without the `scene.pointcloud-ingest` entitlement receives 402.
+         * @description Uploads a LAS/LAZ/COPC point cloud (multipart/form-data, `file` field, 256 MiB maximum) and converts it into a 3D Tiles point tileset (`.pnts` quadtree), registering the result as a servable scene. Compressed input and projected source CRSs are dispatched to the out-of-tree point-cloud translate worker when one is configured; without a compatible worker the request fails explicitly with 400. Enterprise-gated: an operator without the `scene.pointcloud-ingest` entitlement receives 402.
          */
         readonly post: operations["ingestPointCloudScene"];
         readonly delete?: never;
@@ -6742,6 +6742,7 @@ export type components = {
             /** Format: uuid */
             readonly id: string;
             readonly name: string;
+            /** @description Distinct effective grant labels assigned to the key, including `admin:approve` when present; grant names are not folded into an access-level alias. */
             readonly permissions: readonly string[];
             /** @enum {string} */
             readonly status: "active" | "expired" | "revoked";
@@ -6759,6 +6760,7 @@ export type components = {
             /** Format: date-time */
             readonly lastUsedAt?: string | null;
             readonly name: string;
+            /** @description Distinct effective grant labels assigned to the key, including `admin:approve` when present; grant names are not folded into an access-level alias. */
             readonly permissions: readonly string[];
             /** Format: date-time */
             readonly revokedAt?: string | null;
@@ -8843,7 +8845,7 @@ export type components = {
             /** @description Human-readable key name used in operator audit and list views. */
             readonly name: string;
             /**
-             * @description Permission labels assigned to the key. Layer-scoped write grants use write:{service} or write:{service}/{layer}.
+             * @description Permission labels assigned to the key. Admin grants are `admin:read` (safe-method reads), `admin:approve` (read plus proposal approve/reject only), `admin:write`/`admin:manage` (write), and `admin:*` (full admin). Layer-scoped write grants use write:{service} or write:{service}/{layer}. The focused Console recipe is [`admin:read`, `admin:approve`].
              * @default []
              */
             readonly permissions?: readonly string[];

@@ -238,6 +238,9 @@ export {
   createHonuaStudioLifecycleClient,
   isStudioListExhausted,
 } from "./lifecycle-client.js";
+
+export { HonuaStudioCommandAdapter, createHonuaStudioCommandAdapter } from "./command-adapter.js";
+export type { HonuaStudioCommandAdapterOptions, HonuaStudioCommandInvocation } from "./command-adapter.js";
 export type {
   HonuaStudioLifecycleClientOptions,
   HonuaStudioPaginationOptions,
