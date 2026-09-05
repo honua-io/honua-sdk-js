@@ -29,28 +29,28 @@ jobs:
           test "$CURRENT_SHA" = "$SOURCE_COMMIT"
 
       - name: Checkout governance
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           path: governance
           persist-credentials: false
 
       - name: Checkout source A
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           path: source-a
           persist-credentials: false
 
       - name: Checkout source B
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.sha }}
           path: source-b
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20.19.0
           cache: npm
@@ -177,7 +177,7 @@ jobs:
           test "$(find staged -mindepth 1 -maxdepth 1 | wc -l)" -eq 6
 
       - name: Upload governed publication
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: content-addressed-sample-bundles
           path: staged
@@ -197,7 +197,7 @@ jobs:
       id-token: write
     steps:
       - name: Download governed publication
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: content-addressed-sample-bundles
           path: staged
@@ -209,7 +209,7 @@ jobs:
           # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
           # a release version bump rewrites those and nothing in CI is able
           # to move this constant (#1357).
-          EXPECTED_LOCKFILE_SHA256: c972d360545928008e610b6dc9d34678faf04953011253f33479cc25a3d93397
+          EXPECTED_LOCKFILE_SHA256: d949436651e3541a7d757836e08e65d54d463197c463220b52dd9b476566af6e
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -645,22 +645,22 @@ jobs:
           test "$(jq -r .enforced_by_owner <<<"$IMMUTABLE")" = "true"
 
       - name: Attest sample-bundles.v2.json
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: staged/sample-bundles.v2.json
 
       - name: Attest sample-bundles.tar.gz
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: staged/sample-bundles.tar.gz
 
       - name: Attest sample-bundles-attestation.v1.json
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: staged/sample-bundles-attestation.v1.json
 
       - name: Attest sample-bundles-run-attestation.v1.json
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: staged/sample-bundles-run-attestation.v1.json
 
