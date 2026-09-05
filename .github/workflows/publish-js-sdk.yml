@@ -128,6 +128,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: package-lock.json
 
+      - name: Verify documentation manifest matches publish version
+        run: node scripts/check-docs-release.mjs publish
+
       - name: Prepare a hash-pinned npm for trusted publishing
         # Node 20 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
         # The tarball's sha512 integrity hash (from the registry's own

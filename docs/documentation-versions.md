@@ -13,6 +13,20 @@ The version navigation in every hosted guide is generated from
 cannot appear in the selector unless those authoritative sources agree and the
 release tag exists in the authoritative GitHub repository.
 
+`config/docs-unpublished-releases.json` records Release Please cuts that never
+published an SDK tag or npm artifact. These are excluded from the selector;
+comparison links span the previous published tag. In particular, `0.1.8-beta.0`
+was not published, so `0.1.9-beta.0` follows `0.1.7-beta.0` in the manifest.
+
+Before npm publication, `node scripts/check-docs-release.mjs publish` requires
+the generated manifest's latest release to equal the release tag and package
+version. The Documentation release freshness trunk check queries both SDK npm
+packages and fails if either has a newer prerelease. Pages uploads the generated
+`dist/docs-site/versions.json` with the documentation, then verifies the public
+file and exact source revision. The daily check also detects missed deployments.
+To verify the file consumed by the site, run
+`node scripts/check-docs-release.mjs hosted`.
+
 ## Release documentation
 
 {{SDK_DOCS_VERSION_TABLE}}
