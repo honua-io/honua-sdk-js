@@ -77,12 +77,12 @@ jobs:
           }
           const report = JSON.parse(fs.readFileSync(file, "utf8"));
           const rows = report.targets.map((target) =>
-            `| ${target.id} | ${target.status} | ${target.provider} | ${target.endpointVersion ?? "unknown"} | ${target.latencyMs?.toFixed(2) ?? "—"} | ${target.skipReason ?? target.error ?? ""} |`,
+            `| ${target.id} | ${target.status} | ${target.provider} | ${target.endpointVersion ?? "unknown"} | ${target.latencyMs?.toFixed(2) ?? "â€”"} | ${target.skipReason ?? target.error ?? ""} |`,
           );
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
             "## SDK live benchmark evidence",
             "",
-            `Run status: **${report.run.status}** · format \`${report.format}\``,
+            `Run status: **${report.run.status}** Â· format \`${report.format}\``,
             "",
             "| Target | Status | Provider | Version | Latency (ms) | Note |",
             "| --- | --- | --- | --- | ---: | --- |",

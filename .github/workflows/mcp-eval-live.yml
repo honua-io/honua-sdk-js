@@ -12,12 +12,12 @@ name: MCP Live Cross-Model Eval
 # `us.amazon.nova-2-lite-v1:0`. Select one or both via the `models` input; each
 # runs as its own matrix leg so the artifacts compare cleanly.
 #
-# Required repo secrets (Settings → Secrets and variables → Actions):
-#   HONUA_MCP_AUTH_TOKEN  — bearer token for the live /mcp
-#   HONUA_MCP_API_KEY     — x-api-key for the live /mcp
-#   AWS_ACCESS_KEY_ID     — AWS credentials with Bedrock InvokeModel access
+# Required repo secrets (Settings â†’ Secrets and variables â†’ Actions):
+#   HONUA_MCP_AUTH_TOKEN  â€” bearer token for the live /mcp
+#   HONUA_MCP_API_KEY     â€” x-api-key for the live /mcp
+#   AWS_ACCESS_KEY_ID     â€” AWS credentials with Bedrock InvokeModel access
 #   AWS_SECRET_ACCESS_KEY
-#   AWS_SESSION_TOKEN     — optional, for temporary credentials
+#   AWS_SESSION_TOKEN     â€” optional, for temporary credentials
 on:
   workflow_dispatch:
     inputs:

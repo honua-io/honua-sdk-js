@@ -84,7 +84,7 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
             "## deck.gl full-scale evidence",
             "",
-            `Evaluation: **${report.evaluation.level}** · commit \`${report.gitCommit}\``,
+            `Evaluation: **${report.evaluation.level}** Â· commit \`${report.gitCommit}\``,
             "",
             "| Scenario | First visible | Interaction | GPU upload | Steady frame rate |",
             "| --- | ---: | ---: | ---: | ---: |",

@@ -3,7 +3,7 @@ name: create-honua-app Time To First Map
 # Scheduled registry lane for the scaffold funnel (#958 AC-002): scaffold a
 # starter on a clean machine, install its pinned dependencies from npm, build
 # it, serve the build, and drive Chromium until a MapLibre canvas has rendered
-# features — all inside a two-minute budget. Required PR CI stays offline and
+# features â€” all inside a two-minute budget. Required PR CI stays offline and
 # only compiles the templates.
 on:
   schedule:
