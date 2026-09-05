@@ -6,7 +6,7 @@ name: Notify honua-evidence
 # schedule fallback (honua-io/honua-evidence#3).
 #
 # Secrets required:
-#   HONUA_EVIDENCE_DISPATCH_TOKEN â€” fine-grained PAT with write access
+#   HONUA_EVIDENCE_DISPATCH_TOKEN — fine-grained PAT with write access
 #     sufficient to POST to repos/honua-io/honua-evidence/dispatches. If
 #     absent, the dispatch step is skipped with a warning rather than
 #     failing this repo's CI; honua-evidence's daily schedule remains the

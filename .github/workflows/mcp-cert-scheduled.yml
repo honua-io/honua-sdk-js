@@ -1,7 +1,7 @@
 name: MCP scheduled live certification
 
 # FREE, evidence-producing lane. Runs the deterministic MCP certifier (zero LLM /
-# model calls â€” pure contract checks) against the live demo /mcp surface on a
+# model calls — pure contract checks) against the live demo /mcp surface on a
 # weekly schedule and on demand, then commits the JSON + Markdown report into
 # mcp/evals/runs/ and refreshes the leaderboard. Because it makes no paid calls it
 # is safe to run automatically; the paid cross-model eval stays workflow_dispatch
@@ -11,10 +11,10 @@ name: MCP scheduled live certification
 # publishes evidence even when some tool contracts fail against a pre-P1 image
 # (missing pagination, edit_features, etc.). Deep mutating/async contracts are NOT
 # enabled here (HONUA_MCP_CERT_ALLOW_MUTATION is unset), so the scheduled cert
-# never mutates demo data â€” they skip-with-reason and are recorded loudly.
+# never mutates demo data — they skip-with-reason and are recorded loudly.
 #
 # Publication shape (honua-sdk-js#1351). The publish job used to `git push` the
-# report straight at trunk, which the branch ruleset rejects with GH013 â€” a
+# report straight at trunk, which the branch ruleset rejects with GH013 — a
 # scheduled push at a protected branch can never succeed, so every weekly run
 # certified the surface and then threw the report away behind a red check run on
 # trunk. It now publishes the same commit through an automation pull request and
@@ -27,11 +27,11 @@ name: MCP scheduled live certification
 # retire the certification record entirely.
 #
 # Required repo secret:
-#   HONUA_DEMO_MCP_API_KEY â€” x-api-key for https://demo.honua.io/mcp. Configure it
-#     under Settings â†’ Secrets and variables â†’ Actions. Without it the run reaches
+#   HONUA_DEMO_MCP_API_KEY — x-api-key for https://demo.honua.io/mcp. Configure it
+#     under Settings → Secrets and variables → Actions. Without it the run reaches
 #     the surface anonymously and records auth mode `anonymous` in the report.
 # Optional repo variable:
-#   HONUA_DEMO_MCP_URL â€” overrides the default https://demo.honua.io/mcp target.
+#   HONUA_DEMO_MCP_URL — overrides the default https://demo.honua.io/mcp target.
 on:
   schedule:
     # Mondays 07:00 UTC.
@@ -92,7 +92,7 @@ jobs:
 
       - name: Platform-free live certification (any public FeatureServer, free)
         # Second target (issue #369): certify the standalone surface against a LIVE
-        # public Esri FeatureServer with ZERO Honua surfaces â€” the census layer on
+        # public Esri FeatureServer with ZERO Honua surfaces — the census layer on
         # services.arcgis.com (anonymous, read-only). Honua-only tools skip-with-
         # reason. Never gates (--artifact-only); it is evidence that honua-mcp works
         # against any public endpoint, not just Honua deployments.

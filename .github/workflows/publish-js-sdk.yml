@@ -139,7 +139,7 @@ jobs:
         # The verified tarball is unpacked and run in place rather than handed
         # to a global installer: npm ships its dependencies bundled, so the CLI
         # runs straight from the archive, and the publish step below then
-        # executes exactly the bytes this step hashed â€” no second, unpinned
+        # executes exactly the bytes this step hashed — no second, unpinned
         # resolution between verification and use.
         run: |
           set -euo pipefail
@@ -284,8 +284,8 @@ jobs:
             local version="$1"
             # Pre-1.0 every release is a prerelease but the newest one must own
             # `latest` (the 0.0.6-stale-latest incident). Trusted publishing
-            # only authenticates `npm publish` itself â€” a follow-up
-            # `npm dist-tag add` would have no credentials â€” so tag latest at
+            # only authenticates `npm publish` itself — a follow-up
+            # `npm dist-tag add` would have no credentials — so tag latest at
             # publish time. Post-1.0 prereleases keep their prerelease tag and
             # deliberately do NOT own latest.
             if [[ "$version" == 0.* ]]; then

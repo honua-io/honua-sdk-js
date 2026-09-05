@@ -687,7 +687,7 @@ jobs:
 
       - name: MCP certification (gate)
         # Offline mode: certifies an in-process streamable-HTTP mock of the honua
-        # /mcp operator catalog â€” no live server needed, gates every PR. The live
+        # /mcp operator catalog — no live server needed, gates every PR. The live
         # lane is workflow_dispatch only (see mcp-cert-live.yml).
         env:
           HONUA_MCP_CERT_TARGET: offline
