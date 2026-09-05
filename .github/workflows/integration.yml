@@ -8,13 +8,13 @@ name: SDK Integration
 #   * self-contained (default on push / schedule / dispatch): the workflow
 #     spins the PINNED `honua-server:nightly` container plus Redis and Postgres
 #     INSIDE the job, applies the vendored seed, waits for health, and points
-#     the suites at it. No external environment and no new secrets â€” image
+#     the suites at it. No external environment and no new secrets — image
 #     pulls use the workflow GITHUB_TOKEN (packages: read), superseding the
 #     old connect-only decision (honua-sdk-js#39) for CI (honua-sdk-js#361).
 #
 #   * external-override: when a base URL is configured (dispatch `base_url`
 #     input or the `HONUA_INTEGRATION_BASE_URL` repo variable) the lane connects
-#     to that already-running, already-seeded deployment instead â€” for testing
+#     to that already-running, already-seeded deployment instead — for testing
 #     real staging/prod servers.
 #
 # The workflow summary always states which mode ran and the executed suite/test
@@ -26,7 +26,7 @@ on:
       - trunk
       - "release/**"
   # Nightly self-contained run of the full lane (surfaces + live conformance).
-  # Failures are loud (job failure), never a summary note â€” REQ-004.
+  # Failures are loud (job failure), never a summary note — REQ-004.
   schedule:
     - cron: "0 7 * * *"
   workflow_dispatch:
@@ -38,7 +38,7 @@ on:
         description: "Seed profile label recorded into integration-meta.json (external mode only; overrides repo variable)."
         required: false
       server_commit:
-        description: "Honua Server commit SHA recorded into integration-meta.json (external mode). Leave blank when unknown â€” do not set to the SDK commit."
+        description: "Honua Server commit SHA recorded into integration-meta.json (external mode). Leave blank when unknown — do not set to the SDK commit."
         required: false
       candidate_cut_at:
         description: "Frozen candidate cut timestamp for external certification evidence."
@@ -119,7 +119,7 @@ jobs:
 
       # Decide mode. External when a base URL is configured (dispatch input or
       # repo variable); self-contained otherwise. Self-contained needs no
-      # secret â€” that is the point.
+      # secret — that is the point.
       - name: Resolve run mode
         id: mode
         run: |
@@ -312,7 +312,7 @@ jobs:
           fi
 
           # Point the suites at the in-workflow server and the seed's actual
-          # coordinates (test_service / layer 0 / collection 0 â€” what the
+          # coordinates (test_service / layer 0 / collection 0 — what the
           # vendored seed registers). The admin capabilities probe authenticates
           # with the admin password as the API key.
           {
@@ -576,7 +576,7 @@ jobs:
               "",
               `- SDK package: \`${meta.sdkPackage}@${meta.sdkVersion}\``,
               `- Server: \`${meta.serverVersion ?? "unknown"}\` (channel \`${meta.serverReleaseChannel ?? "unknown"}\`), image \`${meta.serverImage ?? "unknown"}\`, commit \`${meta.serverCommit ?? "unknown"}\``,
-              `- Base URL: \`${meta.baseUrl}\` Â· seed \`${meta.seedProfile}\` Â· service/layer \`${meta.serviceId}\`/\`${meta.layerId}\` Â· collection \`${meta.collectionId}\``,
+              `- Base URL: \`${meta.baseUrl}\` · seed \`${meta.seedProfile}\` · service/layer \`${meta.serviceId}\`/\`${meta.layerId}\` · collection \`${meta.collectionId}\``,
               `- Fixtures: \`${meta.conformanceFixturesVersion ?? "unknown"}\``,
               "",
               `### Surfaces (${exercised} exercised, ${skipped} skipped)`,
@@ -600,7 +600,7 @@ jobs:
   conformance-guardrail:
     name: Conformance Drift Guardrail
     runs-on: ubuntu-24.04
-    # Effectiveness guardrail â€” ALWAYS runs, independent of the server lane.
+    # Effectiveness guardrail — ALWAYS runs, independent of the server lane.
     # Proves the conformance gate catches a mutated golden (renamed/removed
     # field, type change, dropped geometry/attribute, flipped
     # exceededTransferLimit, wrong totalCount) and is not trivially always-green.
@@ -626,7 +626,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## SDK Contract Conformance â€” Drift Guardrail"
+            echo "## SDK Contract Conformance — Drift Guardrail"
             echo ""
             echo "The drift-detection negative test ran independently of the live lane,"
             echo "proving the conformance gate catches a mutated golden. The LIVE"
