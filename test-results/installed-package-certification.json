@@ -1,0 +1,1666 @@
+{
+  "schema": "honua.sdk-installed-package-certification-receipt/v1",
+  "generatedAt": "2026-09-01T12:00:02.550Z",
+  "release": "2026.1",
+  "server": {
+    "image": "ghcr.io/honua-io/honua-server@sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72",
+    "digest": "sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72"
+  },
+  "package": {
+    "coordinate": "@honua/sdk-js",
+    "version": "0.1.9-beta.0",
+    "registry": "https://registry.npmjs.org",
+    "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ=="
+  },
+  "install": {
+    "mode": "clean-npm-ci",
+    "localLinks": false,
+    "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz",
+    "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ=="
+  },
+  "verdict": "not-certified",
+  "summary": {
+    "total": 228,
+    "pass": 0,
+    "fail": 0,
+    "blocked": 228
+  },
+  "operations": [
+    {
+      "id": "protocol-certification:featureserver:add-features",
+      "family": "protocol-certification",
+      "operation": "add-features",
+      "capabilityKey": "serve.geoservices-featureserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:featureserver:attachments",
+      "family": "protocol-certification",
+      "operation": "attachments",
+      "capabilityKey": "serve.geoservices-featureserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:featureserver:count",
+      "family": "protocol-certification",
+      "operation": "count",
+      "capabilityKey": "serve.geoservices-featureserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:featureserver:delete-features",
+      "family": "protocol-certification",
+      "operation": "delete-features",
+      "capabilityKey": "serve.geoservices-featureserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:featureserver:metadata",
+      "family": "protocol-certification",
+      "operation": "metadata",
+      "capabilityKey": "serve.geoservices-featureserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:featureserver:object-ids",
+      "family": "protocol-certification",
+      "operation": "object-ids",
+      "capabilityKey": "serve.geoservices-featureserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:featureserver:query",
+      "family": "protocol-certification",
+      "operation": "query",
+      "capabilityKey": "serve.geoservices-featureserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:featureserver:update-features",
+      "family": "protocol-certification",
+      "operation": "update-features",
+      "capabilityKey": "serve.geoservices-featureserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:geometryserver:buffer",
+      "family": "protocol-certification",
+      "operation": "buffer",
+      "capabilityKey": "serve.geoservices-geometry-service",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:geometryserver:project",
+      "family": "protocol-certification",
+      "operation": "project",
+      "capabilityKey": "serve.geoservices-geometry-service",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:gpserver:job-status",
+      "family": "protocol-certification",
+      "operation": "job-status",
+      "capabilityKey": "process.geoprocessing",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:gpserver:submit-job",
+      "family": "protocol-certification",
+      "operation": "submit-job",
+      "capabilityKey": "process.geoprocessing",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:imageserver:export-image",
+      "family": "protocol-certification",
+      "operation": "export-image",
+      "capabilityKey": "serve.geoservices-imageserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:imageserver:metadata",
+      "family": "protocol-certification",
+      "operation": "metadata",
+      "capabilityKey": "serve.geoservices-imageserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:mapserver:count",
+      "family": "protocol-certification",
+      "operation": "count",
+      "capabilityKey": "serve.geoservices-mapserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:mapserver:export",
+      "family": "protocol-certification",
+      "operation": "export",
+      "capabilityKey": "serve.geoservices-mapserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:mapserver:metadata",
+      "family": "protocol-certification",
+      "operation": "metadata",
+      "capabilityKey": "serve.geoservices-mapserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:mapserver:query",
+      "family": "protocol-certification",
+      "operation": "query",
+      "capabilityKey": "serve.geoservices-mapserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:odata:entity-page",
+      "family": "protocol-certification",
+      "operation": "entity-page",
+      "capabilityKey": "serve.odata",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:odata:metadata",
+      "family": "protocol-certification",
+      "operation": "metadata",
+      "capabilityKey": "serve.odata",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-features:collections",
+      "family": "protocol-certification",
+      "operation": "collections",
+      "capabilityKey": "serve.ogc-api-features",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-features:conformance",
+      "family": "protocol-certification",
+      "operation": "conformance",
+      "capabilityKey": "serve.ogc-api-features",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-features:item",
+      "family": "protocol-certification",
+      "operation": "item",
+      "capabilityKey": "serve.ogc-api-features",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-features:items",
+      "family": "protocol-certification",
+      "operation": "items",
+      "capabilityKey": "serve.ogc-api-features",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-features:landing",
+      "family": "protocol-certification",
+      "operation": "landing",
+      "capabilityKey": "serve.ogc-api-features",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-processes:conformance",
+      "family": "protocol-certification",
+      "operation": "conformance",
+      "capabilityKey": "process.ogc-api-processes",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-processes:describe",
+      "family": "protocol-certification",
+      "operation": "describe",
+      "capabilityKey": "process.ogc-api-processes",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-processes:landing",
+      "family": "protocol-certification",
+      "operation": "landing",
+      "capabilityKey": "process.ogc-api-processes",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:ogc-processes:list",
+      "family": "protocol-certification",
+      "operation": "list",
+      "capabilityKey": "process.ogc-api-processes",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:stac:collection",
+      "family": "protocol-certification",
+      "operation": "collection",
+      "capabilityKey": "serve.stac",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:stac:collections",
+      "family": "protocol-certification",
+      "operation": "collections",
+      "capabilityKey": "serve.stac",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:stac:landing",
+      "family": "protocol-certification",
+      "operation": "landing",
+      "capabilityKey": "serve.stac",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:stac:search",
+      "family": "protocol-certification",
+      "operation": "search",
+      "capabilityKey": "serve.stac",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:wfs:capabilities",
+      "family": "protocol-certification",
+      "operation": "capabilities",
+      "capabilityKey": "serve.wfs",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:wfs:get-feature",
+      "family": "protocol-certification",
+      "operation": "get-feature",
+      "capabilityKey": "serve.wfs",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:wms:capabilities",
+      "family": "protocol-certification",
+      "operation": "capabilities",
+      "capabilityKey": "serve.wms",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:wms:get-map",
+      "family": "protocol-certification",
+      "operation": "get-map",
+      "capabilityKey": "serve.wms",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:wmts:capabilities",
+      "family": "protocol-certification",
+      "operation": "capabilities",
+      "capabilityKey": "serve.wmts",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-certification:wmts:get-tile",
+      "family": "protocol-certification",
+      "operation": "get-tile",
+      "capabilityKey": "serve.wmts",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:applyEdits",
+      "family": "protocol-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:attachments",
+      "family": "protocol-operation",
+      "operation": "attachments",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:pbf",
+      "family": "protocol-operation",
+      "operation": "pbf",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:queryAggregate",
+      "family": "protocol-operation",
+      "operation": "queryAggregate",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:queryExtent",
+      "family": "protocol-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:queryObjectIds",
+      "family": "protocol-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:queryRelated",
+      "family": "protocol-operation",
+      "operation": "queryRelated",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:sql",
+      "family": "protocol-operation",
+      "operation": "sql",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:stream",
+      "family": "protocol-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-feature-service:tiles",
+      "family": "protocol-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-geometry-service:geometry",
+      "family": "protocol-operation",
+      "operation": "geometry",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-gp-service:geoprocess",
+      "family": "protocol-operation",
+      "operation": "geoprocess",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-image-service:image",
+      "family": "protocol-operation",
+      "operation": "image",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-image-service:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-image-service:queryExtent",
+      "family": "protocol-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-image-service:queryObjectIds",
+      "family": "protocol-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-image-service:render",
+      "family": "protocol-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-image-service:tiles",
+      "family": "protocol-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:queryAggregate",
+      "family": "protocol-operation",
+      "operation": "queryAggregate",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:queryExtent",
+      "family": "protocol-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:queryObjectIds",
+      "family": "protocol-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:queryRelated",
+      "family": "protocol-operation",
+      "operation": "queryRelated",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:render",
+      "family": "protocol-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:sql",
+      "family": "protocol-operation",
+      "operation": "sql",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:stream",
+      "family": "protocol-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:geoservices-map-service:tiles",
+      "family": "protocol-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:grpc:applyEdits",
+      "family": "protocol-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:grpc:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:grpc:queryAggregate",
+      "family": "protocol-operation",
+      "operation": "queryAggregate",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:grpc:queryExtent",
+      "family": "protocol-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:grpc:queryObjectIds",
+      "family": "protocol-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:grpc:stream",
+      "family": "protocol-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:maplibre-raster:render",
+      "family": "protocol-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:maplibre-raster:tiles",
+      "family": "protocol-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:maplibre-vector:render",
+      "family": "protocol-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:maplibre-vector:tiles",
+      "family": "protocol-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:odata:applyEdits",
+      "family": "protocol-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:odata:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:odata:queryObjectIds",
+      "family": "protocol-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:odata:stream",
+      "family": "protocol-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:ogc-features:applyEdits",
+      "family": "protocol-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:ogc-features:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:ogc-features:queryAggregate",
+      "family": "protocol-operation",
+      "operation": "queryAggregate",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:ogc-features:queryExtent",
+      "family": "protocol-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:ogc-features:queryObjectIds",
+      "family": "protocol-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:ogc-features:stream",
+      "family": "protocol-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:pmtiles:tiles",
+      "family": "protocol-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:stac:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:stac:queryObjectIds",
+      "family": "protocol-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:stac:stream",
+      "family": "protocol-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wfs:applyEdits",
+      "family": "protocol-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wfs:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wfs:queryExtent",
+      "family": "protocol-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wfs:queryObjectIds",
+      "family": "protocol-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wfs:stream",
+      "family": "protocol-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wms:query",
+      "family": "protocol-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wms:render",
+      "family": "protocol-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wms:tiles",
+      "family": "protocol-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wmts:render",
+      "family": "protocol-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "protocol-operation:wmts:tiles",
+      "family": "protocol-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:esri-compat-standalone:applyEdits",
+      "family": "sdk-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:esri-compat-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geometry-client-only:geometry",
+      "family": "sdk-operation",
+      "operation": "geometry",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-feature-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-feature-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-feature-standalone:queryExtent",
+      "family": "sdk-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-feature-standalone:queryObjectIds",
+      "family": "sdk-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-feature-standalone:stream",
+      "family": "sdk-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-geometry-discovery-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-gp-discovery-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-gp-discovery-standalone:geoprocess",
+      "family": "sdk-operation",
+      "operation": "geoprocess",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-image-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-image-standalone:image",
+      "family": "sdk-operation",
+      "operation": "image",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-image-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-image-standalone:render",
+      "family": "sdk-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-image-standalone:tiles",
+      "family": "sdk-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-map-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-map-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-map-standalone:render",
+      "family": "sdk-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:geoservices-map-standalone:tiles",
+      "family": "sdk-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:grpc-connect-discovery:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:grpc-connect-discovery:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:grpc-connect-discovery:queryExtent",
+      "family": "sdk-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:grpc-connect-discovery:queryObjectIds",
+      "family": "sdk-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:grpc-connect-discovery:stream",
+      "family": "sdk-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:migration-client-only:migration",
+      "family": "sdk-operation",
+      "operation": "migration",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:odata-standalone:applyEdits",
+      "family": "sdk-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:odata-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:odata-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:odata-standalone:queryObjectIds",
+      "family": "sdk-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:odata-standalone:stream",
+      "family": "sdk-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:ogc-features-standalone:applyEdits",
+      "family": "sdk-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:ogc-features-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:ogc-features-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:ogc-features-standalone:queryObjectIds",
+      "family": "sdk-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:ogc-features-standalone:stream",
+      "family": "sdk-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:ogc-processes-discovery-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:pmtiles-discovery-client-only:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:pmtiles-discovery-client-only:tiles",
+      "family": "sdk-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:stac-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:stac-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:stac-standalone:queryObjectIds",
+      "family": "sdk-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:stac-standalone:stream",
+      "family": "sdk-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wfs-standalone:applyEdits",
+      "family": "sdk-operation",
+      "operation": "applyEdits",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wfs-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wfs-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wfs-standalone:queryExtent",
+      "family": "sdk-operation",
+      "operation": "queryExtent",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wfs-standalone:queryObjectIds",
+      "family": "sdk-operation",
+      "operation": "queryObjectIds",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wfs-standalone:stream",
+      "family": "sdk-operation",
+      "operation": "stream",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wms-discovery-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wms-discovery-standalone:query",
+      "family": "sdk-operation",
+      "operation": "query",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wms-discovery-standalone:render",
+      "family": "sdk-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wms-discovery-standalone:tiles",
+      "family": "sdk-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wmts-discovery-standalone:discovery",
+      "family": "sdk-operation",
+      "operation": "discovery",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wmts-discovery-standalone:render",
+      "family": "sdk-operation",
+      "operation": "render",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "sdk-operation:wmts-discovery-standalone:tiles",
+      "family": "sdk-operation",
+      "operation": "tiles",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "terminal-journey:admin:admin-status",
+      "family": "terminal-journey",
+      "operation": "admin-status",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:create-connection",
+      "family": "terminal-journey",
+      "operation": "create-connection",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:import-parcels",
+      "family": "terminal-journey",
+      "operation": "import-parcels",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:import-zoning",
+      "family": "terminal-journey",
+      "operation": "import-zoning",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:list-access-credentials",
+      "family": "terminal-journey",
+      "operation": "list-access-credentials",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:publish-parcels",
+      "family": "terminal-journey",
+      "operation": "publish-parcels",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:publish-zoning",
+      "family": "terminal-journey",
+      "operation": "publish-zoning",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:set-public-access",
+      "family": "terminal-journey",
+      "operation": "set-public-access",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:test-connection",
+      "family": "terminal-journey",
+      "operation": "test-connection",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:admin:verify-access-credential",
+      "family": "terminal-journey",
+      "operation": "verify-access-credential",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1424"
+    },
+    {
+      "id": "terminal-journey:artifact:verify-dashboard-public-url",
+      "family": "terminal-journey",
+      "operation": "verify-dashboard-public-url",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1401"
+    },
+    {
+      "id": "terminal-journey:artifact:verify-map-public-url",
+      "family": "terminal-journey",
+      "operation": "verify-map-public-url",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1401"
+    },
+    {
+      "id": "terminal-journey:artifact:verify-share-url",
+      "family": "terminal-journey",
+      "operation": "verify-share-url",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1401"
+    },
+    {
+      "id": "terminal-journey:console:console-approval",
+      "family": "terminal-journey",
+      "operation": "console-approval",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1401"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:buffer-esri-gpserver",
+      "family": "terminal-journey",
+      "operation": "buffer-esri-gpserver",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:buffer-esri-mcp",
+      "family": "terminal-journey",
+      "operation": "buffer-esri-mcp",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:buffer-parcels",
+      "family": "terminal-journey",
+      "operation": "buffer-parcels",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:describe-esri-buffer",
+      "family": "terminal-journey",
+      "operation": "describe-esri-buffer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:list-esri-gp-tasks",
+      "family": "terminal-journey",
+      "operation": "list-esri-gp-tasks",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:read-direct-buffer-results",
+      "family": "terminal-journey",
+      "operation": "read-direct-buffer-results",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:read-esri-mcp-buffer-results",
+      "family": "terminal-journey",
+      "operation": "read-esri-mcp-buffer-results",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:wait-direct-buffer",
+      "family": "terminal-journey",
+      "operation": "wait-direct-buffer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:geoprocessing:wait-esri-mcp-buffer",
+      "family": "terminal-journey",
+      "operation": "wait-esri-mcp-buffer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:install:install-local",
+      "family": "terminal-journey",
+      "operation": "install-local",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "terminal-journey:install:install-status",
+      "family": "terminal-journey",
+      "operation": "install-status",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113"
+    },
+    {
+      "id": "terminal-journey:proposal:propose-app-publication",
+      "family": "terminal-journey",
+      "operation": "propose-app-publication",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1398"
+    },
+    {
+      "id": "terminal-journey:proposal:propose-dashboard-publication",
+      "family": "terminal-journey",
+      "operation": "propose-dashboard-publication",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1398"
+    },
+    {
+      "id": "terminal-journey:proposal:propose-map-publication",
+      "family": "terminal-journey",
+      "operation": "propose-map-publication",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1398"
+    },
+    {
+      "id": "terminal-journey:proposal:save-app-publication-version",
+      "family": "terminal-journey",
+      "operation": "save-app-publication-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1398"
+    },
+    {
+      "id": "terminal-journey:proposal:save-dashboard-publication-version",
+      "family": "terminal-journey",
+      "operation": "save-dashboard-publication-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1398"
+    },
+    {
+      "id": "terminal-journey:proposal:save-map-publication-version",
+      "family": "terminal-journey",
+      "operation": "save-map-publication-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1398"
+    },
+    {
+      "id": "terminal-journey:studio:add-app-buffer-layer",
+      "family": "terminal-journey",
+      "operation": "add-app-buffer-layer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-app-chart",
+      "family": "terminal-journey",
+      "operation": "add-app-chart",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-app-layer-control",
+      "family": "terminal-journey",
+      "operation": "add-app-layer-control",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-app-parcels-layer",
+      "family": "terminal-journey",
+      "operation": "add-app-parcels-layer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-dashboard-buffer-layer",
+      "family": "terminal-journey",
+      "operation": "add-dashboard-buffer-layer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-dashboard-chart",
+      "family": "terminal-journey",
+      "operation": "add-dashboard-chart",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-dashboard-layer-control",
+      "family": "terminal-journey",
+      "operation": "add-dashboard-layer-control",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-map-buffer-layer",
+      "family": "terminal-journey",
+      "operation": "add-map-buffer-layer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-map-control",
+      "family": "terminal-journey",
+      "operation": "add-map-control",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-map-parcels-layer",
+      "family": "terminal-journey",
+      "operation": "add-map-parcels-layer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:add-map-widget",
+      "family": "terminal-journey",
+      "operation": "add-map-widget",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:bind-app-chart-interaction",
+      "family": "terminal-journey",
+      "operation": "bind-app-chart-interaction",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:create-app-draft",
+      "family": "terminal-journey",
+      "operation": "create-app-draft",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:create-dashboard-draft",
+      "family": "terminal-journey",
+      "operation": "create-dashboard-draft",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:create-map-draft",
+      "family": "terminal-journey",
+      "operation": "create-map-draft",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:get-app-version",
+      "family": "terminal-journey",
+      "operation": "get-app-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:get-dashboard-version",
+      "family": "terminal-journey",
+      "operation": "get-dashboard-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:get-map-version",
+      "family": "terminal-journey",
+      "operation": "get-map-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:reopen-app-version",
+      "family": "terminal-journey",
+      "operation": "reopen-app-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:reopen-dashboard-version",
+      "family": "terminal-journey",
+      "operation": "reopen-dashboard-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:reopen-map-version",
+      "family": "terminal-journey",
+      "operation": "reopen-map-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:save-app-version",
+      "family": "terminal-journey",
+      "operation": "save-app-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:save-dashboard-version",
+      "family": "terminal-journey",
+      "operation": "save-dashboard-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:save-map-version",
+      "family": "terminal-journey",
+      "operation": "save-map-version",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:set-app-view",
+      "family": "terminal-journey",
+      "operation": "set-app-view",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:set-dashboard-view",
+      "family": "terminal-journey",
+      "operation": "set-dashboard-view",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:set-map-buffer-visibility",
+      "family": "terminal-journey",
+      "operation": "set-map-buffer-visibility",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:set-map-view",
+      "family": "terminal-journey",
+      "operation": "set-map-view",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:style-app-buffer-layer",
+      "family": "terminal-journey",
+      "operation": "style-app-buffer-layer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:style-dashboard-buffer-layer",
+      "family": "terminal-journey",
+      "operation": "style-dashboard-buffer-layer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:style-map-buffer-layer",
+      "family": "terminal-journey",
+      "operation": "style-map-buffer-layer",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:validate-app-draft",
+      "family": "terminal-journey",
+      "operation": "validate-app-draft",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:validate-dashboard-draft",
+      "family": "terminal-journey",
+      "operation": "validate-dashboard-draft",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:studio:validate-map-draft",
+      "family": "terminal-journey",
+      "operation": "validate-map-draft",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1397"
+    },
+    {
+      "id": "terminal-journey:style:apply-canonical-style",
+      "family": "terminal-journey",
+      "operation": "apply-canonical-style",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:style:confirm-published-style",
+      "family": "terminal-journey",
+      "operation": "confirm-published-style",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:style:list-style-presets",
+      "family": "terminal-journey",
+      "operation": "list-style-presets",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:style:read-published-style",
+      "family": "terminal-journey",
+      "operation": "read-published-style",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:style:read-rendered-map",
+      "family": "terminal-journey",
+      "operation": "read-rendered-map",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    },
+    {
+      "id": "terminal-journey:style:render-published-map",
+      "family": "terminal-journey",
+      "operation": "render-published-map",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1426"
+    }
+  ],
+  "receiptDigest": "sha256:288145dd30f99df6c7f1122b9925fac14dbb8ff9906271e2c2170fd8fbc439df"
+}

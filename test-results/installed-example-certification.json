@@ -1,0 +1,2319 @@
+{
+  "schema": "honua.sdk-installed-example-certification-receipt/v1",
+  "generatedAt": "2026-09-01T23:39:42.869Z",
+  "release": "2026.1",
+  "package": {
+    "coordinate": "@honua/sdk-js",
+    "version": "0.1.9-beta.0",
+    "registry": "https://registry.npmjs.org",
+    "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+    "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz"
+  },
+  "server": {
+    "image": "ghcr.io/honua-io/honua-server@sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72",
+    "digest": "sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72"
+  },
+  "summary": {
+    "total": 397,
+    "examples": 33,
+    "snippets": 364,
+    "pass": 120,
+    "fail": 1,
+    "blocked": 27,
+    "not-executable": 249
+  },
+  "verdict": "failed",
+  "verdicts": [
+    {
+      "id": "ai-spatial-app-builder",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "app-bootstrap-basic",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "arcgis-source-app",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example has no executable Vite configuration"
+    },
+    {
+      "id": "columnar-query-quickstart",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "coverages-wcs-basic",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "edit-workflow-demo",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "endpoint-to-map",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example has no executable Vite configuration"
+    },
+    {
+      "id": "geocoding-quickstart",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "geoprocessing-job-runner",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "imagery-cog-quickstart",
+      "kind": "example",
+      "verdict": "pass"
+    },
+    {
+      "id": "kepler-analytics",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "maplibre-quickstart",
+      "kind": "example",
+      "verdict": "fail",
+      "issue": "honua-sdk-js#1584",
+      "diagnostic": "✗ Build failed in 1.03s\nerror during build:\nBuild failed with 1 error:\n\n[plugin honua-first-map-bundle-budget]\nError: First Map JavaScript bundle 2936699 bytes / 767117 gzip exceeds 1990000 / 524000.\n    at PluginContextImpl.generateBundle (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/.vite-temp/vite.config.ts.timestamp-1788305975364-79c6501d1514d8.mjs:218:42)\n    at PluginContextImpl.handler (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/chunks/node.js:33513:13)\n    at plugin (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1373:18)\n    at plugin.<computed> (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1625:18)\n    at aggregateBindingErrorsIntoJsError (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/error-BuvQYXuZ.mjs:48:18)\n    at unwrapBindingResult (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/error-BuvQYXuZ.mjs:18:128)\n    at #build (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/rolldown/dist/shared/rolldown-build-CrPk_lZe.mjs:3246:34)\n    at async buildEnvironment (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/chunks/node.js:33253:64)\n    at async Object.build (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/chunks/node.js:33675:19)\n    at async Object.buildApp (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/chunks/node.js:33672:153)\n    at async CAC.<anonymous> (file:///home/mike/honua-io/wt-sdkjs-39-installed/node_modules/vite/dist/node/cli.js:777:3) {\n  errors: [Getter/Setter]\n}"
+    },
+    {
+      "id": "mcp-gis-assistant",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "migration-workbench",
+      "kind": "example",
+      "verdict": "pass"
+    },
+    {
+      "id": "nl-map-control",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "node-backend-quickstart",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example has no executable Vite configuration"
+    },
+    {
+      "id": "oauth-signin",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "overture-geoparquet",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "planning-permitting-workbench",
+      "kind": "example",
+      "verdict": "pass"
+    },
+    {
+      "id": "pmtiles-static",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "react-quickstart",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "realtime-incident-dashboard",
+      "kind": "example",
+      "verdict": "pass"
+    },
+    {
+      "id": "runtime-parity-showcase",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "service-explorer",
+      "kind": "example",
+      "verdict": "pass"
+    },
+    {
+      "id": "sketch-editing",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "spatial-analytics-workbench",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "stac-imagery-browser",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "standalone-quickstart",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example has no executable Vite configuration"
+    },
+    {
+      "id": "storytelling-25d-map",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "temporal-playback",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "terrain-rgb-elevation",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "unified-ops-workspace",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "web-components-basic",
+      "kind": "example",
+      "verdict": "blocked",
+      "blockedBy": "honua-sdk-js#1113",
+      "diagnostic": "example does not expose the shared installed-package Vite mode"
+    },
+    {
+      "id": "INSTALL.md:193",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "INSTALL.md:264",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "README.md:33",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "README.md:57",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "README.md:327",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "README.md:379",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "README.md:418",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/agent-safety.md:35",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ai-map-kit.md:12",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/app-bootstrap.md:18",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/app-bootstrap.md:47",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/app-bootstrap.md:71",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/app-controller.md:7",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/app-controller.md:63",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/app-controller.md:130",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/auth.md:9",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/auth.md:64",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/auth.md:98",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/auth.md:119",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/auth.md:145",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/auth.md:195",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/cesium-entity-adapter.md:6",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/cesium-entity-adapter.md:139",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/cloud-native-source-discovery.md:12",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/cloud-native-source-discovery.md:51",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/cloud-native-source-discovery.md:69",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/cog.md:24",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/cog.md:98",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:41",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:94",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:142",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:193",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:231",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:265",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:322",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires a live GeoParquet runtime"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:423",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "worker-host transform and identity are application-owned"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:454",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "worker-host registration and batch identity are application-owned"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:534",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "browser Worker URL and worker module are application-owned"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:563",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "worker global transport wrapper is application-owned"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:730",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "the source batch is produced by an application's own query execution"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:768",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "the source batch and the row sink are application-owned"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:814",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "live cursor, batch identity, and renderer binding are application-owned"
+    },
+    {
+      "id": "docs/columnar-data-plane.md:930",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/composition.md:38",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:100",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:112",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:136",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:172",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:190",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/composition.md:206",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:231",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:254",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:287",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/composition.md:302",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/console-contracts.md:11",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "historical removed console subpath"
+    },
+    {
+      "id": "docs/create-honua-app.md:38",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "the scaffolded starter runs this against its own dev-server fixture endpoint"
+    },
+    {
+      "id": "docs/data-to-map-bridge.md:25",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a browser MapLibre host"
+    },
+    {
+      "id": "docs/data-to-map-bridge.md:71",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a live Source instance"
+    },
+    {
+      "id": "docs/data-to-map-bridge.md:99",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a mounted handle"
+    },
+    {
+      "id": "docs/data-to-map-bridge.md:119",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a browser MapLibre host"
+    },
+    {
+      "id": "docs/data-to-map-bridge.md:142",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a browser MapLibre host"
+    },
+    {
+      "id": "docs/data-to-map-bridge.md:181",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a mounted handle"
+    },
+    {
+      "id": "docs/data-to-map-bridge.md:201",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a browser MapLibre host"
+    },
+    {
+      "id": "docs/decisions/north-star-sdk-application-kernel.md:88",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/north-star-sdk-application-kernel.md:140",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/north-star-sdk-application-kernel.md:186",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/north-star-sdk-application-kernel.md:196",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/north-star-sdk-application-kernel.md:211",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/north-star-sdk-application-kernel.md:264",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/north-star-sdk-application-kernel.md:290",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/north-star-sdk-application-kernel.md:408",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "normative future API; compile fixture lives under test/design"
+    },
+    {
+      "id": "docs/decisions/odata-library-selection.md:102",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/scope-split-and-1.0.md:245",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/decisions/sdk-1.0-execution-plan.md:21",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "illustrative target API is implemented by the linked execution backlog"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:142",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:207",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:323",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:357",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:448",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:678",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:826",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:1046",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/decisions/vendor-neutral-source-contract-v2.md:1090",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "design-only declarations compile in test/design/contract-v2"
+    },
+    {
+      "id": "docs/deckgl-adapter.md:52",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires an application-owned non-null OGC:CRS84 batch"
+    },
+    {
+      "id": "docs/deckgl-adapter.md:104",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/deckgl-adapter.md:116",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/deckgl-adapter.md:152",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/deckgl-adapter.md:189",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires an application-owned MapLibre map and deck.gl overlay"
+    },
+    {
+      "id": "docs/discovery-contract.md:16",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/discovery-contract.md:68",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/discovery-contract.md:165",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/discovery-contract.md:185",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/discovery-contract.md:233",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/dynamic-query-tiles.md:12",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/dynamic-query-tiles.md:62",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/dynamic-query-tiles.md:128",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/errors.md:57",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application retry and logging hosts"
+    },
+    {
+      "id": "docs/errors.md:390",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/esri-sample-corpus.md:38",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/esri-sample-corpus.md:60",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/exploration-context.md:33",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:102",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:115",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:137",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:156",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:170",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:197",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:222",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:231",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:245",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:259",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:266",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:286",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/exploration-context.md:309",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/feature-inspection.md:9",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires ambient application context and MapLibre host instances"
+    },
+    {
+      "id": "docs/features/coverages-wcs.md:29",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/features/coverages-wcs.md:46",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continuation requires prior walkthrough state"
+    },
+    {
+      "id": "docs/features/coverages-wcs.md:59",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continuation requires prior walkthrough state"
+    },
+    {
+      "id": "docs/features/coverages-wcs.md:76",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continuation requires prior walkthrough state"
+    },
+    {
+      "id": "docs/filter-registry.md:13",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/filter-registry.md:82",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/generated-app-runtime.md:14",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/generated-app-runtime.md:72",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/generated-app-runtime.md:166",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geocoding-routing-providers.md:42",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geocoding-routing-providers.md:59",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geocoding-routing-providers.md:82",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geocoding-routing-providers.md:95",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geocoding-routing-providers.md:114",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geocoding-routing-providers.md:129",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geocoding-routing-providers.md:151",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geocoding-routing-providers.md:170",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geometry.md:24",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geometry.md:55",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geometry.md:93",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geometry.md:152",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geoparquet.md:35",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geoparquet.md:88",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geoparquet.md:221",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geoparquet.md:236",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geoparquet.md:254",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geoparquet.md:319",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/geoprocessing.md:20",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geoprocessing.md:46",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geoprocessing.md:73",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/geoprocessing.md:112",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:116",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:247",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:293",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/guide.md:324",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/guide.md:372",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/guide.md:610",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:642",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/guide.md:677",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:696",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/guide.md:738",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:778",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:830",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:872",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:944",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:961",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:994",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:1012",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:1034",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/guide.md:1144",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/kepler-workspace-bridge.md:56",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/kepler-workspace-bridge.md:169",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/kepler-workspace-bridge.md:209",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/kepler-workspace-bridge.md:222",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the optional @kepler.gl/actions peer and a live Redux store"
+    },
+    {
+      "id": "docs/linked-analytics.md:50",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a connected Source; the accept call itself is pure"
+    },
+    {
+      "id": "docs/linked-analytics.md:133",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires an ExplorationViewController and a DOM target"
+    },
+    {
+      "id": "docs/linked-analytics.md:185",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires an accepted artifact"
+    },
+    {
+      "id": "docs/linked-analytics.md:209",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the optional uplot peer and a DOM target"
+    },
+    {
+      "id": "docs/linked-view-context-sync.md:17",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/linked-view-context-sync.md:51",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/linked-view-context-sync.md:61",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/linked-view-context-sync.md:85",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/linked-view-context-sync.md:105",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/linked-view-context-sync.md:123",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/linked-view-context-sync.md:145",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/linked-view-context-sync.md:160",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/map-package-realtime-watch.md:10",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/map-package-realtime-watch.md:58",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:68",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a live MapLibre map"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:115",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:161",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application source and host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:189",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires an accepted query-tile descriptor"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:218",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:273",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a browser MapLibre peer and public endpoint"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:297",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:344",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:387",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:431",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:525",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:549",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/maplibre-runtime.md:569",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/metadata-caching-strategy.md:124",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/metadata-caching-strategy.md:172",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/migration-honua-maplibre.md:69",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "wiring snippet requires an application host"
+    },
+    {
+      "id": "docs/migration-honua-maplibre.md:92",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "wiring snippet requires an application host"
+    },
+    {
+      "id": "docs/migration-honua-maplibre.md:180",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/nl-map-control.md:55",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a live map host and an LLM callback"
+    },
+    {
+      "id": "docs/nl-map-control.md:134",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "illustrative tool publication snippet"
+    },
+    {
+      "id": "docs/offline-regions.md:18",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/offline-regions.md:70",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/offline-regions.md:160",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/offline-regions.md:237",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/offline-regions.md:295",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/offline-regions.md:313",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/offline-regions.md:363",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/offline-regions.md:396",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application replay transport"
+    },
+    {
+      "id": "docs/offline-regions.md:446",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application replay transport"
+    },
+    {
+      "id": "docs/offline-regions.md:548",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application replay transport"
+    },
+    {
+      "id": "docs/offline-regions.md:582",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application review surface"
+    },
+    {
+      "id": "docs/offline-regions.md:643",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ogc-api.md:46",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/ogc-api.md:55",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ogc-api.md:62",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ogc-api.md:86",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ogc-api.md:120",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ogc-api.md:176",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires a live third-party Processes endpoint"
+    },
+    {
+      "id": "docs/ogc-api.md:277",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ogc-api.md:327",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ogc-api.md:376",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/ogc-api.md:431",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/operator-components.md:8",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/plugin-manifest-certification.md:21",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/plugin-manifest-certification.md:147",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/pmtiles-lifecycle.md:17",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/pmtiles-lifecycle.md:34",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/pmtiles.md:27",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/pmtiles.md:74",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/pmtiles.md:119",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/pmtiles.md:134",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/protocol-capability-matrix.md:908",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:49",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:101",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:160",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:200",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:277",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:370",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:395",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:472",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:586",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/query-planner.md:641",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:713",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application private locator and execution host"
+    },
+    {
+      "id": "docs/query-planner.md:913",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/query-planner.md:989",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/react.md:29",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/react.md:59",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/react.md:122",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/react.md:162",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/react.md:202",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the @vis.gl/react-maplibre host application"
+    },
+    {
+      "id": "docs/react.md:242",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/react.md:293",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/realtime-resume.md:16",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/realtime-resume.md:146",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/realtime-subscriptions.md:13",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/realtime-subscriptions.md:30",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/realtime-subscriptions.md:78",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/realtime-subscriptions.md:94",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/realtime-subscriptions.md:108",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/realtime-subscriptions.md:132",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/realtime-subscriptions.md:202",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/renderers.md:15",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a browser MapLibre host"
+    },
+    {
+      "id": "docs/renderers.md:64",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "illustrative snippet"
+    },
+    {
+      "id": "docs/renderers.md:92",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a browser MapLibre host"
+    },
+    {
+      "id": "docs/renderers.md:124",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a browser MapLibre host"
+    },
+    {
+      "id": "docs/replica-sync.md:17",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires an application host and a running server"
+    },
+    {
+      "id": "docs/saved-map-collaboration.md:5",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/saved-map-collaboration.md:32",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/saved-map-collaboration.md:52",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/scene-workspace.md:76",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/scene-workspace.md:176",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "ports wrap application-owned renderer instances"
+    },
+    {
+      "id": "docs/scene-workspace.md:413",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/scene-workspace.md:499",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/scene-workspace.md:534",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "field shape excerpt, not a standalone program"
+    },
+    {
+      "id": "docs/scene-workspace.md:609",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/scene-workspace.md:937",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/scene-workspace.md:1032",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/scene-workspace.md:1091",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/share-embed-open-data-contracts.md:13",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/share-embed-open-data-contracts.md:59",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/share-embed-open-data-contracts.md:78",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/share-embed-open-data-contracts.md:100",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/shared-client-contract.md:151",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/shared-client-contract.md:328",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/shared-client-contract.md:378",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/shared-client-contract.md:397",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/source-capabilities.md:28",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/source-capabilities.md:92",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "source handle is supplied by the surrounding application"
+    },
+    {
+      "id": "docs/source-capabilities.md:130",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/source-capabilities.md:207",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "cache and runtime context are application-owned"
+    },
+    {
+      "id": "docs/source-schema-v2-migration.md:11",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a live endpoint and auth scope"
+    },
+    {
+      "id": "docs/source-schema-v2-migration.md:34",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "illustrates the legacy compatibility surface"
+    },
+    {
+      "id": "docs/source-schema-v2-migration.md:44",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "schema v2 is populated by discovery at runtime"
+    },
+    {
+      "id": "docs/source-schema-v2-migration.md:150",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a live focused connection and executable source"
+    },
+    {
+      "id": "docs/studio-package-contracts.md:12",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/studio-package-contracts.md:91",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/studio-package-contracts.md:108",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/studio-package-contracts.md:119",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/studio-package-contracts.md:130",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/studio-package-contracts.md:150",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/studio-package-parity.md:14",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/studio-package-parity.md:52",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/terra-draw-sketch.md:51",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires a map instance and an editable source"
+    },
+    {
+      "id": "docs/terra-draw-sketch.md:91",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires a terra-draw instance and workflow model"
+    },
+    {
+      "id": "docs/walkthroughs/search-stac-and-open-assets.md:16",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/walkthroughs/search-stac-and-open-assets.md:33",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues the catalog client and application result state from step 1"
+    },
+    {
+      "id": "docs/walkthroughs/search-stac-and-open-assets.md:56",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues the selected item and signing service from the prior steps"
+    },
+    {
+      "id": "docs/walkthroughs/search-stac-and-open-assets.md:81",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues the selected asset from step 3 and performs a network range read"
+    },
+    {
+      "id": "docs/walkthroughs/search-stac-and-open-assets.md:109",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues the selected asset from step 3 and requires DuckDB-WASM runtime assets"
+    },
+    {
+      "id": "docs/walkthroughs/search-stac-and-open-assets.md:128",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues the selected asset from step 3 and requires a caller-owned COG decoder when the selected kind is cog"
+    },
+    {
+      "id": "docs/walkthroughs/server-or-browser-columnar.md:28",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/walkthroughs/server-or-browser-columnar.md:59",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "Continues with the session declared in the previous independently compiled snippet."
+    },
+    {
+      "id": "docs/walkthroughs/server-or-browser-columnar.md:81",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "Requires an advertised live Honua Arrow endpoint and application mapBatch implementation."
+    },
+    {
+      "id": "docs/walkthroughs/server-or-browser-columnar.md:104",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "Requires a pinned GeoParquet fixture URL and DuckDB-WASM runtime assets."
+    },
+    {
+      "id": "docs/walkthroughs/stac-to-cog-raster.md:15",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues a caller-owned STAC candidate, decoder factory, and cancellation signal"
+    },
+    {
+      "id": "docs/walkthroughs/stac-to-cog-raster.md:29",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues the structurally validated raster session from step 1"
+    },
+    {
+      "id": "docs/walkthroughs/stac-to-cog-raster.md:40",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues the raster session and caller-owned cancellation signal from prior steps"
+    },
+    {
+      "id": "docs/walkthroughs/stac-to-cog-raster.md:66",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/warehouse-analytics-sources.md:23",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/web-components.md:28",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/web-components.md:53",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires browser markup and a Source supplied by the application"
+    },
+    {
+      "id": "docs/web-components.md:111",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "Vite worker URL import requires a browser build"
+    },
+    {
+      "id": "docs/web-components.md:122",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/web-components.md:131",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/web-components.md:265",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/web-components.md:312",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires a live MapLibre map created with preserveDrawingBuffer"
+    },
+    {
+      "id": "docs/web-components.md:376",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/web-components.md:553",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/web-components.md:613",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires an editable Source and application host context"
+    },
+    {
+      "id": "docs/web-components.md:719",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires terra-draw peers and a MapLibre map"
+    },
+    {
+      "id": "docs/wfs.md:11",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/wfs.md:49",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "docs/wfs.md:327",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/wfs.md:347",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "docs/wfs.md:378",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context and a locking WFS server"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:106",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:200",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:221",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:276",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:321",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:341",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:377",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:406",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:435",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:463",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/widget-survival-guide.md:508",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "requires the separately published app-platform package"
+    },
+    {
+      "id": "docs/zarr.md:8",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "examples/_kit/design/README.md:9",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "CSS side-effect import resolves only inside a sample app's Vite build"
+    },
+    {
+      "id": "examples/columnar-query-quickstart/README.md:15",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "Browser application excerpt; source, columns, bbox, signal, mapRows, and showEvidence are defined by the runnable project."
+    },
+    {
+      "id": "examples/geocoding-quickstart/README.md:29",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "excerpt continues inside the sample's imported async browser bootstrap"
+    },
+    {
+      "id": "examples/geoprocessing-job-runner/README.md:5",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires the walkthrough's initialized client and pinned WKB input"
+    },
+    {
+      "id": "examples/imagery-cog-quickstart/README.md:141",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "examples/migration-workbench/README.md:37",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "wiring snippet requires an application host"
+    },
+    {
+      "id": "examples/node-backend-quickstart/README.md:45",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "examples/service-explorer/README.md:83",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "examples/stac-imagery-browser/README.md:20",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "continues a caller-created DynamicStacClient and shows only the atomic task body"
+    },
+    {
+      "id": "examples/web-components-basic/README.md:38",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "skills/honua-sdk-quickstart/SKILL.md:30",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "skills/honua-sdk-quickstart/SKILL.md:79",
+      "kind": "doc-snippet",
+      "verdict": "pass"
+    },
+    {
+      "id": "skills/honua-sdk-quickstart/SKILL.md:97",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    },
+    {
+      "id": "skills/honua-sdk-quickstart/SKILL.md:108",
+      "kind": "doc-snippet",
+      "verdict": "not-executable",
+      "diagnostic": "partial excerpt requires application host context"
+    }
+  ],
+  "receiptDigest": "sha256:2145712b49cf3a6d44f2b09f10569223006a78cfa0ec8aa5533c1acbfdd0a484"
+}
