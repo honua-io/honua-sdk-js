@@ -16,17 +16,21 @@ inventory and are not silently added to or removed from that budget's scope.
 only the runtime-peer alias from the loaded configuration and requires the
 historical failure: two MapLibre runtime modules and an over-budget build. The
 corrected build must then use exactly one runtime and satisfy both ceilings.
+A second injected defect keeps that runtime fix but removes the worker/style
+resolution fix; it passes the byte ceiling and must fail the new peer-identity
+check. The corrected runtime, worker, shared module and CSS must all resolve
+from the installed peer.
 No SDK source or local package build may enter either installed graph.
 
 The defect is a split resolver graph: the example's MapLibre import resolves
 beside the repository while the installed SDK's runtime import resolves beside
 the clean consumer. Both runtimes survive tree shaking. Resolve the example's
 declared runtime peer beside the SDK too. MapLibre 5's legacy entry fields and
-MapLibre 6's export map are both supported; exact aliases leave CSS subpaths
-under ordinary package resolution.
+MapLibre 6's export map are both supported; worker and stylesheet subpaths resolve from the same installed peer, with its
+public export map enforced.
 
 The retained reproduction on `@honua/sdk-js@0.1.9-beta.0` measured 2,953,782 /
-773,645 written chunk bytes before the fix and 1,979,893 / 523,372 after it.
+773,645 written chunk bytes before the fix and 1,979,893 / 523,377 after it.
 The source-mode build measured 1,953,828 / 516,171. No ceiling changed.
 
 This is a bundle regression receipt, not a live-server certification receipt.

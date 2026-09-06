@@ -41,7 +41,7 @@ try {
     path.join(root, "examples/maplibre-quickstart/vite.config.ts"));
   assert.ok(loaded, "canonical First Map config must load");
 
-  async function measure(label, removePeerAlias = false) {
+  async function measure(label, removePeerAlias = false, removePeerSubpaths = false) {
     const outDir = path.join(work, label);
     const moduleIds = new Set();
     let failure;
@@ -52,7 +52,8 @@ try {
       await build({ ...loaded.config, configFile: false, logLevel: "warn",
         resolve: { ...loaded.config.resolve, alias: loaded.config.resolve.alias.filter((alias) =>
           !removePeerAlias || !(alias.find instanceof RegExp &&
-            (alias.find.test("maplibre-gl") || alias.find.test("maplibre-gl/dist/maplibre-gl-worker.mjs")))) },
+            (alias.find.test("maplibre-gl") || alias.find.test("maplibre-gl/dist/maplibre-gl-worker.mjs"))))
+          .filter((alias) => !removePeerSubpaths || !(alias.find instanceof RegExp && alias.find.test("maplibre-gl/dist/maplibre-gl-worker.mjs"))) },
         plugins: [...loaded.config.plugins, moduleProof()],
         worker: { ...loaded.config.worker, plugins: () => [moduleProof()] },
         build: { ...loaded.config.build, outDir, emptyOutDir: true },
@@ -83,6 +84,7 @@ try {
   }
 
   const baseline = proveRegression ? await measure("baseline", true) : undefined;
+  const runtimeOnly = proveRegression ? await measure("runtime-only", false, true) : undefined;
   const corrected = await measure("corrected");
   const budget = { javascriptBytes: 1_990_000, javascriptGzipBytes: 524_000 };
   const receipt = { schema: "honua.installed-first-map-budget/v1", generatedAt: new Date().toISOString(),
@@ -93,10 +95,10 @@ try {
       [key, { version: value.version, integrity: value.integrity }])),
     sourceSha: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
     budget, measurementScope: "emitted JavaScript chunks, as defined by the canonical First Map budget",
-    node: process.version, status: corrected.status, ...(baseline ? { baseline } : {}), corrected };
+    node: process.version, status: corrected.status, ...(baseline ? { baseline, runtimeOnly } : {}), corrected };
   await mkdir(path.dirname(output), { recursive: true });
   await writeFile(output, JSON.stringify(receipt, null, 2) + "\n");
-  console.log(JSON.stringify({ baseline, corrected, output }, null, 2));
+  console.log(JSON.stringify({ baseline, runtimeOnly, corrected, output }, null, 2));
   if (baseline) {
     assert.equal(baseline.status, "failed", "removing the peer fix must reproduce the historical failure");
     assert.match(baseline.diagnostic, /First Map JavaScript bundle .* exceeds/);
@@ -106,10 +108,18 @@ try {
   assert.ok(corrected.measurement.javascriptBytes <= budget.javascriptBytes, "written chunks exceed the existing JavaScript ceiling");
   assert.ok(corrected.measurement.javascriptGzipBytes <= budget.javascriptGzipBytes, "written chunks exceed the existing gzip ceiling");
   assert.equal(corrected.maplibreModules.length, 1, "corrected bundle must contain one MapLibre runtime");
-  assert.ok(corrected.maplibreFiles.every((id) => id.startsWith("$CONSUMER/node_modules/maplibre-gl/")),
+  function assertPeerIdentity(observed) {
+  assert.ok(observed.maplibreFiles.every((id) => id.startsWith("$CONSUMER/node_modules/maplibre-gl/")),
     "runtime, worker and CSS must all come from the installed peer");
-  assert.ok(corrected.maplibreFiles.some((id) => id.endsWith("/maplibre-gl-worker.mjs")), "the installed worker must be built");
-  assert.ok(corrected.maplibreFiles.some((id) => id.endsWith("/maplibre-gl.css")), "the installed stylesheet must be built");
+  assert.ok(observed.maplibreFiles.some((id) => id.endsWith("/maplibre-gl-worker.mjs")), "the installed worker must be built");
+  assert.ok(observed.maplibreFiles.some((id) => id.endsWith("/maplibre-gl.css")), "the installed stylesheet must be built");
+
+  }
+  if (runtimeOnly) {
+    assert.equal(runtimeOnly.status, "passed", "the runtime-only build illustrates why the byte budget is insufficient");
+    assert.throws(() => assertPeerIdentity(runtimeOnly), /runtime, worker and CSS must all come from the installed peer/);
+  }
+  assertPeerIdentity(corrected);
 
 } finally {
   if (previousMode === undefined) delete process.env.HONUA_SAMPLE_SDK_MODE;
