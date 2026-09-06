@@ -3,25 +3,24 @@
  * (`/api/v{version}/studio` in `honua-server`), backing
  * {@link HonuaStudioLifecycleClient}.
  *
- * These mirror the DTOs documented in
- * `docs/internal/admin-api/studio-package-lifecycle.md` (`honua-server`):
- * `Honua.Core.Features.Studio.Domain` for the entities and
- * `Honua.Server.Features.Studio.Models` for the request shapes. Every
- * interface keeps an open `[extra: string]: unknown` index signature so
- * additive server fields do not break existing clients, and reuses the
- * existing {@link StudioPackageDiagnostic} / {@link HonuaStudioPackageFamily}
- * projections from `./validation.js` / `./types.js` rather than redeclaring
- * them.
+ * Canonical request/response DTOs are generated from the SHA-pinned Studio
+ * OpenAPI document in `honua-server`; semantic helpers reuse the existing
+ * {@link StudioPackageDiagnostic} / {@link HonuaStudioPackageFamily}
+ * projections from `./validation.js` / `./types.js`.
  *
  * @experimental Not yet covered by the SDK's semver contract — these shapes
- *   may change in any minor release prior to `1.0.0`, and until a dedicated
- *   Studio OpenAPI snapshot is published this doc and the source-generated
- *   JSON contexts are `honua-server`'s only contract reference.
+ *   may change in any minor release prior to `1.0.0`.
  * @module
  */
 
+import type {
+  components as StudioOpenApiComponents,
+  operations as StudioOpenApiOperations,
+} from "./generated/studio-api.js";
 import type { HonuaStudioPackageFamily } from "./types.js";
 import type { StudioPackageDiagnostic } from "./validation.js";
+
+type StudioOpenApiSchemas = StudioOpenApiComponents["schemas"];
 
 /**
  * Successful `ApiResponse<T>` envelope every Studio lifecycle endpoint wraps
@@ -310,9 +309,10 @@ export interface StudioVersionComparison {
 // ---------------------------------------------------------------------------
 
 /**
- * The six canonical publication-proposal lifecycle states a Studio
- * publication proposal walks through, exactly as named in the server's
- * publication workflow:
+ * Compatibility lifecycle states understood by the bounded poller. The
+ * canonical OpenAPI wire states are `pending`, `accepted`, and `rejected`;
+ * these normalized names also retain the richer proposal states exposed by
+ * pre-contract SDK builds without claiming they are present in the schema.
  *
  * - `AwaitingApproval` — the proposal is persisted and queued for a
  *   *separate* approving principal. Non-terminal.
@@ -338,10 +338,9 @@ export type StudioPublicationLifecycleState =
 /**
  * `StudioPublicationRequest.status` as it arrives on the wire.
  *
- * Carries the six canonical {@link StudioPublicationLifecycleState} values
- * plus the three legacy values the synchronous API service emitted before the
- * proposal workflow shipped (`accepted`/`rejected` decided inline, `pending`
- * reserved for asynchronous execution). The union stays open to
+ * Starts with the generated contract's `accepted` / `rejected` / `pending`
+ * values and retains the pre-contract {@link StudioPublicationLifecycleState}
+ * compatibility values. The union stays open to
  * `(string & {})` so a state this SDK release does not know about still
  * round-trips instead of crashing the client — but an unrecognized value is
  * never treated as terminal and never as success. Normalize with
@@ -350,10 +349,8 @@ export type StudioPublicationLifecycleState =
  * @experimental
  */
 export type StudioPublicationRequestStatus =
+  | StudioOpenApiSchemas["StudioPublicationRequest"]["status"]
   | StudioPublicationLifecycleState
-  | "accepted"
-  | "rejected"
-  | "pending"
   | (string & {});
 
 /**
@@ -388,8 +385,8 @@ export interface StudioPublicationIdentifiers {
  * `POST /content-items/{itemId}/versions/{versionId}/publish-requests`
  * request body. `intent` overrides the version envelope's
  * `publicationIntent` when supplied; an invalid override fails with `400`
- * before a request is persisted. `warningAcknowledgment` is optional audit
- * text for `warning`-status versions.
+ * before a request is persisted. The canonical `warningAcknowledgement`
+ * spelling is optional audit text for `warning`-status versions.
  *
  * `contentHash` pins the exact immutable version bytes being proposed, and
  * `idempotencyKey` gives the submission a stable identity so a retried or
@@ -400,14 +397,17 @@ export interface StudioPublicationIdentifiers {
  * see {@link HonuaStudioPublicationRequestsClient.create}, which rejects them
  * client-side before any request is sent.
  */
-export interface StudioPublicationRequestInput {
-  readonly intent?: StudioPublicationIntent;
+export type StudioPublicationRequestInput = StudioOpenApiSchemas["CreateStudioPublicationRequest"] & {
+  /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly warningAcknowledgment?: string;
+  /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly contentHash?: string;
+  /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly idempotencyKey?: string;
+  /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly correlationId?: string;
   readonly [extra: string]: unknown;
-}
+};
 
 /**
  * A persisted publication request (proposal).
@@ -423,20 +423,21 @@ export interface StudioPublicationRequestInput {
  * `Active`; the client never surfaces it from any other state, even if a
  * server sends one.
  */
-export interface StudioPublicationRequest extends StudioPublicationIdentifiers {
-  readonly requestId: string;
-  readonly itemId: string;
-  readonly versionId: string;
+export type StudioPublicationRequest = Omit<StudioOpenApiSchemas["StudioPublicationRequest"], "status"> & {
   readonly status: StudioPublicationRequestStatus;
-  readonly intent?: StudioPublicationIntent;
-  readonly contentHash?: string;
-  readonly publicationUrl?: string;
-  readonly reason?: string;
-  readonly createdAt?: string;
-  readonly createdBy?: string;
-  readonly updatedAt?: string;
-  readonly [extra: string]: unknown;
-}
+} & StudioPublicationIdentifiers & {
+    /** @deprecated Not present in the canonical Studio OpenAPI contract. */
+    readonly contentHash?: string;
+    /** @deprecated Not present in the canonical Studio OpenAPI contract. */
+    readonly publicationUrl?: string;
+    /** @deprecated Not present in the canonical Studio OpenAPI contract. */
+    readonly reason?: string;
+    /** @deprecated Not present in the canonical Studio OpenAPI contract. */
+    readonly createdBy?: string;
+    /** @deprecated Not present in the canonical Studio OpenAPI contract. */
+    readonly updatedAt?: string;
+    readonly [extra: string]: unknown;
+  };
 
 // ---------------------------------------------------------------------------
 // Reopen
@@ -548,23 +549,15 @@ export interface StudioContentItemPublicationBadge {
  *
  * @experimental
  */
-export interface StudioContentItemListRow {
-  readonly itemId: string;
-  readonly packageKey: string;
-  readonly workspaceId?: string;
-  readonly family: HonuaStudioPackageFamily | (string & {});
-  readonly state: StudioContentItemState | (string & {});
-  readonly currentVersionId?: string;
-  readonly publishedVersionId?: string;
-  /** Recorded owner (honua-server#3001). Absent for an ownerless legacy row. */
-  readonly ownerId?: string;
+export type StudioContentItemListRow = StudioOpenApiSchemas["StudioContentItemSummary"] & {
+  /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly createdBy?: string;
+  /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly updatedBy?: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
+  /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly publication?: StudioContentItemPublicationBadge;
   readonly [extra: string]: unknown;
-}
+};
 
 /**
  * A page of an opaque keyset-paginated Studio listing.
@@ -600,44 +593,34 @@ export type StudioPackageDraftListResponse = StudioListPage<StudioPackageDraft>;
 /**
  * Query filters shared by `GET /content-items` and `GET /package-drafts`.
  *
- * `family` accepts one family or several; several are sent as the server's
- * comma-separated form (`family=map,dashboard`). An unknown family is rejected
- * by the server with `400`.
+ * `family` accepts one of the package-family values published by the canonical
+ * contract. An unknown family is rejected by the server with `400`.
  *
- * `q` is a case-insensitive substring match against `packageKey` only — there
+ * `search` is a case-insensitive substring match against `packageKey` only — there
  * is no full-text index in this slice.
  *
- * `owner` is an exact match against the recorded owner. Note that with
+ * `ownerId` is an exact match against the recorded owner. Note that with
  * `Studio:EndUserAuthorization:Enabled` on, the server **forces** a non-admin
  * caller's effective owner filter to their own resolved id and ignores this
  * value; it is honored as supplied only for admins, or while that flag is off.
  *
  * @experimental
  */
-export interface StudioListFilterOptions {
-  readonly family?: (HonuaStudioPackageFamily | (string & {})) | readonly (HonuaStudioPackageFamily | (string & {}))[];
-  readonly workspaceId?: string;
-  readonly owner?: string;
-  readonly q?: string;
-  /** Opaque cursor from a previous page's `nextCursor`. Never construct one by hand. */
-  readonly cursor?: string;
-  /**
-   * Page size. The server defaults to
-   * {@link HONUA_STUDIO_LIST_DEFAULT_LIMIT} and caps at
-   * {@link HONUA_STUDIO_LIST_MAX_LIMIT}.
-   */
-  readonly limit?: number;
-}
+export type StudioListFilterOptions = NonNullable<
+  StudioOpenApiOperations["listStudioPackageDrafts"]["parameters"]["query"]
+>;
 
 /** `GET /package-drafts` filters. @experimental */
-export type StudioPackageDraftListOptions = StudioListFilterOptions;
+export type StudioPackageDraftListOptions = NonNullable<
+  StudioOpenApiOperations["listStudioPackageDrafts"]["parameters"]["query"]
+>;
 
 /**
  * `GET /content-items` filters — the shared set plus `state`, a filter over
- * the derived lifecycle state. Several states are sent comma-separated.
+ * the derived lifecycle state.
  *
  * @experimental
  */
-export interface StudioContentItemListOptions extends StudioListFilterOptions {
-  readonly state?: (StudioContentItemState | (string & {})) | readonly (StudioContentItemState | (string & {}))[];
-}
+export type StudioContentItemListOptions = NonNullable<
+  StudioOpenApiOperations["listStudioContentItems"]["parameters"]["query"]
+>;

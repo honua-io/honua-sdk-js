@@ -166,6 +166,66 @@ describe("honua admin", () => {
     });
   });
 
+  it("accepts content-type and preserves path/query identifiers as strings", async () => {
+    const output = capture();
+    expect(
+      await run([
+        "admin",
+        "api",
+        "getConnection",
+        "--content-type",
+        "application/json",
+        "--path",
+        "id=00123",
+        "--query",
+        "runId=1e3",
+        "--dry-run",
+        "--json",
+      ]),
+    ).toBe(0);
+    expect(JSON.parse(output.join(""))).toMatchObject({ request: { path: { id: "00123" }, query: { runId: "1e3" } } });
+  });
+
+  it("materializes @path values for arbitrary multipart fields", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-admin-multipart-"));
+    const source = path.join(directory, "data.csv");
+    writeFileSync(source, "address,city\n1 Main St,Honolulu\n", "utf8");
+    const output = capture();
+    let submitted: FormData | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+        submitted = init?.body as FormData;
+        return Response.json({ imported: true });
+      }),
+    );
+    try {
+      expect(
+        await run([
+          "admin",
+          "configure",
+          "importGeocoderReferenceData",
+          "--base-url",
+          "https://example.test",
+          "--admin-key",
+          "root",
+          "--body",
+          JSON.stringify({ referenceData: `@${source}`, mode: "replace" }),
+          "--yes",
+        ]),
+        output.join(""),
+      ).toBe(0);
+      expect(submitted).toBeInstanceOf(FormData);
+      const file = submitted?.get("referenceData");
+      expect(file).toBeInstanceOf(File);
+      expect((file as File).name).toBe("data.csv");
+      expect(await (file as File).text()).toBe("address,city\n1 Main St,Honolulu\n");
+      expect(submitted?.get("mode")).toBe("replace");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("deep-redacts credential-bearing dry-run headers, query values, and bodies", async () => {
     const output = capture();
     const secrets = ["bearer-secret", "cookie-secret", "query-secret", "body-secret", "nested-secret"];

@@ -238,6 +238,16 @@
             "finalStateSha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
           }
         },
+        "baselineState": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["eventCount", "historySha256", "finalStateSha256"],
+          "properties": {
+            "eventCount": { "type": "integer", "minimum": 1 },
+            "historySha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+            "finalStateSha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          }
+        },
         "scenarioCounts": {
           "type": "object",
           "additionalProperties": false,

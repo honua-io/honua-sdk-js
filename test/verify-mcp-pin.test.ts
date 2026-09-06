@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   PIN_SYNC_REMEDY,
+  ZERO_TO_MAP_CONFIGS,
   compareVersions,
   isMcpPinLiveVerificationEnabled,
   parsePackagePin,
@@ -14,6 +15,7 @@ import {
   verifyClientPairCoInstallable,
   verifyMcpPinLineage,
   verifyMcpPinPublication,
+  verifyZeroToMapConfigPins,
   // @ts-expect-error - plain ESM verification script without type declarations
 } from "../scripts/verify-mcp-pin.mjs";
 import {
@@ -42,6 +44,28 @@ async function readManifest(relativePath: string) {
 }
 
 describe("generated MCP client configuration pin", () => {
+  it("keeps every shipped zero-to-map config on the coordinated pin", () => {
+    expect(verifyZeroToMapConfigPins({ expectedPin: LOCAL_INSTALL_MCP_PACKAGE })).toEqual(
+      ZERO_TO_MAP_CONFIGS.map((relativePath: string) => ({ relativePath, pin: LOCAL_INSTALL_MCP_PACKAGE })),
+    );
+  });
+
+  it("rejects a shipped config that drifts to an unpublished or floating pin", () => {
+    const config = (pin: string) => ({ mcpServers: { honua: { args: ["-y", "--package", pin, "honua-mcp-proxy"] } } });
+    expect(() =>
+      verifyZeroToMapConfigPins({
+        expectedPin: LOCAL_INSTALL_MCP_PACKAGE,
+        readConfig: () => config("@honua/mcp-server@0.1.7-beta.0"),
+      }),
+    ).toThrow(/coordinated, registry-served pair/);
+    expect(() =>
+      verifyZeroToMapConfigPins({
+        expectedPin: LOCAL_INSTALL_MCP_PACKAGE,
+        readConfig: () => config("@honua/mcp-server@latest"),
+      }),
+    ).toThrow(/exact version/);
+  });
+
   it("names an exact published candidate version, never a floating reference", () => {
     expect(LOCAL_INSTALL_MCP_PACKAGE).toBe(`${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`);
     expect(parsePackagePin(LOCAL_INSTALL_MCP_PACKAGE)).toEqual({

@@ -87,6 +87,10 @@ export type {
   HonuaErrorEnvelopeContextValue,
   HonuaErrorMetadata,
   HonuaErrorOptions,
+  HonuaFailureKind,
+  HonuaFieldFailure,
+  HonuaProtocolMetadata,
+  HonuaTerminalFailureReceipt,
   SerializedHonuaError,
   SerializedHonuaErrorCause,
 } from "./core/error-envelope.js";
@@ -101,6 +105,8 @@ export type {
   HonuaDiscoveryErrorCode,
   HonuaGeometryErrorCode,
   HonuaError,
+  HonuaGrpcErrorOptions,
+  HonuaHttpErrorOptions,
 } from "./core/errors.js";
 
 export {

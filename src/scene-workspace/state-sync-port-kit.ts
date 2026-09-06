@@ -59,6 +59,7 @@ export type SceneStateSyncPortDegradationCode =
   | "selection-not-fully-expressible"
   | "filters-no-target-layers"
   | "filters-layer-rejected"
+  | "filters-clause-not-expressible"
   | "time-field-unconfigured"
   | "time-clock-unavailable"
   | "time-clock-host-owned"

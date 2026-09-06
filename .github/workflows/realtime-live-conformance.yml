@@ -112,6 +112,7 @@ jobs:
           node scripts/realtime-conformance-evidence.mjs
           --lane live
           --output test-results/realtime-live-conformance-evidence.json
+          --baseline-only
           --strict
           ${{ inputs.allow_degraded && '--allow-degraded' || '' }}
       - name: Publish revision-bearing conformance evidence
