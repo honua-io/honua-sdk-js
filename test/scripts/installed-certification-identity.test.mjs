@@ -71,3 +71,13 @@ test("skips, source builds, unknown IDs, previews, missing assertions and missin
   duplicate.observations.push(duplicate.observations[0]);
   assert.throws(() => validateObservationEnvelope(duplicate, binding, denominator), /duplicate observation/);
 });
+
+
+test("a migration dependency cannot smuggle an older installed SDK into the candidate", () => {
+  const changed = structuredClone(lock);
+  changed.packages["node_modules/@honua/honua-migrate/node_modules/@honua/sdk"] = {
+    version: "0.1.2-beta.0", resolved: "https://registry.npmjs.org/@honua/sdk/-/sdk-0.1.2-beta.0.tgz",
+    integrity: "sha512-oTQioVgdEHjh+OaIg3sUDMHDwqFi9vkcecXGMgEczKf2c5QK+XGnq3SP+UObWW7MTmmH0R+AxEFFA5bucPtN7w==",
+  };
+  assert.throws(() => validateInstalledLock(candidate, changed), /nested candidate version mismatch/);
+});

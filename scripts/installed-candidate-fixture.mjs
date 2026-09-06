@@ -16,14 +16,14 @@ export async function executeCandidateFixture({ candidate, work, root }) {
     return result.stdout.trim();
   }
   docker(["network", "create", prefix]);
+  const password = randomBytes(24).toString("hex");
   try {
-    const password = randomBytes(24).toString("hex");
     docker(["run", "-d", "--name", postgres, "--network", prefix, "-e", "POSTGRES_DB=certification",
       "-e", `POSTGRES_PASSWORD=${password}`, "-e", "POSTGIS_GDAL_ENABLED_DRIVERS=ENABLE_ALL", "postgis/postgis:16-3.4"]);
     docker(["run", "-d", "--name", redis, "--network", prefix, "redis:7.4-alpine", "redis-server", "--appendonly", "no"]);
     let ready = false;
     for (let attempt = 0; attempt < 60; attempt++) {
-      const result = spawnSync("docker", ["exec", postgres, "pg_isready", "-U", "postgres"], { stdio: "ignore" });
+      const result = spawnSync("docker", ["exec", postgres, "pg_isready", "-h", "127.0.0.1", "-U", "postgres"], { stdio: "ignore" });
       if (result.status === 0) { ready = true; break; }
       await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
@@ -76,8 +76,8 @@ export async function executeCandidateFixture({ candidate, work, root }) {
       image: candidate.server.image, fixture: "places-roads-v1", transport: "loopback-http", challenge } };
   } catch (error) {
     const logs = spawnSync("docker", ["logs", server], { encoding: "utf8", timeout: 10_000 });
-    const startupError = `${logs.stdout ?? ""}\n${logs.stderr ?? ""}`.split("\n").find((line) => line.startsWith("Unhandled exception."));
-    throw new Error(`${error.message}${startupError ? `; ${startupError.slice(0, 800)}` : ""}`);
+    const startupError = `${logs.stdout ?? ""}\n${logs.stderr ?? ""}`.replaceAll(password, "[redacted]").split("\n").filter((line) => /Unhandled exception|compatibility|PostGIS|PostgreSQL/.test(line)).slice(-8).join("\n");
+    throw new Error(`${error.message}${startupError ? `; ${startupError.slice(-4_000)}` : ""}`);
   } finally {
     for (const name of [server, redis, postgres]) spawnSync("docker", ["rm", "-f", name], { stdio: "ignore" });
     spawnSync("docker", ["network", "rm", prefix], { stdio: "ignore" });
