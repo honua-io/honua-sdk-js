@@ -65,12 +65,29 @@ export function parseChangelogReleases(changelog) {
   return releases;
 }
 
-export function buildDocsVersions({ packageJson, releaseManifest, changelog }) {
+export function buildDocsVersions({ packageJson, releaseManifest, changelog, unpublishedReleases = {} }) {
   const current = packageJson.version;
   if (releaseManifest["."] !== current) {
     throw new Error(`Package version ${current} disagrees with release manifest ${releaseManifest["."] ?? "<missing>"}`);
   }
-  const releases = parseChangelogReleases(changelog);
+  const changelogReleases = parseChangelogReleases(changelog);
+  for (const [version, reason] of Object.entries(unpublishedReleases)) {
+    if (version === current || !changelogReleases.some((entry) => entry.version === version) ||
+        typeof reason !== "string" || !reason.trim()) {
+      throw new Error(`Invalid unpublished documentation release: ${version}`);
+    }
+  }
+  const releases = changelogReleases.filter((entry) => !Object.hasOwn(unpublishedReleases, entry.version));
+  // Release Please can record a cut that never acquired a tag or npm artifact.
+  // Preserve its changelog, but compare the next release from the prior real tag.
+  for (const release of releases) {
+    const originalIndex = changelogReleases.indexOf(release);
+    if (Object.hasOwn(unpublishedReleases, changelogReleases[originalIndex + 1]?.version)) {
+      const previous = releases[releases.indexOf(release) + 1];
+      if (!previous) throw new Error(`No published predecessor for ${release.version}`);
+      release.releaseUrl = `${RELEASE_URL_PREFIX}compare/${previous.tag}...${release.tag}`;
+    }
+  }
   if (releases[0]?.version !== current) {
     throw new Error(`Current package version ${current} must be the first released CHANGELOG entry`);
   }
@@ -166,6 +183,7 @@ export function currentDocsVersions() {
     packageJson,
     releaseManifest: readJson(path.join(ROOT, ".release-please-manifest.json")),
     changelog: fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8"),
+    unpublishedReleases: readJson(path.join(ROOT, "config", "docs-unpublished-releases.json")),
   });
 }
 

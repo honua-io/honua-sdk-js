@@ -1,0 +1,6 @@
+# Repository-only sample inputs and execution evidence are not part of the
+# runtime SDK. Public projections, schemas, and consumer fixtures are explicitly
+# allowlisted in package.json.
+/samples/evidence/
+/samples/fixtures/
+/samples/scenarios/
