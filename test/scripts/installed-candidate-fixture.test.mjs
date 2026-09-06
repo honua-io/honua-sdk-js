@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { executeCandidateFixture } from "../../scripts/installed-candidate-fixture.mjs";
 
