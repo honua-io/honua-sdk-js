@@ -54,5 +54,6 @@ jobs:
       - name: Enforce installed-example verdict
         if: steps.examples.outcome != 'success'
         run: |
+          jq -r '.admission.diagnostic // empty' test-results/installed-example-certification.json
           jq -r '.verdicts[] | select(.verdict == "fail") | "\(.id): fail issue \(.issue // "unfiled")"' test-results/installed-example-certification.json
           exit 1

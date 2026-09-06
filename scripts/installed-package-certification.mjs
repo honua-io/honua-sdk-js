@@ -101,12 +101,16 @@ export async function withInstalledCandidate(candidate, callback, { consumerDepe
   } finally { await rm(work, { recursive: true, force: true }); }
 }
 
-export async function certify({ output, observationsPath, executeFixture = false } = {}) {
+export async function certify({ output, observationsPath, executeFixture = false, admit = withInstalledCandidate, freeze = freezeCertification } = {}) {
   const candidate = await readInstalledCandidate();
   const denominator = JSON.parse(await readFile(path.join(root, "config/certification-denominator.v1.json"), "utf8"));
-  const binding = await freezeCertification(candidate, denominator, root);
+  // The committed receipt is a prior candidate's evidence; drop it first so an aborted or
+  // rejected run cannot publish it as this candidate's result.
+  await rm(path.resolve(output), { force: true });
+  let binding;
   try {
-    return await withInstalledCandidate(candidate, async ({ install, work }) => {
+    binding = await freeze(candidate, denominator, root);
+    return await admit(candidate, async ({ install, work }) => {
     if (executeFixture && observationsPath) throw new Error("choose fixture execution or an observation envelope");
     const execution = executeFixture ? await executeCandidateFixture({ candidate, work, root }) : undefined;
     const observations = execution ? validateObservationEnvelope({ schema: "honua.sdk-installed-observations/v1", binding, observations: execution.observations }, binding, denominator) : observationsPath ? validateObservationEnvelope(JSON.parse(await readFile(observationsPath, "utf8")), binding, denominator) : [];
@@ -117,7 +121,7 @@ export async function certify({ output, observationsPath, executeFixture = false
     });
   } catch (error) {
     const receipt = buildReceipt({ candidate: { ...candidate, defaultBlocker: "honua-sdk-js#39",
-      install: { ...error.install, status: "failed", diagnostic: error.message.slice(0, 2_000) } }, denominator, binding });
+      install: { ...error.install, status: "failed", diagnostic: String(error?.message ?? error).slice(0, 2_000) } }, denominator, binding });
     await mkdir(path.dirname(path.resolve(output)), { recursive: true });
     await writeFile(output, `${JSON.stringify(receipt, null, 2)}\n`);
     return receipt;

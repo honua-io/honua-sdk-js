@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { buildReceipt, withInstalledCandidate } from "../../scripts/installed-package-certification.mjs";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { buildReceipt, certify, withInstalledCandidate } from "../../scripts/installed-package-certification.mjs";
 
 const candidate = { release: "2026.1", package: { coordinate: "@honua/sdk-js", version: "0.1.9-beta.0" },
   server: { digest: `sha256:${"3".repeat(64)}` }, install: { localLinks: false }, defaultBlocker: "honua-sdk-js#1113" };
@@ -60,4 +64,31 @@ test("empty or duplicate denominators cannot certify", () => {
 
 test("unrecognized operation cannot disappear from the receipt", () => {
   assert.throws(() => buildReceipt({ candidate, denominator, observations: [{ id: "typo", verdict: "pass" }] }), /unknown observation id/);
+});
+
+const withStaleReceipt = async (run) => {
+  const dir = await mkdtemp(path.join(tmpdir(), "honua-package-cert-"));
+  const output = path.join(dir, "installed-package-certification.json");
+  await writeFile(output, `${JSON.stringify({ generatedAt: "2026-09-01T23:39:42.869Z", verdict: "certified" }, null, 2)}\n`);
+  try { return await run(output); } finally { await rm(dir, { recursive: true, force: true }); }
+};
+
+test("a drifted denominator cannot leave the previous candidate's receipt in place", async () => {
+  await withStaleReceipt(async (output) => {
+    const receipt = await certify({ output, freeze: () => { throw new Error("certification denominator has drifted"); } });
+    assert.equal(receipt.verdict, "not-certified");
+    assert.equal(receipt.binding, undefined);
+    assert.match(receipt.install.diagnostic, /certification denominator has drifted/);
+    const written = JSON.parse(await readFile(output, "utf8"));
+    assert.equal(written.receiptDigest, receipt.receiptDigest);
+    assert.notEqual(written.generatedAt, "2026-09-01T23:39:42.869Z");
+  });
+});
+
+test("the previous receipt is gone before admission, so an aborted run cannot upload it", async () => {
+  await withStaleReceipt(async (output) => {
+    let survived;
+    await certify({ output, freeze: async () => ({}), admit: async () => { survived = existsSync(output); throw new Error("package provenance failed"); } });
+    assert.equal(survived, false);
+  });
 });

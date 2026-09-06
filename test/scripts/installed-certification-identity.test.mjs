@@ -92,3 +92,16 @@ test("nested candidate copies also require the declared registry URL", () => {
   };
   assert.throws(() => validateInstalledLock(candidate, changed), /nested candidate registry mismatch/);
 });
+
+
+test("credentialed registry and tarball URLs are rejected without reading their secrets", () => {
+  for (const mutate of [
+    (c) => { c.packages[0].registry = "https://user:pw@registry.npmjs.org"; },
+    (c) => { c.packages[0].registry = "https://user@registry.npmjs.org"; },
+    (c) => { c.packages[0].tarball = c.packages[0].tarball.replace("https://", "https://user:pw@"); },
+    (c) => { c.packages[0].tarball = c.packages[0].tarball.replace("https://", "https://user@"); },
+  ]) {
+    const changed = structuredClone(candidate); mutate(changed);
+    assert.throws(() => validatePackageSet(changed, required), /invalid registry|tarball is outside declared registry/);
+  }
+});

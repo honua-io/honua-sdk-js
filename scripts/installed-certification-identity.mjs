@@ -13,6 +13,10 @@ export const canonical = (value) => {
 };
 export const sha256 = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
+// WHATWG serializes any userinfo between the scheme and the host, so a URL whose href still
+// starts with scheme//host carries neither a username nor a password.
+const credentialFree = (url) => url.href.startsWith(`${url.protocol}//${url.host}`);
+
 export function validatePackageSet(candidate, required) {
   const packages = candidate.packages;
   assert.ok(Array.isArray(packages) && packages.length > 0, "candidate package set is missing");
@@ -25,8 +29,8 @@ export function validatePackageSet(candidate, required) {
     assert.match(p.sourceRevision, /^[a-f0-9]{40}$/, "missing package source revision");
     const registry = new URL(p.registry);
     const tarball = new URL(p.tarball);
-    assert.ok(registry.protocol === "https:" && !registry.username && !registry.password, "invalid registry");
-    assert.ok(tarball.origin === registry.origin && !tarball.username && !tarball.password, "tarball is outside declared registry");
+    assert.ok(registry.protocol === "https:" && credentialFree(registry), "invalid registry");
+    assert.ok(tarball.origin === registry.origin && credentialFree(tarball), "tarball is outside declared registry");
   }
   const sdk = packages.find((p) => p.coordinate === candidate.package.coordinate);
   for (const key of ["version", "integrity", "registry"]) assert.equal(sdk?.[key], candidate.package[key], `root package ${key} drift`);
