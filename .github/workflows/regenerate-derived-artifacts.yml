@@ -791,6 +791,16 @@ jobs:
           # the push identity is decided here.
           token: ${{ steps.app-token.outputs.token || github.token }}
 
+      - name: Verify regeneration source is current trunk
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_trunk="$(git ls-remote origin refs/heads/trunk | cut -f1)"
+          if [[ "$current_trunk" != "$GITHUB_SHA" ]]; then
+            echo "::error::Regeneration source is no longer current trunk; retaining existing pull requests."
+            exit 1
+          fi
+
       - name: Download local regeneration commits
         if: needs.regenerate.outputs.changed == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -852,35 +862,6 @@ jobs:
           done < <(git diff --name-only "$GITHUB_SHA..$generated")
           branch="automation/derived-artifacts-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
-          # Supersede whatever a previous run left behind.
-          #
-          # Every step after publication can fail -- most often the strict-check
-          # wait below, whenever trunk itself is red -- and a run that fails
-          # there never reaches the merge step that would close its pull request
-          # and delete its branch. The next scheduled run opens another one, so
-          # the failure mode is not one stale pull request but an unbounded pile
-          # of them, each a full regeneration of a trunk that has since moved.
-          #
-          # This run regenerates from the current trunk, so any older
-          # regeneration pull request is strictly stale by the time this one is
-          # opened. Close it here rather than leaving the pile for a human.
-          # Cleanup must never be able to block publication, so each close is
-          # tolerated failing.
-          while IFS=$'\t' read -r stale_number stale_branch; do
-            [[ -n "$stale_number" && "$stale_branch" != "$branch" ]] || continue
-            echo "Superseding stale regeneration PR #$stale_number ($stale_branch)."
-            gh pr close "$stale_number" \
-              --repo "$GITHUB_REPOSITORY" \
-              --comment "Superseded by the regeneration run for \`$GITHUB_SHA\`; this workflow reopens from the current trunk each run." \
-              --delete-branch || echo "::warning::Could not close stale regeneration PR #$stale_number."
-          done < <(gh pr list \
-            --repo "$GITHUB_REPOSITORY" \
-            --state open \
-            --base trunk \
-            --limit 100 \
-            --json number,headRefName \
-            --jq '.[] | select(.headRefName | startswith("automation/derived-artifacts-")) | [.number, .headRefName] | @tsv')
-
           git push origin "$generated:refs/heads/$branch"
           pr_url="$(gh pr create \
             --repo "$GITHUB_REPOSITORY" \
@@ -892,6 +873,34 @@ jobs:
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "generated=$generated" >> "$GITHUB_OUTPUT"
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      # Runs after successful publication, or a successful no-change/loop-guard run.
+      - name: Close superseded regeneration pull requests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          branch: ${{ steps.publish.outputs.branch }}
+        run: |
+          set -euo pipefail
+          current_trunk="$(git ls-remote origin refs/heads/trunk | cut -f1)"
+          if [[ "$current_trunk" != "$GITHUB_SHA" ]]; then
+            echo "::notice::Trunk moved; retaining previous regeneration pull requests."
+            exit 0
+          fi
+          while IFS=$'\t' read -r stale_number stale_branch; do
+            [[ -n "$stale_number" && "$stale_branch" != "$branch" ]] || continue
+            echo "Superseding stale regeneration PR #$stale_number ($stale_branch)."
+            gh pr close "$stale_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --comment "Superseded by the regeneration run for \`$GITHUB_SHA\`; current trunk has been regenerated successfully." \
+              --delete-branch || echo "::warning::Could not close stale regeneration PR #$stale_number."
+          done < <(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --base trunk \
+            --limit 100 \
+            --json number,headRefName,author,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository == false and .author.is_bot == true) | select(.author.login == "app/honua-io-bot" or .author.login == "app/github-actions") | select(.headRefName | startswith("automation/derived-artifacts-")) | [.number, .headRefName] | @tsv')
 
       # Native pull_request CI deliberately relaxes shared derived-artifact
       # freshness for feature work. Dispatch separate strict CI against the
