@@ -1050,12 +1050,25 @@ The version navigation in every hosted guide is generated from
 cannot appear in the selector unless those authoritative sources agree and the
 release tag exists in the authoritative GitHub repository.
 
+`config/docs-unpublished-releases.json` records Release Please cuts that never
+published an SDK tag or npm artifact. These are excluded from the selector;
+comparison links span the previous published tag. In particular, `0.1.8-beta.0`
+was not published, so `0.1.9-beta.0` follows `0.1.7-beta.0` in the manifest.
+
+Before npm publication, `node scripts/check-docs-release.mjs publish` requires
+the generated manifest's latest release to equal the release tag and package
+version. The Documentation release freshness trunk check queries both SDK npm
+packages and fails if either has a newer prerelease. Pages uploads the generated
+`dist/docs-site/versions.json` with the documentation, then verifies the public
+file and exact source revision. The daily check also detects missed deployments.
+To verify the file consumed by the site, run
+`node scripts/check-docs-release.mjs hosted`.
+
 ## Release documentation
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.1.9-beta.0` | latest-prerelease | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.9-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.8-beta.0...js-sdk-v0.1.9-beta.0) |
-| `0.1.8-beta.0` | archived | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.8-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.7-beta.0...js-sdk-v0.1.8-beta.0) |
+| `0.1.9-beta.0` | latest-prerelease | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.9-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.7-beta.0...js-sdk-v0.1.9-beta.0) |
 | `0.1.7-beta.0` | archived | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.7-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.6-beta.0...js-sdk-v0.1.7-beta.0) |
 | `0.1.6-beta.0` | archived | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.6-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.5-beta.0...js-sdk-v0.1.6-beta.0) |
 | `0.1.5-beta.0` | archived | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.5-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.4-beta.0...js-sdk-v0.1.5-beta.0) |
@@ -1730,7 +1743,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-09-05 at commit `b3ad28019`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-09-06 at commit `12c4fa335`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11767,7 +11780,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-09-05 at commit `b3ad28019`._
+_Generated 2026-09-06 at commit `12c4fa335`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11784,7 +11797,7 @@ _Generated 2026-09-05 at commit `b3ad28019`._
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
 | `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 42.7 KiB | 46.9 KiB | 13.7 KiB | 15.0 KiB |
 | `/runtime` | 687.0 KiB | 752.5 KiB | 175.7 KiB | 180.4 KiB |
-| `/realtime` | 80.7 KiB | 86.2 KiB | 23.1 KiB | 25.0 KiB |
+| `/realtime` | 81.5 KiB | 86.2 KiB | 23.3 KiB | 25.0 KiB |
 | `/offline` | 171.2 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 766.3 KiB | 778.7 KiB | 173.5 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 169.9 KiB | 183.6 KiB | 51.4 KiB | 55.8 KiB |
