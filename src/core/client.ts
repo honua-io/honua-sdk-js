@@ -108,6 +108,7 @@ import {
   shouldRetryGrpcCall,
   shouldRetryRequest,
   sleep,
+  toGeoServicesError,
   toHttpError,
 } from "./request-pipeline.js";
 import {
@@ -1338,7 +1339,7 @@ export class HonuaClient {
         // Detect it before caching so a transient auth/permission error is never
         // persisted as "valid" metadata for the cache TTL and surfaced
         // downstream as `undefined` field access instead of a HonuaHttpError.
-        const envelopeError = geoServicesEnvelopeError(response.status, body);
+        const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
           const stale = this.staleMetadataFallback(cached, metadataOptions, envelopeError);
           if (stale) return stale;
@@ -1837,7 +1838,7 @@ export class HonuaClient {
         // envelope on failure (bad WHERE, invalid outFields, edit failures, …).
         // Surface these through the unified error model instead of handing the
         // failure envelope back as a "successful" response object.
-        const envelopeError = geoServicesEnvelopeError(response.status, body);
+        const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
           await this.applyErrorInterceptors({
             request: cloneRequestContext(currentRequest),
@@ -1902,7 +1903,7 @@ export class HonuaClient {
         // preferBinary callers throw a normalized HonuaHttpError exactly like
         // the JSON path instead of receiving the failure envelope as success.
         const body = await parseResponseBody(response);
-        const envelopeError = geoServicesEnvelopeError(response.status, body);
+        const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
           await this.applyErrorInterceptors({
             request: cloneRequestContext(currentRequest),
@@ -2178,7 +2179,7 @@ export class HonuaClient {
           const body = options.errorBody
             ? await options.errorBody(response, options.deadlineThroughFinalize ? timeout.signal : undefined)
             : await parseResponseBody(response.clone());
-          const httpError = toHttpError(response.status, body);
+          const httpError = toHttpError(response.status, body, response.headers);
           if (
             !refreshedAuth &&
             (response.status === 401 || response.status === 403) &&
@@ -2336,21 +2337,6 @@ export class HonuaClient {
  * results or confusing `undefined` access. Returns a normalized
  * {@link HonuaHttpError} when the envelope is present, otherwise `undefined`.
  */
-function geoServicesEnvelopeError(httpStatus: number, body: unknown): HonuaHttpError | undefined {
-  if (!isObject(body) || !isObject(body.error)) {
-    return undefined;
-  }
-  const error = body.error;
-  const hasCode = typeof error.code === "number";
-  const hasMessage = typeof error.message === "string";
-  if (!hasCode && !hasMessage) {
-    return undefined;
-  }
-  const statusCode = hasCode ? (error.code as number) : httpStatus;
-  const message = hasMessage ? (error.message as string) : "Request failed";
-  return new HonuaHttpError(statusCode, message, body);
-}
-
 async function parseResponseBody(response: Response, maxResponseBytes?: number): Promise<unknown> {
   const text =
     maxResponseBytes === undefined
@@ -2426,10 +2412,6 @@ function bufferedResponse(source: Response, bytes: Uint8Array): Response {
     statusText: source.statusText,
     headers: source.headers,
   });
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function applyRequestMutation(request: HonuaRequestContext, mutation: HonuaRequestMutation): HonuaRequestContext {
