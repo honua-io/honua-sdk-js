@@ -89,6 +89,27 @@ jobs:
           set -euo pipefail
           today="$(date -u +%F)"
           branch="automation/kepler-audit-renewal-${today}"
+
+          # Supersede whatever a previous run left behind.
+          #
+          # A renewal that is not landed the day it is opened is still open when
+          # the next day's cron opens another one, and nothing here ever closed
+          # the earlier one. Each renewal is computed from the current trunk, so
+          # the newest is the only one worth reviewing. Cleanup must never be
+          # able to block the renewal itself, so each close is tolerated failing.
+          while IFS=$'\t' read -r stale_number stale_branch; do
+            [[ -n "$stale_number" && "$stale_branch" != "$branch" ]] || continue
+            echo "Superseding stale renewal PR #$stale_number ($stale_branch)."
+            gh pr close "$stale_number" \
+              --comment "Superseded by the renewal run of ${today}; this workflow reopens from the current trunk each run." \
+              --delete-branch || echo "::warning::Could not close stale renewal PR #$stale_number."
+          done < <(gh pr list \
+            --state open \
+            --base trunk \
+            --limit 100 \
+            --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("automation/kepler-audit-renewal-")) | [.number, .headRefName] | @tsv')
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"

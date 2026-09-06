@@ -851,6 +851,36 @@ jobs:
             esac
           done < <(git diff --name-only "$GITHUB_SHA..$generated")
           branch="automation/derived-artifacts-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          # Supersede whatever a previous run left behind.
+          #
+          # Every step after publication can fail -- most often the strict-check
+          # wait below, whenever trunk itself is red -- and a run that fails
+          # there never reaches the merge step that would close its pull request
+          # and delete its branch. The next scheduled run opens another one, so
+          # the failure mode is not one stale pull request but an unbounded pile
+          # of them, each a full regeneration of a trunk that has since moved.
+          #
+          # This run regenerates from the current trunk, so any older
+          # regeneration pull request is strictly stale by the time this one is
+          # opened. Close it here rather than leaving the pile for a human.
+          # Cleanup must never be able to block publication, so each close is
+          # tolerated failing.
+          while IFS=$'\t' read -r stale_number stale_branch; do
+            [[ -n "$stale_number" && "$stale_branch" != "$branch" ]] || continue
+            echo "Superseding stale regeneration PR #$stale_number ($stale_branch)."
+            gh pr close "$stale_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --comment "Superseded by the regeneration run for \`$GITHUB_SHA\`; this workflow reopens from the current trunk each run." \
+              --delete-branch || echo "::warning::Could not close stale regeneration PR #$stale_number."
+          done < <(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --base trunk \
+            --limit 100 \
+            --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("automation/derived-artifacts-")) | [.number, .headRefName] | @tsv')
+
           git push origin "$generated:refs/heads/$branch"
           pr_url="$(gh pr create \
             --repo "$GITHUB_REPOSITORY" \
