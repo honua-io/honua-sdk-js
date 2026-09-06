@@ -70,6 +70,8 @@ export interface StudioAiToolChoice {
 
 /** Request body for `POST /v1/studio/ai/chat`. */
 export interface StudioAiChatRequest {
+  /** Release bindings that require a signed, replay-resistant transcript. */
+  readonly certification?: StudioAiTranscriptCertification;
   /** Name of the configured provider to route to. Omit to use the server's configured default. */
   readonly provider?: string;
   /** Optional model override. */
@@ -96,7 +98,42 @@ export type StudioAiChatEventType =
   | "toolCallDelta"
   | "toolCallStop"
   | "messageStop"
-  | "error";
+  | "error"
+  | "transcriptProvenance";
+
+export interface StudioAiTranscriptCertification {
+  readonly candidateId: string;
+  readonly releaseId: string;
+  readonly endpointIdentity: string;
+  readonly actionId: string;
+  readonly runNonce: string;
+}
+
+export interface StudioAiSignedTranscript {
+  readonly schemaVersion: "honua.studio-ai.transcript.v1";
+  readonly canonicalization: "honua-canonical-json-v1";
+  readonly digestAlgorithm: "sha-256";
+  readonly signatureAlgorithm: "Ed25519";
+  readonly keyId: string;
+  readonly canonicalTranscript: string;
+  readonly transcriptDigest: string;
+  readonly signature: string;
+}
+
+export interface StudioAiTranscriptVerificationKey {
+  readonly keyId: string;
+  readonly algorithm: "Ed25519";
+  readonly publicKey: string;
+  readonly fingerprint: string;
+  readonly notBefore?: string;
+  readonly notAfter?: string;
+  readonly revoked: boolean;
+}
+
+export interface StudioAiTranscriptSigningManifest {
+  readonly requiredForCertification: boolean;
+  readonly keys: readonly StudioAiTranscriptVerificationKey[];
+}
 
 /** Why a turn stopped generating — `StudioAiChatEvent.stopReason`, set on `messageStop`. */
 export type StudioAiStopReason = "endTurn" | "toolCall" | "maxTokens" | "contentFilter" | "cancelled" | "error";
@@ -129,6 +166,10 @@ export interface StudioAiChatEvent {
   readonly latencyMs?: number;
   /** Human-readable failure detail. Set on `error`. */
   readonly errorMessage?: string;
+  /** Stable non-secret failure code, set on `error`. */
+  readonly errorCode?: string;
+  /** Detached signed transcript, set only on `transcriptProvenance`. */
+  readonly provenance?: StudioAiSignedTranscript;
 }
 
 /** The SSE `event:` line's hardcoded snake_case vocabulary (`StudioAiProxyEndpoints.EventName()`) mapped to {@link StudioAiChatEventType}. */
@@ -140,6 +181,7 @@ export const SSE_EVENT_NAME_TO_TYPE: Readonly<Record<string, StudioAiChatEventTy
   tool_call_stop: "toolCallStop",
   message_stop: "messageStop",
   error: "error",
+  transcript_provenance: "transcriptProvenance",
 };
 
 /** Inverse of {@link SSE_EVENT_NAME_TO_TYPE} — used by fixture transports to write real SSE frames from {@link StudioAiChatEvent}s. */
