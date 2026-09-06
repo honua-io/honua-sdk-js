@@ -5,9 +5,9 @@
  * Console interop, MCP, QGIS, generated apps, and embeds must not fork the
  * server-owned package schemas. These projections mirror the canonical
  * server wire shapes — the `format` string on each family is the version
- * gate, exactly as on {@link HonuaMapPackage}. The `map` and `dashboard`
- * families already have established SDK-native types and are re-tagged here
- * rather than re-declared.
+ * gate, exactly as on {@link HonuaMapPackage}. The `map` and `app` families
+ * reuse established SDK-native types; `dashboard` is authored by this Studio
+ * surface and consumed read-only by renderers.
  *
  * The remaining families (query, analysis, report, form, workflow, GP, ETL)
  * have no finalized server contract yet, so their interfaces are minimal,
@@ -21,13 +21,20 @@
  * @module
  */
 
-import type { HonuaGeneratedAppManifest, HonuaGeneratedAppPackage } from "../generated-app/manifest.js";
+import type {
+  HonuaGeneratedAppDataBinding,
+  HonuaGeneratedAppFieldBinding,
+  HonuaGeneratedAppLayout,
+  HonuaGeneratedAppPackage,
+} from "../generated-app/manifest.js";
 import type { HonuaMapPackage, HonuaMapPackageStatus } from "../runtime/map-package.js";
 
 /** Canonical format string for the v1 QueryPackage shape. */
 export const HONUA_QUERY_PACKAGE_FORMAT_V1 = "honua_query_package.v1" as const;
 /** Canonical format string for the v1 AnalysisPackage shape. */
 export const HONUA_ANALYSIS_PACKAGE_FORMAT_V1 = "honua_analysis_package.v1" as const;
+/** Canonical format string for the v1 Studio-authored dashboard package. */
+export const HONUA_DASHBOARD_PACKAGE_FORMAT_V1 = "honua_dashboard_package.v1" as const;
 /** Canonical format string for the v1 ReportPackage shape. */
 export const HONUA_REPORT_PACKAGE_FORMAT_V1 = "honua_report_package.v1" as const;
 /** Canonical format string for the v1 FormPackage shape. */
@@ -41,6 +48,7 @@ export const HONUA_ETL_PACKAGE_FORMAT_V1 = "honua_etl_package.v1" as const;
 
 export type HonuaQueryPackageFormat = typeof HONUA_QUERY_PACKAGE_FORMAT_V1;
 export type HonuaAnalysisPackageFormat = typeof HONUA_ANALYSIS_PACKAGE_FORMAT_V1;
+export type HonuaDashboardPackageFormat = typeof HONUA_DASHBOARD_PACKAGE_FORMAT_V1;
 export type HonuaReportPackageFormat = typeof HONUA_REPORT_PACKAGE_FORMAT_V1;
 export type HonuaFormPackageFormat = typeof HONUA_FORM_PACKAGE_FORMAT_V1;
 export type HonuaWorkflowPackageFormat = typeof HONUA_WORKFLOW_PACKAGE_FORMAT_V1;
@@ -120,6 +128,34 @@ export interface HonuaAnalysisPackage extends HonuaStudioPackageBase {
   readonly analysisKind?: string;
   readonly parameters?: Record<string, unknown>;
   readonly resultBindings?: readonly HonuaStudioBindingRef[];
+}
+
+/**
+ * Renderer-neutral dashboard artifact authored by the sdk-js Studio agent
+ * path. Console and other hosts consume this shape read-only.
+ *
+ * The package deliberately excludes publication lifecycle, tenant/actor,
+ * authorization, audit, correlation, and optimistic-concurrency fields. Those
+ * belong to the server-owned Studio lifecycle envelope. Unknown additive
+ * authoring fields are preserved within v1; incompatible semantics require a
+ * new format discriminator.
+ *
+ * `mapPackageId` references the portable map artifact owned by the runtime
+ * contract. A dashboard must not embed credentials or a second map shape.
+ *
+ * @experimental
+ */
+export interface HonuaDashboardPackage {
+  readonly packageId: string;
+  readonly format: HonuaDashboardPackageFormat;
+  readonly title?: string;
+  readonly description?: string;
+  readonly data: HonuaGeneratedAppDataBinding;
+  readonly mapPackageId?: string;
+  readonly layout: HonuaGeneratedAppLayout;
+  readonly bindings?: HonuaGeneratedAppFieldBinding;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly [extra: string]: unknown;
 }
 
 /**
@@ -235,8 +271,8 @@ export interface HonuaETLPackage extends HonuaStudioPackageBase {
 
 /**
  * Maps each Studio package family discriminant to its projection shape.
- * `map` and `dashboard`/`app` reuse the established SDK-native types rather
- * than re-declaring them.
+ * `map` and `app` reuse established SDK-native types. `dashboard` is the
+ * dedicated Studio-authored artifact consumed read-only by Console.
  *
  * @experimental
  */
@@ -244,7 +280,7 @@ export interface StudioPackageFamilyShapes {
   readonly query: HonuaQueryPackage;
   readonly analysis: HonuaAnalysisPackage;
   readonly map: HonuaMapPackage;
-  readonly dashboard: HonuaGeneratedAppManifest;
+  readonly dashboard: HonuaDashboardPackage;
   readonly report: HonuaReportPackage;
   readonly form: HonuaFormPackage;
   readonly app: HonuaGeneratedAppPackage;
