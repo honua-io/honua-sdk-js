@@ -281,8 +281,8 @@ describe("no self-approval by selecting the MCP transport", () => {
     const side = recorder();
     const { mcp, close } = await connect(side.fetchFn);
     try {
-      // `import.create` needs one of `sourceUrl` / `connectionId`; the rule is
-      // the command's `validate`, so MCP reports it identically to the CLI.
+      // `import.create` requires `sourceUrl`; the rule is the command's
+      // `validate`, so MCP reports it identically to the CLI.
       const result = (await mcp.callTool({
         name: controlPlaneCommandToolName("import.create"),
         arguments: { input: { sourceKind: "geojson" } },
@@ -291,7 +291,7 @@ describe("no self-approval by selecting the MCP transport", () => {
       const error = payloadOf(result);
       expect(error.errorKind).toBe("validation");
       expect((error.issues as Array<{ message: string }>).map((issue) => issue.message)).toEqual([
-        "one of `sourceUrl` or `connectionId` is required",
+        "`sourceUrl` is required by /import/upload-url",
       ]);
       expect(side.requests).toHaveLength(0);
     } finally {
