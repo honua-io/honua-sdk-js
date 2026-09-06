@@ -110,6 +110,8 @@ export type {
 } from "./chart-spec.js";
 
 export {
+  HonuaCapabilityManifestContractError,
+  assertStudioCapabilityManifest,
   getCapability,
   getCapabilityReasonCode,
   hasCapability,
