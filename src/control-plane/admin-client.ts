@@ -99,12 +99,30 @@ export class HonuaAdminApiError extends Error {
   public readonly body: unknown;
 
   public constructor(operationId: AdminOperationId, response: Response, body: unknown) {
-    super(`Admin operation ${operationId} failed with HTTP ${response.status}.`);
+    const detail = structuredErrorDetail(body);
+    super(`Admin operation ${operationId} failed with HTTP ${response.status}.${detail ? ` ${detail}` : ""}`);
     this.name = "HonuaAdminApiError";
     this.operationId = operationId;
     this.statusCode = response.status;
     this.body = body;
   }
+}
+
+function structuredErrorDetail(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+  const record = body as Record<string, unknown>;
+  const detail = [record.detail, record.message, record.title].find(
+    (value): value is string => typeof value === "string" && value.trim() !== "",
+  );
+  if (detail) return detail;
+  if (record.errors !== undefined) {
+    try {
+      return JSON.stringify(record.errors);
+    } catch {
+      return "The server returned structured validation errors.";
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -175,6 +193,20 @@ function isLoopbackHost(hostname: string): boolean {
 
 export function createHonuaAdminClient(options: AdminClientOptions): HonuaAdminClient {
   return new HonuaAdminClient(options);
+}
+
+/** Enforce the admin credential transport policy for command-layer requests. */
+export function assertAdminBaseUrl(baseUrl: string): void {
+  const parsed = new URL(baseUrl);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Admin client baseUrl must use http or https.");
+  }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error("Admin client baseUrl must not include credentials, query parameters, or a fragment.");
+  }
+  if (parsed.protocol === "http:" && !isLoopbackHost(parsed.hostname)) {
+    throw new Error("Admin client requires HTTPS except for exact loopback HTTP development endpoints.");
+  }
 }
 
 function normalizeBasePath(value: string): string {

@@ -62,6 +62,80 @@ describe("control-plane client", () => {
     expect(result.value.sourceUpdatedAt).toBe("Mon, 11 May 2026 10:00:00 GMT");
   });
 
+  it("reads the import jobs envelope and preserves job progress and result fields", async () => {
+    const controlPlane = clientFor(({ url }) => {
+      if (url.pathname.endsWith("/import/jobs")) {
+        return new Response(
+          JSON.stringify({
+            jobs: [
+              {
+                jobId: "job-1",
+                status: "Processing",
+                progress: { completed: 4, total: 10, message: "Loading" },
+                createdAt: "2026-09-03T10:00:00Z",
+                customMetadata: { source: "fixture" },
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          jobId: "job-1",
+          status: "Completed",
+          progress: { completed: 10, total: 10, message: "Done" },
+          result: { tableName: "parcels", featureCount: 10 },
+          problem: undefined,
+          updatedAt: "2026-09-03T10:01:00Z",
+          links: { job: "/api/v1/admin/jobs/job-1" },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+
+    const listed = await controlPlane.imports.listJobs();
+    expect(listed.supported).toBe(true);
+    if (!listed.supported) return;
+    expect(listed.value.items).toHaveLength(1);
+    expect(listed.value.items[0]).toMatchObject({
+      id: "job-1",
+      status: "running",
+      progress: { completed: 4, total: 10, message: "Loading" },
+      createdAt: "2026-09-03T10:00:00Z",
+      customMetadata: { source: "fixture" },
+    });
+
+    const fetched = await controlPlane.imports.getJob("job-1");
+    expect(fetched).toEqual({
+      supported: true,
+      value: {
+        jobId: "job-1",
+        id: "job-1",
+        type: "import",
+        status: "succeeded",
+        progress: { completed: 10, total: 10, message: "Done" },
+        result: { tableName: "parcels", featureCount: 10 },
+        problem: undefined,
+        updatedAt: "2026-09-03T10:01:00Z",
+        links: { job: "/api/v1/admin/jobs/job-1" },
+      },
+    });
+  });
+
+  it("rejects stored-connection imports before sending an upload-url request", async () => {
+    let requests = 0;
+    const controlPlane = clientFor(() => {
+      requests += 1;
+      return Response.json({});
+    });
+
+    await expect(controlPlane.imports.create({ sourceKind: "postgis", connectionId: "conn-1" })).rejects.toThrow(
+      "Stored-connection imports are not supported by /import/upload-url",
+    );
+    expect(requests).toBe(0);
+  });
+
   it("does not emit empty conditional headers for refreshes without validators", async () => {
     let headers: HeadersInit | undefined;
     const controlPlane = clientFor(({ init }) => {
