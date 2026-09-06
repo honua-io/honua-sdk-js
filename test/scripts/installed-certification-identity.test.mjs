@@ -63,6 +63,8 @@ test("skips, source builds, unknown IDs, previews, missing assertions and missin
     (o) => { o.id = "unknown"; }, (o) => { o.id = "preview"; }, (o) => { o.verdict = "skip"; },
     (o) => { o.execution.mode = "source-build"; }, (o) => { o.execution.assertions = 0; },
     (o) => { o.execution.facets = ["positive"]; },
+    (o) => { o.execution.facets = "positive,pagination"; },
+    (o) => { o.execution.assertions = "3"; },
   ]) {
     const changed = structuredClone(envelope); mutate(changed.observations[0]);
     assert.throws(() => validateObservationEnvelope(changed, binding, denominator));

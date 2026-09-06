@@ -84,7 +84,8 @@ export function validateObservationEnvelope(envelope, frozen, denominator) {
     if (observed.verdict !== "pass") continue;
     assert.ok(row.counts, `${observed.id}: non-supported row cannot pass`);
     assert.equal(observed.execution?.mode, "installed-package", `${observed.id}: installed execution required`);
-    assert.ok(observed.execution?.assertions > 0, `${observed.id}: value assertions required`);
+    assert.ok(Number.isSafeInteger(observed.execution?.assertions) && observed.execution.assertions > 0, `${observed.id}: value assertions required`);
+    assert.ok(Array.isArray(observed.execution.facets), `${observed.id}: execution facets must be an array`);
     for (const facet of row.scenarioFacets ?? []) {
       assert.ok(observed.execution.facets?.includes(facet), `${observed.id}: missing ${facet} facet`);
     }

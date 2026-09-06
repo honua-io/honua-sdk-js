@@ -1,6 +1,6 @@
 {
   "schema": "honua.sdk-installed-package-certification-receipt/v1",
-  "generatedAt": "2026-09-06T10:58:32.552Z",
+  "generatedAt": "2026-09-06T11:04:49.153Z",
   "release": "2026.1",
   "server": {
     "image": "ghcr.io/honua-io/honua-server@sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72",
@@ -19,7 +19,7 @@
       "format": "honua.sdk.published-release-verification.v1",
       "schemaVersion": 1,
       "status": "verified",
-      "verifiedAt": "2026-09-06T10:57:47.924Z",
+      "verifiedAt": "2026-09-06T11:04:22.343Z",
       "registry": "https://registry.npmjs.org",
       "repository": "honua-io/honua-sdk-js",
       "sealedTag": "js-sdk-v0.1.9-beta.0",
@@ -1707,7 +1707,7 @@
         "peer": false
       }
     },
-    "lockDigest": "sha256:e374ba4d6e608f9b0b4bf0f17a9eb18be4c191a13621e0edcfd60f0f021bc542",
+    "lockDigest": "sha256:69a2c547f746a4cd82dd7342346117247fb245f6188e03c0a850f13f1b5387dd",
     "runtime": {
       "node": "v24.19.0",
       "npm": "11.17.0",
@@ -1724,7 +1724,8 @@
       "config/support-manifest.v1.json": "sha256:41e993ec570bf9e053c9ec04a4493b248577e22e7c411d94761c2b948be5c20d",
       "mcp/release/zero-to-map/journey.v1.json": "sha256:5c2b267695e9748a24fc6b72c732b7f71b0a764e8239691b216fdedddb4c313b",
       "test/integration/seed/places-roads-v1.sql": "sha256:97d35505c77ac4e8c2707364bd499f780cbf63e0e7152e84cd3ef4994ff42914",
-      "scripts/fixtures/installed-features.mjs": "sha256:df0bd581cd60644bb28ef091c29362add1f0ae7501ef29e7ac5aa0cbcd4c0977"
+      "scripts/fixtures/installed-features.mjs": "sha256:df0bd581cd60644bb28ef091c29362add1f0ae7501ef29e7ac5aa0cbcd4c0977",
+      "scripts/installed-candidate-fixture.mjs": "sha256:4a3275c36b31fa5fc1dfba24db33e1b31f1aa3ece927ba9a24ec9785e69e460e"
     }
   },
   "nonCounting": [
@@ -3733,5 +3734,5 @@
       "blockedBy": "honua-sdk-js#1426"
     }
   ],
-  "receiptDigest": "sha256:7000ab112cd1f019d27b8f1d7e59e8d128b6028ac89dcb63c4edf9d4879ab12b"
+  "receiptDigest": "sha256:3b6b08dff21bdc4e9e5dbc59cb0207fa97c1f8f4b2ccb3a8fbcc4aa683fd388d"
 }
