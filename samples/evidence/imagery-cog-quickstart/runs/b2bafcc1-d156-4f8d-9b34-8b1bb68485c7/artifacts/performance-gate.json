@@ -1,0 +1,31 @@
+{
+  "projectName": "chromium",
+  "browserName": "chromium",
+  "source": "browser-performance-api",
+  "metric": "sample-ready-duration",
+  "unit": "ms",
+  "budget": {
+    "operator": "<=",
+    "value": 5000
+  },
+  "value": 1088.2000000000698,
+  "observations": {
+    "navigation": {
+      "entryType": "navigation",
+      "sampleReadyMs": 1088.2000000000698,
+      "responseStartMs": 8.800000000046566,
+      "domContentLoadedMs": 97.70000000006985,
+      "loadEventMs": 113.10000000009313
+    },
+    "resources": {
+      "count": 9,
+      "transferBytes": 2295822,
+      "decodedBodyBytes": 2293122,
+      "completedByMs": 690.9000000000233
+    },
+    "interaction": {
+      "name": "evidence-drawer-keyboard-workflow",
+      "durationMs": 9.399999999906868
+    }
+  }
+}
