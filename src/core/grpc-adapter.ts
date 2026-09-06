@@ -701,10 +701,15 @@ export async function* streamProtoPages(
  */
 export function wrapConnectError(error: unknown): Error {
   if (error instanceof Error && "code" in error && typeof (error as Record<string, unknown>).code === "number") {
+    const candidate = error as Record<string, unknown>;
     return new HonuaGrpcError(
-      (error as Record<string, unknown>).code as number,
+      candidate.code as number,
       error.message,
-      "rawMessage" in error ? (error as Record<string, unknown>).rawMessage : undefined,
+      "rawMessage" in error ? candidate.rawMessage : undefined,
+      {
+        initialMetadata: candidate.headers ?? candidate.initialMetadata,
+        trailingMetadata: candidate.trailers ?? candidate.trailer ?? candidate.metadata,
+      },
     );
   }
   if (error instanceof Error) {

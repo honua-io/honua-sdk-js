@@ -11,6 +11,7 @@ test-results/coding-agent-eval/
 test-results/cog-live-evidence*.json
 test-results/create-honua-app-*.json
 test-results/live-benchmark-evidence.json
+test-results/ogc-processes-candidate-qualification.json
 test-results/pr-fast*.json
 test-results/published-release-verification.v1.json
 test-results/quickstart-time-to-map.json
@@ -25,6 +26,7 @@ node_modules
 !samples/evidence/**/*.tgz
 a.out
 .artifacts/
+.qualification/
 
 # Agent worktrees created by Claude Code; never part of a commit.
 .claude/worktrees/

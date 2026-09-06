@@ -15,14 +15,14 @@ const sources = [
   ...new Set(
     surface.entrypoints
       .filter((entrypoint) => entrypoint.tier !== "deprecated")
-      .map((entrypoint) => path.relative(PROJECT_ROOT, sourceFileForExport(packageJson, entrypoint.subpath))),
+      .map((entrypoint) => path.relative(PROJECT_ROOT, sourceFileForExport(packageJson, entrypoint.subpath)).split(path.sep).join("/")),
   ),
 ];
 
 const result = runNpxSync(
   [
     "--yes",
-    "typedoc@^0.26",
+    "typedoc@0.28.17",
     "--tsconfig",
     "tsconfig.docs.json",
     "--out",

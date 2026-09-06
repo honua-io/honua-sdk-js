@@ -30,6 +30,8 @@ on:
       - "scripts/check-docs-site-links.mjs"
       - "scripts/check-docs-versions-site.mjs"
       - "scripts/docs-versions.mjs"
+      - "scripts/check-docs-release.mjs"
+      - "config/docs-unpublished-releases.json"
       - "scripts/generate-llms-txt.mjs"
       - "scripts/generate-comparison-page.mjs"
       - "scripts/generate-mcp-eval-scorecard.mjs"
@@ -107,6 +109,9 @@ jobs:
       - name: Verify documentation version manifest
         run: npm run docs:versions:check
 
+      - name: Verify documentation manifest covers npm prereleases
+        run: node scripts/check-docs-release.mjs registry
+
       - name: Verify documentation release tags
         env:
           # Release Please creates the tag from the same trunk push. Tolerate
@@ -147,6 +152,20 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout deployed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+      - name: Verify the manifest consumers fetch from Pages
+        env:
+          HONUA_DOCS_DEPLOY_VERIFY_ATTEMPTS: "12"
+          HONUA_DOCS_EXPECT_SOURCE_REVISION: ${{ github.sha }}
+        run: node scripts/check-docs-release.mjs hosted
