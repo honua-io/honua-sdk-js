@@ -87,28 +87,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
           today="$(date -u +%F)"
           branch="automation/kepler-audit-renewal-${today}"
-
-          # Supersede whatever a previous run left behind.
-          #
-          # A renewal that is not landed the day it is opened is still open when
-          # the next day's cron opens another one, and nothing here ever closed
-          # the earlier one. Each renewal is computed from the current trunk, so
-          # the newest is the only one worth reviewing. Cleanup must never be
-          # able to block the renewal itself, so each close is tolerated failing.
-          while IFS=$'\t' read -r stale_number stale_branch; do
-            [[ -n "$stale_number" && "$stale_branch" != "$branch" ]] || continue
-            echo "Superseding stale renewal PR #$stale_number ($stale_branch)."
-            gh pr close "$stale_number" \
-              --comment "Superseded by the renewal run of ${today}; this workflow reopens from the current trunk each run." \
-              --delete-branch || echo "::warning::Could not close stale renewal PR #$stale_number."
-          done < <(gh pr list \
-            --state open \
-            --base trunk \
-            --limit 100 \
-            --json number,headRefName \
-            --jq '.[] | select(.headRefName | startswith("automation/kepler-audit-renewal-")) | [.number, .headRefName] | @tsv')
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -122,3 +103,23 @@ jobs:
             --head "$branch" \
             --title "chore(kepler): renew reviewed audit exception" \
             --body $'Automated pre-expiry review verified the exact npm audit allowlist, confirmed `image-size@2.0.2` remains latest, and confirmed `texture-compressor@1.0.2` still pins `image-size: ^0.7.4`.\n\nReviewer checklist:\n- [ ] Confirm neither advisory has gained a patched release.\n- [ ] Confirm the reviewed dependency edge remains current.\n- [ ] Confirm JXL, HEIF, and ICNS parsing remains unreachable from the Kepler sample.\n\nScheduled renewal automation; no issue disposition required.'
+
+
+          # Preserve the old renewal unless a replacement exists on current trunk.
+          current_trunk="$(git ls-remote origin refs/heads/trunk | cut -f1)"
+          if [[ "$current_trunk" != "$source_sha" ]]; then
+            echo "::notice::Trunk moved; retaining previous renewal pull requests."
+            exit 0
+          fi
+          while IFS=$'\t' read -r stale_number stale_branch; do
+            [[ -n "$stale_number" && "$stale_branch" != "$branch" ]] || continue
+            echo "Superseding stale renewal PR #$stale_number ($stale_branch)."
+            gh pr close "$stale_number" \
+              --comment "Superseded by the renewal run of ${today}; this workflow reopens from the current trunk each run." \
+              --delete-branch || echo "::warning::Could not close stale renewal PR #$stale_number."
+          done < <(gh pr list \
+            --state open \
+            --base trunk \
+            --limit 100 \
+            --json number,headRefName,author,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository == false and .author.is_bot == true) | select(.author.login == "app/honua-io-bot" or .author.login == "app/github-actions") | select(.headRefName | startswith("automation/kepler-audit-renewal-")) | [.number, .headRefName] | @tsv')
