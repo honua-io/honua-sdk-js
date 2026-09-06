@@ -596,10 +596,23 @@ describe("createResumableServerSentEventsTransport / createResumableWebSocketTra
       type: "snapshot",
       sequence: 1,
       cursor: "c1",
+      operationInstanceId: "opinst-1",
+      correlationId: "corr-1",
+      auditId: "audit-1",
+      proposalId: "proposal-1",
       features: [{ id: 1, feature: { id: 1, status: "open" } }],
     });
 
-    expect(next).toHaveBeenCalledWith(expect.objectContaining({ type: "snapshot", sequence: 1 }));
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "snapshot",
+        sequence: 1,
+        operationInstanceId: "opinst-1",
+        correlationId: "corr-1",
+        auditId: "audit-1",
+        proposalId: "proposal-1",
+      }),
+    );
   });
 
   class MockWebSocket implements RealtimeWebSocket {

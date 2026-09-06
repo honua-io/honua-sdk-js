@@ -15,7 +15,7 @@
  *
  * Like `honua map publish`, these verbs parse flags into the command's declared
  * input plus a `HonuaCommandInvocation` and render the receipt. Everything else
- * — validation, the `sourceUrl`-or-`connectionId` cross-field rule, idempotency
+ * — validation, the current endpoint's `sourceUrl` requirement, idempotency
  * derivation, dry run, the typed error taxonomy — belongs to the command.
  *
  * @packageDocumentation
@@ -34,9 +34,9 @@ import { ArgError, getString } from "../args.js";
 import { cliCommandInvocation, runCommandVerb } from "../command-adapter.js";
 import type { CommandContext } from "../command.js";
 
-const CONNECTION_USAGE = "Usage: honua connection test <connectionId> [--workspace <id>] [--dry-run] [--yes]";
+const CONNECTION_USAGE = "Usage: honua connection test <connectionId> [--dry-run] [--yes]";
 const IMPORT_USAGE =
-  "Usage: honua import create --source-kind <kind> [--source-url <url>|--connection <id>] " +
+  "Usage: honua import create --source-kind <kind> --source-url <url> " +
   "[--workspace <id>] [--title <text>] [--options <json|@file>] [--dry-run] [--yes]";
 
 /**
@@ -51,22 +51,18 @@ export function connectionTestInvocation(parsed: ParsedArgs): {
 } {
   const connectionId = parsed.positionals[0];
   if (!connectionId) throw new ArgError(CONNECTION_USAGE);
-  const workspaceId = getString(parsed, "workspace");
   return {
-    input: {
-      connectionId,
-      ...(workspaceId ? { workspaceId } : {}),
-    },
+    input: { connectionId },
     invocation: cliCommandInvocation(parsed),
   };
 }
 
 /**
  * Translate `honua import create` flags into the shared command's input and
- * invocation. `--source-url` and `--connection` are both optional here on
- * purpose: "one of these two is required" is the command's `validate` rule, so
- * the terminal and every other transport report the same typed failure instead
- * of each inventing its own usage error.
+ * invocation. `--source-url` remains optional here so the shared command can
+ * report the typed validation error; `--connection` is retained as a
+ * compatibility input and is rejected because the current server route is
+ * URL-only.
  *
  * @internal
  */
@@ -109,7 +105,6 @@ export async function connectionCommand(parsed: ParsedArgs, ctx: CommandContext)
     confirm: "honua connection test issues a server-side probe. Re-run with --yes, or preview the plan with --dry-run.",
     detail: (receipt) => ({
       connection: receipt.resourceRef?.id ?? "(unknown)",
-      workspace: receipt.resourceRef?.workspaceId ?? "(default)",
       // A dry run deliberately skips the probe, so it has established nothing
       // about reachability. Folding it in with the non-denied statuses printed
       // "reachable: yes" for a connection the terminal never contacted, which

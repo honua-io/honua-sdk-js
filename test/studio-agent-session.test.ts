@@ -20,6 +20,18 @@ import {
   createStudioAgentSession,
 } from "@honua/sdk-js/studio-agent";
 
+const TEST_CERTIFICATION = {
+  candidateId: "candidate-test",
+  releaseId: "2026.1-test",
+  endpointIdentity: "fixture-proxy",
+  actionId: "studio-test",
+  runNonce: "fixture-nonce",
+} as const;
+const VERIFIED_SESSION = {
+  certification: TEST_CERTIFICATION,
+  transcriptVerifier: { verify: async () => ({ ok: true as const, transcriptDigest: "fixture-digest" }) },
+};
+
 // ── Scripted server ───────────────────────────────────────────
 //
 // A `fetchImpl` that speaks all three wire surfaces the session uses, with
@@ -101,7 +113,25 @@ const DEFAULT_CAPABILITIES: StudioAiCapabilitiesResponse = {
 };
 
 function sseBody(events: ScriptedTurn): string {
-  return events
+  const secured = events.some((event) => event.type === "toolCallStop")
+    ? [
+        ...events,
+        {
+          type: "transcriptProvenance",
+          provenance: {
+            schemaVersion: "honua.studio-ai.transcript.v1",
+            canonicalization: "honua-canonical-json-v1",
+            digestAlgorithm: "sha-256",
+            signatureAlgorithm: "Ed25519",
+            keyId: "fixture",
+            canonicalTranscript: "fixture",
+            transcriptDigest: "fixture",
+            signature: "fixture",
+          },
+        } satisfies StudioAiChatEvent,
+      ]
+    : events;
+  return secured
     .map((event) => {
       const { type, ...rest } = event;
       const name = CHAT_EVENT_TYPE_TO_SSE_NAME[type];
@@ -307,6 +337,7 @@ function makeSession(
   const kit = createHonuaAiMapKit({ runtime, policy: { allowActions: true } });
   const events: StudioAgentSessionEvent[] = [];
   const session = createStudioAgentSession({
+    ...VERIFIED_SESSION,
     baseUrl: "/api",
     fetchImpl: server.fetchImpl,
     kit,
@@ -400,7 +431,7 @@ describe("createStudioAgentSession capabilities", () => {
       return server.fetchImpl(input, init);
     }) as typeof fetch;
     const kit = createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } });
-    const session = createStudioAgentSession({ baseUrl: "/api", fetchImpl: failingFetch, kit });
+    const session = createStudioAgentSession({ ...VERIFIED_SESSION, baseUrl: "/api", fetchImpl: failingFetch, kit });
 
     const turn = await session.chat("hello");
 
@@ -476,7 +507,12 @@ describe("createStudioAgentSession turn loop", () => {
     });
     // No action opt-in and no dry-run: every action tool is denied outright.
     const kit = createHonuaAiMapKit({ runtime: makeRuntime(), policy: {} });
-    const session = createStudioAgentSession({ baseUrl: "/api", fetchImpl: server.fetchImpl, kit });
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit,
+    });
 
     const turn = await session.chat("Zoom in.");
 
@@ -492,7 +528,12 @@ describe("createStudioAgentSession turn loop", () => {
     });
     const runtime = makeRuntime();
     const kit = createHonuaAiMapKit({ runtime, policy: { readOnly: true } });
-    const session = createStudioAgentSession({ baseUrl: "/api", fetchImpl: server.fetchImpl, kit });
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit,
+    });
 
     const turn = await session.chat("Zoom in.");
 
@@ -538,6 +579,7 @@ describe("createStudioAgentSession turn loop", () => {
     });
     const kit = createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } });
     const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
       baseUrl: "/api",
       fetchImpl: server.fetchImpl,
       kit,
@@ -555,6 +597,7 @@ describe("createStudioAgentSession turn loop", () => {
     const kit = createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } });
     let calls = 0;
     const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
       baseUrl: "/api",
       fetchImpl: server.fetchImpl,
       kit,
@@ -802,11 +845,32 @@ describe("createStudioAgentSession tool discovery", () => {
     expect(session.tools.filter((tool) => tool.name === "setViewport")).toHaveLength(1);
   });
 
+  it("converts verifier exceptions into a fail-closed error turn", async () => {
+    const server = createScriptedServer({
+      toolPages: compositionPage("honua_studio_add_layer"),
+      turns: [toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layerId: "roads" } }])],
+    });
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      transcriptVerifier: { verify: async () => Promise.reject(new Error("replay store unavailable")) },
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    const turn = await session.chat("Add roads.");
+
+    expect(turn.status).toBe("error");
+    expect(turn.errorMessage).toBe("Transcript provenance verification failed.");
+    expect(server.mcpCalls).toEqual([]);
+  });
+
   it("degrades to runtime tools when discovery fails and retries on the next turn", async () => {
     const server = createScriptedServer({ turns: [textTurn("a"), textTurn("b")] });
     let mcpDown = true;
     const events: StudioAgentSessionEvent[] = [];
     const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
       baseUrl: "/api",
       fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
         if (mcpDown && String(input).endsWith("/mcp")) throw new TypeError("fetch failed");
@@ -847,6 +911,7 @@ describe("createStudioAgentSession tool discovery", () => {
   it("bounds a tools/list that never answers instead of pinning the turn open", async () => {
     const server = createScriptedServer({ turns: [textTurn("ok")] });
     const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
       baseUrl: "/api",
       fetchImpl: hangingToolList(server.fetchImpl),
       kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
@@ -865,6 +930,7 @@ describe("createStudioAgentSession tool discovery", () => {
   it("stops waiting on a hung discovery pass the moment the caller aborts", async () => {
     const server = createScriptedServer({ turns: [textTurn("ok")] });
     const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
       baseUrl: "/api",
       fetchImpl: hangingToolList(server.fetchImpl),
       kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
@@ -887,6 +953,7 @@ describe("createStudioAgentSession tool discovery", () => {
     });
     let gated = true;
     const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
       baseUrl: "/api",
       fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).endsWith("/mcp")) {

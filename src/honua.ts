@@ -349,7 +349,13 @@ export {
   HonuaWfsExceptionError,
   isHonuaError,
 } from "./core/errors.js";
-export type { HonuaError, HonuaAuthErrorCode, HonuaGeometryErrorCode } from "./core/errors.js";
+export type {
+  HonuaError,
+  HonuaAuthErrorCode,
+  HonuaGeometryErrorCode,
+  HonuaGrpcErrorOptions,
+  HonuaHttpErrorOptions,
+} from "./core/errors.js";
 export {
   HONUA_ERROR_KIND,
   HonuaSdkError,
@@ -363,6 +369,10 @@ export type {
   HonuaErrorEnvelopeContextValue,
   HonuaErrorMetadata,
   HonuaErrorOptions,
+  HonuaFailureKind,
+  HonuaFieldFailure,
+  HonuaProtocolMetadata,
+  HonuaTerminalFailureReceipt,
   SerializedHonuaError,
   SerializedHonuaErrorCause,
 } from "./core/error-envelope.js";

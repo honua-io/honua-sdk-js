@@ -189,3 +189,19 @@ test("authoritative tag validation rejects a fabricated release", () => {
     [],
   );
 });
+
+test("unpublished cuts cannot hide the current release or unknown history", () => {
+  for (const unpublishedReleases of [
+    { "1.2.0-beta.1": "Never published" },
+    { "9.9.9": "Unknown release" },
+    { "1.1.0": "" },
+  ]) {
+    assert.throws(
+      () => buildDocsVersions({ packageJson, releaseManifest, changelog, unpublishedReleases }),
+      /Invalid unpublished documentation release/,
+    );
+  }
+  const result = buildDocsVersions({ packageJson, releaseManifest, changelog, unpublishedReleases: { "1.1.0": "Never published" } });
+  assert.equal(result.versions.length, 2);
+  assert.equal(result.versions[0].releaseUrl, "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.5-alpha.0...js-sdk-v1.2.0-beta.1");
+});

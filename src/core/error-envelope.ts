@@ -33,6 +33,7 @@ export interface HonuaErrorMetadata {
   readonly operationId?: string;
   readonly requestId?: string;
   readonly context?: Readonly<Record<string, unknown>>;
+  readonly terminalReceipt?: HonuaTerminalFailureReceipt;
 }
 
 export interface HonuaErrorOptions extends ErrorOptions, HonuaErrorMetadata {}
@@ -46,8 +47,49 @@ export interface SerializedHonuaError {
   readonly retryable: boolean;
   readonly operationId?: string;
   readonly requestId?: string;
+  readonly receipt?: HonuaTerminalFailureReceipt;
   readonly context: HonuaErrorEnvelopeContext;
   readonly cause?: SerializedHonuaErrorCause;
+}
+
+/** Stable failure classes shared by HTTP, GeoServices, and gRPC terminal receipts. */
+export type HonuaFailureKind =
+  | "authentication"
+  | "authorization"
+  | "not-found"
+  | "validation"
+  | "conflict"
+  | "throttled"
+  | "unavailable"
+  | "unknown";
+
+/** One field- or item-addressable server rejection. */
+export interface HonuaFieldFailure {
+  readonly code?: string;
+  readonly severity?: string;
+  readonly path?: string;
+  readonly fieldId?: string;
+  readonly itemIndex?: number;
+  readonly message?: string;
+}
+
+/** Protocol-native metadata retained at a terminal transport boundary. */
+export interface HonuaProtocolMetadata {
+  readonly initial: Readonly<Record<string, readonly string[]>>;
+  readonly trailing: Readonly<Record<string, readonly string[]>>;
+}
+
+/** Machine-actionable receipt exposed by every remote terminal SDK error. */
+export interface HonuaTerminalFailureReceipt {
+  readonly transportStatus?: number;
+  readonly protocolCode?: number | string;
+  readonly kind: HonuaFailureKind;
+  readonly code?: string;
+  readonly retryable: boolean;
+  readonly retryAfterMs?: number;
+  readonly correlationId?: string;
+  readonly fieldErrors: readonly HonuaFieldFailure[];
+  readonly protocolMetadata: HonuaProtocolMetadata;
 }
 
 export interface SerializedHonuaErrorCause {
@@ -68,6 +110,7 @@ export abstract class HonuaSdkError extends Error {
   public readonly retryable: boolean;
   public readonly operationId: string | undefined;
   public readonly requestId: string | undefined;
+  public readonly terminalReceipt: HonuaTerminalFailureReceipt | undefined;
   public readonly context: HonuaErrorEnvelopeContext;
 
   protected constructor(code: HonuaErrorCode, message: string, options: HonuaErrorOptions = {}) {
@@ -80,6 +123,7 @@ export abstract class HonuaSdkError extends Error {
     this.retryable = retryable;
     this.operationId = sanitizeIdentifier(options.operationId);
     this.requestId = sanitizeIdentifier(options.requestId);
+    this.terminalReceipt = options.terminalReceipt;
     this.context = sanitizeHonuaErrorContext(options.context);
   }
 
@@ -122,6 +166,7 @@ export function serializeHonuaError(error: HonuaSdkError): SerializedHonuaError 
   const cause = serializeCause(ownDataProperty(error, "cause"));
   const operationId = sanitizeIdentifier(asOptionalString(ownDataProperty(error, "operationId")));
   const requestId = sanitizeIdentifier(asOptionalString(ownDataProperty(error, "requestId")));
+  const receipt = ownDataProperty(error, "terminalReceipt");
   const context = ownDataProperty(error, "context");
   return {
     kind: HONUA_ERROR_KIND,
@@ -132,9 +177,20 @@ export function serializeHonuaError(error: HonuaSdkError): SerializedHonuaError 
     retryable,
     ...(operationId ? { operationId } : {}),
     ...(requestId ? { requestId } : {}),
+    ...(isTerminalFailureReceipt(receipt) ? { receipt } : {}),
     context: isRecord(context) && !Array.isArray(context) ? sanitizeHonuaErrorContext(context) : emptyContext(),
     ...(cause ? { cause } : {}),
   };
+}
+
+function isTerminalFailureReceipt(value: unknown): value is HonuaTerminalFailureReceipt {
+  return (
+    isRecord(value) &&
+    typeof ownDataProperty(value, "kind") === "string" &&
+    typeof ownDataProperty(value, "retryable") === "boolean" &&
+    Array.isArray(ownDataProperty(value, "fieldErrors")) &&
+    isRecord(ownDataProperty(value, "protocolMetadata"))
+  );
 }
 
 /** Redact structured context before it is stored on an SDK error. */
