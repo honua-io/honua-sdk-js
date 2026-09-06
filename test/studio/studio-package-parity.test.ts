@@ -3,10 +3,10 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { HONUA_GENERATED_APP_MANIFEST_FORMAT_V1 } from "../../src/generated-app/manifest.js";
 import type { HonuaGeneratedAppChartWidget } from "../../src/generated-app/manifest.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../../src/runtime/map-package.js";
 import {
+  HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
   HONUA_PACKAGE_PROVENANCE_FORMAT_V1,
   HONUA_VEGA_LITE_SCHEMA,
   chartWidgetToVegaLiteSpec,
@@ -80,14 +80,76 @@ describe("validateStudioPackage", () => {
     expect(response.diagnostics.some((d) => d.code === "missing-package-id")).toBe(true);
   });
 
-  it("uses appId for the dashboard family and id for the app family", () => {
+  it("uses packageId for the dashboard family and id for the app family", () => {
     expect(
       validateStudioPackage("dashboard", {
-        format: HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
-        appId: "a1",
+        format: HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
+        packageId: "dashboard-1",
+        data: { sourceId: "incidents" },
+        layout: { kind: "operations-dashboard", widgets: [] },
       }).valid,
     ).toBe(true);
     expect(validateStudioPackage("app", { id: "app1", version: "1.0.0" }).valid).toBe(true);
+  });
+
+  it("rejects lifecycle fields in the authored dashboard artifact", () => {
+    const response = validateStudioPackage("dashboard", {
+      format: HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
+      packageId: "dashboard-1",
+      data: { sourceId: "incidents" },
+      layout: { kind: "operations-dashboard", widgets: [] },
+      proposalId: "proposal-1",
+    });
+    expect(response.valid).toBe(false);
+    expect(response.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "dashboard-lifecycle-field", path: "proposalId" }),
+    );
+  });
+
+  it("requires the dashboard source binding", () => {
+    const response = validateStudioPackage("dashboard", {
+      format: HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
+      packageId: "dashboard-1",
+      data: {},
+      layout: { kind: "operations-dashboard", widgets: [] },
+    });
+    expect(response.valid).toBe(false);
+    expect(response.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "missing-dashboard-source-id", path: "data.sourceId" }),
+    );
+  });
+
+  it("validates the dashboard layout and widget entries", () => {
+    const response = validateStudioPackage("dashboard", {
+      format: HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
+      packageId: "dashboard-1",
+      data: { sourceId: "incidents" },
+      layout: { kind: "unknown", widgets: [null, { id: "", kind: "unknown" }] },
+    });
+    expect(response.valid).toBe(false);
+    expect(response.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "invalid-dashboard-layout-kind", path: "layout.kind" }),
+        expect.objectContaining({ code: "invalid-dashboard-widget", path: "layout.widgets[0]" }),
+        expect.objectContaining({ code: "missing-dashboard-widget-id", path: "layout.widgets[1].id" }),
+        expect.objectContaining({ code: "invalid-dashboard-widget-kind", path: "layout.widgets[1].kind" }),
+      ]),
+    );
+  });
+
+  it("rejects an embedded map package in a dashboard artifact", () => {
+    const response = validateStudioPackage("dashboard", {
+      format: HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
+      packageId: "dashboard-1",
+      data: { sourceId: "incidents" },
+      mapPackageId: "map-1",
+      mapPackage: {},
+      layout: { kind: "operations-dashboard", widgets: [] },
+    });
+    expect(response.valid).toBe(false);
+    expect(response.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "embedded-dashboard-map-package", path: "mapPackage" }),
+    );
   });
 
   it("can require provenance to be present", () => {

@@ -9,6 +9,7 @@ import {
   type JourneyStageReceipt,
   ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA,
   ZERO_TO_MAP_CONSOLE_RECEIPT_REQUEST_SCHEMA,
+  ZERO_TO_MAP_FULL_CATALOG_VIEW,
   type ZeroToMapCatalogReceipt,
   type ZeroToMapProfileReceipt,
 } from "./zero-to-map.js";
@@ -262,6 +263,7 @@ function parseCatalogReceipt(value: unknown): ZeroToMapCatalogReceipt {
     [
       "schemaVersion",
       "activeProfiles",
+      "requestedView",
       "expectedTotalTools",
       "advertisedTotalTools",
       "baseStaticTools",
@@ -279,9 +281,16 @@ function parseCatalogReceipt(value: unknown): ZeroToMapCatalogReceipt {
     throw new Error(`${path}.schemaVersion must be ${ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA}`);
   }
   if (!Array.isArray(catalog.profiles)) throw new Error(`${path}.profiles must be an array`);
+  // The roster carried across the Console pause must have been read from the
+  // complete catalog. A checkpoint claiming a narrowed workflow view would be
+  // re-emitted onto the final receipt as if it were full-catalog evidence.
+  if (catalog.requestedView !== ZERO_TO_MAP_FULL_CATALOG_VIEW) {
+    throw new Error(`${path}.requestedView must be ${ZERO_TO_MAP_FULL_CATALOG_VIEW}`);
+  }
   return {
     schemaVersion: ZERO_TO_MAP_CATALOG_RECEIPT_SCHEMA,
     activeProfiles: stringList(catalog.activeProfiles, `${path}.activeProfiles`),
+    requestedView: ZERO_TO_MAP_FULL_CATALOG_VIEW,
     expectedTotalTools: count(catalog.expectedTotalTools, `${path}.expectedTotalTools`),
     advertisedTotalTools: count(catalog.advertisedTotalTools, `${path}.advertisedTotalTools`),
     baseStaticTools: count(catalog.baseStaticTools, `${path}.baseStaticTools`),

@@ -219,9 +219,17 @@ export const MCP_TOOLS_LIST_MAX_CURSOR_LENGTH = 1_024;
  * the 432-tool default roster or a profile-enabled superset belongs to the
  * certification and preflight callers.
  */
-export async function listAllTools(client: {
-  listTools(request?: { cursor?: string }): Promise<{ tools: Tool[]; nextCursor?: string }>;
-}): Promise<Tool[]> {
+export async function listAllTools(
+  client: {
+    listTools(request?: { cursor?: string }): Promise<{ tools: Tool[]; nextCursor?: string }>;
+  },
+  /**
+   * Extra `tools/list` params carried on every page, e.g. the workflow-view
+   * selector (honua-server#3428). Kept out of the cursor loop's own state so a
+   * selector applies uniformly across pages rather than only to the first.
+   */
+  params?: Readonly<Record<string, unknown>>,
+): Promise<Tool[]> {
   const tools: Tool[] = [];
   let cursor: string | undefined;
   const seenCursors = new Set<string>();
@@ -233,7 +241,8 @@ export async function listAllTools(client: {
         `MCP tools/list exceeded the ${MCP_TOOLS_LIST_MAX_PAGES}-page pagination safety ceiling after ${tools.length} tools; the server did not terminate its cursor chain. This is a pagination fault, not a roster assertion.`,
       );
     }
-    const page = await client.listTools(cursor ? { cursor } : undefined);
+    const request = { ...params, ...(cursor ? { cursor } : {}) };
+    const page = await client.listTools(Object.keys(request).length > 0 ? request : undefined);
     if (tools.length + page.tools.length > MCP_TOOLS_LIST_MAX_TOOLS) {
       throw new Error(
         `MCP tools/list exceeded the ${MCP_TOOLS_LIST_MAX_TOOLS}-tool pagination safety ceiling on page ${pageCount}; the server returned an implausible catalog. This is a pagination fault, not a roster assertion.`,

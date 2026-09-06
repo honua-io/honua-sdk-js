@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { deflateSync } from "node:zlib";
 import {
   ADMIN_MCP_EXCLUDED_OPERATIONS,
   ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
@@ -21,7 +22,11 @@ import {
   ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT,
   ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
   ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT,
+  ZERO_TO_MAP_FULL_CATALOG_VIEW,
   ZERO_TO_MAP_REQUIRED_PROFILES,
+  ZERO_TO_MAP_WORKFLOW_VIEW_CONFIG_KEY,
+  ZERO_TO_MAP_WORKFLOW_VIEW_ENV_KEY,
+  assertRenderedPng,
   parseZeroToMapPlan,
   runZeroToMapJourney,
   validateJourneyResume,
@@ -113,9 +118,9 @@ describe("zero-to-map D9.3 release journey", () => {
     );
   });
 
-  it("ships a seven-stage plan and small deterministic GeoJSON fixtures", async () => {
+  it("ships an eight-stage plan and small deterministic GeoJSON fixtures", async () => {
     const plan = await loadPlan();
-    expect(plan.stages.map((stage) => stage.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(plan.stages.map((stage) => stage.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(plan.releaseContract).toBe("honua-release#123/D9.3");
 
     const parcels = JSON.parse(await readFile(`${bundleRoot}/fixtures/parcels.geojson`, "utf8")) as {
@@ -151,7 +156,7 @@ describe("zero-to-map D9.3 release journey", () => {
       },
     });
 
-    const geoprocessing = new Map(plan.stages[2]?.actions.map((action) => [action.id, action]));
+    const geoprocessing = new Map(plan.stages[3]?.actions.map((action) => [action.id, action]));
     expect(geoprocessing.get("list-esri-gp-tasks")).toMatchObject({
       kind: "mcp",
       tool: "honua_esri_gp_list_tasks",
@@ -205,7 +210,7 @@ describe("zero-to-map D9.3 release journey", () => {
       captures: expect.arrayContaining([expect.objectContaining({ variable: "bufferArtifactId" })]),
     });
 
-    const studio = new Map(plan.stages[3]?.actions.map((action) => [action.id, action]));
+    const studio = new Map(plan.stages[4]?.actions.map((action) => [action.id, action]));
     expect([
       studio.get("create-map-draft"),
       studio.get("create-app-draft"),
@@ -307,7 +312,7 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(consoleContract.properties.resources?.required).toContain("studio");
     expect(consoleContract.$defs.studioFamiliesResource?.required).toEqual(["map", "app", "dashboard"]);
 
-    const proposal = new Map(plan.stages[4]?.actions.map((action) => [action.id, action]));
+    const proposal = new Map(plan.stages[5]?.actions.map((action) => [action.id, action]));
     for (const family of ["map", "app", "dashboard"] as const) {
       expect(proposal.get(`propose-${family}-publication`)).toMatchObject({
         kind: "mcp",
@@ -328,12 +333,12 @@ describe("zero-to-map D9.3 release journey", () => {
         ]),
       });
     }
-    expect(plan.stages[6]?.actions.map((action) => action.id)).toEqual([
+    expect(plan.stages[7]?.actions.map((action) => action.id)).toEqual([
       "verify-map-public-url",
       "verify-share-url",
       "verify-dashboard-public-url",
     ]);
-    const consoleApproval = plan.stages[5]?.actions[0];
+    const consoleApproval = plan.stages[6]?.actions[0];
     expect(consoleApproval).toMatchObject({
       kind: "receipt",
       matches: {
@@ -513,6 +518,9 @@ describe("zero-to-map D9.3 release journey", () => {
         calls.push(`tools/call:${tool}`);
         return {};
       },
+      async readImageResource() {
+        throw new Error("this journey must not fetch rendered image artifacts");
+      },
       async readResource() {
         return {};
       },
@@ -559,6 +567,9 @@ describe("zero-to-map D9.3 release journey", () => {
       async callTool() {
         mutationCalled = true;
         return {};
+      },
+      async readImageResource() {
+        throw new Error("this journey must not fetch rendered image artifacts");
       },
       async readResource() {
         return {};
@@ -618,9 +629,9 @@ describe("zero-to-map D9.3 release journey", () => {
     const action = receipt.stages[1]?.actions[0];
     expect(action).toMatchObject({ status: "blocked", code: "mcp-catalog-incomplete" });
     expect(action?.message).toContain("the esri-gp profile is not advertised");
-    expect(action?.message).toContain("honua_esri_gp_list_tasks (stage 3 ");
+    expect(action?.message).toContain("honua_esri_gp_list_tasks (stage 4 ");
     expect(action?.message).toContain("the analysis profile is not advertised");
-    expect(action?.message).toContain("honua_buffer_features (stage 3 ");
+    expect(action?.message).toContain("honua_buffer_features (stage 4 ");
     expect(action?.message).toContain("Enable the esri-gp server profile on the candidate and rerun.");
     // The base roster itself is intact, so nothing accuses it of being wrong.
     expect(action?.message).not.toContain("published Admin projections are absent");
@@ -743,6 +754,9 @@ describe("zero-to-map D9.3 release journey", () => {
         calls.push(`tools/call:${tool}`);
         return {};
       },
+      async readImageResource() {
+        throw new Error("this journey must not fetch rendered image artifacts");
+      },
       async readResource() {
         return {};
       },
@@ -800,6 +814,9 @@ describe("zero-to-map D9.3 release journey", () => {
         calls.push(tool);
         return {};
       },
+      async readImageResource() {
+        throw new Error("this journey must not fetch rendered image artifacts");
+      },
       async readResource() {
         return {};
       },
@@ -828,7 +845,7 @@ describe("zero-to-map D9.3 release journey", () => {
     const plan = {
       ...source,
       stages: source.stages.map((stage) =>
-        stage.number < 6
+        stage.number < 7
           ? {
               ...stage,
               actions: [{ id: `fixture-${stage.number}`, title: "fixture", kind: "cli" as const, args: [] }],
@@ -845,6 +862,9 @@ describe("zero-to-map D9.3 release journey", () => {
       },
       async callTool() {
         return {};
+      },
+      async readImageResource() {
+        throw new Error("this journey must not fetch rendered image artifacts");
       },
       async readResource() {
         return {};
@@ -869,7 +889,7 @@ describe("zero-to-map D9.3 release journey", () => {
 
     const receipt = await runZeroToMapJourney(plan, adapter, { execute: true, now: deterministicClock() });
     expect(receipt.status).toBe("failed");
-    expect(receipt.stages[5]?.actions[0]).toMatchObject({
+    expect(receipt.stages[6]?.actions[0]).toMatchObject({
       status: "failed",
       message: "console-approval receipt identity mismatch at /journeyId",
     });
@@ -957,6 +977,44 @@ describe("zero-to-map D9.3 release journey", () => {
         if (tool === "honua_admin_layer_publish") {
           layerId += 1;
           return adminOperation("admin.layer.publish", { data: { layerId } });
+        }
+        if (tool === "honua_get_style") {
+          // List mode publishes the preset catalog; resolve mode answers the
+          // layer's current primary style, which is the preset after it is
+          // applied.
+          return Object.keys(args).length === 0
+            ? value({
+                styles: [{ styleId: "style_canonical", title: "Canonical", uri: "honua://styles/style_canonical" }],
+              })
+            : value({ styleId: "style_canonical", styleVersion: 3, encodings: [] });
+        }
+        if (tool === "honua_apply_style_preset") {
+          return value({
+            serviceId: "zero-to-map",
+            layerId: 1,
+            styleId: "style_canonical",
+            styleVersion: 3,
+            applied: true,
+          });
+        }
+        if (tool === "honua_render_map") {
+          return value({
+            format: "image/png",
+            width: 512,
+            height: 512,
+            byteLength: 2100,
+            bbox: [-122.68, 45.5, -122.6, 45.56],
+            bboxSrid: 4326,
+            layers: [{ serviceId: "zero-to-map", layerId: 1, styleId: "style_canonical" }],
+            image: {
+              format: "image/png",
+              width: 512,
+              height: 512,
+              byteLength: 2100,
+              uri: "honua://renders/zero-to-map-parcels.png",
+              inlined: false,
+            },
+          });
         }
         if (tool === "honua_buffer_features") {
           return value({
@@ -1060,6 +1118,14 @@ describe("zero-to-map D9.3 release journey", () => {
           return value({ draftId, generation });
         }
         return tool === "honua_studio_validate_draft" ? value({ status: "valid" }) : value({ ok: true });
+      },
+      async readImageResource(action, expected) {
+        // The candidate returns the render by reference; the driver fetches the
+        // bytes and judges them, so the fixture must be a real PNG.
+        return {
+          value: { contents: [{ uri: action.uri }] },
+          evidence: assertRenderedPng(pngFixture(512, 512), "image/png", expected),
+        };
       },
       async readResource(action) {
         const jobId = action.uri.includes("esri-mcp-buffer-1") ? "esri-mcp-buffer-1" : "direct-buffer-1";
@@ -1233,14 +1299,14 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(first.status).toBe("blocked");
     expect(paused?.resumeAt).toEqual({ stageId: "console", actionId: "console-approval" });
     expect(paused?.capturedVariables.fixtureBaseUrl).toBe("https://fixtures.example.test");
-    expect(validateJourneyResume(plan, paused as JourneyPauseSnapshot, executionVariables)).toBe(5);
+    expect(validateJourneyResume(plan, paused as JourneyPauseSnapshot, executionVariables)).toBe(6);
     expect(
       validateJourneyResume(plan, paused as JourneyPauseSnapshot, {
         dbPassword: executionVariables.dbPassword,
         candidateId: executionVariables.candidateId,
         releaseId: executionVariables.releaseId,
       }),
-    ).toBe(5);
+    ).toBe(6);
     expect(() =>
       validateJourneyResume(plan, paused as JourneyPauseSnapshot, {
         ...executionVariables,
@@ -1249,7 +1315,7 @@ describe("zero-to-map D9.3 release journey", () => {
     ).toThrow("checkpoint seed fixtureBaseUrl");
 
     const generationJump = structuredClone(paused as JourneyPauseSnapshot);
-    const firstMapMutation = generationJump.completedStages[3]?.actions.find(
+    const firstMapMutation = generationJump.completedStages[4]?.actions.find(
       (action) => action.id === "add-map-parcels-layer",
     );
     if (!firstMapMutation?.captures) throw new Error("canonical map generation capture is missing");
@@ -1259,7 +1325,7 @@ describe("zero-to-map D9.3 release journey", () => {
     );
 
     const requireMapMutation = (candidatePlan: typeof plan) => {
-      const action = candidatePlan.stages[3]?.actions.find((candidate) => candidate.id === "add-map-parcels-layer");
+      const action = candidatePlan.stages[4]?.actions.find((candidate) => candidate.id === "add-map-parcels-layer");
       if (!action || action.kind !== "mcp") throw new Error("canonical map mutation action is missing");
       return action;
     };
@@ -1371,7 +1437,292 @@ describe("zero-to-map D9.3 release journey", () => {
       "https://example.test/dashboards/zero-to-map-dashboard",
     ]);
   });
+
+  it("plans the canonical published-layer style and render proof", async () => {
+    const plan = await loadPlan();
+    const stage = plan.stages[2];
+    expect(stage).toMatchObject({ number: 3, id: "style" });
+    expect(stage?.actions.map((action) => action.id)).toEqual([
+      "read-published-style",
+      "list-style-presets",
+      "apply-canonical-style",
+      "confirm-published-style",
+      "render-published-map",
+      "read-rendered-map",
+    ]);
+
+    const actions = new Map(stage?.actions.map((action) => [action.id, action]));
+    // The preset is discovered from the candidate's own published style catalog
+    // rather than named here, and the same discovered identity is then required
+    // of the apply result, the read-back and the render.
+    expect(actions.get("apply-canonical-style")).toMatchObject({
+      kind: "mcp",
+      tool: "honua_apply_style_preset",
+      arguments: { serviceId: "${serviceName}", styleId: "${discoveredStylePresetId}" },
+      captures: expect.arrayContaining([
+        expect.objectContaining({ variable: "appliedStyleId", equals: "${discoveredStylePresetId}" }),
+        expect.objectContaining({ variable: "styleApplied", equals: true }),
+      ]),
+    });
+    expect(actions.get("confirm-published-style")).toMatchObject({
+      kind: "mcp",
+      tool: "honua_get_style",
+      captures: expect.arrayContaining([
+        expect.objectContaining({ variable: "confirmedStyleId", equals: "${discoveredStylePresetId}" }),
+        expect.objectContaining({ variable: "confirmedStyleVersion", equals: "${appliedStyleVersion}" }),
+      ]),
+    });
+    expect(actions.get("render-published-map")).toMatchObject({
+      kind: "mcp",
+      tool: "honua_render_map",
+      captures: expect.arrayContaining([
+        expect.objectContaining({ variable: "renderedStyleId", equals: "${discoveredStylePresetId}" }),
+      ]),
+    });
+    // The render must frame the ground the fixtures actually occupy. A bbox
+    // pointing anywhere else yields a valid, correctly sized, empty PNG - which
+    // is precisely the outcome the artifact judgment exists to refuse.
+    const render = actions.get("render-published-map") as { arguments: { bbox: number[] } };
+    const parcels = JSON.parse(await readFile(`${bundleRoot}/fixtures/parcels.geojson`, "utf8")) as {
+      features: { geometry: { coordinates: unknown } }[];
+    };
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node) && typeof node[0] === "number" && typeof node[1] === "number") {
+        xs.push(node[0]);
+        ys.push(node[1]);
+        return;
+      }
+      if (Array.isArray(node)) for (const child of node) walk(child);
+    };
+    for (const feature of parcels.features) walk(feature.geometry.coordinates);
+    const [minX, minY, maxX, maxY] = render.arguments.bbox as [number, number, number, number];
+    expect(minX).toBeLessThanOrEqual(Math.min(...xs));
+    expect(minY).toBeLessThanOrEqual(Math.min(...ys));
+    expect(maxX).toBeGreaterThanOrEqual(Math.max(...xs));
+    expect(maxY).toBeGreaterThanOrEqual(Math.max(...ys));
+    // ...and the same extent the Studio stage frames, so the two never drift.
+    const studioView = plan.stages[4]?.actions.find((action) => action.id === "set-map-view") as {
+      arguments: { view: { bbox: number[] } };
+    };
+    expect(render.arguments.bbox).toEqual(studioView.arguments.view.bbox);
+
+    expect(actions.get("read-rendered-map")).toMatchObject({
+      kind: "mcp-image",
+      uri: "${renderImageUri}",
+      expectedMediaType: "image/png",
+      expectedWidth: "${renderWidth}",
+      expectedHeight: "${renderHeight}",
+    });
+  });
+
+  it("selects the full-catalog view so a configured workflow view cannot narrow the preflight roster", async () => {
+    const plan = await loadPlan();
+    const requestedViews: (string | undefined)[] = [];
+    const adapter = blockedCatalogAdapter([]);
+    const receipt = await runZeroToMapJourney(
+      plan,
+      {
+        ...adapter,
+        async listTools(options) {
+          requestedViews.push(options?.view);
+          return [];
+        },
+      },
+      { execute: true, now: deterministicClock() },
+    );
+
+    expect(receipt.status).toBe("blocked");
+    expect(requestedViews).toEqual([ZERO_TO_MAP_FULL_CATALOG_VIEW]);
+    expect(receipt.stages[1]?.actions[0]?.message).toContain(ZERO_TO_MAP_WORKFLOW_VIEW_CONFIG_KEY);
+    expect(receipt.stages[1]?.actions[0]?.message).toContain(ZERO_TO_MAP_WORKFLOW_VIEW_ENV_KEY);
+  });
+
+  it("records the full-catalog view on the catalog receipt", async () => {
+    const plan = await loadPlan();
+    const requiredTools = plan.stages.flatMap((stage) =>
+      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+    );
+    const adapter = blockedCatalogAdapter(completeCatalog(requiredTools));
+    const receipt = await runZeroToMapJourney(
+      plan,
+      {
+        ...adapter,
+        async callTool() {
+          throw new Error("stop after the preflight");
+        },
+      },
+      { execute: true, now: deterministicClock() },
+    );
+    expect(receipt.status).toBe("failed");
+    expect(receipt.catalog?.requestedView).toBe(ZERO_TO_MAP_FULL_CATALOG_VIEW);
+  });
+
+  it("accepts a rendered PNG that matches the reported geometry and carries pixel data", () => {
+    const evidence = assertRenderedPng(pngFixture(512, 512), "image/png", {
+      uri: "honua://renders/parcels.png",
+      mediaType: "image/png",
+      width: 512,
+      height: 512,
+      minByteLength: 1024,
+    });
+    expect(evidence).toMatchObject({ width: 512, height: 512, mediaType: "image/png" });
+    expect(evidence.imageSha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("names the artifact when a render no-op returns something that is not a drawn map", () => {
+    const expected = {
+      uri: "honua://renders/parcels.png",
+      mediaType: "image/png",
+      width: 512,
+      height: 512,
+      minByteLength: 1024,
+    };
+    expect(() => assertRenderedPng(pngFixture(512, 512, { idat: false }), "image/png", expected)).toThrow(
+      /honua:\/\/renders\/parcels\.png carries no IDAT pixel data/,
+    );
+    expect(() => assertRenderedPng(pngFixture(256, 256), "image/png", expected)).toThrow(
+      /is 256x256; the renderer reported 512x512/,
+    );
+    expect(() => assertRenderedPng(pngFixture(512, 512), "application/json", expected)).toThrow(
+      /declared media type application\/json; expected image\/png/,
+    );
+    expect(() => assertRenderedPng(Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9]), "image/png", expected)).toThrow(
+      /is not a PNG: the 8-byte PNG signature is absent/,
+    );
+    expect(() =>
+      assertRenderedPng(pngFixture(512, 512), "image/png", { ...expected, minByteLength: 10_000_000 }),
+    ).toThrow(/a style\/render no-op returns/);
+  });
+
+  it("refuses an artifact no PNG decoder could render", () => {
+    const expected = {
+      uri: "honua://renders/parcels.png",
+      mediaType: "image/png",
+      width: 64,
+      height: 64,
+      minByteLength: 32,
+    };
+    // Structural plausibility is not decodability. Each of these is a blob that
+    // a chunk-counting check would wave through.
+    expect(() => assertRenderedPng(pngFixture(64, 64, { corruptIdat: true }), "image/png", expected)).toThrow(
+      /IDAT stream that does not inflate/,
+    );
+    expect(() => assertRenderedPng(pngFixture(64, 64, { badCrc: true }), "image/png", expected)).toThrow(
+      /fails its IHDR chunk CRC/,
+    );
+    expect(() => assertRenderedPng(pngFixture(64, 64, { iend: false }), "image/png", expected)).toThrow(
+      /never terminates in an IEND chunk/,
+    );
+  });
+
+  it("refuses a correctly sized render that decodes to a single flat colour", () => {
+    // The residual gap a bbox fix alone would leave: a valid, decodable,
+    // right-sized PNG of nothing but background.
+    expect(() =>
+      assertRenderedPng(pngFixture(64, 64, { flat: true }), "image/png", {
+        uri: "honua://renders/parcels.png",
+        mediaType: "image/png",
+        width: 64,
+        height: 64,
+        minByteLength: 32,
+      }),
+    ).toThrow(/decodes to a single flat colour/);
+  });
+
+  it("names the stage, action and tool when a style application is a silent no-op", async () => {
+    const plan = await loadPlan();
+    const receipt = await runZeroToMapJourney(styleStagePlan(plan), styleNoOpAdapter(plan), {
+      execute: true,
+      now: deterministicClock(),
+      variables: { parcelsLayerId: 0 },
+    });
+
+    expect(receipt.status).toBe("failed");
+    const failure = receipt.stages[2]?.actions.find((action) => action.status === "failed");
+    expect(failure?.id).toBe("apply-canonical-style");
+    expect(failure?.message).toContain("stage 3 style");
+    expect(failure?.message).toContain("apply-canonical-style");
+    expect(failure?.message).toContain("honua_apply_style_preset");
+    expect(failure?.message).toContain("styleApplied");
+  });
 });
+
+/**
+ * A minimal but structurally real PNG: signature, IHDR carrying the requested
+ * geometry, an IDAT chunk padded past the journey's byte floor unless the
+ * caller asks for the degenerate no-IDAT form, and IEND.
+ */
+function pngFixture(
+  width: number,
+  height: number,
+  options: {
+    /** Omit the IDAT chunk entirely. */
+    idat?: boolean;
+    /** Emit an IDAT whose payload is not a valid deflate stream. */
+    corruptIdat?: boolean;
+    /** Write a deliberately wrong CRC on every chunk. */
+    badCrc?: boolean;
+    /** Stop before IEND. */
+    iend?: boolean;
+    /** Paint every pixel the same colour. */
+    flat?: boolean;
+  } = {},
+): Uint8Array {
+  // A real PNG: correct chunk CRCs, a genuine deflate stream, and by default a
+  // raster with more than one colour in it. The validator decodes what it is
+  // given, so a fixture that only looked like a PNG would prove nothing.
+  const parts: Buffer[] = [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])];
+  const push = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const typed = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(options.badCrc === true ? 0 : crc32Fixture(typed));
+    parts.push(length, typed, crc);
+  };
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 6; // RGBA
+  push("IHDR", ihdr);
+
+  if (options.idat !== false) {
+    const bytesPerRow = width * 4;
+    const raster = Buffer.alloc(height * (bytesPerRow + 1));
+    for (let row = 0; row < height; row += 1) {
+      const rowStart = row * (bytesPerRow + 1);
+      raster[rowStart] = 0; // filter type: none
+      for (let column = 0; column < width; column += 1) {
+        const at = rowStart + 1 + column * 4;
+        // A flat fixture is a uniform canvas - the "painted but nothing drawn"
+        // shape. Otherwise vary by position so the raster has real content.
+        const shade = options.flat === true ? 0x20 : (row * 7 + column * 13) % 256;
+        raster[at] = shade;
+        raster[at + 1] = options.flat === true ? 0x20 : (shade * 3) % 256;
+        raster[at + 2] = options.flat === true ? 0x20 : (shade * 5) % 256;
+        raster[at + 3] = 0xff;
+      }
+    }
+    push("IDAT", options.corruptIdat === true ? Buffer.from("not a deflate stream at all") : deflateSync(raster));
+  }
+
+  if (options.iend !== false) push("IEND", Buffer.alloc(0));
+  return new Uint8Array(Buffer.concat(parts));
+}
+
+/** PNG chunk CRC-32, independently implemented so the fixture does not borrow the validator's. */
+function crc32Fixture(bytes: Buffer): number {
+  let crc = 0xff_ff_ff_ff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = crc & 1 ? 0xed_b8_83_20 ^ (crc >>> 1) : crc >>> 1;
+  }
+  return (crc ^ 0xff_ff_ff_ff) >>> 0;
+}
 
 function value(structuredContent: unknown): JourneyExecutionResult {
   return { value: { structuredContent } };
@@ -1408,6 +1759,90 @@ function cliResult(args: readonly string[]): JourneyExecutionResult {
   return { value: { accessCredential }, evidence: { exitCode: 0, accessCredential } };
 }
 
+/** An adapter whose catalog is `tools` and which refuses every later call. */
+function blockedCatalogAdapter(
+  tools: readonly { name: string; inputSchema: Record<string, unknown> }[],
+): JourneyAdapter {
+  const fail = () => Promise.reject(new Error("a blocked catalog preflight must not reach this adapter call"));
+  return {
+    async runCli(args) {
+      return cliResult(args);
+    },
+    async listTools() {
+      return tools;
+    },
+    callTool: fail,
+    readResource: fail,
+    readImageResource: fail,
+    runGpServer: fail,
+    async readReceipt() {
+      return undefined;
+    },
+    checkHttp: fail,
+  };
+}
+
+/**
+ * The real plan with the install and admin stages reduced to trivial passing
+ * CLI steps, so the style stage can be exercised on its own without replaying
+ * ten admin mutations. Stage count, ids and the style stage itself are the
+ * shipped ones.
+ */
+function styleStagePlan(plan: Awaited<ReturnType<typeof loadPlan>>) {
+  const stub = (number: number, id: string, title: string) => ({
+    number,
+    id,
+    title,
+    actions: [{ id: `${id}-stub`, title: `${title} stub`, kind: "cli" as const, args: ["noop", id] }],
+  });
+  return {
+    ...plan,
+    stages: [stub(1, "install", "Install"), stub(2, "admin", "Admin"), ...plan.stages.slice(2)],
+  };
+}
+
+/**
+ * A candidate that answers every style call successfully except that the preset
+ * application reports `applied: false` - the exact silent no-op the render proof
+ * exists to catch.
+ */
+function styleNoOpAdapter(plan: Awaited<ReturnType<typeof loadPlan>>): JourneyAdapter {
+  const requiredTools = plan.stages.flatMap((stage) =>
+    stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+  );
+  const fail = () => Promise.reject(new Error("the style no-op must stop the journey before this call"));
+  return {
+    async runCli() {
+      return { value: {} };
+    },
+    async listTools() {
+      return completeCatalog(requiredTools);
+    },
+    async callTool(tool) {
+      if (tool === "honua_get_style") {
+        return value({ styleId: "style_canonical", styleVersion: 2, styles: [{ styleId: "style_canonical" }] });
+      }
+      if (tool === "honua_apply_style_preset") {
+        return value({
+          serviceId: "zero-to-map",
+          layerId: 0,
+          styleId: "style_canonical",
+          styleVersion: 2,
+          applied: false,
+        });
+      }
+      throw new Error(`unexpected tool ${tool}`);
+    },
+    readResource: fail,
+    readImageResource: fail,
+    runGpServer: fail,
+    async readReceipt() {
+      return undefined;
+    },
+    checkHttp: fail,
+  };
+}
+
 function neverCalledAdapter(): JourneyAdapter {
   const fail = () => Promise.reject(new Error("adapter was unexpectedly called"));
   return {
@@ -1415,6 +1850,7 @@ function neverCalledAdapter(): JourneyAdapter {
     listTools: fail,
     callTool: fail,
     readResource: fail,
+    readImageResource: fail,
     runGpServer: fail,
     readReceipt: fail,
     checkHttp: fail,
@@ -1434,6 +1870,9 @@ function catalogAdapter(
     },
     async callTool() {
       throw new Error("a blocked catalog preflight must not reach tools/call");
+    },
+    async readImageResource() {
+      throw new Error("this journey must not fetch rendered image artifacts");
     },
     async readResource() {
       throw new Error("a blocked catalog preflight must not read MCP resources");

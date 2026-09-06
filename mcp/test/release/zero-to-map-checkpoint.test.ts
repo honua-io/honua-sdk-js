@@ -62,7 +62,7 @@ function fixturePlan() {
     fixtures: [],
     dependencyRefs: [],
     variables: { serviceName: "zero-to-map" },
-    stages: [1, 2, 3, 4, 5]
+    stages: [1, 2, 3, 4, 5, 6]
       .map((number) => ({
         number,
         id: `stage-${number}`,
@@ -79,7 +79,7 @@ function fixturePlan() {
       }))
       .concat([
         {
-          number: 6,
+          number: 7,
           id: "console",
           title: "Console",
           actions: [
@@ -98,7 +98,7 @@ function fixturePlan() {
           ],
         },
         {
-          number: 7,
+          number: 8,
           id: "artifact",
           title: "Artifact",
           actions: [
@@ -116,7 +116,7 @@ function fixturePlan() {
 }
 
 describe("zero-to-map pause/resume checkpoint", () => {
-  it("resumes at Console without replaying the five completed mutation stages", async () => {
+  it("resumes at Console without replaying the six completed mutation stages", async () => {
     const plan = fixturePlan();
     let mutations = 0;
     let snapshot: JourneyPauseSnapshot | undefined;
@@ -139,7 +139,7 @@ describe("zero-to-map pause/resume checkpoint", () => {
     );
 
     expect(first.status).toBe("blocked");
-    expect(mutations).toBe(5);
+    expect(mutations).toBe(6);
     expect(snapshot?.resumeAt).toEqual({ stageId: "console", actionId: "console-approval" });
     const checkpoint = createZeroToMapCheckpoint(bindings, snapshot as JourneyPauseSnapshot, "2026-08-20T12:00:00Z");
     expect(JSON.stringify(checkpoint)).not.toContain("must-never-persist");
@@ -180,8 +180,8 @@ describe("zero-to-map pause/resume checkpoint", () => {
     );
 
     expect(resumed.status).toBe("passed");
-    expect(resumed.stages.slice(0, 5)).toEqual(first.stages.slice(0, 5));
-    expect(mutations).toBe(5);
+    expect(resumed.stages.slice(0, 6)).toEqual(first.stages.slice(0, 6));
+    expect(mutations).toBe(6);
     expect(httpCalls).toEqual(["https://example.test/app"]);
 
     await expect(
@@ -429,6 +429,7 @@ describe("zero-to-map pause/resume checkpoint", () => {
       catalog: {
         schemaVersion: "honua.zero-to-map.catalog/v1",
         activeProfiles: ["base"],
+        requestedView: "full" as const,
         expectedTotalTools: 441,
         advertisedTotalTools: 441,
         baseStaticTools: 47,
@@ -559,6 +560,7 @@ function adapter(overrides: Partial<JourneyAdapter>): JourneyAdapter {
     listTools: overrides.listTools ?? fail,
     callTool: overrides.callTool ?? fail,
     readResource: overrides.readResource ?? fail,
+    readImageResource: overrides.readImageResource ?? fail,
     runGpServer: overrides.runGpServer ?? fail,
     readReceipt: overrides.readReceipt ?? (async () => undefined),
     checkHttp: overrides.checkHttp ?? fail,

@@ -221,7 +221,7 @@ jobs:
       id-token: write
     steps:
       - name: Check out the reviewed head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.gate.outputs.head_sha }}
           fetch-depth: 1
@@ -237,7 +237,7 @@ jobs:
           wc -c .claude-second-review/resolved-threads.md
 
       - name: Run the second-pass review
-        uses: anthropics/claude-code-action@1f291e1cfe0f5fc21db2aef19af844591600ade7 # v1
+        uses: anthropics/claude-code-action@ef8bb1e43bf303cff727a1dd0b8837029fe982a2 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
@@ -288,5 +288,5 @@ jobs:
             session's transcript instead of commenting — the PR comment is the
             deliverable.
           claude_args: |
-            --max-turns 40
+            --max-turns 60
             --allowedTools "Read,Grep,Glob,Write,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"

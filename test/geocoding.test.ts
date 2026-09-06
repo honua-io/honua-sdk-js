@@ -100,6 +100,26 @@ describe("HonuaGeocodingClient", () => {
       await expect(client.forwardGeocode("bad input")).rejects.toThrow(/Geocode server error/);
     });
 
+    it("retains HTTP-200 transport, token protocol code, and response identity", async () => {
+      const client = createClient(
+        async () =>
+          new Response(JSON.stringify({ error: { code: 498, message: "Token expired", details: [] } }), {
+            status: 200,
+            headers: { "X-Correlation-ID": "geo-498" },
+          }),
+      );
+
+      const error = await client.forwardGeocode("test").catch((reason: unknown) => reason);
+      expect(error).toBeInstanceOf(HonuaHttpError);
+      expect((error as HonuaHttpError).receipt).toMatchObject({
+        transportStatus: 200,
+        protocolCode: 498,
+        kind: "authentication",
+        code: "authentication_required",
+        correlationId: "geo-498",
+      });
+    });
+
     it("passes maxResults, countryCodes, and spatialReferenceWkid as query params", async () => {
       let capturedUrl = "";
       const fetchFn: typeof fetch = async (input) => {
@@ -453,7 +473,13 @@ describe("HonuaGeocodingClient", () => {
     });
 
     it("throws HonuaHttpError with status 500", async () => {
-      const client = createClient(textResponse("Internal Server Error", 500));
+      const client = createClient(
+        async () =>
+          new Response("Internal Server Error", {
+            status: 500,
+            headers: { "Retry-After": "9", "X-Request-ID": "geo-500" },
+          }),
+      );
 
       try {
         await client.forwardGeocode("test");
@@ -461,6 +487,8 @@ describe("HonuaGeocodingClient", () => {
       } catch (err) {
         expect(err).toBeInstanceOf(HonuaHttpError);
         expect((err as HonuaHttpError).statusCode).toBe(500);
+        expect((err as HonuaHttpError).receipt.retryAfterMs).toBe(9_000);
+        expect((err as HonuaHttpError).receipt.correlationId).toBe("geo-500");
       }
     });
 

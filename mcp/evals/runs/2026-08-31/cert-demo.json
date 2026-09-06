@@ -1,0 +1,1156 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-31T14:55:25.288Z",
+  "server": {
+    "name": "honua.operator.mcp",
+    "version": "v1"
+  },
+  "protocol": {
+    "mcpTransport": "streamable-http",
+    "honuaTransport": null,
+    "backend": "live",
+    "targetMode": "remote",
+    "surface": "live honua /mcp (https://demo.honua.io/mcp)"
+  },
+  "standard": {
+    "source": "geospatial-mcp@54cbd49 (spec/schemas)",
+    "indexDate": "2026-07-06",
+    "dialect": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "provenance": {
+    "suiteGitSha": "0c9bdb7ec07317515e4494494bf7d9aee8b4f8d5",
+    "suiteGitShaSource": "env",
+    "targetUrl": "live honua /mcp (https://demo.honua.io/mcp)",
+    "protocolVersion": "2025-06-18",
+    "toolCount": 52,
+    "authMode": "anonymous"
+  },
+  "summary": {
+    "pass": false,
+    "toolsDiscovered": 52,
+    "toolsSchemaValid": 52,
+    "toolsConformanceChecked": 25,
+    "toolsConformant": 25,
+    "toolsRoundTripped": 0,
+    "toolsOutputValidated": 0,
+    "resourcesDiscovered": 8,
+    "promptsDiscovered": 4,
+    "contractsChecked": 4,
+    "contractsPassed": 3,
+    "contractsFailed": 1,
+    "contractsSkipped": 5,
+    "knownGaps": 38,
+    "failures": 15
+  },
+  "tools": [
+    {
+      "name": "honua_alert_events",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_apply_style_preset",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "apply_style_preset",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_cancel_job",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "cancel_job",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_clarify_intent",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "clarify_intent",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_create_app_package",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "create_app_package",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_create_map_package",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "create_map_package",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_deploy_operations",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_describe_layer",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_dry_run_plan",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "validate_plan",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_execute_plan",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "execute_plan",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_geocode_address",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "geocode_address",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_geocode_addresses",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "geocode_addresses",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_get_style",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "get_style",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_ground_candidates",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "ground_candidates",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_ingest_dataset",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "ingest_dataset",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_list_capabilities",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "list_capabilities",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_list_jobs",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_list_layers",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "list_layers",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": [
+        "advertises non-standard property \"limit\"",
+        "advertises non-standard property \"offset\""
+      ]
+    },
+    {
+      "name": "honua_operate_events",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_ops_findings",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_ops_health",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_plan_analysis",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "plan_analysis",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_platform_release_status",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_preview_package",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "preview_package",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_propose_operation",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "propose_operation",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_propose_rollback",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_publish_result",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "publish_result",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "advertises non-standard property \"artifactId\"",
+        "advertises non-standard property \"serviceName\"",
+        "advertises non-standard property \"layerName\"",
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_publish_service",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "publish_service",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_query_features",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "query_features",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": [
+        "advertises non-standard property \"cursor\""
+      ]
+    },
+    {
+      "name": "honua_render_map",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "render_map",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_resolve_entity",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "resolve_entity",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_solve_route",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "solve_route",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    },
+    {
+      "name": "honua_studio_add_control",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_add_layer",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_add_widget",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_bind_interaction",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_create_draft",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_get_draft",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_studio_preview_draft",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_studio_propose_publication",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_remove_control",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_remove_interaction",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_remove_layer",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_remove_widget",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_set_layer_style",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_set_layer_visibility",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_set_view",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_update_draft",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_studio_validate_draft",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_supported_operation_kinds",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": null,
+      "conformant": null,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_validate_package",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "validate_package",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "advertises non-standard property \"estimate\"",
+        "advertises non-standard property \"includePreviewPlan\"",
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_validate_plan",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": true,
+      "standardName": "validate_plan",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": []
+    }
+  ],
+  "resources": [
+    {
+      "name": "App packages index",
+      "uri": "honua://app-packages",
+      "discovered": true
+    },
+    {
+      "name": "Feature catalog",
+      "uri": "honua://catalog/features",
+      "discovered": true
+    },
+    {
+      "name": "Process catalog",
+      "uri": "honua://catalog/processes",
+      "discovered": true
+    },
+    {
+      "name": "Deployments index",
+      "uri": "honua://deployments",
+      "discovered": true
+    },
+    {
+      "name": "Map packages index",
+      "uri": "honua://map-packages",
+      "discovered": true
+    },
+    {
+      "name": "Ops findings",
+      "uri": "honua://ops/findings",
+      "discovered": true
+    },
+    {
+      "name": "Ops health",
+      "uri": "honua://ops/health",
+      "discovered": true
+    },
+    {
+      "name": "Published services index",
+      "uri": "honua://published-services",
+      "discovered": true
+    }
+  ],
+  "prompts": [
+    {
+      "name": "dashboard_scaffolding",
+      "discovered": true
+    },
+    {
+      "name": "hazard_assessment",
+      "discovered": true
+    },
+    {
+      "name": "permit_review",
+      "discovered": true
+    },
+    {
+      "name": "site_selection_analysis",
+      "discovered": true
+    }
+  ],
+  "contracts": [
+    {
+      "contract": "list-pagination",
+      "target": "tools",
+      "status": "passed",
+      "detail": "tools list paginated across 2 pages; nextCursor honored and terminated"
+    },
+    {
+      "contract": "list-pagination",
+      "target": "resources",
+      "status": "skipped",
+      "detail": "resources list is a single page (no nextCursor advertised)"
+    },
+    {
+      "contract": "error-shape",
+      "target": "honua_query_features",
+      "status": "failed",
+      "detail": "expected geoprocessing-error kind \"ValidationFailed\", got \"AuthorizationDenied\"; expected at least one structured validation `violation`"
+    },
+    {
+      "contract": "auth-unauthenticated",
+      "target": "tools/call",
+      "status": "passed",
+      "detail": "contract satisfied"
+    },
+    {
+      "contract": "auth-unauthenticated",
+      "target": "resources/read",
+      "status": "passed",
+      "detail": "contract satisfied"
+    },
+    {
+      "contract": "mutating-round-trip",
+      "target": "honua_edit_features",
+      "status": "skipped",
+      "detail": "honua_edit_features/honua_query_features not advertised by this surface (pre-P1 or read-only)"
+    },
+    {
+      "contract": "mutating-permission-denied",
+      "target": "honua_edit_features",
+      "status": "skipped",
+      "detail": "honua_edit_features not advertised by this surface (pre-P1)"
+    },
+    {
+      "contract": "async-job-lifecycle",
+      "target": "honua_execute_plan",
+      "status": "skipped",
+      "detail": "job lifecycle disabled for this target — set HONUA_MCP_CERT_ALLOW_MUTATION=1 to certify execution against a scratch target"
+    },
+    {
+      "contract": "query-pagination",
+      "target": "honua_query_features",
+      "status": "skipped",
+      "detail": "surface returned a single page with no nextCursor (pagination not exercised — pre-P1 surface or fewer than 2 features)"
+    }
+  ],
+  "knownGaps": [
+    {
+      "kind": "standard-tool",
+      "name": "refine_map_package",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "compose_mixed_protocol_map",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "preview_map_package",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "preview_app_package",
+      "family": "App composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "edit_features",
+      "family": "Feature editing",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "buffer_features",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "overlay_features",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "summarize_statistics",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "reproject_features",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "join_features",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "export_dataset",
+      "family": "Analysis verbs",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_alert_events",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_deploy_operations",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_describe_layer",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_list_jobs",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_operate_events",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_ops_findings",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_ops_health",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_platform_release_status",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_propose_rollback",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_add_control",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_add_layer",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_add_widget",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_bind_interaction",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_create_draft",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_get_draft",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_preview_draft",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_propose_publication",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_remove_control",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_remove_interaction",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_remove_layer",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_remove_widget",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_set_layer_style",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_set_layer_visibility",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_set_view",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_update_draft",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_studio_validate_draft",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    },
+    {
+      "kind": "advertised-tool",
+      "name": "honua_supported_operation_kinds",
+      "detail": "advertised tool has no matching geospatial-mcp standard schema (validated for well-formedness only)"
+    }
+  ]
+}

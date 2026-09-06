@@ -149,6 +149,10 @@ describe("honua-server realtime preset", () => {
     const event = decodeHonuaServerRealtimeEvent({
       type: "feature-change",
       eventId: "01JCURRENT",
+      operationInstanceId: "opinst-exact",
+      correlationId: "corr-exact",
+      auditId: "audit-exact",
+      proposalId: "proposal-exact",
       cursor: 42,
       timestamp: "2026-07-27T18:00:00Z",
       sourceId: "postgres-cdc",
@@ -164,6 +168,10 @@ describe("honua-server realtime preset", () => {
     expect(event).toEqual({
       type: "delta",
       eventId: "01JCURRENT",
+      operationInstanceId: "opinst-exact",
+      correlationId: "corr-exact",
+      auditId: "audit-exact",
+      proposalId: "proposal-exact",
       sequence: undefined,
       cursor: "42",
       watermark: undefined,
