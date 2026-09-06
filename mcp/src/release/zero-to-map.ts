@@ -398,7 +398,7 @@ export function assertRenderedPng(
   expected: RenderedImageExpectation,
 ): RenderedImageEvidence {
   const where = `rendered artifact ${expected.uri}`;
-  if (mediaType !== undefined && mediaType !== expected.mediaType) {
+  if (mediaType !== expected.mediaType) {
     throw new Error(`${where} declared media type ${mediaType}; expected ${expected.mediaType}`);
   }
   if (bytes.length < PNG_SIGNATURE.length || !PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {

@@ -1586,6 +1586,9 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(() => assertRenderedPng(pngFixture(256, 256), "image/png", expected)).toThrow(
       /is 256x256; the renderer reported 512x512/,
     );
+    expect(() => assertRenderedPng(pngFixture(512, 512), undefined, expected)).toThrow(
+      /declared media type undefined; expected image\/png/,
+    );
     expect(() => assertRenderedPng(pngFixture(512, 512), "application/json", expected)).toThrow(
       /declared media type application\/json; expected image\/png/,
     );
