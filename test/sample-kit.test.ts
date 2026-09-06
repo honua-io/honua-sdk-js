@@ -6,7 +6,12 @@ import { createServer } from "vite";
 import { describe, expect, it, vi } from "vitest";
 
 import { SampleCleanupRegistry } from "../examples/_kit/cleanup.js";
-import { createSampleViteConfig, resolveContainedExport, resolveRuntimePeer } from "../examples/_kit/vite.config.js";
+import {
+  createSampleViteConfig,
+  resolveContainedExport,
+  resolveRuntimePeer,
+  resolveRuntimePeerSubpath,
+} from "../examples/_kit/vite.config.js";
 
 describe("shared sample kit", () => {
   it("drains cleanup registered while disposal is in flight and shares one completion", async () => {
@@ -81,6 +86,17 @@ describe("shared sample kit", () => {
     expect(() => resolveRuntimePeer(path.resolve("."), manifest, "not-a-declared-peer")).toThrow(
       "not a declared SDK runtime peer",
     );
+  });
+
+  it("resolves worker queries and CSS from the declared peer while enforcing its exports", () => {
+    const root = path.resolve(".");
+    const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    for (const subpath of ["dist/maplibre-gl-worker.mjs?worker&url", "dist/maplibre-gl.css"]) {
+      expect(resolveRuntimePeerSubpath(root, manifest, "maplibre-gl", `maplibre-gl/${subpath}`)).toBe(
+        `${fs.realpathSync("node_modules/maplibre-gl")}/${subpath}`,
+      );
+    }
+    expect(() => resolveRuntimePeerSubpath(root, manifest, "maplibre-gl", "maplibre-gl/src/index.ts")).toThrow();
   });
 
   it("supports a declared peer with legacy module/main fields", async () => {

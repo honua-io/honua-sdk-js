@@ -30,15 +30,20 @@ function runtimePeerAliases(
   sdkRoot: string,
   manifest: PackageManifest,
   peers: readonly string[],
-): Array<{ find: RegExp; replacement: string }> {
+): Array<{ find: RegExp; replacement: string; customResolver?: (source: string) => string }> {
   if (mode === "source") return [];
   const unique = [...new Set(peers)];
   if (unique.length !== peers.length) throw new Error("sdkRuntimePeers must be a unique list");
-  return unique.map((peer) => {
-    return {
-      find: new RegExp(`^${peer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
-      replacement: resolveRuntimePeer(sdkRoot, manifest, peer),
-    };
+  return unique.flatMap((peer) => {
+    const escaped = peer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return [
+      { find: new RegExp(`^${escaped}$`), replacement: resolveRuntimePeer(sdkRoot, manifest, peer) },
+      {
+        find: new RegExp(`^${escaped}/`),
+        replacement: `${peer}/`,
+        customResolver: (source: string) => resolveRuntimePeerSubpath(sdkRoot, manifest, peer, source),
+      },
+    ];
   });
 }
 
@@ -76,6 +81,31 @@ export function resolveRuntimePeer(root: string, manifest: PackageManifest, peer
     throw new Error(`SDK runtime peer must resolve to a bounded regular file: ${peer}`);
   }
   return replacement;
+}
+
+/** Resolve public worker/style subpaths from the same package as the runtime. */
+export function resolveRuntimePeerSubpath(
+  root: string,
+  manifest: PackageManifest,
+  peer: string,
+  source: string,
+): string {
+  // Also validates the declared peer and its supported public root entry.
+  resolveRuntimePeer(root, manifest, peer);
+  if (!source.startsWith(`${peer}/`)) throw new Error(`not a ${peer} subpath: ${source}`);
+  const queryAt = source.search(/[?#]/);
+  const specifier = queryAt < 0 ? source : source.slice(0, queryAt);
+  const suffix = queryAt < 0 ? "" : source.slice(queryAt);
+  const requireFromSdk = createRequire(path.join(root, "package.json"));
+  const peerRoot = path.dirname(fs.realpathSync(requireFromSdk.resolve(`${peer}/package.json`)));
+  // Node resolution enforces the peer's exports map; an absolute prefix alias
+  // would accidentally make private files importable as public subpaths.
+  const target = fs.realpathSync(requireFromSdk.resolve(specifier));
+  const metadata = fs.lstatSync(target);
+  if (!target.startsWith(`${peerRoot}${path.sep}`) || !metadata.isFile() || metadata.size > MAX_ENTRYPOINT_BYTES) {
+    throw new Error(`SDK runtime peer subpath must be a bounded file inside its package: ${source}`);
+  }
+  return `${target}${suffix}`;
 }
 
 const MAX_ENTRYPOINT_BYTES = 4 * 1024 * 1024;

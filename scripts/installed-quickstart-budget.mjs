@@ -45,15 +45,16 @@ try {
     const outDir = path.join(work, label);
     const moduleIds = new Set();
     let failure;
+    const moduleProof = () => ({ name: "installed-first-map-module-proof", generateBundle() {
+      for (const id of this.getModuleIds()) moduleIds.add(id);
+    } });
     try {
       await build({ ...loaded.config, configFile: false, logLevel: "warn",
         resolve: { ...loaded.config.resolve, alias: loaded.config.resolve.alias.filter((alias) =>
-          !removePeerAlias || !(alias.find instanceof RegExp && alias.find.test("maplibre-gl"))) },
-        plugins: [...loaded.config.plugins, { name: "installed-first-map-module-proof", generateBundle(_options, bundle) {
-          for (const chunk of Object.values(bundle)) {
-            if (chunk.type === "chunk") for (const id of Object.keys(chunk.modules)) moduleIds.add(id);
-          }
-        } }],
+          !removePeerAlias || !(alias.find instanceof RegExp &&
+            (alias.find.test("maplibre-gl") || alias.find.test("maplibre-gl/dist/maplibre-gl-worker.mjs")))) },
+        plugins: [...loaded.config.plugins, moduleProof()],
+        worker: { ...loaded.config.worker, plugins: () => [moduleProof()] },
         build: { ...loaded.config.build, outDir, emptyOutDir: true },
       });
     } catch (error) { failure = error.message; }
@@ -76,6 +77,8 @@ try {
       measurement: { javascriptBytes, javascriptGzipBytes },
       maplibreModules: [...moduleIds].filter((id) => /maplibre-gl\/dist\/maplibre-gl\.(mjs|js)$/.test(id))
         .map((id) => id.replace(work, "$CONSUMER").replace(root, "$REPOSITORY")),
+      maplibreFiles: [...moduleIds].filter((id) => id.includes("/node_modules/maplibre-gl/"))
+        .map((id) => id.replace(work, "$CONSUMER").replace(root, "$REPOSITORY")).sort(),
       resolutionDigest: sha256(JSON.stringify(resolution)), installedSdkModules: sdkModules.length };
   }
 
@@ -103,6 +106,10 @@ try {
   assert.ok(corrected.measurement.javascriptBytes <= budget.javascriptBytes, "written chunks exceed the existing JavaScript ceiling");
   assert.ok(corrected.measurement.javascriptGzipBytes <= budget.javascriptGzipBytes, "written chunks exceed the existing gzip ceiling");
   assert.equal(corrected.maplibreModules.length, 1, "corrected bundle must contain one MapLibre runtime");
+  assert.ok(corrected.maplibreFiles.every((id) => id.startsWith("$CONSUMER/node_modules/maplibre-gl/")),
+    "runtime, worker and CSS must all come from the installed peer");
+  assert.ok(corrected.maplibreFiles.some((id) => id.endsWith("/maplibre-gl-worker.mjs")), "the installed worker must be built");
+  assert.ok(corrected.maplibreFiles.some((id) => id.endsWith("/maplibre-gl.css")), "the installed stylesheet must be built");
 
 } finally {
   if (previousMode === undefined) delete process.env.HONUA_SAMPLE_SDK_MODE;
