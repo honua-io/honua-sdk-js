@@ -1,0 +1,528 @@
+{
+  "schema": "honua.installed-first-map-budget/v1",
+  "generatedAt": "2026-09-06T10:46:05.893Z",
+  "scope": "installed-package bundle regression; no live-server or release certification claim",
+  "package": {
+    "coordinate": "@honua/sdk-js",
+    "version": "0.1.9-beta.0",
+    "registry": "https://registry.npmjs.org",
+    "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+    "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz"
+  },
+  "consumerLockSha256": "62778b486ed32aae252a57adca25c12b7b931a52344c27b956adc0b76b5fe624",
+  "dependencies": {
+    "node_modules/@bufbuild/protobuf": {
+      "version": "2.14.1",
+      "integrity": "sha512-agRJn3+EJDUe8AvxTx/LnHA/GErvLE62pSaSk7+MwFOtOv8eWBu/qCq2qoZjBjVZ3C2aiFJCveuSs17KMkYGOw=="
+    },
+    "node_modules/@connectrpc/connect": {
+      "version": "2.1.2",
+      "integrity": "sha512-MXkBijtcX09R10Eb6sFeIetc6w6746eio6xtfuyVOH7oQAacT1X0GzMIQFux6Qy8cq3W/T5qX5Bei8YbFtmRGA=="
+    },
+    "node_modules/@connectrpc/connect-web": {
+      "version": "2.1.2",
+      "integrity": "sha512-1tfaK85MU+gJjwwmL31d2rzdf0XCYX99chZf63uG89SGBUd4XuZ4ZzhGo2u79TPXOE6nLIZQ2okrpyey42PYdg=="
+    },
+    "node_modules/@honua/honua-migrate": {
+      "version": "0.1.3-beta.0",
+      "integrity": "sha512-CzINB3I5dlYDT/9A3ap/71UQ4idwUM6HFAAY8j3NQmo8DXJDhGgjMjWwb0oztbJHjiLIz+2WgwjxLwtYzyupUw=="
+    },
+    "node_modules/@honua/sdk": {
+      "version": "0.1.2-beta.0",
+      "integrity": "sha512-oTQioVgdEHjh+OaIg3sUDMHDwqFi9vkcecXGMgEczKf2c5QK+XGnq3SP+UObWW7MTmmH0R+AxEFFA5bucPtN7w=="
+    },
+    "node_modules/@honua/sdk-esri-compat": {
+      "version": "0.1.2-beta.0",
+      "integrity": "sha512-uLJE2npoEer2H2Gf6bdTjy+cfFHMnEsdDI8kupRLkxu24Iq2jjpKBwTDPjmwDorm4x6q2VParkCZoxCHGrz8aA=="
+    },
+    "node_modules/@honua/sdk-js": {
+      "version": "0.1.9-beta.0",
+      "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ=="
+    },
+    "node_modules/@mapbox/jsonlint-lines-primitives": {
+      "version": "2.0.2",
+      "integrity": "sha512-rY0o9A5ECsTQRVhv7tL/OyDpGAoUB4tTvLiW1DSzQGq4bvTPhNw1VpSNjDJc5GFZ2XuyOtSWSVN05qOtcD71qQ=="
+    },
+    "node_modules/@mapbox/point-geometry": {
+      "version": "1.1.0",
+      "integrity": "sha512-YGcBz1cg4ATXDCM/71L9xveh4dynfGmcLDqufR+nQQy3fKwsAZsWd/x4621/6uJaeB9mwOHE6hPeDgXz9uViUQ=="
+    },
+    "node_modules/@mapbox/tiny-sdf": {
+      "version": "2.2.0",
+      "integrity": "sha512-LVL4wgI9YAum5V+LNVQO6QgFBPw7/MIIY4XJPNsPDMrjEwcE+JfKk1LuIl8GnF197ejVdC9QdPaxrx5gfgdGXg=="
+    },
+    "node_modules/@mapbox/unitbezier": {
+      "version": "1.0.0",
+      "integrity": "sha512-fqd515fjBmANKGGsQ286E2Wvj/XvDFpGzwJxq4CI6jMQue6Oy04uCKp+JWKF00xRTmk6cEu1jPJ9p3xqH8YWqQ=="
+    },
+    "node_modules/@mapbox/vector-tile": {
+      "version": "3.0.0",
+      "integrity": "sha512-Qf10S1uIHMk20ri/IVBnpS+esUEkVaR5Hftmz88jTInrpmWgPGJfPe3LVjjlE77trLx8tH6qjTG7uWH9hIq/0Q=="
+    },
+    "node_modules/@maplibre/geojson-vt": {
+      "version": "6.1.1",
+      "integrity": "sha512-FVMOcmSP/yqol45t7StApEyTL5/vmqBCuFhH9n+fFuINenhaX+YgHHIt1yJ86S8kln3uJLcMvmEU2cfn6E2eCQ=="
+    },
+    "node_modules/@maplibre/maplibre-gl-style-spec": {
+      "version": "24.10.0",
+      "integrity": "sha512-lichxSiagMEBBrqHF0trtMQH9RKh+9jUlIJl0qW0QHvt2H/tbvUWdE+ZzI2Jd0/pT7j/iavLonlPu7EQ/ixTOw=="
+    },
+    "node_modules/@maplibre/mlt": {
+      "version": "1.2.0",
+      "integrity": "sha512-g45M8gEI4sMO3X9ib4K7n3ZKFf0qQOL+NMkHCnEK51lOrYFHiEssOuZncx1+miIgi1IEE2NcbRMcq8RBkL+QHA=="
+    },
+    "node_modules/@maplibre/vt-pbf": {
+      "version": "4.3.2",
+      "integrity": "sha512-j6p0AdjvAR19Z3XaCysle7A4ZSo08tYOzxD0Y9NQylwPAkwJJeYub5b2eVucdeDh7erhv69DahoLOevDRERRUw=="
+    },
+    "node_modules/@swc/helpers": {
+      "version": "0.5.23",
+      "integrity": "sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw=="
+    },
+    "node_modules/@turf/area": {
+      "version": "7.4.0",
+      "integrity": "sha512-B7q5f6QwKIxxbl4/L59lAYA+FF7h2hv6st96PuKue0TGCYGSxAG/lV8LHSPUSOuOrLywN4jytJcKK3vOFBs7Nw=="
+    },
+    "node_modules/@turf/bbox": {
+      "version": "7.4.0",
+      "integrity": "sha512-yOX9lALc2GmjYUIE99+nRj7eZA7eDtx7Ixu/hrgIo+YqHvL1reaPVTC9rQWMHMm0pH0/WHjzk8uOpAHjptrudQ=="
+    },
+    "node_modules/@turf/boolean-contains": {
+      "version": "7.4.0",
+      "integrity": "sha512-vR8sfdKhSlDy6Jd6UAI2Bt27ZAU287G8lhLieIGfxKCpoUa2V8v3y0I9FH+ZpFen07I33aysHIZ4dMH92hBO3Q=="
+    },
+    "node_modules/@turf/boolean-disjoint": {
+      "version": "7.4.0",
+      "integrity": "sha512-B6nXGFHa1+m181BZ5MOKa1l7/otws/NonUpOd0CKWTuBUzrlc6e60z/kRp5ceRYmE2LFOH5ZZxItnrsWgKc2VA=="
+    },
+    "node_modules/@turf/boolean-intersects": {
+      "version": "7.4.0",
+      "integrity": "sha512-tV30WLBgLh89uGYpWsKjU29eMhdyhSh2Sc1IKmv1W0YFHKwp6oDm2eRajMzMgdtN8cl6Jyb8oFCmw4LbMMuWAQ=="
+    },
+    "node_modules/@turf/boolean-point-in-polygon": {
+      "version": "7.4.0",
+      "integrity": "sha512-GQrHc6WSDHhf32GB/b9AGyOeC05AQ3nGN7ooWTrlCYefKn7X9/2wG9BNexF47AuyDq5jPdOvITVR26BLFWV+mA=="
+    },
+    "node_modules/@turf/boolean-point-on-line": {
+      "version": "7.4.0",
+      "integrity": "sha512-5i5UBeZf/LuzgavkIj8L8L5/8SYWItWzQQcE9ymFZr60lV5lM8eFvQDfzAz2R3WQFCrxXExPqNvAVZOKGUyvoA=="
+    },
+    "node_modules/@turf/boolean-within": {
+      "version": "7.4.0",
+      "integrity": "sha512-wld+Og3HZlSe+QcovDY4JKLDkEqOx6gW52jkvAWIvbr4fDB/HUV95zX6SY78reJwm6hNwmnuX3nSriWooLU4HA=="
+    },
+    "node_modules/@turf/buffer": {
+      "version": "7.4.0",
+      "integrity": "sha512-ewYjC7NmmP+BZ8JcjX1TglzYH1FCMWAh5L08j0iAP4lbn3/AutVjjbwIXedZZy5He1OfgmXf+rIBcNXdeEYceg=="
+    },
+    "node_modules/@turf/center": {
+      "version": "7.4.0",
+      "integrity": "sha512-JVuTaIdnQtmTV8eQfVxqza1okKiaFzgVeIA6Xoy/u6aBMxg2+oBpS6GcHZkEqR8OapPWValB1AYYqimUSiyOXw=="
+    },
+    "node_modules/@turf/centroid": {
+      "version": "7.4.0",
+      "integrity": "sha512-WglCFe+TnMqeYa/LcbUp37NgIF0zHTNYmlxwUm40fyyzyLsYeDq4dgFWLTYpvRNqb5oIMV6xsBjSf+vCPtVJ6w=="
+    },
+    "node_modules/@turf/clean-coords": {
+      "version": "7.4.0",
+      "integrity": "sha512-xl3lVPey/FyVc3Z+drAWtVuVtvt737RHKGUMGyuskmKYW0JUeFDgqSR0OnrDfxXWb58Im/65BgPd1B+TUA9WfA=="
+    },
+    "node_modules/@turf/clone": {
+      "version": "7.4.0",
+      "integrity": "sha512-IfYnuil7XYJauy3crzIYEr26QkmBiTgFdGfYwUUe3S6dawX+lyb3vhuaYyssEPcCJq83g0G7hwxZy7141Mmzjg=="
+    },
+    "node_modules/@turf/convex": {
+      "version": "7.4.0",
+      "integrity": "sha512-MKKAKBMZAQJLicdJSck0rPkwvf/Yz4IFl672iNq9ZoofQxgAqQSEGtBGy4Zgnr5edDoIexzLRAoqm6woyx4Lzw=="
+    },
+    "node_modules/@turf/difference": {
+      "version": "7.4.0",
+      "integrity": "sha512-4zV7Xi3CwUdyNsDzrPty08PiUeYYVBdbCnNVlSf8sk5Z7SL7seA42RabRG8ByTzcrbLATeDU4oTEthVhOGPlyw=="
+    },
+    "node_modules/@turf/distance": {
+      "version": "7.4.0",
+      "integrity": "sha512-ODkopQDG1m/U6Mx7OMmShncaCvneomwX3lZY1CDA7x40bhDdTTRYP/n/6LicZVyIO4/oK+aXkov4NOtWYthA2g=="
+    },
+    "node_modules/@turf/geojson-rbush": {
+      "version": "7.4.0",
+      "integrity": "sha512-o+debVj+6KQ2p0VebH+FgcTig2jUuG6mWMgLYvb34c7cOHoEuY6ICvKRKtHn/XcHa6eyoSk0TvnLEJAfFTQDMg=="
+    },
+    "node_modules/@turf/helpers": {
+      "version": "7.4.0",
+      "integrity": "sha512-7PAwLZqOdRzTI5g9bHvUwlloAXPDH/mlajtryk0tw4ZwGMtmXsAyF4QundsAMfy4u48Fyd3AUqMXY0SMxqJGWg=="
+    },
+    "node_modules/@turf/intersect": {
+      "version": "7.4.0",
+      "integrity": "sha512-n/wbZfDPoM1JKwrql8mHBoS9cdRWUC7/VE9IBZOttVPv8Guo0B6+Mzc2Z2e1PdIkSP/1R2yH6lxPpWMuuBfVEA=="
+    },
+    "node_modules/@turf/invariant": {
+      "version": "7.4.0",
+      "integrity": "sha512-OAsc3qdNx+tRqzWmMNFMnVlWWACIqnYqIejZKvb2oKkKPYJJrURPXZ6OdrGD58ljJMolLoqwIZGSx3VndaEjxg=="
+    },
+    "node_modules/@turf/jsts": {
+      "version": "2.7.2",
+      "integrity": "sha512-zAezGlwWHPyU0zxwcX2wQY3RkRpwuoBmhhNE9HY9kWhFDkCxZ3aWK5URKwa/SWKJbj9aztO+8vtdiBA28KVJFg=="
+    },
+    "node_modules/@turf/length": {
+      "version": "7.4.0",
+      "integrity": "sha512-vQsJLuL7uy8m6HAMuJJKoiOHYY1de1Hd6mY/fM90qfu2RyIrkoF8J4bRUb72XZNCVnvob/eHpUMdhZeoUhSyfQ=="
+    },
+    "node_modules/@turf/line-intersect": {
+      "version": "7.4.0",
+      "integrity": "sha512-5qNmEJ/0tQEaUUKSt2zIZGIS6eYGn3T7Z32yN6+Py0ANs8ln3dQNWaDyOEMms/qVY7BFvSaO+8iBmD8vlHdNcA=="
+    },
+    "node_modules/@turf/line-intersect/node_modules/tinyqueue": {
+      "version": "2.0.3",
+      "integrity": "sha512-ppJZNDuKGgxzkHihX8v9v9G5f+18gzaTfrukGrq6ueg0lmH4nqVnA2IPG0AEH3jKEk2GRJCUhDoqpoiw3PHLBA=="
+    },
+    "node_modules/@turf/line-segment": {
+      "version": "7.4.0",
+      "integrity": "sha512-v4Gnxpj6XqWbl4d/aVZHYwvSFzaTGGBW4eQQ9Ozqcgt+bvignOMdtVogFDHSWKDj9Gr2tbS2jYp57c8OTa+Olw=="
+    },
+    "node_modules/@turf/line-split": {
+      "version": "7.4.0",
+      "integrity": "sha512-bAij7u19sFVdYoAp3bQnu/cVzlORxM/W3FM+WeFN/VvGkZ6YiAtcPq/lLP4WwK3WxthTcavED3wbd32iXGpzZw=="
+    },
+    "node_modules/@turf/meta": {
+      "version": "7.4.0",
+      "integrity": "sha512-3cLUvlEyDuSnMSzrjhaLAEiYR8xhbfWyTVQlrlEw40xL81d4KF4PqUWbjTXKpXZStdYbet2GCurl79KMypNw6g=="
+    },
+    "node_modules/@turf/nearest-point": {
+      "version": "7.4.0",
+      "integrity": "sha512-rH+M5H/rWiOXStiHkV3Cs5OS+Tg/531Tonr7tm2pUjVy1RRLmDqSzKn+iFs3S6ybvjSK2pJa1BbTXjYlc8Pv3Q=="
+    },
+    "node_modules/@turf/nearest-point-on-line": {
+      "version": "7.4.0",
+      "integrity": "sha512-eKTKf/qODIsPankYMZrNfI3LjLaVtQvYV/1hcj9kH/Zr3GfLUszevjhTRDZtMgTFrv8+awW3+MyhmN+PJGuLdQ=="
+    },
+    "node_modules/@turf/polygon-to-line": {
+      "version": "7.4.0",
+      "integrity": "sha512-LCHZ9bojUj99et83ZLGpSR/PFx48c0tcjtfuI1nn66a6Q+EGy7GO4NsHv4rWZsC8Lljy5ldbJ3dd8+WGnAk7dw=="
+    },
+    "node_modules/@turf/projection": {
+      "version": "7.4.0",
+      "integrity": "sha512-ZS932qM+18V1UBvNlrNXUCD7mh9CzQqZzw/ElVtb0kAk6N00FYQ9bo26Cca08UZKXh3rZqG/e4eCK74JNGS4Zg=="
+    },
+    "node_modules/@turf/simplify": {
+      "version": "7.4.0",
+      "integrity": "sha512-HTolHFuXLReKHJoh3iz92+WpF5EsuCmmZR7fNv3hWnA4hZfkuEzbGB/WZqRdQpvDs99IUS8QIc6BAp6FHzQbBQ=="
+    },
+    "node_modules/@turf/truncate": {
+      "version": "7.4.0",
+      "integrity": "sha512-eTXO62l1mD++mKlhUqLNHGcgCQvhxXJGB/EUL1KSzpVIeMYtgcmItAneWdHW+gEpmHfjeDjBuvtbZWA23r7Eig=="
+    },
+    "node_modules/@turf/union": {
+      "version": "7.4.0",
+      "integrity": "sha512-SYVtsCW9IznTyKlcGWxssRrf90p/hdpch1UeIcZc31pkSVdmeLOyuzPx0ef3UPmaF//fgXAphMph6JWA/FpKbA=="
+    },
+    "node_modules/@types/command-line-args": {
+      "version": "5.2.3",
+      "integrity": "sha512-uv0aG6R0Y8WHZLTamZwtfsDLVRnOa+n+n5rEvFWL5Na5gZ8V2Teab/duDPFzIIIhs9qizDpcavCusCLJZu62Kw=="
+    },
+    "node_modules/@types/command-line-usage": {
+      "version": "5.0.4",
+      "integrity": "sha512-BwR5KP3Es/CSht0xqBcUXS3qCAUVXwpRKsV2+arxeb65atasuXG9LykC9Ab10Cw3s2raH92ZqOeILaQbsB2ACg=="
+    },
+    "node_modules/@types/geojson": {
+      "version": "7946.0.16",
+      "integrity": "sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg=="
+    },
+    "node_modules/@types/node": {
+      "version": "24.13.3",
+      "integrity": "sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q=="
+    },
+    "node_modules/@types/react": {
+      "version": "19.2.18",
+      "integrity": "sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w=="
+    },
+    "node_modules/@types/react-dom": {
+      "version": "19.2.7",
+      "integrity": "sha512-I8bPpDLcHBv1qiIiXDCy71Rt8eQDKJP0sMSWJphDdAcdqiJ1sGpZamavoEIRZmYzjia9LuEb2HlYdDpmoENpvQ=="
+    },
+    "node_modules/ansi-styles": {
+      "version": "4.3.0",
+      "integrity": "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg=="
+    },
+    "node_modules/apache-arrow": {
+      "version": "17.0.0",
+      "integrity": "sha512-X0p7auzdnGuhYMVKYINdQssS4EcKec9TCXyez/qtJt32DrIMGbzqiaMiQ0X6fQlQpw8Fl0Qygcv4dfRAr5Gu9Q=="
+    },
+    "node_modules/apache-arrow/node_modules/@types/node": {
+      "version": "20.19.43",
+      "integrity": "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="
+    },
+    "node_modules/apache-arrow/node_modules/undici-types": {
+      "version": "6.21.0",
+      "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="
+    },
+    "node_modules/array-back": {
+      "version": "3.1.0",
+      "integrity": "sha512-TkuxA4UCOvxuDK6NZYXCalszEzj+TLszyASooky+i742l9TqsOdYCMJJupxRic61hwquNtppB3hgcuq9SVSH1Q=="
+    },
+    "node_modules/bignumber.js": {
+      "version": "9.3.1",
+      "integrity": "sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ=="
+    },
+    "node_modules/chalk": {
+      "version": "4.1.2",
+      "integrity": "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="
+    },
+    "node_modules/chalk-template": {
+      "version": "0.4.0",
+      "integrity": "sha512-/ghrgmhfY8RaSdeo43hNXxpoHAtxdbskUHjPpfqUWGttFgycUhYPGx3YZBCnUCvOa7Doivn1IZec3DEGFoMgLg=="
+    },
+    "node_modules/color-convert": {
+      "version": "2.0.1",
+      "integrity": "sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ=="
+    },
+    "node_modules/color-name": {
+      "version": "1.1.4",
+      "integrity": "sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA=="
+    },
+    "node_modules/command-line-args": {
+      "version": "5.2.1",
+      "integrity": "sha512-H4UfQhZyakIjC74I9d34fGYDwk3XpSr17QhEd0Q3I9Xq1CETHo4Hcuo87WyWHpAF1aSLjLRf5lD9ZGX2qStUvg=="
+    },
+    "node_modules/command-line-usage": {
+      "version": "7.0.4",
+      "integrity": "sha512-85UdvzTNx/+s5CkSgBm/0hzP80RFHAa7PsfeADE5ezZF3uHz3/Tqj9gIKGT9PTtpycc3Ua64T0oVulGfKxzfqg=="
+    },
+    "node_modules/command-line-usage/node_modules/array-back": {
+      "version": "6.2.3",
+      "integrity": "sha512-SGDvmg6QTYiTxCBkYVmThcoa67uLl35pyzRHdpCGBOcqFy6BtwnphoFPk7LhJshD+Yk1Kt35WGWeZPTgwR4Fhw=="
+    },
+    "node_modules/command-line-usage/node_modules/typical": {
+      "version": "7.3.0",
+      "integrity": "sha512-ya4mg/30vm+DOWfBg4YK3j2WD6TWtRkCbasOJr40CseYENzCUby/7rIvXA99JGsQHeNxLbnXdyLLxKSv3tauFw=="
+    },
+    "node_modules/concaveman": {
+      "version": "1.2.1",
+      "integrity": "sha512-PwZYKaM/ckQSa8peP5JpVr7IMJ4Nn/MHIaWUjP4be+KoZ7Botgs8seAZGpmaOM+UZXawcdYRao/px9ycrCihHw=="
+    },
+    "node_modules/concaveman/node_modules/tinyqueue": {
+      "version": "2.0.3",
+      "integrity": "sha512-ppJZNDuKGgxzkHihX8v9v9G5f+18gzaTfrukGrq6ueg0lmH4nqVnA2IPG0AEH3jKEk2GRJCUhDoqpoiw3PHLBA=="
+    },
+    "node_modules/csstype": {
+      "version": "3.2.3",
+      "integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="
+    },
+    "node_modules/d3-array": {
+      "version": "2.12.1",
+      "integrity": "sha512-B0ErZK/66mHtEsR1TkPEEkwdy+WDesimkM5gpZr5Dsg54BiTA5RXtYW5qTLIAcekaS9xfZrzBLF/OAkB3Qn1YQ=="
+    },
+    "node_modules/d3-geo": {
+      "version": "2.0.2",
+      "integrity": "sha512-8pM1WGMLGFuhq9S+FpPURxic+gKzjluCD/CHTuUF3mXMeiCo0i6R0tO1s4+GArRFde96SLcW/kOFRjoAosPsFA=="
+    },
+    "node_modules/earcut": {
+      "version": "3.2.3",
+      "integrity": "sha512-vnS4AVwp1KHAF13i1vp1/2D5evWy3k5u/iW/B81QVsUZtV8cv2tU0b2VNFlqvh4kYwrFMDdjPCfAmfyJW9y14Q=="
+    },
+    "node_modules/find-replace": {
+      "version": "3.0.0",
+      "integrity": "sha512-6Tb2myMioCAgv5kfvP5/PkZZ/ntTpVK39fHY7WkWBgvbeE+VHd/tZuZ4mrC+bxh4cfOZeYKVPaJIZtZXV7GNCQ=="
+    },
+    "node_modules/flatbuffers": {
+      "version": "24.12.23",
+      "integrity": "sha512-dLVCAISd5mhls514keQzmEG6QHmUUsNuWsb4tFafIUwvvgDjXhtfAYSKOzt5SWOy+qByV5pbsDZ+Vb7HUOBEdA=="
+    },
+    "node_modules/gl-matrix": {
+      "version": "3.4.4",
+      "integrity": "sha512-latSnyDNt/8zYUB6VIJ6PCh2jBjJX6gnDsoCZ7LyW7GkqrD51EWwa9qCoGixj8YqBtETQK/xY7OmpTF8xz1DdQ=="
+    },
+    "node_modules/has-flag": {
+      "version": "4.0.0",
+      "integrity": "sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ=="
+    },
+    "node_modules/internmap": {
+      "version": "1.0.1",
+      "integrity": "sha512-lDB5YccMydFBtasVtxnZ3MRBHuaoE8GKsppq+EchKL2U4nK/DmEpPHNH8MZe5HkMtpSiTSOZwfN0tzYjO/lJEw=="
+    },
+    "node_modules/json-bignum": {
+      "version": "0.0.3",
+      "integrity": "sha512-2WHyXj3OfHSgNyuzDbSxI1w2jgw5gkWSWhS7Qg4bWXx1nLk3jnbwfUeS0PSba3IzpTUWdHxBieELUzXRjQB2zg=="
+    },
+    "node_modules/json-stringify-pretty-compact": {
+      "version": "4.0.0",
+      "integrity": "sha512-3CNZ2DnrpByG9Nqj6Xo8vqbjT4F6N+tb4Gb28ESAZjYZ5yqvmc56J+/kuIwkaAMOyblTQhUW7PxMkUb8Q36N3Q=="
+    },
+    "node_modules/jsts": {
+      "version": "2.7.1",
+      "integrity": "sha512-x2wSZHEBK20CY+Wy+BPE7MrFQHW6sIsdaGUMEqmGAio+3gFzQaBYPwLRonUfQf9Ak8pBieqj9tUofX1+WtAEIg=="
+    },
+    "node_modules/kdbush": {
+      "version": "4.1.0",
+      "integrity": "sha512-e9vurzrXJQrFX6ckpHP3bvj5l+9CnYzkxDNnNQ1h2QTqdWsUAJgXiKdGNcOa1EY85dU8KbQ+z/FdQdB7P+9yfQ=="
+    },
+    "node_modules/lodash.camelcase": {
+      "version": "4.3.0",
+      "integrity": "sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA=="
+    },
+    "node_modules/maplibre-gl": {
+      "version": "6.7.0",
+      "integrity": "sha512-Y1Q1+UP9WXou0DUrnaFdDsoMqiMCWy6aS968IBUaQ2eZi6H1/kPCfpfZOWXFJZbeKMkX9Wo6OFzY/k48qqPf3Q=="
+    },
+    "node_modules/maplibre-gl/node_modules/@mapbox/jsonlint-lines-primitives": {
+      "version": "2.0.3",
+      "integrity": "sha512-0SElaV0uMxEnxzBhhX9WTuPyUeMsAN/SS0i16tjuba4/mio63MG9khjC1a0JAiPGXAwvwm4UfHJURCN7nyudQg=="
+    },
+    "node_modules/maplibre-gl/node_modules/@maplibre/maplibre-gl-style-spec": {
+      "version": "26.4.1",
+      "integrity": "sha512-I/qcIKVFHFSg1Meu/eqHrkSTjIez0gCsSaK56TNPutM3TkE61aSq6F1cZ4Kg4KiNs3cpViLtubDjfyRcQCdEJQ=="
+    },
+    "node_modules/mgrs": {
+      "version": "1.0.0",
+      "integrity": "sha512-awNbTOqCxK1DBGjalK3xqWIstBZgN6fxsMSiXLs9/spqWkF2pAhb2rrYCFSsr1/tT7PhcDGjZndG8SWYn0byYA=="
+    },
+    "node_modules/minimist": {
+      "version": "1.2.8",
+      "integrity": "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="
+    },
+    "node_modules/murmurhash-js": {
+      "version": "1.0.0",
+      "integrity": "sha512-TvmkNhkv8yct0SVBSy+o8wYzXjE4Zz3PCesbfs8HiCXXdcTuocApFv11UWlNFWKYsP2okqrhb7JNlSm9InBhIw=="
+    },
+    "node_modules/pbf": {
+      "version": "5.1.2",
+      "integrity": "sha512-mnvGdvOrIvJOBGUEdGkrVXjN8E/VkIJCkf2eS1DH2yv82ORUlLttmDt0rWY38yYZmVwciZwBUvHM20qxBZf40w=="
+    },
+    "node_modules/point-in-polygon": {
+      "version": "1.1.0",
+      "integrity": "sha512-3ojrFwjnnw8Q9242TzgXuTD+eKiutbzyslcq1ydfu82Db2y+Ogbmyrkpv0Hgj31qwT3lbS9+QAAO/pIQM35XRw=="
+    },
+    "node_modules/point-in-polygon-hao": {
+      "version": "1.2.4",
+      "integrity": "sha512-x2pcvXeqhRHlNRdhLs/tgFapAbSSe86wa/eqmj1G6pWftbEs5aVRJhRGM6FYSUERKu0PjekJzMq0gsI2XyiclQ=="
+    },
+    "node_modules/point-in-polygon-hao/node_modules/robust-predicates": {
+      "version": "3.0.3",
+      "integrity": "sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA=="
+    },
+    "node_modules/polyclip-ts": {
+      "version": "0.16.8",
+      "integrity": "sha512-JPtKbDRuPEuAjuTdhR62Gph7Is2BS1Szx69CFOO3g71lpJDFo78k4tFyi+qFOMVPePEzdSKkpGU3NBXPHHjvKQ=="
+    },
+    "node_modules/potpack": {
+      "version": "2.1.0",
+      "integrity": "sha512-pcaShQc1Shq0y+E7GqJqvZj8DTthWV1KeHGdi0Z6IAin2Oi3JnLCOfwnCo84qc+HAp52wT9nK9H7FAJp5a44GQ=="
+    },
+    "node_modules/proj4": {
+      "version": "2.22.0",
+      "integrity": "sha512-MVvH09QrYm3A235rcX39WDiCKanrBiblu28l0KYIn/B2DofmYhvP/LLS43kE66jNDfx/P1l/nah3JmsAq8UgbQ=="
+    },
+    "node_modules/protocol-buffers-schema": {
+      "version": "3.6.1",
+      "integrity": "sha512-VG2K63Igkiv9p76tk1lilczEK1cT+kCjKtkdhw1dQZV3k3IXJbd3o6Ho8b9zJZaHSnT2hKe4I+ObmX9w6m5SmQ=="
+    },
+    "node_modules/quickselect": {
+      "version": "3.0.0",
+      "integrity": "sha512-XdjUArbK4Bm5fLLvlm5KpTFOiOThgfWWI4axAZDWg4E/0mKdZyI9tNEfds27qCi1ze/vwTR16kvmmGhRra3c2g=="
+    },
+    "node_modules/rbush": {
+      "version": "3.0.1",
+      "integrity": "sha512-XRaVO0YecOpEuIvbhbpTrZgoiI6xBlz6hnlr6EHhd+0x9ase6EmeN+hdwwUaJvLcsFFQ8iWVF1GAK1yB0BWi0w=="
+    },
+    "node_modules/rbush/node_modules/quickselect": {
+      "version": "2.0.0",
+      "integrity": "sha512-RKJ22hX8mHe3Y6wH/N3wCM6BWtjaxIyyUIkpHOvfFnxdI4yD4tBXEBKSbriGujF6jnSVkJrffuo6vxACiSSxIw=="
+    },
+    "node_modules/react": {
+      "version": "19.2.8",
+      "integrity": "sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw=="
+    },
+    "node_modules/react-dom": {
+      "version": "19.2.8",
+      "integrity": "sha512-rVprimfGBG3DR+Tq0IQG2DT5PxKth1WIGDmj5yPmlzr4YBe7uyE+Du4oVqTDXZSHGGGXRtTJEGSSePyQCMBglQ=="
+    },
+    "node_modules/resolve-protobuf-schema": {
+      "version": "2.1.0",
+      "integrity": "sha512-kI5ffTiZWmJaS/huM8wZfEMer1eRd7oJQhDuxeCLe3t7N7mX3z94CN0xPxBQxFYQTSNz9T0i+v6inKqSdK8xrQ=="
+    },
+    "node_modules/robust-predicates": {
+      "version": "2.0.4",
+      "integrity": "sha512-l4NwboJM74Ilm4VKfbAtFeGq7aEjWL+5kVFcmgFA2MrdnQWx9iE/tUGvxY5HyMI7o/WpSIUFLbC5fbeaHgSCYg=="
+    },
+    "node_modules/scheduler": {
+      "version": "0.27.0",
+      "integrity": "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q=="
+    },
+    "node_modules/splaytree-ts": {
+      "version": "1.0.2",
+      "integrity": "sha512-0kGecIZNIReCSiznK3uheYB8sbstLjCZLiwcQwbmLhgHJj2gz6OnSPkVzJQCMnmEz1BQ4gPK59ylhBoEWOhGNA=="
+    },
+    "node_modules/supports-color": {
+      "version": "7.2.0",
+      "integrity": "sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw=="
+    },
+    "node_modules/table-layout": {
+      "version": "4.1.1",
+      "integrity": "sha512-iK5/YhZxq5GO5z8wb0bY1317uDF3Zjpha0QFFLA8/trAoiLbQD0HUbMesEaxyzUgDxi2QlcbM8IvqOlEjgoXBA=="
+    },
+    "node_modules/table-layout/node_modules/array-back": {
+      "version": "6.2.3",
+      "integrity": "sha512-SGDvmg6QTYiTxCBkYVmThcoa67uLl35pyzRHdpCGBOcqFy6BtwnphoFPk7LhJshD+Yk1Kt35WGWeZPTgwR4Fhw=="
+    },
+    "node_modules/tinyqueue": {
+      "version": "3.0.0",
+      "integrity": "sha512-gRa9gwYU3ECmQYv3lslts5hxuIa90veaEcxDYuu3QGOIAEM2mOZkVHp48ANJuu1CURtRdHKUBY5Lm1tHV+sD4g=="
+    },
+    "node_modules/tslib": {
+      "version": "2.8.1",
+      "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="
+    },
+    "node_modules/typescript": {
+      "version": "5.9.3",
+      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="
+    },
+    "node_modules/typical": {
+      "version": "4.0.0",
+      "integrity": "sha512-VAH4IvQ7BDFYglMd7BPRDfLgxZZX4O4TFcRDA6EN5X7erNJJq+McIEp8np9aVtxrCJ6qx4GTYVfOWNjcqwZgRw=="
+    },
+    "node_modules/undici-types": {
+      "version": "7.18.2",
+      "integrity": "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="
+    },
+    "node_modules/wkt-parser": {
+      "version": "1.5.6",
+      "integrity": "sha512-cqHU3lzGt/gt2OqIORP0uVy5yeOX43WABmgFkmJsmcqH3HhQo9PiJG6ftytwGKmpQUbegeX7+pQc2BuNCRfcrw=="
+    },
+    "node_modules/wordwrapjs": {
+      "version": "5.1.1",
+      "integrity": "sha512-0yweIbkINJodk27gX9LBGMzyQdBDan3s/dEAiwBOj+Mf0PPyWL6/rikalkv8EeD0E8jm4o5RXEOrFTP3NXbhJg=="
+    }
+  },
+  "sourceSha": "e734c56211df3581686295361331569797249f5f",
+  "budget": {
+    "javascriptBytes": 1990000,
+    "javascriptGzipBytes": 524000
+  },
+  "measurementScope": "emitted JavaScript chunks, as defined by the canonical First Map budget",
+  "node": "v24.19.0",
+  "baseline": {
+    "status": "failed",
+    "diagnostic": "Build failed with 1 error:\n\n[plugin honua-first-map-bundle-budget]\nError: First Map JavaScript bundle 2953607 bytes / 773533 gzip exceeds 1990000 / 524000.\n    at PluginContextImpl.generateBundle (file:///home/mike/honua-io/honua-sdk-js/node_modules/.vite-temp/vite.config.ts.timestamp-1788691562593-9be5837c4a2998.mjs:244:42)\n    at PluginContextImpl.handler (file:///home/mike/honua-io/honua-sdk-js/node_modules/vite/dist/node/chunks/node.js:33513:13)\n    at plugin (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1373:18)\n    at plugin.<computed> (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1625:18)",
+    "measurement": {
+      "javascriptBytes": 2953782,
+      "javascriptGzipBytes": 773645
+    },
+    "maplibreModules": [
+      "/home/mike/honua-io/honua-sdk-js/node_modules/maplibre-gl/dist/maplibre-gl.mjs",
+      "$CONSUMER/node_modules/maplibre-gl/dist/maplibre-gl.mjs"
+    ],
+    "resolutionDigest": "a27340c8cc1448774e20ac14fdab3e70fe7e2f9c610d683c2ab08fc4d96c5d5e",
+    "installedSdkModules": 113
+  },
+  "corrected": {
+    "status": "passed",
+    "measurement": {
+      "javascriptBytes": 1979893,
+      "javascriptGzipBytes": 523372
+    },
+    "maplibreModules": [
+      "$CONSUMER/node_modules/maplibre-gl/dist/maplibre-gl.mjs"
+    ],
+    "resolutionDigest": "75b3917452cdf73efc9751e7e52a05c9cad9eebe447268f500e25c43111cebfa",
+    "installedSdkModules": 113
+  }
+}
