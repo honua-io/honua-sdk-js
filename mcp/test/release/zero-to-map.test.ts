@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
@@ -1643,6 +1644,15 @@ describe("zero-to-map D9.3 release journey", () => {
     // The fixture explicitly paints all 9 * 7 pixels opaque, including each
     // reduced Adam7 pass. This expectation is not derived from decoder output.
     expect(evidence).toMatchObject({ width: 9, height: 7, visiblePixelCount: 63 });
+    const expectedPixels = Buffer.alloc(9 * 7 * 8);
+    for (let y = 0; y < 7; y += 1) {
+      for (let x = 0; x < 9; x += 1) {
+        const shade = (y * 7 + x * 13) % 256;
+        const rgba = [shade, (shade * 3) % 256, (shade * 5) % 256, 255];
+        rgba.forEach((sample, channel) => expectedPixels.writeUInt16BE(sample * 257, (y * 9 + x) * 8 + channel * 2));
+      }
+    }
+    expect(evidence.decodedPixelSha256).toBe(createHash("sha256").update(expectedPixels).digest("hex"));
     expect(() => assertRenderedPng(pngFixture(9, 7, { interlace, flat: true }), "image/png", expected)).toThrow(
       /single flat colour/,
     );

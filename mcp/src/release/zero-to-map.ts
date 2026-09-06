@@ -296,6 +296,8 @@ export interface RenderedImageEvidence {
   readonly imageSha256: string;
   /** Number of decoded pixels with nonzero alpha, across every Adam7 pass. */
   readonly visiblePixelCount: number;
+  /** SHA-256 of row-major RGBA unsigned 16-bit big-endian decoded samples. */
+  readonly decodedPixelSha256: string;
 }
 
 const PNG_SIGNATURE = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -493,7 +495,16 @@ export function assertRenderedPng(
     const width = Math.max(0, Math.ceil((header.width - x!) / dx!));
     const height = Math.max(0, Math.ceil((header.height - y!) / dy!));
     const rowBytes = Math.ceil((width * channels * header.bitDepth) / 8);
-    return { width, height, rowBytes, length: width && height ? height * (rowBytes + 1) : 0 };
+    return {
+      x: x!,
+      y: y!,
+      dx: dx!,
+      dy: dy!,
+      width,
+      height,
+      rowBytes,
+      length: width && height ? height * (rowBytes + 1) : 0,
+    };
   });
   const expectedRaster = passes.reduce((total, pass) => total + pass.length, 0);
   const compressed = Buffer.concat(idatParts.map((part) => Buffer.from(part.buffer, part.byteOffset, part.length)));
@@ -512,6 +523,7 @@ export function assertRenderedPng(
   }
   const maxSample = (1 << header.bitDepth) - 1;
   const seen = new Set<string>();
+  const decoded = Buffer.alloc(header.width * header.height * 8);
   let visiblePixelCount = 0;
   let passOffset = 0;
   for (const pass of passes) {
@@ -554,6 +566,12 @@ export function assertRenderedPng(
         ) {
           alpha = 0;
         }
+        const maximum = header.colorType === 3 ? 255 : maxSample;
+        const rgb = color.length === 1 ? [color[0]!, color[0]!, color[0]!] : color;
+        const at = ((pass.y + row * pass.dy) * header.width + pass.x + column * pass.dx) * 8;
+        for (const [index, sample] of [...rgb, alpha].entries()) {
+          decoded.writeUInt16BE(Math.round((sample * 65535) / maximum), at + index * 2);
+        }
         if (alpha > 0) visiblePixelCount += 1;
         // RGB hidden behind zero alpha has no visible content, however many
         // different byte values the encoder leaves in those channels.
@@ -587,6 +605,7 @@ export function assertRenderedPng(
     byteLength: bytes.length,
     imageSha256: createHash("sha256").update(bytes).digest("hex"),
     visiblePixelCount,
+    decodedPixelSha256: createHash("sha256").update(decoded).digest("hex"),
   };
 }
 
