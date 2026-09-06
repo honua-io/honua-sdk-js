@@ -46,7 +46,7 @@ export async function executeCandidateFixture({ candidate, work, root }) {
       const state = JSON.parse(docker(["inspect", server, "--format", "{{json .State}}"]));
       assert.ok(state.Running, `exact candidate exited before readiness: exit=${state.ExitCode}, oom=${state.OOMKilled}`);
       try {
-        const response = await fetch(`${baseUrl}/health/ready`, { signal: AbortSignal.timeout(2_000) });
+        const response = await fetch(`${baseUrl}/healthz/ready`, { signal: AbortSignal.timeout(2_000) });
         if (response.ok) { ready = true; break; }
       } catch { /* bounded startup poll; never an operation pass */ }
       await new Promise((resolve) => setTimeout(resolve, 1_000));
