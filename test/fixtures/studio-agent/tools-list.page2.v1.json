@@ -1,5 +1,5 @@
 {
-  "_fixture": "MCP `tools/list` result, page 2 of 2 (fetched with `cursor: \"studio-tools-page-2\"`). Carries three lifecycle verbs the SDK's deleted hard-coded table never knew about (save/reopen/publication status) plus two descriptors that MUST NEVER be routed: `honua_admin_purge_tenant` (classified into a family this session's policy does not approve) and `honua_studio_shadow_export` (carries no server classification at all — a `honua_studio_` prefix is not a routing credential). No `nextCursor`: this terminates the pagination loop.",
+  "_fixture": "MCP `tools/list` result, page 2 of 2 (fetched with `cursor: \"studio-tools-page-2\"`). SYNTHETIC — see page 1's note for why this catalog is not the live server contract. Carries three lifecycle verbs the SDK's deleted hard-coded table never knew about (save/reopen/publication status) plus two descriptors that MUST NEVER be routed: `honua_admin_purge_tenant` (classified into a family this session's policy does not approve) and `honua_studio_shadow_export` (carries no server classification at all — a `honua_studio_` prefix is not a routing credential). No `nextCursor`: this terminates the pagination loop.",
   "tools": [
     {
       "name": "honua_studio_set_view",

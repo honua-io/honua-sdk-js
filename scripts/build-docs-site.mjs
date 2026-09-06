@@ -693,7 +693,7 @@ function walkCount(dir, ext) {
   return n;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
     process.stderr.write(`docs site build failed: ${error instanceof Error ? error.stack : String(error)}\n`);
     process.exitCode = 1;

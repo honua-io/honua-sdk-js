@@ -33,3 +33,11 @@ jobs:
 
       - name: Verify the pin resolves and its integrity matches
         run: npm run verify:mcp-pin:live
+
+      # Resolving is not enough. @honua/mcp-server peer-depends on
+      # @honua/sdk-js, so the pin and the SDK are a pair, and npm's default
+      # resolver rejects a pair whose peer range excludes the SDK beside it --
+      # which is how the published pair spent twelve days uninstallable (#1529).
+      # Install both halves from the registry with no flags at all.
+      - name: Verify the published pair co-installs with default npm resolution
+        run: npm run verify:client-pair:registry

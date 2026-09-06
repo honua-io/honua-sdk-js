@@ -1,5 +1,6 @@
 /**
- * Publication-proposal status client: the six canonical lifecycle states, the
+ * Publication-proposal status client: canonical wire states plus the six-state
+ * compatibility normalization, the
  * bounded/cancellable poll, the five joined identifiers, and the
  * separate-approver security rule.
  *
@@ -139,7 +140,7 @@ const STATE_FIXTURES: ReadonlyArray<[StudioPublicationLifecycleState, string]> =
 ];
 
 describe("publication-proposal state machine", () => {
-  it("enumerates the six canonical states in lifecycle order", () => {
+  it("enumerates the six compatibility states in lifecycle order", () => {
     expect(STUDIO_PUBLICATION_LIFECYCLE_STATES).toEqual([
       "AwaitingApproval",
       "Approved",
@@ -406,6 +407,25 @@ describe("publicationRequests.poll", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it("stops on the clamped wait itself rather than re-reading the clock", async () => {
+    // Waking from a wait that covers the whole remaining time *is* the deadline
+    // being reached. Deriving that from `expiresAt - Date.now()` afterwards was
+    // a race: a timer can fire a tick before `Date.now()` passes its target, so
+    // the remainder read back as 1 rather than 0 and the loop issued one more
+    // GET past the documented bound. Repeated because a single pass can get
+    // lucky on an idle machine -- this is exactly how it slipped through.
+    for (let iteration = 0; iteration < 25; iteration += 1) {
+      const { client, requests } = clientForSequence([fixture("publish-request-executing.v1.json")]);
+      const outcome = await client.publicationRequests.poll(ITEM, VERSION, REQUEST_ID, {
+        intervalMs: 25,
+        maxAttempts: 50,
+        timeoutMs: 25,
+      });
+      expect(outcome.exhausted).toBe("timeout");
+      expect(requests).toHaveLength(1);
+    }
+  });
+
   it("rejects with the caller's abort reason when the abort lands mid-request", async () => {
     const { client, requests } = clientForHangingSequence([], 1);
     const reason = new Error("caller went away mid-flight");
@@ -525,6 +545,22 @@ describe("publicationRequests.create — submission identity", () => {
     expect(replay.correlationId).toBe(first.correlationId);
     expect(replay.replayed).toBe(true);
   });
+
+  it("translates the deprecated acknowledgement spelling, without overriding the canonical one", async () => {
+    const contract = fixture("publish-request-idempotent-replay.v1.json");
+    const { client, requests } = clientForSequence([contract, contract]);
+
+    await client.publicationRequests.create(ITEM, VERSION, {
+      warningAcknowledgment: "Legacy audit text.",
+    });
+    await client.publicationRequests.create(ITEM, VERSION, {
+      warningAcknowledgment: "Legacy audit text.",
+      warningAcknowledgement: "Canonical audit text.",
+    });
+
+    expect(requests[0]?.body).toEqual({ warningAcknowledgement: "Legacy audit text." });
+    expect(requests[1]?.body).toEqual({ warningAcknowledgement: "Canonical audit text." });
+  });
 });
 
 describe("the proposer cannot approve their own publication", () => {
@@ -589,7 +625,7 @@ describe("the proposer cannot approve their own publication", () => {
     await client.publicationRequests.create(ITEM, VERSION, {
       intent: { route: "/studio/parcels", visibility: "organization" },
       approvalPolicyId: "policy-parcels",
-      warningAcknowledgment: "Reviewed with the parcels data steward.",
+      warningAcknowledgement: "Reviewed with the parcels data steward.",
     } as never);
 
     expect(requests).toHaveLength(1);

@@ -1,0 +1,36 @@
+name: Documentation release freshness
+
+on:
+  pull_request:
+    branches: [trunk]
+  push:
+    branches: [trunk]
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs-release:
+    name: Documentation release freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20.19.0"
+      - name: Test release guards and generate manifest
+        run: |
+          node --test test/scripts/docs-versions.test.mjs test/scripts/check-docs-release.test.mjs
+          node scripts/docs-versions.mjs check
+      - name: Check npm prereleases against trunk manifest
+        if: github.event_name != 'pull_request'
+        run: node scripts/check-docs-release.mjs registry
+      # A trunk push races its Pages deploy; that deploy verifies its own exact
+      # revision. Scheduled/manual checks catch a failed or missed deployment.
+      - name: Check the hosted consumer manifest
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: node scripts/check-docs-release.mjs hosted

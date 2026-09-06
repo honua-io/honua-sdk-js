@@ -20,21 +20,20 @@
 import { validateMapPackage } from "../runtime/map-package-validation.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../runtime/map-package.js";
 import { HONUA_PACKAGE_PROVENANCE_FORMAT_V1, type HonuaPackageProvenance, getPackageProvenance } from "./provenance.js";
-import { STUDIO_PACKAGE_FAMILIES, isStudioPackageFamily } from "./types.js";
+import { HONUA_DASHBOARD_PACKAGE_FORMAT_V1, STUDIO_PACKAGE_FAMILIES, isStudioPackageFamily } from "./types.js";
 import { fromMapPackageValidation } from "./validation.js";
 import type { StudioPackageDiagnostic, StudioPackageValidationResponse } from "./validation.js";
 
 /**
  * Expected `format` string for each family whose projection carries a single
- * `format` discriminant. `map` and `dashboard` reuse their established
- * constants; the `app` family is identified by `version` rather than `format`
+ * `format` discriminant. The `app` family is identified by `version` rather than `format`
  * and is therefore not in this table.
  */
 const FAMILY_FORMAT: Partial<Record<string, string>> = {
   query: "honua_query_package.v1",
   analysis: "honua_analysis_package.v1",
   map: HONUA_MAP_PACKAGE_FORMAT_V1,
-  dashboard: "honua_generated_app_manifest.v1",
+  dashboard: HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
   report: "honua_report_package.v1",
   form: "honua_form_package.v1",
   workflow: "honua_workflow_package.v1",
@@ -45,7 +44,6 @@ const FAMILY_FORMAT: Partial<Record<string, string>> = {
 /** The package-identity field each family uses. */
 function packageIdOf(family: string, value: Record<string, unknown>): string | undefined {
   if (family === "map") return typeof value.mapPackageId === "string" ? value.mapPackageId : undefined;
-  if (family === "dashboard") return typeof value.appId === "string" ? value.appId : undefined;
   if (family === "app") return typeof value.id === "string" ? value.id : undefined;
   return typeof value.packageId === "string" ? value.packageId : undefined;
 }
@@ -109,7 +107,7 @@ export function validateStudioPackage<T = unknown>(
       code: "missing-package-id",
       severity: "error",
       message: `${family} package must carry a non-empty identity field.`,
-      path: family === "dashboard" ? "appId" : family === "app" ? "id" : "packageId",
+      path: family === "app" ? "id" : "packageId",
     });
   }
 
@@ -124,6 +122,8 @@ export function validateStudioPackage<T = unknown>(
     });
   }
 
+  if (family === "dashboard") appendDashboardDiagnostics(diagnostics, value);
+
   appendLifecycleDiagnostics(diagnostics, value, options);
   appendProvenanceDiagnostics(diagnostics, value, options);
 
@@ -132,6 +132,107 @@ export function validateStudioPackage<T = unknown>(
     diagnostics,
     pkg: value as unknown as T,
   };
+}
+
+const DASHBOARD_LIFECYCLE_FIELDS = [
+  "status",
+  "createdAt",
+  "updatedAt",
+  "expiresAt",
+  "tenantId",
+  "ownerId",
+  "actorId",
+  "proposalId",
+  "operationInstanceId",
+  "auditId",
+  "correlationId",
+  "generation",
+] as const;
+
+const DASHBOARD_WIDGET_KINDS = new Set(["map", "table", "list", "count", "chart", "filter"]);
+
+function appendDashboardDiagnostics(diagnostics: StudioPackageDiagnostic[], value: Record<string, unknown>): void {
+  if (!isRecord(value.data)) {
+    diagnostics.push({
+      code: "missing-dashboard-data",
+      severity: "error",
+      message: "dashboard package data must be a JSON object.",
+      path: "data",
+    });
+  } else if (typeof value.data.sourceId !== "string" || value.data.sourceId.trim().length === 0) {
+    diagnostics.push({
+      code: "missing-dashboard-source-id",
+      severity: "error",
+      message: "dashboard package data.sourceId must be a non-empty string.",
+      path: "data.sourceId",
+    });
+  }
+
+  if (!isRecord(value.layout) || !Array.isArray(value.layout.widgets)) {
+    diagnostics.push({
+      code: "missing-dashboard-layout",
+      severity: "error",
+      message: "dashboard package layout.widgets must be an array.",
+      path: "layout.widgets",
+    });
+  } else {
+    if (value.layout.kind !== "operations-dashboard") {
+      diagnostics.push({
+        code: "invalid-dashboard-layout-kind",
+        severity: "error",
+        message: 'dashboard package layout.kind must be "operations-dashboard".',
+        path: "layout.kind",
+      });
+    }
+    value.layout.widgets.forEach((widget, index) => {
+      const widgetPath = `layout.widgets[${index}]`;
+      if (!isRecord(widget)) {
+        diagnostics.push({
+          code: "invalid-dashboard-widget",
+          severity: "error",
+          message: "Each dashboard widget must be a JSON object.",
+          path: widgetPath,
+        });
+        return;
+      }
+      if (typeof widget.id !== "string" || widget.id.trim().length === 0) {
+        diagnostics.push({
+          code: "missing-dashboard-widget-id",
+          severity: "error",
+          message: "Each dashboard widget must carry a non-empty id.",
+          path: `${widgetPath}.id`,
+        });
+      }
+      if (typeof widget.kind !== "string" || !DASHBOARD_WIDGET_KINDS.has(widget.kind)) {
+        diagnostics.push({
+          code: "invalid-dashboard-widget-kind",
+          severity: "error",
+          message: "Each dashboard widget must carry a supported kind.",
+          path: `${widgetPath}.kind`,
+          detail: { supported: [...DASHBOARD_WIDGET_KINDS], received: widget.kind },
+        });
+      }
+    });
+  }
+
+  if ("mapPackage" in value) {
+    diagnostics.push({
+      code: "embedded-dashboard-map-package",
+      severity: "error",
+      message: "dashboard package must reference a portable map through mapPackageId rather than embed mapPackage.",
+      path: "mapPackage",
+    });
+  }
+  for (const field of DASHBOARD_LIFECYCLE_FIELDS) {
+    if (field in value) {
+      diagnostics.push({
+        code: "dashboard-lifecycle-field",
+        severity: "error",
+        message: `dashboard package must not carry server-owned lifecycle field "${field}".`,
+        path: field,
+      });
+    }
+  }
 }
 
 /**

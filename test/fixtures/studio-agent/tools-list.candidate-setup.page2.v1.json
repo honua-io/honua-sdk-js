@@ -1,0 +1,520 @@
+{
+  "_fixture": "MCP `tools/list` result, page 2 of 2 (fetched with `cursor: \"candidate-setup-page-2\"`). Carries the rest of the server's 17 `honua_studio_*` descriptors \u2014 including `honua_studio_add_control` and `honua_studio_remove_control`, which the SDK's deprecated 15-name table never knew about \u2014 followed by three NON-Studio members of the same server-authored `setup` view. Those three are the load-bearing negative: sharing a workflow view is not classification, so honua-server attaches no `_meta` to them and the default policy must not route them. No `nextCursor`: this terminates the pagination loop.",
+  "tools": [
+    {
+      "name": "honua_studio_set_view",
+      "title": "Set Studio view",
+      "description": "Replace a map/app-family Studio draft's composition view (bbox, center, zoom, pitch, bearing, crs).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "view": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "view"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Set Studio view",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_add_widget",
+      "title": "Add Studio widget",
+      "description": "Add a widget to a map/app-family Studio draft's composition, with optimistic-generation checking.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "widget": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "widget"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Add Studio widget",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_remove_widget",
+      "title": "Remove Studio widget",
+      "description": "Remove a widget from a map/app-family Studio draft's composition by id, with optimistic-generation checking.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "widgetId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "widgetId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Remove Studio widget",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_bind_interaction",
+      "title": "Bind Studio interaction",
+      "description": "Add or replace one declarative event-to-action binding in a map/app-family Studio draft's composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "interaction": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "interaction"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Bind Studio interaction",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_remove_interaction",
+      "title": "Remove Studio interaction",
+      "description": "Remove one declarative event-to-action binding from a map/app-family Studio draft's composition by id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "interactionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "interactionId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Remove Studio interaction",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_add_control",
+      "title": "Add Studio control",
+      "description": "Add or replace one control in a map/app-family Studio draft's composition. Controls are the input affordances 'control:{id}' interaction references resolve against.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "control": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "control"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Add Studio control",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_remove_control",
+      "title": "Remove Studio control",
+      "description": "Remove one control from a map/app-family Studio draft's composition by id, optionally cascading the interactions bound to it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "controlId": {
+            "type": "string"
+          },
+          "cascadeInteractions": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation",
+          "controlId"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "envelope": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "annotations": {
+        "title": "Remove Studio control",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_studio_propose_publication",
+      "title": "Propose Studio publication",
+      "description": "Record publication intent on a saved Studio draft and submit the governed operation proposal.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "draftId",
+          "generation"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposalId"
+        ]
+      },
+      "annotations": {
+        "title": "Propose Studio publication",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "_meta": {
+        "honua.studio": {
+          "family": "honua.studio.composition",
+          "view": "setup",
+          "revision": "setup.v1"
+        }
+      }
+    },
+    {
+      "name": "honua_list_capabilities",
+      "title": "List capabilities",
+      "description": "Report what this server can do right now, including the published workflow views.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "annotations": {
+        "title": "List capabilities",
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "honua_query_features",
+      "title": "Query features",
+      "description": "Query features from a published layer.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "layer": {
+            "type": "string"
+          },
+          "where": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "layer"
+        ]
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Query features",
+        "readOnlyHint": true,
+        "destructiveHint": false
+      }
+    },
+    {
+      "name": "honua_propose_operation",
+      "title": "Propose operation",
+      "description": "Submit a governed operation proposal for approval.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Propose operation",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    }
+  ]
+}

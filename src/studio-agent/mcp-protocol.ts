@@ -94,9 +94,10 @@ export interface McpToolDescriptor {
   readonly outputSchema?: Record<string, unknown>;
   readonly annotations?: McpToolAnnotations;
   /**
-   * MCP's forward-compatible extension slot. honua-server#3428 will publish the
-   * Studio tool family/view classification here under the `"honua.studio"` key;
-   * `./tool-catalog.ts` documents the exact shape and is the only reader.
+   * MCP's forward-compatible extension slot. honua-server publishes the Studio
+   * tool family/view classification here under the `"honua.studio"` key (as of
+   * honua-io/honua-server#3695); `./tool-catalog.ts` documents the exact shape
+   * and is the only reader. Every other entry is opaque to this client.
    */
   readonly _meta?: Record<string, unknown>;
 }

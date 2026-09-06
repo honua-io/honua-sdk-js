@@ -1,5 +1,5 @@
 {
-  "_fixture": "MCP `tools/list` result, page 1 of 2. Mirrors the honua-server candidate Studio catalog: every descriptor carries the server-owned `_meta[\"honua.studio\"]` family/view classification honua-server#3428 will publish. Page 2 (`tools-list.page2.v1.json`) is fetched with `cursor: \"studio-tools-page-2\"`.",
+  "_fixture": "MCP `tools/list` result, page 1 of 2. A SYNTHETIC policy-exercise catalog, NOT the live server contract: it deliberately spreads the Studio family across several `view` values (`setup`, `lifecycle`, `publication`) so the family, view, and allowlist decision paths can be driven independently, and it carries lifecycle verbs a real honua-server does not advertise yet. The shipped honua-server contract is pinned separately by `tools-list.candidate-setup.page{1,2}.v1.json`, where every classified descriptor carries view `setup`. Every descriptor here carries the server-owned `_meta[\"honua.studio\"]` family/view classification. Page 2 (`tools-list.page2.v1.json`) is fetched with `cursor: \"studio-tools-page-2\"`.",
   "tools": [
     {
       "name": "honua_studio_create_draft",
