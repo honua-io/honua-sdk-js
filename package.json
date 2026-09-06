@@ -312,6 +312,8 @@
   "scripts": {
     "clean": "node scripts/clean-dist.mjs",
     "admin-client:generate": "node scripts/generate-admin-client.mjs write",
+    "studio-client:generate": "node scripts/generate-studio-client.mjs write",
+    "studio-client:check": "node scripts/generate-studio-client.mjs check",
     "admin-client:check": "node scripts/generate-admin-client.mjs check",
     "compile": "npm run clean --silent && tsc -p tsconfig.json",
     "build": "node scripts/prepare-sdk-test-artifacts.mjs --force-build",

@@ -554,7 +554,9 @@ async function requestManifest(url: string, options: CloudNativeDiscoveryOptions
     const durationMs = Date.now() - startedAt;
     if (!response.ok) {
       const body = await readBoundedResponseText(response, MAX_CLOUD_NATIVE_MANIFEST_BYTES, options.signal);
-      throw new HonuaHttpError(response.status, response.statusText || "Manifest request failed", body);
+      throw new HonuaHttpError(response.status, response.statusText || "Manifest request failed", body, {
+        responseHeaders: response.headers,
+      });
     }
     const interceptorResponse = (options.interceptors ?? []).some((interceptor) => interceptor.after)
       ? response.clone()

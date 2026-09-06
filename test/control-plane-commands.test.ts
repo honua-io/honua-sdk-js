@@ -116,7 +116,7 @@ describe("control-plane command registry", () => {
     for (const id of HONUA_COMMAND_IDS) {
       const command = HONUA_COMMANDS[id];
       expect(command.id).toBe(id);
-      expect(command.mode).toBe("action");
+      expect(command.mode).toBe(id === "connection.test" ? "read" : "action");
       // Closed schemas are what stop one transport from growing a field
       // (an approval, an actor override) the others do not have.
       expect(command.inputSchema.additionalProperties).toBe(false);
@@ -128,6 +128,25 @@ describe("control-plane command registry", () => {
 });
 
 describe("command receipts", () => {
+  it("does not send or record unsupported connection-test scope and idempotency", async () => {
+    const { requests, fetchFn } = recorder(({ path }) =>
+      path.endsWith("/connections/conn-1/test") ? { body: { ok: true } } : { body: PUBLISH_RESPONSE },
+    );
+    const receipt = await runtimeFor(fetchFn).execute(
+      connectionTestCommand,
+      { connectionId: "conn-1" },
+      { transport: "sdk", identity: { actor: "user-1", tenantId: "acme" } },
+    );
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].method).toBe("POST");
+    expect(requests[0].path).toBe("/api/v1/admin/connections/conn-1/test");
+    expect(requests[0].headers["idempotency-key"]).toBeUndefined();
+    expect(requests[0].body).toBeUndefined();
+    expect(receipt.resourceRef).toEqual({ type: "connection", id: "conn-1" });
+    expect(receipt.idempotencyKey).toBeUndefined();
+  });
+
   it("threads Idempotency-Key and If-Match onto the request and echoes identity onto the receipt", async () => {
     const { requests, fetchFn } = recorder();
     const receipt = await runtimeFor(fetchFn).execute(
@@ -218,8 +237,7 @@ describe("command error taxonomy", () => {
 
   it("rejects a cross-field violation before the dry-run short circuit, not inside execute", async () => {
     // A dry run that approves an input the real invocation rejects is worse
-    // than no dry run: `import.create` needs a source, and the schema alone
-    // cannot say "one of these two".
+    // than no dry run: `import.create` needs the URL required by the server.
     for (const dryRun of [true, false]) {
       const { requests, fetchFn } = recorder();
       const error = await runtimeFor(fetchFn)
@@ -230,17 +248,22 @@ describe("command error taxonomy", () => {
       expect(
         (error as HonuaCommandError).issues?.map((issue) => issue.message),
         `dryRun=${dryRun}`,
-      ).toEqual(["one of `sourceUrl` or `connectionId` is required"]);
+      ).toEqual(["`sourceUrl` is required by /import/upload-url"]);
       expect(requests, `dryRun=${dryRun}`).toHaveLength(0);
     }
 
-    // The same input with a source previews cleanly.
-    const preview = await runtimeFor(recorder().fetchFn).execute(
-      importCreateCommand,
-      { sourceKind: "geojson", connectionId: "conn-1" },
-      { transport: "mcp", dryRun: true },
-    );
-    expect(preview.status).toBe("dry-run");
+    const connectionOnly = await runtimeFor(recorder().fetchFn)
+      .execute(
+        importCreateCommand,
+        { sourceKind: "postgis", connectionId: "conn-1" },
+        { transport: "mcp", dryRun: true },
+      )
+      .catch((thrown: unknown) => thrown);
+    expect(connectionOnly).toBeInstanceOf(HonuaCommandError);
+    expect((connectionOnly as HonuaCommandError).issues?.[0]).toMatchObject({
+      path: "connectionId",
+      message: "stored-connection imports are not supported by /import/upload-url; provide `sourceUrl`",
+    });
   });
 
   it("classifies HTTP failures into the shared taxonomy", async () => {
@@ -607,7 +630,7 @@ describe("the terminal release journey runs on the shared command layer", () => 
   });
 
   it("produces the same receipt from a CLI-shaped `honua import create` and a direct JS call", async () => {
-    const job = { id: "job-7", status: "queued", links: { self: "/api/v1/admin/imports/job-7" } };
+    const job = { id: "job-7", status: "queued", links: { self: "/api/v1/admin/import/jobs/job-7" } };
 
     const cli = recorder(() => ({ body: job }));
     vi.stubGlobal("fetch", cli.fetchFn);
@@ -657,20 +680,44 @@ describe("the terminal release journey runs on the shared command layer", () => 
     expect(cli.requests[0].headers["idempotency-key"]).toBe(js.requests[0].headers["idempotency-key"]);
   });
 
+  it("adapts import-create to the server's durable URL-import queue and normalizes its job receipt", async () => {
+    const { requests, fetchFn } = recorder(() => ({
+      status: 202,
+      body: {
+        jobId: "job-8",
+        statusUrl: "/api/v1/admin/import/jobs/job-8",
+        cancelUrl: "/api/v1/admin/import/jobs/job-8/cancel",
+      },
+    }));
+
+    const receipt = await runtimeFor(fetchFn).execute(
+      importCreateCommand,
+      {
+        sourceKind: "geojson",
+        sourceUrl: "https://example.test/parcels.geojson",
+        title: "Parcels",
+        options: { targetSchema: "public" },
+      },
+      { transport: "sdk" },
+    );
+
+    expect(requests[0].path).toBe("/api/v1/admin/import/upload-url");
+    expect(requests[0].body).toMatchObject({
+      sourceUrl: "https://example.test/parcels.geojson",
+      fileName: "parcels.geojson",
+      tableName: "Parcels",
+      targetSchema: "public",
+      forceBackground: true,
+      trackProgress: true,
+    });
+    expect(receipt.output).toMatchObject({ id: "job-8", type: "import", status: "queued" });
+  });
+
   it("previews `honua connection test` from the terminal without contacting the server", async () => {
     const { requests, fetchFn } = recorder();
     vi.stubGlobal("fetch", fetchFn);
     const output = capture();
-    const exitCode = await run([
-      "connection",
-      "test",
-      "conn-1",
-      "--workspace",
-      "ws-1",
-      "--dry-run",
-      "--base-url",
-      "https://example.test",
-    ]);
+    const exitCode = await run(["connection", "test", "conn-1", "--dry-run", "--base-url", "https://example.test"]);
     vi.restoreAllMocks();
     expect(exitCode).toBe(0);
     expect(requests).toHaveLength(0);
@@ -679,12 +726,12 @@ describe("the terminal release journey runs on the shared command layer", () => 
     const rendered = output.join("");
     const jsReceipt = await runtimeFor(recorder().fetchFn).execute(
       connectionTestCommand,
-      { connectionId: "conn-1", workspaceId: "ws-1" },
+      { connectionId: "conn-1" },
       { transport: "sdk", dryRun: true },
     );
     expect(rendered).toContain("Connection probe (dry run)");
     expect(rendered).toContain(jsReceipt.auditKey);
-    expect(rendered).toContain(jsReceipt.idempotencyKey);
+    expect(jsReceipt.idempotencyKey).toBeUndefined();
     expect(rendered).toContain("server-enforced");
   });
 
@@ -693,7 +740,7 @@ describe("the terminal release journey runs on the shared command layer", () => 
       positionals: ["conn-1"],
       flags: { workspace: "ws-1", actor: "user-1", tenant: "acme", "dry-run": true },
     });
-    expect(connection.input).toEqual({ connectionId: "conn-1", workspaceId: "ws-1" });
+    expect(connection.input).toEqual({ connectionId: "conn-1" });
     expect(connection.invocation).toEqual({
       transport: "cli",
       identity: { actor: "user-1", tenantId: "acme" },
@@ -723,9 +770,8 @@ describe("the terminal release journey runs on the shared command layer", () => 
   });
 
   it("leaves the cross-field rule to the command, so every transport reports it identically", async () => {
-    // `honua import create` requires neither `--source-url` nor `--connection`
-    // as a terminal-side rule: "one of these two" is the command's own
-    // `validate`, so the CLI cannot drift from MCP, Studio, or JS on it.
+    // `honua import create` leaves the URL requirement to the shared command,
+    // so the CLI cannot drift from MCP, Studio, or JS on it.
     const { requests, fetchFn } = recorder();
     vi.stubGlobal("fetch", fetchFn);
     const output = capture();
@@ -740,7 +786,7 @@ describe("the terminal release journey runs on the shared command layer", () => 
     ]);
     vi.restoreAllMocks();
     expect(exitCode).toBe(2);
-    expect(output.join("")).toContain("one of `sourceUrl` or `connectionId` is required");
+    expect(output.join("")).toContain("`sourceUrl` is required by /import/upload-url");
     expect(requests).toHaveLength(0);
   });
 

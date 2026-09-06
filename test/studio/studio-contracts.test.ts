@@ -7,6 +7,7 @@ import { validateMapPackage } from "../../src/runtime/index.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../../src/runtime/map-package.js";
 import {
   HONUA_ANALYSIS_PACKAGE_FORMAT_V1,
+  HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
   HONUA_ETL_PACKAGE_FORMAT_V1,
   HONUA_FORM_PACKAGE_FORMAT_V1,
   HONUA_GP_PACKAGE_FORMAT_V1,
@@ -26,6 +27,7 @@ import {
 } from "../../src/studio/index.js";
 import type {
   HonuaAnalysisPackage,
+  HonuaDashboardPackage,
   HonuaETLPackage,
   HonuaFormPackage,
   HonuaGPPackage,
@@ -82,10 +84,19 @@ const FROZEN_MANIFEST_WIRE = JSON.stringify({
     publicationFamilies: ["map"],
   },
   capabilities: [
-    { id: "studio.map", category: "studio", supported: true, available: true },
+    {
+      id: "studio.map",
+      category: "studio",
+      lifecycle: "Implemented",
+      optInRequired: false,
+      supported: true,
+      available: true,
+    },
     {
       id: "studio.ai.generate",
       category: "studio",
+      lifecycle: "Preview",
+      optInRequired: true,
       supported: true,
       available: false,
       reasonCode: "entitlement-inactive",
@@ -93,6 +104,15 @@ const FROZEN_MANIFEST_WIRE = JSON.stringify({
       entitlementKeys: ["ai.generation"],
       minimumEdition: "enterprise",
       messageKey: "capability.ai.disabled",
+    },
+    {
+      id: "provider.snowflake",
+      category: "provider",
+      lifecycle: "Experimental",
+      optInRequired: true,
+      supported: true,
+      available: false,
+      reasonCode: "configuration-disabled",
     },
   ],
   transports: {
@@ -230,10 +250,19 @@ describe("StudioCapabilityManifest helpers", () => {
   const manifest: StudioCapabilityManifest = {
     schemaVersion: "honua.capability_manifest.v1",
     capabilities: [
-      { id: "studio.map", category: "studio", supported: true, available: true },
+      {
+        id: "studio.map",
+        category: "studio",
+        lifecycle: "Implemented",
+        optInRequired: false,
+        supported: true,
+        available: true,
+      },
       {
         id: "studio.ai.generate",
         category: "studio",
+        lifecycle: "Preview",
+        optInRequired: true,
         supported: true,
         available: false,
         reasonCode: "entitlement-inactive",
@@ -281,7 +310,7 @@ describe("StudioCapabilityManifest helpers", () => {
     expect(wire.scope?.tenantId).toBe("acme");
     expect(wire.server?.serverVersion).toBe("1.9.0");
     expect(wire.environment?.revision).toBe(42);
-    expect(wire.capabilities).toHaveLength(2);
+    expect(wire.capabilities).toHaveLength(3);
     expect(hasCapability(wire, "studio.map")).toBe(true);
     expect(isCapabilitySupported(wire, "studio.ai.generate")).toBe(true);
     expect(hasCapability(wire, "studio.ai.generate")).toBe(false);
@@ -293,6 +322,14 @@ describe("StudioCapabilityManifest helpers", () => {
     expect(wire.transports?.mtlsMode).toBe("disabled");
     expect(wire.policies?.entitlements?.[0]?.active).toBe(false);
     expect(wire.links?.[0]?.type).toBe("application/json");
+
+    const [implemented, preview, experimental] = wire.capabilities;
+    expect(implemented?.lifecycle).toBe("Implemented");
+    expect(implemented?.optInRequired).toBe(false);
+    expect(preview?.lifecycle).toBe("Preview");
+    expect(preview?.optInRequired).toBe(true);
+    expect(experimental?.lifecycle).toBe("Experimental");
+    expect(experimental?.optInRequired).toBe(true);
   });
 });
 
@@ -300,6 +337,7 @@ describe("Studio package family projection", () => {
   it("exposes one stable format constant per stub family", () => {
     expect(HONUA_QUERY_PACKAGE_FORMAT_V1).toBe("honua_query_package.v1");
     expect(HONUA_ANALYSIS_PACKAGE_FORMAT_V1).toBe("honua_analysis_package.v1");
+    expect(HONUA_DASHBOARD_PACKAGE_FORMAT_V1).toBe("honua_dashboard_package.v1");
     expect(HONUA_REPORT_PACKAGE_FORMAT_V1).toBe("honua_report_package.v1");
     expect(HONUA_FORM_PACKAGE_FORMAT_V1).toBe("honua_form_package.v1");
     expect(HONUA_WORKFLOW_PACKAGE_FORMAT_V1).toBe("honua_workflow_package.v1");
@@ -333,13 +371,14 @@ describe("Studio package family projection", () => {
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaQueryPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaAnalysisPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaMapPackage>,
+      { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaDashboardPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaReportPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaFormPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaWorkflowPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaGPPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaETLPackage>,
     ];
-    expect(responses).toHaveLength(8);
+    expect(responses).toHaveLength(9);
   });
 });
 
