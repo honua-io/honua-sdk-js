@@ -83,3 +83,12 @@ test("a migration dependency cannot smuggle an older installed SDK into the cand
   };
   assert.throws(() => validateInstalledLock(candidate, changed), /nested candidate version mismatch/);
 });
+
+
+test("nested candidate copies also require the declared registry URL", () => {
+  const changed = structuredClone(lock);
+  changed.packages["node_modules/migration/node_modules/@honua/sdk"] = {
+    ...changed.packages["node_modules/@honua/sdk"], resolved: "https://example.com/sdk.tgz",
+  };
+  assert.throws(() => validateInstalledLock(candidate, changed), /nested candidate registry mismatch/);
+});

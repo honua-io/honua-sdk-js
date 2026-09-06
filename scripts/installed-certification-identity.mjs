@@ -41,6 +41,7 @@ export function validateInstalledLock(candidate, lock) {
     if (pinned) {
       assert.equal(entry.version, pinned.version, `${location}: nested candidate version mismatch`);
       assert.equal(entry.integrity, pinned.integrity, `${location}: nested candidate integrity mismatch`);
+      assert.equal(entry.resolved, pinned.tarball, `${location}: nested candidate registry mismatch`);
     }
   }
   return candidate.packages.map((p) => {
