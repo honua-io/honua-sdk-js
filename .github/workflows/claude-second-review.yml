@@ -288,5 +288,5 @@ jobs:
             session's transcript instead of commenting — the PR comment is the
             deliverable.
           claude_args: |
-            --max-turns 40
+            --max-turns 60
             --allowedTools "Read,Grep,Glob,Write,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
