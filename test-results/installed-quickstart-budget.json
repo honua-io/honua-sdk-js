@@ -1,6 +1,6 @@
 {
   "schema": "honua.installed-first-map-budget/v1",
-  "generatedAt": "2026-09-06T11:13:45.550Z",
+  "generatedAt": "2026-09-06T11:15:24.826Z",
   "scope": "installed-package bundle regression; no live-server or release certification claim",
   "package": {
     "coordinate": "@honua/sdk-js",
@@ -9,7 +9,7 @@
     "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
     "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz"
   },
-  "consumerLockSha256": "ca1a8d0d5ad6aa5d6b720e0b7718843dc9039d7e47d0933d4fc7f836f39f23cb",
+  "consumerLockSha256": "5c57b5e87e06de57705a664ea73287e4dfee1a47832b1e66f7c2f2c83433e476",
   "dependencies": {
     "node_modules/@bufbuild/protobuf": {
       "version": "2.14.1",
@@ -492,7 +492,7 @@
       "integrity": "sha512-0yweIbkINJodk27gX9LBGMzyQdBDan3s/dEAiwBOj+Mf0PPyWL6/rikalkv8EeD0E8jm4o5RXEOrFTP3NXbhJg=="
     }
   },
-  "sourceSha": "9bf71c3caac776161f425149301f2e5e1faa3426",
+  "sourceSha": "83743ab2223d8267dae275150cabef30a84ccb6b",
   "budget": {
     "javascriptBytes": 1990000,
     "javascriptGzipBytes": 524000
@@ -501,15 +501,15 @@
   "node": "v24.19.0",
   "status": "passed",
   "baseline": {
-    "status": "failed",
-    "diagnostic": "Build failed with 1 error:\n\n[plugin honua-first-map-bundle-budget]\nError: First Map JavaScript bundle 2953607 bytes / 773533 gzip exceeds 1990000 / 524000.\n    at PluginContextImpl.generateBundle (file:///home/mike/honua-io/honua-sdk-js/node_modules/.vite-temp/vite.config.ts.timestamp-1788693218393-8a2f32d77e859.mjs:266:42)\n    at PluginContextImpl.handler (file:///home/mike/honua-io/honua-sdk-js/node_modules/vite/dist/node/chunks/node.js:33513:13)\n    at plugin (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1373:18)\n    at plugin.<computed> (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1625:18)",
+    "buildStatus": "failed",
+    "diagnostic": "Build failed with 1 error:\n\n[plugin honua-first-map-bundle-budget]\nError: First Map JavaScript bundle 2953607 bytes / 773533 gzip exceeds 1990000 / 524000.\n    at PluginContextImpl.generateBundle (file:///home/mike/honua-io/honua-sdk-js/node_modules/.vite-temp/vite.config.ts.timestamp-1788693318752-78f9e3ad5ac9f8.mjs:266:42)\n    at PluginContextImpl.handler (file:///home/mike/honua-io/honua-sdk-js/node_modules/vite/dist/node/chunks/node.js:33513:13)\n    at plugin (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1373:18)\n    at plugin.<computed> (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1625:18)",
     "measurement": {
       "javascriptBytes": 2953782,
       "javascriptGzipBytes": 773645
     },
     "maplibreModules": [
-      "$CONSUMER/node_modules/maplibre-gl/dist/maplibre-gl.mjs",
-      "/home/mike/honua-io/honua-sdk-js/node_modules/maplibre-gl/dist/maplibre-gl.mjs"
+      "/home/mike/honua-io/honua-sdk-js/node_modules/maplibre-gl/dist/maplibre-gl.mjs",
+      "$CONSUMER/node_modules/maplibre-gl/dist/maplibre-gl.mjs"
     ],
     "maplibreFiles": [
       "$CONSUMER/node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs",
@@ -521,10 +521,12 @@
       "/home/mike/honua-io/honua-sdk-js/node_modules/maplibre-gl/dist/maplibre-gl.mjs"
     ],
     "resolutionDigest": "a27340c8cc1448774e20ac14fdab3e70fe7e2f9c610d683c2ab08fc4d96c5d5e",
-    "installedSdkModules": 187
+    "installedSdkModules": 187,
+    "peerIdentityStatus": "failed",
+    "status": "failed"
   },
   "runtimeOnly": {
-    "status": "passed",
+    "buildStatus": "passed",
     "measurement": {
       "javascriptBytes": 1979893,
       "javascriptGzipBytes": 523372
@@ -541,10 +543,12 @@
       "/home/mike/honua-io/honua-sdk-js/node_modules/maplibre-gl/dist/maplibre-gl.css"
     ],
     "resolutionDigest": "75b3917452cdf73efc9751e7e52a05c9cad9eebe447268f500e25c43111cebfa",
-    "installedSdkModules": 187
+    "installedSdkModules": 187,
+    "peerIdentityStatus": "failed",
+    "status": "failed"
   },
   "corrected": {
-    "status": "passed",
+    "buildStatus": "passed",
     "measurement": {
       "javascriptBytes": 1979893,
       "javascriptGzipBytes": 523377
@@ -560,6 +564,8 @@
       "$CONSUMER/node_modules/maplibre-gl/dist/maplibre-gl.mjs"
     ],
     "resolutionDigest": "bd9b7e03a27395bbf483467da49f3479a6b229227404bea2c589bccc6747e565",
-    "installedSdkModules": 187
+    "installedSdkModules": 187,
+    "peerIdentityStatus": "passed",
+    "status": "passed"
   }
 }

@@ -26,8 +26,8 @@ The defect is a split resolver graph: the example's MapLibre import resolves
 beside the repository while the installed SDK's runtime import resolves beside
 the clean consumer. Both runtimes survive tree shaking. Resolve the example's
 declared runtime peer beside the SDK too. MapLibre 5's legacy entry fields and
-MapLibre 6's export map are both supported; worker and stylesheet subpaths resolve from the same installed peer, with its
-public export map enforced.
+MapLibre 6's export map are both supported. Worker and stylesheet subpaths
+resolve from the same installed peer, with its public export map enforced.
 
 The retained reproduction on `@honua/sdk-js@0.1.9-beta.0` measured 2,953,782 /
 773,645 written chunk bytes before the fix and 1,979,893 / 523,377 after it.
