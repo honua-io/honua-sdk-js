@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { loadCertificationDenominatorInputs } from "./certification-denominator.mjs";
+import { evaluateCertificationDenominator } from "./verify-certification-denominator.mjs";
 
 export const canonical = (value) => {
   if (Array.isArray(value)) return `[${value.map((item) => canonical(item) ?? "null").join(",")}]`;
@@ -35,6 +37,11 @@ export function validateInstalledLock(candidate, lock) {
   for (const [location, entry] of Object.entries(lock.packages ?? {})) {
     if (!location) continue;
     assert.ok(!entry.link && !/^(?:file:|link:|workspace:)/.test(entry.resolved ?? ""), `${location}: local resolution is forbidden`);
+    const pinned = candidate.packages.find((p) => location.endsWith(`node_modules/${p.coordinate}`));
+    if (pinned) {
+      assert.equal(entry.version, pinned.version, `${location}: nested candidate version mismatch`);
+      assert.equal(entry.integrity, pinned.integrity, `${location}: nested candidate integrity mismatch`);
+    }
   }
   return candidate.packages.map((p) => {
     const entry = lock.packages?.[`node_modules/${p.coordinate}`];
@@ -48,6 +55,8 @@ export function validateInstalledLock(candidate, lock) {
 // Frozen before installation/execution; these are content identities, not timestamps
 // asserted after a run. The complete denominator includes non-counting rows too.
 export async function freezeCertification(candidate, denominator, root) {
+  const { errors } = evaluateCertificationDenominator({ frozen: denominator, inputs: loadCertificationDenominatorInputs(root) });
+  assert.deepEqual(errors, [], "certification denominator has drifted");
   validatePackageSet(candidate, denominator.candidatePackages);
   assert.ok(denominator.rows.some((row) => row.counts), "empty supported denominator");
   assert.equal(new Set(denominator.rows.map((r) => r.id)).size, denominator.rows.length, "duplicate denominator ID");

@@ -33,7 +33,7 @@ export async function executeCandidateFixture({ candidate, work, root }) {
     const connection = `Server=${postgres};Port=5432;Database=certification;User Id=postgres;Password=${password};`;
     docker(["run", "-d", "--name", server, "--network", prefix, "-p", "127.0.0.1::8080",
       "-e", "ASPNETCORE_ENVIRONMENT=Production", "-e", "ASPNETCORE_URLS=http://+:8080",
-      "-e", `HONUA_ADMIN_PASSWORD=${password}`, "-e", `ConnectionStrings__DefaultConnection=${connection}`,
+      "-e", `HONUA_ADMIN_PASSWORD=Aa1!${password}`, "-e", `ConnectionStrings__DefaultConnection=${connection}`,
       "-e", `ConnectionStrings__honua=${connection}`, "-e", `ConnectionStrings__Redis=${redis}:6379`,
       "-e", `Security__ConnectionEncryption__MasterKey=${randomBytes(32).toString("base64")}`,
       "-e", `Security__ConnectionEncryption__Salt=${randomBytes(16).toString("base64")}`,
@@ -43,6 +43,8 @@ export async function executeCandidateFixture({ candidate, work, root }) {
     const baseUrl = `http://${docker(["port", server, "8080/tcp"])}`;
     ready = false;
     for (let attempt = 0; attempt < 90; attempt++) {
+      const state = JSON.parse(docker(["inspect", server, "--format", "{{json .State}}"]));
+      assert.ok(state.Running, `exact candidate exited before readiness: exit=${state.ExitCode}, oom=${state.OOMKilled}`);
       try {
         const response = await fetch(`${baseUrl}/health/ready`, { signal: AbortSignal.timeout(2_000) });
         if (response.ok) { ready = true; break; }
