@@ -158,14 +158,15 @@ export const HONUA_COMMAND_RECEIPT_KIND = "honua.command.receipt.v1" as const;
  * the transport-independent projection so a server-side audit join can match
  * them. Nothing here is time-, host-, or random-dependent: `idempotencyKey`
  * and `correlationId` are derived from the command id, the canonicalized
- * input, and the tenant unless the caller supplies them.
+ * input, and the tenant unless the caller supplies them. Read commands omit
+ * `idempotencyKey` because no such key is sent to the server.
  */
 export interface HonuaCommandReceipt<TOutput = unknown> {
   readonly kind: typeof HONUA_COMMAND_RECEIPT_KIND;
   readonly commandId: string;
   readonly mode: HonuaCommandMode;
   readonly status: HonuaCommandStatus;
-  readonly idempotencyKey: string;
+  readonly idempotencyKey?: string;
   readonly correlationId: string;
   readonly identity: HonuaCommandIdentity;
   /** Surface that issued the call. Recorded for audit; excluded from `auditKey`. */
