@@ -1,26 +1,16 @@
 #!/usr/bin/env node
 
-import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-import { freezeCertification, validateInstalledLock, validateObservationEnvelope, validatePackageSet } from "./installed-certification-identity.mjs";
+import { canonical, sha256, freezeCertification, validateInstalledLock, validateObservationEnvelope, validatePackageSet } from "./installed-certification-identity.mjs";
 import { executeCandidateFixture } from "./installed-candidate-fixture.mjs";
 import { verifyPublishedRelease } from "./verify-published-release.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
-const sha256 = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
-const canonical = (value) => {
-  if (Array.isArray(value)) return `[${value.map((item) => canonical(item) ?? "null").join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value).filter((key) => value[key] !== undefined).sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-};
 const run = (command, args, options = {}) => {
   const result = spawnSync(command, args, { encoding: "utf8", ...options });
   if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed: ${(result.stderr || result.stdout).trim()}`);
@@ -54,7 +44,7 @@ export function buildReceipt({ candidate, denominator, observations = [], bindin
     fail: operations.filter((x) => x.verdict === "fail").length, blocked: operations.filter((x) => x.verdict === "blocked").length };
   const receipt = { schema: "honua.sdk-installed-package-certification-receipt/v1", generatedAt,
     release: candidate.release, server: candidate.server, package: candidate.package,
-    install: candidate.install, binding, verdict: summary.fail || summary.blocked ? "not-certified" : "certified", summary, operations };
+    install: candidate.install, binding, nonCounting: denominator.rows.filter((row) => !row.counts).map((row) => ({ id: row.id, tier: row.tier, verdict: "not-counted" })), verdict: summary.fail || summary.blocked ? "not-certified" : "certified", summary, operations };
   return { ...receipt, receiptDigest: sha256(canonical(receipt)) };
 }
 
@@ -93,13 +83,18 @@ export async function withInstalledCandidate(candidate, callback, { consumerDepe
     run("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`], { cwd: work });
     run("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`], { cwd: work });
     const lock = JSON.parse(await readFile(path.join(work, "package-lock.json"), "utf8"));
-    const packages = validateInstalledLock(candidate, lock);
     const installed = lock.packages[`node_modules/${candidate.package.coordinate}`];
     const resolution = Object.fromEntries(Object.entries(lock.packages).filter(([key]) => key).map(([key, value]) =>
       [key, { version: value.version, resolved: value.resolved, integrity: value.integrity, peer: value.peer ?? false }]));
-    const install = { mode: "clean-npm-ci", localLinks: false, packages, provenance, resolution,
+    const install = { mode: "clean-npm-ci", localLinks: false, provenance, resolution,
       lockDigest: sha256(canonical(lock)), runtime: { node: process.version, npm: run("npm", ["--version"]),
         platform: process.platform, arch: process.arch } };
+    try {
+      install.packages = validateInstalledLock(candidate, lock);
+    } catch (error) {
+      error.install = install;
+      throw error;
+    }
     const repoDigests = JSON.parse(run("docker", ["image", "inspect", candidate.server.image, "--format", "{{json .RepoDigests}}"]));
     if (!repoDigests.includes(candidate.server.image)) throw new Error(`local image does not contain pinned digest ${candidate.server.image}`);
     return await callback({ installed, install, packageRoot: path.join(work, "node_modules", candidate.package.coordinate), work });
@@ -110,7 +105,8 @@ export async function certify({ output, observationsPath, executeFixture = false
   const candidate = await readInstalledCandidate();
   const denominator = JSON.parse(await readFile(path.join(root, "config/certification-denominator.v1.json"), "utf8"));
   const binding = await freezeCertification(candidate, denominator, root);
-  return withInstalledCandidate(candidate, async ({ install, work }) => {
+  try {
+    return await withInstalledCandidate(candidate, async ({ install, work }) => {
     if (executeFixture && observationsPath) throw new Error("choose fixture execution or an observation envelope");
     const execution = executeFixture ? await executeCandidateFixture({ candidate, work, root }) : undefined;
     const observations = execution ? validateObservationEnvelope({ schema: "honua.sdk-installed-observations/v1", binding, observations: execution.observations }, binding, denominator) : observationsPath ? validateObservationEnvelope(JSON.parse(await readFile(observationsPath, "utf8")), binding, denominator) : [];
@@ -118,7 +114,14 @@ export async function certify({ output, observationsPath, executeFixture = false
     await mkdir(path.dirname(path.resolve(output)), { recursive: true });
     await writeFile(output, `${JSON.stringify(receipt, null, 2)}\n`);
     return receipt;
-  });
+    });
+  } catch (error) {
+    const receipt = buildReceipt({ candidate: { ...candidate, defaultBlocker: "honua-sdk-js#39",
+      install: { ...error.install, status: "failed", diagnostic: error.message.slice(0, 2_000) } }, denominator, binding });
+    await mkdir(path.dirname(path.resolve(output)), { recursive: true });
+    await writeFile(output, `${JSON.stringify(receipt, null, 2)}\n`);
+    return receipt;
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

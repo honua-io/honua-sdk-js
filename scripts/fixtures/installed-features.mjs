@@ -24,6 +24,7 @@ async function prove(operation, facets, assertions, action) {
   const start = requests.length;
   try {
     const values = await action();
+    assert.ok(requests.length > start, "operation produced no bounded request evidence");
     observations.push({ id: `protocol-certification:featureserver:${operation}`, verdict: "pass",
       execution: { mode: "installed-package", facets, assertions, values, requests: requests.slice(start) } });
   } catch (error) {
@@ -50,7 +51,7 @@ await prove("count", ["positive", "media-schema"], 2, async () => {
   assert.equal(absent, 0);
   return { active, absent };
 });
-await prove("query", ["positive", "pagination", "media-schema"], 6, async () => {
+await prove("query", ["positive", "pagination", "media-schema"], 7, async () => {
   const features = [];
   for (const offset of [0, 2, 4]) {
     const page = await layer.queryFeatures({ where: "status = 'active'", outFields: ["name", "count", "ratio"],

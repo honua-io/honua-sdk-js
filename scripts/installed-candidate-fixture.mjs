@@ -54,12 +54,30 @@ export async function executeCandidateFixture({ candidate, work, root }) {
     assert.ok(ready, "exact candidate did not become ready within 90 polls");
     await copyFile(path.join(root, "scripts/fixtures/installed-features.mjs"), path.join(work, "installed-features.mjs"));
     const output = path.join(work, "observations.json");
-    const result = spawnSync(process.execPath, [path.join(work, "installed-features.mjs"), output], {
-      cwd: work, env: { PATH: process.env.PATH, HONUA_INSTALLED_FIXTURE_URL: baseUrl }, encoding: "utf8", timeout: 180_000,
-    });
-    assert.equal(result.status, 0, `installed fixture consumer failed: ${result.stderr?.slice(-1_000)}`);
-    return { observations: JSON.parse(await readFile(output, "utf8")), serverRuntime: { imageId: expectedImageId,
-      image: candidate.server.image, fixture: "places-roads-v1", transport: "loopback-http" } };
+    const runConsumer = async () => {
+      const result = spawnSync(process.execPath, [path.join(work, "installed-features.mjs"), output], {
+        cwd: work, env: { PATH: process.env.PATH, HONUA_INSTALLED_FIXTURE_URL: baseUrl }, encoding: "utf8", timeout: 180_000,
+      });
+      assert.equal(result.status, 0, `installed fixture consumer failed: ${result.stderr?.slice(-1_000)}`);
+      return JSON.parse(await readFile(output, "utf8"));
+    };
+    const observations = await runConsumer();
+    let challenge;
+    if (observations.every((row) => row.verdict === "pass")) {
+      // Deliberately corrupt a value, after the baseline. A presence-only oracle
+      // would miss this; the installed consumer must fail the query proof.
+      docker(["exec", "-i", postgres, "psql", "-U", "postgres", "-d", "certification", "-v", "ON_ERROR_STOP=1"],
+        { input: "UPDATE features SET attributes = jsonb_set(attributes, '{ratio}', '999'::jsonb) WHERE layer_id = 0 AND attributes->>'name' = 'alpha';" });
+      const challenged = await runConsumer();
+      assert.equal(challenged.find((row) => row.id.endsWith(":query"))?.verdict, "fail", "oracle failed to detect corrupted fixture value");
+      challenge = { mutation: "alpha.ratio: 1.25 -> 999", detected: true, operation: "protocol-certification:featureserver:query" };
+    }
+    return { observations, serverRuntime: { imageId: expectedImageId,
+      image: candidate.server.image, fixture: "places-roads-v1", transport: "loopback-http", challenge } };
+  } catch (error) {
+    const logs = spawnSync("docker", ["logs", server], { encoding: "utf8", timeout: 10_000 });
+    const startupError = `${logs.stdout ?? ""}\n${logs.stderr ?? ""}`.split("\n").find((line) => line.startsWith("Unhandled exception."));
+    throw new Error(`${error.message}${startupError ? `; ${startupError.slice(0, 800)}` : ""}`);
   } finally {
     for (const name of [server, redis, postgres]) spawnSync("docker", ["rm", "-f", name], { stdio: "ignore" });
     spawnSync("docker", ["network", "rm", prefix], { stdio: "ignore" });
