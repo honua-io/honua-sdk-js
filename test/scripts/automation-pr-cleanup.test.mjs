@@ -40,7 +40,16 @@ esac`,
 esac`,
     };
     for (const [name, body] of Object.entries(commands)) fs.writeFileSync(`${dir}/${name}`, `#!/bin/bash\n${body}\n`, { mode: 0o755 });
-    const result = spawnSync("bash", ["-c", script], { encoding: "utf8", env: { ...process.env,
+    // The step body comes out of the workflow YAML, so it can never be a
+    // literal here. Run it as a file rather than through `bash -c`: an inline
+    // command string is an unanalyzable shell launch to
+    // scripts/lib/test-build-ownership.mjs, which has to be able to prove no
+    // test reaches the root compiler. Executing a script file is the pattern
+    // test/scripts/release-please-tag-seal.test.mjs already uses for workflow
+    // step bodies, and it runs the same bytes the workflow runs.
+    const scriptPath = `${dir}/step.sh`;
+    fs.writeFileSync(scriptPath, `${script}\n`);
+    const result = spawnSync("bash", [scriptPath], { encoding: "utf8", env: { ...process.env,
       PATH: `${dir}:${process.env.PATH}`, TRACE: `${dir}/trace`, FIXTURES: `${dir}/prs.json`, FAIL: "",
       GITHUB_SHA: "source", TRUNK_SHA: "source", GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
       GITHUB_OUTPUT: `${dir}/output`, GITHUB_RUN_ID: "current", GITHUB_RUN_ATTEMPT: "1",
