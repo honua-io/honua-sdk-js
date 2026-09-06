@@ -1,6 +1,6 @@
 {
   "schema": "honua.installed-first-map-budget/v1",
-  "generatedAt": "2026-09-06T10:46:05.893Z",
+  "generatedAt": "2026-09-06T10:49:07.236Z",
   "scope": "installed-package bundle regression; no live-server or release certification claim",
   "package": {
     "coordinate": "@honua/sdk-js",
@@ -9,7 +9,7 @@
     "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
     "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz"
   },
-  "consumerLockSha256": "62778b486ed32aae252a57adca25c12b7b931a52344c27b956adc0b76b5fe624",
+  "consumerLockSha256": "669e5007cf4e1cf2a73991be02ee8fe5dca423fee5ed88c53f36663d8f67028c",
   "dependencies": {
     "node_modules/@bufbuild/protobuf": {
       "version": "2.14.1",
@@ -492,16 +492,17 @@
       "integrity": "sha512-0yweIbkINJodk27gX9LBGMzyQdBDan3s/dEAiwBOj+Mf0PPyWL6/rikalkv8EeD0E8jm4o5RXEOrFTP3NXbhJg=="
     }
   },
-  "sourceSha": "e734c56211df3581686295361331569797249f5f",
+  "sourceSha": "9c828f46695b0df3788f7557d7ee3bae4c6346dc",
   "budget": {
     "javascriptBytes": 1990000,
     "javascriptGzipBytes": 524000
   },
   "measurementScope": "emitted JavaScript chunks, as defined by the canonical First Map budget",
   "node": "v24.19.0",
+  "status": "passed",
   "baseline": {
     "status": "failed",
-    "diagnostic": "Build failed with 1 error:\n\n[plugin honua-first-map-bundle-budget]\nError: First Map JavaScript bundle 2953607 bytes / 773533 gzip exceeds 1990000 / 524000.\n    at PluginContextImpl.generateBundle (file:///home/mike/honua-io/honua-sdk-js/node_modules/.vite-temp/vite.config.ts.timestamp-1788691562593-9be5837c4a2998.mjs:244:42)\n    at PluginContextImpl.handler (file:///home/mike/honua-io/honua-sdk-js/node_modules/vite/dist/node/chunks/node.js:33513:13)\n    at plugin (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1373:18)\n    at plugin.<computed> (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1625:18)",
+    "diagnostic": "Build failed with 1 error:\n\n[plugin honua-first-map-bundle-budget]\nError: First Map JavaScript bundle 2953607 bytes / 773533 gzip exceeds 1990000 / 524000.\n    at PluginContextImpl.generateBundle (file:///home/mike/honua-io/honua-sdk-js/node_modules/.vite-temp/vite.config.ts.timestamp-1788691739491-36a439eee1b59.mjs:244:42)\n    at PluginContextImpl.handler (file:///home/mike/honua-io/honua-sdk-js/node_modules/vite/dist/node/chunks/node.js:33513:13)\n    at plugin (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1373:18)\n    at plugin.<computed> (file:///home/mike/honua-io/honua-sdk-js/node_modules/rolldown/dist/shared/bindingify-input-options-ClrST5Xx.mjs:1625:18)",
     "measurement": {
       "javascriptBytes": 2953782,
       "javascriptGzipBytes": 773645

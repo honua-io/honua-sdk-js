@@ -83,6 +83,27 @@ describe("shared sample kit", () => {
     );
   });
 
+  it("supports a declared peer with legacy module/main fields", async () => {
+    const root = path.resolve("test-results/sample-kit-legacy-peer");
+    const peerRoot = path.join(root, "node_modules/maplibre-gl");
+    await mkdir(path.join(peerRoot, "dist"), { recursive: true });
+    await writeFile(path.join(root, "package.json"), "{}");
+    await writeFile(
+      path.join(peerRoot, "package.json"),
+      JSON.stringify({ main: "dist/map.js", module: "dist/map.mjs" }),
+    );
+    await writeFile(path.join(peerRoot, "dist/map.js"), "module.exports = {};\n");
+    await writeFile(path.join(peerRoot, "dist/map.mjs"), "export default {};\n");
+    const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    try {
+      expect(resolveRuntimePeer(root, manifest, "maplibre-gl")).toBe(path.join(peerRoot, "dist/map.mjs"));
+      await writeFile(path.join(peerRoot, "package.json"), JSON.stringify({ main: "dist/map.js" }));
+      expect(resolveRuntimePeer(root, manifest, "maplibre-gl")).toBe(path.join(peerRoot, "dist/map.js"));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects traversal and symlink package export targets", async () => {
     const root = path.resolve("test-results/sample-kit-export-target");
     await rm(root, { recursive: true, force: true });

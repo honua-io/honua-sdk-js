@@ -50,9 +50,15 @@ export function resolveRuntimePeer(root: string, manifest: PackageManifest, peer
   const peerManifestPath = fs.realpathSync(requireFromSdk.resolve(`${peer}/package.json`));
   const peerManifest = JSON.parse(fs.readFileSync(peerManifestPath, "utf8")) as {
     readonly exports?: Readonly<Record<string, { readonly import?: string; readonly default?: string } | string>>;
+    readonly module?: string;
+    readonly main?: string;
   };
   const rootExport = peerManifest.exports?.["."];
-  const target = typeof rootExport === "string" ? rootExport : (rootExport?.import ?? rootExport?.default);
+  const exported = typeof rootExport === "string" ? rootExport : (rootExport?.import ?? rootExport?.default);
+  // MapLibre 5 uses legacy package entry fields; MapLibre 6 publishes an
+  // exports map. Honor that map when present, and prefer legacy ESM otherwise.
+  const legacy = peerManifest.exports === undefined ? (peerManifest.module ?? peerManifest.main) : undefined;
+  const target = exported ?? (legacy === undefined ? undefined : legacy.startsWith("./") ? legacy : `./${legacy}`);
   if (
     typeof target !== "string" ||
     !target.startsWith("./") ||
@@ -221,12 +227,7 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
   }
   const mode = sdkMode();
   const resolved = aliases(mode, options.sdkEntrypoints);
-  const peerAliases = runtimePeerAliases(
-    mode,
-    resolved.sdkRoot,
-    resolved.manifest,
-    options.sdkRuntimePeers ?? [],
-  );
+  const peerAliases = runtimePeerAliases(mode, resolved.sdkRoot, resolved.manifest, options.sdkRuntimePeers ?? []);
   let buildMode = false;
   let buildFailed = false;
   let outputRoot: string | undefined;
