@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-import { ArgError, getString, parseArgs } from "./args.js";
+import { ArgError, getBoolean, getString, parseArgs } from "./args.js";
 import type { FlagSpec, ParsedArgs } from "./args.js";
 import type { CommandContext, CommandHandler } from "./command.js";
 import { adminCommand } from "./commands/admin.js";
@@ -32,6 +32,7 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "admin-key" },
   { name: "profile" },
   { name: "body" },
+  { name: "content-type" },
   { name: "path", multiple: true },
   { name: "query", multiple: true },
   { name: "header", multiple: true },
@@ -231,7 +232,7 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
 
   const handler = COMMANDS[command];
   if (!handler) {
-    printLine(`Unknown command: ${command}\n`);
+    printLine(`Unknown command: ${command}\n`, process.stderr);
     printLine(HELP);
     return 2;
   }
@@ -241,7 +242,7 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
     parsed = parseArgs(argv.slice(1), GLOBAL_FLAGS);
   } catch (err) {
     if (err instanceof ArgError) {
-      printLine(`error: ${err.message}`);
+      printLine(`error: ${err.message}`, process.stderr);
       return 2;
     }
     throw err;
@@ -264,7 +265,11 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
     return 0;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    printLine(`error: ${message}`, process.stderr);
+    if (getBoolean(parsed, "json")) {
+      printLine(JSON.stringify({ error: message }), process.stderr);
+    } else {
+      printLine(`error: ${message}`, process.stderr);
+    }
     if (err instanceof ArgError) return 2;
     return 1;
   }
