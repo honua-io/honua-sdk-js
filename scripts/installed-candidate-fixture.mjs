@@ -73,7 +73,8 @@ export async function executeCandidateFixture({ candidate, work, root }) {
       challenge = { mutation: "alpha.ratio: 1.25 -> 999", detected: true, operation: "protocol-certification:featureserver:query" };
     }
     return { observations, serverRuntime: { imageId: expectedImageId,
-      image: candidate.server.image, fixture: "places-roads-v1", transport: "loopback-http", challenge } };
+      image: candidate.server.image, postgresImageId: docker(["inspect", postgres, "--format", "{{.Image}}"]),
+      redisImageId: docker(["inspect", redis, "--format", "{{.Image}}"]), fixture: "places-roads-v1", transport: "loopback-http", challenge } };
   } catch (error) {
     const logs = spawnSync("docker", ["logs", server], { encoding: "utf8", timeout: 10_000 });
     const startupError = `${logs.stdout ?? ""}\n${logs.stderr ?? ""}`.replaceAll(password, "[redacted]").split("\n").filter((line) => /Unhandled exception|compatibility|PostGIS|PostgreSQL/.test(line)).slice(-8).join("\n");

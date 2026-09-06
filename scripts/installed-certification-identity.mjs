@@ -62,7 +62,7 @@ export async function freezeCertification(candidate, denominator, root) {
   assert.equal(new Set(denominator.rows.map((r) => r.id)).size, denominator.rows.length, "duplicate denominator ID");
   const inputs = {};
   for (const relative of ["config/support-manifest.v1.json", "mcp/release/zero-to-map/journey.v1.json",
-    "test/integration/seed/places-roads-v1.sql", "scripts/fixtures/installed-features.mjs"]) {
+    "test/integration/seed/places-roads-v1.sql", "scripts/fixtures/installed-features.mjs", "scripts/installed-candidate-fixture.mjs"]) {
     inputs[relative] = sha256(await readFile(path.join(root, relative)));
   }
   return { candidateDigest: sha256(canonical({ release: candidate.release, packages: candidate.packages, server: candidate.server })),

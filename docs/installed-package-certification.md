@@ -70,6 +70,14 @@ URLs/integrities, verified provenance and this mismatch. Verdict: **not-certifie
 0 passes, 228 blocked operations**. Fixing source or adding an npm override would
 not repair those published bytes; a compatible published package set is required.
 
+For a non-certifying check of the fixture oracle while package-set admission is
+blocked, run `node scripts/diagnose-installed-fixture.mjs /tmp/fixture-diagnostic.json`.
+This still installs public package bytes and checks the root SDK's pinned integrity,
+but deliberately cannot emit a certification-schema receipt. The retained diagnostic
+at `test-results/installed-fixture-diagnostic.json` records three passing baseline
+proofs and detection of the corrupted ratio. These do not change the certification
+verdict or erase the package mismatch.
+
 Issue #39 remains open. Full operation execution, browser/style proof, joined
 CLI/MCP/Studio lifecycle receipts, negative authorization cases and release-side
 consumption are not satisfied by this harness. The whole GP catalog and all four
