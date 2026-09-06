@@ -52,3 +52,12 @@ test("rejects server image and digest drift before installing", async () => {
     server: { image: "ghcr.io/honua-io/honua-server@sha256:1", digest: "sha256:2" },
   }, async () => {}), /server image digest mismatch: sha256:1 vs sha256:2/);
 });
+
+test("empty or duplicate denominators cannot certify", () => {
+  assert.throws(() => buildReceipt({ candidate, denominator: { rows: [] } }), /empty supported denominator/);
+  assert.throws(() => buildReceipt({ candidate, denominator: { rows: [...denominator.rows, denominator.rows[0]] } }), /duplicate denominator/);
+});
+
+test("unrecognized operation cannot disappear from the receipt", () => {
+  assert.throws(() => buildReceipt({ candidate, denominator, observations: [{ id: "typo", verdict: "pass" }] }), /unknown observation id/);
+});
