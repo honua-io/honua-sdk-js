@@ -14,6 +14,8 @@ import {
   type HonuaConnectionSummary,
   type HonuaControlPlaneCapability,
   type HonuaControlPlaneJob,
+  type HonuaControlPlaneJobStatus,
+  type HonuaControlPlaneLinks,
   type HonuaControlPlaneListOptions,
   type HonuaControlPlanePage,
   type HonuaControlPlaneRawRequest,
@@ -286,32 +288,150 @@ export class HonuaImportsClient {
   public listJobs(
     options: HonuaControlPlaneListOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaControlPlaneJob>>> {
-    return this.#controlPlane.requestPage("imports", "/imports/jobs", options);
+    return this.#controlPlane.requestPage<HonuaImportJobResponse>("imports", "/import/jobs", options).then((result) =>
+      result.supported
+        ? {
+            supported: true,
+            value: {
+              ...result.value,
+              items: result.value.items.map(normalizeImportJob),
+            },
+          }
+        : result,
+    );
   }
 
-  public create(
+  public async create(
     request: HonuaImportCreateRequest,
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
-    return this.#controlPlane.requestJson("imports", "POST", "/imports", request, options);
+    if (!request.sourceUrl?.trim()) {
+      throw new TypeError(
+        "Stored-connection imports are not supported by /import/upload-url; provide a sourceUrl for a URL import.",
+      );
+    }
+    if (request.connectionId) {
+      throw new TypeError("connectionId cannot be sent to /import/upload-url; provide only sourceUrl.");
+    }
+    const fileName = stringOption(request.options, "fileName") ?? fileNameFromUrl(request.sourceUrl);
+    const tableName = stringOption(request.options, "tableName") ?? slug(request.title ?? fileName ?? "imported_data");
+    const body = {
+      sourceUrl: request.sourceUrl,
+      fileName: fileName ?? "import.geojson",
+      tableName,
+      targetSchema: stringOption(request.options, "targetSchema"),
+      sourceSrid: numberOption(request.options, "sourceSrid"),
+      targetSrid: numberOption(request.options, "targetSrid") ?? 4326,
+      overwriteExisting: booleanOption(request.options, "overwriteExisting") ?? false,
+      forceBackground: true,
+      trackProgress: true,
+    };
+    return this.#controlPlane
+      .requestJson<HonuaImportJobResponse>("imports", "POST", "/import/upload-url", body, options)
+      .then((result) => (result.supported ? { supported: true, value: normalizeImportJob(result.value) } : result));
   }
 
   public getJob(
     jobId: string,
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
-    return this.#controlPlane.requestJson(
-      "imports",
-      "GET",
-      `/imports/jobs/${encodeURIComponent(jobId)}`,
-      undefined,
-      options,
-    );
+    return this.#controlPlane
+      .requestJson<HonuaImportJobResponse>(
+        "imports",
+        "GET",
+        `/import/jobs/${encodeURIComponent(jobId)}`,
+        undefined,
+        options,
+      )
+      .then((result) => (result.supported ? { supported: true, value: normalizeImportJob(result.value) } : result));
   }
 
   public job(jobId: string): HonuaControlPlaneJobHandle {
-    return new HonuaControlPlaneJobHandle(this.#controlPlane, "imports", `/imports/jobs/${encodeURIComponent(jobId)}`);
+    return new HonuaControlPlaneJobHandle(this.#controlPlane, "imports", `/import/jobs/${encodeURIComponent(jobId)}`);
   }
+}
+
+interface HonuaImportJobResponse {
+  readonly jobId?: string;
+  readonly statusUrl?: string;
+  readonly cancelUrl?: string;
+  readonly id?: string;
+  readonly status?: string;
+  readonly links?: HonuaControlPlaneLinks;
+  readonly [extra: string]: unknown;
+}
+
+function normalizeImportJob(value: HonuaImportJobResponse): HonuaControlPlaneJob {
+  const id = value.id ?? value.jobId;
+  if (!id) throw new Error("Import response did not contain a job identifier.");
+  return {
+    ...value,
+    id,
+    type: "import",
+    status: normalizeImportJobStatus(value.status),
+    links: {
+      ...(value.links ?? {}),
+      ...(value.statusUrl ? { self: value.statusUrl } : {}),
+      ...(value.cancelUrl ? { cancel: value.cancelUrl } : {}),
+    },
+  };
+}
+
+function normalizeImportJobStatus(status: string | undefined): HonuaControlPlaneJobStatus {
+  switch (status?.toLowerCase()) {
+    case "processing":
+    case "running":
+      return "running";
+    case "completed":
+    case "succeeded":
+    case "success":
+      return "succeeded";
+    case "cancelled":
+    case "canceled":
+      return "cancelled";
+    case "failed":
+      return "failed";
+    case "queued":
+      return "queued";
+    default:
+      return (status ?? "queued").toLowerCase() as HonuaControlPlaneJobStatus;
+  }
+}
+
+function stringOption(options: Record<string, unknown> | undefined, key: string): string | undefined {
+  return typeof options?.[key] === "string" ? (options[key] as string) : undefined;
+}
+
+function numberOption(options: Record<string, unknown> | undefined, key: string): number | undefined {
+  return typeof options?.[key] === "number" ? (options[key] as number) : undefined;
+}
+
+function booleanOption(options: Record<string, unknown> | undefined, key: string): boolean | undefined {
+  return typeof options?.[key] === "boolean" ? (options[key] as boolean) : undefined;
+}
+
+function fileNameFromUrl(sourceUrl: string | undefined): string | undefined {
+  if (!sourceUrl) return undefined;
+  try {
+    const name = new URL(sourceUrl).pathname.split("/").pop();
+    return name || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function slug(value: string): string {
+  const normalized = Array.from(value.trim(), (character) => {
+    const code = character.charCodeAt(0);
+    return (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95
+      ? character
+      : "_";
+  }).join("");
+  let start = 0;
+  while (start < normalized.length && normalized[start] === "_") start += 1;
+  let end = normalized.length;
+  while (end > start && normalized[end - 1] === "_") end -= 1;
+  return normalized.slice(start, end) || "imported_data";
 }
 
 export class HonuaApiTokensClient {
@@ -412,7 +532,13 @@ export class HonuaControlPlaneJobHandle {
   }
 
   public poll(options: HonuaControlPlaneRequestOptions = {}): Promise<HonuaControlPlaneResult<HonuaControlPlaneJob>> {
-    return this.#controlPlane.requestJson(this.#capability, "GET", this.#path, undefined, options);
+    return this.#controlPlane
+      .requestJson<HonuaControlPlaneJob>(this.#capability, "GET", this.#path, undefined, options)
+      .then((result) =>
+        this.#capability === "imports" && result.supported
+          ? { supported: true, value: normalizeImportJob(result.value) }
+          : result,
+      );
   }
 }
 
@@ -527,7 +653,15 @@ function normalizePage<T>(
   options: { readonly fallbackValidator?: HonuaControlPlaneListOptions["validator"] } = {},
 ): HonuaControlPlanePage<T> {
   const value = isRecord(body) ? body : {};
-  const items = (Array.isArray(value.items) ? value.items : Array.isArray(value.data) ? value.data : []) as T[];
+  const items = (
+    Array.isArray(value.items)
+      ? value.items
+      : Array.isArray(value.data)
+        ? value.data
+        : Array.isArray(value.jobs)
+          ? value.jobs
+          : []
+  ) as T[];
   const pagination = isRecord(value.pagination) ? value.pagination : value;
   const validator = honuaCacheValidatorFromHeaders(response.headers) ?? options.fallbackValidator;
   const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;
