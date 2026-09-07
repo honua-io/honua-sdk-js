@@ -1,6 +1,6 @@
 # Honua MCP Evals — Leaderboard
 
-_Generated 2026-08-31T14:56:29.879Z from 3 eval + 9 certification run artifact(s) in [`runs/`](./runs)._
+_Generated 2026-09-07T13:26:30.986Z from 3 eval + 11 certification run artifact(s) in [`runs/`](./runs)._
 
 Every row is reproducible: each source artifact records its target surface, negotiated protocol version, tool count, auth mode, and the git SHA of the suite that produced it. All model calls run through AWS Bedrock; the deterministic control makes no model calls and is the CI gate.
 
@@ -43,4 +43,6 @@ Legend: ✅ pass · ❌ fail · ❓ clarified · ⚠️ error · · not run
 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 10 | 3/3 | 1/1 | 8 | ❌ fail | 2026-08-24 | `53a1383255` |
 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 5 | ❌ fail | 2026-08-31 | `0c9bdb7ec0` |
 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-08-31 | `0c9bdb7ec0` |
+| live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 5 | ❌ fail | 2026-09-07 | `f71188599a` |
+| honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-09-07 | `f71188599a` |
 
