@@ -6,9 +6,9 @@
   "gate": "console",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "8aca529675ee0de38b30f7c67a8f33b5802c36aa",
-  "sourceDigest": "42507e7a1be1f1e04a1ce81240acc6150cd3ac30d7cee8b8aac1ce5830c2cde4",
-  "runRoot": "samples/evidence/imagery-cog-quickstart/runs/91fc82ff-82da-4523-b0fe-10eefff9f091",
+  "sourceRevision": "b1b76b81f3f5a91216f8f923706bc9bfdbefe8fa",
+  "sourceDigest": "45ab55cb51fbd63e89fd5153b66064fd0ade4494e2ceae330fd0d221bf60c594",
+  "runRoot": "samples/evidence/imagery-cog-quickstart/runs/fa06f1ba-d91c-4972-b4e3-0f06c34b9382",
   "command": {
     "argv": [
       "npm",
@@ -24,15 +24,15 @@
     "path": "scripts/sample-runner.mjs",
     "sha256": "d051efbc4743c0fbc0a51de15c4c92bcce537f63446b8118f628ba151c552e6f"
   },
-  "observedAt": "2026-09-05T21:34:05.183Z",
-  "expiresAt": "2026-09-12T21:34:05.183Z",
-  "durationMs": 66060.170884,
+  "observedAt": "2026-09-08T06:10:56.623Z",
+  "expiresAt": "2026-09-15T06:10:56.623Z",
+  "durationMs": 43310.766294,
   "artifacts": [
     {
       "kind": "playwright-gate-report",
-      "path": "samples/evidence/imagery-cog-quickstart/runs/91fc82ff-82da-4523-b0fe-10eefff9f091/artifacts/console.json",
-      "bytes": 13536,
-      "sha256": "ada814fb2ed95e874448117d0c50cfa9a888ed8d72dddb0404cbd44d50fea9f4"
+      "path": "samples/evidence/imagery-cog-quickstart/runs/fa06f1ba-d91c-4972-b4e3-0f06c34b9382/artifacts/console.json",
+      "bytes": 13533,
+      "sha256": "ec859085533dee16ceeaad472cdce46b2bdefbd6f30f9c5e5c37480fb6fa3ead"
     }
   ]
 }
