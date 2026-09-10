@@ -653,6 +653,7 @@
     "test:playwright:unified-ops": "playwright test test/playwright/unified-ops-workspace.spec.mjs",
     "test:playwright:service-explorer": "playwright test test/playwright/service-explorer.spec.mjs",
     "test:playwright:migration-workbench": "playwright test test/playwright/migration-workbench.spec.mjs",
+    "test:playwright:migration-installed-driver": "npm run build:split-packages --silent && playwright test test/playwright/migration-browser-installed-package.spec.mjs",
     "test:playwright:mcp-gis-assistant": "playwright test test/playwright/mcp-gis-assistant.spec.mjs",
     "test:playwright:ai-spatial-builder": "playwright test test/playwright/ai-spatial-app-builder.spec.mjs",
     "test:playwright:spatial-analytics": "playwright test test/playwright/spatial-analytics-workbench.spec.mjs",
