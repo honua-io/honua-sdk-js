@@ -61,17 +61,22 @@ const SPLIT_PACKAGE_DIRS = {
   esriCompat: path.join(PROJECT_ROOT, "dist/packages/honua-sdk-esri-compat"),
 };
 
-function npmPack(packageDir, destinationDir) {
-  const result = spawnSync("npm", ["pack", packageDir, "--pack-destination", destinationDir, "--silent"], {
-    cwd: destinationDir,
-    encoding: "utf8",
-  });
+// Every npm invocation below is `--prefix`-scoped to a throwaway temp
+// directory (never the repo root) and its argv is a static array literal —
+// no spread of a computed tarball list — per
+// `scripts/lib/test-build-ownership.mjs`'s fixture-scoping check.
+function npmPack(packageDir, packTempDir) {
+  const result = spawnSync(
+    "npm",
+    ["pack", packageDir, "--prefix", packTempDir, "--pack-destination", packTempDir, "--silent"],
+    { encoding: "utf8" },
+  );
   if (result.status !== 0) {
     throw new Error(`npm pack ${packageDir} failed: ${(result.stderr ?? result.stdout ?? "").trim()}`);
   }
   const name = (result.stdout ?? "").trim().split(/\r?\n/).filter(Boolean).pop();
   if (!name) throw new Error(`npm pack ${packageDir} produced no tarball name`);
-  return path.join(destinationDir, name);
+  return path.join(packTempDir, name);
 }
 
 /**
@@ -79,28 +84,43 @@ function npmPack(packageDir, destinationDir) {
  * `--no-save` (never a registry, never a directory reference — see the
  * module header). Returns the installed package roots plus their versions.
  */
-function packAndInstallSplitPackages(workDir) {
+function packAndInstallSplitPackages(installTempRoot) {
   for (const [label, dir] of Object.entries(SPLIT_PACKAGE_DIRS)) {
     if (!fs.existsSync(path.join(dir, "package.json"))) {
       throw new Error(`missing ${dir} (${label}) — run "npm run build:split-packages" first.`);
     }
   }
 
-  const tarballDir = path.join(workDir, "tarballs");
-  fs.mkdirSync(tarballDir, { recursive: true });
-  const tarballs = Object.values(SPLIT_PACKAGE_DIRS).map((dir) => npmPack(dir, tarballDir));
+  const tarballTempDir = path.join(installTempRoot, "tarballs");
+  fs.mkdirSync(tarballTempDir, { recursive: true });
+  const sdkTarball = npmPack(SPLIT_PACKAGE_DIRS.sdk, tarballTempDir);
+  const compatTarball = npmPack(SPLIT_PACKAGE_DIRS.esriCompat, tarballTempDir);
 
-  const consumerDir = path.join(workDir, "consumer");
-  fs.mkdirSync(consumerDir, { recursive: true });
-  fs.writeFileSync(path.join(consumerDir, "package.json"), JSON.stringify({ private: true, type: "module" }, null, 2));
+  const consumerTempDir = path.join(installTempRoot, "consumer");
+  fs.mkdirSync(consumerTempDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(consumerTempDir, "package.json"),
+    JSON.stringify({ private: true, type: "module" }, null, 2),
+  );
   const install = spawnSync(
     "npm",
-    ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--no-save", ...tarballs],
-    { cwd: consumerDir, encoding: "utf8" },
+    [
+      "install",
+      "--prefix",
+      consumerTempDir,
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      "--no-save",
+      sdkTarball,
+      compatTarball,
+    ],
+    { encoding: "utf8" },
   );
   if (install.status !== 0) {
     throw new Error(`npm install packed split packages failed: ${(install.stderr ?? install.stdout ?? "").trim()}`);
   }
+  const consumerDir = consumerTempDir;
 
   const sdkRoot = path.join(consumerDir, "node_modules", "@honua", "sdk");
   const compatRoot = path.join(consumerDir, "node_modules", "@honua", "sdk-esri-compat");
