@@ -132,8 +132,9 @@ export async function startHonuaFeatureServerFixture() {
       try {
         matches = state.features.filter((feature) => evaluateWhere(url.searchParams.get("where"), feature.attributes));
       } catch (error) {
+        console.error("fixture server: rejected WHERE clause", error);
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify(errorEnvelope(400, error instanceof Error ? error.message : String(error))));
+        res.end(JSON.stringify(errorEnvelope(400, "Invalid WHERE clause.")));
         return;
       }
 
