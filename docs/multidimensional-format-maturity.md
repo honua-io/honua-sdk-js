@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Zarr, NetCDF, and HDF5 maturity boundary"
-description: "This page is internal architecture and curriculum guidance. It is not a"
+description: "Which multidimensional formats are supported to what degree, governed by config/multidimensional-format-maturity.v1.json. Internal architecture guidance, not a support claim or a runnable workflow."
 ---
 # Zarr, NetCDF, and HDF5 maturity boundary
 

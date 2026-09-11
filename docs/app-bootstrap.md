@@ -1,7 +1,7 @@
 ---
 type: guide
 title: "Honua App Bootstrap (`@honua/sdk-js/app`)"
-description: "Status: experimental Beta helper for issue `#177`."
+description: "`createHonuaApp()` is a framework-neutral bootstrap layer over the existing"
 ---
 # Honua App Bootstrap (`@honua/sdk-js/app`)
 

@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Dynamic Query Tiles"
-description: "Status: client descriptor/runtime implemented in `src/contract/tiles.ts` and"
+description: "`src/runtime/query-tiles.ts` (issue `honua-sdk-js#152`); server contract"
 ---
 # Dynamic Query Tiles
 

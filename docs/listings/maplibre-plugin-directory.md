@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "MapLibre ecosystem listing kit"
-description: "Status: **filed by the maintainer; SDK CI never files anything.** This file is"
+description: "both the reusable entry kit and the submission ledger for issue"
 ---
 # MapLibre ecosystem listing kit
 

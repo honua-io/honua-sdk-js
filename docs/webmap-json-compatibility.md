@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "WebMap JSON Compatibility Contract"
-description: "This document defines the compatibility contract for `parseWebMap()` in `@honua/sdk-js/webmap`."
+description: "Version target: ArcGIS WebMap JSON `2.x` (current AGOL output)."
 ---
 # WebMap JSON Compatibility Contract
 

@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Demo Capability Matrix"
-description: "Status vocabulary:"
+description: "This matrix tracks demo coverage for issue #70. The implementation-level"
 ---
 # Demo Capability Matrix
 

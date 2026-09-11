@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Shared Client Contract"
-description: "Status: implemented in `src/contract/` (ticket `honua-sdk-js-23`)."
+description: "The shared contract is the protocol-neutral vocabulary every Honua data"
 ---
 # Shared Client Contract
 

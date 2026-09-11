@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Honua Cloud Demo Services"
-description: "Issue #128 promotes the fixture-backed sample portfolio toward seeded Honua"
+description: "Cloud demo services. This document is the JS-repo contract for the sample"
 ---
 # Honua Cloud Demo Services
 

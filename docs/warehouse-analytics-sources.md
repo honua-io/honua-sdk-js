@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Warehouse Analytics Sources"
-description: "Status: draft contract primitives for issue #184."
+description: "The SDK now exposes provider-neutral descriptors for CARTO-style analytics"
 ---
 # Warehouse Analytics Sources
 

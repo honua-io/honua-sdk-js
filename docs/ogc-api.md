@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "OGC API Client"
-description: "Status: implemented in `src/core/ogc-tiles.ts`, `src/core/ogc-maps.ts`,"
+description: "The developer reference for the first-party OGC API clients: Tiles, Maps, Processes, Records, STAC and Features, and which source file implements each."
 ---
 # OGC API Client
 

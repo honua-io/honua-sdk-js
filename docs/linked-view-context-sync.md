@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Linked-View Context Sync"
-description: "Status: optional SDK/UI integration layer for issue `#72`, building on the"
+description: "Coordinates maps, tables, charts and graphs so a selection or filter in one updates the others. An optional integration layer over ExplorationContext, interactions and realtime."
 ---
 # Linked-View Context Sync
 

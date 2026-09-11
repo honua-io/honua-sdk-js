@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "ExplorationContext"
-description: "Status: implemented in `src/exploration/` (ticket `honua-sdk-js-23`)."
+description: "Public entrypoint: `@honua/sdk-js/exploration` (also re-exported from the"
 ---
 # ExplorationContext
 

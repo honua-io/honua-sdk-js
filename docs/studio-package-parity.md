@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Studio package parity: MCP, QGIS, and Console (`honua-sdk-js#226`)"
-description: "Status: experimental, implemented for ticket `honua-sdk-js#226` (parity layer on"
+description: "How an AI-generated map, dashboard or report keeps parity with the hand-authored package contracts, so generated output is a first-class package rather than a special case."
 ---
 # Studio package parity: MCP, QGIS, and Console (`honua-sdk-js#226`)
 
