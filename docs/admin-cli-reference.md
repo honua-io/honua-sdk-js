@@ -1,7 +1,8 @@
 ---
 type: reference
-title: "`honua admin` command reference"
-description: "Generated from `honua-io/honua-server@f897700159e2791c9468c6ca85bb4e2a3a8d8433` (396 REST operations)."
+title: "honua admin command reference"
+description: "Every Admin REST operation reachable from the CLI, grouped by workflow, with the options and the safety rules that apply to credential-bearing requests."
+tags: [cli, admin, reference, generated]
 ---
 <!-- GENERATED FILE - DO NOT EDIT. -->
 <!-- Regenerate with: npm run admin-client:generate -->
