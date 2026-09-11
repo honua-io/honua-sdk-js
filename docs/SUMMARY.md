@@ -33,7 +33,7 @@
 
 ## Reference
 
-* [`honua admin` command reference](admin-cli-reference.md)
+* [honua admin command reference](admin-cli-reference.md)
 * [Safe agent plan boundary](agent-safety.md)
 * [Honua AI Map Kit](ai-map-kit.md)
 * [HonuaController Application API](app-controller.md)
