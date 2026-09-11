@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Application Components Reference Workbench"
+description: "The release reference is an installed-package, deterministic journey over the"
+---
 # Application Components Reference Workbench
 
 The release reference is an installed-package, deterministic journey over the

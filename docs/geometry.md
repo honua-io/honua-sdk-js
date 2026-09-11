@@ -1,3 +1,8 @@
+---
+type: reference
+title: "`@honua/geometry` — client-side geometry operations"
+description: "`@honua/geometry` (the `@honua/sdk-js/geometry` subpath, split-packaged as"
+---
 # `@honua/geometry` — client-side geometry operations
 
 `@honua/geometry` (the `@honua/sdk-js/geometry` subpath, split-packaged as

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Advanced: split-package build target"
+description: "For nearly all consumers the canonical install is the single `@honua/sdk-js`"
+---
 # Advanced: split-package build target
 
 For nearly all consumers the canonical install is the single `@honua/sdk-js`

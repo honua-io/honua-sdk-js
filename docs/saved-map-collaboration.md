@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Saved-Map Collaboration"
+description: "`@honua/sdk-js/collaboration` defines the SDK-side contract for collaborative saved-map editing. Portal code talks to `HonuaSavedMapCollaborationSession`; transport adapters hide whether the server uses WebSocket, WebTransport, SSE, or a…"
+---
 # Saved-Map Collaboration
 
 `@honua/sdk-js/collaboration` defines the SDK-side contract for collaborative saved-map editing. Portal code talks to `HonuaSavedMapCollaborationSession`; transport adapters hide whether the server uses WebSocket, WebTransport, SSE, or a fixture.

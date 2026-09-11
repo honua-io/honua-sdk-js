@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Experimental Cesium entity adapter"
+description: "`@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow"
+---
 # Experimental Cesium entity adapter
 
 `@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow

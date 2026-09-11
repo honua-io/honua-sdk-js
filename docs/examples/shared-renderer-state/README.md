@@ -1,3 +1,8 @@
+---
+type: index
+title: "Shared MapLibre and Cesium application state"
+description: "This deterministic browser fixture runs a real MapLibre `Map` and a real Cesium `Viewer` in one page against one renderer-neutral Honua state synchronizer. Nothing here hand-rolls a port: the two bindings are the SDK's shipped…"
+---
 # Shared MapLibre and Cesium application state
 
 This deterministic browser fixture runs a real MapLibre `Map` and a real Cesium `Viewer` in one page against one renderer-neutral Honua state synchronizer. Nothing here hand-rolls a port: the two bindings are the SDK's shipped `createMapLibreStateSyncPort()` and `createCesiumStateSyncPort()`, and CesiumJS is reached through the bare `cesium` specifier the page's import map resolves — the same lazy peer path the Cesium port uses internally.

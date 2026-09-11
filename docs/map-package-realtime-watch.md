@@ -1,3 +1,8 @@
+---
+type: reference
+title: "MapPackage Realtime Watch"
+description: "`watchMapPackage` can follow hosted `MapPackage` changes over a realtime"
+---
 # MapPackage Realtime Watch
 
 `watchMapPackage` can follow hosted `MapPackage` changes over a realtime

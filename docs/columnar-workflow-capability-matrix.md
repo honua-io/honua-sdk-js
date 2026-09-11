@@ -1,3 +1,8 @@
+---
+type: reference
+title: "GeoParquet and GeoArrow workflow capability matrix"
+description: "The `@honua/sdk-js/columnar-workflow` session joins existing GeoParquet and GeoArrow primitives into one bounded workflow. Status is split by execution surface so fixture-backed client behavior is not presented as live Honua server…"
+---
 # GeoParquet and GeoArrow workflow capability matrix
 
 The `@honua/sdk-js/columnar-workflow` session joins existing GeoParquet and GeoArrow primitives into one bounded workflow. Status is split by execution surface so fixture-backed client behavior is not presented as live Honua server evidence.

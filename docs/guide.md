@@ -1,3 +1,8 @@
+---
+type: reference
+title: "`@honua/sdk-js` reference guide"
+description: "This long-form guide collects the runnable demos, server compatibility contract,"
+---
 # `@honua/sdk-js` reference guide
 
 This long-form guide collects the runnable demos, server compatibility contract,

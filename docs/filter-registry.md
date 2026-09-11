@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Filter Registry"
+description: "Status: experimental SDK state primitive for issue `#179`."
+---
 # Filter Registry
 
 Status: experimental SDK state primitive for issue `#179`.

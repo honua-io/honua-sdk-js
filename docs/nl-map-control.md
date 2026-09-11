@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Natural-language map control (`@honua/sdk-js/nl-map-control`)"
+description: "`@honua/sdk-js/nl-map-control` turns a natural-language instruction into a"
+---
 # Natural-language map control (`@honua/sdk-js/nl-map-control`)
 
 > **Experimental.** Symbols on this subpath are `@experimental` and may change

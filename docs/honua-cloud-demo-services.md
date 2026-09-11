@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Honua Cloud Demo Services"
+description: "Issue #128 promotes the fixture-backed sample portfolio toward seeded Honua"
+---
 # Honua Cloud Demo Services
 
 Issue #128 promotes the fixture-backed sample portfolio toward seeded Honua

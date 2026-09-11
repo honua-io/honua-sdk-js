@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Discover cloud-native sources"
+description: "Use `@honua/sdk-js/cloud-native-discovery` when an application needs to answer"
+---
 # Discover cloud-native sources
 
 Use `@honua/sdk-js/cloud-native-discovery` when an application needs to answer

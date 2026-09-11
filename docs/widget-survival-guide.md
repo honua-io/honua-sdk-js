@@ -1,3 +1,8 @@
+---
+type: reference
+title: "ArcGIS widget-removal survival guide"
+description: "Every classic ArcGIS JS SDK widget (`esri/widgets/*` / `@arcgis/core/widgets/*`) is deprecated as of ArcGIS JS 5.0 and is removed at 6.0 — **as early as Q1 2027**. If your app constructs any of these widgets, that code stops compiling and…"
+---
 <!-- GENERATED FILE - DO NOT EDIT.
      Source of truth: src/migration/widget-dispositions.ts
      Regenerate with: npm run docs:widget-guide -->

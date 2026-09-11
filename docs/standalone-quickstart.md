@@ -1,3 +1,8 @@
+---
+type: guide
+title: "Server-optional quickstart"
+description: "Running against public GeoServices and OGC endpoints with no Honua server in the loop."
+---
 # Standalone quickstart moved to First Map
 
 The server-optional public-endpoint workflow is now the canonical

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Honua Web Components"
+description: "`@honua/sdk-js/web-components` registers framework-neutral custom elements for"
+---
 # Honua Web Components
 
 `@honua/sdk-js/web-components` registers framework-neutral custom elements for

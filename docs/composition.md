@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Mixed-Source Composition"
+description: "Status: implemented (`#22`). Composition rides on the existing"
+---
 # Mixed-Source Composition
 
 Status: implemented (`#22`). Composition rides on the existing

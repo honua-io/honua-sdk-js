@@ -1,3 +1,8 @@
+---
+type: guide
+title: "Honua App Bootstrap (`@honua/sdk-js/app`)"
+description: "Status: experimental Beta helper for issue `#177`."
+---
 # Honua App Bootstrap (`@honua/sdk-js/app`)
 
 Status: experimental Beta helper for issue `#177`.

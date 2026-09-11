@@ -1,3 +1,8 @@
+---
+type: guide
+title: "Scaffold a new app"
+description: "npm create honua-app: what the template generates, which versions it pins, and what to change first."
+---
 # create-honua-app
 
 `create-honua-app` scaffolds a Vite + TypeScript application that already connects to a geospatial endpoint and mounts

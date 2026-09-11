@@ -1,3 +1,8 @@
+---
+type: index
+title: "Network-disabled offline-region reference"
+description: "This small browser host demonstrates the public `@honua/sdk-js/offline`"
+---
 # Network-disabled offline-region reference
 
 This small browser host demonstrates the public `@honua/sdk-js/offline`

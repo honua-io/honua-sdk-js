@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Publish MVT to PMTiles"
+description: "`@honua/sdk-js/pmtiles` separates workflows with different trust and maturity boundaries:"
+---
 # Publish MVT to PMTiles
 
 `@honua/sdk-js/pmtiles` separates workflows with different trust and maturity boundaries:

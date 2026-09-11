@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Studio Package Contracts (`@honua/sdk-js/studio`)"
+description: "Status: experimental, implemented for ticket `honua-sdk-js#230`."
+---
 # Studio Package Contracts (`@honua/sdk-js/studio`)
 
 Status: experimental, implemented for ticket `honua-sdk-js#230`.

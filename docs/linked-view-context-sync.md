@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Linked-View Context Sync"
+description: "Status: optional SDK/UI integration layer for issue `#72`, building on the"
+---
 # Linked-View Context Sync
 
 Status: optional SDK/UI integration layer for issue `#72`, building on the

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Sanitized diagnostic bundles (`honua doctor`)"
+description: "`honua doctor` creates a local, bounded support artifact without uploading it. The command uses the canonical"
+---
 # Sanitized diagnostic bundles (`honua doctor`)
 
 `honua doctor` creates a local, bounded support artifact without uploading it. The command uses the canonical

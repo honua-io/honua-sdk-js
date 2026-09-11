@@ -1,3 +1,8 @@
+---
+type: reference
+title: "HonuaController Application API"
+description: "`HonuaController` is the renderer-neutral application API for common map app"
+---
 # HonuaController Application API
 
 `HonuaController` is the renderer-neutral application API for common map app

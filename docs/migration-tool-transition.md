@@ -1,3 +1,8 @@
+---
+type: guide
+title: "JavaScript migration tool transition"
+description: "The JavaScript migration engine and npm package now live in"
+---
 # JavaScript migration tool transition
 
 The JavaScript migration engine and npm package now live in

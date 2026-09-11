@@ -1,3 +1,8 @@
+---
+type: reference
+title: "terra-draw sketch binding (`@honua/sdk-js/runtime`)"
+description: "Status: experimental (issue `#492`, Esri Widget Cliff workstream)."
+---
 # terra-draw sketch binding (`@honua/sdk-js/runtime`)
 
 Status: experimental (issue `#492`, Esri Widget Cliff workstream).

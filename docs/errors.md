@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Error envelope"
+description: "The tagged error envelope the SDK exposes, which fields are public contract, and how to branch on failure without string matching."
+---
 # Error reference
 
 The Honua JS SDK exposes a tagged error envelope from `@honua/sdk-js`. Public
