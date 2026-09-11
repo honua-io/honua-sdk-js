@@ -506,6 +506,8 @@ tables, and backwards-compatibility policy live in:
 
 ## Documentation
 
+- **[Full documentation index](docs/SUMMARY.md)** — every published page, generated from the documentation bundle so it cannot drift.
+
 - [`docs/generated/learning-paths.md`](./docs/generated/learning-paths.md) — task-oriented progression backed by runnable examples and checked SDK imports
 - [`docs/quickstart.md`](./docs/quickstart.md) — guided quickstart walkthrough
 - [`docs/guide.md`](./docs/guide.md) — long-form reference (server compatibility, subpath
