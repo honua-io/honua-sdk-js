@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Sample browser bundle publication (#642 and #656, completing #401 REQ-003)"
-description: "The samples gallery at samples.honua.io"
+description: "(honua-io/honua-samples#3) renders `samples/dist/honua-site-samples.v3.json`"
 ---
 # Sample browser bundle publication (#642 and #656, completing #401 REQ-003)
 

@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "PMTiles"
-description: "PMTiles is a single-file archive format"
+description: "for an entire pyramid of map tiles (raster or vector). One `.pmtiles` file on"
 ---
 # PMTiles
 

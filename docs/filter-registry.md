@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Filter Registry"
-description: "Status: experimental SDK state primitive for issue `#179`."
+description: "Public entrypoint: `@honua/sdk-js/filter-registry`, also re-exported from"
 ---
 # Filter Registry
 

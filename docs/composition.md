@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Mixed-Source Composition"
-description: "Status: implemented (`#22`). Composition rides on the existing"
+description: "`@honua/sdk-js/contract` (`SourceDescriptor`, `Dataset`, `Capabilities`,"
 ---
 # Mixed-Source Composition
 

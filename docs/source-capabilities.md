@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Source capability profiles"
-description: "The v2 model keeps three statements separate:"
+description: "policy, runtime environment, optional peers, authorization, and an explicit"
 ---
 # Source capability profiles
 

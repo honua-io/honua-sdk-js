@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Generated App Runtime (`@honua/sdk-js/generated-app`)"
-description: "Status: implemented for ticket `honua-sdk-js#140`."
+description: "The generated-app subpath is the SDK browser projection for the first"
 ---
 # Generated App Runtime (`@honua/sdk-js/generated-app`)
 

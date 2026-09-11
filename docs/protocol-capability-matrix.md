@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Protocol × Capability Matrix"
-description: "Status: generated from `config/support-manifest.v1.json`; do not edit this section by hand."
+description: "Native (`✓`) claims mirror the default capability set per protocol; per-source"
 ---
 # Protocol × Capability Matrix
 

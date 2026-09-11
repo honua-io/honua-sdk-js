@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Console SDK contracts: ownership and parity (`honua-sdk-js#225`)"
-description: "Status: historical design reference. The experimental `@honua/sdk-js/console`"
+description: "subpath shown below is no longer exported by the stable SDK surface. Current"
 ---
 # Console SDK contracts: ownership and parity (`honua-sdk-js#225`)
 

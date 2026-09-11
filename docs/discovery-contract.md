@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Discovery truth and cache identity"
-description: "Issue #391 introduces a"
+description: "universal connect workflow in protocol-sized slices. The first production"
 ---
 # Discovery truth and cache identity
 
