@@ -110,6 +110,18 @@
     {
       "path": "docs/source-binding-alignment.md",
       "why": "Alignment tracking for source bindings during a refactor."
+    },
+    {
+      "path": "docs/documentation-versions.md",
+      "why": "Generated and drift-checked by `npm run docs:versions:write` / `docs:versions:check`. A version inventory refreshed from tags, not prose - hand-added frontmatter is drift by definition."
+    },
+    {
+      "path": "docs/documentation-snippets.md",
+      "why": "Generated and drift-checked by `npm run docs:snippets:check`. The snippet inventory is derived from the source it extracts, so it cannot carry hand-added frontmatter."
+    },
+    {
+      "path": "docs/listings/npm-search-verification.md",
+      "why": "Generated and drift-checked by `npm run docs:npm-search`. Evidence that the published packages are discoverable on npm, refreshed by running the search again - a measurement, not documentation."
     }
   ],
   "includedFiles": [],

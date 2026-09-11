@@ -1,8 +1,3 @@
----
-type: reference
-title: "Documentation versions and compatibility"
-description: "You are reading the documentation for `@honua/sdk-js` **{{SDK_DOCS_CURRENT_VERSION}}**."
----
 # Documentation versions and compatibility
 
 You are reading the documentation for `@honua/sdk-js` **{{SDK_DOCS_CURRENT_VERSION}}**.

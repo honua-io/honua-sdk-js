@@ -1,8 +1,3 @@
----
-type: reference
-title: "Documentation snippet validation"
-description: "Every JavaScript, JSX, TypeScript, and TSX fence in the root README,"
----
 # Documentation snippet validation
 
 Every JavaScript, JSX, TypeScript, and TSX fence in the root README,
