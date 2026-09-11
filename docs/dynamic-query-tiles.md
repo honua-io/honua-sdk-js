@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Dynamic Query Tiles"
+description: "Status: client descriptor/runtime implemented in `src/contract/tiles.ts` and"
+---
 # Dynamic Query Tiles
 
 Status: client descriptor/runtime implemented in `src/contract/tiles.ts` and

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Plugin manifest and certification contract"
+description: "The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK"
+---
 # Plugin manifest and certification contract
 
 The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK

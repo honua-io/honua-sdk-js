@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Read multidimensional coverages with OGC API Coverages and WCS"
+description: "Use `@honua/sdk-js/coverages` when the output is a raster value grid rather than vector features or a pre-rendered map. The client keeps protocol details explicit and uses the same `HonuaClient` request pipeline as the rest of the SDK."
+---
 # Read multidimensional coverages with OGC API Coverages and WCS
 
 > **Maturity: experimental.** The standalone fixture is release-gated in a real browser, but there is no reviewed anonymous live OGC API Coverages or WCS canary. [Issue #1115](https://github.com/honua-io/honua-sdk-js/issues/1115) remains open until scheduled bounded interoperability evidence exists.

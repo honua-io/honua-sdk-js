@@ -1,3 +1,8 @@
+---
+type: guide
+title: "When the quickstart does not render"
+description: "The failures readers hit on first run - CORS, an empty map, a fixture checksum mismatch on Windows - with the cause for each."
+---
 # First Map troubleshooting
 
 Use this guide for the canonical app in

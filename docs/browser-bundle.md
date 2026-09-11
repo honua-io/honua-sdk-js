@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Prebuilt browser bundle (CDN / build-less)"
+description: "`@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended"
+---
 # Prebuilt browser bundle (CDN / build-less)
 
 `@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended

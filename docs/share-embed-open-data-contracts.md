@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Share, Embed, and Open-Data Browser Contracts"
+description: "`@honua/sdk-js/share` is a browser-safe projection of the canonical honua-server"
+---
 # Share, Embed, and Open-Data Browser Contracts
 
 `@honua/sdk-js/share` is a browser-safe projection of the canonical honua-server

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Studio package parity: MCP, QGIS, and Console (`honua-sdk-js#226`)"
+description: "Status: experimental, implemented for ticket `honua-sdk-js#226` (parity layer on"
+---
 # Studio package parity: MCP, QGIS, and Console (`honua-sdk-js#226`)
 
 Status: experimental, implemented for ticket `honua-sdk-js#226` (parity layer on

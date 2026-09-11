@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Unified raster capability matrix"
+description: "The `@honua/sdk-js/raster` facade records client, server, and end-to-end status"
+---
 # Unified raster capability matrix
 
 The `@honua/sdk-js/raster` facade records client, server, and end-to-end status

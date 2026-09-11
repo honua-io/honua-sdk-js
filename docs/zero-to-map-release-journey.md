@@ -1,3 +1,8 @@
+---
+type: guide
+title: "Zero-to-map release journey"
+description: "The 2026.1 release journey answers one end-to-end question: can an operator use"
+---
 # Zero-to-map release journey
 
 The 2026.1 release journey answers one end-to-end question: can an operator use

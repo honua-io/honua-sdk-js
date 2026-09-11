@@ -1,3 +1,8 @@
+---
+type: reference
+title: "MapLibre ecosystem listing kit"
+description: "Status: **filed by the maintainer; SDK CI never files anything.** This file is"
+---
 # MapLibre ecosystem listing kit
 
 Status: **filed by the maintainer; SDK CI never files anything.** This file is

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Deterministic query planner"
+description: "`@honua/sdk-js/query-planner` is the first production slice of the execution"
+---
 # Deterministic query planner
 
 `@honua/sdk-js/query-planner` is the first production slice of the execution

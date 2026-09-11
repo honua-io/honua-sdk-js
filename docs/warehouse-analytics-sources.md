@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Warehouse Analytics Sources"
+description: "Status: draft contract primitives for issue #184."
+---
 # Warehouse Analytics Sources
 
 Status: draft contract primitives for issue #184.

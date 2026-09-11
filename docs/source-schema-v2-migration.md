@@ -1,3 +1,8 @@
+---
+type: guide
+title: "Source schema v2 migration"
+description: "Source schema v2 is an experimental, vendor-neutral discovery projection. It"
+---
 # Source schema v2 migration
 
 Source schema v2 is an experimental, vendor-neutral discovery projection. It

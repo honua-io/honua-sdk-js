@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Generated App Runtime (`@honua/sdk-js/generated-app`)"
+description: "Status: implemented for ticket `honua-sdk-js#140`."
+---
 # Generated App Runtime (`@honua/sdk-js/generated-app`)
 
 Status: implemented for ticket `honua-sdk-js#140`.

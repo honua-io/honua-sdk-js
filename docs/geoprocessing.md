@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Geoprocessing with OGC API Processes and Esri GPServer"
+description: "The SDK has two supported HTTP geoprocessing paths. OGC API Processes is the"
+---
 # Geoprocessing with OGC API Processes and Esri GPServer
 
 The SDK has two supported HTTP geoprocessing paths. OGC API Processes is the

@@ -1,3 +1,8 @@
+---
+type: index
+title: "Cesium Route Playback Spike"
+description: "This example is an exploratory 3D consumer workflow for `honua-sdk-js`. It does"
+---
 # Cesium Route Playback Spike
 
 This example is an exploratory 3D consumer workflow for `honua-sdk-js`. It does

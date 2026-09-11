@@ -1,3 +1,8 @@
+---
+type: guide
+title: "`honua-maplibre` migration target"
+description: "The `honua-maplibre` codemod target rewrites a curated subset of"
+---
 # `honua-maplibre` migration target
 
 The `honua-maplibre` codemod target rewrites a curated subset of

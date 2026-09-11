@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Operator Components"
+description: "The operator module exposes framework-neutral controllers and a workspace"
+---
 # Operator Components
 
 The operator module exposes framework-neutral controllers and a workspace

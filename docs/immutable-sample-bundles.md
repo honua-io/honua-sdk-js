@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Immutable content-addressed sample bundles"
+description: "The `Publish content-addressed sample bundles` workflow creates independently verifiable producer"
+---
 # Immutable content-addressed sample bundles
 
 The `Publish content-addressed sample bundles` workflow creates independently verifiable producer

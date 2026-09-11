@@ -1,3 +1,8 @@
+---
+type: reference
+title: "PMTiles"
+description: "PMTiles is a single-file archive format"
+---
 # PMTiles
 
 [PMTiles](https://github.com/protomaps/PMTiles) is a single-file archive format

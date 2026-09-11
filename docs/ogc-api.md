@@ -1,3 +1,8 @@
+---
+type: reference
+title: "OGC API Client"
+description: "Status: implemented in `src/core/ogc-tiles.ts`, `src/core/ogc-maps.ts`,"
+---
 # OGC API Client
 
 Status: implemented in `src/core/ogc-tiles.ts`, `src/core/ogc-maps.ts`,

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Source capability profiles"
+description: "The v2 model keeps three statements separate:"
+---
 # Source capability profiles
 
 > **Experimental.** `@honua/sdk-js/source-capabilities` is the canonical v2

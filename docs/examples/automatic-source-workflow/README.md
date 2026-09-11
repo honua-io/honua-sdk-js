@@ -1,3 +1,8 @@
+---
+type: index
+title: "Automatic Source → MapLibre workflow"
+description: "Deterministic, headless browser fixture for the golden automatic"
+---
 # Automatic Source → MapLibre workflow
 
 Deterministic, headless browser fixture for the golden automatic

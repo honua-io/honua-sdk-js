@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Renderer objects and temporal playback"
+description: "First-class renderer objects give standalone MapLibre users the smart-mapping"
+---
 # Renderer objects and temporal playback
 
 > Status: `@experimental` — the surfaces ship on the stable `/style` and

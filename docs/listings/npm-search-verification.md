@@ -1,3 +1,8 @@
+---
+type: reference
+title: "npm search discoverability, as measured"
+description: "Declaring keywords is not discoverability. This page records where the packages this"
+---
 <!-- GENERATED FILE — do not edit by hand. -->
 <!-- Regenerate with: npm run docs:npm-search -->
 <!-- Inputs: docs/data/npm-search-observations.v1.json. -->

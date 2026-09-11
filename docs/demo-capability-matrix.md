@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Demo Capability Matrix"
+description: "Status vocabulary:"
+---
 # Demo Capability Matrix
 
 Status vocabulary:

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "WebMap JSON Compatibility Contract"
+description: "This document defines the compatibility contract for `parseWebMap()` in `@honua/sdk-js/webmap`."
+---
 # WebMap JSON Compatibility Contract
 
 This document defines the compatibility contract for `parseWebMap()` in `@honua/sdk-js/webmap`.

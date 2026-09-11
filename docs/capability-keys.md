@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Canonical capability keys: crosswalk and coverage snapshot"
+description: "honua-server publishes the canonical, dot-namespaced capability key vocabulary"
+---
 # Canonical capability keys: crosswalk and coverage snapshot
 
 honua-server publishes the canonical, dot-namespaced capability key vocabulary

@@ -1,3 +1,8 @@
+---
+type: concept
+title: "Metadata Caching Strategy"
+description: "This strategy is the Honua platform default for metadata caching across SDKs,"
+---
 # Metadata Caching Strategy
 
 This strategy is the Honua platform default for metadata caching across SDKs,

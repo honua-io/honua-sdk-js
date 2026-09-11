@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Zarr, NetCDF, and HDF5 maturity boundary"
+description: "This page is internal architecture and curriculum guidance. It is not a"
+---
 # Zarr, NetCDF, and HDF5 maturity boundary
 
 This page is internal architecture and curriculum guidance. It is not a

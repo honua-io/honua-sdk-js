@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Protocol × Capability Matrix"
+description: "Status: generated from `config/support-manifest.v1.json`; do not edit this section by hand."
+---
 # Protocol × Capability Matrix
 
 <!-- support-manifest:protocol-matrix:start -->

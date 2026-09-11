@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Installed-package certification"
+description: "`npm run certify:installed-package` is the hard 2026.1 client/server gate. It creates a clean temporary consumer,"
+---
 # Installed-package certification
 
 `npm run certify:installed-package` is the hard 2026.1 client/server gate. It creates a clean temporary consumer,

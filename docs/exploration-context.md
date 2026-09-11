@@ -1,3 +1,8 @@
+---
+type: reference
+title: "ExplorationContext"
+description: "Status: implemented in `src/exploration/` (ticket `honua-sdk-js-23`)."
+---
 # ExplorationContext
 
 Status: implemented in `src/exploration/` (ticket `honua-sdk-js-23`).

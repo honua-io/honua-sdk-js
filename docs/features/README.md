@@ -1,3 +1,8 @@
+---
+type: index
+title: "Honua JS SDK Feature Map"
+description: "This repository owns the JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examples, and MCP server package."
+---
 # Honua JS SDK Feature Map
 
 This repository owns the JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examples, and MCP server package.

@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Resumable realtime delivery"
+description: "The `@honua/sdk-js/realtime` subpath includes an opt-in, transport-neutral"
+---
 # Resumable realtime delivery
 
 The `@honua/sdk-js/realtime` subpath includes an opt-in, transport-neutral

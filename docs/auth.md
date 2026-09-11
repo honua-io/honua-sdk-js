@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Authentication layer"
+description: "The small pluggable auth layer a HonuaClient accepts: static keys, token providers, and how credentials reach the wire."
+---
 # Authentication
 
 `@honua/sdk-js` ships a small, pluggable authentication layer. A `HonuaClient`

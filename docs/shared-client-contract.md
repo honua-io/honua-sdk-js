@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Shared Client Contract"
+description: "Status: implemented in `src/contract/` (ticket `honua-sdk-js-23`)."
+---
 # Shared Client Contract
 
 Status: implemented in `src/contract/` (ticket `honua-sdk-js-23`).

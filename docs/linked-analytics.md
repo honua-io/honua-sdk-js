@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Linked analytics and chart presentation (experimental)"
+description: "`@honua/sdk-js/analytics` is the versioned seam between accepted analytics"
+---
 # Linked analytics and chart presentation (experimental)
 
 `@honua/sdk-js/analytics` is the versioned seam between accepted analytics

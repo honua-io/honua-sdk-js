@@ -1,0 +1,125 @@
+{
+  "version": "honua.okf-bundle/v1",
+  "description": "Which honua-sdk-js markdown is part of the Open Knowledge Format bundle. Consumed by scripts/check-okf-bundle.py.",
+  "spec": {
+    "name": "Open Knowledge Format",
+    "version": "0.2",
+    "url": "https://github.com/GoogleCloudPlatform/open-knowledge-format",
+    "note": "One markdown file is one concept; the file path is the concept's identity; relative markdown links are the graph edges. `type` is the only required frontmatter field."
+  },
+  "program": "https://github.com/honua-io/agent-delivery-spec/tree/trunk/.specifica/okf-knowledge-graph-agent-effective-docs",
+  "workstream": "WS9 — the other nine repositories. honua-sdk-js is last and largest, deliberately: 137 pages, and the least settled structure, so typing it earlier would have been rework.",
+  "root": "docs",
+  "conceptTypes": {
+    "index": "A section entry point. Enumerates what the directory holds so a reader or agent can choose before opening.",
+    "concept": "What a thing is and how it fits. No procedure.",
+    "guide": "A task someone performs, start to finish.",
+    "reference": "Lookup material: surfaces, options, contracts, matrices."
+  },
+  "excludedDirs": [
+    {
+      "path": "docs/decisions",
+      "why": "Decision records and execution plans - scope splits, library selections, market strategy, 1.0 sequencing. They explain why the SDK is shaped as it is, for people changing it rather than people using it."
+    }
+  ],
+  "excludedFiles": [
+    {
+      "path": "docs/SUMMARY.md",
+      "why": "GitBook's table of contents, generated from this bundle by scripts/generate-summary.py. Navigation over the bundle, not a concept in it."
+    },
+    {
+      "path": "docs/generated/coding-agent-scorecard.md",
+      "why": "Generated scorecard, regenerated rather than maintained."
+    },
+    {
+      "path": "docs/generated/mcp-eval-scorecard.md",
+      "why": "Generated evaluation scorecard, regenerated rather than maintained."
+    },
+    {
+      "path": "docs/generated/sample-catalog.md",
+      "why": "Generated catalogue of the sample corpus; the samples themselves are the documentation."
+    },
+    {
+      "path": "docs/generated/learning-paths.md",
+      "why": "Generated from the sample corpus rather than authored."
+    },
+    {
+      "path": "docs/bundle-sizes.md",
+      "why": "Opens with its own regeneration command. A measurement artifact, refreshed by `npm run report:bundle-sizes`."
+    },
+    {
+      "path": "docs/backlog-dependency-reconciliation.md",
+      "why": "Backlog reconciliation between dependent tickets. Planning material."
+    },
+    {
+      "path": "docs/ci-evidence-graph.md",
+      "why": "How this repository's CI evidence fits together. Contributor apparatus."
+    },
+    {
+      "path": "docs/coding-agent-evals.md",
+      "why": "The agent evaluation harness for this repo's own CI."
+    },
+    {
+      "path": "docs/docs-samples-ownership.md",
+      "why": "Which team owns which sample. Internal ownership mapping."
+    },
+    {
+      "path": "docs/migration-punch-list.md",
+      "why": "A working punch list for an in-flight migration."
+    },
+    {
+      "path": "docs/integration-tests.md",
+      "why": "This repository's own integration suite and how to run it."
+    },
+    {
+      "path": "docs/live-conformance.md",
+      "why": "The live conformance lane's configuration and cadence. CI apparatus."
+    },
+    {
+      "path": "docs/realtime-conformance.md",
+      "why": "The realtime conformance lane. CI apparatus."
+    },
+    {
+      "path": "docs/scheduled-live-health.md",
+      "why": "Scheduled health-check lane configuration. CI apparatus."
+    },
+    {
+      "path": "docs/oss-arcgis-corpus.md",
+      "why": "The OSS ArcGIS corpus used to measure codemod coverage. Test-corpus material."
+    },
+    {
+      "path": "docs/oss-arcgis-corpus-readiness.md",
+      "why": "Readiness measurement over that corpus."
+    },
+    {
+      "path": "docs/oss-arcgis-corpus-post-codemod-build.md",
+      "why": "Build results after running the codemod over the corpus. Evidence."
+    },
+    {
+      "path": "docs/primitive-demo-integration-matrix.md",
+      "why": "Tracking matrix for demo integration work in progress."
+    },
+    {
+      "path": "docs/root-surface-migration.md",
+      "why": "An internal surface migration record."
+    },
+    {
+      "path": "docs/sdk-surface-alignment.md",
+      "why": "Alignment tracking between SDK surfaces during a refactor."
+    },
+    {
+      "path": "docs/source-binding-alignment.md",
+      "why": "Alignment tracking for source bindings during a refactor."
+    }
+  ],
+  "includedFiles": [],
+  "rejectedFields": {
+    "timestamp": "Not an OKF field in any version. The trust family spells the build stamp `generated`."
+  },
+  "dateFields": [
+    "generated",
+    "verified",
+    "stale_after"
+  ],
+  "boundaryNote": "The inverse of honua-console: here most of docs/ really is product documentation, so 102 of 137 pages are in. What is out divides into three kinds - decision records and execution plans, generated artifacts that are regenerated rather than maintained, and CI apparatus describing this repository's own lanes and corpora. Descriptions on the eight on-ramp pages are written; the long tail is extracted from each page's own opening sentence, which is real prose rather than a title echo but is a first pass to refine."
+}

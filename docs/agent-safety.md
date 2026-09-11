@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Safe agent plan boundary"
+description: "`@honua/sdk-js/agent-safety` is a deterministic trust boundary"
+---
 # Safe agent plan boundary
 
 `@honua/sdk-js/agent-safety` is a deterministic trust boundary

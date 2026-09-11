@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Provider-pluggable geocoding and routing"
+description: "`@honua/sdk-js/geocoding` and `@honua/sdk-js/routing` expose provider-neutral"
+---
 # Provider-pluggable geocoding and routing
 
 > Status: **experimental** (`@experimental` JSDoc). Shapes may change in any

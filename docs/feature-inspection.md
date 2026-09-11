@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Feature inspection"
+description: "`@honua/sdk-js/web-components` provides one inspection workflow for a map hit,"
+---
 # Feature inspection
 
 `@honua/sdk-js/web-components` provides one inspection workflow for a map hit,

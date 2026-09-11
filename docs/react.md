@@ -1,3 +1,8 @@
+---
+type: reference
+title: "React bindings"
+description: "@honua/react, the idiomatic React layer over the framework-neutral core: hooks, components, and what stays framework-neutral."
+---
 # React bindings (`@honua/react`)
 
 `@honua/react` is the idiomatic React layer over the framework-neutral
