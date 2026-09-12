@@ -347,19 +347,6 @@
         "npm run test:playwright:imagery-cog"
       ]
     },
-    "kepler-analytics": {
-      "track": "lab",
-      "validationProfile": "browser-lab",
-      "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The browser bundle reads a public Mapbox token; it is explicitly classified as public, but the current browser policy does not approve credential values."
-      },
-      "live": {
-        "mode": "public-live",
-        "status": "planned",
-        "commands": []
-      }
-    },
     "maplibre-quickstart": {
       "track": "golden",
       "journeyId": "first-map",
