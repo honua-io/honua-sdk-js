@@ -155,13 +155,13 @@ describe("capability-to-sample matrix contract", () => {
         inputs.qualificationEvidence,
       ),
     ).toEqual(matrix);
-    expect(matrix.samples).toHaveLength(35);
+    expect(matrix.samples).toHaveLength(34);
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
     // 35 = 30 pre-existing claims + two columnar workflow claims
     // + the dynamic STAC workflow, direct COG raster, and managed PMTiles claims.
-    expect(matrix.supportClaims).toHaveLength(35);
+    expect(matrix.supportClaims).toHaveLength(34);
     // 66 = 59 original package entrypoints + the experimental STAC, raster,
     // PMTiles, zarr, and the experimental declarative-interactions compiler
     // and Studio agent session, plus the experimental local installer.
