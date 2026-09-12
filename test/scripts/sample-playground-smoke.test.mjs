@@ -93,7 +93,7 @@ describe("playground smoke decisions", () => {
     }
   });
 
-  it("keeps the unreleased columnar importer in internal source-mode evidence", () => {
+  it("publishes the columnar importer after the public SDK pin advances", () => {
     const source = ["fixture.ts", "workflow.ts", "main.ts"]
       .map((file) => fs.readFileSync(path.join(ROOT, "examples/columnar-query-quickstart/src", file), "utf8"))
       .join("\n");
@@ -101,9 +101,8 @@ describe("playground smoke decisions", () => {
       path.join(ROOT, "examples/columnar-query-quickstart/index.html"),
       "utf8",
     );
-    const exclusion = artifact.excluded.find((entry) => entry.sampleId === "columnar-query-quickstart");
-    assert.equal(exclusion.category, "unreleased-sdk-surface");
-    assert.ok(!publishedIds.includes("columnar-query-quickstart"));
+    assert.ok(artifact.playgrounds.some((entry) => entry.sampleId === "columnar-query-quickstart"));
+    assert.ok(publishedIds.includes("columnar-query-quickstart"));
     assert.ok(source.includes("HONUA_ARROW_FIXTURE_BYTES = 4_160"));
     assert.ok(source.includes('importModule: () => import("apache-arrow")'));
     assert.ok(source.includes('fixtureTransport: "in-memory exact server artifact; no live endpoint claimed"'));
@@ -112,11 +111,10 @@ describe("playground smoke decisions", () => {
     assert.ok(renderedCore.includes("da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52"));
   });
 
-  it("keeps the unreleased Coverages importer in internal source-mode evidence", () => {
+  it("publishes the Coverages importer after the public SDK pin advances", () => {
     const source = fs.readFileSync(path.join(ROOT, "examples/coverages-wcs-basic/src/main.ts"), "utf8");
-    const exclusion = artifact.excluded.find((entry) => entry.sampleId === "coverages-wcs-basic");
-    assert.equal(exclusion.category, "unreleased-sdk-surface");
-    assert.ok(!publishedIds.includes("coverages-wcs-basic"));
+    assert.ok(artifact.playgrounds.some((entry) => entry.sampleId === "coverages-wcs-basic"));
+    assert.ok(publishedIds.includes("coverages-wcs-basic"));
     assert.ok(source.includes('from "@honua/sdk-js/coverages"'));
     assert.ok(source.includes("createCoverageClient(client)"));
     assert.ok(source.includes("createWcsClient(client"));

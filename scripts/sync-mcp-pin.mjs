@@ -40,9 +40,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  CREATE_APP_PIN_SITES,
   ZERO_TO_MAP_CONFIGS,
   parseSemver,
+  readCreateAppSdkPin,
   verifyClientPairCoInstallable,
+  verifyCreateAppPins,
   verifyZeroToMapConfigPins,
 } from "./verify-mcp-pin.mjs";
 
@@ -156,6 +159,30 @@ export function applyConfigPin(source, nextPin, relativePath) {
   return updated;
 }
 
+/** Repoint one create-honua-app JSON pin while preserving its formatting. */
+export function applyCreateAppPin(source, sdkName, nextVersion, relativePath) {
+  let config;
+  try {
+    config = JSON.parse(source);
+  } catch (error) {
+    throw new Error(`${relativePath} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const current = readCreateAppSdkPin(config, relativePath, sdkName);
+  if (current === nextVersion) return source;
+  const token = JSON.stringify(current);
+  const occurrences = source.split(token).length - 1;
+  invariant(
+    occurrences === 1,
+    `${relativePath} must name ${current} exactly once so the rewrite is unambiguous; found ${occurrences}`,
+  );
+  const updated = source.replace(token, JSON.stringify(nextVersion));
+  invariant(
+    readCreateAppSdkPin(JSON.parse(updated), relativePath, sdkName) === nextVersion,
+    `${relativePath} pin rewrite did not take effect`,
+  );
+  return updated;
+}
+
 /**
  * Compute every rewrite, running every invariant, before anything is written.
  *
@@ -167,7 +194,17 @@ export function applyConfigPin(source, nextPin, relativePath) {
  * the half-migrated tree this command exists to prevent. Planning first makes
  * the write phase pure I/O over contents that have all already been proven.
  */
-export function planPinWrites({ source, sourceStale, version, integrity, staleConfigs, expectedPin }) {
+export function planPinWrites({
+  source,
+  sourceStale,
+  version,
+  sdkVersion,
+  integrity,
+  staleConfigs,
+  expectedPin,
+  sdkName,
+  staleCreateAppPins = [],
+}) {
   const writes = [];
   if (sourceStale) {
     writes.push({
@@ -183,7 +220,19 @@ export function planPinWrites({ source, sourceStale, version, integrity, staleCo
       contents: applyConfigPin(config.source, expectedPin, config.relativePath),
     });
   }
+  for (const site of staleCreateAppPins) {
+    writes.push({
+      relativePath: site.relativePath,
+      file: site.file,
+      contents: applyCreateAppPin(site.source, sdkName, sdkVersion, site.relativePath),
+    });
+  }
   return writes;
+}
+
+/** Write a completely validated plan. Kept separate so tests exercise real I/O. */
+export function writePinPlan(writes, writeFile = fs.writeFileSync) {
+  for (const write of writes) writeFile(write.file, write.contents);
 }
 
 /** Every file that carries the pin, with what it names today. */
@@ -193,6 +242,15 @@ function readPinSites(expectedPin) {
     const source = fs.readFileSync(file, "utf8");
     const pin = readConfigPin(source, relativePath);
     return { relativePath, file, source, pin, stale: pin !== expectedPin };
+  });
+}
+
+function readCreateAppPinSites(sdkName, expectedVersion) {
+  return CREATE_APP_PIN_SITES.map((relativePath) => {
+    const file = path.join(PROJECT_ROOT, relativePath);
+    const source = fs.readFileSync(file, "utf8");
+    const version = readCreateAppSdkPin(JSON.parse(source), relativePath, sdkName);
+    return { relativePath, file, source, version, stale: version !== expectedVersion };
   });
 }
 
@@ -229,11 +287,13 @@ async function main(argv) {
   const expectedPin = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${version}`;
   const configs = readPinSites(expectedPin);
   const staleConfigs = configs.filter((config) => config.stale);
+  const createAppPins = readCreateAppPinSites(sdk.name, sdk.version);
+  const staleCreateAppPins = createAppPins.filter((site) => site.stale);
   const sourceStale = current.version !== version || current.integrity !== integrity;
 
-  if (!sourceStale && staleConfigs.length === 0) {
+  if (!sourceStale && staleConfigs.length === 0 && staleCreateAppPins.length === 0) {
     process.stdout.write(
-      `mcp pin already current: ${expectedPin} in src/local-install.ts and ${configs.length} shipped configs\n`,
+      `mcp pin already current: ${expectedPin} in src/local-install.ts, ${configs.length} shipped configs, and ${createAppPins.length} create-app sites\n`,
     );
     return;
   }
@@ -246,21 +306,40 @@ async function main(argv) {
     for (const config of staleConfigs) {
       process.stderr.write(`mcp pin is stale: ${config.relativePath} pins ${config.pin}, coordinated cut is ${expectedPin}.\n`);
     }
+    for (const site of staleCreateAppPins) {
+      process.stderr.write(
+        `mcp pin is stale: ${site.relativePath} pins ${sdk.name}@${site.version}, coordinated cut is ${sdk.name}@${sdk.version}.\n`,
+      );
+    }
     process.stderr.write("Run `npm run sync:mcp-pin`.\n");
     process.exitCode = 1;
     return;
   }
 
   // Validate every rewrite first; a refusal here leaves the tree untouched.
-  const writes = planPinWrites({ source, sourceStale, version, integrity, staleConfigs, expectedPin });
-  for (const write of writes) fs.writeFileSync(write.file, write.contents);
+  const writes = planPinWrites({
+    source,
+    sourceStale,
+    version,
+    sdkVersion: sdk.version,
+    integrity,
+    staleConfigs,
+    expectedPin,
+    sdkName: sdk.name,
+    staleCreateAppPins,
+  });
+  writePinPlan(writes);
   // Same discipline as the pre-write co-install check: prove the bytes just
   // written actually satisfy the gate rather than trusting the edit.
   verifyZeroToMapConfigPins({ expectedPin });
+  verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: sdk.version });
 
   const advanced = [
     sourceStale ? `src/local-install.ts ${current.version} -> ${version}` : null,
     staleConfigs.length > 0 ? `${staleConfigs.length} shipped config${staleConfigs.length === 1 ? "" : "s"}` : null,
+    staleCreateAppPins.length > 0
+      ? `${staleCreateAppPins.length} create-app pin${staleCreateAppPins.length === 1 ? "" : "s"}`
+      : null,
   ].filter(Boolean);
   process.stdout.write(
     `mcp pin advanced: ${advanced.join(", ")} (integrity recorded from ${REGISTRY})\n` +

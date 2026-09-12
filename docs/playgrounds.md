@@ -4,7 +4,7 @@
 
 Every `create-honua-app` starter runs in a browser playground straight from this repository — no clone, no
 install, no account. Each project is self-contained: it depends on the published
-`@honua/sdk-js@0.1.4-beta.0` package and serves its own committed fixture, so the green path
+`@honua/sdk-js@0.1.9-beta.0` package and serves its own committed fixture, so the green path
 never depends on a third-party endpoint. Point `VITE_HONUA_ENDPOINT` at an anonymous public service to run the same
 code against live data.
 
@@ -20,7 +20,7 @@ Vite + TypeScript app that connects to an endpoint, explains a bounded query, an
 - Project directory: `packages/create-honua-app/templates/vanilla-ts`
 - Entry file: `src/main.ts`
 - Data lane: committed fixture (`fixture`)
-- Pinned SDK: `@honua/sdk-js@0.1.4-beta.0`
+- Pinned SDK: `@honua/sdk-js@0.1.9-beta.0`
 - StackBlitz: <https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/vanilla-ts>
 - CodeSandbox: <https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/vanilla-ts>
 
@@ -31,7 +31,7 @@ Vite + React + TypeScript app that mounts one accepted plan through the SDK kern
 - Project directory: `packages/create-honua-app/templates/react-ts`
 - Entry file: `src/App.tsx`
 - Data lane: committed fixture (`fixture`)
-- Pinned SDK: `@honua/sdk-js@0.1.4-beta.0`
+- Pinned SDK: `@honua/sdk-js@0.1.9-beta.0`
 - StackBlitz: <https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/react-ts>
 - CodeSandbox: <https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/react-ts>
 
@@ -53,8 +53,11 @@ serves its own committed source or a generated fixture service is published, not
 | Sample | Playground | Source |
 | --- | --- | --- |
 | Safe Agent Workbench (`ai-spatial-app-builder`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder) | `examples/ai-spatial-app-builder` → `playgrounds/ai-spatial-app-builder` |
+| Map a bounded Arrow result (`columnar-query-quickstart`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart) | `examples/columnar-query-quickstart` → `playgrounds/columnar-query-quickstart` |
+| Bounded coverage quickstart (`coverages-wcs-basic`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic) | `examples/coverages-wcs-basic` → `playgrounds/coverages-wcs-basic` |
 | React quickstart (`react-quickstart`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/react-quickstart) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/react-quickstart) | `examples/react-quickstart` → `playgrounds/react-quickstart` |
 | Interactive sketch editing with terra-draw (`sketch-editing`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing) | `examples/sketch-editing` → `playgrounds/sketch-editing` |
+| STAC imagery browser (`stac-imagery-browser`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser) | `examples/stac-imagery-browser` → `playgrounds/stac-imagery-browser` |
 | Temporal playback (`temporal-playback`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback) | `examples/temporal-playback` → `playgrounds/temporal-playback` |
 
 ## How the links stay honest
