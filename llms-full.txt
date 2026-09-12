@@ -516,6 +516,8 @@ tables, and backwards-compatibility policy live in:
 
 ## Documentation
 
+- **[Full documentation index](docs/SUMMARY.md)** — every published page, generated from the documentation bundle so it cannot drift.
+
 - [`docs/generated/learning-paths.md`](./docs/generated/learning-paths.md) — task-oriented progression backed by runnable examples and checked SDK imports
 - [`docs/quickstart.md`](./docs/quickstart.md) — guided quickstart walkthrough
 - [`docs/guide.md`](./docs/guide.md) — long-form reference (server compatibility, subpath
@@ -1193,6 +1195,12 @@ The catalog also carries fixture/live evidence, evidence expiry, endpoint config
 
 # File: docs/quickstart.md
 
+---
+type: guide
+title: "Put a map on the page"
+description: "The First Map path: install, point at a public endpoint, and render. No Honua server and no account required."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Five-minute quickstart: endpoint to linked MapLibre map
 
 The canonical public-endpoint browser workflow is the tested app in
@@ -1551,6 +1559,11 @@ Labels: `fixture` · `experimental` · `degraded`
 
 # File: docs/standalone-quickstart.md
 
+---
+type: guide
+title: "Server-optional quickstart"
+description: "Running against public GeoServices and OGC endpoints with no Honua server in the loop."
+---
 # Standalone quickstart moved to First Map
 
 The server-optional public-endpoint workflow is now the canonical
@@ -1584,6 +1597,11 @@ the focused [React quickstart](../examples/react-quickstart/README.md); it is no
 
 # File: docs/quickstart-troubleshooting.md
 
+---
+type: guide
+title: "When the quickstart does not render"
+description: "The failures readers hit on first run - CORS, an empty map, a fixture checksum mismatch on Windows - with the cause for each."
+---
 # First Map troubleshooting
 
 Use this guide for the canonical app in
@@ -1682,6 +1700,12 @@ WebKit and repeats source and packed SDK modes. If only the packed lane fails, i
 
 # File: docs/comparison.md
 
+---
+type: concept
+title: "How this compares to the alternatives"
+description: "Where this SDK sits against MapLibre, the ArcGIS Maps SDK and arcgis-rest-js, and when each is the better choice."
+tags: [comparison, maplibre, arcgis, generated]
+---
 <!-- GENERATED FILE — do not edit by hand. -->
 <!-- Regenerate with: npm run docs:comparison -->
 <!-- Inputs: docs/bundle-sizes.md, docs/protocol-capability-matrix.md, docs/data/time-to-first-map.json, docs/data/competitor-evidence.v1.json, node_modules/maplibre-gl. -->
@@ -1744,7 +1768,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-09-12 at commit `810edd128`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-09-12 at commit `309ed6fec`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -2098,6 +2122,12 @@ Ecosystem directory entries and the external submission ledger live in
 
 # File: docs/shared-client-contract.md
 
+---
+type: reference
+title: "Shared Client Contract"
+description: "The shared contract is the protocol-neutral vocabulary every Honua data"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Shared Client Contract
 
 Status: implemented in `src/contract/` (ticket `honua-sdk-js-23`).
@@ -2620,6 +2650,12 @@ unchanged.
 
 # File: docs/query-planner.md
 
+---
+type: reference
+title: "Deterministic query planner"
+description: "`@honua/sdk-js/query-planner` is the first production slice of the execution"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Deterministic query planner
 
 `@honua/sdk-js/query-planner` is the first production slice of the execution
@@ -3692,6 +3728,12 @@ spatial-aggregation pushdown, and CLI plan consumer are now delivered.
 
 # File: docs/columnar-data-plane.md
 
+---
+type: reference
+title: "Columnar batch transfer contract"
+description: "`@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query"
+resource: "honua://capability/format.geoarrow"
+---
 # Columnar batch transfer contract
 
 `@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query
@@ -4738,6 +4780,12 @@ for why the latency target is the scenario's warning rather than its failure.
 
 # File: docs/realtime-resume.md
 
+---
+type: reference
+title: "Resumable realtime delivery"
+description: "The `@honua/sdk-js/realtime` subpath includes an opt-in, transport-neutral"
+resource: "honua://capability/streaming.feature-subscriptions"
+---
 # Resumable realtime delivery
 
 The `@honua/sdk-js/realtime` subpath includes an opt-in, transport-neutral
@@ -5030,6 +5078,12 @@ unverified continuation.
 
 # File: docs/plugin-manifest-certification.md
 
+---
+type: reference
+title: "Plugin manifest and certification contract"
+description: "The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK"
+resource: "honua://capability/plugin.sdk"
+---
 # Plugin manifest and certification contract
 
 The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK
@@ -5408,13 +5462,15 @@ avoiding a high-risk all-protocol rewrite.
 
 The certification logic is also exposed as a runnable kit so a third party can
 validate their own plugin outside this repository. Installing the SDK provides
-the `honua-plugin-certify` bin, which reads a manifest and a host snapshot as
+the `honua-plugin-certify` bin — name the package with `npx -p`, since no npm
+package is called `honua-plugin-certify` and a bare `npx honua-plugin-certify`
+therefore fails to resolve. It reads a manifest and a host snapshot as
 inert JSON text, certifies one against the other, prints the deterministic
 report to stdout (or `--out`), and resolves an exit code:
 
 ```sh
 # 0 = certified, 1 = rejected, 2 = usage/input error
-npx honua-plugin-certify --manifest ./manifest.json --host ./host.json --pretty
+npx -p @honua/sdk-js honua-plugin-certify --manifest ./manifest.json --host ./host.json --pretty
 ```
 
 The bin never resolves or executes the plugin entrypoint; it only reads the two
@@ -5434,7 +5490,7 @@ kit re-checks that receipt so an archived report is verifiably tamper-evident:
 
 ```sh
 # 0 = verified intact, 1 = tampered, 2 = usage/input error
-npx honua-plugin-certify --verify ./report.json
+npx -p @honua/sdk-js honua-plugin-certify --verify ./report.json
 ```
 
 The same check is available programmatically as
@@ -5635,6 +5691,12 @@ opt in to those roots explicitly.
 
 # File: docs/deckgl-adapter.md
 
+---
+type: reference
+title: "deck.gl binary adapter (experimental)"
+description: "`@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # deck.gl binary adapter (experimental)
 
 `@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source
@@ -5864,6 +5926,12 @@ boundaries, and the million-feature browser benchmark against
 
 # File: docs/kepler-workspace-bridge.md
 
+---
+type: reference
+title: "Kepler.gl analytics workspace bridge (experimental)"
+description: "`@honua/sdk-js/kepler` projects an accepted Honua result, a columnar artifact, or"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Kepler.gl analytics workspace bridge (experimental)
 
 `@honua/sdk-js/kepler` projects an accepted Honua result, a columnar artifact, or
@@ -6191,6 +6259,12 @@ fingerprint, and disposal of the bridge. The workflow uploads the evidence for
 
 # File: docs/cesium-entity-adapter.md
 
+---
+type: reference
+title: "Experimental Cesium entity adapter"
+description: "`@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Experimental Cesium entity adapter
 
 `@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow
@@ -6483,6 +6557,12 @@ attribution UI, and asset authorization/caching remain future work.
 
 # File: docs/offline-regions.md
 
+---
+type: reference
+title: "Downloadable offline regions (experimental)"
+description: "`@honua/sdk-js/offline` contains bounded, independently usable slices of issue"
+resource: "honua://capability/fieldops.offline-sync"
+---
 # Downloadable offline regions (experimental)
 
 `@honua/sdk-js/offline` contains bounded, independently usable slices of issue
@@ -7435,6 +7515,12 @@ bundles do not absorb it.
 
 # File: docs/agent-safety.md
 
+---
+type: reference
+title: "Safe agent plan boundary"
+description: "`@honua/sdk-js/agent-safety` is a deterministic trust boundary"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Safe agent plan boundary
 
 `@honua/sdk-js/agent-safety` is a deterministic trust boundary
@@ -7657,6 +7743,11 @@ integration can automate that declaration in a later slice.
 
 # File: docs/agent-safety-threat-model.md
 
+---
+type: concept
+title: "Agent-safety threat model"
+description: "`@honua/sdk-js/agent-safety` is the deterministic trust boundary between"
+---
 # Agent-safety threat model
 
 `@honua/sdk-js/agent-safety` is the deterministic trust boundary between
@@ -7851,6 +7942,12 @@ signed, budgeted, single-use, context-checked approval.
 
 # File: docs/nl-map-control.md
 
+---
+type: reference
+title: "Natural-language map control (`@honua/sdk-js/nl-map-control`)"
+description: "`@honua/sdk-js/nl-map-control` turns a natural-language instruction into a"
+resource: "honua://capability/ai.agent-operations"
+---
 # Natural-language map control (`@honua/sdk-js/nl-map-control`)
 
 > **Experimental.** Symbols on this subpath are `@experimental` and may change
@@ -8941,6 +9038,12 @@ Costs:
 
 # File: docs/geocoding-routing-providers.md
 
+---
+type: reference
+title: "Provider-pluggable geocoding and routing"
+description: "`@honua/sdk-js/geocoding` and `@honua/sdk-js/routing` expose provider-neutral"
+resource: "honua://capability/geocoding.forward"
+---
 # Provider-pluggable geocoding and routing
 
 > Status: **experimental** (`@experimental` JSDoc). Shapes may change in any
@@ -9171,6 +9274,12 @@ real `User-Agent` for Nominatim.
 
 # File: docs/protocol-capability-matrix.md
 
+---
+type: reference
+title: "Protocol × Capability Matrix"
+description: "Native (`✓`) claims mirror the default capability set per protocol; per-source"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Protocol × Capability Matrix
 
 <!-- support-manifest:protocol-matrix:start -->
@@ -10124,6 +10233,12 @@ When you add or remove a capability for any protocol:
 
 # File: docs/standalone-capability-matrix.md
 
+---
+type: reference
+title: "Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix"
+description: "This is the generated, evidence-linked line between capabilities that work"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix
 
 <!-- support-manifest:standalone-matrix:start -->
@@ -10522,6 +10637,12 @@ once the downstream tickets are open.
 
 # File: docs/errors.md
 
+---
+type: reference
+title: "Error envelope"
+description: "The tagged error envelope the SDK exposes, which fields are public contract, and how to branch on failure without string matching."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Error reference
 
 The Honua JS SDK exposes a tagged error envelope from `@honua/sdk-js`. Public
@@ -10997,6 +11118,12 @@ the `Result`.
 
 # File: docs/auth.md
 
+---
+type: reference
+title: "Authentication layer"
+description: "The small pluggable auth layer a HonuaClient accepts: static keys, token providers, and how credentials reach the wire."
+resource: "honua://capability/identity.oidc"
+---
 # Authentication
 
 `@honua/sdk-js` ships a small, pluggable authentication layer. A `HonuaClient`
@@ -11228,6 +11355,12 @@ under [`examples/oauth-signin/`](../examples/oauth-signin/).
 
 # File: docs/react.md
 
+---
+type: reference
+title: "React bindings"
+description: "@honua/react, the idiomatic React layer over the framework-neutral core: hooks, components, and what stays framework-neutral."
+resource: "https://www.npmjs.com/package/@honua/react"
+---
 # React bindings (`@honua/react`)
 
 `@honua/react` is the idiomatic React layer over the framework-neutral
@@ -11608,6 +11741,12 @@ npm run demo:react-quickstart:build    # production build
 
 # File: docs/geometry.md
 
+---
+type: reference
+title: "`@honua/geometry` — client-side geometry operations"
+description: "Curated, tree-shakeable geometry operations that run in the browser with no server round trip. Split-packaged as @honua/geometry and also reachable on the @honua/sdk-js/geometry subpath."
+resource: "https://www.npmjs.com/package/@honua/geometry"
+---
 # `@honua/geometry` — client-side geometry operations
 
 `@honua/geometry` (the `@honua/sdk-js/geometry` subpath, split-packaged as
@@ -11789,7 +11928,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-09-12 at commit `810edd128`._
+_Generated 2026-09-12 at commit `309ed6fec`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11848,6 +11987,12 @@ _Generated 2026-09-12 at commit `810edd128`._
 
 # File: docs/guide.md
 
+---
+type: reference
+title: "`@honua/sdk-js` reference guide"
+description: "This long-form guide collects the runnable demos, server compatibility contract,"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # `@honua/sdk-js` reference guide
 
 This long-form guide collects the runnable demos, server compatibility contract,
@@ -11899,23 +12044,23 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 > unsupported, the query returns no features, or none of the returned records survive
 > conversion into the rendered point, line, or polygon geometry buckets.
 
-- [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite that reuses the same compatibility-plus-query data-loading path.
-- [`examples/react-quickstart/`](./examples/react-quickstart/README.md): `@honua/react` quickstart — `HonuaProvider` + `useDataset`/`useQuery`/`useCapabilities` hooks and a `HonuaMap`/`HonuaLayer`/`HonuaPopup` composition over the same deterministic fixture lane, booted under React StrictMode with Playwright smoke coverage.
-- [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): legacy `2.5D` storytelling lab retained for its focused extrusion and route-replay interactions; public 2.5D publication routes converge on the Imagery and Terrain journey.
-- [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): canonical accessible MapLibre Imagery and Terrain candidate for bounded STAC/COG inspection, WMS/ImageServer comparison, Terrain-RGB 2.5D context, point elevation, and route profiles, with explicit fidelity and degradation receipts plus a scheduled pinned public evidence lane.
-- [`examples/spatial-analytics-workbench/`](./examples/spatial-analytics-workbench/README.md): Honua Cloud analytics workbench for AOI jobs, materialized outputs, linked map/table/chart state, and fixture-backed indexed aggregation cells plus category/histogram/range widgets.
-- [`examples/edit-workflow-demo/`](./examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
-- [`examples/geocoding-quickstart/`](./examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
-- [`examples/terrain-rgb-elevation/`](./examples/terrain-rgb-elevation/README.md): legacy focused Terrain-RGB proof retained while its public point/profile and 2.5D route converges on the credential-safe Imagery and Terrain journey.
-- [`examples/unified-ops-workspace/`](./examples/unified-ops-workspace/README.md): fixture-backed operational workspace shell that composes incident command and analysis review modules over one shared app workspace, linked-view context, realtime state, review drafts, and saved snapshot diagnostics.
-- [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
+- [`examples/maplibre-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite that reuses the same compatibility-plus-query data-loading path.
+- [`examples/react-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/react-quickstart/README.md): `@honua/react` quickstart — `HonuaProvider` + `useDataset`/`useQuery`/`useCapabilities` hooks and a `HonuaMap`/`HonuaLayer`/`HonuaPopup` composition over the same deterministic fixture lane, booted under React StrictMode with Playwright smoke coverage.
+- [`examples/storytelling-25d-map/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/storytelling-25d-map/README.md): legacy `2.5D` storytelling lab retained for its focused extrusion and route-replay interactions; public 2.5D publication routes converge on the Imagery and Terrain journey.
+- [`examples/imagery-cog-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/imagery-cog-quickstart/README.md): canonical accessible MapLibre Imagery and Terrain candidate for bounded STAC/COG inspection, WMS/ImageServer comparison, Terrain-RGB 2.5D context, point elevation, and route profiles, with explicit fidelity and degradation receipts plus a scheduled pinned public evidence lane.
+- [`examples/spatial-analytics-workbench/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/spatial-analytics-workbench/README.md): Honua Cloud analytics workbench for AOI jobs, materialized outputs, linked map/table/chart state, and fixture-backed indexed aggregation cells plus category/histogram/range widgets.
+- [`examples/edit-workflow-demo/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
+- [`examples/geocoding-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
+- [`examples/terrain-rgb-elevation/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/terrain-rgb-elevation/README.md): legacy focused Terrain-RGB proof retained while its public point/profile and 2.5D route converges on the credential-safe Imagery and Terrain journey.
+- [`examples/unified-ops-workspace/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/unified-ops-workspace/README.md): fixture-backed operational workspace shell that composes incident command and analysis review modules over one shared app workspace, linked-view context, realtime state, review drafts, and saved snapshot diagnostics.
+- [`docs/examples/cesium-route-playback/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
 contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics.
 The shared seeded Honua Cloud demo contract lives in
-[`docs/honua-cloud-demo-services.md`](./docs/honua-cloud-demo-services.md), with the machine-readable manifest at
-[`examples/cloud-demo-services.json`](./examples/cloud-demo-services.json) and env template at
-[`examples/cloud-demo.env.example`](./examples/cloud-demo.env.example). Use `npm run test:cloud-demo:config` to
+[`docs/honua-cloud-demo-services.md`](./honua-cloud-demo-services.md), with the machine-readable manifest at
+[`examples/cloud-demo-services.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/cloud-demo-services.json) and env template at
+[`examples/cloud-demo.env.example`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/cloud-demo.env.example). Use `npm run test:cloud-demo:config` to
 validate the config/docs shape without live credentials, and `npm run test:cloud-demo:staging` for the credential-gated
 cloud smoke scaffold.
 For the Cesium spike specifically, `window.__cesiumRoutePlaybackDone` is the completion signal on both success and
@@ -12023,7 +12168,7 @@ This package currently provides:
 - JS parity matrix artifacts (`getJsParityMatrix` / `summarizeJsParityMatrix` and `getJsRuntimeParityMatrix` / `summarizeJsRuntimeParity`) for constructor-level and runtime-capability `native/compat/assisted/unsupported` tracking across Honua compat and esri-leaflet targets,
 - service reconciliation helper (`runLayerReconciliation`) for feature-count, geometry-validity, and attribute-key checks,
 - unit tests for request mapping and URL parsing,
-- WebMap JSON conversion utilities (`parseWebMap`, renderer/symbol/popup converters) with a golden fixture suite and compatibility contract documented in [`docs/webmap-json-compatibility.md`](./docs/webmap-json-compatibility.md).
+- WebMap JSON conversion utilities (`parseWebMap`, renderer/symbol/popup converters) with a golden fixture suite and compatibility contract documented in [`docs/webmap-json-compatibility.md`](./webmap-json-compatibility.md).
 
 ## Entrypoints
 
@@ -12076,22 +12221,22 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   the first adapter to lazily fetch service `$metadata` and intersect the declared capability set with
   the server's `Capabilities.*` annotations. Capability negotiation is `strict` by default; `degraded`
   opts into client-side fallbacks that surface `Result.degraded[]`. Full contract reference:
-  [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
+  [`docs/shared-client-contract.md`](./shared-client-contract.md).
 - `@honua/sdk-js/exploration` — `createExplorationContext(...)` returning an observable, microtask-coalesced
   reducer over filters, spatial filter, extent, selection, sort, pagination, visible fields, grouping, and
   aggregation. View bindings (`map`, `grid`, `chart`, `form`, `custom`) propagate through five linked-view
   presets (`globalLinked`, `mapDriven`, `gridDriven`, `chartDriven`, `decoupled`). Full state model and
-  worked example: [`docs/exploration-context.md`](./docs/exploration-context.md).
-- Capability coverage per protocol: [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md).
+  worked example: [`docs/exploration-context.md`](./exploration-context.md).
+- Capability coverage per protocol: [`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md).
 - Cross-SDK semantic alignment for JS/Python/.NET language bindings:
-  [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md).
+  [`docs/sdk-surface-alignment.md`](./sdk-surface-alignment.md).
 - Round-trip mapping to the server `SourceBinding` / `MapPackage` document:
-  [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md).
+  [`docs/source-binding-alignment.md`](./source-binding-alignment.md).
 - Live SDK ↔ Honua Server protocol integration lane:
-  [`docs/integration-tests.md`](./docs/integration-tests.md).
+  [`docs/integration-tests.md`](./integration-tests.md).
 - Scheduled public-reference-service conformance lane (GeoServices, OGC API
   Features, WFS, WMS, WMTS, STAC, OData):
-  [`docs/live-conformance.md`](./docs/live-conformance.md).
+  [`docs/live-conformance.md`](./live-conformance.md).
 
 ```ts doc-test=compile
 import { createDataset } from "@honua/sdk-js/contract";
@@ -12187,9 +12332,9 @@ await runtime.updatePackage(nextPkg);  // diffs by stable ids, falls back to set
 runtime.dispose();
 ```
 
-- Full runtime reference: [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md).
+- Full runtime reference: [`docs/maplibre-runtime.md`](./maplibre-runtime.md).
 - Protocol routing (server `SourceBinding` → MapLibre / contract adapter):
-  [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md#runtime-consumer-honuasdk-jsruntime).
+  [`docs/source-binding-alignment.md`](./source-binding-alignment.md#runtime-consumer-honuasdk-jsruntime).
 - `MapPackage` format tag: `honua_map_package.v1`. The loader throws
   `HonuaMapPackageError { stage: "load" }` on any other value, and `updatePackage` rejects format
   mismatches without mutating the map.
@@ -12209,7 +12354,7 @@ For mixed-protocol compositions (parcels FeatureServer + WMS basemap + STAC over
 layer in one map), use `intersectCapabilities` from `@honua/sdk-js/contract` to compute the **weakest**
 capability set across participating sources before fanning a call out, and rely on `Result.degraded[]`
 entries (now carrying optional `sourceId`) for per-source attribution. Full composition guide:
-[`docs/composition.md`](./docs/composition.md).
+[`docs/composition.md`](./composition.md).
 
 ## Generated App Preview Runtime
 
@@ -12239,7 +12384,7 @@ if (preview.status === "ready") {
 The preview response is a discriminated union: ready responses include the resolved manifest, runtime handle,
 render model, and `errors: []`; error responses include serializable `HonuaGeneratedAppDiagnostic` objects and never
 throw from `previewGeneratedApp`. Call `loadGeneratedAppRuntime` directly when the host wants exceptions. Full
-contract reference: [`docs/generated-app-runtime.md`](./docs/generated-app-runtime.md). For map-backed manifests,
+contract reference: [`docs/generated-app-runtime.md`](./generated-app-runtime.md). For map-backed manifests,
 the host must provide a `MapPackage`, `mapFactory`, and `mapLoadOptions`; when `manifest.mapPackageId` is present,
 the supplied `MapPackage.mapPackageId` must match before map construction. Map filter bindings use the widget
 `layerId` with `manifest.bindings.layerId` as fallback, and failed initial feature loads dispose partially loaded map
@@ -12615,10 +12760,10 @@ viewport/overview windows and emits a native image source without importing a
 raster or renderer peer; it never guesses COG support from a filename suffix or
 falls back to a whole-file download.
 
-See [`docs/ogc-api.md`](./docs/ogc-api.md) for the full developer
-reference, [`docs/shared-client-contract.md`](./docs/shared-client-contract.md)
+See [`docs/ogc-api.md`](./ogc-api.md) for the full developer
+reference, [`docs/shared-client-contract.md`](./shared-client-contract.md)
 for the canonical `Source` / `IJobRun` model, and
-[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md)
+[`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md)
 for capability coverage.
 
 ## WFS 2.0
@@ -12671,7 +12816,7 @@ GeoJSON is preferred over GML through `OperationsMetadata`
 negotiation; if the server only advertises GML the canonical surface
 throws `HonuaCapabilityNotSupportedError` and points callers at
 `Source.protocol("wfs")` for the raw payload. Full reference:
-[`docs/wfs.md`](./docs/wfs.md).
+[`docs/wfs.md`](./wfs.md).
 
 ## OData v4
 
@@ -12782,9 +12927,9 @@ collapse into one `$batch` request with a shared `atomicityGroup`. OData
 is the **first adapter** to lazily fetch service `$metadata` and
 intersect declared capabilities against the server's `Capabilities.*`
 annotations — see
-[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md)
+[`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md)
 for the rule and
-[`docs/decisions/odata-library-selection.md`](./docs/decisions/odata-library-selection.md)
+[`docs/decisions/odata-library-selection.md`](./decisions/odata-library-selection.md)
 for the runtime-library posture.
 
 ## Mixed Esri + OGC in one app
@@ -13020,7 +13165,7 @@ server routes for those artifacts.
 ## Esri Sample Corpus (#206)
 
 The first paired sample-app/service corpus slice is fixture-only and documented
-in [`docs/esri-sample-corpus.md`](./docs/esri-sample-corpus.md). The curated
+in [`docs/esri-sample-corpus.md`](./esri-sample-corpus.md). The curated
 manifest at `test/fixtures/esri-sample-corpus/manifest.json` records Esri sample
 source URLs as metadata only, license/terms notes, skip reasons, and expected
 service/Portal references. PR CI uses Honua-owned snippets and must not contact
@@ -13153,6 +13298,12 @@ The codemod is intentionally conservative:
 
 # File: docs/ogc-api.md
 
+---
+type: reference
+title: "OGC API Client"
+description: "The developer reference for the first-party OGC API clients: Tiles, Maps, Processes, Records, STAC and Features, and which source file implements each."
+resource: "honua://capability/serve.ogc-api-features"
+---
 # OGC API Client
 
 Status: implemented in `src/core/ogc-tiles.ts`, `src/core/ogc-maps.ts`,
@@ -13624,6 +13775,12 @@ CITE-certified, Tiles CITE-certified, Maps, Processes async).
 
 # File: docs/wfs.md
 
+---
+type: reference
+title: "WFS 2.0 adapter"
+description: "`@honua/sdk-js` ships a first-party WFS 2.0 client that conforms to the"
+resource: "honua://capability/serve.wfs"
+---
 # WFS 2.0 adapter
 
 `@honua/sdk-js` ships a first-party WFS 2.0 client that conforms to the
@@ -14080,6 +14237,12 @@ surface to throw and require the escape hatch.
 
 # File: docs/geoparquet.md
 
+---
+type: reference
+title: "GeoParquet / DuckDB-WASM source"
+description: "`@honua/sdk-js/geoparquet` adds a `Source` that runs the **same"
+resource: "honua://capability/format.geoarrow"
+---
 # GeoParquet / DuckDB-WASM source
 
 `@honua/sdk-js/geoparquet` adds a `Source` that runs the **same
@@ -14439,6 +14602,12 @@ schema changes.
 
 # File: docs/webmap-json-compatibility.md
 
+---
+type: reference
+title: "WebMap JSON Compatibility Contract"
+description: "Version target: ArcGIS WebMap JSON `2.x` (current AGOL output)."
+resource: "honua://capability/serve.geoservices-root"
+---
 # WebMap JSON Compatibility Contract
 
 This document defines the compatibility contract for `parseWebMap()` in `@honua/sdk-js/webmap`.
@@ -14530,6 +14699,12 @@ Manual intervention is expected for:
 
 # File: docs/renderers.md
 
+---
+type: reference
+title: "Renderer objects and temporal playback"
+description: "First-class renderer objects give standalone MapLibre users the smart-mapping"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Renderer objects and temporal playback
 
 > Status: `@experimental` — the surfaces ship on the stable `/style` and
@@ -14699,6 +14874,12 @@ accepts a `formatWhere` override for servers that need date literals.
 
 # File: docs/maplibre-runtime.md
 
+---
+type: reference
+title: "MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)"
+description: "Public entrypoint: `@honua/sdk-js/runtime` (subpath export only; the"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)
 
 Status: implemented in `src/runtime/` (ticket `honua-sdk-js-21`).
@@ -15646,6 +15827,12 @@ runtime bundle.
 
 # File: docs/terra-draw-sketch.md
 
+---
+type: reference
+title: "terra-draw sketch binding (`@honua/sdk-js/runtime`)"
+description: "Public entrypoint: `@honua/sdk-js/runtime` — `bindTerraDrawSketch`,"
+resource: "honua://capability/editing.featureserver-edits"
+---
 # terra-draw sketch binding (`@honua/sdk-js/runtime`)
 
 Status: experimental (issue `#492`, Esri Widget Cliff workstream).
@@ -15780,6 +15967,12 @@ Playwright smoke via `npm run test:playwright:sketch-editing`).
 
 # File: docs/pmtiles.md
 
+---
+type: reference
+title: "PMTiles"
+description: "for an entire pyramid of map tiles (raster or vector). One `.pmtiles` file on"
+resource: "honua://capability/serve.vector-tiles"
+---
 # PMTiles
 
 [PMTiles](https://github.com/protomaps/PMTiles) is a single-file archive format
@@ -15983,6 +16176,12 @@ PMTiles works from a plain HTML page with no bundler — load `maplibre-gl` and
 
 # File: docs/browser-bundle.md
 
+---
+type: reference
+title: "Prebuilt browser bundle (CDN / build-less)"
+description: "`@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Prebuilt browser bundle (CDN / build-less)
 
 `@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended
@@ -16091,6 +16290,12 @@ build defines the `HonuaSDK` global and prints the output sizes.
 
 # File: docs/studio-package-contracts.md
 
+---
+type: reference
+title: "Studio Package Contracts (`@honua/sdk-js/studio`)"
+description: "`@honua/sdk-js/studio` is the single, browser-safe import path for the Studio"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Studio Package Contracts (`@honua/sdk-js/studio`)
 
 Status: experimental, implemented for ticket `honua-sdk-js#230`.
@@ -16319,6 +16524,12 @@ These are tracked for follow-up once the server shapes are finalized:
 
 # File: docs/migration-honua-maplibre.md
 
+---
+type: guide
+title: "`honua-maplibre` migration target"
+description: "The `honua-maplibre` codemod target rewrites a curated subset of"
+resource: "https://www.npmjs.com/package/@honua/honua-migrate"
+---
 # `honua-maplibre` migration target
 
 The `honua-maplibre` codemod target rewrites a curated subset of
@@ -17101,6 +17312,12 @@ land.
 
 # File: docs/esri-sample-corpus.md
 
+---
+type: reference
+title: "Esri Sample Migration Corpus"
+description: "This corpus is the first bounded slice for paired Esri sample app and referenced"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Esri Sample Migration Corpus
 
 This corpus is the first bounded slice for paired Esri sample app and referenced
