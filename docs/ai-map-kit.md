@@ -2,6 +2,7 @@
 type: reference
 title: "Honua AI Map Kit"
 description: "`@honua/sdk-js/agent-tools` exposes a provider-ready AI map kit for bounded"
+resource: "honua://capability/ai.agent-operations"
 ---
 # Honua AI Map Kit
 

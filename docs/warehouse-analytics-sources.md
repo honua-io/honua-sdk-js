@@ -2,6 +2,7 @@
 type: reference
 title: "Warehouse Analytics Sources"
 description: "The SDK now exposes provider-neutral descriptors for CARTO-style analytics"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Warehouse Analytics Sources
 

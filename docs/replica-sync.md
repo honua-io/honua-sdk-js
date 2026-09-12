@@ -2,6 +2,7 @@
 type: reference
 title: "Disconnected replica sync"
 description: "`@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync`"
+resource: "honua://capability/fieldops.offline-sync"
 ---
 # Disconnected replica sync
 

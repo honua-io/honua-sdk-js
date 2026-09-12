@@ -2,6 +2,7 @@
 type: reference
 title: "Runtime Parity Showcase"
 description: "The runtime parity showcase lives in `examples/runtime-parity-showcase`. It is an app-first SDK demo for issue #167, not a landing page."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Runtime Parity Showcase
 

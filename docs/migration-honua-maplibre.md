@@ -2,6 +2,7 @@
 type: guide
 title: "`honua-maplibre` migration target"
 description: "The `honua-maplibre` codemod target rewrites a curated subset of"
+resource: "https://www.npmjs.com/package/@honua/honua-migrate"
 ---
 # `honua-maplibre` migration target
 

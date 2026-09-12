@@ -2,6 +2,7 @@
 type: reference
 title: "WebMap JSON Compatibility Contract"
 description: "Version target: ArcGIS WebMap JSON `2.x` (current AGOL output)."
+resource: "honua://capability/serve.geoservices-root"
 ---
 # WebMap JSON Compatibility Contract
 

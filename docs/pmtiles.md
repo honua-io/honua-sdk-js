@@ -2,6 +2,7 @@
 type: reference
 title: "PMTiles"
 description: "for an entire pyramid of map tiles (raster or vector). One `.pmtiles` file on"
+resource: "honua://capability/serve.vector-tiles"
 ---
 # PMTiles
 

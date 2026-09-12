@@ -2,6 +2,7 @@
 type: reference
 title: "Mixed-Source Composition"
 description: "`@honua/sdk-js/contract` (`SourceDescriptor`, `Dataset`, `Capabilities`,"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Mixed-Source Composition
 

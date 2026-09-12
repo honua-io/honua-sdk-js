@@ -2,6 +2,7 @@
 type: reference
 title: "Honua Web Components"
 description: "`@honua/sdk-js/web-components` registers framework-neutral custom elements for"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Honua Web Components
 

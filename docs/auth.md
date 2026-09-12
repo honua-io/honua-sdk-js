@@ -2,6 +2,7 @@
 type: reference
 title: "Authentication layer"
 description: "The small pluggable auth layer a HonuaClient accepts: static keys, token providers, and how credentials reach the wire."
+resource: "honua://capability/identity.oidc"
 ---
 # Authentication
 

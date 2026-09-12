@@ -2,6 +2,7 @@
 type: reference
 title: "React bindings"
 description: "@honua/react, the idiomatic React layer over the framework-neutral core: hooks, components, and what stays framework-neutral."
+resource: "https://www.npmjs.com/package/@honua/react"
 ---
 # React bindings (`@honua/react`)
 

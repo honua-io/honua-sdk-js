@@ -2,6 +2,7 @@
 type: reference
 title: "Shared Client Contract"
 description: "The shared contract is the protocol-neutral vocabulary every Honua data"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Shared Client Contract
 

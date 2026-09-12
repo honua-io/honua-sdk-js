@@ -2,6 +2,7 @@
 type: reference
 title: "Deterministic query planner"
 description: "`@honua/sdk-js/query-planner` is the first production slice of the execution"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Deterministic query planner
 

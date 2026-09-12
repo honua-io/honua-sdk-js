@@ -2,6 +2,7 @@
 type: reference
 title: "Discovery truth and cache identity"
 description: "universal connect workflow in protocol-sized slices. The first production"
+resource: "honua://capability/discovery.capability-manifest"
 ---
 # Discovery truth and cache identity
 

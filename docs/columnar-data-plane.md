@@ -2,6 +2,7 @@
 type: reference
 title: "Columnar batch transfer contract"
 description: "`@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query"
+resource: "honua://capability/format.geoarrow"
 ---
 # Columnar batch transfer contract
 

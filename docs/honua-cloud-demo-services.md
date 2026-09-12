@@ -2,6 +2,7 @@
 type: reference
 title: "Honua Cloud Demo Services"
 description: "Cloud demo services. This document is the JS-repo contract for the sample"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Honua Cloud Demo Services
 

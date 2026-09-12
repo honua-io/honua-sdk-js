@@ -2,6 +2,7 @@
 type: reference
 title: "Advanced: split-package build target"
 description: "For nearly all consumers the canonical install is the single `@honua/sdk-js`"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Advanced: split-package build target
 

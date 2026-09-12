@@ -2,6 +2,7 @@
 type: reference
 title: "Data-to-map bridge (`mountSource`)"
 description: "`mountSource(map, source, options)` from `@honua/sdk-js/map` turns any"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Data-to-map bridge (`mountSource`)
 

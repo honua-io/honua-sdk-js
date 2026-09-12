@@ -2,6 +2,7 @@
 type: reference
 title: "Linked analytics and chart presentation (experimental)"
 description: "`@honua/sdk-js/analytics` is the versioned seam between accepted analytics"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Linked analytics and chart presentation (experimental)
 

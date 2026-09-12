@@ -2,6 +2,7 @@
 type: reference
 title: "Generated App Runtime (`@honua/sdk-js/generated-app`)"
 description: "The generated-app subpath is the SDK browser projection for the first"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Generated App Runtime (`@honua/sdk-js/generated-app`)
 
