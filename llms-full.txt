@@ -754,7 +754,7 @@ evidence are listed in the generated
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 
 The reviewed package-root ceilings are 46 runtime
-exports and 172 declaration exports. The exact inventory
+exports and 178 declaration exports. The exact inventory
 and generated migration table come from
 [`config/root-surface.json`](./config/root-surface.json). This guide tracks the
 current development branch; its package baseline can match the latest release
@@ -1744,7 +1744,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-09-12 at commit `93ea953ee`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-09-12 at commit `810edd128`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11789,7 +11789,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-09-12 at commit `93ea953ee`._
+_Generated 2026-09-12 at commit `810edd128`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
