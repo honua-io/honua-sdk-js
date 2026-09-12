@@ -83,7 +83,6 @@
         "ai-spatial-app-builder",
         "app-bootstrap-basic",
         "cesium-route-playback",
-        "kepler-analytics",
         "mcp-gis-assistant",
         "nl-map-control",
         "overture-geoparquet",
@@ -222,7 +221,7 @@
         "targetMode": "authenticated",
         "status": "skipped",
         "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-10-08T18:00:00.000Z"
+        "expiresAt": "2026-12-11T06:57:14.942Z"
       }
     },
     {
@@ -644,46 +643,6 @@
         "status": "executed",
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
         "expiresAt": "2026-10-06T21:30:43.198Z"
-      }
-    },
-    {
-      "id": "kepler-analytics",
-      "sourcePath": "examples/kepler-analytics",
-      "track": "lab",
-      "supportTier": "experimental",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:kepler:build",
-            "npm run demo:kepler:smoke"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:kepler:smoke"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "public-live",
-        "status": "planned"
       }
     },
     {
@@ -1191,7 +1150,7 @@
         "targetMode": "demo-live",
         "status": "skipped",
         "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-10-10T02:18:02.730Z"
+        "expiresAt": "2026-12-11T06:57:15.239Z"
       }
     },
     {
