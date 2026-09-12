@@ -5,6 +5,14 @@ Public entrypoint: `@honua/sdk-js/runtime` (subpath export only; the
 root barrel does not re-export the runtime so hosts that do not need a
 map can avoid pulling in the MapLibre-aware code).
 
+> **The `maplibre-gl.Map` you pass in must be 6.4.1 or newer.**
+> [GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579) is a critical
+> XSS sanitizer bypass in `DOM.sanitize()` covering every release at or below 6.4.0, with no
+> backport to 5.x. The runtime binds to the map you give it and does not sanitize on its
+> behalf, so a vulnerable map is a vulnerable application. The optional peer range still
+> admits 5.x because this SDK supports both majors; that is a compatibility statement, not a
+> safety one.
+
 The runtime binds a server-produced `MapPackage` (from
 `honua-io/honua-server#731`) to a caller-provided `maplibre-gl.Map`. It
 composes the style, projects `sourceBindings[]` through the shared
