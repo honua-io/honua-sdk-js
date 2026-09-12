@@ -381,13 +381,15 @@ avoiding a high-risk all-protocol rewrite.
 
 The certification logic is also exposed as a runnable kit so a third party can
 validate their own plugin outside this repository. Installing the SDK provides
-the `honua-plugin-certify` bin, which reads a manifest and a host snapshot as
+the `honua-plugin-certify` bin — name the package with `npx -p`, since no npm
+package is called `honua-plugin-certify` and a bare `npx honua-plugin-certify`
+therefore fails to resolve. It reads a manifest and a host snapshot as
 inert JSON text, certifies one against the other, prints the deterministic
 report to stdout (or `--out`), and resolves an exit code:
 
 ```sh
 # 0 = certified, 1 = rejected, 2 = usage/input error
-npx honua-plugin-certify --manifest ./manifest.json --host ./host.json --pretty
+npx -p @honua/sdk-js honua-plugin-certify --manifest ./manifest.json --host ./host.json --pretty
 ```
 
 The bin never resolves or executes the plugin entrypoint; it only reads the two
@@ -407,7 +409,7 @@ kit re-checks that receipt so an archived report is verifiably tamper-evident:
 
 ```sh
 # 0 = verified intact, 1 = tampered, 2 = usage/input error
-npx honua-plugin-certify --verify ./report.json
+npx -p @honua/sdk-js honua-plugin-certify --verify ./report.json
 ```
 
 The same check is available programmatically as

@@ -1,0 +1,28 @@
+name: Documented packages resolve
+
+# A quickstart is only true if its commands run, and install lines fail quietly:
+# `npx honua-plugin-certify` looks right and 404s for anyone who has not already
+# installed the SDK, because npx resolves its argument as a package name. This
+# walks the OKF bundle, pulls every install command out of the fenced code, and
+# asks npm, PyPI and nuget.org whether each one exists.
+#
+# Scheduled rather than per-pull-request on purpose: it depends on three
+# registries being up, and a registry outage is not a reason to block a merge.
+# Run it by hand from the Actions tab when a page changes an install command.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve every documented package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Ask the registries
+        run: python3 scripts/check-documented-packages.py
