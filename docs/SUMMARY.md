@@ -3,17 +3,20 @@
 ## Start here
 
 * [Honua JS SDK Feature Map](features/README.md)
-* [Automatic Source → MapLibre workflow](examples/automatic-source-workflow/README.md)
-* [Cesium Route Playback Spike](examples/cesium-route-playback/README.md)
-* [Network-disabled offline-region reference](examples/offline-region-reference/README.md)
-* [Publish a Honua layer as PMTiles](examples/pmtiles-managed-lifecycle/README.md)
-* [Shared MapLibre and Cesium application state](examples/shared-renderer-state/README.md)
 
 ## Quickstart
 
 * [Put a map on the page](quickstart.md)
 * [When the quickstart does not render](quickstart-troubleshooting.md)
 * [Server-optional quickstart](standalone-quickstart.md)
+
+## Examples
+
+* [Automatic Source → MapLibre workflow](examples/automatic-source-workflow/README.md)
+* [Cesium Route Playback Spike](examples/cesium-route-playback/README.md)
+* [Network-disabled offline-region reference](examples/offline-region-reference/README.md)
+* [Publish a Honua layer as PMTiles](examples/pmtiles-managed-lifecycle/README.md)
+* [Shared MapLibre and Cesium application state](examples/shared-renderer-state/README.md)
 
 ## Guides
 
