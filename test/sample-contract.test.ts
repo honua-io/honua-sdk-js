@@ -1646,14 +1646,23 @@ describe("sample publication contract", () => {
       "node-backend-quickstart: configuration declaration drift",
     );
 
-    const hiddenBrowserCredential = structuredClone(catalog);
-    const hiddenKepler = hiddenBrowserCredential.samples.find(
-      (sample: { id: string }) => sample.id === "kepler-analytics",
+    // This proved "browser-public credentials require legacy-unsafe status and
+    // bounded rework" by flipping kepler-analytics to approved. #1674 retired
+    // that sample, and no survivor can reach the same invariant: every sample
+    // left with a browser-public credential also passes a whole import.meta.env
+    // object, which trips an earlier guard as soon as the status is approved.
+    //
+    // The bounded-rework half is still reachable, so it is asserted here rather
+    // than dropped with the rest. The status half remains enforced in
+    // scripts/sample-contract.mjs but is currently unexercised by any shipped
+    // sample; restoring it needs a fixture, not a catalog mutation (#1686).
+    const unboundedRework = structuredClone(catalog);
+    const legacyUnsafeSample = unboundedRework.samples.find(
+      (sample: { id: string }) => sample.id === "terrain-rgb-elevation",
     );
-    hiddenKepler.data.configurationStatus = "approved";
-    delete hiddenKepler.data.configurationGap;
-    await expect(validateCatalog(hiddenBrowserCredential, packageJson, validationTime)).rejects.toThrow(
-      "kepler-analytics: browser-public credentials require legacy-unsafe status and bounded rework",
+    legacyUnsafeSample.lifecycle.state = "active";
+    await expect(validateCatalog(unboundedRework, packageJson, validationTime)).rejects.toThrow(
+      "terrain-rgb-elevation: legacy-unsafe configuration requires bounded rework",
     );
 
     const maplibre = catalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart");
