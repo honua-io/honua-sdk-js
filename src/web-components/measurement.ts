@@ -36,8 +36,12 @@
 
 import { area as geodesicArea, length as geodesicLength } from "../geometry/index.js";
 import { renderCspSafeShadowHtml } from "./csp-styles.js";
+import { formatAreaValue, formatDistanceValue, planarArea, planarLength } from "./measurement-units.js";
 import type {
+  HonuaMeasureAreaUnit,
   HonuaMeasureChangeDetail,
+  HonuaMeasureDistanceUnit,
+  HonuaMeasureFidelity,
   HonuaMeasureMode,
   HonuaMeasureResult,
   HonuaMeasurementMap,
@@ -69,6 +73,10 @@ export class HonuaMeasurementElement extends HTMLElementBase {
   #finished = false;
   #result: HonuaMeasureResult | undefined;
   #messages: HonuaMeasurementMessages = {};
+  #unit: HonuaMeasureDistanceUnit = "auto";
+  #areaUnit: HonuaMeasureAreaUnit = "auto";
+  #precision: number | undefined;
+  #fidelity: HonuaMeasureFidelity = "geodesic";
 
   public get messages(): HonuaMeasurementMessages {
     return this.#messages;
@@ -76,6 +84,69 @@ export class HonuaMeasurementElement extends HTMLElementBase {
   public set messages(messages: HonuaMeasurementMessages | undefined) {
     this.#messages = messages ?? {};
     this.render();
+  }
+
+  /**
+   * Displayed distance unit. `"auto"` (default) keeps the metric auto-scaling
+   * behavior. Changing this reformats the existing full-precision result — it
+   * never recomputes from a rounded display value.
+   */
+  public get unit(): HonuaMeasureDistanceUnit {
+    return this.#unit;
+  }
+  public set unit(unit: HonuaMeasureDistanceUnit | undefined) {
+    this.#unit = unit ?? "auto";
+    this.render();
+  }
+
+  /**
+   * Displayed area unit. `"auto"` (default) keeps the metric auto-scaling
+   * behavior. Changing this reformats the existing full-precision result — it
+   * never recomputes from a rounded display value.
+   */
+  public get areaUnit(): HonuaMeasureAreaUnit {
+    return this.#areaUnit;
+  }
+  public set areaUnit(unit: HonuaMeasureAreaUnit | undefined) {
+    this.#areaUnit = unit ?? "auto";
+    this.render();
+  }
+
+  /** Decimal digits for the displayed value. `undefined` (default) uses a per-unit default. */
+  public get precision(): number | undefined {
+    return this.#precision;
+  }
+  public set precision(precision: number | undefined) {
+    this.#precision = precision === undefined || Number.isNaN(precision) ? undefined : Math.max(0, precision | 0);
+    this.render();
+  }
+
+  /**
+   * Which math computes `result.distance` / `result.area`: `"geodesic"`
+   * (default, great-circle over WGS84) or `"planar"` (Euclidean, over a local
+   * flat-earth approximation centered on the sketch's mean latitude — see
+   * `./measurement-units.js`). Changing this recomputes from the drawn
+   * vertices, since it changes which math produces the canonical value.
+   */
+  public get fidelity(): HonuaMeasureFidelity {
+    return this.#fidelity;
+  }
+  public set fidelity(fidelity: HonuaMeasureFidelity | undefined) {
+    const next = fidelity ?? "geodesic";
+    if (this.#fidelity === next) return;
+    this.#fidelity = next;
+    this.#recompute();
+    this.#dispatchChange();
+    this.render();
+  }
+
+  /**
+   * CRS vertices are recorded in. Always WGS84 (`"EPSG:4326"`): vertices come
+   * from map click events, which report geographic lng/lat regardless of the
+   * map's own projection. Exposed so a consumer never has to assume it.
+   */
+  public get crs(): "EPSG:4326" {
+    return "EPSG:4326";
   }
   #connected = false;
   #disposeMapReadyListener: (() => void) | undefined;
@@ -246,20 +317,29 @@ export class HonuaMeasurementElement extends HTMLElementBase {
       this.#result = undefined;
       return;
     }
-    const result: HonuaMeasureResult = { mode, coordinates };
+    const fidelity = this.#fidelity;
+    const result: HonuaMeasureResult = { mode, coordinates, fidelity };
     try {
       if (mode === "distance" && coordinates.length >= 2) {
         this.#result = {
           ...result,
-          distance: geodesicLength({ type: "LineString", coordinates: coordinates.map(toPosition) }, "meters"),
+          distance:
+            fidelity === "planar"
+              ? planarLength(coordinates)
+              : geodesicLength({ type: "LineString", coordinates: coordinates.map(toPosition) }, "meters"),
         };
         return;
       }
       if (mode === "area" && coordinates.length >= 3) {
-        const ring = [...coordinates.map(toPosition), toPosition(coordinates[0] as LngLat)];
         this.#result = {
           ...result,
-          area: geodesicArea({ type: "Polygon", coordinates: [ring] }),
+          area:
+            fidelity === "planar"
+              ? planarArea(coordinates)
+              : geodesicArea({
+                  type: "Polygon",
+                  coordinates: [[...coordinates.map(toPosition), toPosition(coordinates[0] as LngLat)]],
+                }),
         };
         return;
       }
@@ -454,7 +534,7 @@ export class HonuaMeasurementElement extends HTMLElementBase {
           `${this.#vertices.length} vertex — add another to measure.`
         );
       }
-      const value = formatDistance(result.distance);
+      const value = formatDistanceValue(result.distance, this.#unit, this.#precision);
       return (
         this.#messages.distance?.(value, this.#finished) ?? `Distance: ${value}${this.#finished ? " (finished)" : ""}`
       );
@@ -465,7 +545,7 @@ export class HonuaMeasurementElement extends HTMLElementBase {
         `${this.#vertices.length} of 3 vertices needed for an area.`
       );
     }
-    const value = formatArea(result.area);
+    const value = formatAreaValue(result.area, this.#areaUnit, this.#precision);
     return this.#messages.area?.(value, this.#finished) ?? `Area: ${value}${this.#finished ? " (finished)" : ""}`;
   }
 
@@ -509,17 +589,6 @@ function preventMapDefault(event: unknown): void {
   if (typeof event !== "object" || event === null) return;
   const preventDefault = (event as { preventDefault?: unknown }).preventDefault;
   if (typeof preventDefault === "function") (preventDefault as () => void).call(event);
-}
-
-function formatDistance(meters: number): string {
-  if (meters >= 1000) return `${(meters / 1000).toFixed(2)} km`;
-  return `${meters.toFixed(1)} m`;
-}
-
-function formatArea(squareMeters: number): string {
-  if (squareMeters >= 1_000_000) return `${(squareMeters / 1_000_000).toFixed(2)} km²`;
-  if (squareMeters >= 10_000) return `${(squareMeters / 10_000).toFixed(2)} ha`;
-  return `${squareMeters.toFixed(1)} m²`;
 }
 
 function modeLabel(mode: string): string {

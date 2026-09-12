@@ -673,6 +673,38 @@ export interface HonuaLocateChangeDetail {
 
 export type HonuaMeasureMode = "off" | "distance" | "area";
 
+/**
+ * Distance unit for `<honua-measurement>` display. `"auto"` (the default)
+ * keeps the existing metric auto-scaling behavior (m below 1 km, km at or
+ * above); any other value pins the displayed unit regardless of magnitude.
+ */
+export type HonuaMeasureDistanceUnit = "auto" | "meters" | "kilometers" | "feet" | "yards" | "miles" | "nauticalmiles";
+
+/**
+ * Area unit for `<honua-measurement>` display. `"auto"` (the default) keeps
+ * the existing metric auto-scaling behavior (m² / ha / km² by magnitude); any
+ * other value pins the displayed unit regardless of magnitude.
+ */
+export type HonuaMeasureAreaUnit =
+  | "auto"
+  | "square-meters"
+  | "hectares"
+  | "square-kilometers"
+  | "square-feet"
+  | "acres"
+  | "square-miles";
+
+/**
+ * Which math produced a `<honua-measurement>` result. `"geodesic"` (the
+ * default) is great-circle math over WGS84 lng/lat, matching `geometryEngine`
+ * parity elsewhere in the SDK. `"planar"` reprojects vertices into
+ * `planarCrs` (Web Mercator by default) and measures Euclidean distance/area
+ * there instead — useful when a projected CRS's flat-earth math is what the
+ * consuming app expects, at the cost of the usual planar-projection distortion
+ * away from the CRS's origin/standard lines.
+ */
+export type HonuaMeasureFidelity = "geodesic" | "planar";
+
 /** Caller-supplied messages for `<honua-measure-control>`. */
 export interface HonuaMeasureControlMessages {
   readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
@@ -714,10 +746,12 @@ export interface HonuaMeasureResult {
   mode: HonuaMeasureMode;
   /** GeoJSON `[lng, lat]` positions describing the drawn line or ring. */
   coordinates: readonly (readonly [number, number])[];
-  /** Total length in metres for distance mode. */
+  /** Total length in metres for distance mode. Always geodesic/planar-neutral SI, never a display unit. */
   distance?: number;
-  /** Enclosed area in square metres for area mode. */
+  /** Enclosed area in square metres for area mode. Always geodesic/planar-neutral SI, never a display unit. */
   area?: number;
+  /** Which math produced {@link distance}/{@link area}. Only set by `<honua-measurement>`. */
+  fidelity?: HonuaMeasureFidelity;
 }
 
 export interface HonuaMeasureChangeDetail {

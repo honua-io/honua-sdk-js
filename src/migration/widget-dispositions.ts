@@ -138,13 +138,17 @@ function measurementComponent(): WidgetAppPlatformComponent {
 }
 
 const MEASUREMENT_UNIT_DELTA =
-  "Results are formatted metric-only with automatic scaling — m/km for distance, m²/ha/km² for area " +
-  "(`formatDistance` / `formatArea` in src/web-components/measurement.ts). ArcGIS's `unit` and " +
-  "`unitOptions`, including the whole imperial set (feet, miles, acres, square-miles), have no " +
-  "equivalent, and there is no `viewModel` for driving measurement state from outside the element. " +
-  "Math itself is at parity: distance and area come from the geodesic `length` / `area` ops in " +
-  "@honua/geometry, the same ones behind `geometryEngine` parity elsewhere in the SDK. The in-progress " +
-  "sketch overlay needs a map exposing `addSource` / `addLayer`; on other maps the numbers are still " +
+  "Distance/area units, precision, and geodesic/planar fidelity are runtime-settable (`unit` / " +
+  "`areaUnit` / `precision` / `fidelity` properties in src/web-components/measurement.ts; " +
+  "src/web-components/measurement-units.ts), matching ArcGIS's `unit`/`unitOptions` imperial set " +
+  '(feet, yards, miles, nauticalmiles, acres, square-miles) alongside metric, with an `"auto"` ' +
+  "default that keeps the original m/km distance and m²/ha/km² area auto-scaling (#1419). There is " +
+  "still no `viewModel` for driving measurement state from outside the element. Math is at parity: " +
+  "geodesic distance/area come from the `length` / `area` ops in @honua/geometry, the same ones " +
+  "behind `geometryEngine` parity elsewhere in the SDK; the `planar` fidelity mode uses the same " +
+  "dependency-free flat-earth approximation `MeasurementCompat` (src/esri-compat/measurement.ts) " +
+  "already ships, rather than pulling proj4 into the component kit's bundle. The in-progress sketch " +
+  "overlay needs a map exposing `addSource` / `addLayer`; on other maps the numbers are still " +
   "produced, without the overlay.";
 
 function appPlatformComponent(
