@@ -16,9 +16,16 @@ import { createSampleViteConfig } from "../_kit/vite.config.js";
 // which already sat at 99.6% of the previous ceiling). Ceilings are measured
 // actual plus ~4% headroom, as with the earlier connect/discovery reset
 // (#551/#585/#586, measured 1,828,695 JS / 485,371 gzip).
+// Reset again for maplibre-gl. GHSA-jrc7-96c5-q579 is a critical XSS sanitizer
+// bypass covering every release at or below 6.4.0, with no patched 3.x/4.x/5.x,
+// so the dev floor moved to ^6.4.1 and the lockfile resolved 6.9.0. That is
+// 2,037,902 JS / 547,069 gzip, up 2.4% / 4.4% from 6.0.0. The growth buys a
+// renderer that does not carry a critical XSS, which is worth 48 KB on a
+// quickstart whose point is to be honest about what shipping Honua costs.
+// Ceilings are measured actual plus ~4% headroom, as above.
 export const FIRST_MAP_BUNDLE_BUDGET = Object.freeze({
-  javascriptBytes: 1_990_000,
-  javascriptGzipBytes: 524_000,
+  javascriptBytes: 2_120_000,
+  javascriptGzipBytes: 569_000,
 });
 
 let bundleBudgetFailure: Error | undefined;
