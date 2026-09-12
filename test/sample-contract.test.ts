@@ -232,7 +232,7 @@ describe("sample publication contract", () => {
     expect(catalog.samples).toHaveLength(34);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(31);
+    ).toHaveLength(30);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
@@ -1606,15 +1606,20 @@ describe("sample publication contract", () => {
         credentialScope: "secret",
       });
     }
-    const kepler = catalog.samples.find((sample: { id: string }) => sample.id === "kepler-analytics");
-    expect(kepler).toMatchObject({
+    // Both halves of this used to run through kepler-analytics, which #1674
+    // retired. They are separate properties and neither depended on that
+    // sample in particular, so each is re-anchored rather than dropped.
+    const legacyUnsafe = catalog.samples.find(
+      (sample: { id: string }) => sample.id === "cesium-route-playback",
+    );
+    expect(legacyUnsafe).toMatchObject({
       lifecycle: { state: "rework" },
       data: { configurationStatus: "legacy-unsafe" },
     });
-    expect(
-      kepler.data.configClassifications.find((entry: { name: string }) => entry.name === "VITE_MAPBOX_TOKEN"),
-    ).toEqual({
-      name: "VITE_MAPBOX_TOKEN",
+    // No sample declares VITE_MAPBOX_TOKEN any more, so the public-token arm is
+    // only reachable at the classifier. Asserting it there keeps the arm proven
+    // and stops the next retirement from silently deleting the coverage.
+    expect(classifyConfigurationName("VITE_MAPBOX_TOKEN")).toMatchObject({
       exposure: "browser-public",
       valueKind: "credential",
       credentialScope: "public-token",
