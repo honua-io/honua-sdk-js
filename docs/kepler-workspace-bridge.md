@@ -295,10 +295,14 @@ and packed browser boundary without claiming that a live Arrow object or
 
 `examples/spatial-analytics-workbench/src/kepler-handoff.ts` executes the
 accepted #547 fixture plan and returns a reusable `KeplerResultProjectionRequest`.
-`examples/kepler-analytics/` opens that request and its three replay datasets
-through `createKeplerWorkspaceBridge()`; the example no longer calls Kepler's
-example-local GeoJSON processor. The browser smoke exposes the four ingestion
-diagnostics, accepted plan fingerprint, row counts, and retained-byte metrics.
+`examples/kepler-analytics/` used to open that request and its three replay
+datasets through `createKeplerWorkspaceBridge()`. That example was retired in
+September 2026 — `@kepler.gl/components@3.2.6` pins `maplibre-gl ^3.6.2`, and
+every release at or below 6.4.0 carries
+[GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579) with no
+patched 3.x. **The bridge itself is unaffected**: it produces workspace
+configuration and carries no renderer dependency of its own, so a host on
+maplibre-gl 6.4.1 or newer can use it today.
 
 The matching live lane is `.github/workflows/spatial-analytics-kepler-live.yml`.
 On its schedule (and on manual dispatch), it builds `@honua/sdk` split-package
