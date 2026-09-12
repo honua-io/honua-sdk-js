@@ -128,8 +128,11 @@ describe("the committed browser shard partition", () => {
     assert.equal(shardMap.claimedBy.get("offline-indexeddb.spec.mjs"), "offline");
   });
 
-  it("keeps the heavyweight map and Kepler coverage off the cheap shards", () => {
-    for (const spec of ["kepler-analytics-fixture.spec.mjs", "kepler-arrow-packed.spec.mjs"]) {
+  it("keeps the heavyweight map coverage off the cheap shards", () => {
+    // The two Kepler specs this also covered went with the retired
+    // examples/kepler-analytics demo; the property is about the map shard, not
+    // about those specs, so it is asserted on what remains.
+    for (const spec of ["cesium-route-playback.spec.mjs", "overture-geoparquet.spec.mjs"]) {
       assert.equal(shardMap.claimedBy.get(spec), "map");
     }
   });

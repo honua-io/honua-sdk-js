@@ -754,9 +754,6 @@ jobs:
       - name: Primitive demo matrix
         run: npm run demo:primitive-matrix
 
-      - name: Kepler example audit
-        run: node --test examples/kepler-analytics/test/audit.test.mjs && node examples/kepler-analytics/scripts/audit.mjs
-
       - name: Example builds
         run: npm run demo:examples:build:prepared
 

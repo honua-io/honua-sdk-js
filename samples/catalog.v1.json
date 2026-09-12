@@ -7,9 +7,21 @@
   },
   "configuration": {
     "endpointValuePolicy": "environment-name-only",
-    "allowedSchemes": ["http", "https"],
+    "allowedSchemes": [
+      "http",
+      "https"
+    ],
     "browserSecretPolicy": "Browser configuration may name public endpoints and public asset IDs but never contains credentials or signed URLs.",
-    "credentialQueryParameters": ["AWSAccessKeyId", "X-Amz-Credential", "X-Amz-Signature", "api_key", "key", "sig", "signature", "token"]
+    "credentialQueryParameters": [
+      "AWSAccessKeyId",
+      "X-Amz-Credential",
+      "X-Amz-Signature",
+      "api_key",
+      "key",
+      "sig",
+      "signature",
+      "token"
+    ]
   },
   "samples": [
     {
@@ -18,16 +30,60 @@
       "summary": "Proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states.",
       "tier": "flagship",
       "supportStatus": "experimental",
-      "disposition": { "decision": "keep", "reason": "North-star safe-agent flagship rebuilt around plan-bound approval and receipts." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "North-star safe-agent flagship rebuilt around plan-bound approval and receipts."
+      },
       "sourcePath": "examples/ai-spatial-app-builder",
       "docsPath": "examples/ai-spatial-app-builder/README.md",
-      "capabilities": ["agent-approval", "agent-planning", "atomic-authorization", "query-planning", "receipts", "typed-agent-tools"],
-      "protocols": ["geoservices", "honua"],
-      "renderers": ["none"],
-      "data": { "mode": "hybrid", "authMode": "host-mediated", "config": ["HONUA_AGENT_HOST_URL", "HONUA_LIVE_DATA_URL"], "provenance": "Committed parcel fixture plus optional host-mediated proposal and live-data endpoints.", "attribution": "City and County of Honolulu — deterministic demonstration fixture.", "freshness": "Fixture snapshot 2026-07-10; optional live lane records its observation time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:ai-spatial-builder:build", "npm run demo:ai-spatial-builder:evidence"] }, "live": { "status": "credential-unavailable", "commands": ["npm run demo:ai-spatial-builder:live-evidence"] } },
+      "capabilities": [
+        "agent-approval",
+        "agent-planning",
+        "atomic-authorization",
+        "query-planning",
+        "receipts",
+        "typed-agent-tools"
+      ],
+      "protocols": [
+        "geoservices",
+        "honua"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "host-mediated",
+        "config": [
+          "HONUA_AGENT_HOST_URL",
+          "HONUA_LIVE_DATA_URL"
+        ],
+        "provenance": "Committed parcel fixture plus optional host-mediated proposal and live-data endpoints.",
+        "attribution": "City and County of Honolulu \u2014 deterministic demonstration fixture.",
+        "freshness": "Fixture snapshot 2026-07-10; optional live lane records its observation time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:ai-spatial-builder:build",
+            "npm run demo:ai-spatial-builder:evidence"
+          ]
+        },
+        "live": {
+          "status": "credential-unavailable",
+          "commands": [
+            "npm run demo:ai-spatial-builder:live-evidence"
+          ]
+        }
+      },
       "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy.",
-      "validation": ["npm run demo:ai-spatial-builder:typecheck", "npm run demo:ai-spatial-builder:build", "npm run demo:ai-spatial-builder:evidence", "npm run test:playwright:ai-spatial-builder"]
+      "validation": [
+        "npm run demo:ai-spatial-builder:typecheck",
+        "npm run demo:ai-spatial-builder:build",
+        "npm run demo:ai-spatial-builder:evidence",
+        "npm run test:playwright:ai-spatial-builder"
+      ]
     },
     {
       "id": "app-bootstrap-basic",
@@ -35,16 +91,46 @@
       "summary": "Bootstraps a minimal application through the legacy app-platform compatibility surface.",
       "tier": "reference",
       "supportStatus": "deprecated",
-      "disposition": { "decision": "retire", "reason": "The app-platform split supersedes this SDK-owned compatibility demonstration." },
+      "disposition": {
+        "decision": "retire",
+        "reason": "The app-platform split supersedes this SDK-owned compatibility demonstration."
+      },
       "sourcePath": "examples/app-bootstrap-basic",
       "docsPath": "examples/app-bootstrap-basic/README.md",
-      "capabilities": ["app-bootstrap"],
-      "protocols": ["honua"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed bootstrap fixture.", "attribution": "Honua fixture data.", "freshness": "Deterministic replay." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:app-bootstrap:build"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "capabilities": [
+        "app-bootstrap"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed bootstrap fixture.",
+        "attribution": "Honua fixture data.",
+        "freshness": "Deterministic replay."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:app-bootstrap:build"
+          ]
+        },
+        "live": {
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Compatibility APIs are removed when the package advances to 0.2.0.",
-      "validation": ["npm run demo:app-bootstrap:typecheck", "npm run demo:app-bootstrap:build"]
+      "validation": [
+        "npm run demo:app-bootstrap:typecheck",
+        "npm run demo:app-bootstrap:build"
+      ]
     },
     {
       "id": "arcgis-source-app",
@@ -52,16 +138,46 @@
       "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
       "tier": "reference",
       "supportStatus": "internal",
-      "disposition": { "decision": "keep", "reason": "Retain as a test input, not as a public Honua application." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Retain as a test input, not as a public Honua application."
+      },
       "sourcePath": "examples/arcgis-source-app",
       "docsPath": "examples/arcgis-source-app/README.md",
-      "capabilities": ["arcgis", "migration"],
-      "protocols": ["geoservices"],
-      "renderers": ["arcgis"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed migration input fixture.", "attribution": "Synthetic parcel fixture.", "freshness": "Versioned with the repository." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run test:migration:real-samples"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "capabilities": [
+        "arcgis",
+        "migration"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "arcgis"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed migration input fixture.",
+        "attribution": "Synthetic parcel fixture.",
+        "freshness": "Versioned with the repository."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "live": {
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
       "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime.",
-      "validation": ["npm run test:migration:real-samples"]
+      "validation": [
+        "npm run test:migration:real-samples"
+      ]
     },
     {
       "id": "edit-workflow-demo",
@@ -69,16 +185,49 @@
       "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "rework", "reason": "Keep the workflow and add an isolated resettable live dataset." },
+      "disposition": {
+        "decision": "rework",
+        "reason": "Keep the workflow and add an isolated resettable live dataset."
+      },
       "sourcePath": "examples/edit-workflow-demo",
       "docsPath": "examples/edit-workflow-demo/README.md",
-      "capabilities": ["attachments", "editing", "optimistic-updates"],
-      "protocols": ["geoservices", "honua"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed deterministic edit fixture.", "attribution": "Honua synthetic operations data.", "freshness": "Deterministic fixture replay time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:edit-workflow:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "attachments",
+        "editing",
+        "optimistic-updates"
+      ],
+      "protocols": [
+        "geoservices",
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed deterministic edit fixture.",
+        "attribution": "Honua synthetic operations data.",
+        "freshness": "Deterministic fixture replay time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:edit-workflow:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Editing is read-only when the service does not advertise mutation capability.",
-      "validation": ["npm run demo:edit-workflow:typecheck", "npm run demo:edit-workflow:build"]
+      "validation": [
+        "npm run demo:edit-workflow:typecheck",
+        "npm run demo:edit-workflow:build"
+      ]
     },
     {
       "id": "geocoding-quickstart",
@@ -86,16 +235,50 @@
       "summary": "Runs forward, reverse, and suggestion workflows with map feedback.",
       "tier": "recipe",
       "supportStatus": "supported",
-      "disposition": { "decision": "keep", "reason": "Focused geocoding recipe with deterministic and live configuration." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Focused geocoding recipe with deterministic and live configuration."
+      },
       "sourcePath": "examples/geocoding-quickstart",
       "docsPath": "examples/geocoding-quickstart/README.md",
-      "capabilities": ["forward-geocode", "reverse-geocode", "suggest"],
-      "protocols": ["geoservices"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["VITE_HONUA_GEOCODING_BASE_URL"], "provenance": "Committed gazetteer responses or configured Honua GeocodeServer.", "attribution": "Gazetteer attribution supplied by the endpoint.", "freshness": "Fixture capture metadata or live response time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:geocoding:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "forward-geocode",
+        "reverse-geocode",
+        "suggest"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "config": [
+          "VITE_HONUA_GEOCODING_BASE_URL"
+        ],
+        "provenance": "Committed gazetteer responses or configured Honua GeocodeServer.",
+        "attribution": "Gazetteer attribution supplied by the endpoint.",
+        "freshness": "Fixture capture metadata or live response time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:geocoding:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "The UI identifies fixture fallback when the live endpoint is unavailable.",
-      "validation": ["npm run demo:geocoding:typecheck", "npm run demo:geocoding:build"]
+      "validation": [
+        "npm run demo:geocoding:typecheck",
+        "npm run demo:geocoding:build"
+      ]
     },
     {
       "id": "geoprocessing-job-runner",
@@ -103,16 +286,49 @@
       "summary": "Runs a deterministic Honolulu buffer job and renders the verified polygon result.",
       "tier": "advanced",
       "supportStatus": "supported",
-      "disposition": { "decision": "merge", "reason": "Fold into the analysis journey while retaining this focused recipe." },
+      "disposition": {
+        "decision": "merge",
+        "reason": "Fold into the analysis journey while retaining this focused recipe."
+      },
       "sourcePath": "examples/geoprocessing-job-runner",
       "docsPath": "examples/geoprocessing-job-runner/README.md",
-      "capabilities": ["async-jobs", "cancel", "geoprocessing"],
-      "protocols": ["ogc-processes"],
-      "renderers": ["svg"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.", "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.", "freshness": "Immutable fixture contract; no public-live result claim." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:gp-runner:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "async-jobs",
+        "cancel",
+        "geoprocessing"
+      ],
+      "protocols": [
+        "ogc-processes"
+      ],
+      "renderers": [
+        "svg"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.",
+        "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.",
+        "freshness": "Immutable fixture contract; no public-live result claim."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:gp-runner:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result.",
-      "validation": ["npm run demo:gp-runner:typecheck", "npx vitest run test/geoprocessing-job-runner.test.ts", "npm run demo:gp-runner:build"]
+      "validation": [
+        "npm run demo:gp-runner:typecheck",
+        "npx vitest run test/geoprocessing-job-runner.test.ts",
+        "npm run demo:gp-runner:build"
+      ]
     },
     {
       "id": "imagery-cog-quickstart",
@@ -120,33 +336,54 @@
       "summary": "Discovers a STAC COG, discloses bounded reads, and renders it in MapLibre with published raster paths for comparison.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "merge", "reason": "Combine with STAC and terrain into one imagery journey." },
+      "disposition": {
+        "decision": "merge",
+        "reason": "Combine with STAC and terrain into one imagery journey."
+      },
       "sourcePath": "examples/imagery-cog-quickstart",
       "docsPath": "examples/imagery-cog-quickstart/README.md",
-      "capabilities": ["cog", "imagery", "raster"],
-      "protocols": ["geoservices", "stac", "wms"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["VITE_HONUA_IMAGERY_BASE_URL"], "provenance": "Committed offline STAC/COG scenarios plus one immutable Earth Search item and asset pin.", "attribution": "Fixture provenance is visible in-app; live evidence records Copernicus/Element 84 attribution.", "freshness": "Acquisition time is distinct from probe time; a weekly scheduled probe produces evidence valid for eight days." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:imagery-cog:mock"] }, "live": { "status": "planned", "commands": ["npm run evidence:cog:live"] } },
+      "capabilities": [
+        "cog",
+        "imagery",
+        "raster"
+      ],
+      "protocols": [
+        "geoservices",
+        "stac",
+        "wms"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "config": [
+          "VITE_HONUA_IMAGERY_BASE_URL"
+        ],
+        "provenance": "Committed offline STAC/COG scenarios plus one immutable Earth Search item and asset pin.",
+        "attribution": "Fixture provenance is visible in-app; live evidence records Copernicus/Element 84 attribution.",
+        "freshness": "Acquisition time is distinct from probe time; a weekly scheduled probe produces evidence valid for eight days."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:imagery-cog:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": [
+            "npm run evidence:cog:live"
+          ]
+        }
+      },
       "expectedDegradation": "Range, CORS, CRS, and non-COG format refusals remain typed and visible while another classified asset stays usable.",
-      "validation": ["npm run demo:imagery-cog:typecheck", "npm run demo:imagery-cog:build"]
-    },
-    {
-      "id": "kepler-analytics",
-      "title": "Kepler operations analytics",
-      "summary": "Replays operations data through kepler.gl with linked filters and KPI evidence.",
-      "tier": "advanced",
-      "supportStatus": "experimental",
-      "disposition": { "decision": "rework", "reason": "Retain as a renderer recipe and align it with the columnar large-data journey." },
-      "sourcePath": "examples/kepler-analytics",
-      "docsPath": "examples/kepler-analytics/README.md",
-      "capabilities": ["analytics", "linked-filters", "replay"],
-      "protocols": ["geojson", "honua"],
-      "renderers": ["kepler"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["HONUA_DEMO_API_KEY", "HONUA_DEMO_BASE_URL", "HONUA_DEMO_BEARER_TOKEN", "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID", "HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID", "HONUA_DEMO_ENV_LABEL", "HONUA_DEMO_INCIDENTS_LAYER_ID", "HONUA_DEMO_INCIDENTS_SERVICE_ID", "HONUA_DEMO_UNIT_TRACKS_LAYER_ID", "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID"], "provenance": "Committed Honua export with refresh metadata.", "attribution": "Synthetic Honua operations fixture.", "freshness": "Fixture metadata records the source retrieval time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:kepler:smoke"] }, "live": { "status": "executed", "commands": ["npm run demo:kepler:refresh-fixture"] } },
-      "expectedDegradation": "The committed export is labeled replayed rather than live.",
-      "validation": ["npm run demo:kepler:build", "npm run demo:kepler:smoke"]
+      "validation": [
+        "npm run demo:imagery-cog:typecheck",
+        "npm run demo:imagery-cog:build"
+      ]
     },
     {
       "id": "maplibre-quickstart",
@@ -154,16 +391,62 @@
       "summary": "Starts with all 48 governed Maui County census tracts on an interactive map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "keep", "reason": "Accepted First Map implementation; the standalone and endpoint-to-map executables converge here." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Accepted First Map implementation; the standalone and endpoint-to-map executables converge here."
+      },
       "sourcePath": "examples/maplibre-quickstart",
       "docsPath": "examples/maplibre-quickstart/README.md",
-      "capabilities": ["direct-connect", "discovery", "explain-plan", "linked-views", "map", "provenance", "query"],
-      "protocols": ["geoservices", "ogc-features"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_HONUA_QUICKSTART_BASEMAP_STYLE", "VITE_HONUA_QUICKSTART_ENDPOINT", "VITE_HONUA_QUICKSTART_PROTOCOL", "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT", "VITE_HONUA_QUICKSTART_WHERE"], "provenance": "Governed first-map/v2 fixture derived from the exact SHA-256-pinned 2025 U.S. Census Bureau TIGER/Line Hawaii tract archive, or the separate manifest-advertised anonymous live layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1; the live lane is not represented as Census-governed.", "attribution": "The fixture preserves the U.S. Census Bureau citation and disclaimer; live sources preserve endpoint-advertised attribution, and unavailable attribution is stated explicitly.", "freshness": "The immutable fixture records its 2025-01-01 source vintage; live SDK observation time and cache status are shown separately." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:quickstart:mock"] }, "live": { "status": "planned", "commands": ["npm run evidence:first-map:live"] } },
+      "capabilities": [
+        "direct-connect",
+        "discovery",
+        "explain-plan",
+        "linked-views",
+        "map",
+        "provenance",
+        "query"
+      ],
+      "protocols": [
+        "geoservices",
+        "ogc-features"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "config": [
+          "VITE_HONUA_QUICKSTART_BASEMAP_STYLE",
+          "VITE_HONUA_QUICKSTART_ENDPOINT",
+          "VITE_HONUA_QUICKSTART_PROTOCOL",
+          "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
+          "VITE_HONUA_QUICKSTART_WHERE"
+        ],
+        "provenance": "Governed first-map/v2 fixture derived from the exact SHA-256-pinned 2025 U.S. Census Bureau TIGER/Line Hawaii tract archive, or the separate manifest-advertised anonymous live layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1; the live lane is not represented as Census-governed.",
+        "attribution": "The fixture preserves the U.S. Census Bureau citation and disclaimer; live sources preserve endpoint-advertised attribution, and unavailable attribution is stated explicitly.",
+        "freshness": "The immutable fixture records its 2025-01-01 source vintage; live SDK observation time and cache status are shown separately."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:quickstart:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": [
+            "npm run evidence:first-map:live"
+          ]
+        }
+      },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
-      "validation": ["npm run demo:quickstart:typecheck", "npm run demo:quickstart:build", "npm run test:playwright:quickstart"]
+      "validation": [
+        "npm run demo:quickstart:typecheck",
+        "npm run demo:quickstart:build",
+        "npm run test:playwright:quickstart"
+      ]
     },
     {
       "id": "mcp-gis-assistant",
@@ -171,16 +454,49 @@
       "summary": "Demonstrates assistant tool discovery and safe SDK-backed spatial operations.",
       "tier": "advanced",
       "supportStatus": "experimental",
-      "disposition": { "decision": "rework", "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey." },
+      "disposition": {
+        "decision": "rework",
+        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey."
+      },
       "sourcePath": "examples/mcp-gis-assistant",
       "docsPath": "examples/mcp-gis-assistant/README.md",
-      "capabilities": ["agent-tools", "mcp", "query"],
-      "protocols": ["honua", "mcp"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed MCP response fixture.", "attribution": "Tool results preserve source attribution.", "freshness": "Deterministic fixture replay time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:mcp-gis-assistant:build"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "agent-tools",
+        "mcp",
+        "query"
+      ],
+      "protocols": [
+        "honua",
+        "mcp"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed MCP response fixture.",
+        "attribution": "Tool results preserve source attribution.",
+        "freshness": "Deterministic fixture replay time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:mcp-gis-assistant:build"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Write tools are unavailable without host policy and explicit approval.",
-      "validation": ["npm run demo:mcp-gis-assistant:typecheck", "npm run demo:mcp-gis-assistant:build"]
+      "validation": [
+        "npm run demo:mcp-gis-assistant:typecheck",
+        "npm run demo:mcp-gis-assistant:build"
+      ]
     },
     {
       "id": "migration-workbench",
@@ -188,16 +504,50 @@
       "summary": "Scans and transforms ArcGIS application source with auditable compatibility results.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "rework", "reason": "Make this the canonical file-by-file ArcGIS migration journey." },
+      "disposition": {
+        "decision": "rework",
+        "reason": "Make this the canonical file-by-file ArcGIS migration journey."
+      },
       "sourcePath": "examples/migration-workbench",
       "docsPath": "docs/migration-honua-maplibre.md",
-      "capabilities": ["codemod", "compatibility", "migration"],
-      "protocols": ["geoservices"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed ArcGIS source fixtures and migration reports.", "attribution": "Fixture source attribution is preserved in output.", "freshness": "Versioned with the migration corpus." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:migration:featuretable"] }, "live": { "status": "executed", "commands": ["npm run demo:migration:featuretable:live"] } },
+      "capabilities": [
+        "codemod",
+        "compatibility",
+        "migration"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed ArcGIS source fixtures and migration reports.",
+        "attribution": "Fixture source attribution is preserved in output.",
+        "freshness": "Versioned with the migration corpus."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:migration:featuretable"
+          ]
+        },
+        "live": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:migration:featuretable:live"
+          ]
+        }
+      },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
-      "validation": ["npm run demo:migration-workbench:typecheck", "npm run demo:migration-workbench:build"]
+      "validation": [
+        "npm run demo:migration-workbench:typecheck",
+        "npm run demo:migration-workbench:build"
+      ]
     },
     {
       "id": "nl-map-control",
@@ -205,16 +555,50 @@
       "summary": "A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects.",
       "tier": "advanced",
       "supportStatus": "experimental",
-      "disposition": { "decision": "keep", "reason": "Headline proof of the plan-first NL map-control layer (#500): BYO LLM, approval envelopes, and execution receipts on a live MapLibre map." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Headline proof of the plan-first NL map-control layer (#500): BYO LLM, approval envelopes, and execution receipts on a live MapLibre map."
+      },
       "sourcePath": "examples/nl-map-control",
       "docsPath": "examples/nl-map-control/README.md",
-      "capabilities": ["agent-approval", "agent-planning", "agent-tools", "map", "receipts"],
-      "protocols": ["honua"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.", "attribution": "Honua demo fixture attribution is shown in the sample.", "freshness": "Deterministic fixture replay time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:nl-map-control:build"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "agent-approval",
+        "agent-planning",
+        "agent-tools",
+        "map",
+        "receipts"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.",
+        "attribution": "Honua demo fixture attribution is shown in the sample.",
+        "freshness": "Deterministic fixture replay time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:nl-map-control:build"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Viewport and mutation plans refuse to execute without a verified approval envelope and report approval-required; the recorded LLM answers only the canned demo instructions.",
-      "validation": ["npm run demo:nl-map-control:typecheck", "npm run demo:nl-map-control:build"]
+      "validation": [
+        "npm run demo:nl-map-control:typecheck",
+        "npm run demo:nl-map-control:build"
+      ]
     },
     {
       "id": "node-backend-quickstart",
@@ -222,16 +606,50 @@
       "summary": "Uses the protocol-neutral client from a Node service without browser dependencies.",
       "tier": "recipe",
       "supportStatus": "supported",
-      "disposition": { "decision": "keep", "reason": "Preserve the focused server-side installation and lifecycle path." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Preserve the focused server-side installation and lifecycle path."
+      },
       "sourcePath": "examples/node-backend-quickstart",
       "docsPath": "examples/node-backend-quickstart/README.md",
-      "capabilities": ["node", "query", "server"],
-      "protocols": ["honua"],
-      "renderers": ["none"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["HONUA_BASE_URL"], "provenance": "Committed mock responses or configured Honua endpoint.", "attribution": "Response provenance is returned by the service.", "freshness": "Fixture replay or live query observation time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:node-backend:smoke"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "node",
+        "query",
+        "server"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "config": [
+          "HONUA_BASE_URL"
+        ],
+        "provenance": "Committed mock responses or configured Honua endpoint.",
+        "attribution": "Response provenance is returned by the service.",
+        "freshness": "Fixture replay or live query observation time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:node-backend:smoke"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "The recipe fails explicitly when required server capabilities are absent.",
-      "validation": ["npm run demo:node-backend:typecheck", "npm run demo:node-backend:smoke"]
+      "validation": [
+        "npm run demo:node-backend:typecheck",
+        "npm run demo:node-backend:smoke"
+      ]
     },
     {
       "id": "columnar-query-quickstart",
@@ -239,16 +657,55 @@
       "summary": "Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff.",
       "tier": "recipe",
       "supportStatus": "experimental",
-      "disposition": { "decision": "keep", "reason": "Map-first fixture workflow for exact Honua Arrow interoperability; Overture remains the complete production-shaped browser GeoParquet project." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Map-first fixture workflow for exact Honua Arrow interoperability; Overture remains the complete production-shaped browser GeoParquet project."
+      },
       "sourcePath": "examples/columnar-query-quickstart",
       "docsPath": "examples/columnar-query-quickstart/README.md",
-      "capabilities": ["cancellation", "columnar", "map", "query"],
-      "protocols": ["geoservices"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Base64 text embedding of the exact 4,160-byte Honua Server geoarrow.wkb workflow artifact produced by reviewed head 66a9d34496c6f6a03dd571957062f773bfef7f0a, merged as 4ef53ce7f49b78aad3572db1dfc3be88a6654a43, and pinned by SHA-256, with its producer receipt and digest sidecar retained byte-for-byte.", "attribution": "Honua Server interoperability fixture; the field extension declares EPSG:4326 PROJJSON and schema-level GeoParquet metadata declares Point.", "freshness": "Fixture producer commit, schema contract, byte length, and SHA-256 are release-gated." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:columnar-query:build", "npx vitest run test/columnar-query-quickstart.test.ts", "npm run test:playwright:columnar-query"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "capabilities": [
+        "cancellation",
+        "columnar",
+        "map",
+        "query"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Base64 text embedding of the exact 4,160-byte Honua Server geoarrow.wkb workflow artifact produced by reviewed head 66a9d34496c6f6a03dd571957062f773bfef7f0a, merged as 4ef53ce7f49b78aad3572db1dfc3be88a6654a43, and pinned by SHA-256, with its producer receipt and digest sidecar retained byte-for-byte.",
+        "attribution": "Honua Server interoperability fixture; the field extension declares EPSG:4326 PROJJSON and schema-level GeoParquet metadata declares Point.",
+        "freshness": "Fixture producer commit, schema contract, byte length, and SHA-256 are release-gated."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:columnar-query:build",
+            "npx vitest run test/columnar-query-quickstart.test.ts",
+            "npm run test:playwright:columnar-query"
+          ]
+        },
+        "live": {
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
       "expectedDegradation": "No public live Arrow or Parquet endpoint is claimed. Cancellation and row, batch, transfer, backing-memory, schema, geometry, or CRS violations stop explicitly; unsupported layouts never fall back to full materialization.",
-      "validation": ["npm run demo:columnar-query:typecheck", "npm run demo:columnar-query:build", "npx vitest run test/columnar-query-quickstart.test.ts", "npm run test:playwright:columnar-query", "npx vitest run test/columnar-workflow.test.ts", "npx vitest run test/columnar-workflow-honua-arrow.test.ts"]
+      "validation": [
+        "npm run demo:columnar-query:typecheck",
+        "npm run demo:columnar-query:build",
+        "npx vitest run test/columnar-query-quickstart.test.ts",
+        "npm run test:playwright:columnar-query",
+        "npx vitest run test/columnar-workflow.test.ts",
+        "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
+      ]
     },
     {
       "id": "oauth-signin",
@@ -256,16 +713,48 @@
       "summary": "Demonstrates browser authentication and session lifecycle without embedding credentials.",
       "tier": "recipe",
       "supportStatus": "supported",
-      "disposition": { "decision": "keep", "reason": "Retain as the focused browser authentication recipe." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Retain as the focused browser authentication recipe."
+      },
       "sourcePath": "examples/oauth-signin",
       "docsPath": "examples/oauth-signin/README.md",
-      "capabilities": ["authentication", "oauth", "session"],
-      "protocols": ["oauth"],
-      "renderers": ["none"],
-      "data": { "mode": "fixture", "authMode": "oauth", "config": [], "provenance": "Self-hosted deterministic OAuth identity-provider fixture.", "attribution": "No spatial data is rendered.", "freshness": "Fixture session issuance and expiry times." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:oauth-signin:mock"] }, "live": { "status": "credential-unavailable", "commands": [] } },
+      "capabilities": [
+        "authentication",
+        "oauth",
+        "session"
+      ],
+      "protocols": [
+        "oauth"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "oauth",
+        "config": [],
+        "provenance": "Self-hosted deterministic OAuth identity-provider fixture.",
+        "attribution": "No spatial data is rendered.",
+        "freshness": "Fixture session issuance and expiry times."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:oauth-signin:mock"
+          ]
+        },
+        "live": {
+          "status": "credential-unavailable",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Live sign-in is unavailable until the host supplies an OAuth configuration.",
-      "validation": ["npm run demo:oauth-signin:typecheck", "npm run demo:oauth-signin:build"]
+      "validation": [
+        "npm run demo:oauth-signin:typecheck",
+        "npm run demo:oauth-signin:build"
+      ]
     },
     {
       "id": "overture-geoparquet",
@@ -273,16 +762,56 @@
       "summary": "Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence.",
       "tier": "flagship",
       "supportStatus": "experimental",
-      "disposition": { "decision": "keep", "reason": "Large-data flagship now shares one bounded semantic workflow across deterministic fixture and pinned AWS lanes." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Large-data flagship now shares one bounded semantic workflow across deterministic fixture and pinned AWS lanes."
+      },
       "sourcePath": "examples/overture-geoparquet",
       "docsPath": "examples/overture-geoparquet/README.md",
-      "capabilities": ["cancellation", "columnar", "geoparquet", "large-data", "progressive-rendering", "range-reads"],
-      "protocols": ["geoparquet", "s3"],
-      "renderers": ["svg"],
-      "data": { "mode": "hybrid", "authMode": "anonymous", "config": [], "provenance": "Committed deterministic GeoParquet fixture or pinned Overture STAC item 2026-06-17.0/places/place/00000 on public AWS Open Data.", "attribution": "Overture Maps Foundation Open Map Data with per-feature upstream sources preserved by the live schema.", "freshness": "Pinned release, schema, object ETag, last modification, and execution observation time are shown separately." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run test:playwright:overture"] }, "live": { "status": "executed", "commands": ["npm run evidence:overture:live -- --strict"] } },
+      "capabilities": [
+        "cancellation",
+        "columnar",
+        "geoparquet",
+        "large-data",
+        "progressive-rendering",
+        "range-reads"
+      ],
+      "protocols": [
+        "geoparquet",
+        "s3"
+      ],
+      "renderers": [
+        "svg"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "config": [],
+        "provenance": "Committed deterministic GeoParquet fixture or pinned Overture STAC item 2026-06-17.0/places/place/00000 on public AWS Open Data.",
+        "attribution": "Overture Maps Foundation Open Map Data with per-feature upstream sources preserved by the live schema.",
+        "freshness": "Pinned release, schema, object ETag, last modification, and execution observation time are shown separately."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run test:playwright:overture"
+          ]
+        },
+        "live": {
+          "status": "executed",
+          "commands": [
+            "npm run evidence:overture:live -- --strict"
+          ]
+        }
+      },
       "expectedDegradation": "Unsupported or malformed ranges, expired objects, unsafe plans, worker failures, the 10-second source-probe deadline, and the 30-second engine budget stop explicitly. DuckDB full-HTTP fallback is disabled; scheduled evidence rejects un-ranged GETs and measures browser range bytes, while rows scanned and row groups pruned remain unverified.",
-      "validation": ["npm run demo:overture:typecheck", "npm run demo:overture:build", "npx vitest run test/overture-large-data.test.ts", "npm run test:playwright:overture"]
+      "validation": [
+        "npm run demo:overture:typecheck",
+        "npm run demo:overture:build",
+        "npx vitest run test/overture-large-data.test.ts",
+        "npm run test:playwright:overture"
+      ]
     },
     {
       "id": "planning-permitting-workbench",
@@ -290,16 +819,50 @@
       "summary": "Combines parcels, hazards, sketching, editing, and export in a task-oriented application.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "rework", "reason": "Retain as the primary complete-application journey and simplify its first task." },
+      "disposition": {
+        "decision": "rework",
+        "reason": "Retain as the primary complete-application journey and simplify its first task."
+      },
       "sourcePath": "examples/planning-permitting-workbench",
       "docsPath": "examples/planning-permitting-workbench/README.md",
-      "capabilities": ["editing", "map", "planning", "query"],
-      "protocols": ["geoservices", "honua"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed Maui planning fixtures.", "attribution": "Dataset attribution is visible per layer.", "freshness": "Fixture version committed with the repository." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:planning-workbench:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "editing",
+        "map",
+        "planning",
+        "query"
+      ],
+      "protocols": [
+        "geoservices",
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed Maui planning fixtures.",
+        "attribution": "Dataset attribution is visible per layer.",
+        "freshness": "Fixture version committed with the repository."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:planning-workbench:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Mutation and print actions disable with explicit reasons when capabilities are absent.",
-      "validation": ["npm run demo:planning-workbench:typecheck", "npm run demo:planning-workbench:build"]
+      "validation": [
+        "npm run demo:planning-workbench:typecheck",
+        "npm run demo:planning-workbench:build"
+      ]
     },
     {
       "id": "pmtiles-static",
@@ -307,16 +870,48 @@
       "summary": "Loads a static PMTiles archive without a Honua server.",
       "tier": "recipe",
       "supportStatus": "supported",
-      "disposition": { "decision": "keep", "reason": "Preserve the smallest server-optional vector-tile recipe." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Preserve the smallest server-optional vector-tile recipe."
+      },
       "sourcePath": "examples/pmtiles-static",
       "docsPath": "examples/pmtiles-static/README.md",
-      "capabilities": ["offline", "pmtiles", "vector-tiles"],
-      "protocols": ["pmtiles"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed fixture-sized PMTiles archive.", "attribution": "Archive attribution must be supplied by the host.", "freshness": "Fixture version committed with the repository." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:pmtiles-static:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "offline",
+        "pmtiles",
+        "vector-tiles"
+      ],
+      "protocols": [
+        "pmtiles"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed fixture-sized PMTiles archive.",
+        "attribution": "Archive attribution must be supplied by the host.",
+        "freshness": "Fixture version committed with the repository."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:pmtiles-static:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "The sample reports missing range-request support instead of fetching an unbounded archive.",
-      "validation": ["npm run demo:pmtiles-static:typecheck", "npm run demo:pmtiles-static:build"]
+      "validation": [
+        "npm run demo:pmtiles-static:typecheck",
+        "npm run demo:pmtiles-static:build"
+      ]
     },
     {
       "id": "react-quickstart",
@@ -324,16 +919,50 @@
       "summary": "Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey.",
       "tier": "recipe",
       "supportStatus": "supported",
-      "disposition": { "decision": "keep", "reason": "Keep one focused React integration recipe without duplicating or redesigning First Map." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Keep one focused React integration recipe without duplicating or redesigning First Map."
+      },
       "sourcePath": "examples/react-quickstart",
       "docsPath": "examples/react-quickstart/README.md",
-      "capabilities": ["map", "query", "react"],
-      "protocols": ["honua"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["VITE_HONUA_REACT_BASE_URL"], "provenance": "Committed quickstart fixture or configured Honua service.", "attribution": "Service attribution shown in the map runtime.", "freshness": "Fixture capture metadata or live observation time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:react-quickstart:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "map",
+        "query",
+        "react"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "config": [
+          "VITE_HONUA_REACT_BASE_URL"
+        ],
+        "provenance": "Committed quickstart fixture or configured Honua service.",
+        "attribution": "Service attribution shown in the map runtime.",
+        "freshness": "Fixture capture metadata or live observation time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:react-quickstart:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "The component exposes connection and capability errors through React state.",
-      "validation": ["npm run demo:react-quickstart:typecheck", "npm run demo:react-quickstart:build"]
+      "validation": [
+        "npm run demo:react-quickstart:typecheck",
+        "npm run demo:react-quickstart:build"
+      ]
     },
     {
       "id": "realtime-incident-dashboard",
@@ -341,16 +970,65 @@
       "summary": "Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "keep", "reason": "Flagship realtime journey now proves authority, diagnostics, degradation, concurrency, idempotency, and safe reset." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Flagship realtime journey now proves authority, diagnostics, degradation, concurrency, idempotency, and safe reset."
+      },
       "sourcePath": "examples/realtime-incident-dashboard",
       "docsPath": "examples/realtime-incident-dashboard/README.md",
-      "capabilities": ["idempotency", "optimistic-concurrency", "realtime", "reconciliation", "safe-editing", "sse"],
-      "protocols": ["geoservices", "sse"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_HONUA_INCIDENT_BASE_URL", "VITE_HONUA_INCIDENT_CAPABILITIES_URL", "VITE_HONUA_INCIDENT_LAYER_ID", "VITE_HONUA_INCIDENT_SOURCE_ID", "VITE_HONUA_INCIDENT_STREAM_URL", "VITE_HONUA_INCIDENT_TRANSPORT"], "provenance": "Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.", "attribution": "Synthetic incident operations data.", "freshness": "Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:incident:mock", "npm run test:playwright:incident"] }, "live": { "status": "skipped", "commands": ["npm run bench:live"], "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json" } },
+      "capabilities": [
+        "idempotency",
+        "optimistic-concurrency",
+        "realtime",
+        "reconciliation",
+        "safe-editing",
+        "sse"
+      ],
+      "protocols": [
+        "geoservices",
+        "sse"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "config": [
+          "VITE_HONUA_INCIDENT_BASE_URL",
+          "VITE_HONUA_INCIDENT_CAPABILITIES_URL",
+          "VITE_HONUA_INCIDENT_LAYER_ID",
+          "VITE_HONUA_INCIDENT_SOURCE_ID",
+          "VITE_HONUA_INCIDENT_STREAM_URL",
+          "VITE_HONUA_INCIDENT_TRANSPORT"
+        ],
+        "provenance": "Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.",
+        "attribution": "Synthetic incident operations data.",
+        "freshness": "Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:incident:mock",
+            "npm run test:playwright:incident"
+          ]
+        },
+        "live": {
+          "status": "skipped",
+          "commands": [
+            "npm run bench:live"
+          ],
+          "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json"
+        }
+      },
       "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile.",
-      "validation": ["npm run demo:incident:typecheck", "npm run demo:incident:build", "npx vitest run test/realtime-incident-dashboard.test.ts", "npm run test:playwright:incident"]
+      "validation": [
+        "npm run demo:incident:typecheck",
+        "npm run demo:incident:build",
+        "npx vitest run test/realtime-incident-dashboard.test.ts",
+        "npm run test:playwright:incident"
+      ]
     },
     {
       "id": "runtime-parity-showcase",
@@ -358,16 +1036,50 @@
       "summary": "Compares supported rendering paths and makes fidelity differences explicit.",
       "tier": "reference",
       "supportStatus": "experimental",
-      "disposition": { "decision": "replace", "reason": "Replace parity claims with renderer-specific execution and fidelity reports." },
+      "disposition": {
+        "decision": "replace",
+        "reason": "Replace parity claims with renderer-specific execution and fidelity reports."
+      },
       "sourcePath": "examples/runtime-parity-showcase",
       "docsPath": "examples/runtime-parity-showcase/README.md",
-      "capabilities": ["fidelity", "renderer-adapters", "runtime"],
-      "protocols": ["honua"],
-      "renderers": ["cesium", "kepler", "maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed renderer comparison fixtures.", "attribution": "Honua synthetic fixtures.", "freshness": "Versioned with the repository." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:runtime-parity:mock"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "capabilities": [
+        "fidelity",
+        "renderer-adapters",
+        "runtime"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "cesium",
+        "kepler",
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed renderer comparison fixtures.",
+        "attribution": "Honua synthetic fixtures.",
+        "freshness": "Versioned with the repository."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:runtime-parity:mock"
+          ]
+        },
+        "live": {
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Unsupported renderer operations are reported as fidelity differences.",
-      "validation": ["npm run demo:runtime-parity:typecheck", "npm run demo:runtime-parity:build"]
+      "validation": [
+        "npm run demo:runtime-parity:typecheck",
+        "npm run demo:runtime-parity:build"
+      ]
     },
     {
       "id": "service-explorer",
@@ -375,16 +1087,67 @@
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "keep", "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Maintained public-kernel journey with deterministic bounded and hostile fixture coverage; reviewed dual-protocol live producers await scheduled execution."
+      },
       "sourcePath": "examples/service-explorer",
       "docsPath": "examples/service-explorer/README.md",
-      "capabilities": ["cancellation", "capability-discovery", "explain-plan", "fidelity", "map", "protocols", "provenance", "query"],
-      "protocols": ["geoservices", "odata", "ogc", "stac", "wfs", "wms", "wmts"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["HONUA_SERVICE_EXPLORER_LIVE_ENABLED"], "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.", "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.", "freshness": "Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:service-explorer:mock"] }, "live": { "status": "planned", "commands": ["npm run demo:service-explorer:live-evidence"] } },
+      "capabilities": [
+        "cancellation",
+        "capability-discovery",
+        "explain-plan",
+        "fidelity",
+        "map",
+        "protocols",
+        "provenance",
+        "query"
+      ],
+      "protocols": [
+        "geoservices",
+        "odata",
+        "ogc",
+        "stac",
+        "wfs",
+        "wms",
+        "wmts"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "config": [
+          "HONUA_SERVICE_EXPLORER_LIVE_ENABLED"
+        ],
+        "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
+        "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
+        "freshness": "Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:service-explorer:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": [
+            "npm run demo:service-explorer:live-evidence"
+          ]
+        }
+      },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
-      "validation": ["npm run demo:service-explorer:typecheck", "npm run demo:service-explorer:build", "npx vitest run test/service-explorer-truth-model.test.ts", "npx vitest run test/service-explorer-operation-model.test.ts", "npx vitest run test/service-explorer-live-evidence.test.ts", "npm run test:playwright:service-explorer"]
+      "validation": [
+        "npm run demo:service-explorer:typecheck",
+        "npm run demo:service-explorer:build",
+        "npx vitest run test/service-explorer-truth-model.test.ts",
+        "npx vitest run test/service-explorer-operation-model.test.ts",
+        "npx vitest run test/service-explorer-live-evidence.test.ts",
+        "npm run test:playwright:service-explorer"
+      ]
     },
     {
       "id": "sketch-editing",
@@ -392,16 +1155,49 @@
       "summary": "terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission.",
       "tier": "advanced",
       "supportStatus": "experimental",
-      "disposition": { "decision": "keep", "reason": "Canonical terra-draw binding demo for the Esri widget-cliff sketch gap." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Canonical terra-draw binding demo for the Esri widget-cliff sketch gap."
+      },
       "sourcePath": "examples/sketch-editing",
       "docsPath": "examples/sketch-editing/README.md",
-      "capabilities": ["editing", "sketch", "snapping"],
-      "protocols": ["geoservices"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed deterministic harbor-parcel fixture.", "attribution": "Honua synthetic operations data.", "freshness": "Deterministic fixture replay time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:sketch-editing:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "editing",
+        "sketch",
+        "snapping"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed deterministic harbor-parcel fixture.",
+        "attribution": "Honua synthetic operations data.",
+        "freshness": "Deterministic fixture replay time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:sketch-editing:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Sketch tools report unsupported capabilities when terra-draw is not installed; the SDK works without the optional peer.",
-      "validation": ["npm run demo:sketch-editing:typecheck", "npm run demo:sketch-editing:build", "npm run test:playwright:sketch-editing"]
+      "validation": [
+        "npm run demo:sketch-editing:typecheck",
+        "npm run demo:sketch-editing:build",
+        "npm run test:playwright:sketch-editing"
+      ]
     },
     {
       "id": "spatial-analytics-workbench",
@@ -409,16 +1205,64 @@
       "summary": "Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output.",
       "tier": "flagship",
       "supportStatus": "experimental",
-      "disposition": { "decision": "rework", "reason": "Join the large-data journey and distinguish fixture estimates from executed plans." },
+      "disposition": {
+        "decision": "rework",
+        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans."
+      },
       "sourcePath": "examples/spatial-analytics-workbench",
       "docsPath": "examples/spatial-analytics-workbench/README.md",
-      "capabilities": ["aggregation", "analysis", "bounded-local", "explain-plan", "linked-views", "provenance"],
-      "protocols": ["geoservices", "ogc"],
-      "renderers": ["none"],
-      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_HONUA_SPATIAL_ANALYTICS_BASE_URL", "VITE_HONUA_SPATIAL_ANALYTICS_LAYER_ID", "VITE_HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION", "VITE_HONUA_SPATIAL_ANALYTICS_SERVICE_ID", "VITE_HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION"], "provenance": "Committed analysis fixtures or a configured public GeoServices source.", "attribution": "Input/output attribution, source/schema versions, observation time, cache decision, and plan fingerprint are retained.", "freshness": "Fixture replay uses a fixed observation; configured live execution records its observation time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:spatial-analytics:build", "npm run demo:spatial-analytics:evidence"] }, "live": { "status": "skipped", "commands": ["npm run demo:spatial-analytics:live-evidence"], "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json" } },
+      "capabilities": [
+        "aggregation",
+        "analysis",
+        "bounded-local",
+        "explain-plan",
+        "linked-views",
+        "provenance"
+      ],
+      "protocols": [
+        "geoservices",
+        "ogc"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "config": [
+          "VITE_HONUA_SPATIAL_ANALYTICS_BASE_URL",
+          "VITE_HONUA_SPATIAL_ANALYTICS_LAYER_ID",
+          "VITE_HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION",
+          "VITE_HONUA_SPATIAL_ANALYTICS_SERVICE_ID",
+          "VITE_HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION"
+        ],
+        "provenance": "Committed analysis fixtures or a configured public GeoServices source.",
+        "attribution": "Input/output attribution, source/schema versions, observation time, cache decision, and plan fingerprint are retained.",
+        "freshness": "Fixture replay uses a fixed observation; configured live execution records its observation time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:spatial-analytics:build",
+            "npm run demo:spatial-analytics:evidence"
+          ]
+        },
+        "live": {
+          "status": "skipped",
+          "commands": [
+            "npm run demo:spatial-analytics:live-evidence"
+          ],
+          "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json"
+        }
+      },
       "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.",
-      "validation": ["npm run demo:spatial-analytics:typecheck", "npm run demo:spatial-analytics:build", "npm run demo:spatial-analytics:evidence", "npm run test:playwright:spatial-analytics"]
+      "validation": [
+        "npm run demo:spatial-analytics:typecheck",
+        "npm run demo:spatial-analytics:build",
+        "npm run demo:spatial-analytics:evidence",
+        "npm run test:playwright:spatial-analytics"
+      ]
     },
     {
       "id": "stac-imagery-browser",
@@ -426,16 +1270,55 @@
       "summary": "Searches Maui imagery by bounds and time, renders a selected preview, and inspects a signed PMTiles v3 handoff.",
       "tier": "advanced",
       "supportStatus": "experimental",
-      "disposition": { "decision": "merge", "reason": "Retain as the dynamic STAC Walkthrough, with one atomic bounded-search Example kept in the project source." },
+      "disposition": {
+        "decision": "merge",
+        "reason": "Retain as the dynamic STAC Walkthrough, with one atomic bounded-search Example kept in the project source."
+      },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
-      "capabilities": ["cancellation", "cog", "geoparquet", "imagery", "pmtiles", "raster", "stac"],
-      "protocols": ["pmtiles", "stac"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed deterministic Maui STAC API responses, preview bytes, and an exact PMTiles v3 range fixture; no live service claim.", "attribution": "Honua synthetic Maui product-evidence fixture.", "freshness": "Pinned April-May 2026 fixture observations." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:stac-browser:build", "npm run test:playwright:stac-browser"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "cancellation",
+        "cog",
+        "geoparquet",
+        "imagery",
+        "pmtiles",
+        "raster",
+        "stac"
+      ],
+      "protocols": [
+        "pmtiles",
+        "stac"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed deterministic Maui STAC API responses, preview bytes, and an exact PMTiles v3 range fixture; no live service claim.",
+        "attribution": "Honua synthetic Maui product-evidence fixture.",
+        "freshness": "Pinned April-May 2026 fixture observations."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:stac-browser:build",
+            "npm run test:playwright:stac-browser"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Unsupported or metadata-only assets remain visible without a handoff, signing is skipped for filtered assets, and cancelled or failed PMTiles inspection never becomes a tile-rendering claim.",
-      "validation": ["npm run demo:stac-browser:typecheck", "npm run demo:stac-browser:build", "npm run test:playwright:stac-browser"]
+      "validation": [
+        "npm run demo:stac-browser:typecheck",
+        "npm run demo:stac-browser:build",
+        "npm run test:playwright:stac-browser"
+      ]
     },
     {
       "id": "storytelling-25d-map",
@@ -443,16 +1326,51 @@
       "summary": "Combines terrain, extrusion, OGC overlays, and route playback in a guided story.",
       "tier": "advanced",
       "supportStatus": "supported",
-      "disposition": { "decision": "merge", "reason": "Use its strongest interactions inside the imagery and 3D journey." },
+      "disposition": {
+        "decision": "merge",
+        "reason": "Use its strongest interactions inside the imagery and 3D journey."
+      },
       "sourcePath": "examples/storytelling-25d-map",
       "docsPath": "examples/storytelling-25d-map/README.md",
-      "capabilities": ["storytelling", "terrain", "three-dimensional"],
-      "protocols": ["honua", "ogc-features"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["VITE_HONUA_25D_BASE_URL"], "provenance": "Committed Oahu story fixtures or configured Honua services.", "attribution": "Basemap, terrain, and thematic source attribution is displayed.", "freshness": "Fixture capture or live layer observation time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:25d:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "storytelling",
+        "terrain",
+        "three-dimensional"
+      ],
+      "protocols": [
+        "honua",
+        "ogc-features"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "config": [
+          "VITE_HONUA_25D_BASE_URL"
+        ],
+        "provenance": "Committed Oahu story fixtures or configured Honua services.",
+        "attribution": "Basemap, terrain, and thematic source attribution is displayed.",
+        "freshness": "Fixture capture or live layer observation time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:25d:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Terrain and live overlays fail independently with structured status.",
-      "validation": ["npm run demo:25d:typecheck", "npm run demo:25d:build"]
+      "validation": [
+        "npm run demo:25d:typecheck",
+        "npm run demo:25d:build"
+      ]
     },
     {
       "id": "temporal-playback",
@@ -460,16 +1378,48 @@
       "summary": "Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems().",
       "tier": "advanced",
       "supportStatus": "experimental",
-      "disposition": { "decision": "keep", "reason": "Canonical demo for first-class renderer objects + temporal playback (#497): renderer-driven styling, legend contracts, and filter-composed time windows." },
+      "disposition": {
+        "decision": "keep",
+        "reason": "Canonical demo for first-class renderer objects + temporal playback (#497): renderer-driven styling, legend contracts, and filter-composed time windows."
+      },
       "sourcePath": "examples/temporal-playback",
       "docsPath": "examples/temporal-playback/README.md",
-      "capabilities": ["map", "realtime", "renderer-adapters"],
-      "protocols": ["geojson"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Synthetic seismic events generated in the browser from a seeded PRNG; no network access.", "attribution": "Honua synthetic demo data.", "freshness": "Deterministic seeded generation per load." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:temporal-playback:build"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "capabilities": [
+        "map",
+        "realtime",
+        "renderer-adapters"
+      ],
+      "protocols": [
+        "geojson"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Synthetic seismic events generated in the browser from a seeded PRNG; no network access.",
+        "attribution": "Honua synthetic demo data.",
+        "freshness": "Deterministic seeded generation per load."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:temporal-playback:build"
+          ]
+        },
+        "live": {
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Playback filters compose with bind-time layer filters; when MapLibre is unavailable the renderer objects still serialize and expose legend metadata headlessly.",
-      "validation": ["npm run demo:temporal-playback:typecheck", "npm run demo:temporal-playback:build"]
+      "validation": [
+        "npm run demo:temporal-playback:typecheck",
+        "npm run demo:temporal-playback:build"
+      ]
     },
     {
       "id": "terrain-rgb-elevation",
@@ -477,16 +1427,50 @@
       "summary": "Reads Terrain-RGB tiles for point elevation and route profiles.",
       "tier": "advanced",
       "supportStatus": "supported",
-      "disposition": { "decision": "merge", "reason": "Combine point/profile proof with the imagery and 3D flagship." },
+      "disposition": {
+        "decision": "merge",
+        "reason": "Combine point/profile proof with the imagery and 3D flagship."
+      },
       "sourcePath": "examples/terrain-rgb-elevation",
       "docsPath": "examples/terrain-rgb-elevation/README.md",
-      "capabilities": ["elevation", "profile", "terrain"],
-      "protocols": ["terrain-rgb"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["VITE_HONUA_TERRAIN_BASE_URL"], "provenance": "Committed Oahu DEM fixture or configured terrain service.", "attribution": "Elevation-source attribution displayed with results.", "freshness": "Fixture asset version or live response time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:terrain-elevation:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "capabilities": [
+        "elevation",
+        "profile",
+        "terrain"
+      ],
+      "protocols": [
+        "terrain-rgb"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "config": [
+          "VITE_HONUA_TERRAIN_BASE_URL"
+        ],
+        "provenance": "Committed Oahu DEM fixture or configured terrain service.",
+        "attribution": "Elevation-source attribution displayed with results.",
+        "freshness": "Fixture asset version or live response time."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:terrain-elevation:mock"
+          ]
+        },
+        "live": {
+          "status": "planned",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Profile and map terrain expose independent capability failures.",
-      "validation": ["npm run demo:terrain-elevation:typecheck", "npm run demo:terrain-elevation:build"]
+      "validation": [
+        "npm run demo:terrain-elevation:typecheck",
+        "npm run demo:terrain-elevation:build"
+      ]
     },
     {
       "id": "unified-ops-workspace",
@@ -494,16 +1478,49 @@
       "summary": "Composes incident command, analysis, and shared workspace state.",
       "tier": "advanced",
       "supportStatus": "deprecated",
-      "disposition": { "decision": "retire", "reason": "Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately." },
+      "disposition": {
+        "decision": "retire",
+        "reason": "Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately."
+      },
       "sourcePath": "examples/unified-ops-workspace",
       "docsPath": "examples/unified-ops-workspace/README.md",
-      "capabilities": ["analysis", "realtime", "workspace"],
-      "protocols": ["honua", "sse"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed operations workspace fixture.", "attribution": "Synthetic Honua operations data.", "freshness": "Deterministic snapshot and delta replay." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:unified-ops:mock"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "capabilities": [
+        "analysis",
+        "realtime",
+        "workspace"
+      ],
+      "protocols": [
+        "honua",
+        "sse"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed operations workspace fixture.",
+        "attribution": "Synthetic Honua operations data.",
+        "freshness": "Deterministic snapshot and delta replay."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:unified-ops:mock"
+          ]
+        },
+        "live": {
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Deprecated app-shell APIs remain available only through their transition window.",
-      "validation": ["npm run demo:unified-ops:typecheck", "npm run demo:unified-ops:build"]
+      "validation": [
+        "npm run demo:unified-ops:typecheck",
+        "npm run demo:unified-ops:build"
+      ]
     },
     {
       "id": "web-components-basic",
@@ -511,39 +1528,192 @@
       "summary": "Demonstrates the SDK custom-element controls against a map.",
       "tier": "reference",
       "supportStatus": "deprecated",
-      "disposition": { "decision": "retire", "reason": "Controls move with app-platform rather than remaining in the core SDK gallery." },
+      "disposition": {
+        "decision": "retire",
+        "reason": "Controls move with app-platform rather than remaining in the core SDK gallery."
+      },
       "sourcePath": "examples/web-components-basic",
       "docsPath": "examples/web-components-basic/README.md",
-      "capabilities": ["controls", "custom-elements", "map"],
-      "protocols": ["honua"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed control-gallery fixture.", "attribution": "Honua fixture data.", "freshness": "Versioned with the repository." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:web-components:mock"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "capabilities": [
+        "controls",
+        "custom-elements",
+        "map"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed control-gallery fixture.",
+        "attribution": "Honua fixture data.",
+        "freshness": "Versioned with the repository."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run demo:web-components:mock"
+          ]
+        },
+        "live": {
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
       "expectedDegradation": "Deprecated controls are linked to their app-platform replacements.",
-      "validation": ["npm run demo:web-components:typecheck", "npm run demo:web-components:build"]
+      "validation": [
+        "npm run demo:web-components:typecheck",
+        "npm run demo:web-components:build"
+      ]
     }
   ],
   "siteMappings": [
-    { "id": "analyst-workbench", "route": "demo-analyst-workbench.html", "ownership": "sdk-projection", "sampleId": "spatial-analytics-workbench" },
-    { "id": "codemod", "route": "sample-codemod.html", "ownership": "sdk-projection", "sampleId": "migration-workbench" },
-    { "id": "control-legend", "route": "sample-control-legend.html", "ownership": "site-exception", "exceptionReason": "Site-owned focused presentation route until app-platform owns a replacement executable.", "title": "Legend control", "summary": "Presents one control extracted from the site controls gallery.", "tier": "reference", "supportStatus": "deprecated", "capabilities": ["legend", "web-components"] },
-    { "id": "control-search", "route": "sample-control-search.html", "ownership": "site-exception", "exceptionReason": "Site-owned focused presentation route until app-platform owns a replacement executable.", "title": "Search control", "summary": "Presents one control extracted from the site controls gallery.", "tier": "reference", "supportStatus": "deprecated", "capabilities": ["search", "web-components"] },
-    { "id": "controls-kit", "route": "demo-sdk-controls.html", "ownership": "sdk-projection", "sampleId": "web-components-basic" },
-    { "id": "editing", "route": "demo-editing.html", "ownership": "sdk-projection", "sampleId": "edit-workflow-demo" },
-    { "id": "esri-leaflet", "route": "demo-esri-leaflet.html", "ownership": "sdk-projection", "sampleId": "arcgis-source-app" },
-    { "id": "expr-builder", "route": "sample-expr-builder.html", "ownership": "sdk-projection", "sampleId": "maplibre-quickstart" },
-    { "id": "geocoding", "route": "sample-geocoding.html", "ownership": "sdk-projection", "sampleId": "geocoding-quickstart" },
-    { "id": "gp-runner", "route": "demo-geoprocessing.html", "ownership": "sdk-projection", "sampleId": "geoprocessing-job-runner" },
-    { "id": "hello-webmap", "route": "sample-hello-webmap.html", "ownership": "sdk-projection", "sampleId": "app-bootstrap-basic" },
-    { "id": "imagery-terrain", "route": "demo-imagery-terrain.html", "ownership": "sdk-projection", "sampleId": "imagery-cog-quickstart" },
-    { "id": "maui-3d", "route": "demo-maui-3d.html", "ownership": "sdk-projection", "sampleId": "storytelling-25d-map" },
-    { "id": "maui-explorer", "route": "demo.html", "ownership": "sdk-projection", "sampleId": "maplibre-quickstart" },
-    { "id": "planning-permitting", "route": "demo-planning-permitting.html", "ownership": "sdk-projection", "sampleId": "planning-permitting-workbench" },
-    { "id": "public-safety", "route": "demo-public-safety.html", "ownership": "sdk-projection", "sampleId": "realtime-incident-dashboard" },
-    { "id": "quickstart-map", "route": "demo.html", "ownership": "sdk-projection", "sampleId": "maplibre-quickstart" },
-    { "id": "service-explorer", "route": "sample-service-explorer.html", "ownership": "sdk-projection", "sampleId": "service-explorer" },
-    { "id": "spatial-analytics", "route": "sample-spatial-analytics.html", "ownership": "sdk-projection", "sampleId": "spatial-analytics-workbench" },
-    { "id": "two-protocols", "route": "demo-two-protocols.html", "ownership": "sdk-projection", "sampleId": "service-explorer" },
-    { "id": "wms-overlay", "route": "sample-raster-overlay.html", "ownership": "sdk-projection", "sampleId": "imagery-cog-quickstart" }
+    {
+      "id": "analyst-workbench",
+      "route": "demo-analyst-workbench.html",
+      "ownership": "sdk-projection",
+      "sampleId": "spatial-analytics-workbench"
+    },
+    {
+      "id": "codemod",
+      "route": "sample-codemod.html",
+      "ownership": "sdk-projection",
+      "sampleId": "migration-workbench"
+    },
+    {
+      "id": "control-legend",
+      "route": "sample-control-legend.html",
+      "ownership": "site-exception",
+      "exceptionReason": "Site-owned focused presentation route until app-platform owns a replacement executable.",
+      "title": "Legend control",
+      "summary": "Presents one control extracted from the site controls gallery.",
+      "tier": "reference",
+      "supportStatus": "deprecated",
+      "capabilities": [
+        "legend",
+        "web-components"
+      ]
+    },
+    {
+      "id": "control-search",
+      "route": "sample-control-search.html",
+      "ownership": "site-exception",
+      "exceptionReason": "Site-owned focused presentation route until app-platform owns a replacement executable.",
+      "title": "Search control",
+      "summary": "Presents one control extracted from the site controls gallery.",
+      "tier": "reference",
+      "supportStatus": "deprecated",
+      "capabilities": [
+        "search",
+        "web-components"
+      ]
+    },
+    {
+      "id": "controls-kit",
+      "route": "demo-sdk-controls.html",
+      "ownership": "sdk-projection",
+      "sampleId": "web-components-basic"
+    },
+    {
+      "id": "editing",
+      "route": "demo-editing.html",
+      "ownership": "sdk-projection",
+      "sampleId": "edit-workflow-demo"
+    },
+    {
+      "id": "esri-leaflet",
+      "route": "demo-esri-leaflet.html",
+      "ownership": "sdk-projection",
+      "sampleId": "arcgis-source-app"
+    },
+    {
+      "id": "expr-builder",
+      "route": "sample-expr-builder.html",
+      "ownership": "sdk-projection",
+      "sampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "geocoding",
+      "route": "sample-geocoding.html",
+      "ownership": "sdk-projection",
+      "sampleId": "geocoding-quickstart"
+    },
+    {
+      "id": "gp-runner",
+      "route": "demo-geoprocessing.html",
+      "ownership": "sdk-projection",
+      "sampleId": "geoprocessing-job-runner"
+    },
+    {
+      "id": "hello-webmap",
+      "route": "sample-hello-webmap.html",
+      "ownership": "sdk-projection",
+      "sampleId": "app-bootstrap-basic"
+    },
+    {
+      "id": "imagery-terrain",
+      "route": "demo-imagery-terrain.html",
+      "ownership": "sdk-projection",
+      "sampleId": "imagery-cog-quickstart"
+    },
+    {
+      "id": "maui-3d",
+      "route": "demo-maui-3d.html",
+      "ownership": "sdk-projection",
+      "sampleId": "storytelling-25d-map"
+    },
+    {
+      "id": "maui-explorer",
+      "route": "demo.html",
+      "ownership": "sdk-projection",
+      "sampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "planning-permitting",
+      "route": "demo-planning-permitting.html",
+      "ownership": "sdk-projection",
+      "sampleId": "planning-permitting-workbench"
+    },
+    {
+      "id": "public-safety",
+      "route": "demo-public-safety.html",
+      "ownership": "sdk-projection",
+      "sampleId": "realtime-incident-dashboard"
+    },
+    {
+      "id": "quickstart-map",
+      "route": "demo.html",
+      "ownership": "sdk-projection",
+      "sampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "service-explorer",
+      "route": "sample-service-explorer.html",
+      "ownership": "sdk-projection",
+      "sampleId": "service-explorer"
+    },
+    {
+      "id": "spatial-analytics",
+      "route": "sample-spatial-analytics.html",
+      "ownership": "sdk-projection",
+      "sampleId": "spatial-analytics-workbench"
+    },
+    {
+      "id": "two-protocols",
+      "route": "demo-two-protocols.html",
+      "ownership": "sdk-projection",
+      "sampleId": "service-explorer"
+    },
+    {
+      "id": "wms-overlay",
+      "route": "sample-raster-overlay.html",
+      "ownership": "sdk-projection",
+      "sampleId": "imagery-cog-quickstart"
+    }
   ]
 }
