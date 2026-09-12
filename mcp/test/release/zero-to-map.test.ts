@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
@@ -1585,6 +1586,9 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(() => assertRenderedPng(pngFixture(256, 256), "image/png", expected)).toThrow(
       /is 256x256; the renderer reported 512x512/,
     );
+    expect(() => assertRenderedPng(pngFixture(512, 512), undefined, expected)).toThrow(
+      /declared media type undefined; expected image\/png/,
+    );
     expect(() => assertRenderedPng(pngFixture(512, 512), "application/json", expected)).toThrow(
       /declared media type application\/json; expected image\/png/,
     );
@@ -1631,6 +1635,35 @@ describe("zero-to-map D9.3 release journey", () => {
     ).toThrow(/decodes to a single flat colour/);
   });
 
+  it.each([false, true])("checks visible pixels on a real PNG, Adam7=%s", (interlace) => {
+    const expected = {
+      uri: "honua://renders/parcels.png",
+      mediaType: "image/png",
+      width: 9,
+      height: 7,
+      minByteLength: 32,
+    };
+    const evidence = assertRenderedPng(pngFixture(9, 7, { interlace }), "image/png", expected);
+    // The fixture explicitly paints all 9 * 7 pixels opaque, including each
+    // reduced Adam7 pass. This expectation is not derived from decoder output.
+    expect(evidence).toMatchObject({ width: 9, height: 7, visiblePixelCount: 63 });
+    const expectedPixels = Buffer.alloc(9 * 7 * 8);
+    for (let y = 0; y < 7; y += 1) {
+      for (let x = 0; x < 9; x += 1) {
+        const shade = (y * 7 + x * 13) % 256;
+        const rgba = [shade, (shade * 3) % 256, (shade * 5) % 256, 255];
+        rgba.forEach((sample, channel) => expectedPixels.writeUInt16BE(sample * 257, (y * 9 + x) * 8 + channel * 2));
+      }
+    }
+    expect(evidence.decodedPixelSha256).toBe(createHash("sha256").update(expectedPixels).digest("hex"));
+    expect(() => assertRenderedPng(pngFixture(9, 7, { interlace, flat: true }), "image/png", expected)).toThrow(
+      /single flat colour/,
+    );
+    expect(() => assertRenderedPng(pngFixture(9, 7, { interlace, transparent: true }), "image/png", expected)).toThrow(
+      /no visible pixels/,
+    );
+  });
+
   it("names the stage, action and tool when a style application is a silent no-op", async () => {
     const plan = await loadPlan();
     const receipt = await runZeroToMapJourney(styleStagePlan(plan), styleNoOpAdapter(plan), {
@@ -1668,6 +1701,8 @@ function pngFixture(
     iend?: boolean;
     /** Paint every pixel the same colour. */
     flat?: boolean;
+    interlace?: boolean;
+    transparent?: boolean;
   } = {},
 ): Uint8Array {
   // A real PNG: correct chunk CRCs, a genuine deflate stream, and by default a
@@ -1688,25 +1723,45 @@ function pngFixture(
   ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; // bit depth
   ihdr[9] = 6; // RGBA
+  ihdr[12] = options.interlace ? 1 : 0;
   push("IHDR", ihdr);
 
   if (options.idat !== false) {
-    const bytesPerRow = width * 4;
-    const raster = Buffer.alloc(height * (bytesPerRow + 1));
-    for (let row = 0; row < height; row += 1) {
-      const rowStart = row * (bytesPerRow + 1);
-      raster[rowStart] = 0; // filter type: none
-      for (let column = 0; column < width; column += 1) {
-        const at = rowStart + 1 + column * 4;
-        // A flat fixture is a uniform canvas - the "painted but nothing drawn"
-        // shape. Otherwise vary by position so the raster has real content.
-        const shade = options.flat === true ? 0x20 : (row * 7 + column * 13) % 256;
-        raster[at] = shade;
-        raster[at + 1] = options.flat === true ? 0x20 : (shade * 3) % 256;
-        raster[at + 2] = options.flat === true ? 0x20 : (shade * 5) % 256;
-        raster[at + 3] = 0xff;
+    // Encode the seven passes by assigning each source coordinate its first
+    // Adam7 visit. The production decoder instead computes pass dimensions.
+    const passes = options.interlace ? 7 : 1;
+    const scanlines: Buffer[] = [];
+    for (let pass = 0; pass < passes; pass += 1) {
+      for (let row = 0; row < height; row += 1) {
+        const pixels: number[] = [];
+        for (let column = 0; column < width; column += 1) {
+          const visit =
+            row % 8 === 0 && column % 8 === 0
+              ? 0
+              : row % 8 === 0 && column % 8 === 4
+                ? 1
+                : row % 8 === 4 && column % 4 === 0
+                  ? 2
+                  : row % 4 === 0 && column % 4 === 2
+                    ? 3
+                    : row % 4 === 2 && column % 2 === 0
+                      ? 4
+                      : row % 2 === 0 && column % 2 === 1
+                        ? 5
+                        : 6;
+          if (options.interlace && visit !== pass) continue;
+          const shade = options.flat ? 0x20 : (row * 7 + column * 13) % 256;
+          pixels.push(
+            shade,
+            options.flat ? 0x20 : (shade * 3) % 256,
+            options.flat ? 0x20 : (shade * 5) % 256,
+            options.transparent ? 0 : 255,
+          );
+        }
+        if (pixels.length) scanlines.push(Buffer.from([0, ...pixels]));
       }
     }
+    const raster = Buffer.concat(scanlines);
     push("IDAT", options.corruptIdat === true ? Buffer.from("not a deflate stream at all") : deflateSync(raster));
   }
 

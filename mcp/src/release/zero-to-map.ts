@@ -294,6 +294,10 @@ export interface RenderedImageEvidence {
   readonly height: number;
   readonly byteLength: number;
   readonly imageSha256: string;
+  /** Number of decoded pixels with nonzero alpha, across every Adam7 pass. */
+  readonly visiblePixelCount: number;
+  /** SHA-256 of row-major RGBA unsigned 16-bit big-endian decoded samples. */
+  readonly decodedPixelSha256: string;
 }
 
 const PNG_SIGNATURE = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -394,7 +398,7 @@ export function assertRenderedPng(
   expected: RenderedImageExpectation,
 ): RenderedImageEvidence {
   const where = `rendered artifact ${expected.uri}`;
-  if (mediaType !== undefined && mediaType !== expected.mediaType) {
+  if (mediaType !== expected.mediaType) {
     throw new Error(`${where} declared media type ${mediaType}; expected ${expected.mediaType}`);
   }
   if (bytes.length < PNG_SIGNATURE.length || !PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {
@@ -406,6 +410,8 @@ export function assertRenderedPng(
   let header: { width: number; height: number; bitDepth: number; colorType: number; interlace: number } | undefined;
   const idatParts: Uint8Array[] = [];
   let sawEnd = false;
+  let palette: Uint8Array | undefined;
+  let transparency: Uint8Array | undefined;
 
   while (offset + 8 <= bytes.length) {
     const length = view.getUint32(offset);
@@ -430,6 +436,10 @@ export function assertRenderedPng(
         colorType: bytes[dataStart + 9]!,
         interlace: bytes[dataStart + 12]!,
       };
+    } else if (type === "PLTE") {
+      palette = bytes.subarray(dataStart, dataStart + length);
+    } else if (type === "tRNS") {
+      transparency = bytes.subarray(dataStart, dataStart + length);
     } else if (type === "IDAT") {
       idatParts.push(bytes.subarray(dataStart, dataStart + length));
     } else if (type === "IEND") {
@@ -453,43 +463,128 @@ export function assertRenderedPng(
     throw new Error(`${where} carries no IDAT pixel data: the artifact declares a canvas but nothing was drawn on it`);
   }
 
-  // The decode. A blob whose chunks are merely labelled IDAT fails here.
+  const legalDepths: Readonly<Record<number, readonly number[]>> = {
+    0: [1, 2, 4, 8, 16],
+    2: [8, 16],
+    3: [1, 2, 4, 8],
+    4: [8, 16],
+    6: [8, 16],
+  };
+  if (!legalDepths[header.colorType]?.includes(header.bitDepth) || ![0, 1].includes(header.interlace)) {
+    throw new Error(`${where} declares an invalid PNG bit depth or interlace method`);
+  }
+  if (header.width < 1 || header.height < 1) throw new Error(`${where} has empty PNG dimensions`);
+  if (header.colorType === 3 && (!palette || palette.length === 0 || palette.length % 3 !== 0)) {
+    throw new Error(`${where} has no valid PNG palette`);
+  }
+  // Each Adam7 pass is its own filtered image. Decode all passes; interlacing
+  // must never exempt a render from the raster-shape or visible-content proof.
+  const layout =
+    header.interlace === 1
+      ? [
+          [0, 0, 8, 8],
+          [4, 0, 8, 8],
+          [0, 4, 4, 8],
+          [2, 0, 4, 4],
+          [0, 2, 2, 4],
+          [1, 0, 2, 2],
+          [0, 1, 1, 2],
+        ]
+      : [[0, 0, 1, 1]];
+  const passes = layout.map(([x, y, dx, dy]) => {
+    const width = Math.max(0, Math.ceil((header.width - x!) / dx!));
+    const height = Math.max(0, Math.ceil((header.height - y!) / dy!));
+    const rowBytes = Math.ceil((width * channels * header.bitDepth) / 8);
+    return {
+      x: x!,
+      y: y!,
+      dx: dx!,
+      dy: dy!,
+      width,
+      height,
+      rowBytes,
+      length: width && height ? height * (rowBytes + 1) : 0,
+    };
+  });
+  const expectedRaster = passes.reduce((total, pass) => total + pass.length, 0);
   const compressed = Buffer.concat(idatParts.map((part) => Buffer.from(part.buffer, part.byteOffset, part.length)));
   let raster: Buffer;
   try {
-    raster = inflateSync(compressed);
+    raster = inflateSync(compressed, { maxOutputLength: expectedRaster + 1 });
   } catch (error) {
     throw new Error(
-      `${where} has an IDAT stream that does not inflate (${error instanceof Error ? error.message : String(error)}); no PNG decoder could render this artifact`,
+      `${where} has an IDAT stream that does not inflate within its declared raster size (${error instanceof Error ? error.message : String(error)}); no PNG decoder could render this artifact`,
     );
   }
-
-  const bytesPerRow = Math.ceil((header.width * channels * header.bitDepth) / 8);
-  // Adam7 lays the raster out in seven reduced passes, so the row arithmetic
-  // below does not describe it. Interlaced renders still had to inflate, keep
-  // their CRCs and terminate; the raster-shape and flat-colour checks are the
-  // two that are skipped rather than faked.
-  const interlaced = header.interlace === 1;
-  let distinctPixels = 0;
-  if (!interlaced) {
-    const expectedRaster = header.height * (bytesPerRow + 1);
-    if (raster.length !== expectedRaster) {
-      throw new Error(
-        `${where} inflates to ${raster.length} raster bytes; a ${header.width}x${header.height} image at bit depth ${header.bitDepth} and colour type ${header.colorType} needs exactly ${expectedRaster}`,
-      );
+  if (raster.length !== expectedRaster) {
+    throw new Error(
+      `${where} inflates to ${raster.length} raster bytes; the declared PNG needs exactly ${expectedRaster}`,
+    );
+  }
+  const maxSample = (1 << header.bitDepth) - 1;
+  const seen = new Set<string>();
+  const decoded = Buffer.alloc(header.width * header.height * 8);
+  let visiblePixelCount = 0;
+  let passOffset = 0;
+  for (const pass of passes) {
+    if (!pass.length) continue;
+    const pixels = unfilterRaster(
+      raster.subarray(passOffset, passOffset + pass.length),
+      pass.height,
+      Math.ceil((channels * header.bitDepth) / 8),
+      pass.rowBytes,
+      where,
+    );
+    passOffset += pass.length;
+    for (let row = 0; row < pass.height; row += 1) {
+      for (let column = 0; column < pass.width; column += 1) {
+        const samples = Array.from({ length: channels }, (_, channel) => {
+          const bit = (column * channels + channel) * header.bitDepth;
+          const at = row * pass.rowBytes + Math.floor(bit / 8);
+          return header.bitDepth === 16
+            ? pixels[at]! * 256 + pixels[at + 1]!
+            : (pixels[at]! >> (8 - header.bitDepth - (bit % 8))) & maxSample;
+        });
+        let alpha = maxSample;
+        let color = samples;
+        if (header.colorType === 3) {
+          const index = samples[0]!;
+          if (!palette || index * 3 + 2 >= palette.length)
+            throw new Error(`${where} references a missing PNG palette entry`);
+          color = Array.from(palette.subarray(index * 3, index * 3 + 3));
+          alpha = transparency?.[index] ?? 255;
+        } else if (header.colorType === 4 || header.colorType === 6) {
+          alpha = samples[samples.length - 1]!;
+          color = samples.slice(0, -1);
+        } else if (
+          transparency &&
+          samples.every(
+            (sample, index) =>
+              transparency[index * 2] !== undefined &&
+              sample === transparency[index * 2]! * 256 + transparency[index * 2 + 1]!,
+          )
+        ) {
+          alpha = 0;
+        }
+        const maximum = header.colorType === 3 ? 255 : maxSample;
+        const rgb = color.length === 1 ? [color[0]!, color[0]!, color[0]!] : color;
+        const at = ((pass.y + row * pass.dy) * header.width + pass.x + column * pass.dx) * 8;
+        for (const [index, sample] of [...rgb, alpha].entries()) {
+          decoded.writeUInt16BE(Math.round((sample * 65535) / maximum), at + index * 2);
+        }
+        if (alpha > 0) visiblePixelCount += 1;
+        // RGB hidden behind zero alpha has no visible content, however many
+        // different byte values the encoder leaves in those channels.
+        if (seen.size < 2) seen.add(alpha === 0 ? "transparent" : `${color.join(",")}/${alpha}`);
+      }
     }
-    const bytesPerPixel = Math.ceil((channels * header.bitDepth) / 8);
-    const pixels = unfilterRaster(new Uint8Array(raster), header.height, bytesPerPixel, bytesPerRow, where);
-    const seen = new Set<string>();
-    for (let index = 0; index + bytesPerPixel <= pixels.length && seen.size < 2; index += bytesPerPixel) {
-      seen.add(String(pixels.subarray(index, index + bytesPerPixel)));
-    }
-    distinctPixels = seen.size;
-    if (distinctPixels < 2) {
-      throw new Error(
-        `${where} decodes to a single flat colour across all ${header.width}x${header.height} pixels: the canvas was painted but no feature was drawn on it, which is what a style/render no-op produces`,
-      );
-    }
+  }
+  if (visiblePixelCount === 0)
+    throw new Error(`${where} decodes to no visible pixels; the render is fully transparent`);
+  if (seen.size < 2) {
+    throw new Error(
+      `${where} decodes to a single flat colour across all ${header.width}x${header.height} pixels: the canvas was painted but no feature was drawn on it, which is what a style/render no-op produces`,
+    );
   }
 
   // Checked last, so a structurally explicable artifact is diagnosed by its
@@ -509,6 +604,8 @@ export function assertRenderedPng(
     height: header.height,
     byteLength: bytes.length,
     imageSha256: createHash("sha256").update(bytes).digest("hex"),
+    visiblePixelCount,
+    decodedPixelSha256: createHash("sha256").update(decoded).digest("hex"),
   };
 }
 
