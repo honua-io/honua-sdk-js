@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Zarr client"
+description: "`@honua/sdk-js/zarr` is an experimental client for Honua Server's versioned"
+resource: "honua://capability/raster.multidim-coverage"
+---
 # Zarr client
 
 `@honua/sdk-js/zarr` is an experimental client for Honua Server's versioned

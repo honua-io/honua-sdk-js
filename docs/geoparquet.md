@@ -1,3 +1,9 @@
+---
+type: reference
+title: "GeoParquet / DuckDB-WASM source"
+description: "`@honua/sdk-js/geoparquet` adds a `Source` that runs the **same"
+resource: "honua://capability/format.geoarrow"
+---
 # GeoParquet / DuckDB-WASM source
 
 `@honua/sdk-js/geoparquet` adds a `Source` that runs the **same

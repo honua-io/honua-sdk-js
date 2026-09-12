@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Filter Registry"
+description: "Public entrypoint: `@honua/sdk-js/filter-registry`, also re-exported from"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Filter Registry
 
 Status: experimental SDK state primitive for issue `#179`.

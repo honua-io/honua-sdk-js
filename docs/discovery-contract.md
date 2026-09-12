@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Discovery truth and cache identity"
+description: "universal connect workflow in protocol-sized slices. The first production"
+resource: "honua://capability/discovery.capability-manifest"
+---
 # Discovery truth and cache identity
 
 Issue [#391](https://github.com/honua-io/honua-sdk-js/issues/391) introduces a

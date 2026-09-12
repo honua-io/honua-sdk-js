@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Scene Workspace Interop"
+description: "`@honua/app-platform/scene-workspace` is a renderer-neutral coordination layer for"
+resource: "honua://capability/scene.catalog"
+---
 # Scene Workspace Interop
 
 `@honua/app-platform/scene-workspace` is a renderer-neutral coordination layer for

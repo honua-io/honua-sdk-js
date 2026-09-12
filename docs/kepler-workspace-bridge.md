@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Kepler.gl analytics workspace bridge (experimental)"
+description: "`@honua/sdk-js/kepler` projects an accepted Honua result, a columnar artifact, or"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Kepler.gl analytics workspace bridge (experimental)
 
 `@honua/sdk-js/kepler` projects an accepted Honua result, a columnar artifact, or

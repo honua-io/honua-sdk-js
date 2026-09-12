@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Discover cloud-native sources"
+description: "Use `@honua/sdk-js/cloud-native-discovery` when an application needs to answer"
+resource: "honua://capability/raster.cloud-storage-config"
+---
 # Discover cloud-native sources
 
 Use `@honua/sdk-js/cloud-native-discovery` when an application needs to answer

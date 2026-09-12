@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Demo Capability Matrix"
+description: "This matrix tracks demo coverage for issue #70. The implementation-level"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Demo Capability Matrix
 
 Status vocabulary:

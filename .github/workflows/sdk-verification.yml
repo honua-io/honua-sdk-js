@@ -444,6 +444,18 @@ jobs:
       - name: Verify comparison page freshness
         run: npm run docs:comparison:check
 
+      # The OKF bundle (docs/okf-bundle.v1.json) declares which pages are
+      # published documentation. The gate proves every page inside the boundary
+      # carries valid v0.2 frontmatter and that its relative links resolve;
+      # SUMMARY.md is derived from the same boundary, so a page added to one and
+      # not the other fails here rather than shipping a table of contents that
+      # disagrees with the bundle.
+      - name: Verify OKF documentation bundle
+        run: python3 scripts/check-okf-bundle.py
+
+      - name: Verify GitBook table of contents is derived
+        run: python3 scripts/generate-summary.py --check
+
       - name: Verify MCP eval scorecard freshness
         run: npm run docs:mcp-scorecard:check
 

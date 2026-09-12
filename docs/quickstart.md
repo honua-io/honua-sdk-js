@@ -1,3 +1,9 @@
+---
+type: guide
+title: "Put a map on the page"
+description: "The First Map path: install, point at a public endpoint, and render. No Honua server and no account required."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Five-minute quickstart: endpoint to linked MapLibre map
 
 The canonical public-endpoint browser workflow is the tested app in

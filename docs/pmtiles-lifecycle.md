@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Publish MVT to PMTiles"
+description: "`@honua/sdk-js/pmtiles` separates workflows with different trust and maturity boundaries:"
+resource: "honua://capability/serve.vector-tiles"
+---
 # Publish MVT to PMTiles
 
 `@honua/sdk-js/pmtiles` separates workflows with different trust and maturity boundaries:

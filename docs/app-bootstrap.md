@@ -1,3 +1,8 @@
+---
+type: guide
+title: "Honua App Bootstrap (`@honua/sdk-js/app`)"
+description: "`createHonuaApp()` is a framework-neutral bootstrap layer over the existing"
+---
 # Honua App Bootstrap (`@honua/sdk-js/app`)
 
 Status: experimental Beta helper for issue `#177`.

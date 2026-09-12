@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Protocol × Capability Matrix"
+description: "Native (`✓`) claims mirror the default capability set per protocol; per-source"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Protocol × Capability Matrix
 
 <!-- support-manifest:protocol-matrix:start -->

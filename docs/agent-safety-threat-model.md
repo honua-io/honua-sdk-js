@@ -1,3 +1,8 @@
+---
+type: concept
+title: "Agent-safety threat model"
+description: "`@honua/sdk-js/agent-safety` is the deterministic trust boundary between"
+---
 # Agent-safety threat model
 
 `@honua/sdk-js/agent-safety` is the deterministic trust boundary between

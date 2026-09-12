@@ -1,3 +1,9 @@
+---
+type: reference
+title: "deck.gl binary adapter (experimental)"
+description: "`@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # deck.gl binary adapter (experimental)
 
 `@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source

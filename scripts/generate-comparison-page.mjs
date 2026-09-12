@@ -501,6 +501,15 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
   const push = (...parts) => lines.push(...parts);
 
   push(
+    // OKF frontmatter for the documentation bundle (docs/okf-bundle.v1.json).
+    // Emitted here rather than hand-added to the output because the drift
+    // check compares the whole file.
+    "---",
+    "type: concept",
+    'title: "How this compares to the alternatives"',
+    'description: "Where this SDK sits against MapLibre, the ArcGIS Maps SDK and arcgis-rest-js, and when each is the better choice."',
+    "tags: [comparison, maplibre, arcgis, generated]",
+    "---",
     "<!-- GENERATED FILE — do not edit by hand. -->",
     "<!-- Regenerate with: npm run docs:comparison -->",
     "<!-- Inputs: docs/bundle-sizes.md, docs/protocol-capability-matrix.md, docs/data/time-to-first-map.json, docs/data/competitor-evidence.v1.json, node_modules/maplibre-gl. -->",

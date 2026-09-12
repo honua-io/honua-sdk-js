@@ -1,3 +1,9 @@
+---
+type: concept
+title: "How this compares to the alternatives"
+description: "Where this SDK sits against MapLibre, the ArcGIS Maps SDK and arcgis-rest-js, and when each is the better choice."
+tags: [comparison, maplibre, arcgis, generated]
+---
 <!-- GENERATED FILE — do not edit by hand. -->
 <!-- Regenerate with: npm run docs:comparison -->
 <!-- Inputs: docs/bundle-sizes.md, docs/protocol-capability-matrix.md, docs/data/time-to-first-map.json, docs/data/competitor-evidence.v1.json, node_modules/maplibre-gl. -->

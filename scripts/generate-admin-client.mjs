@@ -358,6 +358,17 @@ function renderReference(source, operations, coverage) {
     .filter((operation) => operation.code === "one-time-secret-result")
     .map((operation) => `\`${operation.openApiOperationId}\``);
   const lines = [
+    // OKF v0.2 frontmatter. This page is real consumer documentation, so it
+    // belongs in the documentation bundle - but it is generated and drift-
+    // checked, so the frontmatter has to come from here rather than be added
+    // by hand. See docs/okf-bundle.v1.json.
+    "---",
+    "type: reference",
+    'title: "honua admin command reference"',
+    'description: "Every Admin REST operation reachable from the CLI, grouped by workflow, with the options and the safety rules that apply to credential-bearing requests."',
+    'resource: "https://www.npmjs.com/package/@honua/sdk-js"',
+  "tags: [cli, admin, reference, generated]",
+    "---",
     "<!-- GENERATED FILE - DO NOT EDIT. -->",
     "<!-- Regenerate with: npm run admin-client:generate -->",
     "",

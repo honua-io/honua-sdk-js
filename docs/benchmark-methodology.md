@@ -1,3 +1,9 @@
+---
+type: reference
+title: "SDK benchmark methodology"
+description: "The benchmark program has four deliberately separate lanes. Keeping them"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # SDK benchmark methodology
 
 The benchmark program has four deliberately separate lanes. Keeping them

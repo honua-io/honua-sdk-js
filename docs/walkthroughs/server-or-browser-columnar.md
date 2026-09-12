@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Choose server pushdown or bounded browser execution"
+description: "Use this walkthrough when the same map workflow may begin with a Honua feature layer or a direct GeoParquet object. Make the execution boundary and ceilings visible before bytes move, then compare measured evidence rather than assuming the…"
+---
 # Choose server pushdown or bounded browser execution
 
 Use this walkthrough when the same map workflow may begin with a Honua feature layer or a direct GeoParquet object. Make the execution boundary and ceilings visible before bytes move, then compare measured evidence rather than assuming the server or browser is cheaper.

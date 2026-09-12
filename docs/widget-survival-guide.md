@@ -1,3 +1,10 @@
+---
+type: reference
+title: "ArcGIS widget-removal survival guide"
+description: "Every classic ArcGIS JS SDK widget, what replaces it in Honua, and whether the migration is automated, shimmed, hand-written or has no equivalent yet."
+resource: "https://www.npmjs.com/package/@honua/honua-migrate"
+tags: [migration, arcgis, widgets, reference, generated]
+---
 <!-- GENERATED FILE - DO NOT EDIT.
      Source of truth: src/migration/widget-dispositions.ts
      Regenerate with: npm run docs:widget-guide -->
