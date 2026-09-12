@@ -1,10 +1,10 @@
 {
   "schemaVersion": "honua.admin-client-source.v1",
   "serverRepository": "honua-io/honua-server",
-  "serverSha": "f897700159e2791c9468c6ca85bb4e2a3a8d8433",
+  "serverSha": "07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a",
   "specPath": "docs/developer/api-specs/admin-api.json",
-  "specBlobSha": "ad2e001b4626b47caa22bc64187912b13ae280de",
-  "specSha256": "edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a",
+  "specBlobSha": "397cf171112490007c090cf23bb9d7e84a2769f2",
+  "specSha256": "65a68c1eac73639b98e5e27e9a572cd833b92053e20d3a85f8f1709eac9cd511",
   "operationCount": 396,
   "adminMcpContract": {
     "serverSha": null,
@@ -19,8 +19,8 @@
     "status": "review-head-validated-awaiting-merged-trunk-pin"
   },
   "adminBasePath": "/api/v1/admin",
-  "serverImage": "ghcr.io/honua-io/honua-server:nightly-aot-4a7903c@sha256:9bcc7bcde92f2623035d04a8164aafe928e48278590f686ac6ca1e470af4547f",
-  "releaseManifestStatus": "blocked-server-pin-regresses-admin-contract",
-  "releaseManifestServerSha": "4a7903c2ef764ffeaa60083689f73b9e42bbc6a3",
-  "releaseManifestOperationCount": 395
+  "serverImage": "ghcr.io/honua-io/honua-server:nightly-aot-4ca8326@sha256:571395718765a499d8e25e069ded7bb8d990dd784e9f1e6bef4fd2b8322f2508",
+  "releaseManifestStatus": "compatible",
+  "releaseManifestServerSha": "4ca8326f37b3225315033ee58e1a652e231992df",
+  "releaseManifestOperationCount": 396
 }

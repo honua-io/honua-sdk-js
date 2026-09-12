@@ -9,8 +9,8 @@
   "expectedDefaultTotalTools": 432,
   "adminApi": {
     "repository": "honua-io/honua-server",
-    "sha": "f897700159e2791c9468c6ca85bb4e2a3a8d8433",
-    "sha256": "edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a"
+    "sha": "07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a",
+    "sha256": "65a68c1eac73639b98e5e27e9a572cd833b92053e20d3a85f8f1709eac9cd511"
   },
   "adminMcpCoverage": {
     "path": "config/admin-mcp-coverage.v1.json",
@@ -21,9 +21,9 @@
     "status": "review-head-validated-awaiting-merged-trunk-pin"
   },
   "releaseCandidate": {
-    "status": "blocked-server-pin-regresses-admin-contract",
-    "serverSha": "4a7903c2ef764ffeaa60083689f73b9e42bbc6a3",
-    "restOperationCount": 395
+    "status": "compatible",
+    "serverSha": "4ca8326f37b3225315033ee58e1a652e231992df",
+    "restOperationCount": 396
   },
   "checks": [
     {
