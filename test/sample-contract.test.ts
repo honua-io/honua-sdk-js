@@ -1658,11 +1658,14 @@ describe("sample publication contract", () => {
     // sample; restoring it needs a fixture, not a catalog mutation (#1686).
     const unboundedRework = structuredClone(catalog);
     const legacyUnsafeSample = unboundedRework.samples.find(
-      (sample: { id: string }) => sample.id === "terrain-rgb-elevation",
+      (sample: { id: string }) => sample.id === "cesium-route-playback",
     );
-    legacyUnsafeSample.lifecycle.state = "active";
+    // The schema forbids targetRelease on an active sample, so dropping it is
+    // what makes this a legitimate catalog rather than a schema violation the
+    // invariant never gets to see.
+    legacyUnsafeSample.lifecycle = { state: "active", reason: legacyUnsafeSample.lifecycle.reason };
     await expect(validateCatalog(unboundedRework, packageJson, validationTime)).rejects.toThrow(
-      "terrain-rgb-elevation: legacy-unsafe configuration requires bounded rework",
+      "cesium-route-playback: legacy-unsafe configuration requires bounded rework",
     );
 
     const maplibre = catalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart");
