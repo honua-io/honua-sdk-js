@@ -257,7 +257,7 @@
           "HONUA_LIVE_DATA_URL"
         ],
         "provenance": "Committed parcel fixture plus optional host-mediated proposal and live-data endpoints.",
-        "attribution": "City and County of Honolulu \u2014 deterministic demonstration fixture.",
+        "attribution": "City and County of Honolulu — deterministic demonstration fixture.",
         "freshness": "Fixture snapshot 2026-07-10; optional live lane records its observation time.",
         "configurationStatus": "approved",
         "configClassifications": [
@@ -290,7 +290,7 @@
             "npm run demo:ai-spatial-builder:live-evidence"
           ],
           "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-10-08T18:00:00.000Z"
+          "expiresAt": "2026-12-11T04:53:42.092Z"
         }
       },
       "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy.",
@@ -1916,7 +1916,7 @@
             "npm run bench:live"
           ],
           "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-10-10T02:18:02.730Z"
+          "expiresAt": "2026-12-11T04:53:42.375Z"
         }
       },
       "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile.",
