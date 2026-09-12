@@ -1655,7 +1655,7 @@ describe("sample publication contract", () => {
     // The bounded-rework half is still reachable, so it is asserted here rather
     // than dropped with the rest. The status half remains enforced in
     // scripts/sample-contract.mjs but is currently unexercised by any shipped
-    // sample; restoring it needs a fixture, not a catalog mutation (#1686).
+    // sample; restoring it needs a fixture, not a catalog mutation (#1687).
     const unboundedRework = structuredClone(catalog);
     const legacyUnsafeSample = unboundedRework.samples.find(
       (sample: { id: string }) => sample.id === "cesium-route-playback",
