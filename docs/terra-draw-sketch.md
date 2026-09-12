@@ -2,6 +2,7 @@
 type: reference
 title: "terra-draw sketch binding (`@honua/sdk-js/runtime`)"
 description: "Public entrypoint: `@honua/sdk-js/runtime` — `bindTerraDrawSketch`,"
+resource: "honua://capability/editing.featureserver-edits"
 ---
 # terra-draw sketch binding (`@honua/sdk-js/runtime`)
 

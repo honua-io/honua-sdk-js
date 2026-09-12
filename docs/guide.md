@@ -2,6 +2,7 @@
 type: reference
 title: "`@honua/sdk-js` reference guide"
 description: "This long-form guide collects the runnable demos, server compatibility contract,"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # `@honua/sdk-js` reference guide
 

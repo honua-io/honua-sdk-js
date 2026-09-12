@@ -77,6 +77,7 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
       'and whether the migration is automated, shimmed, hand-written or has no ' +
       'equivalent yet."',
   );
+  lines.push('resource: "https://www.npmjs.com/package/@honua/honua-migrate"');
   lines.push("tags: [migration, arcgis, widgets, reference, generated]");
   lines.push("---");
   lines.push("<!-- GENERATED FILE - DO NOT EDIT.");

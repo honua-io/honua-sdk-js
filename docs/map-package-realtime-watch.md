@@ -2,6 +2,7 @@
 type: reference
 title: "MapPackage Realtime Watch"
 description: "`watchMapPackage` can follow hosted `MapPackage` changes over a realtime"
+resource: "honua://capability/streaming.feature-subscriptions"
 ---
 # MapPackage Realtime Watch
 

@@ -2,6 +2,7 @@
 type: reference
 title: "Sample browser bundle publication (#642 and #656, completing #401 REQ-003)"
 description: "(honua-io/honua-samples#3) renders `samples/dist/honua-site-samples.v3.json`"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Sample browser bundle publication (#642 and #656, completing #401 REQ-003)
 

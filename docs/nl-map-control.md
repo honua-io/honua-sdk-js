@@ -2,6 +2,7 @@
 type: reference
 title: "Natural-language map control (`@honua/sdk-js/nl-map-control`)"
 description: "`@honua/sdk-js/nl-map-control` turns a natural-language instruction into a"
+resource: "honua://capability/ai.agent-operations"
 ---
 # Natural-language map control (`@honua/sdk-js/nl-map-control`)
 

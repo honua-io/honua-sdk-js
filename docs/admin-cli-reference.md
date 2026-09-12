@@ -2,6 +2,7 @@
 type: reference
 title: "honua admin command reference"
 description: "Every Admin REST operation reachable from the CLI, grouped by workflow, with the options and the safety rules that apply to credential-bearing requests."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 tags: [cli, admin, reference, generated]
 ---
 <!-- GENERATED FILE - DO NOT EDIT. -->

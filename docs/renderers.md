@@ -2,6 +2,7 @@
 type: reference
 title: "Renderer objects and temporal playback"
 description: "First-class renderer objects give standalone MapLibre users the smart-mapping"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Renderer objects and temporal playback
 

@@ -2,6 +2,7 @@
 type: reference
 title: "Operator Components"
 description: "The operator module exposes framework-neutral controllers and a workspace"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Operator Components
 

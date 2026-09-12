@@ -2,6 +2,7 @@
 type: reference
 title: "MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)"
 description: "Public entrypoint: `@honua/sdk-js/runtime` (subpath export only; the"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)
 

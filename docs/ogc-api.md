@@ -2,6 +2,7 @@
 type: reference
 title: "OGC API Client"
 description: "The developer reference for the first-party OGC API clients: Tiles, Maps, Processes, Records, STAC and Features, and which source file implements each."
+resource: "honua://capability/serve.ogc-api-features"
 ---
 # OGC API Client
 

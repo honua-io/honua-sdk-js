@@ -27,6 +27,7 @@ const FRONTMATTER = [
   "type: guide",
   'title: "Zero-install playgrounds"',
   'description: "Run any create-honua-app starter, and the gallery samples that qualify, in a browser playground straight from this repository - no clone, no install, no account."',
+  'resource: "https://www.npmjs.com/package/create-honua-app"',
   "tags: [playground, starters, samples, generated]",
   "---",
 ];

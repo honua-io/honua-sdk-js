@@ -2,6 +2,7 @@
 type: reference
 title: "Downloadable offline regions (experimental)"
 description: "`@honua/sdk-js/offline` contains bounded, independently usable slices of issue"
+resource: "honua://capability/fieldops.offline-sync"
 ---
 # Downloadable offline regions (experimental)
 

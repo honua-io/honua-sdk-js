@@ -2,6 +2,7 @@
 type: reference
 title: "WFS 2.0 adapter"
 description: "`@honua/sdk-js` ships a first-party WFS 2.0 client that conforms to the"
+resource: "honua://capability/serve.wfs"
 ---
 # WFS 2.0 adapter
 

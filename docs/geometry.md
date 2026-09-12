@@ -2,6 +2,7 @@
 type: reference
 title: "`@honua/geometry` — client-side geometry operations"
 description: "Curated, tree-shakeable geometry operations that run in the browser with no server round trip. Split-packaged as @honua/geometry and also reachable on the @honua/sdk-js/geometry subpath."
+resource: "https://www.npmjs.com/package/@honua/geometry"
 ---
 # `@honua/geometry` — client-side geometry operations
 

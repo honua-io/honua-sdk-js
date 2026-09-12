@@ -2,6 +2,7 @@
 type: reference
 title: "Immutable content-addressed sample bundles"
 description: "The `Publish content-addressed sample bundles` workflow creates independently verifiable producer"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Immutable content-addressed sample bundles
 
