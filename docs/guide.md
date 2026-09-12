@@ -52,7 +52,6 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 - [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite that reuses the same compatibility-plus-query data-loading path.
 - [`examples/react-quickstart/`](./examples/react-quickstart/README.md): `@honua/react` quickstart — `HonuaProvider` + `useDataset`/`useQuery`/`useCapabilities` hooks and a `HonuaMap`/`HonuaLayer`/`HonuaPopup` composition over the same deterministic fixture lane, booted under React StrictMode with Playwright smoke coverage.
 - [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): legacy `2.5D` storytelling lab retained for its focused extrusion and route-replay interactions; public 2.5D publication routes converge on the Imagery and Terrain journey.
-- [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
 - [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): canonical accessible MapLibre Imagery and Terrain candidate for bounded STAC/COG inspection, WMS/ImageServer comparison, Terrain-RGB 2.5D context, point elevation, and route profiles, with explicit fidelity and degradation receipts plus a scheduled pinned public evidence lane.
 - [`examples/spatial-analytics-workbench/`](./examples/spatial-analytics-workbench/README.md): Honua Cloud analytics workbench for AOI jobs, materialized outputs, linked map/table/chart state, and fixture-backed indexed aggregation cells plus category/histogram/range widgets.
 - [`examples/edit-workflow-demo/`](./examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
@@ -426,14 +425,15 @@ npm run demo:25d
 Advanced analytics demo loop:
 
 ```bash
-npm run demo:kepler:install
-npm run demo:kepler:dev
+The kepler.gl analytics demo was retired: `@kepler.gl/components@3.2.6` pins
+`maplibre-gl ^3.6.2`, and every release at or below 6.4.0 carries
+[GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579) with no
+patched 3.x. The kepler *workspace bridge* (`@honua/sdk-js/kepler`) is unaffected —
+see [kepler-workspace-bridge.md](./kepler-workspace-bridge.md).
 ```
 
-Open `http://127.0.0.1:4175` to view the fixture-first `operations replay` story. The committed fixture lives under `examples/kepler-analytics/public/data`, and maintainers can refresh it from a live Honua environment with:
 
 ```bash
-npm run demo:kepler:refresh-fixture
 ```
 
 The repo-root refresh wrapper builds the SDK before delegating to the example-local script. Set `HONUA_DEMO_BASE_URL` and any optional auth or service override env vars described in the example README before running it.
@@ -483,7 +483,6 @@ npm run test:playwright:unified-ops
 npx playwright test test/playwright/cesium-route-playback.spec.mjs
 npm run test:playwright:25d
 npm run test:playwright
-npm run demo:kepler:smoke
 HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live # scheduled anonymous public evidence
 HONUA_LIVE_CONFORMANCE_ENABLED=true npm run evidence:live-conformance # scheduled public reference services — see docs/live-conformance.md
 npm run test:integration # connect-only; requires HONUA_INTEGRATION_BASE_URL — see docs/integration-tests.md
@@ -496,7 +495,6 @@ npm run matrix:runtime
 npm run build:split-packages
 ```
 
-`npm run test:playwright` and `npm run demo:kepler:smoke` now bootstrap the isolated `examples/kepler-analytics` dependencies automatically when that package has not been installed yet.
 
 ## Split Package Artifacts
 
