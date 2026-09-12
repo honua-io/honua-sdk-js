@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -5,7 +6,12 @@ import { createServer } from "vite";
 import { describe, expect, it, vi } from "vitest";
 
 import { SampleCleanupRegistry } from "../examples/_kit/cleanup.js";
-import { createSampleViteConfig, resolveContainedExport } from "../examples/_kit/vite.config.js";
+import {
+  createSampleViteConfig,
+  resolveContainedExport,
+  resolveRuntimePeer,
+  resolveRuntimePeerSubpath,
+} from "../examples/_kit/vite.config.js";
 
 describe("shared sample kit", () => {
   it("drains cleanup registered while disposal is in flight and shares one completion", async () => {
@@ -70,6 +76,48 @@ describe("shared sample kit", () => {
       "undeclared public SDK entrypoint",
     );
     expect(() => subpathGuard?.resolveId?.("@honua/sdk-js/esri-compat")).not.toThrow();
+  });
+
+  it("resolves declared runtime peers beside packed SDK bytes", () => {
+    const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    expect(resolveRuntimePeer(path.resolve("."), manifest, "maplibre-gl")).toBe(
+      fs.realpathSync("node_modules/maplibre-gl/dist/maplibre-gl.mjs"),
+    );
+    expect(() => resolveRuntimePeer(path.resolve("."), manifest, "not-a-declared-peer")).toThrow(
+      "not a declared SDK runtime peer",
+    );
+  });
+
+  it("resolves worker queries and CSS from the declared peer while enforcing its exports", () => {
+    const root = path.resolve(".");
+    const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    for (const subpath of ["dist/maplibre-gl-worker.mjs?worker&url", "dist/maplibre-gl.css"]) {
+      expect(resolveRuntimePeerSubpath(root, manifest, "maplibre-gl", `maplibre-gl/${subpath}`)).toBe(
+        `${fs.realpathSync("node_modules/maplibre-gl")}/${subpath}`,
+      );
+    }
+    expect(() => resolveRuntimePeerSubpath(root, manifest, "maplibre-gl", "maplibre-gl/src/index.ts")).toThrow();
+  });
+
+  it("supports a declared peer with legacy module/main fields", async () => {
+    const root = path.resolve("test-results/sample-kit-legacy-peer");
+    const peerRoot = path.join(root, "node_modules/maplibre-gl");
+    await mkdir(path.join(peerRoot, "dist"), { recursive: true });
+    await writeFile(path.join(root, "package.json"), "{}");
+    await writeFile(
+      path.join(peerRoot, "package.json"),
+      JSON.stringify({ main: "dist/map.js", module: "dist/map.mjs" }),
+    );
+    await writeFile(path.join(peerRoot, "dist/map.js"), "module.exports = {};\n");
+    await writeFile(path.join(peerRoot, "dist/map.mjs"), "export default {};\n");
+    const manifest = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    try {
+      expect(resolveRuntimePeer(root, manifest, "maplibre-gl")).toBe(path.join(peerRoot, "dist/map.mjs"));
+      await writeFile(path.join(peerRoot, "package.json"), JSON.stringify({ main: "dist/map.js" }));
+      expect(resolveRuntimePeer(root, manifest, "maplibre-gl")).toBe(path.join(peerRoot, "dist/map.js"));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("rejects traversal and symlink package export targets", async () => {

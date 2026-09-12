@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ export type SampleSdkMode = "source" | "packed";
 
 export interface SampleViteOptions {
   readonly sdkEntrypoints: readonly string[];
+  readonly sdkRuntimePeers?: readonly string[];
   readonly define?: Readonly<Record<string, string>>;
 }
 
@@ -20,6 +22,90 @@ interface PackageManifest {
   readonly name: string;
   readonly version: string;
   readonly exports: Readonly<Record<string, { readonly default?: string } | string>>;
+  readonly peerDependencies?: Readonly<Record<string, string>>;
+}
+
+function runtimePeerAliases(
+  mode: SampleSdkMode,
+  sdkRoot: string,
+  manifest: PackageManifest,
+  peers: readonly string[],
+): Array<{ find: RegExp; replacement: string; customResolver?: (source: string) => string }> {
+  if (mode === "source") return [];
+  const unique = [...new Set(peers)];
+  if (unique.length !== peers.length) throw new Error("sdkRuntimePeers must be a unique list");
+  return unique.flatMap((peer) => {
+    const escaped = peer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return [
+      { find: new RegExp(`^${escaped}$`), replacement: resolveRuntimePeer(sdkRoot, manifest, peer) },
+      {
+        find: new RegExp(`^${escaped}/`),
+        replacement: `${peer}/`,
+        customResolver: (source: string) => resolveRuntimePeerSubpath(sdkRoot, manifest, peer, source),
+      },
+    ];
+  });
+}
+
+export function resolveRuntimePeer(root: string, manifest: PackageManifest, peer: string): string {
+  if (!/^(?:@[a-z0-9-]+\/)?[a-z0-9-]+$/.test(peer) || !manifest.peerDependencies?.[peer]) {
+    throw new Error(`${peer} is not a declared SDK runtime peer`);
+  }
+  const requireFromSdk = createRequire(path.join(root, "package.json"));
+  const peerManifestPath = fs.realpathSync(requireFromSdk.resolve(`${peer}/package.json`));
+  const peerManifest = JSON.parse(fs.readFileSync(peerManifestPath, "utf8")) as {
+    readonly exports?: Readonly<Record<string, { readonly import?: string; readonly default?: string } | string>>;
+    readonly module?: string;
+    readonly main?: string;
+  };
+  const rootExport = peerManifest.exports?.["."];
+  const exported = typeof rootExport === "string" ? rootExport : (rootExport?.import ?? rootExport?.default);
+  // MapLibre 5 uses legacy package entry fields; MapLibre 6 publishes an
+  // exports map. Honor that map when present, and prefer legacy ESM otherwise.
+  const legacy = peerManifest.exports === undefined ? (peerManifest.module ?? peerManifest.main) : undefined;
+  const target = exported ?? (legacy === undefined ? undefined : legacy.startsWith("./") ? legacy : `./${legacy}`);
+  if (
+    typeof target !== "string" ||
+    !target.startsWith("./") ||
+    `./${path.posix.normalize(target.slice(2))}` !== target
+  ) {
+    throw new Error(`SDK runtime peer has no safe import export: ${peer}`);
+  }
+  const peerRoot = path.dirname(peerManifestPath);
+  const replacement = fs.realpathSync(path.resolve(peerRoot, target));
+  if (!replacement.startsWith(`${peerRoot}${path.sep}`)) {
+    throw new Error(`SDK runtime peer export escapes its package root: ${peer}`);
+  }
+  const metadata = fs.lstatSync(replacement);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > MAX_ENTRYPOINT_BYTES) {
+    throw new Error(`SDK runtime peer must resolve to a bounded regular file: ${peer}`);
+  }
+  return replacement;
+}
+
+/** Resolve public worker/style subpaths from the same package as the runtime. */
+export function resolveRuntimePeerSubpath(
+  root: string,
+  manifest: PackageManifest,
+  peer: string,
+  source: string,
+): string {
+  // Also validates the declared peer and its supported public root entry.
+  resolveRuntimePeer(root, manifest, peer);
+  if (!source.startsWith(`${peer}/`)) throw new Error(`not a ${peer} subpath: ${source}`);
+  const queryAt = source.search(/[?#]/);
+  const specifier = queryAt < 0 ? source : source.slice(0, queryAt);
+  const suffix = queryAt < 0 ? "" : source.slice(queryAt);
+  const requireFromSdk = createRequire(path.join(root, "package.json"));
+  const peerRoot = path.dirname(fs.realpathSync(requireFromSdk.resolve(`${peer}/package.json`)));
+  // Node resolution enforces the peer's exports map; an absolute prefix alias
+  // would accidentally make private files importable as public subpaths.
+  const target = fs.realpathSync(requireFromSdk.resolve(specifier));
+  const metadata = fs.lstatSync(target);
+  if (!target.startsWith(`${peerRoot}${path.sep}`) || !metadata.isFile() || metadata.size > MAX_ENTRYPOINT_BYTES) {
+    throw new Error(`SDK runtime peer subpath must be a bounded file inside its package: ${source}`);
+  }
+  return `${target}${suffix}`;
 }
 
 const MAX_ENTRYPOINT_BYTES = 4 * 1024 * 1024;
@@ -171,6 +257,7 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
   }
   const mode = sdkMode();
   const resolved = aliases(mode, options.sdkEntrypoints);
+  const peerAliases = runtimePeerAliases(mode, resolved.sdkRoot, resolved.manifest, options.sdkRuntimePeers ?? []);
   let buildMode = false;
   let buildFailed = false;
   let outputRoot: string | undefined;
@@ -185,7 +272,7 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
       __HONUA_SDK_VERSION__: JSON.stringify(resolved.manifest.version),
       ...options.define,
     },
-    resolve: { alias: resolved.aliases },
+    resolve: { alias: [...resolved.aliases, ...peerAliases] },
     plugins: [
       {
         name: "honua-sample-declared-entrypoints",

@@ -354,6 +354,7 @@
     "denominator:certification": "node scripts/certification-denominator.mjs write",
     "verify:certification-denominator": "node --test test/scripts/certification-denominator.test.mjs && node scripts/verify-certification-denominator.mjs",
     "certify:installed-package": "node scripts/installed-package-certification.mjs",
+    "test:installed-quickstart": "node scripts/installed-quickstart-budget.mjs",
     "certify:installed-examples": "node scripts/installed-example-certification.mjs",
     "test:installed-package-certification": "node --test test/scripts/installed-package-certification.test.mjs",
     "verify:published-release": "node --test test/scripts/verify-published-release.test.mjs && node scripts/verify-published-release.mjs",
