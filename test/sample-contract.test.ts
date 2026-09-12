@@ -1609,9 +1609,7 @@ describe("sample publication contract", () => {
     // Both halves of this used to run through kepler-analytics, which #1674
     // retired. They are separate properties and neither depended on that
     // sample in particular, so each is re-anchored rather than dropped.
-    const legacyUnsafe = catalog.samples.find(
-      (sample: { id: string }) => sample.id === "cesium-route-playback",
-    );
+    const legacyUnsafe = catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback");
     expect(legacyUnsafe).toMatchObject({
       lifecycle: { state: "rework" },
       data: { configurationStatus: "legacy-unsafe" },
