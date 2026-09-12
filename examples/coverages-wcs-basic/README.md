@@ -20,4 +20,4 @@ The 320 x 220 output size, South Oahu bbox, selected `elevation` field, and 1 Mi
 
 ## Maturity
 
-The standalone fixture bundle is browser-qualified, but OGC API Coverages and WCS support remain **experimental**. Anonymous live evidence and a scheduled interoperability lane are planned but missing. [Issue #1115](https://github.com/honua-io/honua-sdk-js/issues/1115) stays open until both protocols have bounded live evidence; do not substitute an invented `demo.honua.io` endpoint.
+The standalone fixture bundle is browser-qualified, but OGC API Coverages and WCS support remain **experimental**. Anonymous live evidence and a scheduled interoperability lane are planned but missing. The canonical raster source registry records that ceiling; do not substitute an invented `demo.honua.io` endpoint.

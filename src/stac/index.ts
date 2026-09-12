@@ -6,6 +6,7 @@
  */
 
 import type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
+import { rasterDiscoveryRegistryEntry } from "../raster/source-registry.js";
 import { HonuaClient } from "../core/client.js";
 import { HonuaAbortError, HonuaCapabilityNotSupportedError, HonuaDiscoveryError } from "../core/errors.js";
 import { HonuaStacSearch } from "../core/stac.js";
@@ -41,8 +42,16 @@ export const DYNAMIC_STAC_CAPABILITY_STATUS = Object.freeze({
   postSearch: { client: "supported", server: "optional", endToEnd: "supported-when-advertised" },
   cql2: { client: "supported", server: "optional", endToEnd: "supported-when-advertised" },
   assetHandoff: { client: "experimental", server: "not-applicable", endToEnd: "experimental" },
-  zarr: { client: "unavailable", server: "unknown", endToEnd: "unavailable" },
-  netcdf: { client: "unavailable", server: "unknown", endToEnd: "unavailable" },
+  zarr: {
+    client: rasterDiscoveryRegistryEntry("zarr").client,
+    server: rasterDiscoveryRegistryEntry("zarr").server,
+    endToEnd: rasterDiscoveryRegistryEntry("zarr").endToEnd,
+  },
+  netcdf: {
+    client: rasterDiscoveryRegistryEntry("netcdf").client,
+    server: rasterDiscoveryRegistryEntry("netcdf").server,
+    endToEnd: rasterDiscoveryRegistryEntry("netcdf").endToEnd,
+  },
 } as const);
 
 export type StacSearchMethod = "GET" | "POST" | "auto";

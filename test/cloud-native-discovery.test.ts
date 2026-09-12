@@ -99,7 +99,7 @@ describe("cloud-native source capability discovery", () => {
     expect(document.capabilities.find((capability) => capability.kind === "zarr")).toEqual({
       kind: "zarr",
       maturity: "unavailable",
-      status: { client: "unavailable", server: "unavailable", endToEnd: "unavailable" },
+      status: { client: "experimental", server: "unavailable", endToEnd: "unavailable" },
       advertised: false,
       sourceCount: 0,
     });
@@ -187,17 +187,42 @@ describe("cloud-native source capability discovery", () => {
     expect(() => assertCloudNativeOperation(source, "query", { allowExperimental: true })).not.toThrow();
   });
 
-  it("keeps Zarr and NetCDF as non-executable maturity markers", async () => {
-    for (const [url, format] of [
-      ["https://objects.example.test/climate.zarr", "zarr"],
-      ["https://objects.example.test/climate.nc", "netcdf"],
+  it("keeps Zarr and NetCDF unavailable without inventing execution", async () => {
+    for (const [url, format, maturity] of [
+      ["https://objects.example.test/climate.zarr", "zarr", "unavailable"],
+      ["https://objects.example.test/climate.nc", "netcdf", "unavailable"],
     ] as const) {
       const document = await discoverCloudNativeSources({ type: "direct-asset", url, format });
       const source = document.sources[0];
       if (!source) throw new Error("fixture source missing");
-      expect(source.maturity).toBe("unavailable");
+      expect(source.maturity).toBe(maturity);
       expect(() => assertCloudNativeOperation(source, "inspect-metadata")).toThrow(HonuaCloudNativeDiscoveryError);
+      expect(source.operations).toEqual(["discover", "inspect-metadata"]);
     }
+  });
+
+  it("preserves the unavailable Zarr end-to-end ceiling for an advertised source", async () => {
+    const document = await discoverCloudNativeSources("https://demo.honua.io", {
+      fetchFn: async () =>
+        Response.json({
+          format: "honua.demo-services.v1",
+          schemaVersion: "1.0.0",
+          baseUrl: "https://demo.honua.io",
+          services: [{ id: "climate", protocols: { zarr: { path: "/assets/climate.zarr" } } }],
+        }),
+    });
+    const source = document.sources[0];
+    if (!source) throw new Error("fixture source missing");
+
+    expect(source).toMatchObject({
+      kind: "zarr",
+      maturity: "unavailable",
+      status: { client: "experimental", server: "experimental", endToEnd: "unavailable" },
+      operations: ["discover", "inspect-metadata"],
+    });
+    expect(() => assertCloudNativeOperation(source, "inspect-metadata", { allowExperimental: true })).toThrow(
+      HonuaCloudNativeDiscoveryError,
+    );
   });
 
   it("honors cancellation before invoking fetch", async () => {

@@ -7,6 +7,7 @@
   "required": [
     "format",
     "schemaVersion",
+    "rasterSourceRegistry",
     "sdk",
     "statusVocabulary",
     "environmentVocabulary",
@@ -29,6 +30,7 @@
     "$schema": { "type": "string" },
     "format": { "const": "honua.sdk.support-manifest.v1" },
     "schemaVersion": { "const": 1 },
+    "rasterSourceRegistry": { "const": "config/raster-source-registry.v1.json" },
     "sdk": {
       "type": "object",
       "additionalProperties": false,

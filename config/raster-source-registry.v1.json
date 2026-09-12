@@ -1,0 +1,89 @@
+{
+  "$schema": "./raster-source-registry.schema.json",
+  "format": "honua.sdk.raster-source-registry.v1",
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "direct-cog",
+      "sessionKind": "cog",
+      "discoveryKind": "cog",
+      "identity": "client-only-asset",
+      "client": "experimental",
+      "server": "not-applicable",
+      "endToEnd": "experimental",
+      "operations": ["inspect", "read-window", "statistics", "histogram", "inspect-value", "render"],
+      "discoveryOperations": ["discover", "inspect-metadata", "read-ranges", "render"],
+      "note": "Bounded browser range reads require explicit media-type evidence and structural decoding; no server is required."
+    },
+    {
+      "id": "honua-image-server",
+      "sessionKind": "image-server",
+      "deployment": "honua",
+      "identity": "honua-service",
+      "client": "supported",
+      "server": "supported",
+      "endToEnd": "supported",
+      "operations": ["inspect", "read-window", "inspect-value", "render"],
+      "discoveryOperations": [],
+      "note": "Uses an explicitly identified Honua ImageServer service and its advertised operations."
+    },
+    {
+      "id": "third-party-image-server",
+      "sessionKind": "image-server",
+      "deployment": "arcgis",
+      "identity": "third-party-service",
+      "client": "supported",
+      "server": "not-applicable",
+      "endToEnd": "supported",
+      "operations": ["inspect", "read-window", "inspect-value", "render"],
+      "discoveryOperations": [],
+      "note": "Uses an explicitly identified third-party GeoServices ImageServer endpoint without attributing Honua server support."
+    },
+    {
+      "id": "ogc-api-coverages",
+      "sessionKind": "ogc-coverage",
+      "discoveryKind": "ogc-coverages",
+      "identity": "server-backed-api",
+      "client": "experimental",
+      "server": "supported",
+      "endToEnd": "experimental",
+      "operations": ["inspect", "read-window", "render"],
+      "discoveryOperations": ["discover", "inspect-metadata", "read-coverage"],
+      "note": "Uses the bounded OGC API Coverages client at an explicitly advertised service root."
+    },
+    {
+      "id": "wcs-2.0.1",
+      "sessionKind": "wcs",
+      "discoveryKind": "wcs",
+      "identity": "server-backed-api",
+      "client": "experimental",
+      "server": "supported",
+      "endToEnd": "experimental",
+      "operations": ["inspect", "read-window", "render"],
+      "discoveryOperations": ["discover", "inspect-metadata", "read-coverage"],
+      "note": "Uses the bounded WCS client at an explicitly advertised KVP endpoint."
+    },
+    {
+      "id": "zarr",
+      "discoveryKind": "zarr",
+      "identity": "server-backed-asset",
+      "client": "experimental",
+      "server": "experimental",
+      "endToEnd": "unavailable",
+      "operations": [],
+      "discoveryOperations": ["discover", "inspect-metadata"],
+      "note": "Zarr metadata and direct client parsing are experimental; bounded server execution remains a distinct server-backed path."
+    },
+    {
+      "id": "netcdf",
+      "discoveryKind": "netcdf",
+      "identity": "server-backed-asset",
+      "client": "unavailable",
+      "server": "metadata-only",
+      "endToEnd": "unavailable",
+      "operations": [],
+      "discoveryOperations": ["discover", "inspect-metadata"],
+      "note": "NetCDF is discoverable as server-authored metadata but has no direct client session."
+    }
+  ]
+}
