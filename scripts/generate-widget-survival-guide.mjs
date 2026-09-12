@@ -64,6 +64,21 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   }
 
   const lines = [];
+  // OKF frontmatter. The page is part of the documentation bundle
+  // (docs/okf-bundle.v1.json), so it carries the same `type`/`title`/
+  // `description`/`tags` every other page does. It is emitted here rather
+  // than hand-added to the output because the drift check compares the whole
+  // file.
+  lines.push("---");
+  lines.push("type: reference");
+  lines.push('title: "ArcGIS widget-removal survival guide"');
+  lines.push(
+    'description: "Every classic ArcGIS JS SDK widget, what replaces it in Honua, ' +
+      'and whether the migration is automated, shimmed, hand-written or has no ' +
+      'equivalent yet."',
+  );
+  lines.push("tags: [migration, arcgis, widgets, reference, generated]");
+  lines.push("---");
   lines.push("<!-- GENERATED FILE - DO NOT EDIT.");
   lines.push("     Source of truth: src/migration/widget-dispositions.ts");
   lines.push("     Regenerate with: npm run docs:widget-guide -->");
