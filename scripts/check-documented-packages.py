@@ -33,12 +33,53 @@ MANIFEST_PATH = REPO_ROOT / "docs" / "okf-bundle.v1.json"
 # Commands that name a package to fetch. `npx -p <pkg> <bin>` is matched by the
 # npx pattern's first alternative; a bare `npx <name>` is matched by the second
 # and is exactly the case worth catching.
+# `npm install` and `pip install` take any number of packages, so these capture
+# the whole argument tail and every name in it is checked. Capturing only the
+# first positional argument would let a typo or an unpublished package anywhere
+# after it sit behind a green gate - `npm install @honua/sdk-js @honua/react
+# react react-dom maplibre-gl` would have proven one name out of five.
+MULTI_PATTERNS = (
+    ("pypi", re.compile(r"\bpip3? install ([^\n#|;&]+)")),
+    ("npm", re.compile(r"\bnpm (?:install|i|add) ([^\n#|;&]+)")),
+)
+
+# These take exactly one package, so the single capture is correct.
 PATTERNS = (
-    ("pypi", re.compile(r"\bpip install (?:-U |--upgrade )?(?!-)([A-Za-z][\w.-]*)")),
-    ("npm", re.compile(r"\bnpm (?:install|i|add) (?:(?:--global|-g|--save-dev|-D|--save|-S) )*((?:@[\w.-]+/)?[\w.-]+)")),
     ("npm", re.compile(r"\bnpx (?:-y |--yes )?(?:-p |--package[= ])?((?:@[\w.-]+/)?[\w.-]+)")),
     ("nuget", re.compile(r"\bdotnet add package ([\w.]+)")),
 )
+
+# A package name, optionally scoped. Anchored, so a path or URL argument does
+# not slip through as a registry lookup.
+PACKAGE_NAME = re.compile(r"^(?:@[\w.-]+/)?[A-Za-z][\w.-]*$")
+NOT_A_PACKAGE_PREFIX = ("./", "../", "/", "http://", "https://", "git+", "file:", "~")
+
+
+def package_names(tail: str) -> list[str]:
+    """Every package named in an install command's argument tail.
+
+    Flags are dropped, as are paths and URLs - `npm install ./local-copy` is a
+    real command but not a registry claim. A version or tag suffix is stripped,
+    because the gate asks whether the package resolves at all; `pkg@next` and
+    `pkg` are the same question here.
+    """
+    names = []
+    for token in tail.split():
+        if token.startswith("-") or token.startswith(NOT_A_PACKAGE_PREFIX):
+            continue
+        name = token
+        # Strip the version/tag, keeping a leading scope: @scope/pkg@1.2.3.
+        at = name.find("@", 1 if name.startswith("@") else 0)
+        if name.startswith("@"):
+            slash = name.find("/")
+            at = name.find("@", slash) if slash != -1 else -1
+        if at > 0:
+            name = name[:at]
+        # pip extras and version specifiers: pkg[extra], pkg>=1.0
+        name = re.split(r"[\[<>=!~;]", name, maxsplit=1)[0].strip()
+        if name and PACKAGE_NAME.match(name):
+            names.append(name)
+    return names
 
 # Packages a reader is told to install from somewhere other than the public
 # registry, or that are not packages at all. Each needs a reason; the point of
@@ -85,6 +126,10 @@ def extract(pages: list[pathlib.Path]) -> dict[tuple[str, str], set[str]]:
     for path in pages:
         text = code_blocks(path.read_text(encoding="utf-8", errors="replace"))
         rel = path.relative_to(REPO_ROOT).as_posix()
+        for registry, pattern in MULTI_PATTERNS:
+            for tail in pattern.findall(text):
+                for name in package_names(tail):
+                    found.setdefault((registry, name), set()).add(rel)
         for registry, pattern in PATTERNS:
             for name in pattern.findall(text):
                 if name.startswith("-") or name in {"install", "run", "-y"}:

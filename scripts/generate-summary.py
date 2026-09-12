@@ -64,13 +64,18 @@ def collect(manifest: dict) -> list[tuple[str, str, str]]:
     root = REPO_ROOT / manifest["root"]
     excluded_dirs = {(REPO_ROOT / e["path"]).resolve() for e in manifest["excludedDirs"]}
     excluded_files = {(REPO_ROOT / e["path"]).resolve() for e in manifest["excludedFiles"]}
+    # An explicit inclusion outranks the directory exclusion it sits under -
+    # the same precedence check-okf-bundle.py applies. Without this the
+    # validator accepts such a page as a concept while this generator drops it,
+    # so the bundle and the table of contents disagree and nothing says so.
+    included_files = {(REPO_ROOT / e["path"]).resolve() for e in manifest.get("includedFiles", [])}
 
     pages: list[tuple[str, str, str]] = []
     for path in sorted(root.rglob("*.md")):
         resolved = path.resolve()
         if resolved in excluded_files:
             continue
-        if any(parent in excluded_dirs for parent in resolved.parents):
+        if resolved not in included_files and any(parent in excluded_dirs for parent in resolved.parents):
             continue
         fields = read_frontmatter(path)
         if not fields.get("type"):
