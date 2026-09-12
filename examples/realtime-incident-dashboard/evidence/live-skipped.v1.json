@@ -5,13 +5,13 @@
   "sampleId": "realtime-incident-dashboard",
   "lane": "live",
   "status": "skipped",
-  "reason": "Realtime feature streams are not enabled; requires Pro",
-  "observedAt": "2026-07-12T02:18:02.730Z",
+  "reason": "Live benchmark enablement is not true; live probes are opt-in",
+  "observedAt": "2026-09-12T06:57:15.239Z",
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.1.9-beta.0",
-    "gitCommit": "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b"
+    "gitCommit": "3300944bb9aedd83f208299773807f12e391618a"
   },
   "source": {
     "provider": "honua-demo",
@@ -34,7 +34,8 @@
   "degradation": {
     "state": "unavailable",
     "reasons": [
-      "Realtime feature streams are not enabled; requires Pro"
+      "Live benchmark enablement is not true; live probes are opt-in",
+      "live-probes-disabled"
     ]
   },
   "realtime": {
@@ -42,7 +43,7 @@
     "cursor": null,
     "lagMs": null,
     "observationWindowMs": 12000,
-    "reconnectOutcome": "not-attempted-capability-unavailable"
+    "reconnectOutcome": "not-attempted-live-probes-disabled"
   },
   "artifacts": [
     {
