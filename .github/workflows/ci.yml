@@ -384,7 +384,9 @@ jobs:
       # certification run while the run still reported a full pass. Reads
       # config/ and mcp/ only, so it neither consumes nor invalidates a build.
       - name: Validate certification denominator freeze
-        run: npm run verify:certification-denominator
+        run: |
+          npm run verify:certification-denominator
+          npm run test:installed-package-certification
 
       - name: Code style
         run: npm run check

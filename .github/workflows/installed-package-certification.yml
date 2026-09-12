@@ -27,7 +27,7 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p test-results
-          npm run certify:installed-package -- --output test-results/installed-package-certification.json
+          npm run certify:installed-package -- --execute-fixture --output test-results/installed-package-certification.json
       - name: Emit installed-example receipt
         id: examples
         continue-on-error: true
@@ -54,5 +54,6 @@ jobs:
       - name: Enforce installed-example verdict
         if: steps.examples.outcome != 'success'
         run: |
+          jq -r '.admission.diagnostic // empty' test-results/installed-example-certification.json
           jq -r '.verdicts[] | select(.verdict == "fail") | "\(.id): fail issue \(.issue // "unfiled")"' test-results/installed-example-certification.json
           exit 1

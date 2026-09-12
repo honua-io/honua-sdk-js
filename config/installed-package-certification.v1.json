@@ -24,5 +24,71 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
-  "defaultBlocker": "honua-sdk-js#1113"
+  "defaultBlocker": "honua-sdk-js#1113",
+  "packages": [
+    {
+      "coordinate": "@honua/sdk-js",
+      "version": "0.1.9-beta.0",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+      "tarball": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz",
+      "sourceRevision": "c99e71197dd940ed952aecb024c6de273456f2ae"
+    },
+    {
+      "coordinate": "@honua/sdk",
+      "version": "0.1.9-beta.0",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-6Fouy0SGD+piK6SGsQvREXdaZix3YbRXB9EiHdf4R/E8Q8SaPMLCRYq9TiXPIVhL5MCIeonDCUOkHHnOISFcsg==",
+      "tarball": "https://registry.npmjs.org/@honua/sdk/-/sdk-0.1.9-beta.0.tgz",
+      "sourceRevision": "c99e71197dd940ed952aecb024c6de273456f2ae"
+    },
+    {
+      "coordinate": "@honua/sdk-esri-compat",
+      "version": "0.1.9-beta.0",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-TvJNXYMTr5Fylz6BtQR8E2AgFgZshHn6XIlBn0GocwEGwFqDNh+jiOFjWnkwe2LbuMbRCdPXxiuzmoCb0rgGIw==",
+      "tarball": "https://registry.npmjs.org/@honua/sdk-esri-compat/-/sdk-esri-compat-0.1.9-beta.0.tgz",
+      "sourceRevision": "c99e71197dd940ed952aecb024c6de273456f2ae"
+    },
+    {
+      "coordinate": "@honua/react",
+      "version": "0.1.9-beta.0",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-8fHxZmFnodZLSEryykpalCX0AD0rv1uJ7yisnLEDc1penPTqNakTz9M9YPn/2KAIVrwQ36v1dG7eCiiTUx0rnQ==",
+      "tarball": "https://registry.npmjs.org/@honua/react/-/react-0.1.9-beta.0.tgz",
+      "sourceRevision": "c99e71197dd940ed952aecb024c6de273456f2ae"
+    },
+    {
+      "coordinate": "@honua/geometry",
+      "version": "0.1.9-beta.0",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-op6rt96vuXPCJy+Yxe6e73slot7NWfQL6khwuKvvcRBz0YijPS4Yd51FR5LBf+aG7IMQRhfIUE6B+xEsQQxroA==",
+      "tarball": "https://registry.npmjs.org/@honua/geometry/-/geometry-0.1.9-beta.0.tgz",
+      "sourceRevision": "c99e71197dd940ed952aecb024c6de273456f2ae"
+    },
+    {
+      "coordinate": "@honua/app-platform",
+      "version": "0.1.9-beta.0",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-Xu6fYa2ejb4/Nb89tNxbdve70j/kwyKUKPYNLFrIccCr3zeXKZBt55bIYKVVM8doL4oqRWa53lR/wPOSuowuSg==",
+      "tarball": "https://registry.npmjs.org/@honua/app-platform/-/app-platform-0.1.9-beta.0.tgz",
+      "sourceRevision": "c99e71197dd940ed952aecb024c6de273456f2ae"
+    },
+    {
+      "coordinate": "@honua/mcp-server",
+      "version": "0.1.9-beta.0",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-rQhUrwTB7JK0kW0h41gOj4DWM3V0QV541I43FiWHHjqxbeRrb7oiegZswzehNkzufOttrmbxHB4zmb9IB2b3Og==",
+      "tarball": "https://registry.npmjs.org/@honua/mcp-server/-/mcp-server-0.1.9-beta.0.tgz",
+      "sourceRevision": "640535afe475020fb11cddfb4d2261dafae07736"
+    },
+    {
+      "coordinate": "create-honua-app",
+      "version": "0.1.3",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-pDx5xgkL6nj+eH6bkgV/PDLimCWsGaOIMHLsCkC4FIvEkMgpc03SI+w9nVtDuA/3fIG0f45ip3DFW7Y4Q6d9qQ==",
+      "tarball": "https://registry.npmjs.org/create-honua-app/-/create-honua-app-0.1.3.tgz",
+      "sourceRevision": "883302cc789dd214302e18831859cfca5b2bf35e"
+    }
+  ]
 }
