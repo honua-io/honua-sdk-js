@@ -5,7 +5,9 @@
   "lanes": [
     {
       "id": "offline-service-worker",
-      "specPatterns": ["offline-indexeddb.spec.mjs"],
+      "specPatterns": [
+        "offline-indexeddb.spec.mjs"
+      ],
       "changePatterns": [
         "docs/examples/offline-region-reference/**",
         "docs/offline-regions.md",
@@ -14,7 +16,9 @@
     },
     {
       "id": "realtime-collaboration",
-      "specPatterns": ["realtime-*.spec.mjs"],
+      "specPatterns": [
+        "realtime-*.spec.mjs"
+      ],
       "changePatterns": [
         "examples/realtime-incident-dashboard/**",
         "samples/fixtures/incident-operations/**",
@@ -30,7 +34,6 @@
         "columnar-*.spec.mjs",
         "coverages-wcs-basic.spec.mjs",
         "imagery-cog-quickstart.spec.mjs",
-        "kepler-*.spec.mjs",
         "migration-browser-maplibre.spec.mjs",
         "overture-geoparquet.spec.mjs",
         "pmtiles-static.spec.mjs",
@@ -43,15 +46,13 @@
         "examples/columnar-query-quickstart/**",
         "examples/coverages-wcs-basic/**",
         "examples/imagery-cog-quickstart/**",
-        "examples/kepler-analytics/**",
         "examples/maplibre-quickstart/**",
         "examples/overture-geoparquet/**",
         "examples/pmtiles-static/**",
         "examples/storytelling-25d-map/**",
         "examples/terrain-rgb-elevation/**",
         "docs/examples/cesium-route-playback/**",
-        "docs/examples/shared-renderer-state/**",
-        "scripts/ensure-kepler-demo-deps.mjs"
+        "docs/examples/shared-renderer-state/**"
       ]
     },
     {
@@ -75,32 +76,70 @@
   ],
   "sharedLanePatterns": [
     {
-      "patterns": ["src/offline/digest.ts", "src/offline/quota.ts"],
-      "lanes": ["offline-service-worker", "heavy-map-kepler", "examples-general"]
+      "patterns": [
+        "src/offline/digest.ts",
+        "src/offline/quota.ts"
+      ],
+      "lanes": [
+        "offline-service-worker",
+        "examples-general"
+      ]
     },
     {
-      "patterns": ["src/realtime/**", "src/collaboration/**"],
-      "lanes": ["realtime-collaboration", "examples-general"]
+      "patterns": [
+        "src/realtime/**",
+        "src/collaboration/**"
+      ],
+      "lanes": [
+        "realtime-collaboration",
+        "examples-general"
+      ]
     },
     {
-      "patterns": ["src/offline/**"],
-      "lanes": ["offline-service-worker", "examples-general"]
+      "patterns": [
+        "src/offline/**"
+      ],
+      "lanes": [
+        "offline-service-worker",
+        "examples-general"
+      ]
     },
     {
-      "patterns": ["src/exploration/**", "src/interactions/**"],
-      "lanes": ["realtime-collaboration", "heavy-map-kepler", "examples-general"]
+      "patterns": [
+        "src/exploration/**",
+        "src/interactions/**"
+      ],
+      "lanes": [
+        "realtime-collaboration",
+        "examples-general"
+      ]
     },
     {
-      "patterns": ["examples/spatial-analytics-workbench/**"],
-      "lanes": ["heavy-map-kepler", "examples-general"]
+      "patterns": [
+        "examples/spatial-analytics-workbench/**"
+      ],
+      "lanes": [
+        "examples-general"
+      ]
     },
     {
-      "patterns": ["src/agent-tools/**", "src/columnar/**", "src/kepler/**", "src/scene-workspace/**"],
-      "lanes": ["heavy-map-kepler", "examples-general"]
+      "patterns": [
+        "src/agent-tools/**",
+        "src/columnar/**",
+        "src/scene-workspace/**"
+      ],
+      "lanes": [
+        "examples-general"
+      ]
     },
     {
-      "patterns": ["examples/_kit/**"],
-      "lanes": ["realtime-collaboration", "heavy-map-kepler", "examples-general"]
+      "patterns": [
+        "examples/_kit/**"
+      ],
+      "lanes": [
+        "realtime-collaboration",
+        "examples-general"
+      ]
     }
   ],
   "globalPatterns": [

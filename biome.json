@@ -39,7 +39,9 @@
   },
   "overrides": [
     {
-      "include": ["test/**/*.ts", "examples/kepler-analytics/src/**/*.tsx"],
+      "include": [
+        "test/**/*.ts"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
@@ -49,7 +51,9 @@
       }
     },
     {
-      "include": ["packages/create-honua-app/package.json"],
+      "include": [
+        "packages/create-honua-app/package.json"
+      ],
       "formatter": {
         "lineWidth": 80
       }
