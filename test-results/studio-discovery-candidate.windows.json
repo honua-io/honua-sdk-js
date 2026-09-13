@@ -1,0 +1,2580 @@
+{
+  "schema": "honua.studio-discovery-diagnostic/v1",
+  "generatedAt": "2026-09-13T18:15:09.619Z",
+  "scope": "real manifest-pinned server; source-built SDK diagnostic, not installed-client or model certification",
+  "manifestSha256": "8c71ca3c29d0a09676d579f918c1a2627556f257f7ac80454fe840ff7a6e3bec",
+  "image": "ghcr.io/honua-io/honua-server@sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
+  "checks": [
+    {
+      "id": "candidate-readiness",
+      "verdict": "pass"
+    }
+  ],
+  "imageId": "sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
+  "discovery": {
+    "pages": 1,
+    "descriptors": [
+      {
+        "name": "honua_describe_layer",
+        "title": "Describe layer",
+        "description": "Describe a published layer's field schema (name, type, nullability, alias), row count, geometry type, spatial reference, and extent. Call this before honua_query_features to learn the exact field names/types to use in where and outFields.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "serviceId",
+            "layerId"
+          ],
+          "properties": {
+            "serviceId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Published service identifier or name (from honua_list_layers.serviceId)."
+            },
+            "layerId": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Service-local layer index (from honua_list_layers.layerId)."
+            },
+            "includeRowCount": {
+              "type": "boolean",
+              "default": true,
+              "description": "When false, skip the row-count probe and omit rowCount. Use for a fast schema-only description."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "serviceName": {
+              "type": "string"
+            },
+            "layerId": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "geometryType": {
+              "type": "string"
+            },
+            "srid": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "extent": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "minX": {
+                  "type": "number"
+                },
+                "minY": {
+                  "type": "number"
+                },
+                "maxX": {
+                  "type": "number"
+                },
+                "maxY": {
+                  "type": "number"
+                }
+              }
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rowCount": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fieldCount": {
+              "type": "integer"
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "type",
+                  "nullable"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "alias": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "nullable": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "serviceId",
+                "layerId",
+                "name",
+                "fields",
+                "fieldCount"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Describe layer",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_list_capabilities",
+        "title": "List capabilities",
+        "description": "Search the server capability catalog in bounded pages (12 tools and resources by default), with opaque cursors and server-authored workflow views. Use the returned names to describe and compose a typed propose/execute path. The full inventory is available only through the explicit admin-only fullExport operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "includeResources": {
+              "type": "boolean",
+              "default": true,
+              "description": "Include the resource catalog (job, catalog, and promotion URIs) in the manifest."
+            },
+            "includeGroundingResources": {
+              "type": "boolean",
+              "default": true,
+              "description": "Include the grounding/catalog resource URIs a client LLM should read first to ground a workflow."
+            },
+            "toolCursor": {
+              "type": "string",
+              "description": "Opaque cursor returned as nextToolCursor. Omit for the first bounded page."
+            },
+            "resourceCursor": {
+              "type": "string",
+              "description": "Opaque cursor returned as nextResourceCursor. Omit for the first bounded page."
+            },
+            "fullExport": {
+              "type": "boolean",
+              "default": false,
+              "description": "Explicit admin-only operation that exports the complete capability inventory."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "serverName": {
+              "type": "string"
+            },
+            "serverVersion": {
+              "type": "string"
+            },
+            "protocolVersions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "toolCount": {
+              "type": "integer"
+            },
+            "totalToolCount": {
+              "type": "integer"
+            },
+            "nextToolCursor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "readOnly": {
+                    "type": "boolean"
+                  },
+                  "workflowFamily": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "resourceCount": {
+              "type": "integer"
+            },
+            "totalResourceCount": {
+              "type": "integer"
+            },
+            "nextResourceCursor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "resources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "uri": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "family": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "groundingResources": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "workflowViews": {
+              "type": "array",
+              "description": "Named server-authored workflow discovery views. Pass one of these names as tools/list params.view (or negotiate it once at initialize via params._meta[\"honua.io/workflow-view\"]) to receive only that bounded set of canonical descriptors. The reserved \"full\" view is an explicit admin-only catalog export. Selecting a view narrows discovery only; every call is still independently authenticated and authorized.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "revisionDigest": {
+                    "type": "string"
+                  },
+                  "membershipDigest": {
+                    "type": "string"
+                  },
+                  "descriptorDigest": {
+                    "type": "string"
+                  },
+                  "toolCount": {
+                    "type": "integer"
+                  },
+                  "descriptorBytes": {
+                    "type": "integer"
+                  },
+                  "estimatedTokens": {
+                    "type": "integer"
+                  },
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "serverName",
+                "toolCount",
+                "tools"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "List capabilities",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_list_layers",
+        "title": "List layers",
+        "description": "List the published services and layers available to query or render, with geometry type, extent, and a short description. Use the returned serviceId/layerId with honua_query_features and honua_render_map.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Optional case-insensitive substring to match against service and layer name/title. When omitted, all published layers are returned."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 50,
+              "description": "Maximum number of layers to return on this page (capped at 500)."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "Number of matching layers to skip before returning results (pagination). When a response reports hasMore=true, re-issue the same call with offset set to the returned nextOffset until hasMore is false."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "layerCount": {
+              "type": "integer"
+            },
+            "layers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "serviceId": {
+                    "type": "string"
+                  },
+                  "serviceName": {
+                    "type": "string"
+                  },
+                  "layerId": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "geometryType": {
+                    "type": "string"
+                  },
+                  "srid": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "extent": {
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "layerCount",
+                "layers"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "List layers",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_query_features",
+        "title": "Query features",
+        "description": "Query features from a published layer (by serviceId/layerId) with an optional attribute WHERE clause, bbox, outFields, and result limit. Returns a GeoJSON FeatureCollection. Paging: results are capped at 'limit' (default 100, max 1000). When the response reports exceededTransferLimit=true there are more matching features; page through them mechanically by re-issuing the SAME query with cursor set to nextCursor (or resultOffset set to nextOffset), repeating until exceededTransferLimit=false. Set returnCountOnly=true to get just the matching {count} (no features) for a cheap cardinality check, and returnGeometry=false to return attribute-only rows (geometry omitted) when scanning attributes. Geometry coordinates are rounded to geometryPrecision decimal places (default 6, ~0.1 m) to keep responses compact; pass a higher value for finer precision or a negative value for full precision. The full FeatureCollection is always in structuredContent.geojson and the MCP-friendly feature projection is in structuredContent.features; for large pages the text block is a one-line summary (counts, ids, paging hint), not a duplicate of the data.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "serviceId",
+            "layerId"
+          ],
+          "properties": {
+            "serviceId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Published service identifier or name (from honua_list_layers.serviceId)."
+            },
+            "layerId": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Service-local layer index (from honua_list_layers.layerId)."
+            },
+            "where": {
+              "type": "string",
+              "description": "Optional attribute filter expressed as an ArcGIS/SQL WHERE clause (e.g. \"population > 10000\")."
+            },
+            "bbox": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "number"
+              },
+              "description": "Optional spatial filter envelope as [minX, minY, maxX, maxY]."
+            },
+            "bboxSrid": {
+              "type": "integer",
+              "default": 4326,
+              "description": "Spatial reference (SRID/WKID) of the bbox ordinates."
+            },
+            "outFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Optional attribute fields to return; omit for all fields."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100,
+              "description": "Maximum number of features to return (capped at 1000)."
+            },
+            "resultOffset": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "Number of matching features to skip before returning results (pagination). Pair with limit to page mechanically through large result sets: when a response reports exceededTransferLimit=true, re-issue the same query with resultOffset set to the returned nextOffset until exceededTransferLimit is false."
+            },
+            "cursor": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "SDK-facing pagination cursor. Encodes the same zero-based result offset as resultOffset. When a response reports exceededTransferLimit=true, re-issue the same query with cursor set to nextCursor until exceededTransferLimit is false."
+            },
+            "returnGeometry": {
+              "type": "boolean",
+              "default": true,
+              "description": "When false, features are returned without geometry (attribute-only rows). Use for attribute scans where returning geometry would waste the response/context budget."
+            },
+            "returnCountOnly": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, return only the matching feature count and no features. Use for cheap cardinality checks before deciding whether/how to page."
+            },
+            "outSrid": {
+              "type": "integer",
+              "default": 4326,
+              "description": "Output spatial reference (SRID/WKID) for returned geometries."
+            },
+            "geometryPrecision": {
+              "type": "integer",
+              "default": 6,
+              "description": "x-honua extension: decimal places to round returned geometry coordinates to. Defaults to 6 (~0.1 m at the equator) so coordinates stay compact instead of emitting 15-digit full-precision noise that inflates the response token budget. Pass a higher value for finer precision, or a negative value for full unrounded coordinates. Ignored when returnGeometry=false."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "oneOf": [
+            {
+              "required": [
+                "serviceId",
+                "layerId",
+                "returnedCount",
+                "limit",
+                "resultOffset",
+                "exceededTransferLimit",
+                "features"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ],
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "layerId": {
+              "type": "integer"
+            },
+            "returnedCount": {
+              "type": "integer"
+            },
+            "limit": {
+              "type": "integer"
+            },
+            "resultOffset": {
+              "type": "integer",
+              "description": "The resultOffset applied to this request (defaults to 0)."
+            },
+            "exceededTransferLimit": {
+              "type": "boolean",
+              "description": "True when more matching features exist beyond this page. When true, re-issue the same query with cursor=nextCursor or resultOffset=nextOffset to fetch the next page."
+            },
+            "nextOffset": {
+              "type": "integer",
+              "description": "Present only when exceededTransferLimit is true: the resultOffset to send on the next request (resultOffset + returnedCount) to page mechanically. Absent on the last page."
+            },
+            "nextCursor": {
+              "type": "string",
+              "description": "Present only when exceededTransferLimit is true: the cursor to send on the next request. Mirrors nextOffset as a string for SDK clients."
+            },
+            "count": {
+              "type": "integer",
+              "description": "Matching feature count when known. Normal queries use the canonical query result total; returnCountOnly=true uses CountAsync."
+            },
+            "features": {
+              "type": "array",
+              "description": "MCP-friendly feature projection with attributes under features[].attributes. GeoJSON callers should use geojson.features[].properties.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "attributes"
+                ],
+                "properties": {
+                  "id": {
+                    "type": [
+                      "integer",
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "attributes": {
+                    "type": "object"
+                  },
+                  "geometry": {
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "geojson": {
+              "type": "object",
+              "description": "RFC 7946 GeoJSON FeatureCollection. Omitted when returnCountOnly=true. When returnGeometry=false each feature's geometry is null.",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "FeatureCollection"
+                },
+                "features": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Non-fatal advisories, most importantly a likely bbox/CRS mismatch (e.g. projected ordinates under the geographic default bboxSrid=4326, or a bbox entirely outside the layer extent) that would silently return 0 features."
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "requiresReauthentication": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "approvalRequired": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "policyRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "conflictingJobId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "retryable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "violations": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "fieldPath": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "error": {
+              "type": "object",
+              "required": [
+                "kind",
+                "message"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "stepId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "violations": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "message"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "fieldPath": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "annotations": {
+          "title": "Query features",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_resolve_entity",
+        "title": "Resolve entity",
+        "description": "Routing: a NAME or phrase -> layer references; use this when you just need to find a layer (not to explore or plan an analysis). Resolves a natural-language name or phrase (e.g. \"parcels\", \"flood zones\") to concrete published service/layer references, ranked by match quality. Use the returned serviceId/layerId with honua_query_features and honua_render_map. Resolves only against the live catalog, so it never invents layers that do not exist.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Natural-language name or phrase to resolve to catalog entities (e.g. \"parcels\", \"flood zones\", \"roads\"). The server lexically grounds it against the live published catalog and returns ranked service/layer references."
+            },
+            "entityType": {
+              "type": "string",
+              "enum": [
+                "any",
+                "service",
+                "layer"
+              ],
+              "default": "any",
+              "description": "Restrict matches to services, to layers, or to both (default)."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "description": "Maximum number of ranked matches to return (capped at 50)."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            },
+            "entityType": {
+              "type": "string"
+            },
+            "matchCount": {
+              "type": "integer"
+            },
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "service",
+                      "layer"
+                    ]
+                  },
+                  "serviceId": {
+                    "type": "string"
+                  },
+                  "serviceName": {
+                    "type": "string"
+                  },
+                  "layerId": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "geometryType": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "score": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "query",
+                "matchCount",
+                "matches"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Resolve entity",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_supported_operation_kinds",
+        "title": "Supported operation kinds",
+        "description": "Read-only discovery of stable operation-kind identifiers backed by executors registered in the live operation gateway. Typed proposal tools remain fail-closed when their operation kind remain fail-closed and cannot be routed.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "supportedKinds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "AdminConfigChange",
+                  "Deploy",
+                  "MetadataRelease",
+                  "Seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "supportedKinds"
+              ],
+              "properties": {
+                "supportedKinds": {}
+              },
+              "additionalProperties": false
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Supported operation kinds",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_dry_run_plan",
+        "title": "Dry-run plan",
+        "description": "Read-only pre-flight over the same analysis plan object as honua_validate_plan: returns estimatedDurationSeconds, estimatedArtifacts (artifact kinds), and sideEffects without executing. Prefer it to gauge a plan's cost and impact; prefer honua_validate_plan to check structural/policy validity. Neither executes the plan — honua_execute_plan does.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "plan"
+          ],
+          "properties": {
+            "plan": {
+              "type": "object",
+              "description": "Canonical analysis plan expressed as MCP plan input.",
+              "required": [],
+              "properties": {
+                "planId": {
+                  "type": "string"
+                },
+                "intentId": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "stepId",
+                      "kind"
+                    ],
+                    "properties": {
+                      "stepId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "QueryFeatures",
+                          "Geoprocess",
+                          "Aggregate",
+                          "RenderMap",
+                          "Export"
+                        ],
+                        "description": "Canonical AnalysisPlanStepKind value (QueryFeatures, Geoprocess, Aggregate, RenderMap, Export). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                      },
+                      "processId": {
+                        "type": "string",
+                        "description": "For a Geoprocess step, the id of the process to run. Valid ids are the closed set advertised by the honua://catalog/processes resource (resources/read) and enumerated in this property's examples; that resource documents each process's typed parameters, allowed values, and output artifact kinds. Read it to discover the correct id and its input shape before hand-authoring a plan.",
+                        "examples": [
+                          "analytics.buffer-aggregate",
+                          "analytics.buffer-aggregate-managed",
+                          "analytics.cluster",
+                          "analytics.cluster-managed",
+                          "analytics.density",
+                          "analytics.density-managed",
+                          "analytics.hotspot-managed",
+                          "analytics.spatial-join",
+                          "analytics.spatial-join-managed",
+                          "conversion.feature-project",
+                          "conversion.geometry-format",
+                          "conversion.polygonize",
+                          "conversion.raster-format",
+                          "conversion.raster-reproject",
+                          "conversion.rasterize",
+                          "data-management.append",
+                          "data-management.calculate-field",
+                          "data-management.copy-features",
+                          "data-management.delete-features",
+                          "enrichment.enrich",
+                          "gdal.gdalwarp",
+                          "gdal.ogr2ogr",
+                          "generalization.dissolve",
+                          "generalization.simplify-layer",
+                          "geometry.area",
+                          "geometry.buffer",
+                          "geometry.centroid",
+                          "geometry.clip",
+                          "geometry.convex-hull",
+                          "geometry.difference",
+                          "geometry.dissolve",
+                          "geometry.intersect",
+                          "geometry.length",
+                          "geometry.make-valid",
+                          "geometry.project",
+                          "geometry.simplify",
+                          "geometry.snap",
+                          "geometry.union",
+                          "imagery.classify",
+                          "import.dataset",
+                          "overlay.clip",
+                          "overlay.erase",
+                          "overlay.intersect",
+                          "overlay.merge",
+                          "overlay.split",
+                          "overlay.union",
+                          "pcloud.translate",
+                          "proximity.euclidean-allocation",
+                          "proximity.euclidean-distance",
+                          "proximity.near",
+                          "proximity.near-table",
+                          "raster.clip",
+                          "raster.histogram",
+                          "raster.interpolate-idw",
+                          "raster.interpolate-kriging",
+                          "raster.map-algebra",
+                          "raster.mosaic",
+                          "raster.reclassify",
+                          "raster.reproject",
+                          "raster.resample",
+                          "raster.spectral-index",
+                          "raster.statistics",
+                          "raster.zonal-statistics",
+                          "sink.external-postgis",
+                          "sink.geojson-file",
+                          "sink.honua-layer",
+                          "sink.quarantine",
+                          "source.csv",
+                          "source.esri-featureserver",
+                          "source.geojson",
+                          "source.honua-layer",
+                          "source.ogc-features",
+                          "source.ogr",
+                          "source.postgis",
+                          "source.wfs",
+                          "statistics.calculate",
+                          "statistics.frequency",
+                          "statistics.summarize",
+                          "surface.aspect",
+                          "surface.contour",
+                          "surface.hillshade",
+                          "surface.roughness",
+                          "surface.rugosity-tpi",
+                          "surface.rugosity-tri",
+                          "surface.slope",
+                          "surface.viewshed",
+                          "transform.aggregate",
+                          "transform.attribute-cast",
+                          "transform.attribute-filter",
+                          "transform.attribute-join",
+                          "transform.attribute-rename",
+                          "transform.clip",
+                          "transform.computed-field",
+                          "transform.dedup",
+                          "transform.pivot",
+                          "transform.reproject",
+                          "transform.spatial-filter",
+                          "transform.unpivot"
+                        ]
+                      },
+                      "inputs": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Process inputs keyed by parameter name, as string-encoded values specified by the process catalog entry for this step's processId. Consult honua://catalog/processes for each parameter's name, value type, whether it is required, and how the value must be encoded (for example base64 WKB, a data URI FeatureCollection, an SRID, or a layer id)."
+                      },
+                      "dependsOn": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "outputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Scalar",
+                      "FeatureLayer",
+                      "Table",
+                      "Raster",
+                      "File",
+                      "Report",
+                      "Map",
+                      "AppBundle"
+                    ],
+                    "description": "Canonical ArtifactKind value (Scalar, FeatureLayer, Table, Raster, File, Report, Map, AppBundle). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "estimatedDurationSeconds": {
+              "type": "number"
+            },
+            "durationEstimateAvailable": {
+              "type": "boolean",
+              "description": "When false (current default), estimatedDurationSeconds is a placeholder (the dry-run path does not model runtime cost), not a prediction — do not treat 0 as 'instant'."
+            },
+            "estimatedArtifacts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Scalar",
+                  "FeatureLayer",
+                  "Table",
+                  "Raster",
+                  "File",
+                  "Report",
+                  "Map",
+                  "AppBundle"
+                ]
+              }
+            },
+            "sideEffects": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "estimatedDurationSeconds",
+                "durationEstimateAvailable",
+                "estimatedArtifacts",
+                "sideEffects"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Dry-run plan",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_execute_plan",
+        "title": "Execute plan",
+        "description": "Submit an analysis plan for asynchronous execution. Returns a jobId and its honua://jobs/{jobId} resourceUri: poll that resource with resources/read until status is terminal (Succeeded, Failed, or Cancelled), then read honua://jobs/{jobId}/results for the produced artifacts, then promote any publishable artifact to a hosted service with honua_publish_result. This is the execute->poll->results->publish loop.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "plan"
+          ],
+          "properties": {
+            "plan": {
+              "type": "object",
+              "description": "Canonical analysis plan expressed as MCP plan input.",
+              "required": [
+                "planId",
+                "steps"
+              ],
+              "properties": {
+                "planId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "intentId": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "stepId",
+                      "kind"
+                    ],
+                    "properties": {
+                      "stepId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "QueryFeatures",
+                          "Geoprocess",
+                          "Aggregate",
+                          "RenderMap",
+                          "Export"
+                        ],
+                        "description": "Canonical AnalysisPlanStepKind value (QueryFeatures, Geoprocess, Aggregate, RenderMap, Export). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                      },
+                      "processId": {
+                        "type": "string",
+                        "description": "For a Geoprocess step, the id of a process that can be submitted to the job runtime. Valid ids are enumerated in this property's examples. The honua://catalog/processes resource (resources/read) also includes broader validation and workflow entries; when consulting it, select only entries whose executionKind=Job and whose supportedExecutionModes includes Async. The resource documents each process's typed parameters, allowed values, output artifact kinds, and input shape.",
+                        "examples": [
+                          "analytics.buffer-aggregate",
+                          "analytics.buffer-aggregate-managed",
+                          "analytics.cluster-managed",
+                          "analytics.density-managed",
+                          "analytics.hotspot-managed",
+                          "analytics.spatial-join",
+                          "analytics.spatial-join-managed",
+                          "conversion.feature-project",
+                          "conversion.polygonize",
+                          "conversion.raster-format",
+                          "conversion.raster-reproject",
+                          "conversion.rasterize",
+                          "data-management.append",
+                          "data-management.copy-features",
+                          "enrichment.enrich",
+                          "gdal.gdalwarp",
+                          "gdal.ogr2ogr",
+                          "generalization.dissolve",
+                          "generalization.simplify-layer",
+                          "geometry.area",
+                          "geometry.buffer",
+                          "geometry.centroid",
+                          "geometry.clip",
+                          "geometry.convex-hull",
+                          "geometry.difference",
+                          "geometry.dissolve",
+                          "geometry.intersect",
+                          "geometry.length",
+                          "geometry.make-valid",
+                          "geometry.project",
+                          "geometry.simplify",
+                          "geometry.snap",
+                          "geometry.union",
+                          "imagery.classify",
+                          "import.dataset",
+                          "overlay.clip",
+                          "overlay.erase",
+                          "overlay.intersect",
+                          "overlay.merge",
+                          "overlay.split",
+                          "overlay.union",
+                          "pcloud.translate",
+                          "proximity.euclidean-allocation",
+                          "proximity.euclidean-distance",
+                          "proximity.near",
+                          "proximity.near-table",
+                          "raster.clip",
+                          "raster.histogram",
+                          "raster.interpolate-idw",
+                          "raster.interpolate-kriging",
+                          "raster.map-algebra",
+                          "raster.mosaic",
+                          "raster.reclassify",
+                          "raster.reproject",
+                          "raster.resample",
+                          "raster.spectral-index",
+                          "raster.statistics",
+                          "raster.zonal-statistics",
+                          "statistics.calculate",
+                          "statistics.frequency",
+                          "statistics.summarize",
+                          "surface.aspect",
+                          "surface.contour",
+                          "surface.hillshade",
+                          "surface.roughness",
+                          "surface.rugosity-tpi",
+                          "surface.rugosity-tri",
+                          "surface.slope",
+                          "surface.viewshed",
+                          "transform.aggregate",
+                          "transform.attribute-cast",
+                          "transform.attribute-filter",
+                          "transform.attribute-join",
+                          "transform.attribute-rename",
+                          "transform.clip",
+                          "transform.computed-field",
+                          "transform.dedup",
+                          "transform.pivot",
+                          "transform.reproject",
+                          "transform.spatial-filter",
+                          "transform.unpivot"
+                        ]
+                      },
+                      "inputs": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Process inputs keyed by parameter name, as string-encoded values specified by the process catalog entry for this step's processId. Consult honua://catalog/processes for each parameter's name, value type, whether it is required, and how the value must be encoded (for example base64 WKB, a data URI FeatureCollection, an SRID, or a layer id)."
+                      },
+                      "dependsOn": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "outputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Scalar",
+                      "FeatureLayer",
+                      "Table",
+                      "Raster",
+                      "File",
+                      "Report",
+                      "Map",
+                      "AppBundle"
+                    ],
+                    "description": "Canonical ArtifactKind value (Scalar, FeatureLayer, Table, Raster, File, Report, Map, AppBundle). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "idempotencyKey": {
+              "type": "string",
+              "description": "Optional deduplication key. Replays with the same key return the same job record."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {},
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "resourceUri": {
+              "type": "string",
+              "description": "honua://jobs/{jobId} resource URI for polling lifecycle state via resources/read."
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "jobId",
+                "status",
+                "createdAt",
+                "resourceUri"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Execute plan",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "honua_list_jobs",
+        "title": "List jobs",
+        "description": "List your geoprocessing jobs (newest first) with an optional status filter and cursor paging. Use it to find a queued or running job to cancel with honua_cancel_job, or to poll a submitted job's status.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Queued",
+                  "Provisioning",
+                  "Running",
+                  "Succeeded",
+                  "Failed",
+                  "Cancelled"
+                ]
+              },
+              "description": "Optional status filter. When omitted, jobs of any status (including terminal history) are returned. A queued or running job is a candidate for honua_cancel_job."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "description": "Maximum number of jobs to return on this page (capped at 200)."
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Opaque cursor returned as nextCursor by a previous call. When a response reports a non-null nextCursor, re-issue the same call with cursor set to it to fetch the next page."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "jobCount": {
+              "type": "integer"
+            },
+            "nextCursor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "jobs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "jobId",
+                  "status"
+                ],
+                "properties": {
+                  "jobId": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "phase": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "jobCount",
+                "jobs"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "List jobs",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_plan_analysis",
+        "title": "Plan analysis",
+        "description": "Routing: a fully-formed INTENT -> an executable plan; use it when you already know what you want done (contrast honua_ground_candidates, which explores options). Compiles a natural-language intent into an executable analysis plan or canonical spec draft. The output's engine field reports whether the plan was compiled by a live model (\"live\") or replayed from a canned deterministic fixture template (\"fixture\", returned when no LLM provider is configured); an engine:\"fixture\" plan is a capability demo, not compiled from your intent, so do not treat its steps as tailored to your request.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "intent"
+          ],
+          "properties": {
+            "intent": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Natural-language intent to compile into an analysis plan or canonical spec draft."
+            },
+            "context": {
+              "type": "object",
+              "description": "Optional caller context. Echoed back unchanged; fixture replay honors fixtureScenarioId or fixtureCase for duplicate-prompt selection."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {},
+            "engine": {
+              "type": "string",
+              "enum": [
+                "live",
+                "fixture"
+              ],
+              "description": "Which planner produced this response. engine:\"live\" means the plan was compiled from your intent by a provider-backed model; engine:\"fixture\" means the plan is a canned deterministic template returned because no LLM provider is configured - treat it as a capability demo, not a plan compiled from your intent."
+            },
+            "plan": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "specDraft": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "cache": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "capabilityState": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "clarification": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "estimate": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "fixtureCase": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "status",
+                "engine"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Plan analysis",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_render_map",
+        "title": "Render map",
+        "description": "Render a map image (PNG) for one or more published layers over a bbox. Layers draw bottom-to-top. Width/height are capped at 1024 px. By default the result is a fetchable artifact reference (resource_link href) with the image dimensions and byte size in text — NOT an inline base64 image — so a multi-megabyte render never floods the model context. Set maxInlineBytes to opt into inlining the base64 PNG when the encoded image is at or below that size. Each layer renders with its primary/default style, which the caption reports; change a layer's style first with honua_apply_style_preset (discover presets with honua_get_style) and re-render to reflect it. To render analysis results as a styled map: run the analysis, then honua_publish_result to promote the result to a serviceId/layerId, then optionally honua_apply_style_preset, then render that layer here.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "layers",
+            "bbox"
+          ],
+          "properties": {
+            "layers": {
+              "type": "array",
+              "minItems": 1,
+              "description": "Ordered layers to draw, bottom-to-top.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "serviceId",
+                  "layerId"
+                ],
+                "properties": {
+                  "serviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Published service identifier or name (from honua_list_layers.serviceId)."
+                  },
+                  "layerId": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Service-local layer index (from honua_list_layers.layerId)."
+                  }
+                }
+              }
+            },
+            "bbox": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "number"
+              },
+              "description": "Map extent as [minX, minY, maxX, maxY]."
+            },
+            "bboxSrid": {
+              "type": "integer",
+              "default": 4326,
+              "description": "Spatial reference (SRID/WKID) of the bbox and output image."
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024,
+              "default": 512,
+              "description": "Output image width in pixels (capped at 1024)."
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024,
+              "default": 512,
+              "description": "Output image height in pixels (capped at 1024)."
+            },
+            "transparent": {
+              "type": "boolean",
+              "default": false,
+              "description": "Render a transparent background instead of an opaque one."
+            },
+            "maxInlineBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "x-honua extension: opt-in ceiling (bytes) for inlining the rendered PNG as a base64 image content block. When the encoded image is at or below this size it is returned inline; otherwise, and by default (0), the tool returns a fetchable artifact href (resource_link) with the image dimensions and byte size in text so a multi-megabyte render never floods the model context."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "oneOf": [
+            {
+              "required": [
+                "format",
+                "width",
+                "height",
+                "byteLength",
+                "bbox",
+                "bboxSrid",
+                "layers",
+                "image"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ],
+          "properties": {
+            "format": {
+              "type": "string"
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            },
+            "byteLength": {
+              "type": "integer"
+            },
+            "bbox": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "number"
+              }
+            },
+            "bboxSrid": {
+              "type": "integer"
+            },
+            "layers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "serviceId",
+                  "layerId"
+                ],
+                "properties": {
+                  "serviceId": {
+                    "type": "string"
+                  },
+                  "layerId": {
+                    "type": "integer"
+                  },
+                  "styleId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "image": {
+              "type": "object",
+              "required": [
+                "format",
+                "width",
+                "height",
+                "byteLength",
+                "inlined"
+              ],
+              "properties": {
+                "format": {
+                  "type": "string"
+                },
+                "width": {
+                  "type": "integer"
+                },
+                "height": {
+                  "type": "integer"
+                },
+                "byteLength": {
+                  "type": "integer"
+                },
+                "uri": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "base64": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "inlined": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "requiresReauthentication": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "approvalRequired": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "policyRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "conflictingJobId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "retryable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "violations": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "fieldPath": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "error": {
+              "type": "object",
+              "required": [
+                "kind",
+                "message"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "stepId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "violations": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "message"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "fieldPath": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "annotations": {
+          "title": "Render map",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_validate_plan",
+        "title": "Validate plan",
+        "description": "Read-only pre-flight over an analysis plan object: returns isExecutable, requiresApproval, violations[] (blocking structural/policy errors), and warnings[]. Prefer it to confirm a plan is well-formed and clears policy/approval gates before honua_execute_plan. Pairs with honua_dry_run_plan, which pre-flights the same plan object but instead estimates duration/artifacts/side-effects; prefer validate_plan for correctness, dry_run_plan for cost/impact.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "plan"
+          ],
+          "properties": {
+            "plan": {
+              "type": "object",
+              "description": "Canonical analysis plan expressed as MCP plan input.",
+              "required": [],
+              "properties": {
+                "planId": {
+                  "type": "string"
+                },
+                "intentId": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "stepId",
+                      "kind"
+                    ],
+                    "properties": {
+                      "stepId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "QueryFeatures",
+                          "Geoprocess",
+                          "Aggregate",
+                          "RenderMap",
+                          "Export"
+                        ],
+                        "description": "Canonical AnalysisPlanStepKind value (QueryFeatures, Geoprocess, Aggregate, RenderMap, Export). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                      },
+                      "processId": {
+                        "type": "string",
+                        "description": "For a Geoprocess step, the id of the process to run. Valid ids are the closed set advertised by the honua://catalog/processes resource (resources/read) and enumerated in this property's examples; that resource documents each process's typed parameters, allowed values, and output artifact kinds. Read it to discover the correct id and its input shape before hand-authoring a plan.",
+                        "examples": [
+                          "analytics.buffer-aggregate",
+                          "analytics.buffer-aggregate-managed",
+                          "analytics.cluster",
+                          "analytics.cluster-managed",
+                          "analytics.density",
+                          "analytics.density-managed",
+                          "analytics.hotspot-managed",
+                          "analytics.spatial-join",
+                          "analytics.spatial-join-managed",
+                          "conversion.feature-project",
+                          "conversion.geometry-format",
+                          "conversion.polygonize",
+                          "conversion.raster-format",
+                          "conversion.raster-reproject",
+                          "conversion.rasterize",
+                          "data-management.append",
+                          "data-management.calculate-field",
+                          "data-management.copy-features",
+                          "data-management.delete-features",
+                          "enrichment.enrich",
+                          "gdal.gdalwarp",
+                          "gdal.ogr2ogr",
+                          "generalization.dissolve",
+                          "generalization.simplify-layer",
+                          "geometry.area",
+                          "geometry.buffer",
+                          "geometry.centroid",
+                          "geometry.clip",
+                          "geometry.convex-hull",
+                          "geometry.difference",
+                          "geometry.dissolve",
+                          "geometry.intersect",
+                          "geometry.length",
+                          "geometry.make-valid",
+                          "geometry.project",
+                          "geometry.simplify",
+                          "geometry.snap",
+                          "geometry.union",
+                          "imagery.classify",
+                          "import.dataset",
+                          "overlay.clip",
+                          "overlay.erase",
+                          "overlay.intersect",
+                          "overlay.merge",
+                          "overlay.split",
+                          "overlay.union",
+                          "pcloud.translate",
+                          "proximity.euclidean-allocation",
+                          "proximity.euclidean-distance",
+                          "proximity.near",
+                          "proximity.near-table",
+                          "raster.clip",
+                          "raster.histogram",
+                          "raster.interpolate-idw",
+                          "raster.interpolate-kriging",
+                          "raster.map-algebra",
+                          "raster.mosaic",
+                          "raster.reclassify",
+                          "raster.reproject",
+                          "raster.resample",
+                          "raster.spectral-index",
+                          "raster.statistics",
+                          "raster.zonal-statistics",
+                          "sink.external-postgis",
+                          "sink.geojson-file",
+                          "sink.honua-layer",
+                          "sink.quarantine",
+                          "source.csv",
+                          "source.esri-featureserver",
+                          "source.geojson",
+                          "source.honua-layer",
+                          "source.ogc-features",
+                          "source.ogr",
+                          "source.postgis",
+                          "source.wfs",
+                          "statistics.calculate",
+                          "statistics.frequency",
+                          "statistics.summarize",
+                          "surface.aspect",
+                          "surface.contour",
+                          "surface.hillshade",
+                          "surface.roughness",
+                          "surface.rugosity-tpi",
+                          "surface.rugosity-tri",
+                          "surface.slope",
+                          "surface.viewshed",
+                          "transform.aggregate",
+                          "transform.attribute-cast",
+                          "transform.attribute-filter",
+                          "transform.attribute-join",
+                          "transform.attribute-rename",
+                          "transform.clip",
+                          "transform.computed-field",
+                          "transform.dedup",
+                          "transform.pivot",
+                          "transform.reproject",
+                          "transform.spatial-filter",
+                          "transform.unpivot"
+                        ]
+                      },
+                      "inputs": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Process inputs keyed by parameter name, as string-encoded values specified by the process catalog entry for this step's processId. Consult honua://catalog/processes for each parameter's name, value type, whether it is required, and how the value must be encoded (for example base64 WKB, a data URI FeatureCollection, an SRID, or a layer id)."
+                      },
+                      "dependsOn": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "outputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Scalar",
+                      "FeatureLayer",
+                      "Table",
+                      "Raster",
+                      "File",
+                      "Report",
+                      "Map",
+                      "AppBundle"
+                    ],
+                    "description": "Canonical ArtifactKind value (Scalar, FeatureLayer, Table, Raster, File, Report, Map, AppBundle). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "isExecutable": {
+              "type": "boolean"
+            },
+            "requiresApproval": {
+              "type": "boolean"
+            },
+            "violations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "fieldPath": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "isExecutable",
+                "requiresApproval",
+                "violations",
+                "warnings"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Validate plan",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "routed": []
+  },
+  "status": "failed",
+  "diagnostic": "AssertionError [ERR_ASSERTION]: candidate must classify Studio composition tools\n    at file:///C:/Users/mike/honua-io/wt-1397-candidate-qualification/scripts/qualify-studio-discovery.mjs:60:10\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "serverLogs": "97-ce33e7346bf5c130-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":26,\"SpanId\":\"ce33e7346bf5c130\",\"TraceId\":\"897b9580df6708a33c8328b0608c2597\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Honua.Server.Features.HealthCheck.ReadinessCheckService[4020]\n      Health check executed: \"FeatureChangeEventStore\" = \"Healthy\" in 0.00ms\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"GET\" \"http\"://\"127.0.0.1:57436\"\"\"\"/healthz/ready\"\"\" - 200 null \"text/plain; charset=utf-8\" 627.4111ms\n{\"@t\":\"2026-09-13T18:15:57.1164263Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"897b9580df6708a33c8328b0608c2597\",\"@sp\":\"ce33e7346bf5c130\",\"ElapsedMilliseconds\":627.4111,\"StatusCode\":200,\"ContentType\":\"text/plain; charset=utf-8\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"GET\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:57436\",\"PathBase\":\"\",\"Path\":\"/healthz/ready\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOC73JKUT:00000001\",\"RequestPath\":\"/healthz/ready\",\"ConnectionId\":\"0HNOHOC73JKUT\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":26,\"SpanId\":\"ce33e7346bf5c130\",\"TraceId\":\"897b9580df6708a33c8328b0608c2597\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:57436\"\"\"\"/mcp\"\"\" - \"application/json\" 180\n{\"@t\":\"2026-09-13T18:15:57.6559154Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"5877ab72dc8b050d45009d43b481b447\",\"@sp\":\"225f05c209e3fd45\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":180,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:57436\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOC73JKUU:00000001\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOC73JKUU\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":4,\"SpanId\":\"225f05c209e3fd45\",\"TraceId\":\"5877ab72dc8b050d45009d43b481b447\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\nwarn: Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler[4111]\n      SECURITY: Development authentication bypass blocked - production environment detected\n{\"@t\":\"2026-09-13T18:15:57.6588731Z\",\"@mt\":\"SECURITY: Development authentication bypass blocked - production environment detected\",\"@l\":\"Warning\",\"@tr\":\"5877ab72dc8b050d45009d43b481b447\",\"@sp\":\"225f05c209e3fd45\",\"EventId\":{\"Id\":4111,\"Name\":\"DevelopmentBypassBlockedInProduction\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler\",\"RequestId\":\"0HNOHOC73JKUU:00000001\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOC73JKUU\",\"CorrelationId\":\"00-5877ab72dc8b050d45009d43b481b447-225f05c209e3fd45-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":4,\"SpanId\":\"225f05c209e3fd45\",\"TraceId\":\"5877ab72dc8b050d45009d43b481b447\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 20.7252 ms\n{\"@t\":\"2026-09-13T18:15:57.6776117Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"20.7252\"],\"@tr\":\"5877ab72dc8b050d45009d43b481b447\",\"@sp\":\"225f05c209e3fd45\",\"RequestHost\":\"127.0.0.1:57436\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"ApiKey\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":20.725249,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-5877ab72dc8b050d45009d43b481b447-225f05c209e3fd45-00\",\"RequestId\":\"0HNOHOC73JKUU:00000001\",\"ConnectionId\":\"0HNOHOC73JKUU\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":4,\"SpanId\":\"225f05c209e3fd45\",\"TraceId\":\"5877ab72dc8b050d45009d43b481b447\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:15:57.6783033Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"5877ab72dc8b050d45009d43b481b447\",\"@sp\":\"225f05c209e3fd45\",\"ElapsedMilliseconds\":22.5616,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:57436\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOC73JKUU:00000001\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOC73JKUU\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":4,\"SpanId\":\"225f05c209e3fd45\",\"TraceId\":\"5877ab72dc8b050d45009d43b481b447\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:57436\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 22.5616ms\n{\"@t\":\"2026-09-13T18:15:57.7000101Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"4d6045c303e70334b88cacec428d9a01\",\"@sp\":\"8d9afb995bbc14e0\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":77,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:57436\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOC73JKUT:00000002\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOC73JKUT\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":4,\"SpanId\":\"8d9afb995bbc14e0\",\"TraceId\":\"4d6045c303e70334b88cacec428d9a01\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:15:57.7006409Z\",\"@mt\":\"SECURITY: Development authentication bypass blocked - production environment detected\",\"@l\":\"Warning\",\"@tr\":\"4d6045c303e70334b88cacec428d9a01\",\"@sp\":\"8d9afb995bbc14e0\",\"EventId\":{\"Id\":4111,\"Name\":\"DevelopmentBypassBlockedInProduction\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler\",\"RequestId\":\"0HNOHOC73JKUT:00000002\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOC73JKUT\",\"CorrelationId\":\"00-4d6045c303e70334b88cacec428d9a01-8d9afb995bbc14e0-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":4,\"SpanId\":\"8d9afb995bbc14e0\",\"TraceId\":\"4d6045c303e70334b88cacec428d9a01\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:57436\"\"\"\"/mcp\"\"\" - \"application/json\" 77\nwarn: Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler[4111]\n      SECURITY: Development authentication bypass blocked - production environment detected\n{\"@t\":\"2026-09-13T18:15:57.7521459Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"51.6713\"],\"@tr\":\"4d6045c303e70334b88cacec428d9a01\",\"@sp\":\"8d9afb995bbc14e0\",\"RequestHost\":\"127.0.0.1:57436\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"ApiKey\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":51.671256,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-4d6045c303e70334b88cacec428d9a01-8d9afb995bbc14e0-00\",\"RequestId\":\"0HNOHOC73JKUT:00000002\",\"ConnectionId\":\"0HNOHOC73JKUT\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":27,\"SpanId\":\"8d9afb995bbc14e0\",\"TraceId\":\"4d6045c303e70334b88cacec428d9a01\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 51.6713 ms\n{\"@t\":\"2026-09-13T18:15:57.7527062Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"4d6045c303e70334b88cacec428d9a01\",\"@sp\":\"8d9afb995bbc14e0\",\"ElapsedMilliseconds\":52.7951,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:57436\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOC73JKUT:00000002\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOC73JKUT\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":27,\"SpanId\":\"8d9afb995bbc14e0\",\"TraceId\":\"4d6045c303e70334b88cacec428d9a01\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:57436\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 52.7951ms\ninfo: Honua.Db.Postgres.Features.Infrastructure.Caching.PreparedStatementCache[8705]\n      Prepared priority statement: \"health_check\"\n{\"@t\":\"2026-09-13T18:15:59.2830133Z\",\"@mt\":\"Prepared priority statement: {StatementName}\",\"StatementName\":\"health_check\",\"EventId\":{\"Id\":8705,\"Name\":\"PriorityStatementPrepared\"},\"SourceContext\":\"Honua.Db.Postgres.Features.Infrastructure.Caching.PreparedStatementCache\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":26,\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:15:59.2842365Z\",\"@mt\":\"High-frequency query preparation completed: {SuccessCount} successful, {FailureCount} failed, {SkippedCount} skipped\",\"SuccessCount\":1,\"FailureCount\":0,\"SkippedCount\":8,\"EventId\":{\"Id\":8607,\"Name\":\"PreparationSummary\"},\"SourceContext\":\"Honua.Db.Postgres.Features.Infrastructure.Caching.HighFrequencyQueryPreparationService\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":26,\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Honua.Db.Postgres.Features.Infrastructure.Caching.HighFrequencyQueryPreparationService[8607]\n      High-frequency query preparation completed: 1 successful, 0 failed, 8 skipped\n{\"@t\":\"2026-09-13T18:15:59.2851475Z\",\"@mt\":\"High-frequency query preparation completed. Cache contains {PreparedCount} prepared statements\",\"PreparedCount\":0,\"EventId\":{\"Id\":8603,\"Name\":\"PreparationCompleted\"},\"SourceContext\":\"Honua.Db.Postgres.Features.Infrastructure.Caching.HighFrequencyQueryPreparationService\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":26,\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Honua.Db.Postgres.Features.Infrastructure.Caching.HighFrequencyQueryPreparationService[8603]\n      High-frequency query preparation completed. Cache contains 0 prepared statements\n{\"@t\":\"2026-09-13T18:15:59.2861817Z\",\"@mt\":\"Health check {HealthCheckName} with status {HealthStatus} completed after {ElapsedMilliseconds}ms with message '{HealthCheckDescription}'\",\"@l\":\"Warning\",\"HealthCheckName\":\"production-metrics\",\"HealthStatus\":\"Degraded\",\"ElapsedMilliseconds\":0.072,\"HealthCheckDescription\":\"Production metrics indicate degraded performance: Low cache hit ratio: 0.00 %\",\"EventId\":{\"Id\":103,\"Name\":\"HealthCheckEnd\"},\"SourceContext\":\"Microsoft.Extensions.Diagnostics.HealthChecks.DefaultHealthCheckService\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b38d3c2ce306\",\"ThreadId\":28,\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\nwarn: Microsoft.Extensions.Diagnostics.HealthChecks.DefaultHealthCheckService[103]\n      Health check \"production-metrics\" with status Degraded completed after 0.072ms with message '\"Production metrics indicate degraded performance: Low cache hit ratio: 0.00 %\"'\n\n"
+}
