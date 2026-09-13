@@ -64,8 +64,9 @@ instead of asserting one hardcoded number; it records the active profiles and
 the roster digests on the journey receipt. Enabling those profiles on a local
 candidate still depends on honua-server#3363/#3430/#3431: the server
 configuration key that turns them on is not yet published, so
-`honua admin install local --profile gp-dev` grants the Pro edition but cannot
-yet request the profiles. The Studio `PublicationIntent` is not mislabeled as the separate admin
+`honua admin install local --profile gp-dev --yes` grants the Pro edition but cannot
+yet request the profiles. (`--yes` is required: the command creates files and starts
+Docker containers, so without it, or without `--dry-run`, it refuses to run.) The Studio `PublicationIntent` is not mislabeled as the separate admin
 approval proposal.
 
 The checked-in fixtures and simulated tests are contract evidence, not a live
