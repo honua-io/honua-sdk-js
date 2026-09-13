@@ -45,6 +45,7 @@ import {
   type McpToolsListResult,
   type StudioAiCapabilitiesResponse,
   type StudioAiChatEvent,
+  type StudioAiToolDefinition,
   StudioToolCatalog,
   createStudioAgentSession,
   readStudioToolClassification,
@@ -307,6 +308,7 @@ function jsonResponse(body: unknown, headers: Record<string, string> = {}): Resp
 interface CandidateServer {
   readonly fetchImpl: typeof fetch;
   readonly advertised: Array<readonly string[]>;
+  readonly toolRequests: Array<readonly StudioAiToolDefinition[]>;
   readonly mcpCalls: Array<{ readonly name: string; readonly arguments: Record<string, unknown> }>;
 }
 
@@ -317,6 +319,7 @@ interface CandidateServer {
  */
 function createCandidateServer(turns: ReadonlyArray<readonly StudioAiChatEvent[]>): CandidateServer {
   const advertised: Array<readonly string[]> = [];
+  const toolRequests: Array<readonly StudioAiToolDefinition[]> = [];
   const mcpCalls: Array<{ readonly name: string; readonly arguments: Record<string, unknown> }> = [];
   const remaining = [...turns];
 
@@ -328,8 +331,9 @@ function createCandidateServer(turns: ReadonlyArray<readonly StudioAiChatEvent[]
     }
 
     if (url.endsWith("/v1/studio/ai/chat")) {
-      const body = JSON.parse(String(init?.body)) as { readonly tools?: ReadonlyArray<{ readonly name: string }> };
+      const body = JSON.parse(String(init?.body)) as { readonly tools?: ReadonlyArray<StudioAiToolDefinition> };
       advertised.push((body.tools ?? []).map((tool) => tool.name));
+      toolRequests.push(body.tools ?? []);
       const events = remaining.shift() ?? [{ type: "messageStop", stopReason: "endTurn" }];
       return new Response(sseBody(events), {
         status: 200,
@@ -369,7 +373,7 @@ function createCandidateServer(turns: ReadonlyArray<readonly StudioAiChatEvent[]
     throw new Error(`Unexpected request: ${url}`);
   }) as typeof fetch;
 
-  return { fetchImpl, advertised, mcpCalls };
+  return { fetchImpl, advertised, toolRequests, mcpCalls };
 }
 
 function makeRuntime(): HonuaAgentRuntime {
@@ -436,6 +440,37 @@ describe("StudioAgentSession against the pinned candidate catalog", () => {
     for (const name of UNCLASSIFIED_VIEW_NEIGHBOURS) {
       expect(server.advertised[0]).not.toContain(name);
     }
+  });
+
+  it("forwards discovered annotations and output schema in the serialized proxy request", async () => {
+    const server = createCandidateServer([]);
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    expect((await session.chat("Describe the available tools.")).status).toBe("completed");
+    const definition = server.toolRequests[0]?.find((tool) => tool.name === "honua_studio_create_draft");
+    expect(definition).toMatchObject({
+      annotations: {
+        title: "Create Studio draft",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+      outputSchema: {
+        type: "object",
+        properties: { draftId: { type: "string" }, generation: { type: "integer" } },
+        required: ["draftId", "generation"],
+      },
+    });
+    for (const descriptor of CANDIDATE_DESCRIPTORS.filter((tool) => SERVER_STUDIO_TOOLS.includes(tool.name))) {
+      const advertised = server.toolRequests[0]?.find((tool) => tool.name === descriptor.name);
+      expect(advertised?.annotations, descriptor.name).toEqual(descriptor.annotations);
+      expect(advertised?.outputSchema, descriptor.name).toEqual(descriptor.outputSchema);
+    }
+    expect(server.toolRequests[0]?.some((tool) => UNCLASSIFIED_VIEW_NEIGHBOURS.includes(tool.name))).toBe(false);
   });
 
   it("publishes the server's classification on the session's discovery report", async () => {
