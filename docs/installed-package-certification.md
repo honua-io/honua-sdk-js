@@ -77,7 +77,7 @@ URLs/integrities, verified provenance and this mismatch. Verdict: **not-certifie
 not repair those published bytes; a compatible published package set is required.
 
 For a non-certifying check of the fixture oracle while package-set admission is
-blocked, run `node scripts/diagnose-installed-fixture.mjs /tmp/fixture-diagnostic.json`.
+blocked, run `node scripts/diagnose-installed-fixture.mjs test-results/fixture-diagnostic.json`.
 This still installs public package bytes and checks the root SDK's pinned integrity,
 but deliberately cannot emit a certification-schema receipt. The retained diagnostic
 at `test-results/installed-fixture-diagnostic.json` records three passing baseline
@@ -93,3 +93,35 @@ release or demote those promises.
 `npm run certify:installed-examples` reuses package-set verification for the
 example/snippet lane. Its previous executed quickstart budget failure remains
 owned by #1584; this work does not change its budget or verdict.
+
+## Native Windows replay
+
+Both the certification and diagnostic installers use the repository's PATH-aware
+npm launcher, preserving the host's npm/build-lock shim. A failed launch retains
+its original error; a nonzero exit without stderr cannot become a pass or a
+misleading `trim` exception. Callers retain control of subprocess timeouts.
+
+To keep the isolated consumer and npm cache inside this Windows lane, run from
+`C:\Users\mike\honua-io\wt-sdk-js-39-candidate-proof` in PowerShell:
+
+```powershell
+$env:TEMP = Join-Path (Get-Location) 'test-results'
+$env:TMP = $env:TEMP
+$env:npm_config_cache = 'C:\Users\mike\honua-io\.npm-cache'
+node scripts/installed-package-certification.mjs --execute-fixture --output test-results/installed-package-certification.windows.json
+```
+
+The 2026-09-13 pre-fix replay is retained in
+`test-results/installed-package-certification.windows-before.json`: admission
+failed with `Cannot read properties of undefined (reading 'trim')`, before any
+operation executed. The corrected replay is retained separately so neither run
+replaces the earlier candidate evidence.
+
+Prior work was fetched from `test/1328-exact-candidate-receipt` (closed #1581)
+and the newer matching `test/39-candidate-proof` / `wip/test/39-candidate-proof`
+checkpoint. The latter's #1646 implementation is already on trunk and is retained.
+The former's standalone OGC observation adapter predates the frozen-envelope
+contract: it projects `result: passed` without the required per-row assertion and
+scenario-facet evidence. Restoring that adapter would not meet current acceptance;
+the retained OGC qualification collector remains available, and no historical
+OGC result is promoted into the new installed receipt.

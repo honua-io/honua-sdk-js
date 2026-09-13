@@ -13,7 +13,7 @@ import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 export const runInstalledCommand = (command, args, options = {}) => {
-  const settings = { encoding: "utf8", windowsHide: true, timeout: 300_000, ...options };
+  const settings = { encoding: "utf8", windowsHide: true, ...options };
   const result = command === "npm" ? runNpmSync(args, settings) : spawnSync(command, args, settings);
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed (exit ${result.status}, signal ${result.signal ?? "none"}): ${String(result.stderr || result.stdout || "no output").trim()}`);
