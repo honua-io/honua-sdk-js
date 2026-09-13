@@ -26,3 +26,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Ask the registries
         run: python3 scripts/check-documented-packages.py
+
+  execute:
+    name: Run every documented command from registry bytes
+    # A package that exists is not the same claim as a command that runs: #1596
+    # was a published package, correctly named, whose documented `npx` form still
+    # could not pick an executable. `docs:commands:check` answers that per pull
+    # request from manifests on disk; this answers it from the registry, in a
+    # consumer that has never seen this repository, against the pinned candidate.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+      - name: Install repository dependencies
+        # `--ignore-scripts`: the lane reads manifests to find the documented
+        # commands and installs the candidate itself; it never needs this tree built.
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run the documented commands
+        run: npm run docs:commands:registry
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: documented-command-execution
+          path: test-results/documented-command-execution.json

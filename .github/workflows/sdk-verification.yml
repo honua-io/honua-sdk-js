@@ -488,6 +488,9 @@ jobs:
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
 
+      - name: Validate documented executable commands
+        run: npm run docs:commands:check
+
       - name: Component qualification matrix
         run: node scripts/component-qualification.mjs check
 
