@@ -1,0 +1,4857 @@
+{
+  "schema": "honua.studio-discovery-diagnostic/v1",
+  "generatedAt": "2026-09-13T18:40:08.969Z",
+  "scope": "real manifest-pinned server; source-built SDK diagnostic, not installed-client or model certification",
+  "sdkSourceSha": "c41d21029ff38c419be144f0b61f0ae162bc5b37",
+  "manifestSha256": "8c71ca3c29d0a09676d579f918c1a2627556f257f7ac80454fe840ff7a6e3bec",
+  "image": "ghcr.io/honua-io/honua-server@sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
+  "checks": [
+    {
+      "id": "candidate-readiness",
+      "verdict": "pass"
+    },
+    {
+      "id": "live-classified-discovery-and-proxy-projection",
+      "verdict": "pass"
+    },
+    {
+      "id": "default-session-setup-discovery-and-reconnect",
+      "verdict": "pass"
+    },
+    {
+      "id": "live-map-create-validate-values-ordinates-null-and-format",
+      "verdict": "pass"
+    }
+  ],
+  "imageId": "sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
+  "discovery": {
+    "pages": 1,
+    "descriptors": [
+      {
+        "name": "honua_list_capabilities",
+        "title": "List capabilities",
+        "description": "Search the server capability catalog in bounded pages (12 tools and resources by default), with opaque cursors and server-authored workflow views. Use the returned names to describe and compose a typed propose/execute path. The full inventory is available only through the explicit admin-only fullExport operation.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "includeResources": {
+              "type": "boolean",
+              "default": true,
+              "description": "Include the resource catalog (job, catalog, and promotion URIs) in the manifest."
+            },
+            "includeGroundingResources": {
+              "type": "boolean",
+              "default": true,
+              "description": "Include the grounding/catalog resource URIs a client LLM should read first to ground a workflow."
+            },
+            "toolCursor": {
+              "type": "string",
+              "description": "Opaque cursor returned as nextToolCursor. Omit for the first bounded page."
+            },
+            "resourceCursor": {
+              "type": "string",
+              "description": "Opaque cursor returned as nextResourceCursor. Omit for the first bounded page."
+            },
+            "fullExport": {
+              "type": "boolean",
+              "default": false,
+              "description": "Explicit admin-only operation that exports the complete capability inventory."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "serverName": {
+              "type": "string"
+            },
+            "serverVersion": {
+              "type": "string"
+            },
+            "protocolVersions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "toolCount": {
+              "type": "integer"
+            },
+            "totalToolCount": {
+              "type": "integer"
+            },
+            "nextToolCursor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "readOnly": {
+                    "type": "boolean"
+                  },
+                  "workflowFamily": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "resourceCount": {
+              "type": "integer"
+            },
+            "totalResourceCount": {
+              "type": "integer"
+            },
+            "nextResourceCursor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "resources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "uri": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "family": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "groundingResources": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "workflowViews": {
+              "type": "array",
+              "description": "Named server-authored workflow discovery views. Pass one of these names as tools/list params.view (or negotiate it once at initialize via params._meta[\"honua.io/workflow-view\"]) to receive only that bounded set of canonical descriptors. The reserved \"full\" view is an explicit admin-only catalog export. Selecting a view narrows discovery only; every call is still independently authenticated and authorized.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "string"
+                  },
+                  "revisionDigest": {
+                    "type": "string"
+                  },
+                  "membershipDigest": {
+                    "type": "string"
+                  },
+                  "descriptorDigest": {
+                    "type": "string"
+                  },
+                  "toolCount": {
+                    "type": "integer"
+                  },
+                  "descriptorBytes": {
+                    "type": "integer"
+                  },
+                  "estimatedTokens": {
+                    "type": "integer"
+                  },
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "serverName",
+                "toolCount",
+                "tools"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "List capabilities",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_resolve_entity",
+        "title": "Resolve entity",
+        "description": "Routing: a NAME or phrase -> layer references; use this when you just need to find a layer (not to explore or plan an analysis). Resolves a natural-language name or phrase (e.g. \"parcels\", \"flood zones\") to concrete published service/layer references, ranked by match quality. Use the returned serviceId/layerId with honua_query_features and honua_render_map. Resolves only against the live catalog, so it never invents layers that do not exist.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Natural-language name or phrase to resolve to catalog entities (e.g. \"parcels\", \"flood zones\", \"roads\"). The server lexically grounds it against the live published catalog and returns ranked service/layer references."
+            },
+            "entityType": {
+              "type": "string",
+              "enum": [
+                "any",
+                "service",
+                "layer"
+              ],
+              "default": "any",
+              "description": "Restrict matches to services, to layers, or to both (default)."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "description": "Maximum number of ranked matches to return (capped at 50)."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            },
+            "entityType": {
+              "type": "string"
+            },
+            "matchCount": {
+              "type": "integer"
+            },
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "service",
+                      "layer"
+                    ]
+                  },
+                  "serviceId": {
+                    "type": "string"
+                  },
+                  "serviceName": {
+                    "type": "string"
+                  },
+                  "layerId": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "geometryType": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "score": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "query",
+                "matchCount",
+                "matches"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Resolve entity",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_ingest_dataset",
+        "title": "Ingest dataset",
+        "description": "Load a small inline dataset (up to 4 MB) into the server as a database table that honua_publish_service can immediately publish as a queryable layer. Accepts format \"geojson\" (a GeoJSON FeatureCollection; coordinates are WGS84 lon/lat per RFC 7946) or \"csv\" (text with a header row; point geometry is read from longitude/latitude columns — auto-detected names lon/lng/long/longitude/x and lat/latitude/y, or set longitudeColumn/latitudeColumn explicitly — or from a WKT column named wkt/geom/geometry/shape; coordinate order is lon/lat and the coordinate CRS defaults to EPSG:4326, override with sourceSrid). For a CSV that only has addresses, either geocode it first with honua_geocode_addresses and ingest the returned lon/lat values, or set addressColumn to geocode server-side during ingest (up to 100 rows; requires the 'geocoding.batch' entitlement). Returns the {connectionId, schema, table} triple plus row count and per-row errors — pass those values straight to honua_publish_service (with the returned geometryColumn and primaryKey) to finish the CSV → geocode → ingest → publish workflow. Re-ingesting the same datasetName replaces that dataset. For data larger than 4 MB use the REST upload path (POST /api/v1/admin/import/upload).",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "format",
+            "data",
+            "datasetName"
+          ],
+          "properties": {
+            "format": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "geojson"
+              ],
+              "description": "Inline data format: \"csv\" (text with a header row) or \"geojson\" (a GeoJSON FeatureCollection document)."
+            },
+            "data": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The dataset content, inline. Capped at 4 MB; use the REST import upload (POST /api/v1/admin/import/upload) for larger files."
+            },
+            "datasetName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 63,
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "description": "Target dataset/table name (letters, digits, underscores; must not start with a digit)."
+            },
+            "sourceSrid": {
+              "type": "integer",
+              "default": 4326,
+              "description": "Spatial reference (SRID/WKID) of the input coordinates; data is stored in EPSG:4326. Defaults to 4326 (WGS84 lon/lat)."
+            },
+            "longitudeColumn": {
+              "type": "string",
+              "description": "CSV only: explicit longitude (X) column name. Pair with latitudeColumn. When omitted, lon/lng/long/longitude/x is auto-detected."
+            },
+            "latitudeColumn": {
+              "type": "string",
+              "description": "CSV only: explicit latitude (Y) column name. Pair with longitudeColumn. When omitted, lat/latitude/y is auto-detected."
+            },
+            "addressColumn": {
+              "type": "string",
+              "description": "CSV only: column holding freeform addresses to geocode into point geometry server-side (up to 100 rows; requires the geocoding.batch entitlement). Mutually exclusive with longitudeColumn/latitudeColumn."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "datasetName": {
+              "type": "string"
+            },
+            "rowCount": {
+              "type": "integer"
+            },
+            "connectionId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Registered secure-connection name/id for the catalog database that owns the imported table; pass to honua_publish_service. Null when no registered connection matches the catalog database."
+            },
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Schema that owns the imported table."
+            },
+            "table": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Physical table name to publish."
+            },
+            "srid": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "geometryColumn": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "primaryKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rowErrors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "properties": {
+                  "row": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "1-based data row (header excluded), when known."
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "field": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "errorCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "errorMessage": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "success",
+                "datasetName",
+                "rowCount"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Ingest dataset",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false
+        }
+      },
+      {
+        "name": "honua_publish_result",
+        "title": "Publish result",
+        "description": "Promote a completed analysis job's result artifact into a hosted, queryable/renderable layer. Chain: run honua_execute_plan → poll honua://jobs/{id} until terminal → call honua_publish_result with sourceId set to that job id → the returned serviceId + layerId chain straight into honua_query_features and honua_render_map. Supported artifact kinds are FeatureLayer and Table (vector/tabular datasets the job materialized into a table); Scalar, Raster, File, Report, Map, and AppBundle artifacts are not publishable and return a structured error. Large artifacts are promoted by reference — the tool publishes the materialized table, never the artifact bytes, so payload size is irrelevant. Publishing routes through the same operator-approval gate as honua_publish_service: the result is a structured operation handle — Completed carries serviceId + layerId + serviceUri + metadataRevision; RequiresApproval carries the approval lane to wait on; Queued carries the durable job id; Denied carries the reason.",
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "sourceId"
+          ],
+          "properties": {
+            "sourceId": {
+              "type": "string",
+              "description": "Completed analysis job id (from honua_execute_plan → honua://jobs/{id}) whose result artifact is promoted to a hosted layer."
+            },
+            "artifactId": {
+              "type": "string",
+              "description": "Selects which artifact in the job's result package to promote. Defaults to the single publishable FeatureLayer/Table artifact when the job produced exactly one."
+            },
+            "serviceName": {
+              "type": "string",
+              "description": "Target service name for the published layer. Defaults to the canonical default service when omitted."
+            },
+            "layerName": {
+              "type": "string",
+              "description": "Display name for the published layer. Defaults to the artifact label when omitted."
+            },
+            "targetKind": {
+              "type": "string",
+              "enum": [
+                "published_service",
+                "deployment"
+              ],
+              "description": "Promotion-surface target family. published_service (Analyze / Publish Data) is supported; deployment (Build App) is not yet materialized server-side. Defaults to published_service."
+            },
+            "visibility": {
+              "type": "string",
+              "enum": [
+                "workspace_shared",
+                "public"
+              ],
+              "description": "Requested promotion visibility scope. Effective visibility is governed by the publish operator gate / RBAC."
+            },
+            "routePrefix": {
+              "type": "string",
+              "description": "Optional route prefix for a deployment target (Build App)."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {},
+            "requiresApproval": {
+              "type": "boolean"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "operationInstanceId": {
+              "type": "string"
+            },
+            "handleId": {
+              "type": "string"
+            },
+            "proposalId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "auditId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "authorizationOutcome": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "policyOutcome": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sourceJobId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The completed analysis job id whose artifact was promoted."
+            },
+            "artifactId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The result artifact that was promoted."
+            },
+            "serviceUri": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "honua://published-services/{serviceId} URI of the published service when the promotion completed."
+            },
+            "serviceId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Published service id (name) — pass to honua_query_features / honua_render_map as serviceId."
+            },
+            "layerId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Published layer id — pass to honua_query_features / honua_render_map as layerId."
+            },
+            "metadataRevision": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "Metadata v2 graph revision produced by the promotion."
+            },
+            "jobId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Durable job id when the promotion was queued."
+            },
+            "approvalLane": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Approval lane to wait on when the promotion requires human approval."
+            },
+            "summary": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "message": {},
+            "details": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "resourceIds": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "evidenceRefs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "code": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "status",
+                "requiresApproval",
+                "operationId",
+                "operationInstanceId",
+                "handleId",
+                "correlationId",
+                "createdAt",
+                "updatedAt"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "Operation handle status: Completed, Queued, Running, RequiresApproval, Denied, or Failed."
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Publish result",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false
+        }
+      },
+      {
+        "name": "honua_publish_service",
+        "title": "Publish service",
+        "description": "Publish a source table as a hosted layer/service through the canonical service.publish operation and its operator-approval gate. Returns a structured operation handle: Completed carries the published service URI, layer id, and metadata revision; RequiresApproval carries the approval lane to wait on; Queued carries the durable job id.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "connectionId",
+            "schema",
+            "table",
+            "layerName"
+          ],
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "description": "Secure-connection identifier whose table is published. Required: the canonical service.publish operation resolves the target database connection from it."
+            },
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Source schema containing the table to publish."
+            },
+            "table": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Source table to publish as a layer."
+            },
+            "layerName": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Display name for the published layer."
+            },
+            "serviceName": {
+              "type": "string",
+              "description": "Target service name. Defaults to the canonical default service when omitted."
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional layer description."
+            },
+            "geometryColumn": {
+              "type": "string",
+              "description": "Geometry column to publish when the table has more than one."
+            },
+            "geometryType": {
+              "type": "string",
+              "description": "Geometry type override (for example Point, Polygon) when it cannot be inferred."
+            },
+            "srid": {
+              "type": "integer",
+              "description": "Spatial reference identifier for the published layer."
+            },
+            "primaryKey": {
+              "type": "string",
+              "description": "Primary key column when the table has no detectable key."
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Subset of attribute columns to publish. All columns are published when omitted."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {},
+            "requiresApproval": {
+              "type": "boolean"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "operationInstanceId": {
+              "type": "string"
+            },
+            "handleId": {
+              "type": "string"
+            },
+            "proposalId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "correlationId": {
+              "type": "string"
+            },
+            "auditId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "authorizationOutcome": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "policyOutcome": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "serviceUri": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "honua://published-services/{serviceName} URI of the published service when the publish completed."
+            },
+            "layerId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "serviceName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "metadataRevision": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "Metadata v2 graph revision produced by the publish."
+            },
+            "jobId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Durable job id when the operation was queued."
+            },
+            "approvalLane": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Approval lane to wait on when the publish requires human approval."
+            },
+            "summary": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "message": {},
+            "details": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "resourceIds": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "evidenceRefs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "code": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "status",
+                "requiresApproval",
+                "operationId",
+                "operationInstanceId",
+                "handleId",
+                "correlationId",
+                "createdAt",
+                "updatedAt"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "Operation handle status: Completed, Queued, Running, RequiresApproval, or Failed."
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Publish service",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false
+        }
+      },
+      {
+        "name": "honua_describe_layer",
+        "title": "Describe layer",
+        "description": "Describe a published layer's field schema (name, type, nullability, alias), row count, geometry type, spatial reference, and extent. Call this before honua_query_features to learn the exact field names/types to use in where and outFields.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "serviceId",
+            "layerId"
+          ],
+          "properties": {
+            "serviceId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Published service identifier or name (from honua_list_layers.serviceId)."
+            },
+            "layerId": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Service-local layer index (from honua_list_layers.layerId)."
+            },
+            "includeRowCount": {
+              "type": "boolean",
+              "default": true,
+              "description": "When false, skip the row-count probe and omit rowCount. Use for a fast schema-only description."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "serviceName": {
+              "type": "string"
+            },
+            "layerId": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "geometryType": {
+              "type": "string"
+            },
+            "srid": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "extent": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "minX": {
+                  "type": "number"
+                },
+                "minY": {
+                  "type": "number"
+                },
+                "maxX": {
+                  "type": "number"
+                },
+                "maxY": {
+                  "type": "number"
+                }
+              }
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rowCount": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fieldCount": {
+              "type": "integer"
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "type",
+                  "nullable"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "alias": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "nullable": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "serviceId",
+                "layerId",
+                "name",
+                "fields",
+                "fieldCount"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Describe layer",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_list_layers",
+        "title": "List layers",
+        "description": "List the published services and layers available to query or render, with geometry type, extent, and a short description. Use the returned serviceId/layerId with honua_query_features and honua_render_map.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Optional case-insensitive substring to match against service and layer name/title. When omitted, all published layers are returned."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 50,
+              "description": "Maximum number of layers to return on this page (capped at 500)."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "Number of matching layers to skip before returning results (pagination). When a response reports hasMore=true, re-issue the same call with offset set to the returned nextOffset until hasMore is false."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "layerCount": {
+              "type": "integer"
+            },
+            "layers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "serviceId": {
+                    "type": "string"
+                  },
+                  "serviceName": {
+                    "type": "string"
+                  },
+                  "layerId": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "geometryType": {
+                    "type": "string"
+                  },
+                  "srid": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "extent": {
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "layerCount",
+                "layers"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "List layers",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_query_features",
+        "title": "Query features",
+        "description": "Query features from a published layer (by serviceId/layerId) with an optional attribute WHERE clause, bbox, outFields, and result limit. Returns a GeoJSON FeatureCollection. Paging: results are capped at 'limit' (default 100, max 1000). When the response reports exceededTransferLimit=true there are more matching features; page through them mechanically by re-issuing the SAME query with cursor set to nextCursor (or resultOffset set to nextOffset), repeating until exceededTransferLimit=false. Set returnCountOnly=true to get just the matching {count} (no features) for a cheap cardinality check, and returnGeometry=false to return attribute-only rows (geometry omitted) when scanning attributes. Geometry coordinates are rounded to geometryPrecision decimal places (default 6, ~0.1 m) to keep responses compact; pass a higher value for finer precision or a negative value for full precision. The full FeatureCollection is always in structuredContent.geojson and the MCP-friendly feature projection is in structuredContent.features; for large pages the text block is a one-line summary (counts, ids, paging hint), not a duplicate of the data.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "serviceId",
+            "layerId"
+          ],
+          "properties": {
+            "serviceId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Published service identifier or name (from honua_list_layers.serviceId)."
+            },
+            "layerId": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Service-local layer index (from honua_list_layers.layerId)."
+            },
+            "where": {
+              "type": "string",
+              "description": "Optional attribute filter expressed as an ArcGIS/SQL WHERE clause (e.g. \"population > 10000\")."
+            },
+            "bbox": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "number"
+              },
+              "description": "Optional spatial filter envelope as [minX, minY, maxX, maxY]."
+            },
+            "bboxSrid": {
+              "type": "integer",
+              "default": 4326,
+              "description": "Spatial reference (SRID/WKID) of the bbox ordinates."
+            },
+            "outFields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Optional attribute fields to return; omit for all fields."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100,
+              "description": "Maximum number of features to return (capped at 1000)."
+            },
+            "resultOffset": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "Number of matching features to skip before returning results (pagination). Pair with limit to page mechanically through large result sets: when a response reports exceededTransferLimit=true, re-issue the same query with resultOffset set to the returned nextOffset until exceededTransferLimit is false."
+            },
+            "cursor": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "SDK-facing pagination cursor. Encodes the same zero-based result offset as resultOffset. When a response reports exceededTransferLimit=true, re-issue the same query with cursor set to nextCursor until exceededTransferLimit is false."
+            },
+            "returnGeometry": {
+              "type": "boolean",
+              "default": true,
+              "description": "When false, features are returned without geometry (attribute-only rows). Use for attribute scans where returning geometry would waste the response/context budget."
+            },
+            "returnCountOnly": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, return only the matching feature count and no features. Use for cheap cardinality checks before deciding whether/how to page."
+            },
+            "outSrid": {
+              "type": "integer",
+              "default": 4326,
+              "description": "Output spatial reference (SRID/WKID) for returned geometries."
+            },
+            "geometryPrecision": {
+              "type": "integer",
+              "default": 6,
+              "description": "x-honua extension: decimal places to round returned geometry coordinates to. Defaults to 6 (~0.1 m at the equator) so coordinates stay compact instead of emitting 15-digit full-precision noise that inflates the response token budget. Pass a higher value for finer precision, or a negative value for full unrounded coordinates. Ignored when returnGeometry=false."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "oneOf": [
+            {
+              "required": [
+                "serviceId",
+                "layerId",
+                "returnedCount",
+                "limit",
+                "resultOffset",
+                "exceededTransferLimit",
+                "features"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ],
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "layerId": {
+              "type": "integer"
+            },
+            "returnedCount": {
+              "type": "integer"
+            },
+            "limit": {
+              "type": "integer"
+            },
+            "resultOffset": {
+              "type": "integer",
+              "description": "The resultOffset applied to this request (defaults to 0)."
+            },
+            "exceededTransferLimit": {
+              "type": "boolean",
+              "description": "True when more matching features exist beyond this page. When true, re-issue the same query with cursor=nextCursor or resultOffset=nextOffset to fetch the next page."
+            },
+            "nextOffset": {
+              "type": "integer",
+              "description": "Present only when exceededTransferLimit is true: the resultOffset to send on the next request (resultOffset + returnedCount) to page mechanically. Absent on the last page."
+            },
+            "nextCursor": {
+              "type": "string",
+              "description": "Present only when exceededTransferLimit is true: the cursor to send on the next request. Mirrors nextOffset as a string for SDK clients."
+            },
+            "count": {
+              "type": "integer",
+              "description": "Matching feature count when known. Normal queries use the canonical query result total; returnCountOnly=true uses CountAsync."
+            },
+            "features": {
+              "type": "array",
+              "description": "MCP-friendly feature projection with attributes under features[].attributes. GeoJSON callers should use geojson.features[].properties.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "attributes"
+                ],
+                "properties": {
+                  "id": {
+                    "type": [
+                      "integer",
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "attributes": {
+                    "type": "object"
+                  },
+                  "geometry": {
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "geojson": {
+              "type": "object",
+              "description": "RFC 7946 GeoJSON FeatureCollection. Omitted when returnCountOnly=true. When returnGeometry=false each feature's geometry is null.",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "FeatureCollection"
+                },
+                "features": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Non-fatal advisories, most importantly a likely bbox/CRS mismatch (e.g. projected ordinates under the geographic default bboxSrid=4326, or a bbox entirely outside the layer extent) that would silently return 0 features."
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "requiresReauthentication": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "approvalRequired": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "policyRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "conflictingJobId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "retryable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "violations": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "fieldPath": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "error": {
+              "type": "object",
+              "required": [
+                "kind",
+                "message"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "stepId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "violations": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "message"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "fieldPath": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "annotations": {
+          "title": "Query features",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_apply_style_preset",
+        "title": "Apply style preset",
+        "description": "Apply a named style preset (a reusable catalog styleId) as a published layer's primary/default style, addressed by serviceId/layerId. The preset must already exist in the style catalog — discover the valid presets with honua_get_style (omit styleId to list them); an unknown preset is rejected and the valid presets are named. The applied style persists through the canonical OGC API - Styles pipeline (styleId-keyed catalog + Metadata v2 graph), so a subsequent honua_render_map for the layer resolves the new style. Requires admin write authorization and passes through operator approval and operation policy; approval-required calls do not change the layer. Set dryRun=true to validate a preset application without changing metadata; a successful preview returns applied=false. It authors presentation metadata only and never edits feature records. Re-applying the same preset is a no-op (idempotent). Styled-map arc: query/analyze -> honua_publish_result (analysis result -> serviceId/layerId) -> honua_apply_style_preset -> honua_render_map.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "serviceId",
+            "layerId",
+            "styleId"
+          ],
+          "properties": {
+            "dryRun": {
+              "type": "boolean",
+              "default": false,
+              "description": "Validate the preset application without changing catalog bindings or metadata. A successful preview returns applied=false."
+            },
+            "serviceId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Published service identifier or name whose layer is being styled (from honua_list_layers.serviceId)."
+            },
+            "layerId": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Service-local layer index to apply the preset to (from honua_list_layers.layerId)."
+            },
+            "styleId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Catalog style preset identifier (style_…) to apply as the layer's primary/default style. Discover valid presets with honua_get_style (omit styleId to list them)."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "layerId": {
+              "type": "integer"
+            },
+            "styleId": {
+              "type": "string",
+              "description": "The selected preset; bound as primary only when applied=true."
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "styleVersion": {
+              "type": "integer"
+            },
+            "applied": {
+              "type": "boolean"
+            },
+            "dryRun": {
+              "type": "boolean",
+              "description": "True when validation completed without changing metadata."
+            },
+            "warning": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Any follow-up needed after the style binding was applied."
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "serviceId",
+                "layerId",
+                "styleId",
+                "applied"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Apply style preset",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "honua_get_style",
+        "title": "Get style",
+        "description": "Inspect a layer's or a catalog style's stylesheet/renderer (read-only) via the OGC API - Styles surface. Resolve a single style by 'styleId', or resolve a published layer's primary/default style by 'serviceId'+'layerId'; omit all three to list the available styles (a discovery catalog of styleId/title). A resolved style advertises its encodings — MapLibre style JSON ('mapbox-style', the canonical form), Esri 'esri-drawing-info' (drawingInfo renderer), and SLD 'sld-1.0.0'/'sld-1.1.0' — each by reference; set includeStylesheet=true (with 'encoding', default 'mapbox-style') to inline the selected stylesheet body. Use the returned styleId as a preset for honua_apply_style_preset to make a layer render in that style. Part of the styled-map arc: query/analyze -> honua_publish_result -> honua_apply_style_preset -> honua_render_map.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "styleId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Catalog style identifier (style_…) to resolve. Omit to resolve serviceId+layerId's primary style, or to list the available styles when neither is given."
+            },
+            "serviceId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Published service identifier or name (from honua_list_layers.serviceId). Paired with layerId, resolves that layer's primary/default style when styleId is omitted."
+            },
+            "layerId": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Service-local layer index (from honua_list_layers.layerId). Paired with serviceId, resolves that layer's primary/default style when styleId is omitted."
+            },
+            "encoding": {
+              "type": "string",
+              "enum": [
+                "mapbox-style",
+                "sld-1.0.0",
+                "sld-1.1.0",
+                "esri-drawing-info"
+              ],
+              "default": "mapbox-style",
+              "description": "Stylesheet encoding to inline when includeStylesheet=true. mapbox-style is the canonical MapLibre style JSON; esri-drawing-info is the Esri renderer; SLD 1.0/1.1 are derived."
+            },
+            "includeStylesheet": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, inline the resolved stylesheet body for the selected encoding; otherwise encodings are advertised by reference."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "styleId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "styleVersion": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "encodings": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "description": "Advertised encodings for the resolved style (resolve mode).",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "encoding": {
+                    "type": "string",
+                    "description": "mapbox-style, esri-drawing-info, sld-1.0.0, or sld-1.1.0."
+                  },
+                  "mediaType": {
+                    "type": "string"
+                  },
+                  "inlineBody": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Inlined stylesheet body for the selected encoding, when includeStylesheet=true."
+                  },
+                  "storageRef": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "honua://styles/{styleId} reference when the encoding is advertised by reference."
+                  }
+                }
+              }
+            },
+            "styles": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "description": "Discovery catalog of available styles (list mode).",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "styleId": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "uri": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Get style",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_render_map",
+        "title": "Render map",
+        "description": "Render a map image (PNG) for one or more published layers over a bbox. Layers draw bottom-to-top. Width/height are capped at 1024 px. By default the result is a fetchable artifact reference (resource_link href) with the image dimensions and byte size in text — NOT an inline base64 image — so a multi-megabyte render never floods the model context. Set maxInlineBytes to opt into inlining the base64 PNG when the encoded image is at or below that size. Each layer renders with its primary/default style, which the caption reports; change a layer's style first with honua_apply_style_preset (discover presets with honua_get_style) and re-render to reflect it. To render analysis results as a styled map: run the analysis, then honua_publish_result to promote the result to a serviceId/layerId, then optionally honua_apply_style_preset, then render that layer here.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "layers",
+            "bbox"
+          ],
+          "properties": {
+            "layers": {
+              "type": "array",
+              "minItems": 1,
+              "description": "Ordered layers to draw, bottom-to-top.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "serviceId",
+                  "layerId"
+                ],
+                "properties": {
+                  "serviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Published service identifier or name (from honua_list_layers.serviceId)."
+                  },
+                  "layerId": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Service-local layer index (from honua_list_layers.layerId)."
+                  }
+                }
+              }
+            },
+            "bbox": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "number"
+              },
+              "description": "Map extent as [minX, minY, maxX, maxY]."
+            },
+            "bboxSrid": {
+              "type": "integer",
+              "default": 4326,
+              "description": "Spatial reference (SRID/WKID) of the bbox and output image."
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024,
+              "default": 512,
+              "description": "Output image width in pixels (capped at 1024)."
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024,
+              "default": 512,
+              "description": "Output image height in pixels (capped at 1024)."
+            },
+            "transparent": {
+              "type": "boolean",
+              "default": false,
+              "description": "Render a transparent background instead of an opaque one."
+            },
+            "maxInlineBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "x-honua extension: opt-in ceiling (bytes) for inlining the rendered PNG as a base64 image content block. When the encoded image is at or below this size it is returned inline; otherwise, and by default (0), the tool returns a fetchable artifact href (resource_link) with the image dimensions and byte size in text so a multi-megabyte render never floods the model context."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "oneOf": [
+            {
+              "required": [
+                "format",
+                "width",
+                "height",
+                "byteLength",
+                "bbox",
+                "bboxSrid",
+                "layers",
+                "image"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ],
+          "properties": {
+            "format": {
+              "type": "string"
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            },
+            "byteLength": {
+              "type": "integer"
+            },
+            "bbox": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "number"
+              }
+            },
+            "bboxSrid": {
+              "type": "integer"
+            },
+            "layers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "serviceId",
+                  "layerId"
+                ],
+                "properties": {
+                  "serviceId": {
+                    "type": "string"
+                  },
+                  "layerId": {
+                    "type": "integer"
+                  },
+                  "styleId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "image": {
+              "type": "object",
+              "required": [
+                "format",
+                "width",
+                "height",
+                "byteLength",
+                "inlined"
+              ],
+              "properties": {
+                "format": {
+                  "type": "string"
+                },
+                "width": {
+                  "type": "integer"
+                },
+                "height": {
+                  "type": "integer"
+                },
+                "byteLength": {
+                  "type": "integer"
+                },
+                "uri": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "base64": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "inlined": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "requiresReauthentication": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "approvalRequired": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "policyRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "conflictingJobId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "retryable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "violations": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "fieldPath": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "error": {
+              "type": "object",
+              "required": [
+                "kind",
+                "message"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "stepId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "violations": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "message"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "fieldPath": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "annotations": {
+          "title": "Render map",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_dry_run_plan",
+        "title": "Dry-run plan",
+        "description": "Read-only pre-flight over the same analysis plan object as honua_validate_plan: returns estimatedDurationSeconds, estimatedArtifacts (artifact kinds), and sideEffects without executing. Prefer it to gauge a plan's cost and impact; prefer honua_validate_plan to check structural/policy validity. Neither executes the plan — honua_execute_plan does.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "plan"
+          ],
+          "properties": {
+            "plan": {
+              "type": "object",
+              "description": "Canonical analysis plan expressed as MCP plan input.",
+              "required": [],
+              "properties": {
+                "planId": {
+                  "type": "string"
+                },
+                "intentId": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "stepId",
+                      "kind"
+                    ],
+                    "properties": {
+                      "stepId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "QueryFeatures",
+                          "Geoprocess",
+                          "Aggregate",
+                          "RenderMap",
+                          "Export"
+                        ],
+                        "description": "Canonical AnalysisPlanStepKind value (QueryFeatures, Geoprocess, Aggregate, RenderMap, Export). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                      },
+                      "processId": {
+                        "type": "string",
+                        "description": "For a Geoprocess step, the id of the process to run. Valid ids are the closed set advertised by the honua://catalog/processes resource (resources/read) and enumerated in this property's examples; that resource documents each process's typed parameters, allowed values, and output artifact kinds. Read it to discover the correct id and its input shape before hand-authoring a plan.",
+                        "examples": [
+                          "analytics.buffer-aggregate",
+                          "analytics.buffer-aggregate-managed",
+                          "analytics.cluster",
+                          "analytics.cluster-managed",
+                          "analytics.density",
+                          "analytics.density-managed",
+                          "analytics.hotspot-managed",
+                          "analytics.spatial-join",
+                          "analytics.spatial-join-managed",
+                          "conversion.feature-project",
+                          "conversion.geometry-format",
+                          "conversion.polygonize",
+                          "conversion.raster-format",
+                          "conversion.raster-reproject",
+                          "conversion.rasterize",
+                          "data-management.append",
+                          "data-management.calculate-field",
+                          "data-management.copy-features",
+                          "data-management.delete-features",
+                          "enrichment.enrich",
+                          "gdal.gdalwarp",
+                          "gdal.ogr2ogr",
+                          "generalization.dissolve",
+                          "generalization.simplify-layer",
+                          "geometry.area",
+                          "geometry.buffer",
+                          "geometry.centroid",
+                          "geometry.clip",
+                          "geometry.convex-hull",
+                          "geometry.difference",
+                          "geometry.dissolve",
+                          "geometry.intersect",
+                          "geometry.length",
+                          "geometry.make-valid",
+                          "geometry.project",
+                          "geometry.simplify",
+                          "geometry.snap",
+                          "geometry.union",
+                          "imagery.classify",
+                          "import.dataset",
+                          "overlay.clip",
+                          "overlay.erase",
+                          "overlay.intersect",
+                          "overlay.merge",
+                          "overlay.split",
+                          "overlay.union",
+                          "pcloud.translate",
+                          "proximity.euclidean-allocation",
+                          "proximity.euclidean-distance",
+                          "proximity.near",
+                          "proximity.near-table",
+                          "raster.clip",
+                          "raster.histogram",
+                          "raster.interpolate-idw",
+                          "raster.interpolate-kriging",
+                          "raster.map-algebra",
+                          "raster.mosaic",
+                          "raster.reclassify",
+                          "raster.reproject",
+                          "raster.resample",
+                          "raster.spectral-index",
+                          "raster.statistics",
+                          "raster.zonal-statistics",
+                          "sink.external-postgis",
+                          "sink.geojson-file",
+                          "sink.honua-layer",
+                          "sink.quarantine",
+                          "source.csv",
+                          "source.esri-featureserver",
+                          "source.geojson",
+                          "source.honua-layer",
+                          "source.ogc-features",
+                          "source.ogr",
+                          "source.postgis",
+                          "source.wfs",
+                          "statistics.calculate",
+                          "statistics.frequency",
+                          "statistics.summarize",
+                          "surface.aspect",
+                          "surface.contour",
+                          "surface.hillshade",
+                          "surface.roughness",
+                          "surface.rugosity-tpi",
+                          "surface.rugosity-tri",
+                          "surface.slope",
+                          "surface.viewshed",
+                          "transform.aggregate",
+                          "transform.attribute-cast",
+                          "transform.attribute-filter",
+                          "transform.attribute-join",
+                          "transform.attribute-rename",
+                          "transform.clip",
+                          "transform.computed-field",
+                          "transform.dedup",
+                          "transform.pivot",
+                          "transform.reproject",
+                          "transform.spatial-filter",
+                          "transform.unpivot"
+                        ]
+                      },
+                      "inputs": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Process inputs keyed by parameter name, as string-encoded values specified by the process catalog entry for this step's processId. Consult honua://catalog/processes for each parameter's name, value type, whether it is required, and how the value must be encoded (for example base64 WKB, a data URI FeatureCollection, an SRID, or a layer id)."
+                      },
+                      "dependsOn": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "outputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Scalar",
+                      "FeatureLayer",
+                      "Table",
+                      "Raster",
+                      "File",
+                      "Report",
+                      "Map",
+                      "AppBundle"
+                    ],
+                    "description": "Canonical ArtifactKind value (Scalar, FeatureLayer, Table, Raster, File, Report, Map, AppBundle). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "estimatedDurationSeconds": {
+              "type": "number"
+            },
+            "durationEstimateAvailable": {
+              "type": "boolean",
+              "description": "When false (current default), estimatedDurationSeconds is a placeholder (the dry-run path does not model runtime cost), not a prediction — do not treat 0 as 'instant'."
+            },
+            "estimatedArtifacts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Scalar",
+                  "FeatureLayer",
+                  "Table",
+                  "Raster",
+                  "File",
+                  "Report",
+                  "Map",
+                  "AppBundle"
+                ]
+              }
+            },
+            "sideEffects": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "estimatedDurationSeconds",
+                "durationEstimateAvailable",
+                "estimatedArtifacts",
+                "sideEffects"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Dry-run plan",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_execute_plan",
+        "title": "Execute plan",
+        "description": "Submit an analysis plan for asynchronous execution. Returns a jobId and its honua://jobs/{jobId} resourceUri: poll that resource with resources/read until status is terminal (Succeeded, Failed, or Cancelled), then read honua://jobs/{jobId}/results for the produced artifacts, then promote any publishable artifact to a hosted service with honua_publish_result. This is the execute->poll->results->publish loop.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "plan"
+          ],
+          "properties": {
+            "plan": {
+              "type": "object",
+              "description": "Canonical analysis plan expressed as MCP plan input.",
+              "required": [
+                "planId",
+                "steps"
+              ],
+              "properties": {
+                "planId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "intentId": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "stepId",
+                      "kind"
+                    ],
+                    "properties": {
+                      "stepId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "QueryFeatures",
+                          "Geoprocess",
+                          "Aggregate",
+                          "RenderMap",
+                          "Export"
+                        ],
+                        "description": "Canonical AnalysisPlanStepKind value (QueryFeatures, Geoprocess, Aggregate, RenderMap, Export). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                      },
+                      "processId": {
+                        "type": "string",
+                        "description": "For a Geoprocess step, the id of a process that can be submitted to the job runtime. Valid ids are enumerated in this property's examples. The honua://catalog/processes resource (resources/read) also includes broader validation and workflow entries; when consulting it, select only entries whose executionKind=Job and whose supportedExecutionModes includes Async. The resource documents each process's typed parameters, allowed values, output artifact kinds, and input shape.",
+                        "examples": [
+                          "analytics.buffer-aggregate",
+                          "analytics.buffer-aggregate-managed",
+                          "analytics.cluster-managed",
+                          "analytics.density-managed",
+                          "analytics.hotspot-managed",
+                          "analytics.spatial-join",
+                          "analytics.spatial-join-managed",
+                          "conversion.feature-project",
+                          "conversion.polygonize",
+                          "conversion.raster-format",
+                          "conversion.raster-reproject",
+                          "conversion.rasterize",
+                          "data-management.append",
+                          "data-management.copy-features",
+                          "enrichment.enrich",
+                          "gdal.gdalwarp",
+                          "gdal.ogr2ogr",
+                          "generalization.dissolve",
+                          "generalization.simplify-layer",
+                          "geometry.area",
+                          "geometry.buffer",
+                          "geometry.centroid",
+                          "geometry.clip",
+                          "geometry.convex-hull",
+                          "geometry.difference",
+                          "geometry.dissolve",
+                          "geometry.intersect",
+                          "geometry.length",
+                          "geometry.make-valid",
+                          "geometry.project",
+                          "geometry.simplify",
+                          "geometry.snap",
+                          "geometry.union",
+                          "imagery.classify",
+                          "import.dataset",
+                          "overlay.clip",
+                          "overlay.erase",
+                          "overlay.intersect",
+                          "overlay.merge",
+                          "overlay.split",
+                          "overlay.union",
+                          "pcloud.translate",
+                          "proximity.euclidean-allocation",
+                          "proximity.euclidean-distance",
+                          "proximity.near",
+                          "proximity.near-table",
+                          "raster.clip",
+                          "raster.histogram",
+                          "raster.interpolate-idw",
+                          "raster.interpolate-kriging",
+                          "raster.map-algebra",
+                          "raster.mosaic",
+                          "raster.reclassify",
+                          "raster.reproject",
+                          "raster.resample",
+                          "raster.spectral-index",
+                          "raster.statistics",
+                          "raster.zonal-statistics",
+                          "statistics.calculate",
+                          "statistics.frequency",
+                          "statistics.summarize",
+                          "surface.aspect",
+                          "surface.contour",
+                          "surface.hillshade",
+                          "surface.roughness",
+                          "surface.rugosity-tpi",
+                          "surface.rugosity-tri",
+                          "surface.slope",
+                          "surface.viewshed",
+                          "transform.aggregate",
+                          "transform.attribute-cast",
+                          "transform.attribute-filter",
+                          "transform.attribute-join",
+                          "transform.attribute-rename",
+                          "transform.clip",
+                          "transform.computed-field",
+                          "transform.dedup",
+                          "transform.pivot",
+                          "transform.reproject",
+                          "transform.spatial-filter",
+                          "transform.unpivot"
+                        ]
+                      },
+                      "inputs": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Process inputs keyed by parameter name, as string-encoded values specified by the process catalog entry for this step's processId. Consult honua://catalog/processes for each parameter's name, value type, whether it is required, and how the value must be encoded (for example base64 WKB, a data URI FeatureCollection, an SRID, or a layer id)."
+                      },
+                      "dependsOn": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "outputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Scalar",
+                      "FeatureLayer",
+                      "Table",
+                      "Raster",
+                      "File",
+                      "Report",
+                      "Map",
+                      "AppBundle"
+                    ],
+                    "description": "Canonical ArtifactKind value (Scalar, FeatureLayer, Table, Raster, File, Report, Map, AppBundle). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "idempotencyKey": {
+              "type": "string",
+              "description": "Optional deduplication key. Replays with the same key return the same job record."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {},
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "resourceUri": {
+              "type": "string",
+              "description": "honua://jobs/{jobId} resource URI for polling lifecycle state via resources/read."
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "jobId",
+                "status",
+                "createdAt",
+                "resourceUri"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Execute plan",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "honua_list_jobs",
+        "title": "List jobs",
+        "description": "List your geoprocessing jobs (newest first) with an optional status filter and cursor paging. Use it to find a queued or running job to cancel with honua_cancel_job, or to poll a submitted job's status.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Queued",
+                  "Provisioning",
+                  "Running",
+                  "Succeeded",
+                  "Failed",
+                  "Cancelled"
+                ]
+              },
+              "description": "Optional status filter. When omitted, jobs of any status (including terminal history) are returned. A queued or running job is a candidate for honua_cancel_job."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "description": "Maximum number of jobs to return on this page (capped at 200)."
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Opaque cursor returned as nextCursor by a previous call. When a response reports a non-null nextCursor, re-issue the same call with cursor set to it to fetch the next page."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "jobCount": {
+              "type": "integer"
+            },
+            "nextCursor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "jobs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "jobId",
+                  "status"
+                ],
+                "properties": {
+                  "jobId": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "phase": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "jobCount",
+                "jobs"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "List jobs",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_plan_analysis",
+        "title": "Plan analysis",
+        "description": "Routing: a fully-formed INTENT -> an executable plan; use it when you already know what you want done (contrast honua_ground_candidates, which explores options). Compiles a natural-language intent into an executable analysis plan or canonical spec draft. The output's engine field reports whether the plan was compiled by a live model (\"live\") or replayed from a canned deterministic fixture template (\"fixture\", returned when no LLM provider is configured); an engine:\"fixture\" plan is a capability demo, not compiled from your intent, so do not treat its steps as tailored to your request.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "intent"
+          ],
+          "properties": {
+            "intent": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Natural-language intent to compile into an analysis plan or canonical spec draft."
+            },
+            "context": {
+              "type": "object",
+              "description": "Optional caller context. Echoed back unchanged; fixture replay honors fixtureScenarioId or fixtureCase for duplicate-prompt selection."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {},
+            "engine": {
+              "type": "string",
+              "enum": [
+                "live",
+                "fixture"
+              ],
+              "description": "Which planner produced this response. engine:\"live\" means the plan was compiled from your intent by a provider-backed model; engine:\"fixture\" means the plan is a canned deterministic template returned because no LLM provider is configured - treat it as a capability demo, not a plan compiled from your intent."
+            },
+            "plan": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "specDraft": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "cache": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "capabilityState": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "clarification": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "estimate": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "fixtureCase": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "status",
+                "engine"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Plan analysis",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_validate_plan",
+        "title": "Validate plan",
+        "description": "Read-only pre-flight over an analysis plan object: returns isExecutable, requiresApproval, violations[] (blocking structural/policy errors), and warnings[]. Prefer it to confirm a plan is well-formed and clears policy/approval gates before honua_execute_plan. Pairs with honua_dry_run_plan, which pre-flights the same plan object but instead estimates duration/artifacts/side-effects; prefer validate_plan for correctness, dry_run_plan for cost/impact.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "plan"
+          ],
+          "properties": {
+            "plan": {
+              "type": "object",
+              "description": "Canonical analysis plan expressed as MCP plan input.",
+              "required": [],
+              "properties": {
+                "planId": {
+                  "type": "string"
+                },
+                "intentId": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "stepId",
+                      "kind"
+                    ],
+                    "properties": {
+                      "stepId": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "QueryFeatures",
+                          "Geoprocess",
+                          "Aggregate",
+                          "RenderMap",
+                          "Export"
+                        ],
+                        "description": "Canonical AnalysisPlanStepKind value (QueryFeatures, Geoprocess, Aggregate, RenderMap, Export). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                      },
+                      "processId": {
+                        "type": "string",
+                        "description": "For a Geoprocess step, the id of the process to run. Valid ids are the closed set advertised by the honua://catalog/processes resource (resources/read) and enumerated in this property's examples; that resource documents each process's typed parameters, allowed values, and output artifact kinds. Read it to discover the correct id and its input shape before hand-authoring a plan.",
+                        "examples": [
+                          "analytics.buffer-aggregate",
+                          "analytics.buffer-aggregate-managed",
+                          "analytics.cluster",
+                          "analytics.cluster-managed",
+                          "analytics.density",
+                          "analytics.density-managed",
+                          "analytics.hotspot-managed",
+                          "analytics.spatial-join",
+                          "analytics.spatial-join-managed",
+                          "conversion.feature-project",
+                          "conversion.geometry-format",
+                          "conversion.polygonize",
+                          "conversion.raster-format",
+                          "conversion.raster-reproject",
+                          "conversion.rasterize",
+                          "data-management.append",
+                          "data-management.calculate-field",
+                          "data-management.copy-features",
+                          "data-management.delete-features",
+                          "enrichment.enrich",
+                          "gdal.gdalwarp",
+                          "gdal.ogr2ogr",
+                          "generalization.dissolve",
+                          "generalization.simplify-layer",
+                          "geometry.area",
+                          "geometry.buffer",
+                          "geometry.centroid",
+                          "geometry.clip",
+                          "geometry.convex-hull",
+                          "geometry.difference",
+                          "geometry.dissolve",
+                          "geometry.intersect",
+                          "geometry.length",
+                          "geometry.make-valid",
+                          "geometry.project",
+                          "geometry.simplify",
+                          "geometry.snap",
+                          "geometry.union",
+                          "imagery.classify",
+                          "import.dataset",
+                          "overlay.clip",
+                          "overlay.erase",
+                          "overlay.intersect",
+                          "overlay.merge",
+                          "overlay.split",
+                          "overlay.union",
+                          "pcloud.translate",
+                          "proximity.euclidean-allocation",
+                          "proximity.euclidean-distance",
+                          "proximity.near",
+                          "proximity.near-table",
+                          "raster.clip",
+                          "raster.histogram",
+                          "raster.interpolate-idw",
+                          "raster.interpolate-kriging",
+                          "raster.map-algebra",
+                          "raster.mosaic",
+                          "raster.reclassify",
+                          "raster.reproject",
+                          "raster.resample",
+                          "raster.spectral-index",
+                          "raster.statistics",
+                          "raster.zonal-statistics",
+                          "sink.external-postgis",
+                          "sink.geojson-file",
+                          "sink.honua-layer",
+                          "sink.quarantine",
+                          "source.csv",
+                          "source.esri-featureserver",
+                          "source.geojson",
+                          "source.honua-layer",
+                          "source.ogc-features",
+                          "source.ogr",
+                          "source.postgis",
+                          "source.wfs",
+                          "statistics.calculate",
+                          "statistics.frequency",
+                          "statistics.summarize",
+                          "surface.aspect",
+                          "surface.contour",
+                          "surface.hillshade",
+                          "surface.roughness",
+                          "surface.rugosity-tpi",
+                          "surface.rugosity-tri",
+                          "surface.slope",
+                          "surface.viewshed",
+                          "transform.aggregate",
+                          "transform.attribute-cast",
+                          "transform.attribute-filter",
+                          "transform.attribute-join",
+                          "transform.attribute-rename",
+                          "transform.clip",
+                          "transform.computed-field",
+                          "transform.dedup",
+                          "transform.pivot",
+                          "transform.reproject",
+                          "transform.spatial-filter",
+                          "transform.unpivot"
+                        ]
+                      },
+                      "inputs": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "Process inputs keyed by parameter name, as string-encoded values specified by the process catalog entry for this step's processId. Consult honua://catalog/processes for each parameter's name, value type, whether it is required, and how the value must be encoded (for example base64 WKB, a data URI FeatureCollection, an SRID, or a layer id)."
+                      },
+                      "dependsOn": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "outputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Scalar",
+                      "FeatureLayer",
+                      "Table",
+                      "Raster",
+                      "File",
+                      "Report",
+                      "Map",
+                      "AppBundle"
+                    ],
+                    "description": "Canonical ArtifactKind value (Scalar, FeatureLayer, Table, Raster, File, Report, Map, AppBundle). Server parsing is case-insensitive but clients should send the canonical PascalCase spelling."
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "isExecutable": {
+              "type": "boolean"
+            },
+            "requiresApproval": {
+              "type": "boolean"
+            },
+            "violations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "fieldPath": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "isExecutable",
+                "requiresApproval",
+                "violations",
+                "warnings"
+              ]
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Validate plan",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "honua_studio_create_draft",
+        "title": "Create Studio draft",
+        "description": "Create a mutable Studio package lifecycle draft (query, analysis, map, dashboard, report, form, app, workflow, gp, or etl family). The composition a user and agent build IS this draft (AD-8): the returned draft's generation must be passed as `generation` on every subsequent honua_studio_update_draft / composition-mutation call for optimistic concurrency. The optional `ownerId` field is admin-only; non-admin callers must omit it and become the owner automatically.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "packageKey",
+            "family",
+            "schemaVersion"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "packageKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "description": "Machine-friendly package key (letters, numbers, dash, underscore, dot only)."
+            },
+            "family": {
+              "type": "string",
+              "enum": [
+                "query",
+                "analysis",
+                "map",
+                "dashboard",
+                "report",
+                "form",
+                "app",
+                "workflow",
+                "gp",
+                "etl"
+              ],
+              "description": "Studio package family."
+            },
+            "schemaVersion": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
+              "description": "Envelope schema version for the family."
+            },
+            "workspaceId": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Workspace identifier."
+            },
+            "ownerId": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Admin-only owner principal identifier. Non-admin callers must omit this field and become the owner automatically."
+            },
+            "body": {
+              "type": "object",
+              "description": "Optional initial composition/family body. Omit to start empty."
+            },
+            "itemId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Existing content item id, to add a draft under an existing item."
+            },
+            "baseVersionId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Immutable version this draft was reopened from, when applicable."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "object",
+              "required": [
+                "operationInstanceId",
+                "operationId",
+                "status",
+                "correlationId",
+                "createdAt",
+                "updatedAt"
+              ],
+              "properties": {
+                "operationInstanceId": {
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "correlationId": {
+                  "type": "string"
+                },
+                "auditId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "proposalId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            },
+            "draftId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "itemId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "packageKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workspaceId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ownerId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "family": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "envelope": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "validation": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "baseVersionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "generation": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "createdBy": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "updatedBy": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "createdAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "updatedAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "studioAuthorizationCode": {},
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "operation"
+              ],
+              "properties": {
+                "studioAuthorizationCode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Stable Studio authorization denial code on an error branch."
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "studioAuthorizationCode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Create Studio draft",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false
+        },
+        "_meta": {
+          "honua.studio": {
+            "family": "honua.studio.composition",
+            "view": "setup",
+            "revision": "setup.v1"
+          }
+        }
+      },
+      {
+        "name": "honua_studio_validate_draft",
+        "title": "Validate Studio draft",
+        "description": "Validate a Studio package lifecycle draft's current envelope and return the validation summary. Genuinely read-only: it does NOT persist the result onto the draft or change its generation (unlike the REST admin POST .../validate endpoint), so it is always safe to call between composition-mutation calls.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "draftId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "draftId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Studio package draft id."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {},
+            "diagnostics": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "unsupportedCapabilities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "generatedAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "not-validated",
+                    "valid",
+                    "warning",
+                    "invalid"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Validate Studio draft",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        },
+        "_meta": {
+          "honua.studio": {
+            "family": "honua.studio.composition",
+            "view": "setup",
+            "revision": "setup.v1"
+          }
+        }
+      },
+      {
+        "name": "honua_studio_propose_publication",
+        "title": "Propose Studio publication",
+        "description": "Submit an exact saved Studio item/version/contentHash plus route and visibility for human approval. Returns canonical operation and proposal identities; no publication pointer moves before separate-principal approval.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "itemId",
+            "versionId",
+            "contentHash",
+            "route",
+            "visibility"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "itemId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Studio content item id."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Exact immutable saved version id."
+            },
+            "contentHash": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Exact content hash returned when the version was saved."
+            },
+            "route": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Requested target route key."
+            },
+            "visibility": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "description": "Requested visibility target."
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "Human-readable rationale recorded for reviewer context."
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "object"
+            },
+            "operationInstanceId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "proposalId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "proposalUri": {
+              "type": "string",
+              "pattern": "^honua://proposals/.+"
+            },
+            "auditId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "correlationId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "idempotencyIdentity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {},
+            "humanConfirmationRequired": {
+              "type": "boolean",
+              "const": true
+            },
+            "message": {},
+            "code": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "operation",
+                "operationInstanceId",
+                "proposalId",
+                "proposalUri",
+                "auditId",
+                "correlationId",
+                "idempotencyIdentity",
+                "status",
+                "humanConfirmationRequired",
+                "message"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "AwaitingApproval"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Propose Studio publication",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        },
+        "_meta": {
+          "honua.studio": {
+            "family": "honua.studio.composition",
+            "view": "setup",
+            "revision": "setup.v1"
+          }
+        }
+      },
+      {
+        "name": "honua_supported_operation_kinds",
+        "title": "Supported operation kinds",
+        "description": "Read-only discovery of stable operation-kind identifiers backed by executors registered in the live operation gateway. Typed proposal tools remain fail-closed when their operation kind remain fail-closed and cannot be routed.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "supportedKinds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "AdminConfigChange",
+                  "Deploy",
+                  "MetadataRelease",
+                  "Seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "supportedKinds"
+              ],
+              "properties": {
+                "supportedKinds": {}
+              },
+              "additionalProperties": false
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ]
+            }
+          ]
+        },
+        "annotations": {
+          "title": "Supported operation kinds",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        }
+      }
+    ],
+    "routed": [
+      {
+        "name": "honua_studio_create_draft",
+        "description": "Create a mutable Studio package lifecycle draft (query, analysis, map, dashboard, report, form, app, workflow, gp, or etl family). The composition a user and agent build IS this draft (AD-8): the returned draft's generation must be passed as `generation` on every subsequent honua_studio_update_draft / composition-mutation call for optimistic concurrency. The optional `ownerId` field is admin-only; non-admin callers must omit it and become the owner automatically.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "packageKey",
+            "family",
+            "schemaVersion"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "packageKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "description": "Machine-friendly package key (letters, numbers, dash, underscore, dot only)."
+            },
+            "family": {
+              "type": "string",
+              "enum": [
+                "query",
+                "analysis",
+                "map",
+                "dashboard",
+                "report",
+                "form",
+                "app",
+                "workflow",
+                "gp",
+                "etl"
+              ],
+              "description": "Studio package family."
+            },
+            "schemaVersion": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
+              "description": "Envelope schema version for the family."
+            },
+            "workspaceId": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Workspace identifier."
+            },
+            "ownerId": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Admin-only owner principal identifier. Non-admin callers must omit this field and become the owner automatically."
+            },
+            "body": {
+              "type": "object",
+              "description": "Optional initial composition/family body. Omit to start empty."
+            },
+            "itemId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Existing content item id, to add a draft under an existing item."
+            },
+            "baseVersionId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Immutable version this draft was reopened from, when applicable."
+            }
+          }
+        },
+        "annotations": {
+          "title": "Create Studio draft",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "object",
+              "required": [
+                "operationInstanceId",
+                "operationId",
+                "status",
+                "correlationId",
+                "createdAt",
+                "updatedAt"
+              ],
+              "properties": {
+                "operationInstanceId": {
+                  "type": "string"
+                },
+                "operationId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "correlationId": {
+                  "type": "string"
+                },
+                "auditId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "proposalId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              }
+            },
+            "draftId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "itemId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "packageKey": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workspaceId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ownerId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "family": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "envelope": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "validation": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "baseVersionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "generation": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "createdBy": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "updatedBy": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "createdAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "updatedAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "studioAuthorizationCode": {},
+            "status": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "operation"
+              ],
+              "properties": {
+                "studioAuthorizationCode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Stable Studio authorization denial code on an error branch."
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "studioAuthorizationCode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "honua_studio_validate_draft",
+        "description": "Validate a Studio package lifecycle draft's current envelope and return the validation summary. Genuinely read-only: it does NOT persist the result onto the draft or change its generation (unlike the REST admin POST .../validate endpoint), so it is always safe to call between composition-mutation calls.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "draftId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "draftId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Studio package draft id."
+            }
+          }
+        },
+        "annotations": {
+          "title": "Validate Studio draft",
+          "readOnlyHint": true,
+          "destructiveHint": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {},
+            "diagnostics": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "unsupportedCapabilities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "generatedAt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "status"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "not-validated",
+                    "valid",
+                    "warning",
+                    "invalid"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "honua_studio_propose_publication",
+        "description": "Submit an exact saved Studio item/version/contentHash plus route and visibility for human approval. Returns canonical operation and proposal identities; no publication pointer moves before separate-principal approval.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "itemId",
+            "versionId",
+            "contentHash",
+            "route",
+            "visibility"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "itemId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Studio content item id."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Exact immutable saved version id."
+            },
+            "contentHash": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Exact content hash returned when the version was saved."
+            },
+            "route": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Requested target route key."
+            },
+            "visibility": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "description": "Requested visibility target."
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "Human-readable rationale recorded for reviewer context."
+            }
+          }
+        },
+        "annotations": {
+          "title": "Propose Studio publication",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "object"
+            },
+            "operationInstanceId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "proposalId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "proposalUri": {
+              "type": "string",
+              "pattern": "^honua://proposals/.+"
+            },
+            "auditId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "correlationId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "idempotencyIdentity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {},
+            "humanConfirmationRequired": {
+              "type": "boolean",
+              "const": true
+            },
+            "message": {},
+            "code": {
+              "type": "string"
+            },
+            "studioAuthorizationCode": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "currentGeneration": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "error": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "required": [
+                  "status",
+                  "code",
+                  "message",
+                  "error"
+                ]
+              },
+              "required": [
+                "operation",
+                "operationInstanceId",
+                "proposalId",
+                "proposalUri",
+                "auditId",
+                "correlationId",
+                "idempotencyIdentity",
+                "status",
+                "humanConfirmationRequired",
+                "message"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "AwaitingApproval"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "required": [
+                "status",
+                "code",
+                "message",
+                "error"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "error"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "created": {
+    "operation": {
+      "tenantId": "public",
+      "version": 3,
+      "operationInstanceId": "opinst-52ac0e183f6243859840374e00740e24",
+      "operationId": "studio.draft.create",
+      "status": "Completed",
+      "handleId": "opinst-52ac0e183f6243859840374e00740e24",
+      "correlationId": "00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00",
+      "auditId": "1",
+      "createdAt": "2026-09-13T18:40:31.2635702+00:00",
+      "updatedAt": "2026-09-13T18:40:31.3722592+00:00",
+      "authorizationOutcome": "authorized",
+      "policyDecision": "Allow",
+      "result": {
+        "summary": "studio.draft.create completed.",
+        "details": {
+          "payload": "{\"draftId\":\"dc28db06-332a-4702-ae54-ed0592e08012\",\"itemId\":\"484ea565-e86b-435d-848f-3d241e5872e1\",\"packageKey\":\"sdk1397-8a4618712039\",\"ownerId\":\"00000000-0000-0000-0000-000000000002\",\"family\":\"map\",\"envelope\":{\"family\":\"map\",\"schemaVersion\":\"1.0\",\"format\":\"honua_map_package.v1\",\"bindings\":[],\"dependencies\":[],\"validation\":{\"status\":\"valid\",\"diagnostics\":[],\"unsupportedCapabilities\":[],\"generatedAt\":\"2026-09-13T18:40:31.3476801+00:00\"},\"provenance\":[],\"body\":{\"mapPackageId\":\"sdk1397-8a4618712039\",\"format\":\"honua_map_package.v1\",\"status\":\"Draft\",\"createdAt\":\"2026-09-13T00:00:00Z\",\"mapSpec\":{\"version\":8,\"sources\":{\"places\":{\"type\":\"geojson\",\"data\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":7,\"properties\":{\"name\":\"Honolulu\",\"elevation\":null},\"geometry\":{\"type\":\"Point\",\"coordinates\":[-157.8583,21.3069]}}]}}},\"layers\":[{\"id\":\"places\",\"type\":\"circle\",\"source\":\"places\"}]},\"view\":{\"center\":[-157.8583,21.3069],\"zoom\":7,\"crs\":\"EPSG:4326\"},\"layers\":[],\"widgets\":[],\"controls\":[],\"interactions\":[]}},\"validation\":{\"status\":\"valid\",\"diagnostics\":[],\"unsupportedCapabilities\":[],\"generatedAt\":\"2026-09-13T18:40:31.3476801+00:00\"},\"generation\":1,\"createdBy\":\"00000000-0000-0000-0000-000000000002\",\"updatedBy\":\"00000000-0000-0000-0000-000000000002\",\"createdAt\":\"2026-09-13T18:40:31.3416282+00:00\",\"updatedAt\":\"2026-09-13T18:40:31.3416282+00:00\"}"
+        }
+      },
+      "resourceIds": {
+        "draftId": "dc28db06-332a-4702-ae54-ed0592e08012",
+        "itemId": "484ea565-e86b-435d-848f-3d241e5872e1"
+      },
+      "evidenceRefs": []
+    },
+    "draftId": "dc28db06-332a-4702-ae54-ed0592e08012",
+    "itemId": "484ea565-e86b-435d-848f-3d241e5872e1",
+    "packageKey": "sdk1397-8a4618712039",
+    "ownerId": "00000000-0000-0000-0000-000000000002",
+    "family": "map",
+    "envelope": {
+      "family": "map",
+      "schemaVersion": "1.0",
+      "format": "honua_map_package.v1",
+      "bindings": [],
+      "dependencies": [],
+      "validation": {
+        "status": "valid",
+        "diagnostics": [],
+        "unsupportedCapabilities": [],
+        "generatedAt": "2026-09-13T18:40:31.3476801+00:00"
+      },
+      "provenance": [],
+      "body": {
+        "mapPackageId": "sdk1397-8a4618712039",
+        "format": "honua_map_package.v1",
+        "status": "Draft",
+        "createdAt": "2026-09-13T00:00:00Z",
+        "mapSpec": {
+          "version": 8,
+          "sources": {
+            "places": {
+              "type": "geojson",
+              "data": {
+                "type": "FeatureCollection",
+                "features": [
+                  {
+                    "type": "Feature",
+                    "id": 7,
+                    "properties": {
+                      "name": "Honolulu",
+                      "elevation": null
+                    },
+                    "geometry": {
+                      "type": "Point",
+                      "coordinates": [
+                        -157.8583,
+                        21.3069
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "layers": [
+            {
+              "id": "places",
+              "type": "circle",
+              "source": "places"
+            }
+          ]
+        },
+        "view": {
+          "center": [
+            -157.8583,
+            21.3069
+          ],
+          "zoom": 7,
+          "crs": "EPSG:4326"
+        },
+        "layers": [],
+        "widgets": [],
+        "controls": [],
+        "interactions": []
+      }
+    },
+    "validation": {
+      "status": "valid",
+      "diagnostics": [],
+      "unsupportedCapabilities": [],
+      "generatedAt": "2026-09-13T18:40:31.3476801+00:00"
+    },
+    "generation": 1,
+    "createdBy": "00000000-0000-0000-0000-000000000002",
+    "updatedBy": "00000000-0000-0000-0000-000000000002",
+    "createdAt": "2026-09-13T18:40:31.3416282+00:00",
+    "updatedAt": "2026-09-13T18:40:31.3416282+00:00"
+  },
+  "validation": {
+    "status": "valid",
+    "diagnostics": [],
+    "unsupportedCapabilities": [],
+    "generatedAt": "2026-09-13T18:40:31.4106976+00:00"
+  },
+  "missingLifecycleTools": [
+    "honua_studio_add_layer",
+    "honua_studio_set_view",
+    "honua_studio_get_draft"
+  ],
+  "status": "failed",
+  "diagnostic": "AssertionError [ERR_ASSERTION]: candidate setup view is missing required map lifecycle tools\n+ actual - expected\n\n+ [\n+   'honua_studio_add_layer',\n+   'honua_studio_set_view',\n+   'honua_studio_get_draft'\n+ ]\n- []\n\n    at file:///C:/Users/mike/honua-io/wt-1397-candidate-qualification/scripts/qualify-studio-discovery.mjs:104:10\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "serverLogs": "tCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 11.7852ms\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - \"application/json\" 763\n{\"@t\":\"2026-09-13T18:40:31.2353129Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":763,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:58250\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":6,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:40:31.2358507Z\",\"@mt\":\"SECURITY: Development authentication bypass blocked - production environment detected\",\"@l\":\"Warning\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"EventId\":{\"Id\":4111,\"Name\":\"DevelopmentBypassBlockedInProduction\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"CorrelationId\":\"00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":6,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\nwarn: Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler[4111]\n      SECURITY: Development authentication bypass blocked - production environment detected\ninfo: Honua.Ai.Protocols.Mcp.Studio.CreateStudioDraftTool[8173]\n      MCP Studio draft audited: Tool=\"honua_studio_create_draft\", Principal=\"[REDACTED]\", DraftId=\"dc28db06-332a-4702-ae54-ed0592e08012\", GenerationBefore=null, GenerationAfter=1\n{\"@t\":\"2026-09-13T18:40:31.3910039Z\",\"@mt\":\"MCP Studio draft audited: Tool={ToolName}, Principal={PrincipalKey}, DraftId={DraftId}, GenerationBefore={GenerationBefore}, GenerationAfter={GenerationAfter}\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"ToolName\":\"honua_studio_create_draft\",\"PrincipalKey\":\"[REDACTED]\",\"DraftId\":\"dc28db06-332a-4702-ae54-ed0592e08012\",\"GenerationBefore\":null,\"GenerationAfter\":1,\"EventId\":{\"Id\":8173,\"Name\":\"StudioDraftAudited\"},\"SourceContext\":\"Honua.Ai.Protocols.Mcp.Studio.CreateStudioDraftTool\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"CorrelationId\":\"00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:40:31.3940821Z\",\"@mt\":\"MCP tool completed: ToolName={ToolName}, Status={Status}\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"ToolName\":\"honua_studio_create_draft\",\"Status\":\"ok\",\"EventId\":{\"Id\":8151,\"Name\":\"ToolCompleted\"},\"SourceContext\":\"Honua.Ai.Protocols.Mcp.McpDataAccessSurface\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"CorrelationId\":\"00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Honua.Ai.Protocols.Mcp.McpDataAccessSurface[8151]\n      MCP tool completed: ToolName=\"honua_studio_create_draft\", Status=\"ok\"\n{\"@t\":\"2026-09-13T18:40:31.3947909Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"159.0882\"],\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"RequestHost\":\"127.0.0.1:58250\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"ApiKey\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":159.088167,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 159.0882 ms\n{\"@t\":\"2026-09-13T18:40:31.3950468Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"ElapsedMilliseconds\":159.829,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:58250\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 159.829ms\n{\"@t\":\"2026-09-13T18:40:31.4008564Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":176,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:58250\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":6,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - \"application/json\" 176\n{\"@t\":\"2026-09-13T18:40:31.4014070Z\",\"@mt\":\"SECURITY: Development authentication bypass blocked - production environment detected\",\"@l\":\"Warning\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"EventId\":{\"Id\":4111,\"Name\":\"DevelopmentBypassBlockedInProduction\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"CorrelationId\":\"00-163962047f43c5a03cce40530531affe-b1e6e5786b29775a-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":6,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\nwarn: Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler[4111]\n      SECURITY: Development authentication bypass blocked - production environment detected\ninfo: Honua.Ai.Protocols.Mcp.Studio.ValidateStudioDraftTool[8173]\n      MCP Studio draft audited: Tool=\"honua_studio_validate_draft\", Principal=\"[REDACTED]\", DraftId=\"dc28db06-332a-4702-ae54-ed0592e08012\", GenerationBefore=1, GenerationAfter=1\n{\"@t\":\"2026-09-13T18:40:31.4109146Z\",\"@mt\":\"MCP Studio draft audited: Tool={ToolName}, Principal={PrincipalKey}, DraftId={DraftId}, GenerationBefore={GenerationBefore}, GenerationAfter={GenerationAfter}\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"ToolName\":\"honua_studio_validate_draft\",\"PrincipalKey\":\"[REDACTED]\",\"DraftId\":\"dc28db06-332a-4702-ae54-ed0592e08012\",\"GenerationBefore\":1,\"GenerationAfter\":1,\"EventId\":{\"Id\":8173,\"Name\":\"StudioDraftAudited\"},\"SourceContext\":\"Honua.Ai.Protocols.Mcp.Studio.ValidateStudioDraftTool\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"CorrelationId\":\"00-163962047f43c5a03cce40530531affe-b1e6e5786b29775a-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:40:31.4115927Z\",\"@mt\":\"MCP tool completed: ToolName={ToolName}, Status={Status}\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"ToolName\":\"honua_studio_validate_draft\",\"Status\":\"ok\",\"EventId\":{\"Id\":8151,\"Name\":\"ToolCompleted\"},\"SourceContext\":\"Honua.Ai.Protocols.Mcp.McpDataAccessSurface\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"CorrelationId\":\"00-163962047f43c5a03cce40530531affe-b1e6e5786b29775a-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Honua.Ai.Protocols.Mcp.McpDataAccessSurface[8151]\n      MCP tool completed: ToolName=\"honua_studio_validate_draft\", Status=\"ok\"\n{\"@t\":\"2026-09-13T18:40:31.4120372Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"10.7688\"],\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"RequestHost\":\"127.0.0.1:58250\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"ApiKey\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":10.768812,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-163962047f43c5a03cce40530531affe-b1e6e5786b29775a-00\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:40:31.4122330Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"ElapsedMilliseconds\":11.4668,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:58250\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 10.7688 ms\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 11.4668ms\n\n"
+}
