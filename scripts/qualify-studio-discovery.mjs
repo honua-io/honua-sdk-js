@@ -23,6 +23,7 @@ function docker(command, args = [], options = {}) {
 }
 const receipt = { schema: "honua.studio-discovery-diagnostic/v1", generatedAt: new Date().toISOString(),
   scope: "real manifest-pinned server; source-built SDK diagnostic, not installed-client or model certification",
+  sdkSourceSha: spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", windowsHide: true }).stdout.trim(),
   manifestSha256: createHash("sha256").update(manifest).digest("hex"), image, checks: [] };
 try {
   docker("network", ["create", prefix]);
@@ -74,6 +75,33 @@ try {
   await session.refreshTools();
   assert.deepEqual([...session.compositionTools].sort(), [...catalog.names].sort());
   receipt.checks.push({ id: "default-session-setup-discovery-and-reconnect", verdict: "pass" });
+  const expectedView = { center: [-157.8583, 21.3069], zoom: 7, crs: "EPSG:4326" };
+  const expectedPoint = { type: "Feature", id: 7, properties: { name: "Honolulu", elevation: null },
+    geometry: { type: "Point", coordinates: [-157.8583, 21.3069] } };
+  const created = await client.callTool("honua_studio_create_draft", {
+    packageKey: prefix, family: "map", schemaVersion: "1.0",
+    body: { mapPackageId: prefix, format: "honua_map_package.v1", status: "Draft", createdAt: "2026-09-13T00:00:00Z",
+      mapSpec: { version: 8, sources: { places: { type: "geojson", data: { type: "FeatureCollection", features: [expectedPoint] } } },
+        layers: [{ id: "places", type: "circle", source: "places" }] },
+      view: expectedView, layers: [], widgets: [], controls: [], interactions: [] },
+  }, AbortSignal.timeout(30_000));
+  receipt.created = created.structuredContent;
+  assert.ok(receipt.created?.draftId, "create must return a draft identity");
+  assert.equal(receipt.created.family, "map");
+  assert.equal(receipt.created.validation.status, "valid");
+  assert.equal(receipt.created.envelope.body.format, "honua_map_package.v1");
+  assert.deepEqual(receipt.created.envelope.body.view, expectedView);
+  assert.deepEqual(receipt.created.envelope.body.mapSpec.sources.places.data.features, [expectedPoint]);
+  const validated = await client.callTool("honua_studio_validate_draft", { draftId: receipt.created.draftId }, AbortSignal.timeout(30_000));
+  receipt.validation = validated.structuredContent;
+  assert.equal(receipt.validation.status, "valid");
+  receipt.checks.push({ id: "live-map-create-validate-values-ordinates-null-and-format", verdict: "pass" });
+  // These are requirements for the independent replay recipe, never a routing
+  // allowlist. Missing server members fail qualification instead of being added
+  // to the SDK's discovered set or invoked through a privileged fallback.
+  const required = ["honua_studio_add_layer", "honua_studio_set_view", "honua_studio_get_draft"];
+  receipt.missingLifecycleTools = required.filter((name) => !session.compositionTools.includes(name));
+  assert.deepEqual(receipt.missingLifecycleTools, [], "candidate setup view is missing required map lifecycle tools");
   receipt.status = "partial";
 } catch (error) {
   receipt.status = "failed";

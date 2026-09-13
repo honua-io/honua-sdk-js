@@ -1,7 +1,8 @@
 {
   "schema": "honua.studio-discovery-diagnostic/v1",
-  "generatedAt": "2026-09-13T18:31:07.987Z",
+  "generatedAt": "2026-09-13T18:40:08.969Z",
   "scope": "real manifest-pinned server; source-built SDK diagnostic, not installed-client or model certification",
+  "sdkSourceSha": "c41d21029ff38c419be144f0b61f0ae162bc5b37",
   "manifestSha256": "8c71ca3c29d0a09676d579f918c1a2627556f257f7ac80454fe840ff7a6e3bec",
   "image": "ghcr.io/honua-io/honua-server@sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
   "checks": [
@@ -15,6 +16,10 @@
     },
     {
       "id": "default-session-setup-discovery-and-reconnect",
+      "verdict": "pass"
+    },
+    {
+      "id": "live-map-create-validate-values-ordinates-null-and-format",
       "verdict": "pass"
     }
   ],
@@ -4725,5 +4730,128 @@
       }
     ]
   },
-  "status": "partial"
+  "created": {
+    "operation": {
+      "tenantId": "public",
+      "version": 3,
+      "operationInstanceId": "opinst-52ac0e183f6243859840374e00740e24",
+      "operationId": "studio.draft.create",
+      "status": "Completed",
+      "handleId": "opinst-52ac0e183f6243859840374e00740e24",
+      "correlationId": "00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00",
+      "auditId": "1",
+      "createdAt": "2026-09-13T18:40:31.2635702+00:00",
+      "updatedAt": "2026-09-13T18:40:31.3722592+00:00",
+      "authorizationOutcome": "authorized",
+      "policyDecision": "Allow",
+      "result": {
+        "summary": "studio.draft.create completed.",
+        "details": {
+          "payload": "{\"draftId\":\"dc28db06-332a-4702-ae54-ed0592e08012\",\"itemId\":\"484ea565-e86b-435d-848f-3d241e5872e1\",\"packageKey\":\"sdk1397-8a4618712039\",\"ownerId\":\"00000000-0000-0000-0000-000000000002\",\"family\":\"map\",\"envelope\":{\"family\":\"map\",\"schemaVersion\":\"1.0\",\"format\":\"honua_map_package.v1\",\"bindings\":[],\"dependencies\":[],\"validation\":{\"status\":\"valid\",\"diagnostics\":[],\"unsupportedCapabilities\":[],\"generatedAt\":\"2026-09-13T18:40:31.3476801+00:00\"},\"provenance\":[],\"body\":{\"mapPackageId\":\"sdk1397-8a4618712039\",\"format\":\"honua_map_package.v1\",\"status\":\"Draft\",\"createdAt\":\"2026-09-13T00:00:00Z\",\"mapSpec\":{\"version\":8,\"sources\":{\"places\":{\"type\":\"geojson\",\"data\":{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"id\":7,\"properties\":{\"name\":\"Honolulu\",\"elevation\":null},\"geometry\":{\"type\":\"Point\",\"coordinates\":[-157.8583,21.3069]}}]}}},\"layers\":[{\"id\":\"places\",\"type\":\"circle\",\"source\":\"places\"}]},\"view\":{\"center\":[-157.8583,21.3069],\"zoom\":7,\"crs\":\"EPSG:4326\"},\"layers\":[],\"widgets\":[],\"controls\":[],\"interactions\":[]}},\"validation\":{\"status\":\"valid\",\"diagnostics\":[],\"unsupportedCapabilities\":[],\"generatedAt\":\"2026-09-13T18:40:31.3476801+00:00\"},\"generation\":1,\"createdBy\":\"00000000-0000-0000-0000-000000000002\",\"updatedBy\":\"00000000-0000-0000-0000-000000000002\",\"createdAt\":\"2026-09-13T18:40:31.3416282+00:00\",\"updatedAt\":\"2026-09-13T18:40:31.3416282+00:00\"}"
+        }
+      },
+      "resourceIds": {
+        "draftId": "dc28db06-332a-4702-ae54-ed0592e08012",
+        "itemId": "484ea565-e86b-435d-848f-3d241e5872e1"
+      },
+      "evidenceRefs": []
+    },
+    "draftId": "dc28db06-332a-4702-ae54-ed0592e08012",
+    "itemId": "484ea565-e86b-435d-848f-3d241e5872e1",
+    "packageKey": "sdk1397-8a4618712039",
+    "ownerId": "00000000-0000-0000-0000-000000000002",
+    "family": "map",
+    "envelope": {
+      "family": "map",
+      "schemaVersion": "1.0",
+      "format": "honua_map_package.v1",
+      "bindings": [],
+      "dependencies": [],
+      "validation": {
+        "status": "valid",
+        "diagnostics": [],
+        "unsupportedCapabilities": [],
+        "generatedAt": "2026-09-13T18:40:31.3476801+00:00"
+      },
+      "provenance": [],
+      "body": {
+        "mapPackageId": "sdk1397-8a4618712039",
+        "format": "honua_map_package.v1",
+        "status": "Draft",
+        "createdAt": "2026-09-13T00:00:00Z",
+        "mapSpec": {
+          "version": 8,
+          "sources": {
+            "places": {
+              "type": "geojson",
+              "data": {
+                "type": "FeatureCollection",
+                "features": [
+                  {
+                    "type": "Feature",
+                    "id": 7,
+                    "properties": {
+                      "name": "Honolulu",
+                      "elevation": null
+                    },
+                    "geometry": {
+                      "type": "Point",
+                      "coordinates": [
+                        -157.8583,
+                        21.3069
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "layers": [
+            {
+              "id": "places",
+              "type": "circle",
+              "source": "places"
+            }
+          ]
+        },
+        "view": {
+          "center": [
+            -157.8583,
+            21.3069
+          ],
+          "zoom": 7,
+          "crs": "EPSG:4326"
+        },
+        "layers": [],
+        "widgets": [],
+        "controls": [],
+        "interactions": []
+      }
+    },
+    "validation": {
+      "status": "valid",
+      "diagnostics": [],
+      "unsupportedCapabilities": [],
+      "generatedAt": "2026-09-13T18:40:31.3476801+00:00"
+    },
+    "generation": 1,
+    "createdBy": "00000000-0000-0000-0000-000000000002",
+    "updatedBy": "00000000-0000-0000-0000-000000000002",
+    "createdAt": "2026-09-13T18:40:31.3416282+00:00",
+    "updatedAt": "2026-09-13T18:40:31.3416282+00:00"
+  },
+  "validation": {
+    "status": "valid",
+    "diagnostics": [],
+    "unsupportedCapabilities": [],
+    "generatedAt": "2026-09-13T18:40:31.4106976+00:00"
+  },
+  "missingLifecycleTools": [
+    "honua_studio_add_layer",
+    "honua_studio_set_view",
+    "honua_studio_get_draft"
+  ],
+  "status": "failed",
+  "diagnostic": "AssertionError [ERR_ASSERTION]: candidate setup view is missing required map lifecycle tools\n+ actual - expected\n\n+ [\n+   'honua_studio_add_layer',\n+   'honua_studio_set_view',\n+   'honua_studio_get_draft'\n+ ]\n- []\n\n    at file:///C:/Users/mike/honua-io/wt-1397-candidate-qualification/scripts/qualify-studio-discovery.mjs:104:10\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "serverLogs": "tCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 11.7852ms\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - \"application/json\" 763\n{\"@t\":\"2026-09-13T18:40:31.2353129Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":763,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:58250\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":6,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:40:31.2358507Z\",\"@mt\":\"SECURITY: Development authentication bypass blocked - production environment detected\",\"@l\":\"Warning\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"EventId\":{\"Id\":4111,\"Name\":\"DevelopmentBypassBlockedInProduction\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"CorrelationId\":\"00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":6,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\nwarn: Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler[4111]\n      SECURITY: Development authentication bypass blocked - production environment detected\ninfo: Honua.Ai.Protocols.Mcp.Studio.CreateStudioDraftTool[8173]\n      MCP Studio draft audited: Tool=\"honua_studio_create_draft\", Principal=\"[REDACTED]\", DraftId=\"dc28db06-332a-4702-ae54-ed0592e08012\", GenerationBefore=null, GenerationAfter=1\n{\"@t\":\"2026-09-13T18:40:31.3910039Z\",\"@mt\":\"MCP Studio draft audited: Tool={ToolName}, Principal={PrincipalKey}, DraftId={DraftId}, GenerationBefore={GenerationBefore}, GenerationAfter={GenerationAfter}\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"ToolName\":\"honua_studio_create_draft\",\"PrincipalKey\":\"[REDACTED]\",\"DraftId\":\"dc28db06-332a-4702-ae54-ed0592e08012\",\"GenerationBefore\":null,\"GenerationAfter\":1,\"EventId\":{\"Id\":8173,\"Name\":\"StudioDraftAudited\"},\"SourceContext\":\"Honua.Ai.Protocols.Mcp.Studio.CreateStudioDraftTool\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"CorrelationId\":\"00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:40:31.3940821Z\",\"@mt\":\"MCP tool completed: ToolName={ToolName}, Status={Status}\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"ToolName\":\"honua_studio_create_draft\",\"Status\":\"ok\",\"EventId\":{\"Id\":8151,\"Name\":\"ToolCompleted\"},\"SourceContext\":\"Honua.Ai.Protocols.Mcp.McpDataAccessSurface\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"CorrelationId\":\"00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Honua.Ai.Protocols.Mcp.McpDataAccessSurface[8151]\n      MCP tool completed: ToolName=\"honua_studio_create_draft\", Status=\"ok\"\n{\"@t\":\"2026-09-13T18:40:31.3947909Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"159.0882\"],\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"RequestHost\":\"127.0.0.1:58250\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"ApiKey\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":159.088167,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-24fec3163c280fde2e3970dc29e59222-cba38b88aacc9428-00\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 159.0882 ms\n{\"@t\":\"2026-09-13T18:40:31.3950468Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"24fec3163c280fde2e3970dc29e59222\",\"@sp\":\"cba38b88aacc9428\",\"ElapsedMilliseconds\":159.829,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:58250\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOPU8I4K5:00000004\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K5\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"cba38b88aacc9428\",\"TraceId\":\"24fec3163c280fde2e3970dc29e59222\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 159.829ms\n{\"@t\":\"2026-09-13T18:40:31.4008564Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":176,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:58250\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":6,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - \"application/json\" 176\n{\"@t\":\"2026-09-13T18:40:31.4014070Z\",\"@mt\":\"SECURITY: Development authentication bypass blocked - production environment detected\",\"@l\":\"Warning\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"EventId\":{\"Id\":4111,\"Name\":\"DevelopmentBypassBlockedInProduction\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"CorrelationId\":\"00-163962047f43c5a03cce40530531affe-b1e6e5786b29775a-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":6,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\nwarn: Honua.Infrastructure.Authentication.ApiKeyAuthenticationHandler[4111]\n      SECURITY: Development authentication bypass blocked - production environment detected\ninfo: Honua.Ai.Protocols.Mcp.Studio.ValidateStudioDraftTool[8173]\n      MCP Studio draft audited: Tool=\"honua_studio_validate_draft\", Principal=\"[REDACTED]\", DraftId=\"dc28db06-332a-4702-ae54-ed0592e08012\", GenerationBefore=1, GenerationAfter=1\n{\"@t\":\"2026-09-13T18:40:31.4109146Z\",\"@mt\":\"MCP Studio draft audited: Tool={ToolName}, Principal={PrincipalKey}, DraftId={DraftId}, GenerationBefore={GenerationBefore}, GenerationAfter={GenerationAfter}\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"ToolName\":\"honua_studio_validate_draft\",\"PrincipalKey\":\"[REDACTED]\",\"DraftId\":\"dc28db06-332a-4702-ae54-ed0592e08012\",\"GenerationBefore\":1,\"GenerationAfter\":1,\"EventId\":{\"Id\":8173,\"Name\":\"StudioDraftAudited\"},\"SourceContext\":\"Honua.Ai.Protocols.Mcp.Studio.ValidateStudioDraftTool\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"CorrelationId\":\"00-163962047f43c5a03cce40530531affe-b1e6e5786b29775a-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:40:31.4115927Z\",\"@mt\":\"MCP tool completed: ToolName={ToolName}, Status={Status}\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"ToolName\":\"honua_studio_validate_draft\",\"Status\":\"ok\",\"EventId\":{\"Id\":8151,\"Name\":\"ToolCompleted\"},\"SourceContext\":\"Honua.Ai.Protocols.Mcp.McpDataAccessSurface\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"CorrelationId\":\"00-163962047f43c5a03cce40530531affe-b1e6e5786b29775a-00\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Honua.Ai.Protocols.Mcp.McpDataAccessSurface[8151]\n      MCP tool completed: ToolName=\"honua_studio_validate_draft\", Status=\"ok\"\n{\"@t\":\"2026-09-13T18:40:31.4120372Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"10.7688\"],\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"RequestHost\":\"127.0.0.1:58250\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"ApiKey\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":10.768812,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-163962047f43c5a03cce40530531affe-b1e6e5786b29775a-00\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\n{\"@t\":\"2026-09-13T18:40:31.4122330Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"163962047f43c5a03cce40530531affe\",\"@sp\":\"b1e6e5786b29775a\",\"ElapsedMilliseconds\":11.4668,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:58250\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOHOPU8I4K4:00000005\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOHOPU8I4K4\",\"EnvironmentName\":\"Production\",\"MachineName\":\"d4206fe691c7\",\"ThreadId\":28,\"SpanId\":\"b1e6e5786b29775a\",\"TraceId\":\"163962047f43c5a03cce40530531affe\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"1.0.0.0\"}\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 10.7688 ms\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:58250\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 11.4668ms\n\n"
 }
