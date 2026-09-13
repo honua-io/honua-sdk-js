@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Installed First Map bundle regression"
+description: "Measure public installed SDK bundles against the frozen First Map byte limits."
+---
 # Installed First Map bundle regression
 
 The bounded installed JavaScript client journey must stay below the canonical
