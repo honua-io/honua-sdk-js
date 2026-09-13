@@ -3,15 +3,17 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
-import { build, loadConfigFromFile } from "vite";
+import { build, loadConfigFromFile, normalizePath } from "vite";
+import { runNpmSync } from "./lib/npm-cli.mjs";
+import { INSTALLED_FIRST_MAP_BUDGET, firstMapVerdict } from "./lib/first-map-budget.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const candidate = JSON.parse(await readFile(path.join(root, "config/installed-package-certification.v1.json"), "utf8"));
-const work = await mkdtemp(path.join(tmpdir(), "honua-installed-first-map-"));
+await mkdir(path.join(root, "test-results"), { recursive: true });
+const work = await mkdtemp(path.join(root, "test-results", "honua-installed-first-map-"));
 const outputIndex = process.argv.indexOf("--output");
 const output = path.resolve(root, outputIndex < 0 ? "test-results/installed-quickstart-budget.json" : process.argv[outputIndex + 1]);
 const proveRegression = process.argv.includes("--prove-regression");
@@ -25,8 +27,9 @@ try {
     ...candidate.consumerDependencies,
   } }));
   for (const args of [["install", "--package-lock-only"], ["ci"]]) {
-    const result = spawnSync("npm", [...args, "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`],
-      { cwd: work, encoding: "utf8" });
+    const result = runNpmSync([...args, "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`],
+      { cwd: work, encoding: "utf8", windowsHide: true, timeout: 300_000 });
+    if (result.error) throw result.error;
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }
   const lockBytes = await readFile(path.join(work, "package-lock.json"));
@@ -46,7 +49,7 @@ try {
     const moduleIds = new Set();
     let failure;
     const moduleProof = () => ({ name: "installed-first-map-module-proof", generateBundle() {
-      for (const id of this.getModuleIds()) moduleIds.add(id);
+      for (const id of this.getModuleIds()) moduleIds.add(normalizePath(id));
     } });
     try {
       await build({ ...loaded.config, configFile: false, logLevel: "warn",
@@ -72,14 +75,14 @@ try {
     assert.equal(resolution.mode, "packed");
     const sdkModules = [...moduleIds].filter((id) => id.includes("/node_modules/@honua/sdk-js/"));
     assert.ok(sdkModules.length > 0, "bundle must execute installed SDK modules");
-    assert.ok(sdkModules.every((id) => id.startsWith(process.env.HONUA_SAMPLE_SDK_DIR + "/")), "SDK modules must belong to the isolated install");
-    assert.ok(![...moduleIds].some((id) => id.startsWith(root + "/src/")), "repository SDK source must not enter the bundle");
+    assert.ok(sdkModules.every((id) => id.startsWith(normalizePath(process.env.HONUA_SAMPLE_SDK_DIR) + "/")), "SDK modules must belong to the isolated install");
+    assert.ok(![...moduleIds].some((id) => id.startsWith(normalizePath(root) + "/src/")), "repository SDK source must not enter the bundle");
     return { buildStatus: failure ? "failed" : "passed", ...(failure ? { diagnostic: failure } : {}),
       measurement: { javascriptBytes, javascriptGzipBytes },
       maplibreModules: [...moduleIds].filter((id) => /maplibre-gl\/dist\/maplibre-gl\.(mjs|js)$/.test(id))
-        .map((id) => id.replace(work, "$CONSUMER").replace(root, "$REPOSITORY")),
+        .map((id) => id.replace(normalizePath(work), "$CONSUMER").replace(normalizePath(root), "$REPOSITORY")),
       maplibreFiles: [...moduleIds].filter((id) => id.includes("/node_modules/maplibre-gl/"))
-        .map((id) => id.replace(work, "$CONSUMER").replace(root, "$REPOSITORY")).sort(),
+        .map((id) => id.replace(normalizePath(work), "$CONSUMER").replace(normalizePath(root), "$REPOSITORY")).sort(),
       resolutionDigest: sha256(JSON.stringify(resolution)), installedSdkModules: sdkModules.length };
   }
 
@@ -89,9 +92,9 @@ try {
   for (const observed of [baseline, runtimeOnly, corrected].filter(Boolean)) {
     try { assertPeerIdentity(observed); observed.peerIdentityStatus = "passed"; }
     catch { observed.peerIdentityStatus = "failed"; }
-    observed.status = observed.buildStatus === "passed" && observed.peerIdentityStatus === "passed" ? "passed" : "failed";
+    Object.assign(observed, firstMapVerdict(observed));
   }
-  const budget = { javascriptBytes: 1_990_000, javascriptGzipBytes: 524_000 };
+  const budget = INSTALLED_FIRST_MAP_BUDGET;
   const receipt = { schema: "honua.installed-first-map-budget/v1", generatedAt: new Date().toISOString(),
     scope: "installed-package bundle regression; no live-server or release certification claim",
     package: { ...candidate.package, resolved: installed.resolved },
