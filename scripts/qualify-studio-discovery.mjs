@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { randomBytes, createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
-import { McpClient, StudioToolCatalog } from "../dist/src/studio-agent/index.js";
+import { McpClient, StudioToolCatalog, createStudioAgentSession } from "../dist/src/studio-agent/index.js";
 
-const manifest = await readFile(new URL("../../sdkjs-20260913-platform-manifest.yaml", import.meta.url), "utf8");
+assert.ok(process.argv[2], "usage: node scripts/qualify-studio-discovery.mjs <platform-manifest.yaml>");
+const manifest = (await readFile(process.argv[2], "utf8")).replaceAll("\r\n", "\n");
 const serverSection = manifest.split("  honua-server:\n")[1]?.split(/\n  [a-z][\w-]+:/)[0];
 assert.ok(serverSection, "manifest server section missing");
 const digest = serverSection.match(/^    digest: "(sha256:[a-f0-9]{64})"/m)?.[1];
@@ -53,7 +54,8 @@ try {
   }
   assert.ok(ready, "candidate not ready in 90 seconds");
   receipt.checks.push({ id: "candidate-readiness", verdict: "pass" });
-  const client = new McpClient({ baseUrl, fetchImpl: (url, init) => fetch(url, { ...init, headers: { ...init.headers, "X-API-Key": password } }) });
+  const fetchImpl = (url, init) => fetch(url, { ...init, headers: { ...init.headers, "X-API-Key": password } });
+  const client = new McpClient({ baseUrl, workflowView: "setup", fetchImpl });
   const listing = await client.listAllTools({ signal: AbortSignal.timeout(30_000) });
   const catalog = StudioToolCatalog.fromDescriptors(listing.tools);
   receipt.discovery = { pages: listing.pages, descriptors: listing.tools, routed: catalog.toolDefinitions() };
@@ -65,6 +67,13 @@ try {
     assert.deepEqual(tool.outputSchema, original.outputSchema);
   }
   receipt.checks.push({ id: "live-classified-discovery-and-proxy-projection", verdict: "pass" });
+  const session = createStudioAgentSession({ baseUrl, fetchImpl });
+  await session.refreshTools();
+  assert.deepEqual([...session.compositionTools].sort(), [...catalog.names].sort());
+  session.reconnect();
+  await session.refreshTools();
+  assert.deepEqual([...session.compositionTools].sort(), [...catalog.names].sort());
+  receipt.checks.push({ id: "default-session-setup-discovery-and-reconnect", verdict: "pass" });
   receipt.status = "partial";
 } catch (error) {
   receipt.status = "failed";
