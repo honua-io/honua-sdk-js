@@ -37,9 +37,18 @@ AI-facing Esri compatibility roster; the third tool is executed, then its
 `honua://jobs/{id}` and `/results` resources are joined before the gate passes.
 `HonuaClient.geoprocessingRunner()` separately drives the GPServer task with the
 same `IJobRun` lifecycle used elsewhere in the SDK.
-`honua_buffer_features` remains the native MCP dataset-reference verb. Honua's
-server owns the process catalog and translation; the journey does not invent
-external ArcGIS Server federation.
+`honua_buffer_features` is the native MCP dataset-reference verb. Honua's server
+owns the process catalog and translation; the journey does not invent external
+ArcGIS Server federation.
+
+All four are members of opt-in conformance profiles - `esri-gp` and `analysis`
+respectively - that this journey *requires of a candidate server* and preflights
+before the first mutation. They are not tools you can call on a stock
+deployment: neither honua-server's `/mcp` nor
+[`@honua/mcp-server`](mcp-server.md) advertises them today. If you are not
+running this release journey, geoprocessing goes through `honua_plan_analysis` →
+`honua_validate_plan` → `honua_execute_plan`, or through
+[`HonuaClient.geoprocessingRunner()`](geoprocessing.md).
 
 Contract mode is the default and is safe to run in CI. It validates the plan,
 records live execution as blocked, and skips dependent stages. Live mode is

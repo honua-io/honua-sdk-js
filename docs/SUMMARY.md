@@ -7,6 +7,7 @@
 ## Quickstart
 
 * [Put a map on the page](quickstart.md)
+* [`@honua/mcp-server`: the standalone MCP server](mcp-server.md)
 * [When the quickstart does not render](quickstart-troubleshooting.md)
 * [Server-optional quickstart](standalone-quickstart.md)
 
