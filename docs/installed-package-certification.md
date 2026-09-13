@@ -125,3 +125,19 @@ contract: it projects `result: passed` without the required per-row assertion an
 scenario-facet evidence. Restoring that adapter would not meet current acceptance;
 the retained OGC qualification collector remains available, and no historical
 OGC result is promoted into the new installed receipt.
+
+The corrected 2026-09-13 clean installation completed on Windows x64 with Node
+24.7.0 and npm 11.5.1. All eight direct package provenance checks passed. Admission
+then rejected `node_modules/@honua/honua-migrate/node_modules/@honua/sdk` at
+`0.1.2-beta.0` (expected `0.1.9-beta.0`). The full dependency resolution, frozen
+identities and provenance are retained in
+`test-results/installed-package-certification.windows.json`, receipt digest
+`sha256:d9a46f099cf9d31bf0cc314cde12e6e8dd919b2d2745d61b5118ef1b34dd9291`.
+It reports **not-certified: 0 pass, 0 fail, 228 blocked** and exits 1. No server
+fixture or supported operation ran after this package-set rejection.
+
+Native validation: `npm run check` passed; the denominator check found no drift;
+59 certification/identity/fixture/workflow regression tests passed with zero
+skips. The package mismatch is a published-byte blocker, not a Windows launcher
+failure. Compatible published packages, complete operation/browser/authorization/
+journey proofs and release-side consumption remain required for #39 closure.
