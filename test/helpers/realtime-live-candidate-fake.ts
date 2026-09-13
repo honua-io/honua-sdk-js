@@ -15,7 +15,7 @@
  * the producer records a failed row rather than a passed one.
  */
 
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, webcrypto } from "node:crypto";
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
@@ -150,12 +150,25 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
     return Date.now() < credential.expiresAt - (defects.expireEarlyMs ?? 0) ? credential : null;
   }
 
-  function verifyRelay(jwt: string): Json | null {
+  async function verifyRelay(jwt: string): Promise<Json | null> {
     const [header, payload, signature] = jwt.split(".");
     if (!header || !payload || !signature) return null;
-    const expected = createHmac("sha256", options.signingKey).update(`${header}.${payload}`).digest();
-    const actual = Buffer.from(signature, "base64url");
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
+    // A relay JWT is a signed assertion, not a password: verify its HS256
+    // signature in constant time rather than recomputing a digest to compare.
+    const key = await webcrypto.subtle.importKey(
+      "raw",
+      Buffer.from(options.signingKey, "utf8"),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const signed = await webcrypto.subtle.verify(
+      "HMAC",
+      key,
+      Buffer.from(signature, "base64url"),
+      Buffer.from(`${header}.${payload}`, "utf8"),
+    );
+    if (!signed) return null;
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Json;
     if (claims.iss !== options.issuer || claims.aud !== options.audience) return null;
     if (typeof claims.exp !== "number" || claims.exp * 1000 <= Date.now()) return null;
@@ -210,7 +223,7 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
 
     if (route === "POST /sharing/rest/generateToken") {
       const form = new URLSearchParams(await readBody(request));
-      const claims = verifyRelay(form.get("password") ?? "");
+      const claims = await verifyRelay(form.get("password") ?? "");
       if (!claims) {
         sendJson(response, 400, { error: { code: 400, message: "Unable to generate token." } });
         return;

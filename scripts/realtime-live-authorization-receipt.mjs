@@ -1305,7 +1305,7 @@ function finalizeRow(context, recorder, window) {
   const adapter = descriptor.transport === "odata" ? null : streamingAdapter(descriptor.surface, descriptor.transport);
   const resourceId = (tenant) =>
     adapter ? adapter.resourceId(tenant) : `${tenant}/odata/Features(${LIVE_AUTHORIZATION_TOPOLOGY.layers[tenant]})`;
-  const observations = [...new Map(recorder.observations.map((item) => [`${item.at} ${item.raw}`, item])).values()].sort(
+  const observations = [...new Map(recorder.observations.map((item) => [JSON.stringify([item.at, item.raw]), item])).values()].sort(
     (left, right) => Date.parse(left.at) - Date.parse(right.at),
   );
   const assertions = [...recorder.assertions.values()];

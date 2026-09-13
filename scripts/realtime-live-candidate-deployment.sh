@@ -167,12 +167,25 @@ EOF
 chmod 600 "$work/candidate.env"
 
 start_candidate() {
-  docker rm -f "$server_container" >/dev/null 2>&1 || true
-  docker run -d --name "$server_container" --network "$network" -p "127.0.0.1:${port}:8080" \
-    --env-file "$work/candidate.env" \
-    -v "$work/appsettings.Production.json:/app/appsettings.Staging.json:ro" \
-    "$image" >/dev/null
-  wait_ready
+  for boot in 1 2 3; do
+    docker rm -f "$server_container" >/dev/null 2>&1 || true
+    docker run -d --name "$server_container" --network "$network" -p "127.0.0.1:${port}:8080" \
+      --env-file "$work/candidate.env" \
+      -v "$work/appsettings.Production.json:/app/appsettings.Staging.json:ro" \
+      "$image" >/dev/null
+    if wait_ready; then
+      return 0
+    fi
+    # Startup validation resolves outbound provider hosts. Only a resolver that is
+    # momentarily unavailable is retried; every other startup failure is final.
+    if [ "$(docker logs "$server_container" 2>&1 | grep -c "host name resolution is currently unavailable")" -eq 0 ] ||
+      [ "$boot" -eq 3 ]; then
+      return 1
+    fi
+    echo "candidate boot ${boot}: host name resolution was unavailable; resolver check from the deployment network:" >&2
+    docker exec "$redis_container" nslookup nominatim.openstreetmap.org >&2 || true
+    sleep 10
+  done
 }
 
 # First boot runs the candidate's own migrations on the empty database.

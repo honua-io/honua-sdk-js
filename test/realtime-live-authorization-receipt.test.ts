@@ -159,17 +159,23 @@ describe("live authorization receipt against a well-behaved candidate", () => {
   });
 
   it("does not mistake observation ids shared across tenants for a leak", () => {
-    const isolation = row(receipt, "sensorthings", "sse", "tenant-isolation");
+    // The fake allocates observation ids per tenant, as the candidate does, so
+    // across the whole run both tenants' observations reuse the same ids.
+    const sensorRows = receipt.rows.filter((item) => item.surface === "sensorthings");
     const byId = new Map<number, Set<number>>();
-    for (const observation of isolation.authorization.observations) {
-      const frame = /data: (\{.*\})/u.exec(observation.raw)?.[1];
-      if (!frame) continue;
-      const parsed = JSON.parse(frame) as { "@iot.id"?: number; result?: number };
-      if (parsed["@iot.id"] === undefined || parsed.result === undefined) continue;
-      byId.set(parsed["@iot.id"], (byId.get(parsed["@iot.id"]) ?? new Set()).add(parsed.result));
+    for (const item of sensorRows) {
+      for (const observation of item.authorization.observations) {
+        const frame = /^(?:event: observation\ndata: )?(\{.*\})\s*$/u.exec(observation.raw)?.[1];
+        if (!frame) continue;
+        const parsed = JSON.parse(frame) as { "@iot.id"?: number; result?: number };
+        if (parsed["@iot.id"] === undefined || parsed.result === undefined) continue;
+        byId.set(parsed["@iot.id"], (byId.get(parsed["@iot.id"]) ?? new Set()).add(parsed.result));
+      }
     }
     expect([...byId.values()].some((results) => results.size > 1)).toBe(true);
-    expect(assertion(isolation, "no-cross-tenant-payload")?.passed).toBe(true);
+    for (const item of sensorRows) {
+      expect(assertion(item, "no-cross-tenant-payload")?.passed, `${item.transport}/${item.scenario}`).toBe(true);
+    }
   });
 
   it("proves a tenantless credential is refused on feature surfaces and confined on SensorThings", () => {
