@@ -7,7 +7,6 @@
 ## Quickstart
 
 * [Put a map on the page](quickstart.md)
-* [`@honua/mcp-server`: the standalone MCP server](mcp-server.md)
 * [When the quickstart does not render](quickstart-troubleshooting.md)
 * [Server-optional quickstart](standalone-quickstart.md)
 
@@ -23,6 +22,7 @@
 
 * [Honua App Bootstrap (`@honua/sdk-js/app`)](app-bootstrap.md)
 * [Scaffold a new app](create-honua-app.md)
+* [@honua/mcp-server: the standalone MCP server](mcp-server.md)
 * [`honua-maplibre` migration target](migration-honua-maplibre.md)
 * [JavaScript migration tool transition](migration-tool-transition.md)
 * [Zero-install playgrounds](playgrounds.md)
