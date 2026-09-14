@@ -872,6 +872,7 @@ export type EsriFieldType =
   | "esriFieldTypeDouble"
   | "esriFieldTypeSingle"
   | "esriFieldTypeDate"
+  | "esriFieldTypeDateOnly"
   | "esriFieldTypeOID"
   | "esriFieldTypeGeometry"
   | "esriFieldTypeBlob"
