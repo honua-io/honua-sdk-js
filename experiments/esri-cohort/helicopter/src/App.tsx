@@ -5,6 +5,7 @@ import { Map as LibreMap, NavigationControl, Popup } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlightChart } from "./FlightChart.js";
+import { FLIGHT_SPEED_STOPS, flightSpeedColor } from "./cartography.js";
 import {
   EMPTY,
   aggregate,
@@ -169,13 +170,20 @@ export function App() {
           id: "flights",
           source: "flights",
           type: "line",
-          paint: { "line-color": "#af4591", "line-width": 1.7, "line-opacity": 0.65 },
+          paint: {
+            "line-color": flightSpeedColor(field(connected.sources.flights, "Speed")),
+            "line-width": 1.7,
+            "line-opacity": 1,
+          },
         });
         map.addLayer({
           id: "selected",
           source: "selected",
           type: "line",
-          paint: { "line-color": "#ef991c", "line-width": 4 },
+          paint: {
+            "line-color": flightSpeedColor(field(connected.sources.flights, "Speed")),
+            "line-width": 4,
+          },
         });
         map.addLayer({
           id: "complaints",
@@ -183,8 +191,8 @@ export function App() {
           type: "circle",
           paint: {
             "circle-radius": 4,
-            "circle-color": "#137d8d",
-            "circle-stroke-color": "#ffffff",
+            "circle-color": "#bd0000",
+            "circle-stroke-color": "rgba(255,255,255,0.5)",
             "circle-stroke-width": 1,
           },
         });
@@ -301,7 +309,7 @@ export function App() {
         features: selectedFlights.length ? selectedFlights : aircraftFlights,
       }),
     );
-    map.setPaintProperty("flights", "line-opacity", aircraft ? 0.15 : 0.65);
+    map.setPaintProperty("flights", "line-opacity", aircraft ? 0.2 : 1);
   }, [flights, selectedFlights, aircraftFlights, aircraft]);
 
   useEffect(() => {
@@ -486,17 +494,21 @@ export function App() {
             ))}
             <div className="legend">
               <span>
-                <i className="flight" />
-                Flights
-              </span>
-              <span>
                 <i className="complaint" />
                 Complaints
               </span>
-              <span>
-                <i className="selection" />
-                Selected flights
-              </span>
+              <span>Selected flight tracks are thicker.</span>
+            </div>
+            <div className="speed-legend" aria-label="Flight speed color scale">
+              <strong>Flight speed</strong>
+              <div className="speed-stops">
+                {FLIGHT_SPEED_STOPS.map(([stop, [r, g, b]]) => (
+                  <span key={stop}>
+                    <i style={{ background: `rgba(${r},${g},${b},${79 / 255})` }} />
+                    {stop}
+                  </span>
+                ))}
+              </div>
             </div>
           </section>
           <section>

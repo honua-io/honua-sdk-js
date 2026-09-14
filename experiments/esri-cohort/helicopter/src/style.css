@@ -143,10 +143,24 @@ section {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #137d8d;
+  background: #bd0000;
 }
-.legend .selection {
-  background: #ef991c;
+.speed-legend {
+  margin-top: 14px;
+  font-size: 10px;
+}
+.speed-stops {
+  display: flex;
+  margin-top: 7px;
+}
+.speed-stops span {
+  flex: 1;
+  text-align: center;
+}
+.speed-stops i {
+  display: block;
+  height: 9px;
+  margin-bottom: 5px;
 }
 .aircraft-list {
   display: grid;

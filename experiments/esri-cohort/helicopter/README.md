@@ -48,7 +48,7 @@ relationship is not fabricated here. The calendar only lists dates actually
 present in the imported flight population. Missing source dates are not shown
 as zero-flight days.
 
-The thematic summary renderer, map navigation constraints, chart selection
+The thematic summary renderer, scale-dependent symbol widths, map navigation constraints, chart selection
 gestures and remaining webmap metadata still require conversion and verification.
 The chart configuration was captured from flight item
 `1b496d1b79fd4344ab548a1f2399c5fa`, chart `1771976572578`; its implementation still
@@ -62,8 +62,24 @@ App formatting, all four chart tests and the TypeScript/Vite production build
 pass. Browser interaction qualification and repeat-run timings remain pending.
 Keep these gaps open when reporting cohort completion.
 
-The first local browser run reached the free basemap and imported services but
-stopped at calendar initialization: the backend's grouped date query returned
-`1/11/2026`, while ordinary feature queries returned `2026-01-11`. The app rejects
-this ambiguous date instead of guessing a locale. The statistics-reader fix is
-being validated with server PR #4839; the live backend has not yet received it.
+The first local browser run stopped at calendar initialization because grouped
+dates returned `1/11/2026`. A separate candidate backend with the statistics-reader
+fix from server PR #4839 now returns `2026-01-11`. On September 14, 2026 the browser
+loaded 1,963 tracks across five aircraft and the N945RF chart displayed the eight
+expected bins above. Server regression qualification remains pending: the first
+test build encountered DLLs locked by the original demo server, so the retry
+uses an isolated artifact directory.
+
+Flight colors now reproduce the source `Speed` visual variable, including its
+five stops and alpha. Source item JSON SHA-256:
+`c9baf813cdd54a9aa5c3b4f887c120806cfacbb1f7e4bde681eb265ee3331ec3`.
+The sample composes this ramp with SDK expressions and resolves the imported
+field name from schema. Automatic WebMap visual-variable conversion remains
+open in SDK #1723. The speed legend, colored tracks, red complaints and basemap
+attribution were inspected in the browser; formatting and the production build
+pass for this change (1.653 s and 11.288 s respectively).
+
+Selecting a whole aircraft exposes another transport gap: the buffered corridor
+is sent as a GET query and the local proxy returns HTTP 431. The chart and day
+table still render, but aircraft-to-complaint highlighting is not qualified.
+This must be fixed without dropping or simplifying the spatial constraint.
