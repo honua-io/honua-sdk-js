@@ -112,26 +112,15 @@ export async function getMapLayerMetadata(
 // coordinates, and a deployment prefix (e.g. `/honua`) can all expand the
 // actual request target that `resolveRequestUrl` sends. Explicit caller
 // choices remain authoritative.
-function basePathLength(baseUrl: string): number {
-  if (baseUrl.startsWith("http://") || baseUrl.startsWith("https://")) {
-    try {
-      return new URL(baseUrl).pathname.length;
-    } catch {
-      return 0;
-    }
-  }
-  return baseUrl.length;
-}
-
 function queryMethod(
   method: QueryMethod | undefined,
   path: string,
   params: URLSearchParams,
   baseUrl: string,
 ): QueryMethod {
-  return (
-    method ?? (basePathLength(baseUrl) + path.length + 1 + params.toString().length > 2_000 ? "POST" : "GET")
-  );
+  if (method !== undefined) return method;
+  const url = new URL(`${baseUrl}${path}?${params.toString()}`, globalThis.location?.href ?? "https://honua.invalid");
+  return url.pathname.length + url.search.length > 2_000 ? "POST" : "GET";
 }
 
 /**
@@ -182,6 +171,7 @@ export async function queryFeaturesRest(
       body: params.toString(),
     },
     request.signal,
+    request.method === undefined ? { readOnlyQuery: true } : undefined,
   );
 }
 
@@ -214,6 +204,7 @@ export async function queryMapLayer(
       body: params.toString(),
     },
     request.signal,
+    request.method === undefined ? { readOnlyQuery: true } : undefined,
   );
 }
 
