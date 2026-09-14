@@ -108,10 +108,30 @@ export async function getMapLayerMetadata(
 // ── FeatureServer / MapServer operations ────────────────────────
 
 // A conservative request-target budget avoids common browser/proxy URL limits.
-// Measure encoded parameters: Unicode and polygon coordinates can expand on
-// the wire. Explicit caller choices remain authoritative.
-function queryMethod(method: QueryMethod | undefined, path: string, params: URLSearchParams): QueryMethod {
-  return method ?? (path.length + 1 + params.toString().length > 2_000 ? "POST" : "GET");
+// Measure encoded parameters plus the configured base path: Unicode, polygon
+// coordinates, and a deployment prefix (e.g. `/honua`) can all expand the
+// actual request target that `resolveRequestUrl` sends. Explicit caller
+// choices remain authoritative.
+function basePathLength(baseUrl: string): number {
+  if (baseUrl.startsWith("http://") || baseUrl.startsWith("https://")) {
+    try {
+      return new URL(baseUrl).pathname.length;
+    } catch {
+      return 0;
+    }
+  }
+  return baseUrl.length;
+}
+
+function queryMethod(
+  method: QueryMethod | undefined,
+  path: string,
+  params: URLSearchParams,
+  baseUrl: string,
+): QueryMethod {
+  return (
+    method ?? (basePathLength(baseUrl) + path.length + 1 + params.toString().length > 2_000 ? "POST" : "GET")
+  );
 }
 
 /**
@@ -135,7 +155,7 @@ export async function queryFeaturesRest(
   appendQueryExtraParams(params, request);
 
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/query`;
-  const method = queryMethod(request.method, path, params);
+  const method = queryMethod(request.method, path, params, transport.baseUrl);
   const usePbf = preferBinary && method === "GET";
   if (request.method === undefined && method === "POST" && params.get("f") === "pbf") params.set("f", "json");
 
@@ -179,7 +199,7 @@ export async function queryMapLayer(
   appendQueryExtraParams(params, request);
 
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
-  const method = queryMethod(request.method, path, params);
+  const method = queryMethod(request.method, path, params, transport.baseUrl);
   if (method === "GET") {
     return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
   }
