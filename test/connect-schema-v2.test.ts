@@ -19,6 +19,94 @@ import {
 const context = { source: "https://example.test/metadata", observedAt: "2026-07-13T00:00:00Z" };
 
 describe("source schema v2 discovery adapters", () => {
+  it("refreshes a cached unknown calendar field from current GeoServices metadata", async () => {
+    const endpoint = "https://example.test/rest/services/Flights/FeatureServer/0";
+    const metadata = {
+      id: 0,
+      name: "Flights",
+      type: "Table",
+      capabilities: "Query",
+      fields: [{ name: "DateOfFlight", type: "esriFieldTypeDateOnly", nullable: true }],
+    };
+    const fetchFn = vi.fn(async () => Response.json(metadata));
+    let snapshot: ConnectDiscoverySnapshot | undefined;
+    const options = {
+      endpoint,
+      protocol: "geoservices-feature-service" as const,
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache: {
+        get: () => snapshot,
+        set: (_identity: unknown, value: ConnectDiscoverySnapshot) => {
+          snapshot = value;
+        },
+      },
+    };
+    const first = await connectWithSourceSchemaV2(options);
+    const schema = first.source().descriptor.schemaV2;
+    if (!snapshot || !schema) throw new Error("expected schema and cache snapshot");
+    const { fingerprint: _fingerprint, ...schemaInput } = schema;
+    const legacy = createSourceSchemaV2({
+      ...schemaInput,
+      fields: schema.fields.map((field) => ({
+        ...field,
+        type: { kind: "unknown" as const, reason: "unrecognized" as const, native: field.native[0] },
+      })),
+    });
+    snapshot = {
+      ...snapshot,
+      sources: snapshot.sources.map((source) => ({
+        ...source,
+        schemaV2: legacy,
+        schemaV2State: { state: "known" as const, fingerprint: legacy.fingerprint },
+      })),
+    };
+    const hit = await connectWithSourceSchemaV2(options);
+    expect(hit.source().descriptor.schemaV2?.fields[0]?.type.kind).toBe("unknown");
+    fetchFn.mockClear();
+    const refreshed = await connectWithSourceSchemaV2({ ...options, refresh: true });
+    expect(fetchFn).toHaveBeenCalled();
+    expect(refreshed.inspection.cacheStatus).toBe("refreshed");
+    expect(refreshed.source().descriptor.schemaV2?.fields[0]?.type).toEqual({ kind: "date" });
+  });
+
+  it.each(["geoservices-feature-service", "geoservices-map-service"] as const)(
+    "preserves calendar-date metadata separately from timestamps for %s",
+    (protocol) => {
+      const schema = geoServicesSourceSchemaV2(
+        {
+          id: 0,
+          name: "Flight dates",
+          fields: [
+            {
+              name: "DateOfFlight",
+              type: "esriFieldTypeDateOnly",
+              nullable: false,
+              defaultValue: "2024-02-29",
+              domain: { type: "codedValue", codedValues: [{ name: "Leap day", code: "2024-02-29" }] },
+            },
+            { name: "optional_date", type: "esriFieldTypeDateOnly", nullable: true, defaultValue: null },
+            { name: "start_t", type: "esriFieldTypeDate", defaultValue: 0 },
+          ],
+        },
+        { ...context, protocol },
+      )!;
+      expect(schema.fields[0]).toMatchObject({
+        type: { kind: "date" },
+        nullability: "non-nullable",
+        defaultValue: "2024-02-29",
+        domain: { state: "coded", values: [{ value: "2024-02-29", label: "Leap day" }] },
+        native: [{ protocol, name: "esriFieldTypeDateOnly" }],
+      });
+      expect(schema.fields[1]).toMatchObject({ type: { kind: "date" }, nullability: "nullable", defaultValue: null });
+      expect(schema.fields[2]).toMatchObject({
+        type: { kind: "timestamp", unit: "millisecond", timezone: "utc" },
+        defaultValue: "1970-01-01T00:00:00.000Z",
+      });
+      expect(schema.temporal).toEqual({ state: "none" });
+    },
+  );
+
   it("normalizes equivalent GeoServices, OData, and GeoParquet fields to one semantic fingerprint", () => {
     const geoservices = geoServicesSourceSchemaV2(
       {

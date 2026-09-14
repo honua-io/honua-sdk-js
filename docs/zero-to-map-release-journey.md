@@ -37,9 +37,18 @@ AI-facing Esri compatibility roster; the third tool is executed, then its
 `honua://jobs/{id}` and `/results` resources are joined before the gate passes.
 `HonuaClient.geoprocessingRunner()` separately drives the GPServer task with the
 same `IJobRun` lifecycle used elsewhere in the SDK.
-`honua_buffer_features` remains the native MCP dataset-reference verb. Honua's
-server owns the process catalog and translation; the journey does not invent
-external ArcGIS Server federation.
+`honua_buffer_features` is the native MCP dataset-reference verb. Honua's server
+owns the process catalog and translation; the journey does not invent external
+ArcGIS Server federation.
+
+All four are members of opt-in conformance profiles - `esri-gp` and `analysis`
+respectively - that this journey *requires of a candidate server* and preflights
+before the first mutation. They are not tools you can call on a stock
+deployment: neither honua-server's `/mcp` nor
+[`@honua/mcp-server`](mcp-server.md) advertises them today. If you are not
+running this release journey, geoprocessing goes through `honua_plan_analysis` →
+`honua_validate_plan` → `honua_execute_plan`, or through
+[`HonuaClient.geoprocessingRunner()`](geoprocessing.md).
 
 Contract mode is the default and is safe to run in CI. It validates the plan,
 records live execution as blocked, and skips dependent stages. Live mode is
@@ -55,8 +64,9 @@ instead of asserting one hardcoded number; it records the active profiles and
 the roster digests on the journey receipt. Enabling those profiles on a local
 candidate still depends on honua-server#3363/#3430/#3431: the server
 configuration key that turns them on is not yet published, so
-`honua admin install local --profile gp-dev` grants the Pro edition but cannot
-yet request the profiles. The Studio `PublicationIntent` is not mislabeled as the separate admin
+`honua admin install local --profile gp-dev --yes` grants the Pro edition but cannot
+yet request the profiles. (`--yes` is required: the command creates files and starts
+Docker containers, so without it, or without `--dry-run`, it refuses to run.) The Studio `PublicationIntent` is not mislabeled as the separate admin
 approval proposal.
 
 The checked-in fixtures and simulated tests are contract evidence, not a live

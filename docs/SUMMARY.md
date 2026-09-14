@@ -22,6 +22,7 @@
 
 * [Honua App Bootstrap (`@honua/sdk-js/app`)](app-bootstrap.md)
 * [Scaffold a new app](create-honua-app.md)
+* [@honua/mcp-server: the standalone MCP server](mcp-server.md)
 * [`honua-maplibre` migration target](migration-honua-maplibre.md)
 * [JavaScript migration tool transition](migration-tool-transition.md)
 * [Zero-install playgrounds](playgrounds.md)
@@ -72,6 +73,7 @@
 * [`@honua/sdk-js` reference guide](guide.md)
 * [Honua Cloud Demo Services](honua-cloud-demo-services.md)
 * [Immutable content-addressed sample bundles](immutable-sample-bundles.md)
+* [Installed First Map bundle regression](installed-first-map-budget.md)
 * [Installed-package certification](installed-package-certification.md)
 * [Kepler.gl analytics workspace bridge (experimental)](kepler-workspace-bridge.md)
 * [Linked analytics and chart presentation (experimental)](linked-analytics.md)

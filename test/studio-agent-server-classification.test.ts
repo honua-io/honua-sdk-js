@@ -391,6 +391,32 @@ function makeRuntime(): HonuaAgentRuntime {
 }
 
 describe("StudioAgentSession against the pinned candidate catalog", () => {
+  it("negotiates the setup view on initial discovery and reconnect", async () => {
+    const server = createCandidateServer([]);
+    const views: unknown[] = [];
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: async (input, init) => {
+        if (String(input).endsWith("/mcp")) {
+          const request = JSON.parse(String(init?.body));
+          if (request.method === "initialize") views.push(request.params?._meta?.["honua.io/workflow-view"]);
+          // The real server's default view excludes Studio. Only its negotiated
+          // setup catalog carries the classified composition descriptors.
+          if (request.method === "tools/list" && views.at(-1) !== "setup") {
+            return jsonResponse({ jsonrpc: "2.0", id: request.id, result: { tools: [] } });
+          }
+        }
+        return server.fetchImpl(input, init);
+      },
+    });
+    await session.refreshTools();
+    expect([...session.compositionTools].sort()).toEqual([...SERVER_STUDIO_TOOLS].sort());
+    session.reconnect();
+    await session.refreshTools();
+    expect([...session.compositionTools].sort()).toEqual([...SERVER_STUDIO_TOOLS].sort());
+    expect(views).toEqual(["setup", "setup"]);
+  });
+
   it("advertises and dispatches a server verb absent from the deprecated table, with no allowlist", async () => {
     const call = {
       id: "call-1",

@@ -117,6 +117,8 @@ export interface McpClientOptions {
   /** Advertised in `initialize`'s `clientInfo`. */
   readonly clientName?: string;
   readonly clientVersion?: string;
+  /** Server-authored workflow view negotiated for this session; omitted for the server default. */
+  readonly workflowView?: string;
   /** Override for tests. Defaults to `globalThis.fetch`. */
   readonly fetchImpl?: typeof fetch;
 }
@@ -141,6 +143,7 @@ export class McpClient {
   readonly #auth: StudioAiTokenSource | undefined;
   readonly #clientName: string;
   readonly #clientVersion: string;
+  readonly #workflowView: string | undefined;
   readonly #fetchImpl: typeof fetch;
   #sessionId: string | undefined;
   #initializeResult: McpInitializeResult | undefined;
@@ -151,6 +154,7 @@ export class McpClient {
     this.#auth = options.auth;
     this.#clientName = options.clientName ?? "honua-sdk-js";
     this.#clientVersion = options.clientVersion ?? "0.0.0";
+    this.#workflowView = options.workflowView;
     // Bound to globalThis: calling `this.#fetchImpl(...)` below invokes it
     // with `this` = the McpClient instance (private-field method-call
     // semantics), and browser `fetch` is receiver-sensitive — an unbound
@@ -194,6 +198,7 @@ export class McpClient {
         protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: {},
         clientInfo: { name: this.#clientName, version: this.#clientVersion },
+        ...(this.#workflowView !== undefined ? { _meta: { "honua.io/workflow-view": this.#workflowView } } : {}),
       },
       signal,
     );

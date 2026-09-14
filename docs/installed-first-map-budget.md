@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Installed First Map bundle regression"
+description: "Measure public installed SDK bundles against the frozen First Map byte limits."
+---
 # Installed First Map bundle regression
 
 The bounded installed JavaScript client journey must stay below the canonical
@@ -38,3 +43,28 @@ The historical #39 installed-example receipt still records #1584 as failed.
 The issue's corrected coordinated-candidate publication and certification rerun
 remain outstanding; a successful harness repair must not rewrite historical
 failed candidate evidence or certify an unpublished replacement package.
+
+## Windows replay, 2026-09-13
+
+The saved `fix/1584-installed-quickstart-budget` work was rebased onto trunk;
+the peer, worker and stylesheet fixes and both defect injections are retained.
+The runner now uses the native npm launcher and normalized module paths, with
+its isolated consumer inside the worktree's `test-results` directory.
+
+`test-results/installed-quickstart-budget.windows.json` retains the public
+`0.1.9-beta.0` integrity and full dependency resolution, including MapLibre
+`6.9.0`. Removing the peer fix reproduces two renderer copies and measures
+3,108,365 JavaScript / 831,838 gzip bytes. The corrected graph contains one
+renderer, and its worker and CSS share the installed peer, but it still measures
+2,050,733 / 550,795 bytes. **The frozen 1,990,000 / 524,000 limits fail.**
+
+Trunk's separate source-example ceiling was raised by the MapLibre security
+upgrade. A successful Vite build under that ceiling cannot certify this issue:
+the receipt now independently checks both frozen ceilings before choosing its
+verdict. Regression tests exercise each one-byte overage, missing/invalid
+measurements, and failed build/peer checks. Both PR verification workflows run
+them through `test:installed-package-certification`.
+
+The clean-consumer run exits nonzero and writes `status: "failed"`; the #39
+historical failed row remains unchanged. Compatible corrected published bytes
+and a passing rerun under the original limits remain required to close #1584.
