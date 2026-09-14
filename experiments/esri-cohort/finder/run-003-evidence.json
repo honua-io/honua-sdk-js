@@ -126,14 +126,17 @@
     "productionBrowserObserved": [
       "26 of 26 venues",
       "Coastal filter: 2 of 26",
-      "Descending sort: Santa Monica before Riviera"
+      "Descending sort: Santa Monica before Riviera",
+      "Santa Monica detail: Beach Volleyball, Coastal, Temporary; WGS84 34.01177,-118.49865",
+      "Back retains Coastal and descending order",
+      "Expanded legend exposes 2-mile and 5-mile buffer control"
     ],
     "productionBrowserUnverified": [
-      "detail check after CDP timeout",
       "remaining interaction checklist",
       "operational network trace"
     ],
     "productionBuildSeconds": 17.842,
-    "snapshotRestoreQualified": false
+    "snapshotRestoreQualified": false,
+    "browserResumeNote": "Observed on the already-loaded target production page after browser reconnection; backend was stopped during these in-memory interactions."
   }
 }
