@@ -465,6 +465,9 @@ jobs:
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
 
+      - name: Validate documented executable commands
+        run: npm run docs:commands:check
+
       - name: Component qualification matrix
         # Runs against the already-built dist/, so it does not rebuild. Fails on
         # an unrecorded catalog component, a `passing` gate whose evidence file

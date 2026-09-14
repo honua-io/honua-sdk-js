@@ -1068,7 +1068,14 @@ Install `@honua/honua-migrate` and use `honua-js-migrate`. The SDK-local npm
 scripts remain temporary compatibility forwarders; see the
 [transition policy](./migration-tool-transition.md).
 
+The install below is part of the sequence, not a preamble to it: no npm package
+is called `honua-js-migrate` — it is a bin of `@honua/honua-migrate` — so a bare
+`npx honua-js-migrate` resolves only once that package is a local dependency.
+Without the install, reach it as `npx -p @honua/honua-migrate honua-js-migrate`.
+
 ```bash
+npm install --save-dev @honua/honua-migrate
+
 # Scan only
 npx honua-js-migrate scan ./src --report scan-report.json
 

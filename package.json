@@ -378,6 +378,8 @@
     "docs:learning:typecheck": "node scripts/typecheck-learning-paths.mjs",
     "docs:snippets:check": "node --test test/scripts/docs-snippets.test.mjs && node scripts/docs-snippets.mjs",
     "docs:snippets:verify": "npm run build --silent && npm run docs:snippets:check",
+    "docs:commands:check": "node --test test/scripts/docs-executable-commands.test.mjs test/scripts/docs-commands-registry.test.mjs && node scripts/docs-executable-commands.mjs",
+    "docs:commands:registry": "node scripts/docs-commands-registry.mjs",
     "docs:quickstart:time-to-map": "node scripts/quickstart-time-to-map.mjs",
     "docs:quickstart:time-to-map:test": "node --test test/scripts/quickstart-time-to-map.test.mjs",
     "create-app:verify": "node scripts/verify-create-honua-app.mjs",
