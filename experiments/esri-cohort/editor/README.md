@@ -28,7 +28,9 @@ $env:HONUA_ALLOWED_SERVICES = 'onboarding-editor-hazards-003,onboarding-editor-r
 npm run dev
 ```
 
-The loopback Vite proxy targets port 18615. Writable URLs must be same-origin,
+The loopback Vite proxy targets port 18615 by default. Set server-side
+`HONUA_LOCAL_PORT` for another disposable local instance (run-004 uses 18617).
+Writable URLs must be same-origin,
 under `/rest/services/onboarding-editor-*/FeatureServer/<numeric id>`. There is
 no original Esri service fallback. Imported metadata must advertise EPSG:4326
 and subtype definitions. Missing dependencies stop startup with a visible error.
@@ -65,3 +67,18 @@ A clean install/build now declares the optional gRPC peers explicitly as a
 workaround for SDK #1715. This is not a fix to the SDK package boundary.
 The default basemap is OpenFreeMap Liberty; see the
 [sample basemap policy](../../../docs/sample-basemaps.md).
+
+Fresh run-004 imports preserve all 8/2/2 feature types and their normalized field
+bindings (server PR #4830), with 4,246/35/49 rows at receipt layers 2/3/4. The jobs
+still end NeedsReview and advertise Query only. This metadata recovery does not
+establish local editing or attachment fidelity; those checks remain outstanding.
+
+The first run-004 browser check exposed unconditional sketch initialization on a
+read-only source. Drawing now binds only when the source advertises `applyEdits`;
+the map and saved-feature list remain usable with an explicit read-only status.
+Chrome checks confirmed 4,246 hazards, 35 roads and 49 areas, layer switching,
+selection of a road without geometry, area reload and basemap attribution.
+The lists retained 15/7/2 records without geometry. These were dev-server checks
+against the installed SDK, not CRUD or source-null parity proof. The subsequent
+TypeScript/Vite production build passed in 5.376 seconds (570.73 kB gzip main
+chunk); browser checks of that production build remain separate.

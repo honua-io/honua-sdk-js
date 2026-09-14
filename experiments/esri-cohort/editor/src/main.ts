@@ -225,33 +225,36 @@ async function activate(index: number): Promise<void> {
     if (!active) throw new Error("Unknown editor layer");
     const workflow = active.workflow;
     editor.workflow = workflow;
-    sketch = await createTerraDrawEditorSketch(map, {
-      workflow,
-      modes: [
-        active.metadata.geometryType === "esriGeometryPoint"
-          ? "point"
-          : active.metadata.geometryType === "esriGeometryPolyline"
-            ? "linestring"
-            : "polygon",
-        "select",
-      ],
-      transformGeometry: (geometry) => {
-        const converted = geoJsonToEsri(geometry as unknown as GeoJsonGeometry, { wkid: 4326 });
-        if (!converted) throw new Error("Sketch geometry cannot be converted");
-        return converted as unknown as Record<string, unknown>;
-      },
-      restoreGeometry: (geometry) => {
-        const converted = esriToGeoJson(geometry);
-        if (!converted) throw new Error("Saved geometry cannot be restored for drawing");
-        return converted as unknown as Record<string, unknown>;
-      },
-    });
-    workflow.cancel();
+    const editable = active.source.capabilities.has("applyEdits");
+    if (editable) {
+      sketch = await createTerraDrawEditorSketch(map, {
+        workflow,
+        modes: [
+          active.metadata.geometryType === "esriGeometryPoint"
+            ? "point"
+            : active.metadata.geometryType === "esriGeometryPolyline"
+              ? "linestring"
+              : "polygon",
+          "select",
+        ],
+        transformGeometry: (geometry) => {
+          const converted = geoJsonToEsri(geometry as unknown as GeoJsonGeometry, { wkid: 4326 });
+          if (!converted) throw new Error("Sketch geometry cannot be converted");
+          return converted as unknown as Record<string, unknown>;
+        },
+        restoreGeometry: (geometry) => {
+          const converted = esriToGeoJson(geometry);
+          if (!converted) throw new Error("Saved geometry cannot be restored for drawing");
+          return converted as unknown as Record<string, unknown>;
+        },
+      });
+      workflow.cancel();
+    }
     search.value = "";
     list();
-    element("selected").textContent = `Editing ${active.name}`;
+    element("selected").textContent = `Select a feature in ${active.name}`;
     element("attachments").replaceChildren();
-    status.textContent = `${active.name}: ${active.features.length} saved features`;
+    status.textContent = `${active.name}: ${active.features.length} saved features${editable ? "" : "; read-only — editing is unavailable on this layer"}`;
   } finally {
     switching = false;
     selector.disabled = false;
