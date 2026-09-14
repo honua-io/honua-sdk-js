@@ -486,7 +486,8 @@ export class HonuaClient {
         path: string,
         params: URLSearchParams,
         signal?: AbortSignal,
-      ) => this.requestBinaryWithJsonFallback(method, path, params, signal) as Promise<T>,
+        policy?: HonuaJsonRequestPolicy,
+      ) => this.requestBinaryWithJsonFallback(method, path, params, signal, policy) as Promise<T>,
     };
   }
 
@@ -1832,6 +1833,7 @@ export class HonuaClient {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
+      autoMethodPolicy: policy?.autoMethodPolicy,
       init: {
         method,
         headers: await this.composeHeaders({ Accept: "application/json" }, init?.headers),
@@ -1876,11 +1878,13 @@ export class HonuaClient {
     path: string,
     params: URLSearchParams,
     callerSignal?: AbortSignal,
+    policy?: HonuaJsonRequestPolicy,
   ): Promise<unknown> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
+      autoMethodPolicy: policy?.autoMethodPolicy,
       init: {
         method,
         headers: await this.composeHeaders({ Accept: "application/x-protobuf, application/json;q=0.9" }),
@@ -1889,6 +1893,7 @@ export class HonuaClient {
 
     return this.executeRequest<unknown>(request, {
       callerSignal,
+      readOnlyQuery: policy?.readOnlyQuery,
       finalize: async (response, durationMs, currentRequest, runAfter) => {
         await runAfter();
 
@@ -2096,14 +2101,8 @@ export class HonuaClient {
     },
   ): Promise<T> {
     let request = await this.applyBeforeInterceptors(initialRequest);
-    // A before-interceptor that changes the endpoint/method or supplies a
-    // streaming body cannot inherit this narrow read-query replay permission.
-    const readOnlyQuery =
-      options.readOnlyQuery === true &&
-      request.method === "POST" &&
-      request.method === initialRequest.method &&
-      request.url === initialRequest.url &&
-      typeof request.init.body === "string";
+    request = this.applyAutoRequestMethod(request);
+    const readOnlyQuery = options.readOnlyQuery === true;
     const retrySignal = options.callerSignal ?? request.init.signal ?? undefined;
     let refreshedAuth = false;
 
@@ -2246,6 +2245,41 @@ export class HonuaClient {
         if (options.deadlineThroughFinalize) timeout.dispose();
       }
     }
+  }
+
+  private applyAutoRequestMethod(request: HonuaRequestContext): HonuaRequestContext {
+    const autoMethodPolicy = request.autoMethodPolicy;
+    if (!autoMethodPolicy || request.method !== "GET") {
+      return request;
+    }
+
+    const requestUrl = new URL(
+      request.url,
+      isAbsoluteHttpUrl(this.baseUrl) ? this.baseUrl : "https://honua.invalid",
+    );
+    const requestTargetLength = requestUrl.pathname.length + requestUrl.search.length;
+    if (requestTargetLength <= autoMethodPolicy.maxRequestTargetLength) {
+      return request;
+    }
+
+    const nextParams = new URLSearchParams(requestUrl.search);
+    if (autoMethodPolicy.convertPbfToJson && nextParams.get("f") === "pbf") {
+      nextParams.set("f", "json");
+    }
+
+    return {
+      ...request,
+      path: stripQuery(request.path),
+      method: "POST",
+      url: isAbsoluteHttpUrl(request.url) ? `${requestUrl.origin}${requestUrl.pathname}` : requestUrl.pathname,
+      autoMethodPolicy: undefined,
+      init: {
+        ...request.init,
+        method: "POST",
+        headers: mergeHeaders(request.init.headers, { "Content-Type": "application/x-www-form-urlencoded" }),
+        body: nextParams.toString(),
+      },
+    };
   }
 
   private async applyBeforeInterceptors(request: HonuaRequestContext): Promise<HonuaRequestContext> {
@@ -2453,6 +2487,7 @@ function applyRequestMutation(request: HonuaRequestContext, mutation: HonuaReque
   return {
     url: mutation.url ?? request.url,
     path: request.path,
+    autoMethodPolicy: request.autoMethodPolicy,
     method: mutation.method ?? request.method,
     init: {
       ...nextInit,

@@ -14,12 +14,13 @@
  */
 
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
-import type { QueryMethod } from "./types.js";
+import type { HonuaRequestAutoMethodPolicy, QueryMethod } from "./types.js";
 
 /** Internal opt-in for a read query transported in an immutable POST body. */
 export interface HonuaJsonRequestPolicy {
   /** Retain read-query replay semantics and reject redirects that discard the body. */
   readonly readOnlyQuery?: true;
+  readonly autoMethodPolicy?: HonuaRequestAutoMethodPolicy;
 }
 
 /**
@@ -104,5 +105,6 @@ export interface HonuaProtocolTransport {
     path: string,
     params: URLSearchParams,
     signal?: AbortSignal,
+    policy?: HonuaJsonRequestPolicy,
   ): Promise<T>;
 }

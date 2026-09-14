@@ -2,11 +2,17 @@ import type { HonuaCacheState, HonuaMetadataRequestOptions } from "./cache-state
 
 export type QueryMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+export interface HonuaRequestAutoMethodPolicy {
+  maxRequestTargetLength: number;
+  convertPbfToJson?: true;
+}
+
 export interface HonuaRequestContext {
   url: string;
   path: string;
   method: QueryMethod;
   init: RequestInit;
+  autoMethodPolicy?: HonuaRequestAutoMethodPolicy;
 }
 
 export interface HonuaRequestMutation {

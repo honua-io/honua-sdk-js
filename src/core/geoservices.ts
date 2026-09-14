@@ -35,6 +35,8 @@ import type {
   QueryRelatedRecordsRequest,
 } from "./types.js";
 
+const GEOSERVICES_QUERY_AUTO_METHOD_TARGET_LENGTH = 2_000;
+
 // ── Metadata ────────────────────────────────────────────────────
 
 export async function listServices(
@@ -147,6 +149,16 @@ export async function queryFeaturesRest(
   const method = queryMethod(request.method, path, params, transport.baseUrl);
   const usePbf = preferBinary && method === "GET";
   if (request.method === undefined && method === "POST" && params.get("f") === "pbf") params.set("f", "json");
+  const autoMethodPolicy =
+    request.method === undefined
+      ? {
+          readOnlyQuery: true as const,
+          autoMethodPolicy: {
+            maxRequestTargetLength: GEOSERVICES_QUERY_AUTO_METHOD_TARGET_LENGTH,
+            ...(preferBinary ? { convertPbfToJson: true as const } : {}),
+          },
+        }
+      : undefined;
 
   if (usePbf) {
     return transport.requestBinaryWithJsonFallback<HonuaQueryResponse>(
@@ -154,11 +166,18 @@ export async function queryFeaturesRest(
       `${path}?${params.toString()}`,
       params,
       request.signal,
+      autoMethodPolicy,
     );
   }
 
   if (method === "GET") {
-    return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
+    return transport.requestJson<HonuaQueryResponse>(
+      "GET",
+      `${path}?${params.toString()}`,
+      undefined,
+      request.signal,
+      autoMethodPolicy,
+    );
   }
 
   return transport.requestJson<HonuaQueryResponse>(
@@ -171,7 +190,7 @@ export async function queryFeaturesRest(
       body: params.toString(),
     },
     request.signal,
-    request.method === undefined ? { readOnlyQuery: true } : undefined,
+    autoMethodPolicy,
   );
 }
 
@@ -190,8 +209,22 @@ export async function queryMapLayer(
 
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
   const method = queryMethod(request.method, path, params, transport.baseUrl);
+  const autoMethodPolicy =
+    request.method === undefined
+      ? {
+          readOnlyQuery: true as const,
+          autoMethodPolicy: { maxRequestTargetLength: GEOSERVICES_QUERY_AUTO_METHOD_TARGET_LENGTH },
+        }
+      : undefined;
+
   if (method === "GET") {
-    return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
+    return transport.requestJson<HonuaQueryResponse>(
+      "GET",
+      `${path}?${params.toString()}`,
+      undefined,
+      request.signal,
+      autoMethodPolicy,
+    );
   }
 
   return transport.requestJson<HonuaQueryResponse>(
@@ -204,7 +237,7 @@ export async function queryMapLayer(
       body: params.toString(),
     },
     request.signal,
-    request.method === undefined ? { readOnlyQuery: true } : undefined,
+    autoMethodPolicy,
   );
 }
 
