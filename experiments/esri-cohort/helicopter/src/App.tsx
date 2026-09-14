@@ -395,16 +395,15 @@ export function App() {
     const timer = setTimeout(
       () => {
         void (async () => {
-          const query = await complaintHighlightQuery(
+          const query = complaintHighlightQuery(
             cohort.sources.complaints,
             day,
             geometry,
             loupe && probe ? [] : selectedFlights,
-            signal,
           );
-          performance.measure("heli-complaint-buffer", { start: highlightStart, detail: { day, retry } });
+          performance.measure("heli-complaint-geometry", { start: highlightStart, detail: { day, retry } });
           highlightStage = "query";
-          return matchingIds(cohort.sources.complaints, query, signal);
+          return matchingIds(cohort, query, signal);
         })()
           .then((ids) => {
             if (!cancellation.signal.aborted) {

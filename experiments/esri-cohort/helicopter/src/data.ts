@@ -1,10 +1,11 @@
 import { buffer, geoJsonToEsri } from "@honua/geometry";
 import type { GeoJsonGeometry } from "@honua/geometry";
-import { createHonua, polygon, queryFilter } from "@honua/sdk-js";
+import { HonuaClient, createHonua, polygon, queryFilter } from "@honua/sdk-js";
 import type { Query, Source } from "@honua/sdk-js/contract";
 import { esriGeometryToGeoJSON } from "@honua/sdk-js/honua";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
-import { bufferInWorker } from "./buffer-worker-client.mjs";
+import { complaintDistanceRequest, matchingDistanceIds } from "./complaint-distance.mjs";
+import type { ComplaintDistanceQuery, ComplaintRequester } from "./complaint-distance.mjs";
 
 export type Attributes = Record<string, unknown>;
 export type MapFeature = Feature<Geometry | null, Attributes>;
@@ -53,6 +54,7 @@ export function dayQuery(source: Source, key: string, day: string): Query {
 
 export interface Cohort {
   sources: Record<LayerName, Source>;
+  queryComplaints: ComplaintRequester;
   dispose(): Promise<void>;
 }
 
@@ -80,7 +82,18 @@ export async function connectCohort(signal: AbortSignal): Promise<Cohort> {
         return [name, dataset.source()] as const;
       }),
     );
-    return { sources: Object.fromEntries(entries) as Record<LayerName, Source>, dispose: () => honua.dispose() };
+    const complaintPath = new URL(urls.complaints ?? "", location.origin).pathname.split("/");
+    const client = new HonuaClient({ baseUrl: location.origin });
+    return {
+      sources: Object.fromEntries(entries) as Record<LayerName, Source>,
+      queryComplaints: (request) =>
+        client.queryFeatures({
+          ...request,
+          serviceId: complaintPath[3],
+          layerId: Number(complaintPath[5]),
+        }),
+      dispose: () => honua.dispose(),
+    };
   } catch (error) {
     await honua.dispose();
     throw error;
@@ -202,45 +215,24 @@ export async function neighborhoodStats(cohort: Cohort, day: string, geometry: G
   };
 }
 
-export async function complaintHighlightQuery(
+export function complaintHighlightQuery(
   source: Source,
   day: string,
   geometry: Geometry,
   selected: MapFeature[],
-  signal: AbortSignal,
-): Promise<Query> {
-  const area = searchArea(await bufferInWorker(geometry, signal));
-  signal.throwIfAborted();
-  const query = dayQuery(source, "Created_Date", day);
-  const starts = selected.map((feature) => {
-    const timestamp = value(feature.properties, "start_t");
-    const milliseconds = typeof timestamp === "number" ? timestamp : Date.parse(String(timestamp));
-    if (!Number.isFinite(milliseconds)) throw new Error("Selected flight records must have valid start times.");
-    return milliseconds;
+): ComplaintDistanceQuery {
+  const esri = geoJsonToEsri(geometry as GeoJsonGeometry);
+  if (!esri || (!("paths" in esri) && !("x" in esri)))
+    throw new Error("Complaint highlighting requires a point or flight tracks.");
+  return complaintDistanceRequest({
+    day,
+    dateField: field(source, "Created_Date"),
+    geometry: { ...esri, spatialReference: { wkid: 4326 } },
+    geometryType: "paths" in esri ? "esriGeometryPolyline" : "esriGeometryPoint",
+    startTimes: selected.map((feature) => value(feature.properties, "start_t")),
   });
-  return {
-    ...query,
-    spatialFilter: area.spatialFilter,
-    ...(starts.length && query.filter
-      ? {
-          filter: queryFilter.and(
-            query.filter,
-            queryFilter.gte(field(source, "Created_Date"), new Date(Math.min(...starts)).toISOString()),
-            queryFilter.lte(field(source, "Created_Date"), new Date(Math.max(...starts)).toISOString()),
-          ),
-        }
-      : {}),
-  };
 }
 
-export async function matchingIds(source: Source, query: Query, signal: AbortSignal): Promise<string[]> {
-  const [counts, ids] = await Promise.all([
-    aggregate(source, query, [], signal),
-    source.queryObjectIds({ ...query, signal }),
-  ]);
-  const expected = Number(value(counts[0] ?? {}, "record_count"));
-  const normalized = ids.map(String);
-  if (!Number.isSafeInteger(expected) || normalized.length !== expected || new Set(normalized).size !== expected)
-    throw new Error("Complaint highlight identities do not match the server count.");
-  return normalized;
+export function matchingIds(cohort: Cohort, query: ComplaintDistanceQuery, signal: AbortSignal): Promise<string[]> {
+  return matchingDistanceIds(cohort.queryComplaints, query, signal);
 }

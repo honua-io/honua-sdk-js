@@ -132,3 +132,25 @@ identify whether geometry processing or the server query was active. These
 measurements support repeated onboarding runs without claiming that the
 full-aircraft timeout is resolved. Formatting/lint pass; browser verification
 of this follow-up remains pending.
+
+### Current distance-query implementation
+
+Complaint highlighting now sends the complete point/track geometry to Honua's
+GeoServices distance query through `HonuaClient`, keeping the UTC date range
+and selected start-time bounds. IDs and count use identical spatial/temporal
+constraints, share cancellation, and reject incomplete or inconsistent results.
+The slow client-buffer worker is removed; neighborhood loupe statistics still
+use the existing small point buffer. The earlier cached builds remain comparison
+baselines. `heli-complaint-geometry` replaces the buffer timing entry.
+
+Independent reference queries covered every path in the 6,974-track selection
+and matched all 50 complaint business IDs. Integration here still requires the
+production build and browser checks, including selected intervals and loupe
+behavior. Seven new query regressions cover geometry preservation, date/time
+constraints, cancellation and count/ID validation; execution remains pending.
+
+The neutral `Query` contract has no portable distance predicate yet, so this
+operation uses the SDK's explicit GeoServices surface. Published 0.1.9-beta.0
+also drops typed REST distance options; the app supplies the same distance and
+units through `extraParams` until SDK PR #1731 ships. That bridge preserves
+the requested radius on the currently installed package.
