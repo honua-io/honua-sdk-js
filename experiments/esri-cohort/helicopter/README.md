@@ -116,3 +116,10 @@ failure and timeout; their execution and the production build remain pending the
 shared build queue. Formatting and lint pass. Browser responsiveness and exact
 corridor-result parity still need qualification; this change does not establish
 that every large corridor finishes within the deadline.
+
+The worker candidate completed the January 11 aircraft search without a visible
+error. February 14 selection still exceeded the browser input acknowledgement
+window, then recovered; clearing the selection took 5.75 seconds in the browser
+tool. The collapsed individual-record list was still rendering and formatting
+all 6,974 rows. It now renders only when expanded, presents all rows in pages of
+200, and reuses date formatters. This follow-up awaits browser and build checks.

@@ -3,12 +3,8 @@ import { FLIGHT_CHART, flightChart } from "./chart-model.mjs";
 import type { MapFeature } from "./data.js";
 import { value } from "./data.js";
 
-const clock = (timestamp: number) =>
-  new Date(timestamp).toLocaleTimeString("en-US", {
-    timeZone: "UTC",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const formatter = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" });
+const clock = (timestamp: number) => formatter.format(new Date(timestamp));
 
 export function FlightChart({
   features,
@@ -19,6 +15,7 @@ export function FlightChart({
   selected: string[];
   onSelect(ids: string[]): void;
 }) {
+  const selectedIds = useMemo(() => new Set(selected), [selected]);
   const result = useMemo(() => {
     try {
       return {
@@ -77,12 +74,12 @@ export function FlightChart({
                 key={bin.start}
                 className="chart-point"
                 style={{ left: `${x(index)}%`, top: `${y(bin.count)}%` }}
-                aria-pressed={bin.ids.some((id) => selected.includes(id))}
+                aria-pressed={bin.ids.some((id) => selectedIds.has(id))}
                 aria-label={`${clock(bin.start)} to ${clock(bin.end)} UTC: ${bin.count} flight records`}
                 title={`${clock(bin.start)}–${clock(bin.end)} · ${bin.count} flight records`}
                 onClick={() =>
                   onSelect(
-                    bin.ids.every((id) => selected.includes(id))
+                    bin.ids.every((id) => selectedIds.has(id))
                       ? selected.filter((id) => !bin.ids.includes(id))
                       : [...new Set([...selected, ...bin.ids])],
                   )

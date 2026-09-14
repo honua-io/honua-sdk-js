@@ -5,6 +5,7 @@ import { Map as LibreMap, NavigationControl, Popup } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlightChart } from "./FlightChart.js";
+import { FlightRecords } from "./FlightRecords.js";
 import { FLIGHT_SPEED_STOPS, flightSpeedColor } from "./cartography.js";
 import {
   EMPTY,
@@ -26,11 +27,10 @@ import type { Attributes, Cohort, Collection, MapFeature } from "./data.js";
 
 const number = (input: unknown) =>
   input == null ? "—" : Number(input).toLocaleString("en-US", { maximumFractionDigits: 0 });
+const clock = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" });
 const time = (input: unknown) => {
   const date = new Date(typeof input === "number" ? input : String(input));
-  return Number.isFinite(date.getTime())
-    ? date.toLocaleTimeString("en-US", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" })
-    : "Unknown time";
+  return Number.isFinite(date.getTime()) ? clock.format(date) : "Unknown time";
 };
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -612,33 +612,12 @@ export function App() {
                 keeps its day and viewport filters.
               </p>
               <FlightChart features={aircraftFlights} selected={selectedIds} onSelect={setSelectedIds} />
-              <details>
-                <summary>Individual flight records ({aircraftFlights.length})</summary>
-                <div className="timeline-tracks">
-                  {aircraftFlights
-                    .slice()
-                    .sort(
-                      (left, right) =>
-                        Number(value(left.properties, "start_t")) - Number(value(right.properties, "start_t")),
-                    )
-                    .map((feature) => (
-                      <button
-                        type="button"
-                        key={feature.id}
-                        aria-pressed={selectedIds.includes(String(feature.id))}
-                        onClick={() =>
-                          setSelectedIds((ids) =>
-                            ids.includes(String(feature.id))
-                              ? ids.filter((id) => id !== String(feature.id))
-                              : [...ids, String(feature.id)],
-                          )
-                        }
-                      >
-                        {time(value(feature.properties, "start_t"))}–{time(value(feature.properties, "end_t"))}
-                      </button>
-                    ))}
-                </div>
-              </details>
+              <FlightRecords
+                key={aircraft}
+                features={aircraftFlights}
+                selected={selectedIds}
+                onSelect={setSelectedIds}
+              />
             </section>
           )}
           <section className="complaints">
