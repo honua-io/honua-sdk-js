@@ -80,6 +80,11 @@ export interface QueryFeaturesRequest {
   outFields?: string | string[];
   returnGeometry?: boolean;
   outSr?: HonuaSpatialReference | number | string;
+  /**
+   * Explicit transport override. By default, feature and map-layer queries use
+   * GET up to a 2,000-character encoded request target and form POST above it.
+   * Automatic POST uses JSON even when binary responses are preferred.
+   */
   method?: QueryMethod;
   orderByFields?: string;
   objectIds?: number[] | string;
