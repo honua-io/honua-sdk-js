@@ -89,11 +89,14 @@ individual-parent lists and privately cached file bytes agree. All seven parents
 map uniquely to imported rows using their non-object-ID attributes; source IDs
 are not assumed to survive import.
 
-The import receipts report all eight files copied with zero failures. Three
-hazard files are readable from the target and match source SHA-256 hashes. The
-remaining hazard parent and all three area parents return `Feature not found`
-from attachment listing, despite being returned by normal feature queries.
-Five target files therefore remain unqualified, alongside the missing attachment
-capability advertisement. Server #4825 now requires attachment visibility and
-authorization to use the published storage binding. These checks do not establish
-Editor write or attachment round-trip parity.
+The import receipts report all eight files copied with zero failures. Initial
+readback on `66a3217a2` could access only three; five files were blocked by parent
+lookups using the default snapshot instead of the published storage binding.
+
+On September 14, candidate `43be77ff8` made all eight files publicly readable
+through the authenticated local service. All 8,491,719 bytes, names, content types
+and SHA-256 hashes match the cached source baseline, with all seven parents
+resolved. No re-upload was required. Private receipt:
+`editor-target-attachment-parity-43be77ff8.json`. This verifies copied-file readback;
+capability advertisement, Editor mutations and browser attachment round-trip
+qualification remain outstanding under server #4825.
