@@ -16,6 +16,12 @@
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import type { QueryMethod } from "./types.js";
 
+/** Internal opt-in for a read query transported in an immutable POST body. */
+export interface HonuaJsonRequestPolicy {
+  /** Retain read-query replay semantics and reject redirects that discard the body. */
+  readonly readOnlyQuery?: true;
+}
+
 /**
  * The minimal request primitives a protocol wire module needs. Every method
  * routes through the same auth / retry / timeout / interceptor pipeline as the
@@ -34,7 +40,13 @@ export interface HonuaProtocolTransport {
    * surfaces GeoServices `{error}` envelopes returned on HTTP 200 as
    * `HonuaHttpError`. Caller-supplied query params belong on `path`.
    */
-  requestJson<T = unknown>(method: QueryMethod, path: string, init?: RequestInit, signal?: AbortSignal): Promise<T>;
+  requestJson<T = unknown>(
+    method: QueryMethod,
+    path: string,
+    init?: RequestInit,
+    signal?: AbortSignal,
+    policy?: HonuaJsonRequestPolicy,
+  ): Promise<T>;
 
   /**
    * Fetch a text response (XML / JSON / plain) with explicit Accept negotiation.

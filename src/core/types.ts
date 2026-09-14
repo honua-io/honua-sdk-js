@@ -80,6 +80,11 @@ export interface QueryFeaturesRequest {
   outFields?: string | string[];
   returnGeometry?: boolean;
   outSr?: HonuaSpatialReference | number | string;
+  /**
+   * Explicit transport override. By default, feature and map-layer queries use
+   * GET up to a 2,000-character encoded request target and form POST above it.
+   * Automatic POST uses JSON even when binary responses are preferred.
+   */
   method?: QueryMethod;
   orderByFields?: string;
   objectIds?: number[] | string;
@@ -616,7 +621,8 @@ export interface HonuaRetryOptions {
    *
    * This option does not govern the authentication replay. When an
    * {@link HonuaClientOptions.auth} provider is configured, a replay-safe
-   * request (`GET` / `HEAD` / `PUT` / `DELETE`) answered with `401` or `403` is
+   * request (`GET` / `HEAD` / `PUT` / `DELETE`, or an automatically selected
+   * GeoServices query POST) answered with `401` or `403` is
    * still reissued once after a forced credential refresh, even with retries
    * disabled. Instrumentation that counts requests should expect that one extra
    * attempt.
@@ -628,7 +634,8 @@ export interface HonuaRetryOptions {
   maxDelayMs?: number;
   /**
    * HTTP statuses the loop replays on replay-safe methods
-   * (`GET` / `HEAD` / `PUT` / `DELETE`). Default: `[429, 502, 503, 504]` — the
+   * (`GET` / `HEAD` / `PUT` / `DELETE`, or an automatically selected GeoServices
+   * query POST). Default: `[429, 502, 503, 504]` — the
    * statuses that explicitly invite the same request again. This is
    * intentionally narrower than the broader `408, 429, 500, 502, 503, 504` set
    * that {@link HonuaHttpError} classifies as transient `retryable` metadata:
