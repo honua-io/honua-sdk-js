@@ -134,7 +134,9 @@ async function readFeatures(layer: Layer): Promise<void> {
         attributes: row.attributes,
         geometry: row.geometry ? { ...row.geometry } : null,
       };
-      if (!esriToGeoJson(feature.geometry)) throw new Error("Missing feature geometry");
+      if (feature.geometry !== null && !esriToGeoJson(feature.geometry)) {
+        throw new Error(`Feature ${id} has geometry that cannot be converted`);
+      }
       seen.add(String(feature.id));
       features.push(feature);
       if (features.length > 10_000) throw new Error("Editor cohort exceeds its reviewed 10,000-feature budget.");
@@ -150,19 +152,23 @@ async function readFeatures(layer: Layer): Promise<void> {
 function collection(layer: Layer): FeatureCollection {
   return {
     type: "FeatureCollection",
-    features: layer.features.map((feature) => ({
-      type: "Feature",
-      id: String(feature.id),
-      geometry: esriToGeoJson(feature.geometry) as Geometry,
-      properties: { __honua_id: String(feature.id) },
-    })),
+    features: layer.features
+      .filter((feature) => feature.geometry !== null)
+      .map((feature) => ({
+        type: "Feature",
+        id: String(feature.id),
+        geometry: esriToGeoJson(feature.geometry) as Geometry,
+        properties: { __honua_id: String(feature.id) },
+      })),
   };
 }
 function list(): void {
   if (!active) return;
   const query = search.value.toLowerCase();
   const matches = active.features.filter((feature) => label(feature).toLowerCase().includes(query));
-  element("count").textContent = `${matches.length} of ${active.features.length} features; first 100 listed`;
+  const withoutGeometry = active.features.filter((feature) => feature.geometry === null).length;
+  element("count").textContent =
+    `${matches.length} of ${active.features.length} features; ${withoutGeometry} without geometry; first 100 listed`;
   element("features").replaceChildren(
     ...matches.slice(0, 100).map((feature) => {
       const button = document.createElement("button");
@@ -180,7 +186,7 @@ function label(feature: CanonicalFeature): string {
     .filter(([key]) => /^(description|descrip|hazardtype|status|fullclose)$/i.test(key))
     .map(([, value]) => String(value ?? ""))
     .filter(Boolean);
-  return `#${feature.id} ${values.join(" · ")}`;
+  return `#${feature.id} ${values.join(" · ")}${feature.geometry === null ? " (no geometry)" : ""}`;
 }
 async function selectFeature(feature: CanonicalFeature): Promise<void> {
   const layer = active;

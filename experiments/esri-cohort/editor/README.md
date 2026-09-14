@@ -58,3 +58,10 @@ The initial bundle emitted a 570.86 kB gzip main chunk, a 506.72 kB worker
 not a controlled performance comparison. Offline editing, source data reuse
 rights, immutable snapshot restore and repeated fresh conversions are not
 qualified by this attempt.
+
+The current conversion retains records with null source geometry in the feature
+list and labels them explicitly; only mappable records are added to the map.
+A clean install/build now declares the optional gRPC peers explicitly as a
+workaround for SDK #1715. This is not a fix to the SDK package boundary.
+The default basemap is OpenFreeMap Liberty; see the
+[sample basemap policy](../../../docs/sample-basemaps.md).
