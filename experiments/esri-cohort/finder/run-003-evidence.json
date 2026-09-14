@@ -4,7 +4,7 @@
   "sourcePin": "e9d4aa0d42c1f84ba29d6780188bb94a8a34bc0c",
   "backendMode": "source-service-preview-only",
   "conversionComplete": false,
-  "backendMigrationVerified": false,
+  "backendMigrationVerified": true,
   "originalLockSha256": "c9e46724fb8315ebd5af4c670133b54ff93aea5fafb4990791eb3845138ca87a",
   "observedOriginal": [
     "26 venues",
@@ -31,8 +31,7 @@
     "legend exposes both buffer dependencies"
   ],
   "openFindings": [
-    "target imports unavailable while Docker engine times out",
-    "target-only production replay and network/interaction trace pending",
+    "Remaining target production interactions and network/interaction trace pending",
     "build budget not frozen before this exploratory attempt",
     "brief slow reload and browser-control timeouts observed; no app console error captured; loading now has timeout and per-dependency progress"
   ],
@@ -93,5 +92,48 @@
     "Root install/build/check and final app lint/build additionally ran outside the recorder; durations unavailable.",
     "Model cost and token attribution for this attempt unavailable.",
     "Bundle warning retained: main client chunk about 518 kB gzip plus worker and lazy chunks."
-  ]
+  ],
+  "targetImportEvidence": {
+    "serverCommit": "2c14b8f4a30fa73af275d31326752139219e557f",
+    "serverFixMergedPr": 4818,
+    "scope": "fresh resources on retained mutable database",
+    "resources": [
+      {
+        "name": "venues",
+        "jobId": "3129f3616ffb",
+        "layerId": 2,
+        "count": 26,
+        "durationSeconds": 8.1725846
+      },
+      {
+        "name": "two-mile buffer",
+        "jobId": "b12cd4203678",
+        "layerId": 3,
+        "count": 1,
+        "durationSeconds": 3.4794054
+      },
+      {
+        "name": "five-mile buffer",
+        "layerId": 4,
+        "count": 1,
+        "durationSeconds": 2.1230107,
+        "jobId": "b5590014f9f9"
+      }
+    ],
+    "allResourcesFullFidelity": true,
+    "independentWgs84CoordinateToleranceDegrees": 1e-08,
+    "allIndependentCoordinatesPassed": true,
+    "productionBrowserObserved": [
+      "26 of 26 venues",
+      "Coastal filter: 2 of 26",
+      "Descending sort: Santa Monica before Riviera"
+    ],
+    "productionBrowserUnverified": [
+      "detail check after CDP timeout",
+      "remaining interaction checklist",
+      "operational network trace"
+    ],
+    "productionBuildSeconds": 17.842,
+    "snapshotRestoreQualified": false
+  }
 }

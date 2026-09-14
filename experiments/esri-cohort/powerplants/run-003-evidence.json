@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "runId": "run-003",
+  "qualification": "incomplete-source-preview",
+  "sourceCommit": "e9d4aa0d42c1f84ba29d6780188bb94a8a34bc0c",
+  "sdkVersion": "0.1.9-beta.0",
+  "maplibreVersion": "6.9.0",
+  "convertedLockSha256": "dfa138a55af04200af9444da0767823d3cf5e42325fd2fe352dcea163acc80bd",
+  "originalObserved": {
+    "all": 12000,
+    "renewablePercent": 72,
+    "solar": 1849,
+    "pieNonNullTotal": 28661
+  },
+  "sourcePreviewObserved": {
+    "all": 28664,
+    "renewablePercent": 67,
+    "solar": 5427,
+    "oil": 2925,
+    "nullAndOther": 39,
+    "charts": [
+      "pie",
+      "capacity-box"
+    ],
+    "darkModeState": true,
+    "oilRenewablePercent": 0
+  },
+  "backend": {
+    "jobId": "21ba905dfc21",
+    "status": "failed",
+    "durationSeconds": 73.8200245,
+    "cause": "PostgreSQL 53200: unbounded savepoints; server issue 4820",
+    "qualified": false
+  },
+  "commandReceipts": [
+    {
+      "attemptId": "1e62db2c-5dd9-4203-9655-f2dd5f42c896",
+      "stage": "powerplants-baseline-install",
+      "elapsedSeconds": 180.695,
+      "status": "timed-out",
+      "exitCode": 124,
+      "note": "Original dashboard from same pinned Esri commit, lock generated in isolated baseline copy."
+    },
+    {
+      "attemptId": "28fd9b48-a1bb-466c-9c85-e429257b5985",
+      "stage": "powerplants-conversion-build",
+      "elapsedSeconds": 17.078,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Removed unsupported boxplot mark tooltip option caught by Vega-Lite types; retained failed build."
+    },
+    {
+      "attemptId": "33f16074-b1f8-4e23-af28-6cb5ad4134c8",
+      "stage": "powerplants-conversion-build",
+      "elapsedSeconds": 11.195,
+      "status": "failed",
+      "exitCode": 2,
+      "note": "First native dashboard typecheck/build; paged source and independent grouped counts plus Vega charts."
+    },
+    {
+      "attemptId": "7c6cb63a-2edf-4900-8bc8-1bfe644972df",
+      "stage": "powerplants-baseline-install",
+      "elapsedSeconds": 181.299,
+      "status": "timed-out",
+      "exitCode": 124,
+      "note": "Retry 1 after the 180-second upstream dependency install timed out; prior attempt preserved, npm cache retained."
+    },
+    {
+      "attemptId": "9c2fb5ad-5acc-4202-bb10-14d5cca71fcd",
+      "stage": "powerplants-conversion-install",
+      "elapsedSeconds": 80.555,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Published Honua SDK, MapLibre and Vega-based charts; native conversion, no ArcGIS runtime."
+    },
+    {
+      "attemptId": "ce8364c9-7a7c-47fc-b5bd-5074dc89c47c",
+      "stage": "powerplants-baseline-build",
+      "elapsedSeconds": 25.211,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Original dashboard build after two retained install timeouts and successful third installation."
+    },
+    {
+      "attemptId": "d5f223e5-b8b1-4dee-9038-7e615102b53d",
+      "stage": "powerplants-baseline-install",
+      "elapsedSeconds": 4.706,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Retry 2 with explicit 10-minute extraction budget: registry logs show large chart dependencies fetched/cached, no install-script error; two timed-out attempts retained."
+    },
+    {
+      "attemptId": "d6aecf2c-fa3b-4873-a054-79d98d57ee59",
+      "stage": "powerplants-import-poll",
+      "elapsedSeconds": 74.462,
+      "status": "failed",
+      "exitCode": 10,
+      "note": ""
+    },
+    {
+      "attemptId": "fdc09d26-ef31-4c27-ad49-83e82d735d62",
+      "stage": "powerplants-import-apply",
+      "elapsedSeconds": 4.231,
+      "status": "passed",
+      "exitCode": 0,
+      "note": ""
+    }
+  ],
+  "limitations": [
+    "Manual CUA observations, no saved browser network trace.",
+    "Original and converted metrics differ intentionally because original is truncated and omits null-fuel records.",
+    "Source preview is not target-import proof.",
+    "Box plot quartiles, popups, export and responsive behavior not fully compared.",
+    "Model cost and token attribution unavailable.",
+    "No fresh conversion repeat or qualified snapshot restore.",
+    "Host load and dependency cache differ between attempts; timings are not controlled benchmark results."
+  ]
+}

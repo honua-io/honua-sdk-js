@@ -1,0 +1,30 @@
+{
+  "name": "honua-powerplants-conversion",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 18620 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 18620 --strictPort",
+    "check": "biome check src vite.config.ts"
+  },
+  "dependencies": {
+    "@honua/sdk-js": "0.1.9-beta.0",
+    "maplibre-gl": "6.9.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "vega-embed": "7.2.0",
+    "vega-lite": "6.4.3",
+    "vega": "6.4.0"
+  },
+  "devDependencies": {
+    "@types/geojson": "7946.0.16",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "typescript": "5.9.3",
+    "vite": "8.2.0",
+    "@biomejs/biome": "1.9.4"
+  }
+}

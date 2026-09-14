@@ -71,13 +71,18 @@ this tracked app.
 
 Current evidence: original installed/built and displayed 26 venues; original
 Santa Monica search, details/back, empty search and Coastal filtering observed.
-The standalone conversion installed and built, and displayed 26 venues with
-colored markers on the explicitly configured source-service preview. Both buffer
-dependencies are queried before the ready state. All failures remain in run-003
-receipts in the migration experiment's ignored local directory.
+The standalone conversion exercised search, category/sort state, details/back,
+popups and map selection against the explicitly configured source-service preview.
+All three local imports then completed with full-fidelity server reconciliation:
+26 venues and one dissolved polygon in each buffer layer. Independent source and
+target WGS84 queries matched every venue and buffer vertex within 1e-8 degrees.
+The production build bound to these local services displayed 26 venues and passed
+Coastal filtering and descending sorting. Both buffer dependencies are queried
+before the ready state. All failures remain in run-003 receipts in the migration
+experiment's ignored local directory.
 
-Remaining: complete browser checklist and network/interaction measurements;
-qualified import of all three layers into the patched local server; actual target
-coordinate/extent parity; target-only production browser replay; independent
-fresh conversions; snapshot capture/restore qualification. Do not infer those
-outcomes from a successful build or a source-service browser run.
+Remaining: complete target browser interaction checklist and network/interaction
+measurements; independent fresh conversions; snapshot capture/restore
+qualification. Browser automation encountered CDP timeouts during the next detail
+check; that step is not counted as passed. Do not infer complete onboarding from a
+successful build or the earlier source-service browser run.
