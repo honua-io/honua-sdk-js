@@ -101,6 +101,24 @@ section {
   max-height: 240px;
   overflow: auto;
 }
+.day-status {
+  margin: 10px 0;
+  padding: 10px;
+  border-left: 3px solid #137d8d;
+  background: #edf3f2;
+  color: #395e64;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.day-status progress {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  accent-color: #137d8d;
+}
+.refresh-day {
+  margin-bottom: 10px;
+}
 .calendar button {
   display: flex;
   flex-direction: column;

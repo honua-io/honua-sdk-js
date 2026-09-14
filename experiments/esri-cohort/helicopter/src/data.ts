@@ -125,6 +125,7 @@ export async function loadFeatures(
   query: Query,
   signal: AbortSignal,
   limit = 50_000,
+  onProgress?: (loaded: number, total: number) => void,
 ): Promise<Collection> {
   const counts = await aggregate(source, query, [], signal);
   const expected = Number(value(counts[0] ?? {}, "record_count"));
@@ -133,6 +134,8 @@ export async function loadFeatures(
       `The selection exceeds the reviewed ${limit.toLocaleString()}-record budget or has no reliable count.`,
     );
   const features: MapFeature[] = [];
+  signal.throwIfAborted();
+  onProgress?.(0, expected);
   const ids = new Set<string>();
   const primaryKey = field(source, "objectid");
   for await (const page of source.stream({
@@ -156,6 +159,8 @@ export async function loadFeatures(
       features.push({ type: "Feature", id, properties: item.attributes, geometry: geometry as Geometry | null });
       if (features.length > limit) throw new Error("The layer exceeded its reviewed query budget while paging.");
     }
+    signal.throwIfAborted();
+    onProgress?.(features.length, expected);
   }
   if (features.length !== expected)
     throw new Error(`Selected ${expected} records but received ${features.length}; refresh before using these counts.`);

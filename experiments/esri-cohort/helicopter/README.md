@@ -154,3 +154,13 @@ operation uses the SDK's explicit GeoServices surface. Published 0.1.9-beta.0
 also drops typed REST distance options; the app supplies the same distance and
 units through `extraParams` until SDK PR #1731 ships. That bridge preserves
 the requested radius on the currently installed package.
+# Date-switching follow-up
+
+Large flight days previously left the map empty until every page arrived, with
+only a loading line below the map. The calendar now shows the requested date
+and downloaded/expected record counts. Completed days are reused in memory for
+up to five minutes, bounded to three days and 100,000 total feature records;
+Refresh day discards that day's cached result. Failed or cancelled loads are
+never cached. This improves feedback and repeat navigation; it does not claim
+to fix the first-load backend latency. Four cache regression cases are added.
+The follow-up passes lint/format; its build, tests and browser checks are pending.

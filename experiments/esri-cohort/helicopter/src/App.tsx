@@ -24,6 +24,7 @@ import {
   value,
 } from "./data.js";
 import type { Attributes, Cohort, Collection, MapFeature } from "./data.js";
+import { createDayCache } from "./day-cache.mjs";
 
 const number = (input: unknown) =>
   input == null ? "—" : Number(input).toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -76,6 +77,9 @@ export function App() {
   const [complaintLoading, setComplaintLoading] = useState(false);
   const [highlightLoading, setHighlightLoading] = useState(false);
   const [retry, setRetry] = useState(0);
+  const dayCache = useRef(createDayCache<[Collection, Collection, Attributes[]]>());
+  const previousRetry = useRef(retry);
+  const [flightProgress, setFlightProgress] = useState<{ loaded: number; total: number } | null>(null);
 
   const aircraftFlights = useMemo(
     () => (aircraft ? flights.features.filter((feature) => label(feature.properties, "r") === aircraft) : []),
@@ -255,6 +259,7 @@ export function App() {
     const cancellation = new AbortController();
     const signal = AbortSignal.any([cancellation.signal, AbortSignal.timeout(120_000)]);
     setLoading(`Loading ${day} flights…`);
+    setFlightProgress(null);
     const queryStart = performance.now();
     setError("");
     setAircraft("");
@@ -262,9 +267,25 @@ export function App() {
     setFlights(EMPTY);
     setDayComplaints(EMPTY);
     setAircraftRows([]);
-    void (async () =>
-      Promise.all([
-        loadFeatures(cohort.sources.flights, dayQuery(cohort.sources.flights, "DateOfFlight", day), signal),
+    const refresh = previousRetry.current !== retry;
+    previousRetry.current = retry;
+    if (refresh) dayCache.current.delete(day);
+    void (async () => {
+      const cached = dayCache.current.get(day);
+      if (cached) return cached;
+      const result = await Promise.all([
+        loadFeatures(
+          cohort.sources.flights,
+          dayQuery(cohort.sources.flights, "DateOfFlight", day),
+          signal,
+          50_000,
+          (loaded, total) => {
+            if (!signal.aborted) {
+              setFlightProgress({ loaded, total });
+              setLoading(`Loading ${day} flights: ${number(loaded)} of ${number(total)}`);
+            }
+          },
+        ),
         loadFeatures(
           cohort.sources.complaints,
           dayQuery(cohort.sources.complaints, "Created_Date", day),
@@ -277,7 +298,13 @@ export function App() {
           ["r", "desc_", "aircraft_type"].map((name) => field(cohort.sources.flights, name)),
           signal,
         ),
-      ]))()
+      ]);
+      signal.throwIfAborted();
+      if (result[1].features.some((feature) => feature.geometry && feature.geometry.type !== "Point"))
+        throw new Error("The complaint layer must contain point geometry.");
+      dayCache.current.set(day, result, result[0].features.length + result[1].features.length);
+      return result;
+    })()
       .then(([features, noise, rows]) => {
         if (!cancellation.signal.aborted) {
           performance.measure("heli-flight-query", {
@@ -290,12 +317,14 @@ export function App() {
           setDayComplaints(noise);
           setAircraftRows(rows);
           setLoading("");
+          setFlightProgress(null);
         }
       })
       .catch((reason) => {
         if (!cancellation.signal.aborted) {
           setError(message(reason));
           setLoading("");
+          setFlightProgress(null);
         }
       });
     return () => cancellation.abort();
@@ -492,6 +521,24 @@ export function App() {
           <section>
             <h2>Explore a day</h2>
             <p className="muted">Available imported flight dates · UTC</p>
+            <div className="day-status" aria-live="polite" aria-busy={Boolean(loading)}>
+              {loading || `${day} · ${number(flights.features.length)} flight records`}
+              {loading && flightProgress && (
+                <progress
+                  aria-label={`Loading ${day} flight records`}
+                  value={flightProgress.loaded}
+                  max={Math.max(1, flightProgress.total)}
+                />
+              )}
+            </div>
+            <button
+              type="button"
+              className="refresh-day"
+              disabled={!cohort || Boolean(loading)}
+              onClick={() => setRetry((revision) => revision + 1)}
+            >
+              Refresh day
+            </button>
             <div className="calendar" aria-label="Flight calendar">
               {days.map((entry) => (
                 <button
