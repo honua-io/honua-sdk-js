@@ -26,13 +26,15 @@ layer IDs match. The optional development proxy targets only localhost:18615 and
 the explicitly listed services. Keep it local; deployment needs normal scoped
 customer authentication. The browser gets no administrator credential.
 
-The default basemap is empty, so the app does not silently depend on a licensed
-Esri basemap. The source-service preview explicitly sets `VITE_BASEMAP_STYLE` to
-`https://tiles.openfreemap.org/styles/liberty`, following the
+The default basemap is OpenFreeMap Liberty, with no account or API key required.
+Set `VITE_BASEMAP_STYLE` to override it. This follows the
 [OpenFreeMap quick start](https://openfreemap.org/quick_start/), with the style's
 OpenFreeMap/OpenMapTiles/OpenStreetMap attribution retained. This is a declared
 visual substitution, not pixel parity with Esri's topographic map. A customer can
-bind their own MapLibre style instead.
+bind their own MapLibre style instead. See the
+[sample basemap policy](../../../docs/sample-basemaps.md). The clean-install
+experiment explicitly includes the optional gRPC peers as a temporary workaround
+for SDK #1715.
 
 For **client-only diagnosis**, all three URLs can explicitly point at the original
 public service. Record this as a source-service preview. It does not establish

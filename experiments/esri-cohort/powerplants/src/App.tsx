@@ -29,14 +29,12 @@ export function App() {
   }, []);
   useEffect(() => {
     if (!container.current || !data) return;
-    const style = dark ? import.meta.env.VITE_DARK_BASEMAP_STYLE : import.meta.env.VITE_LIGHT_BASEMAP_STYLE;
+    const style = dark
+      ? import.meta.env.VITE_DARK_BASEMAP_STYLE || "https://tiles.openfreemap.org/styles/dark"
+      : import.meta.env.VITE_LIGHT_BASEMAP_STYLE || "https://tiles.openfreemap.org/styles/positron";
     const map = new maplibre.Map({
       container: container.current,
-      style: style || {
-        version: 8,
-        sources: {},
-        layers: [{ id: "background", type: "background", paint: { "background-color": dark ? "#17232e" : "#e8eff0" } }],
-      },
+      style,
       center: [12, 20],
       zoom: 1.5,
     });

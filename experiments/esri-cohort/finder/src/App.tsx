@@ -14,11 +14,6 @@ const paletteFor = (names: string[]): ExpressionSpecification => [
   ],
   "#888888",
 ];
-const EMPTY_STYLE = {
-  version: 8 as const,
-  sources: {},
-  layers: [{ id: "background", type: "background" as const, paint: { "background-color": "#e8eff0" } }],
-};
 
 export function App() {
   const container = useRef<HTMLDivElement>(null);
@@ -71,7 +66,7 @@ export function App() {
     performance.mark(timing);
     const map = new maplibre.Map({
       container: container.current,
-      style: import.meta.env.VITE_BASEMAP_STYLE || EMPTY_STYLE,
+      style: import.meta.env.VITE_BASEMAP_STYLE || "https://tiles.openfreemap.org/styles/liberty",
       ...VIEW,
     });
     mapRef.current = map;

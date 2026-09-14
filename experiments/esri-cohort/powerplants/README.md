@@ -1,6 +1,8 @@
 # Global power plants conversion
 
 Exploratory application for [SDK #1705](https://github.com/honua-io/honua-sdk-js/issues/1705).
+Original source: [Esri dashboard sample](https://github.com/Esri/jsapi-resources/tree/main/layouts/dashboard-sample).
+
 This is a standalone installed-package conversion with incomplete onboarding
 qualification. The canonical acceptance criteria remain in Specifica.
 
@@ -19,8 +21,11 @@ proxy is for the disposable experiment, not deployment authentication.
 
 `npm run dev` serves localhost:18620. Optional `VITE_LIGHT_BASEMAP_STYLE` and
 `VITE_DARK_BASEMAP_STYLE` select MapLibre styles. The explicit source-service
-preview uses OpenFreeMap liberty/dark, preserving its attribution. Without these
-bindings the basemap is empty. There is no automatic Esri operational fallback.
+preview previously used OpenFreeMap liberty/dark. The default is now OpenFreeMap
+Positron in light mode and Dark in dark mode, with attribution provided by
+MapLibre. No key or basemap environment setup is needed. Explicit style overrides
+remain available. There is no automatic Esri operational fallback. See the
+[sample basemap policy](../../../docs/sample-basemaps.md).
 
 ## Workflow and observed differences
 
