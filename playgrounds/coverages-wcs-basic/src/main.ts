@@ -1,5 +1,5 @@
 import "maplibre-gl/dist/maplibre-gl.css";
-import "../../shared/maplibre-vite-worker.js";
+import "./maplibre-vite-worker.js";
 
 import {
   type CoverageMapLibreImage,
