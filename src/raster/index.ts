@@ -38,10 +38,7 @@ import type {
 import { coverageToMapLibreImage, createCoverageClient, createWcsClient } from "../coverages/index.js";
 import type { CoverageMapLibreImage, CoverageResult } from "../coverages/index.js";
 import type { DynamicStacAssetDescriptor } from "../stac/index.js";
-import {
-  rasterDiscoveryRegistryEntry,
-  rasterSessionRegistryEntry,
-} from "./source-registry.js";
+import { rasterDiscoveryRegistryEntry, rasterSessionRegistryEntry } from "./source-registry.js";
 import type { RasterRegistryMaturity, RasterRegistryServerStatus, RasterSourceIdentity } from "./source-registry.js";
 
 export {

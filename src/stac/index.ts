@@ -6,7 +6,6 @@
  */
 
 import type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
-import { rasterDiscoveryRegistryEntry } from "../raster/source-registry.js";
 import { HonuaClient } from "../core/client.js";
 import { HonuaAbortError, HonuaCapabilityNotSupportedError, HonuaDiscoveryError } from "../core/errors.js";
 import { HonuaStacSearch } from "../core/stac.js";
@@ -21,6 +20,7 @@ import type {
   HonuaStacLandingResponse,
   StacSearchRequest,
 } from "../core/types.js";
+import { rasterDiscoveryRegistryEntry } from "../raster/source-registry.js";
 export type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
 
 export type {
