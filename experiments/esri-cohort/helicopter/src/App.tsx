@@ -73,16 +73,17 @@ export function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState("Connecting to imported helicopter data…");
   const [complaintLoading, setComplaintLoading] = useState(false);
+  const [highlightLoading, setHighlightLoading] = useState(false);
   const [retry, setRetry] = useState(0);
 
   const aircraftFlights = useMemo(
     () => (aircraft ? flights.features.filter((feature) => label(feature.properties, "r") === aircraft) : []),
     [flights, aircraft],
   );
-  const selectedFlights = useMemo(
-    () => flights.features.filter((feature) => selectedIds.includes(String(feature.id))),
-    [flights, selectedIds],
-  );
+  const selectedFlights = useMemo(() => {
+    const selected = new Set(selectedIds);
+    return flights.features.filter((feature) => selected.has(String(feature.id)));
+  }, [flights, selectedIds]);
   const selectedGeometry = useMemo(
     () => tracksGeometry(selectedFlights.length ? selectedFlights : aircraftFlights),
     [selectedFlights, aircraftFlights],
@@ -303,6 +304,11 @@ export function App() {
     const map = mapRef.current;
     if (!map?.getSource("flights")) return;
     (map.getSource("flights") as GeoJSONSource).setData(renderable(flights));
+  }, [flights]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.getSource("selected")) return;
     (map.getSource("selected") as GeoJSONSource).setData(
       renderable({
         type: "FeatureCollection",
@@ -310,7 +316,7 @@ export function App() {
       }),
     );
     map.setPaintProperty("flights", "line-opacity", aircraft ? 0.2 : 1);
-  }, [flights, selectedFlights, aircraftFlights, aircraft]);
+  }, [selectedFlights, aircraftFlights, aircraft]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -353,6 +359,11 @@ export function App() {
     const map = mapRef.current;
     if (!map?.getSource("complaints")) return;
     (map.getSource("complaints") as GeoJSONSource).setData(renderable(dayComplaints));
+  }, [dayComplaints]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.getLayer("complaints")) return;
     map.setPaintProperty(
       "complaints",
       "circle-opacity",
@@ -363,37 +374,42 @@ export function App() {
       "circle-stroke-opacity",
       highlightedIds === null ? 1 : ["case", ["in", ["to-string", ["id"]], ["literal", highlightedIds]], 1, 0.14],
     );
-  }, [dayComplaints, highlightedIds]);
+  }, [highlightedIds]);
 
   useEffect(() => {
     if (!cohort || !day) return;
     const geometry = loupe && probe ? probe : selectedGeometry;
     if (!geometry) {
       setHighlightedIds(null);
+      setHighlightLoading(false);
       return;
     }
     const cancellation = new AbortController();
+    const signal = AbortSignal.any([cancellation.signal, AbortSignal.timeout(30_000)]);
+    setHighlightLoading(true);
+    setHighlightedIds(null);
     const timer = setTimeout(
       () => {
         void (async () => {
-          const query = complaintHighlightQuery(
+          const query = await complaintHighlightQuery(
             cohort.sources.complaints,
             day,
             geometry,
             loupe && probe ? [] : selectedFlights,
+            signal,
           );
-          return matchingIds(
-            cohort.sources.complaints,
-            query,
-            AbortSignal.any([cancellation.signal, AbortSignal.timeout(30_000)]),
-          );
+          return matchingIds(cohort.sources.complaints, query, signal);
         })()
           .then((ids) => {
-            if (!cancellation.signal.aborted) setHighlightedIds(ids);
+            if (!cancellation.signal.aborted) {
+              setHighlightedIds(ids);
+              setHighlightLoading(false);
+            }
           })
           .catch((reason) => {
             if (!cancellation.signal.aborted) {
               setHighlightedIds(null);
+              setHighlightLoading(false);
               setError(message(reason));
             }
           });
@@ -576,6 +592,7 @@ export function App() {
           <output className="status">
             {loading || `${day || "Loading dates"} · ${number(flights.features.length)} flight records`}
             {complaintLoading ? " · Loading complaints…" : ""}
+            {highlightLoading ? " · Finding nearby complaints…" : ""}
           </output>
           {error && (
             <div role="alert" className="error">

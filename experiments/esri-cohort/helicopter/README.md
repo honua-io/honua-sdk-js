@@ -98,3 +98,21 @@ Selecting a whole aircraft exposes another transport gap: the buffered corridor
 is sent as a GET query and the local proxy returns HTTP 431. The chart and day
 table still render, but aircraft-to-complaint highlighting is not qualified.
 This must be fixed without dropping or simplifying the spatial constraint.
+
+### Full-population interaction findings (September 14, 2026)
+
+An isolated app bound to the complete 698,843-record service and SDK candidate
+`39ab91b8e` loaded all 33 calendar dates. January 11 displayed 1,963 records and
+the expected N945RF chart bins; selecting its first chart interval succeeded.
+February 14 loaded all 44,910 records across 12 aircraft. Selecting N945RF's
+6,974 tracks made the browser unresponsive during synchronous corridor buffering.
+
+Corridor buffering now runs in a disposable worker with cancellation and a
+30-second deadline covering both geometry computation and the complaint query.
+Changing selection terminates the old worker. The full input geometry is retained.
+Selection updates also avoid resubmitting the entire day's flights to MapLibre.
+Worker lifecycle regression tests cover completion, cancellation, stale replies,
+failure and timeout; their execution and the production build remain pending the
+shared build queue. Formatting and lint pass. Browser responsiveness and exact
+corridor-result parity still need qualification; this change does not establish
+that every large corridor finishes within the deadline.

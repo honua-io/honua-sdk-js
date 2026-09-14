@@ -4,6 +4,7 @@ import { createHonua, polygon, queryFilter } from "@honua/sdk-js";
 import type { Query, Source } from "@honua/sdk-js/contract";
 import { esriGeometryToGeoJSON } from "@honua/sdk-js/honua";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
+import { bufferInWorker } from "./buffer-worker-client.mjs";
 
 export type Attributes = Record<string, unknown>;
 export type MapFeature = Feature<Geometry | null, Attributes>;
@@ -154,7 +155,11 @@ export function halfMileAround(geometry: Geometry): {
 } {
   const buffered = buffer(geometry as GeoJsonGeometry, 0.5, "miles");
   if (!buffered) throw new Error("Unable to construct the half-mile search area.");
-  const esri = geoJsonToEsri(buffered);
+  return searchArea(buffered as Geometry);
+}
+
+function searchArea(buffered: Geometry): ReturnType<typeof halfMileAround> {
+  const esri = geoJsonToEsri(buffered as GeoJsonGeometry);
   if (!esri || !("rings" in esri)) throw new Error("The search area must be polygonal.");
   return {
     collection: {
@@ -197,12 +202,15 @@ export async function neighborhoodStats(cohort: Cohort, day: string, geometry: G
   };
 }
 
-export function complaintHighlightQuery(
+export async function complaintHighlightQuery(
   source: Source,
   day: string,
   geometry: Geometry,
   selected: MapFeature[],
-): Query {
+  signal: AbortSignal,
+): Promise<Query> {
+  const area = searchArea(await bufferInWorker(geometry, signal));
+  signal.throwIfAborted();
   const query = dayQuery(source, "Created_Date", day);
   const starts = selected.map((feature) => {
     const timestamp = value(feature.properties, "start_t");
@@ -212,7 +220,7 @@ export function complaintHighlightQuery(
   });
   return {
     ...query,
-    spatialFilter: halfMileAround(geometry).spatialFilter,
+    spatialFilter: area.spatialFilter,
     ...(starts.length && query.filter
       ? {
           filter: queryFilter.and(

@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 18626 --strictPort",
     "check": "biome check src test vite.config.ts",
-    "test": "node --test test/chart-model.test.mjs"
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@honua/sdk-js": "0.1.9-beta.0",
