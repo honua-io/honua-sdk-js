@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Studio Package Contracts (`@honua/sdk-js/studio`)"
+description: "`@honua/sdk-js/studio` is the single, browser-safe import path for the Studio"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Studio Package Contracts (`@honua/sdk-js/studio`)
 
 Status: experimental, implemented for ticket `honua-sdk-js#230`.

@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Esri Sample Migration Corpus"
+description: "This corpus is the first bounded slice for paired Esri sample app and referenced"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Esri Sample Migration Corpus
 
 This corpus is the first bounded slice for paired Esri sample app and referenced

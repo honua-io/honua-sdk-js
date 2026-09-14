@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Dynamic Query Tiles"
+description: "`src/runtime/query-tiles.ts` (issue `honua-sdk-js#152`); server contract"
+resource: "honua://capability/serve.vector-tiles"
+---
 # Dynamic Query Tiles
 
 Status: client descriptor/runtime implemented in `src/contract/tiles.ts` and

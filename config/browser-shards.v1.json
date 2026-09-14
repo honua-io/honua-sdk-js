@@ -6,7 +6,11 @@
       "id": "offline",
       "name": "Browser: offline and service worker",
       "owns": "The offline region reference, its service-worker shell generation, IndexedDB persistence, and the on-disk/static asset serving those depend on. This shard is the one whose failures are caused by generated offline evidence drifting from compiled dist, so its inputs are normalized before it runs.",
-      "specs": ["columnar-batch-cache.spec.mjs", "offline-indexeddb.spec.mjs", "pmtiles-static.spec.mjs"]
+      "specs": [
+        "columnar-batch-cache.spec.mjs",
+        "offline-indexeddb.spec.mjs",
+        "pmtiles-static.spec.mjs"
+      ]
     },
     {
       "id": "realtime",
@@ -33,8 +37,6 @@
         "cesium-scene-adapter-fixtures.spec.mjs",
         "coverages-wcs-basic.spec.mjs",
         "imagery-cog-quickstart.spec.mjs",
-        "kepler-analytics-fixture.spec.mjs",
-        "kepler-arrow-packed.spec.mjs",
         "overture-geoparquet.spec.mjs",
         "spatial-analytics-workbench.spec.mjs",
         "stac-imagery-browser.spec.mjs",

@@ -1,9 +1,16 @@
+---
+type: reference
+title: "honua admin command reference"
+description: "Every Admin REST operation reachable from the CLI, grouped by workflow, with the options and the safety rules that apply to credential-bearing requests."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+tags: [cli, admin, reference, generated]
+---
 <!-- GENERATED FILE - DO NOT EDIT. -->
 <!-- Regenerate with: npm run admin-client:generate -->
 
 # `honua admin` command reference
 
-Generated from `honua-io/honua-server@f897700159e2791c9468c6ca85bb4e2a3a8d8433` (396 REST operations).
+Generated from `honua-io/honua-server@07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a` (396 REST operations).
 
 Every operation is available through `honua admin api <operationId>`. The grouped spelling
 `honua admin <group> <operationId>` adds an intentional workflow namespace without forking

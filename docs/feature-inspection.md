@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Feature inspection"
+description: "`@honua/sdk-js/web-components` provides one inspection workflow for a map hit,"
+resource: "honua://capability/serve.ogc-api-features"
+---
 # Feature inspection
 
 `@honua/sdk-js/web-components` provides one inspection workflow for a map hit,

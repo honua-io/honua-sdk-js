@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Source capability profiles"
+description: "policy, runtime environment, optional peers, authorization, and an explicit"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Source capability profiles
 
 > **Experimental.** `@honua/sdk-js/source-capabilities` is the canonical v2

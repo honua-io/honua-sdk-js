@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix"
+description: "This is the generated, evidence-linked line between capabilities that work"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix
 
 <!-- support-manifest:standalone-matrix:start -->

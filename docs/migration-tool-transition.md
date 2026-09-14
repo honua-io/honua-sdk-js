@@ -1,3 +1,9 @@
+---
+type: guide
+title: "JavaScript migration tool transition"
+description: "The JavaScript migration engine moved to the honua-migrate repository and npm package. What changed, where the code went, and what to install instead."
+resource: "https://www.npmjs.com/package/@honua/honua-migrate"
+---
 # JavaScript migration tool transition
 
 The JavaScript migration engine and npm package now live in

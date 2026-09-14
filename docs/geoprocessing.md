@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Geoprocessing with OGC API Processes and Esri GPServer"
+description: "The SDK has two supported HTTP geoprocessing paths. OGC API Processes is the"
+resource: "honua://capability/process.geoprocessing"
+---
 # Geoprocessing with OGC API Processes and Esri GPServer
 
 The SDK has two supported HTTP geoprocessing paths. OGC API Processes is the
@@ -138,10 +144,16 @@ console.log(outputs.outputFeatureLayer);
 ```
 
 This is the same `HonuaProcessRunner` abstraction used by
-`client.ogcProcessRunner()`. MCP direct verbs such as `honua_buffer_features`
-remain the AI-native dataset-reference path; GPServer is the compatibility path
-for ArcGIS-shaped task discovery, `submitJob`, status, result, and cancellation
+`client.ogcProcessRunner()`. GPServer is the compatibility path for
+ArcGIS-shaped task discovery, `submitJob`, status, result, and cancellation
 URLs.
+
+The geospatial-mcp standard also defines a direct dataset-reference verb,
+`honua_buffer_features`, in its opt-in `analysis` conformance profile. No Honua
+surface advertises it today - not the server's `/mcp`, not
+[`@honua/mcp-server`](mcp-server.md) - so an agent should reach geoprocessing
+through `honua_plan_analysis` → `honua_validate_plan` → `honua_execute_plan` on
+a deployment's `/mcp`, or through the runner on this page over HTTP.
 
 ## Capability and failure behavior
 

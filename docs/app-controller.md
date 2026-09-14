@@ -1,3 +1,9 @@
+---
+type: reference
+title: "HonuaController Application API"
+description: "`HonuaController` is the renderer-neutral application API for common map app"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # HonuaController Application API
 
 `HonuaController` is the renderer-neutral application API for common map app

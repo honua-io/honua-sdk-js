@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Zarr, NetCDF, and HDF5 maturity boundary"
+description: "Which multidimensional formats are supported to what degree, governed by config/multidimensional-format-maturity.v1.json. Internal architecture guidance, not a support claim or a runnable workflow."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Zarr, NetCDF, and HDF5 maturity boundary
 
 This page is internal architecture and curriculum guidance. It is not a

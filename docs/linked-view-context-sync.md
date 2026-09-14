@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Linked-View Context Sync"
+description: "Coordinates maps, tables, charts and graphs so a selection or filter in one updates the others. An optional integration layer over ExplorationContext, interactions and realtime."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Linked-View Context Sync
 
 Status: optional SDK/UI integration layer for issue `#72`, building on the

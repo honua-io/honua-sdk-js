@@ -17,7 +17,7 @@ evidence are listed in the generated
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 
 The reviewed package-root ceilings are 46 runtime
-exports and 172 declaration exports. The exact inventory
+exports and 178 declaration exports. The exact inventory
 and generated migration table come from
 [`config/root-surface.json`](./config/root-surface.json). This guide tracks the
 current development branch; its package baseline can match the latest release

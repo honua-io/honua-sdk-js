@@ -1,3 +1,8 @@
+---
+type: index
+title: "Publish a Honua layer as PMTiles"
+description: "This server-side walkthrough submits a durable Honua `publish` job, reports"
+---
 # Publish a Honua layer as PMTiles
 
 This server-side walkthrough submits a durable Honua `publish` job, reports

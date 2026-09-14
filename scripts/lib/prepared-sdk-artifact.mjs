@@ -392,8 +392,18 @@ const GENERATED_BUILD_OUTPUT_ROOTS = [
   "examples/migration-workbench/src/generated",
 ];
 
+// A sample's evidence is generated output that happens to live under a build
+// input root. Counting it as an input makes the reseal self-invalidating:
+// regenerate-derived-artifacts.yml writes examples/<sample>/evidence/*.json,
+// which changes the examples/ tree, which stales the prepared SDK artifact the
+// very next step verifies - "SDK build inputs: expected <a>/2434, received
+// <b>/2434", same file count, different contents. Every scheduled run failed
+// that way from 2026-09-10 onward.
+const GENERATED_EVIDENCE_PATH = /^examples\/[^/]+\/evidence\//;
+
 function isExcludedBuildInput(relativePath) {
   if (relativePath.split("/").some((segment) => EXCLUDED_BUILD_INPUT_SEGMENTS.has(segment))) return true;
+  if (GENERATED_EVIDENCE_PATH.test(relativePath)) return true;
   return GENERATED_BUILD_OUTPUT_ROOTS.some(
     (root) => relativePath === root || relativePath.startsWith(`${root}/`),
   );

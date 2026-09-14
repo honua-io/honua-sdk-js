@@ -1,3 +1,9 @@
+---
+type: reference
+title: "ExplorationContext"
+description: "Public entrypoint: `@honua/sdk-js/exploration` (also re-exported from the"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # ExplorationContext
 
 Status: implemented in `src/exploration/` (ticket `honua-sdk-js-23`).
