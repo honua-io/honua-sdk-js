@@ -4,17 +4,21 @@ import type { Geometry, MultiLineString } from "geojson";
 import { Map as LibreMap, NavigationControl, Popup } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FlightChart } from "./FlightChart.js";
 import {
   EMPTY,
   aggregate,
-  complaintSpatialQuery,
+  complaintHighlightQuery,
   connectCohort,
   dayQuery,
   field,
+  halfMileAround,
   label,
   loadFeatures,
+  matchingIds,
   neighborhoodStats,
   nextDay,
+  renderable,
   value,
 } from "./data.js";
 import type { Attributes, Cohort, Collection, MapFeature } from "./data.js";
@@ -45,11 +49,15 @@ export function App() {
   const mapRef = useRef<LibreMap | null>(null);
   const clickRef = useRef<(id: string) => void>(() => {});
   const loupeRef = useRef<(geometry: Geometry) => void>(() => {});
+  const pointerFrame = useRef(0);
+  const pointerGeometry = useRef<Geometry | null>(null);
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [days, setDays] = useState<{ day: string; count: number }[]>([]);
   const [day, setDay] = useState("");
   const [flights, setFlights] = useState<Collection>(EMPTY);
   const [complaints, setComplaints] = useState<Collection>(EMPTY);
+  const [dayComplaints, setDayComplaints] = useState<Collection>(EMPTY);
+  const [highlightedIds, setHighlightedIds] = useState<string[] | null>(null);
   const [aircraftRows, setAircraftRows] = useState<Attributes[]>([]);
   const [aircraft, setAircraft] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -86,7 +94,13 @@ export function App() {
     }
   };
   loupeRef.current = (geometry) => {
-    if (loupe) setProbe(geometry);
+    if (!loupe) return;
+    pointerGeometry.current = geometry;
+    if (!pointerFrame.current)
+      pointerFrame.current = requestAnimationFrame(() => {
+        pointerFrame.current = 0;
+        setProbe(pointerGeometry.current);
+      });
   };
 
   useEffect(() => {
@@ -110,6 +124,15 @@ export function App() {
       setMapBounds(envelope(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth(), { wkid: 4326 }));
     };
     map.on("moveend", updateBounds);
+    map.on("mousemove", (event) =>
+      loupeRef.current({ type: "Point", coordinates: [event.lngLat.lng, event.lngLat.lat] }),
+    );
+    const clearProbe = () => {
+      cancelAnimationFrame(pointerFrame.current);
+      pointerFrame.current = 0;
+      setProbe(null);
+    };
+    map.getCanvasContainer().addEventListener("mouseleave", clearProbe);
     map.on("click", (event) => loupeRef.current({ type: "Point", coordinates: [event.lngLat.lng, event.lngLat.lat] }));
     const ready = new Promise<void>((resolve, reject) => {
       const aborted = () => reject(signal.reason);
@@ -193,7 +216,7 @@ export function App() {
           .sort((left, right) => left.day.localeCompare(right.day));
         if (!available.length) throw new Error("The imported flight selection contains no dated flights.");
         if (cancellation.signal.aborted) return;
-        (map.getSource("summary") as GeoJSONSource).setData(summary);
+        (map.getSource("summary") as GeoJSONSource).setData(renderable(summary));
         updateBounds();
         setDays(available);
         setDay(available[0].day);
@@ -208,6 +231,9 @@ export function App() {
     })();
     return () => {
       cancellation.abort();
+      cancelAnimationFrame(pointerFrame.current);
+      pointerFrame.current = 0;
+      map.getCanvasContainer().removeEventListener("mouseleave", clearProbe);
       map.remove();
       mapRef.current = null;
       if (session) void session.dispose();
@@ -219,27 +245,39 @@ export function App() {
     const cancellation = new AbortController();
     const signal = AbortSignal.any([cancellation.signal, AbortSignal.timeout(120_000)]);
     setLoading(`Loading ${day} flights…`);
+    const queryStart = performance.now();
     setError("");
     setAircraft("");
     setSelectedIds([]);
     setFlights(EMPTY);
+    setDayComplaints(EMPTY);
     setAircraftRows([]);
-    void Promise.all([
-      loadFeatures(cohort.sources.flights, dayQuery(cohort.sources.flights, "DateOfFlight", day), signal),
-      aggregate(
-        cohort.sources.flights,
-        dayQuery(cohort.sources.flights, "DateOfFlight", day),
-        ["r", "desc_", "aircraft_type"].map((name) => field(cohort.sources.flights, name)),
-        signal,
-      ),
-    ])
-      .then(([features, rows]) => {
+    void (async () =>
+      Promise.all([
+        loadFeatures(cohort.sources.flights, dayQuery(cohort.sources.flights, "DateOfFlight", day), signal),
+        loadFeatures(
+          cohort.sources.complaints,
+          dayQuery(cohort.sources.complaints, "Created_Date", day),
+          signal,
+          30_000,
+        ),
+        aggregate(
+          cohort.sources.flights,
+          dayQuery(cohort.sources.flights, "DateOfFlight", day),
+          ["r", "desc_", "aircraft_type"].map((name) => field(cohort.sources.flights, name)),
+          signal,
+        ),
+      ]))()
+      .then(([features, noise, rows]) => {
         if (!cancellation.signal.aborted) {
           performance.measure("heli-flight-query", {
             start: queryStart,
             detail: { day, retry, rows: features.features.length },
           });
+          if (noise.features.some((feature) => feature.geometry && feature.geometry.type !== "Point"))
+            throw new Error("The complaint layer must contain point geometry.");
           setFlights(features);
+          setDayComplaints(noise);
           setAircraftRows(rows);
           setLoading("");
         }
@@ -256,11 +294,13 @@ export function App() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.getSource("flights")) return;
-    (map.getSource("flights") as GeoJSONSource).setData(flights);
-    (map.getSource("selected") as GeoJSONSource).setData({
-      type: "FeatureCollection",
-      features: selectedFlights.length ? selectedFlights : aircraftFlights,
-    });
+    (map.getSource("flights") as GeoJSONSource).setData(renderable(flights));
+    (map.getSource("selected") as GeoJSONSource).setData(
+      renderable({
+        type: "FeatureCollection",
+        features: selectedFlights.length ? selectedFlights : aircraftFlights,
+      }),
+    );
     map.setPaintProperty("flights", "line-opacity", aircraft ? 0.15 : 0.65);
   }, [flights, selectedFlights, aircraftFlights, aircraft]);
 
@@ -272,23 +312,16 @@ export function App() {
     const queryStart = performance.now();
     setComplaintLoading(true);
     setComplaints(EMPTY);
-    (map.getSource("complaints") as GeoJSONSource).setData(EMPTY);
-    void (async () => {
-      const spatial = complaintSpatialQuery(selectedGeometry, extentOnly ? mapBounds : undefined);
-      if (spatial === null) return EMPTY;
-      const features = await loadFeatures(
+    void (async () =>
+      loadFeatures(
         cohort.sources.complaints,
         {
           ...dayQuery(cohort.sources.complaints, "Created_Date", day),
-          ...spatial,
+          ...(extentOnly && mapBounds ? { spatialFilter: mapBounds } : {}),
         },
         signal,
         30_000,
-      );
-      if (features.features.some((feature) => feature.geometry && feature.geometry.type !== "Point"))
-        throw new Error("The complaint layer must contain points for the combined viewport/corridor filter.");
-      return features;
-    })()
+      ))()
       .then((features) => {
         if (!cancellation.signal.aborted) {
           performance.measure("heli-complaint-query", {
@@ -296,7 +329,6 @@ export function App() {
             detail: { day, retry, rows: features.features.length, extentOnly },
           });
           setComplaints(features);
-          (map.getSource("complaints") as GeoJSONSource).setData(features);
           setComplaintLoading(false);
         }
       })
@@ -307,7 +339,64 @@ export function App() {
         }
       });
     return () => cancellation.abort();
-  }, [cohort, day, extentOnly, mapBounds, selectedGeometry, retry]);
+  }, [cohort, day, extentOnly, mapBounds, retry]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.getSource("complaints")) return;
+    (map.getSource("complaints") as GeoJSONSource).setData(renderable(dayComplaints));
+    map.setPaintProperty(
+      "complaints",
+      "circle-opacity",
+      highlightedIds === null ? 1 : ["case", ["in", ["to-string", ["id"]], ["literal", highlightedIds]], 1, 0.14],
+    );
+    map.setPaintProperty(
+      "complaints",
+      "circle-stroke-opacity",
+      highlightedIds === null ? 1 : ["case", ["in", ["to-string", ["id"]], ["literal", highlightedIds]], 1, 0.14],
+    );
+  }, [dayComplaints, highlightedIds]);
+
+  useEffect(() => {
+    if (!cohort || !day) return;
+    const geometry = loupe && probe ? probe : selectedGeometry;
+    if (!geometry) {
+      setHighlightedIds(null);
+      return;
+    }
+    const cancellation = new AbortController();
+    const timer = setTimeout(
+      () => {
+        void (async () => {
+          const query = complaintHighlightQuery(
+            cohort.sources.complaints,
+            day,
+            geometry,
+            loupe && probe ? [] : selectedFlights,
+          );
+          return matchingIds(
+            cohort.sources.complaints,
+            query,
+            AbortSignal.any([cancellation.signal, AbortSignal.timeout(30_000)]),
+          );
+        })()
+          .then((ids) => {
+            if (!cancellation.signal.aborted) setHighlightedIds(ids);
+          })
+          .catch((reason) => {
+            if (!cancellation.signal.aborted) {
+              setHighlightedIds(null);
+              setError(message(reason));
+            }
+          });
+      },
+      loupe ? 180 : 0,
+    );
+    return () => {
+      clearTimeout(timer);
+      cancellation.abort();
+    };
+  }, [cohort, day, selectedGeometry, selectedFlights, loupe, probe]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -331,17 +420,23 @@ export function App() {
     }
     const cancellation = new AbortController();
     setStats(null);
-    void neighborhoodStats(cohort, day, probe, AbortSignal.any([cancellation.signal, AbortSignal.timeout(30_000)]))
-      .then((result) => {
-        if (!cancellation.signal.aborted) {
-          setStats(result);
-          (map.getSource("area") as GeoJSONSource).setData(result.area);
-        }
-      })
-      .catch((reason) => {
-        if (!cancellation.signal.aborted) setError(message(reason));
-      });
-    return () => cancellation.abort();
+    (map.getSource("area") as GeoJSONSource).setData(renderable(halfMileAround(probe).collection));
+    const timer = setTimeout(() => {
+      void neighborhoodStats(cohort, day, probe, AbortSignal.any([cancellation.signal, AbortSignal.timeout(30_000)]))
+        .then((result) => {
+          if (!cancellation.signal.aborted) {
+            setStats(result);
+            (map.getSource("area") as GeoJSONSource).setData(renderable(result.area));
+          }
+        })
+        .catch((reason) => {
+          if (!cancellation.signal.aborted) setError(message(reason));
+        });
+    }, 180);
+    return () => {
+      clearTimeout(timer);
+      cancellation.abort();
+    };
   }, [cohort, day, loupe, probe]);
 
   return (
@@ -446,7 +541,9 @@ export function App() {
             </label>
             {loupe && (
               <>
-                <p className="muted">Click the map to inspect the surrounding census tracts.</p>
+                <p className="muted">
+                  Move across the map and pause for statistics. Click also works on touch screens.
+                </p>
                 <dl>
                   <dt>Population</dt>
                   <dd>{number(stats?.population)}</dd>
@@ -481,31 +578,38 @@ export function App() {
               <h2>
                 {aircraft} flight timeline <small>UTC</small>
               </h2>
-              <p className="muted">Select tracks to inspect complaints within half a mile. Select again to clear.</p>
-              <div className="timeline-tracks">
-                {aircraftFlights
-                  .slice()
-                  .sort(
-                    (left, right) =>
-                      Number(value(left.properties, "start_t")) - Number(value(right.properties, "start_t")),
-                  )
-                  .map((feature) => (
-                    <button
-                      type="button"
-                      key={feature.id}
-                      aria-pressed={selectedIds.includes(String(feature.id))}
-                      onClick={() =>
-                        setSelectedIds((ids) =>
-                          ids.includes(String(feature.id))
-                            ? ids.filter((id) => id !== String(feature.id))
-                            : [...ids, String(feature.id)],
-                        )
-                      }
-                    >
-                      {time(value(feature.properties, "start_t"))}–{time(value(feature.properties, "end_t"))}
-                    </button>
-                  ))}
-              </div>
+              <p className="muted">
+                Select tracks to highlight complaints within half a mile and the selected start-time range. The table
+                keeps its day and viewport filters.
+              </p>
+              <FlightChart features={aircraftFlights} selected={selectedIds} onSelect={setSelectedIds} />
+              <details>
+                <summary>Individual flight records ({aircraftFlights.length})</summary>
+                <div className="timeline-tracks">
+                  {aircraftFlights
+                    .slice()
+                    .sort(
+                      (left, right) =>
+                        Number(value(left.properties, "start_t")) - Number(value(right.properties, "start_t")),
+                    )
+                    .map((feature) => (
+                      <button
+                        type="button"
+                        key={feature.id}
+                        aria-pressed={selectedIds.includes(String(feature.id))}
+                        onClick={() =>
+                          setSelectedIds((ids) =>
+                            ids.includes(String(feature.id))
+                              ? ids.filter((id) => id !== String(feature.id))
+                              : [...ids, String(feature.id)],
+                          )
+                        }
+                      >
+                        {time(value(feature.properties, "start_t"))}–{time(value(feature.properties, "end_t"))}
+                      </button>
+                    ))}
+                </div>
+              </details>
             </section>
           )}
           <section className="complaints">

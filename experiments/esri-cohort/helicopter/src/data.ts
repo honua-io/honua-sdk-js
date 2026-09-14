@@ -1,4 +1,4 @@
-import { buffer, geoJsonToEsri, intersect } from "@honua/geometry";
+import { buffer, geoJsonToEsri } from "@honua/geometry";
 import type { GeoJsonGeometry } from "@honua/geometry";
 import { createHonua, polygon, queryFilter } from "@honua/sdk-js";
 import type { Query, Source } from "@honua/sdk-js/contract";
@@ -9,13 +9,23 @@ export type Attributes = Record<string, unknown>;
 export type MapFeature = Feature<Geometry | null, Attributes>;
 export type Collection = FeatureCollection<Geometry | null, Attributes>;
 export type LayerName = "flights" | "complaints" | "census" | "summary";
-export const EMPTY: Collection = { type: "FeatureCollection", features: [] };
+export const EMPTY: FeatureCollection<Geometry, Attributes> = { type: "FeatureCollection", features: [] };
+// Keep geometry-less rows in counts, selections and tables; only the renderer
+// requires features with geometry.
+export function renderable(collection: Collection): FeatureCollection<Geometry, Attributes> {
+  return {
+    type: "FeatureCollection",
+    features: collection.features.filter(
+      (feature): feature is Feature<Geometry, Attributes> => feature.geometry !== null,
+    ),
+  };
+}
 export const value = (row: Attributes, key: string): unknown =>
   Object.entries(row).find(([name]) => name.toLowerCase() === key.toLowerCase())?.[1];
 export const label = (row: Attributes, key: string): string => String(value(row, key) ?? "");
 
 export function field(source: Source, key: string): string {
-  const name = source.descriptor.schema?.fields.find(
+  const name = source.descriptor.schema?.fields?.find(
     (candidate) => candidate.name.toLowerCase() === key.toLowerCase(),
   )?.name;
   if (!name) throw new Error(`The ${source.descriptor.id} layer is missing ${key}.`);
@@ -187,19 +197,42 @@ export async function neighborhoodStats(cohort: Cohort, day: string, geometry: G
   };
 }
 
-/** GeoServices has one spatial operand. For complaint points, intersecting the
- * corridor and viewport polygons preserves both predicates exactly. Null means
- * the two search areas are disjoint, so no complaint point can satisfy them. */
-export function complaintSpatialQuery(tracks: Geometry | null, extent?: Query["spatialFilter"]): Query | null {
-  if (!tracks) return extent ? { spatialFilter: extent } : {};
-  const corridor = halfMileAround(tracks);
-  if (!extent) return { spatialFilter: corridor.spatialFilter };
-  const viewport = esriGeometryToGeoJSON(extent.geometry);
-  const searchArea = corridor.collection.features[0]?.geometry;
-  if (!viewport || !searchArea) throw new Error("A valid viewport and flight corridor are required.");
-  const overlap = intersect(searchArea as GeoJsonGeometry, viewport);
-  if (!overlap) return null;
-  const esri = geoJsonToEsri(overlap);
-  if (!esri || !("rings" in esri)) throw new Error("The complaint search area must be polygonal.");
-  return { spatialFilter: polygon(esri.rings, { wkid: 4326 }) };
+export function complaintHighlightQuery(
+  source: Source,
+  day: string,
+  geometry: Geometry,
+  selected: MapFeature[],
+): Query {
+  const query = dayQuery(source, "Created_Date", day);
+  const starts = selected.map((feature) => {
+    const timestamp = value(feature.properties, "start_t");
+    const milliseconds = typeof timestamp === "number" ? timestamp : Date.parse(String(timestamp));
+    if (!Number.isFinite(milliseconds)) throw new Error("Selected flight records must have valid start times.");
+    return milliseconds;
+  });
+  return {
+    ...query,
+    spatialFilter: halfMileAround(geometry).spatialFilter,
+    ...(starts.length && query.filter
+      ? {
+          filter: queryFilter.and(
+            query.filter,
+            queryFilter.gte(field(source, "Created_Date"), new Date(Math.min(...starts)).toISOString()),
+            queryFilter.lte(field(source, "Created_Date"), new Date(Math.max(...starts)).toISOString()),
+          ),
+        }
+      : {}),
+  };
+}
+
+export async function matchingIds(source: Source, query: Query, signal: AbortSignal): Promise<string[]> {
+  const [counts, ids] = await Promise.all([
+    aggregate(source, query, [], signal),
+    source.queryObjectIds({ ...query, signal }),
+  ]);
+  const expected = Number(value(counts[0] ?? {}, "record_count"));
+  const normalized = ids.map(String);
+  if (!Number.isSafeInteger(expected) || normalized.length !== expected || new Set(normalized).size !== expected)
+    throw new Error("Complaint highlight identities do not match the server count.");
+  return normalized;
 }

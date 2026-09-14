@@ -226,6 +226,63 @@ section > small {
   max-height: 120px;
   overflow: auto;
 }
+.timeline summary {
+  cursor: pointer;
+  font-size: 12px;
+  padding: 10px 0;
+}
+.flight-chart {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  padding: 12px 8px 0 0;
+}
+.chart-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 0;
+  font-size: 11px;
+  color: #65717a;
+}
+.chart-plot {
+  position: relative;
+  height: 150px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.chart-plot svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.chart-point {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid white;
+  background: #1ea87c;
+}
+.chart-point[aria-pressed="true"] {
+  background: #ef991c;
+  border-color: #7d4b04;
+  box-shadow: 0 0 0 2px #ffe1b5;
+}
+.chart-time-axis {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #65717a;
+}
+.flight-chart > p {
+  grid-column: 1 / -1;
+}
 .timeline-tracks button {
   font-size: 11px;
   padding: 5px 8px;
