@@ -1,0 +1,97 @@
+{
+  "runId": "run-003",
+  "recordedAt": "2026-09-14T00:59:27.423898+00:00",
+  "sourcePin": "e9d4aa0d42c1f84ba29d6780188bb94a8a34bc0c",
+  "backendMode": "source-service-preview-only",
+  "conversionComplete": false,
+  "backendMigrationVerified": false,
+  "originalLockSha256": "c9e46724fb8315ebd5af4c670133b54ff93aea5fafb4990791eb3845138ca87a",
+  "observedOriginal": [
+    "26 venues",
+    "Santa Monica search: 1",
+    "empty search: 0",
+    "Coastal: 2",
+    "Santa Monica details and zoom",
+    "back retains search",
+    "source labels projected numbers as latitude/longitude",
+    "Coastal descending: Santa Monica before Riviera",
+    "legend includes venues, two-mile and five-mile buffers"
+  ],
+  "observedConverted": [
+    "26 venues and visible map markers",
+    "Santa Monica search: 1",
+    "details and zoom with WGS84 34.01177,-118.49865",
+    "back retains search",
+    "Coastal: 2",
+    "descending: Santa Monica before Riviera",
+    "category/sort retained on back",
+    "empty search: 0 with visible empty state",
+    "map click opens Riviera Country Club details and popup",
+    "stable ID promotion fixes grey selected marker: selected Santa Monica visibly pink",
+    "legend exposes both buffer dependencies"
+  ],
+  "openFindings": [
+    "target imports unavailable while Docker engine times out",
+    "target-only production replay and network/interaction trace pending",
+    "build budget not frozen before this exploratory attempt",
+    "brief slow reload and browser-control timeouts observed; no app console error captured; loading now has timeout and per-dependency progress"
+  ],
+  "installedAppLockSha256": "5ed2f571667ad3d1de3ddf3e0902e051ca6341cc30ce9464bda7d5e6fcf2f554",
+  "commandMetrics": [
+    {
+      "attemptId": "62013317-799c-4b46-967a-d98486f5f14b",
+      "stage": "finder-baseline-install",
+      "elapsedSeconds": 164.606,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Pinned original Esri finder source; initial dependency resolution creates the missing upstream lockfile."
+    },
+    {
+      "attemptId": "76664f2d-5fc3-4cfd-9330-a3f28e264fda",
+      "stage": "finder-baseline-build",
+      "elapsedSeconds": 16.417,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Build original pinned Esri finder with resolved upstream dependencies."
+    },
+    {
+      "attemptId": "3cec2ad6-6b9d-433f-a62e-2dbd13858b2d",
+      "stage": "finder-conversion-install",
+      "elapsedSeconds": 53.306,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Standalone converted app, exact published SDK 0.1.9-beta.0 and MapLibre 6.9.0, no aliases."
+    },
+    {
+      "attemptId": "13957531-4567-41ce-b502-de0f9f7b5270",
+      "stage": "finder-conversion-build",
+      "elapsedSeconds": 9.763,
+      "status": "failed",
+      "exitCode": 2,
+      "note": "First standalone converted app build; no operational services fetched at build time."
+    },
+    {
+      "attemptId": "90084a1d-049a-4708-81ca-ba2279894033",
+      "stage": "finder-conversion-build",
+      "elapsedSeconds": 15.366,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Fixed agent-authored dynamic MapLibre expression typing; original failed build receipt retained."
+    },
+    {
+      "attemptId": "f80507a2-35bd-4dd2-9491-ef686fa25a16",
+      "stage": "finder-conversion-build",
+      "elapsedSeconds": 13.572,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Explicit stable feature IDs; accessible controls; bounded load with dependency progress; previous failures preserved."
+    }
+  ],
+  "measurementLimits": [
+    "Browser steps are manual CUA observations, not a saved automation trace.",
+    "Original build succeeded but recorder process then failed printing Unicode. Receipt preserved and recorder fixed with regression coverage.",
+    "Root install/build/check and final app lint/build additionally ran outside the recorder; durations unavailable.",
+    "Model cost and token attribution for this attempt unavailable.",
+    "Bundle warning retained: main client chunk about 518 kB gzip plus worker and lazy chunks."
+  ]
+}
