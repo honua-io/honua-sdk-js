@@ -16,7 +16,7 @@ Use `npm ci` with the committed lockfile for repeat runs.
 `npm run dev` listens on `http://127.0.0.1:18626`.
 Bind these four spatial resources to the corresponding import receipt:
 
-- `VITE_FLIGHTS_URL`: flight tracks (the current disposable import covers January 11, 2026 only).
+- `VITE_FLIGHTS_URL`: flight tracks. The original UI binding covers January 11, 2026; the full cached import is now published separately as described below.
 - `VITE_COMPLAINTS_URL`: individual NYC 311 noise complaints.
 - `VITE_CENSUS_URL`: census population/income polygons.
 - `VITE_SUMMARY_URL`: complaint-summary census tract polygons.
@@ -27,6 +27,16 @@ paths. Set `HONUA_ALLOWED_SERVICES` to their comma-separated service names,
 the server process environment. Never put credentials in `VITE_*` variables.
 The Vite proxy forwards only the explicitly configured service prefixes.
 `VITE_BASEMAP_STYLE` overrides the default OpenFreeMap Positron style.
+
+The full flight import is now available on the disposable candidate at
+`/rest/services/onboarding-heli-flights-full-004/FeatureServer/12`, backend port
+18631. Publication reused the retained 698,843-row table and completed in 305.2
+seconds. Public readback matches the full count and the January 11 count of 1,963,
+advertises Z coordinates and EPSG:4326, and returns three-coordinate vertices.
+The captured service renderer was restored through the admin drawing-info API
+and matches public metadata exactly. These checks establish publication recovery;
+the existing UI has not yet been rebound or browser-qualified against the full
+population. Keep the original binding available until that comparison is complete.
 
 ## Workflows written; validation pending
 
