@@ -58,8 +58,9 @@ The source N945RF chart on January 11, 2026 displays counts
 48 of its 734 records from the trailing interval. Its count aggregation displays
 zeroes despite the saved `nullPolicy: "null"`, so the conversion follows the
 observed count chart. `npm test` checks binning boundaries and identity accounting.
-Build/browser evidence and repeat-run timings remain pending. Keep these gaps
-open when reporting cohort completion.
+App formatting, all four chart tests and the TypeScript/Vite production build
+pass. Browser interaction qualification and repeat-run timings remain pending.
+Keep these gaps open when reporting cohort completion.
 
 The first local browser run reached the free basemap and imported services but
 stopped at calendar initialization: the backend's grouped date query returned
