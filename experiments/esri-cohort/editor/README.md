@@ -41,7 +41,13 @@ mutation was submitted. The initial converted build failed because query results
 do not expose the edit session's top-level `id`; the explicit key mapping fixed
 it. The next build passed in 6.377 seconds. Install took 39.308 seconds.
 
-Backend plans are prepared but have not been applied. CRUD persistence, geometry
+All three backend plans were applied: hazards 4,246 rows (layer 6), roads 35
+(layer 7), areas 49 (layer 8). All terminate NeedsReview. Target metadata omits
+feature types and templates and advertises Query only; hazards and areas lose
+attachment capability, and hazards loses the GlobalID binding. Reconciliation
+also needs source-aware geometry diagnosis: roads have seven null geometries on
+both source and target. These gaps are tracked in server #4824, #4825 and #4826.
+CRUD persistence, geometry
 reshape, cancel/undo, invalid domains, attachments, keyboard interaction and
 browser behavior are **unverified**. The UI supports one selected feature at a
 time; the original's multi-selection tools remain a parity gap. Original symbol

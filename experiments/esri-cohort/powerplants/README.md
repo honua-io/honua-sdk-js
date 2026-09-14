@@ -63,7 +63,18 @@ of the sample-code license before publishing data or captures.
 
 The first local service import failed with PostgreSQL lock exhaustion before
 publishing rows; [server #4820](https://github.com/honua-io/honua-server/issues/4820)
-tracks the savepoint-lifetime defect. A working source preview is not import proof.
-Remaining: successful backend import and independent reconciliation, target-only
+tracks the savepoint-lifetime defect. With server fix `93d75f2eb`, retry job
+`03efb4bced28` completed in 52.100 seconds: all 28,664 features, zero failures,
+and passing catalog/data reconciliation. Independent comparison of every natural
+key and non-OID attribute found no differences; maximum coordinate delta was
+4.80e-9 degrees. Target: `onboarding-powerplants-003b`, layer 5. This used a new
+resource in the retained disposable database; it was not a snapshot-restore run.
+Remaining: target-only
 production browser replay, complete popup/chart interactions, measured network
 and response budgets, fresh conversion repeats and qualified snapshot restore.
+
+Target production browser replay observed total/Solar/Oil metrics, both charts, dark
+mode, the Yigo CT popup and About content. A clean reinstall exposed optional gRPC
+peer resolution (SDK #1715); the app now declares those three peers explicitly.
+The rebuilt main chunk is 818.15 kB gzip. Earlier builds inherited dependencies
+from the surrounding worktree and do not prove isolated clean installation.

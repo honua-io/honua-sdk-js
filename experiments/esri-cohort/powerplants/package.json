@@ -10,21 +10,24 @@
     "check": "biome check src vite.config.ts"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "2.15.0",
+    "@connectrpc/connect": "2.2.0",
+    "@connectrpc/connect-web": "2.2.0",
     "@honua/sdk-js": "0.1.9-beta.0",
     "maplibre-gl": "6.9.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "vega": "6.4.0",
     "vega-embed": "7.2.0",
-    "vega-lite": "6.4.3",
-    "vega": "6.4.0"
+    "vega-lite": "6.4.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "@types/geojson": "7946.0.16",
     "@types/node": "24.13.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "typescript": "5.9.3",
-    "vite": "8.2.0",
-    "@biomejs/biome": "1.9.4"
+    "vite": "8.2.0"
   }
 }

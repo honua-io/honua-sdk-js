@@ -56,5 +56,38 @@
     "Model tokens/cost attribution unavailable",
     "Final build and checks additionally ran outside command recorder",
     "No browser trace or controlled performance comparison"
+  ],
+  "backendAttempts": [
+    {
+      "resource": "hazards",
+      "jobId": "1bfee32b3c80",
+      "layerId": 6,
+      "featureCount": 4246,
+      "status": "needs-review"
+    },
+    {
+      "resource": "roads",
+      "jobId": "954bb9f86b08",
+      "layerId": 7,
+      "featureCount": 35,
+      "status": "needs-review"
+    },
+    {
+      "resource": "areas",
+      "jobId": "526315e4f94e",
+      "layerId": 8,
+      "featureCount": 49,
+      "status": "needs-review"
+    }
+  ],
+  "backendFindings": [
+    "All target resources omit typeIdField/types and advertise Query only.",
+    "Hazards and areas publish hasAttachments=false; hazards loses the GlobalID binding.",
+    "All counts reconcile, but extent/geometry reports require diagnosis. Roads source and target each have seven null geometries."
+  ],
+  "issues": [
+    "https://github.com/honua-io/honua-server/issues/4824",
+    "https://github.com/honua-io/honua-server/issues/4825",
+    "https://github.com/honua-io/honua-server/issues/4826"
   ]
 }
