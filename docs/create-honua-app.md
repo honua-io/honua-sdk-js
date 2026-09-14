@@ -29,8 +29,8 @@ The starter package lives in this repository at `packages/create-honua-app`.
 Both templates pin **MapLibre GL JS 6.1.0**, the current major, and `npm run create-app:verify` fails if a template
 ever pins a major the SDK does not support. A scaffolded app installs `@honua/sdk-js` **from the registry**, so this
 pin could only move once a published release carried the widened `^5.0.0 || ^6.0.0` peer range (#1004);
-`@honua/sdk-js@0.1.4-beta.0` is that release, and `npm install` resolves the pair with no `overrides` and no
-`--legacy-peer-deps`. MapLibre 5 remains supported by the SDK for apps that have not migrated. Because MapLibre 6 is
+`@honua/sdk-js@0.1.4-beta.0` was the first release to carry it, so anything from that version onward
+(`latest` is `0.1.9-beta.0`) resolves the pair with no `overrides` and no `--legacy-peer-deps`. MapLibre 5 remains supported by the SDK for apps that have not migrated. Because MapLibre 6 is
 ESM-only and loads its worker as a separate module, each starter ships `src/maplibre-worker.ts` and imports it before
 the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
 
