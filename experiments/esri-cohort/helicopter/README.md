@@ -123,3 +123,12 @@ window, then recovered; clearing the selection took 5.75 seconds in the browser
 tool. The collapsed individual-record list was still rendering and formatting
 all 6,974 rows. It now renders only when expanded, presents all rows in pages of
 200, and reuses date formatters. This follow-up awaits browser and build checks.
+
+Corridor failures now have separate error state: changing or clearing the
+selection clears that failure while retaining unrelated map/data errors. Retry
+also restarts the corridor search. Performance entries `heli-complaint-buffer`
+and `heli-complaint-highlight` record completion or failure; failed searches
+identify whether geometry processing or the server query was active. These
+measurements support repeated onboarding runs without claiming that the
+full-aircraft timeout is resolved. Formatting/lint pass; browser verification
+of this follow-up remains pending.

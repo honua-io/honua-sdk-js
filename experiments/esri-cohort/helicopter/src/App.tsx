@@ -71,6 +71,7 @@ export function App() {
   const [probe, setProbe] = useState<Geometry | null>(null);
   const [stats, setStats] = useState<Awaited<ReturnType<typeof neighborhoodStats>> | null>(null);
   const [error, setError] = useState("");
+  const [highlightError, setHighlightError] = useState("");
   const [loading, setLoading] = useState("Connecting to imported helicopter data…");
   const [complaintLoading, setComplaintLoading] = useState(false);
   const [highlightLoading, setHighlightLoading] = useState(false);
@@ -377,6 +378,7 @@ export function App() {
   }, [highlightedIds]);
 
   useEffect(() => {
+    setHighlightError("");
     if (!cohort || !day) return;
     const geometry = loupe && probe ? probe : selectedGeometry;
     if (!geometry) {
@@ -386,6 +388,8 @@ export function App() {
     }
     const cancellation = new AbortController();
     const signal = AbortSignal.any([cancellation.signal, AbortSignal.timeout(30_000)]);
+    const highlightStart = performance.now();
+    let highlightStage: "geometry" | "query" = "geometry";
     setHighlightLoading(true);
     setHighlightedIds(null);
     const timer = setTimeout(
@@ -398,19 +402,29 @@ export function App() {
             loupe && probe ? [] : selectedFlights,
             signal,
           );
+          performance.measure("heli-complaint-buffer", { start: highlightStart, detail: { day, retry } });
+          highlightStage = "query";
           return matchingIds(cohort.sources.complaints, query, signal);
         })()
           .then((ids) => {
             if (!cancellation.signal.aborted) {
+              performance.measure("heli-complaint-highlight", {
+                start: highlightStart,
+                detail: { day, retry, outcome: "success", matches: ids.length },
+              });
               setHighlightedIds(ids);
               setHighlightLoading(false);
             }
           })
           .catch((reason) => {
             if (!cancellation.signal.aborted) {
+              performance.measure("heli-complaint-highlight", {
+                start: highlightStart,
+                detail: { day, retry, outcome: signal.aborted ? "timeout" : "error", stage: highlightStage },
+              });
               setHighlightedIds(null);
               setHighlightLoading(false);
-              setError(message(reason));
+              setHighlightError(message(reason));
             }
           });
       },
@@ -420,7 +434,7 @@ export function App() {
       clearTimeout(timer);
       cancellation.abort();
     };
-  }, [cohort, day, selectedGeometry, selectedFlights, loupe, probe]);
+  }, [cohort, day, selectedGeometry, selectedFlights, loupe, probe, retry]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -594,9 +608,10 @@ export function App() {
             {complaintLoading ? " · Loading complaints…" : ""}
             {highlightLoading ? " · Finding nearby complaints…" : ""}
           </output>
-          {error && (
+          {(error || highlightError) && (
             <div role="alert" className="error">
-              {error}
+              {error && <p>{error}</p>}
+              {highlightError && <p>Nearby complaints: {highlightError}</p>}
               <button type="button" onClick={() => (cohort ? setRetry((revision) => revision + 1) : location.reload())}>
                 Retry queries
               </button>
