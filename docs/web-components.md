@@ -306,7 +306,7 @@ Props that are element properties (`map`, `unit`, `precision`, `planarCrs`, …)
 are assigned as properties, and `onhonua-measure-change` becomes an event
 listener. For typed JSX, declare the tag once in your app:
 
-```ts
+```ts doc-test=skip reason="module augmentation belongs in a React application's own declaration file"
 import type { HonuaMeasureChangeDetail, HonuaMeasurementElement } from "@honua/app-platform/web-components";
 
 declare module "react" {

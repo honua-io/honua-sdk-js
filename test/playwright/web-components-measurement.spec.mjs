@@ -33,26 +33,30 @@ async function openDemo(page, server) {
     .toBe(true);
 }
 
+/**
+ * Two points inside the live map canvas, as positions relative to it.
+ * Locator actions (unlike raw `page.mouse` coordinates) scroll the canvas into
+ * view and fail loudly if another element would receive the pointer instead.
+ */
 async function canvasPoints(page) {
-  const box = await page.locator("honua-map canvas").first().boundingBox();
+  const canvas = page.locator("honua-map .maplibregl-canvas").first();
+  await canvas.scrollIntoViewIfNeeded();
+  const box = await canvas.boundingBox();
   if (!box) throw new Error("map canvas has no layout box");
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
+  const cx = box.width / 2;
+  const cy = box.height / 2;
   return {
-    box,
-    first: { x: cx - box.width / 5, y: cy },
-    second: { x: cx + box.width / 5, y: cy + box.height / 8 },
+    canvas,
+    first: { x: Math.round(cx - box.width / 5), y: Math.round(cy) },
+    second: { x: Math.round(cx + box.width / 5), y: Math.round(cy + box.height / 8) },
   };
 }
 
-async function unproject(page, box, point) {
-  return page.evaluate(
-    ({ x, y }) => {
-      const lngLat = document.querySelector("honua-map").map.unproject([x, y]);
-      return [lngLat.lng, lngLat.lat];
-    },
-    { x: point.x - box.x, y: point.y - box.y },
-  );
+async function unproject(page, point) {
+  return page.evaluate(({ x, y }) => {
+    const lngLat = document.querySelector("honua-map").map.unproject([x, y]);
+    return [lngLat.lng, lngLat.lat];
+  }, point);
 }
 
 test("touch taps measure a geodesic distance and Finish completes it", async ({ browser }) => {
@@ -65,15 +69,15 @@ test("touch taps measure a geodesic distance and Finish completes it", async ({ 
     await measurement.getByRole("button", { name: "Distance" }).tap();
     await expect(measurement.getByRole("button", { name: "Distance" })).toHaveAttribute("aria-pressed", "true");
 
-    const { box, first, second } = await canvasPoints(page);
-    await page.touchscreen.tap(first.x, first.y);
-    await page.touchscreen.tap(second.x, second.y);
+    const { canvas, first, second } = await canvasPoints(page);
+    await canvas.tap({ position: first });
+    await canvas.tap({ position: second });
     await expect.poll(async () => page.evaluate(() => document.querySelector("honua-measurement").vertices.length)).toBe(2);
 
     const [a, b] = await page.evaluate(() => document.querySelector("honua-measurement").vertices.map((v) => [...v]));
     // The recorded vertices are the tapped pixels, unprojected by the map itself.
-    const expectedA = await unproject(page, box, first);
-    const expectedB = await unproject(page, box, second);
+    const expectedA = await unproject(page, first);
+    const expectedB = await unproject(page, second);
     expect(a[0]).toBeCloseTo(expectedA[0], 4);
     expect(a[1]).toBeCloseTo(expectedA[1], 4);
     expect(b[0]).toBeCloseTo(expectedB[0], 4);
@@ -102,9 +106,11 @@ test("keyboard operates modes, Escape cancels, and unit attributes reformat the 
     await expect(distanceButton).toHaveAttribute("aria-pressed", "true");
     await expect(distanceButton).toBeFocused();
 
-    const { first, second } = await canvasPoints(page);
-    await page.mouse.click(first.x, first.y);
-    await page.mouse.click(second.x, second.y);
+    const { canvas, first, second } = await canvasPoints(page);
+    // Clicks far enough apart in time that MapLibre does not pair them into a dblclick.
+    await canvas.click({ position: first });
+    await page.waitForTimeout(400);
+    await canvas.click({ position: second });
     await expect.poll(async () => page.evaluate(() => document.querySelector("honua-measurement").vertices.length)).toBe(2);
 
     await page.evaluate(() => {
@@ -121,7 +127,7 @@ test("keyboard operates modes, Escape cancels, and unit attributes reformat the 
     await page.keyboard.press("Enter");
     await expect(measurement.getByRole("status")).toContainText("(finished)");
 
-    await page.mouse.click(first.x, first.y);
+    await canvas.click({ position: first });
     await expect.poll(async () => page.evaluate(() => document.querySelector("honua-measurement").vertices.length)).toBe(1);
     await page.keyboard.press("Escape");
     await expect.poll(async () => page.evaluate(() => document.querySelector("honua-measurement").vertices.length)).toBe(0);
