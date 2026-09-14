@@ -663,6 +663,8 @@ function mapPbfFieldTypeToGeoServices(fieldType: number): string {
       return "esriFieldTypeXML";
     case 13:
       return "esriFieldTypeBigInteger";
+    case 14:
+      return "esriFieldTypeDateOnly";
     default:
       return "esriFieldTypeString";
   }

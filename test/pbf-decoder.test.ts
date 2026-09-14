@@ -243,6 +243,29 @@ describe("isPbfResponse", () => {
 });
 
 describe("decodePbfQueryResponse", () => {
+  it("preserves date-only field metadata, ISO values and nulls beside timestamp epochs", () => {
+    const epoch = Date.UTC(2024, 1, 29);
+    const featureResult = buildFeatureResult({
+      fields: [buildField("DateOfFlight", 14), buildField("start_t", 5)],
+      features: [
+        buildFeature([
+          buildValue({ stringValue: "2024-02-29", fieldIndex: 0 }),
+          buildValue({ int64Value: epoch, fieldIndex: 1 }),
+        ]),
+        buildFeature([buildValue({ isNull: true, fieldIndex: 0 }), buildValue({ isNull: true, fieldIndex: 1 })]),
+      ],
+    });
+    const result = decodePbfQueryResponse(toBuffer(buildFeatureCollectionPBuffer("1.0", featureResult)));
+    expect(result.fields).toMatchObject([
+      { name: "DateOfFlight", type: "esriFieldTypeDateOnly" },
+      { name: "start_t", type: "esriFieldTypeDate" },
+    ]);
+    expect(result.features).toMatchObject([
+      { attributes: { DateOfFlight: "2024-02-29", start_t: epoch } },
+      { attributes: { DateOfFlight: null, start_t: null } },
+    ]);
+  });
+
   it("decodes empty feature result", () => {
     const featureResult = buildFeatureResult({
       objectIdFieldName: "OBJECTID",
