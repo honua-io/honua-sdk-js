@@ -30,10 +30,12 @@ import type {
   MapLayerQueryRequest,
   MapLegendRequest,
   MapRelatedRecordsRequest,
-  QueryFeaturesRequest,
   QueryMethod,
+  QueryFeaturesRequest,
   QueryRelatedRecordsRequest,
 } from "./types.js";
+
+const GEOSERVICES_QUERY_AUTO_METHOD_TARGET_LENGTH = 2_000;
 
 // ── Metadata ────────────────────────────────────────────────────
 
@@ -107,12 +109,10 @@ export async function getMapLayerMetadata(
 
 // ── FeatureServer / MapServer operations ────────────────────────
 
-// A conservative request-target budget avoids common browser/proxy URL limits.
-// Measure encoded parameters: Unicode and polygon coordinates can expand on
-// the wire. Explicit caller choices remain authoritative.
-function queryMethod(method: QueryMethod | undefined, path: string, params: URLSearchParams): QueryMethod {
-  return method ?? (path.length + 1 + params.toString().length > 2_000 ? "POST" : "GET");
-}
+const GEOSERVICES_QUERY_AUTO_METHOD_POLICY = {
+  maxRequestTargetLength: GEOSERVICES_QUERY_AUTO_METHOD_TARGET_LENGTH,
+  convertPbfToJson: true,
+};
 
 /**
  * REST portion of `client.queryFeatures` (the gRPC-web fast path is
@@ -135,9 +135,12 @@ export async function queryFeaturesRest(
   appendQueryExtraParams(params, request);
 
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/query`;
-  const method = queryMethod(request.method, path, params);
+  const method = request.method ?? "GET";
   const usePbf = preferBinary && method === "GET";
-  if (request.method === undefined && method === "POST" && params.get("f") === "pbf") params.set("f", "json");
+  if (request.method === "POST" && params.get("f") === "pbf") {
+    params.set("f", "json");
+  }
+  const autoMethodPolicy = request.method === undefined ? GEOSERVICES_QUERY_AUTO_METHOD_POLICY : undefined;
 
   if (usePbf) {
     return transport.requestBinaryWithJsonFallback<HonuaQueryResponse>(
@@ -145,11 +148,18 @@ export async function queryFeaturesRest(
       `${path}?${params.toString()}`,
       params,
       request.signal,
+      autoMethodPolicy,
     );
   }
 
   if (method === "GET") {
-    return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
+    return transport.requestJson<HonuaQueryResponse>(
+      "GET",
+      `${path}?${params.toString()}`,
+      undefined,
+      request.signal,
+      autoMethodPolicy,
+    );
   }
 
   return transport.requestJson<HonuaQueryResponse>(
@@ -179,9 +189,16 @@ export async function queryMapLayer(
   appendQueryExtraParams(params, request);
 
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
-  const method = queryMethod(request.method, path, params);
+  const method = request.method ?? "GET";
+  const autoMethodPolicy = request.method === undefined ? GEOSERVICES_QUERY_AUTO_METHOD_POLICY : undefined;
   if (method === "GET") {
-    return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
+    return transport.requestJson<HonuaQueryResponse>(
+      "GET",
+      `${path}?${params.toString()}`,
+      undefined,
+      request.signal,
+      autoMethodPolicy,
+    );
   }
 
   return transport.requestJson<HonuaQueryResponse>(

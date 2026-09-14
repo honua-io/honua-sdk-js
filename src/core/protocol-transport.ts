@@ -14,7 +14,7 @@
  */
 
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
-import type { QueryMethod } from "./types.js";
+import type { HonuaRequestAutoMethodPolicy, QueryMethod } from "./types.js";
 
 /**
  * The minimal request primitives a protocol wire module needs. Every method
@@ -34,7 +34,13 @@ export interface HonuaProtocolTransport {
    * surfaces GeoServices `{error}` envelopes returned on HTTP 200 as
    * `HonuaHttpError`. Caller-supplied query params belong on `path`.
    */
-  requestJson<T = unknown>(method: QueryMethod, path: string, init?: RequestInit, signal?: AbortSignal): Promise<T>;
+  requestJson<T = unknown>(
+    method: QueryMethod,
+    path: string,
+    init?: RequestInit,
+    signal?: AbortSignal,
+    autoMethodPolicy?: HonuaRequestAutoMethodPolicy,
+  ): Promise<T>;
 
   /**
    * Fetch a text response (XML / JSON / plain) with explicit Accept negotiation.
@@ -92,5 +98,6 @@ export interface HonuaProtocolTransport {
     path: string,
     params: URLSearchParams,
     signal?: AbortSignal,
+    autoMethodPolicy?: HonuaRequestAutoMethodPolicy,
   ): Promise<T>;
 }

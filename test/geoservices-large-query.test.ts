@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
+import { createArcGisTokenInterceptor } from "../src/esri-compat-entry.js";
 import { polygon } from "../src/core/spatial-filter.js";
-import type { QueryMethod } from "../src/core/types.js";
+import type { HonuaRequestInterceptor, QueryMethod } from "../src/core/types.js";
 
 const ring = Array.from({ length: 401 }, (_, i) => {
   const angle = ((i % 400) / 400) * Math.PI * 2;
@@ -11,13 +12,14 @@ const ring = Array.from({ length: 401 }, (_, i) => {
 });
 const geometry = { rings: [ring], spatialReference: { wkid: 4326 } };
 
-function fixture(preferBinary = false, enforceUrlLimit = true) {
+function fixture(preferBinary = false, enforceUrlLimit = true, interceptors: readonly HonuaRequestInterceptor[] = []) {
   const requests: Array<{ url: URL; init: RequestInit; params: URLSearchParams }> = [];
   const client = new HonuaClient({
     baseUrl: "https://mock.honua.test",
     apiKey: "test-key",
     preferBinary,
     retry: { maxRetries: 0 },
+    interceptors,
     fetchFn: async (input, init = {}) => {
       const url = new URL(String(input));
       const params = init.method === "POST" ? new URLSearchParams(String(init.body)) : url.searchParams;
@@ -34,6 +36,18 @@ function fixture(preferBinary = false, enforceUrlLimit = true) {
     },
   });
   return { client, requests };
+}
+
+function queryTargetLength(where: string, token?: string): number {
+  const params = new URLSearchParams();
+  params.set("f", "json");
+  params.set("where", where);
+  params.set("outFields", "*");
+  params.set("returnGeometry", "true");
+  if (token !== undefined) {
+    params.set("token", token);
+  }
+  return `/rest/services/Flights/FeatureServer/0/query?${params.toString()}`.length;
 }
 
 describe("GeoServices large query transport", () => {
@@ -80,6 +94,36 @@ describe("GeoServices large query transport", () => {
     await client.queryMapLayer({ serviceId: "Flights", layerId: 0, geometry, method });
     expect(requests.map((request) => request.init.method)).toEqual([method, method]);
     for (const request of requests) expect(JSON.parse(request.params.get("geometry")!)).toEqual(geometry);
+  });
+
+  it("converts to POST when a query token interceptor pushes request target over limit", async () => {
+    const token = "query-token-with-extra-length";
+    let where = "";
+    while (queryTargetLength((where += "x")) <= 2000) {
+      continue;
+    }
+    where = where.slice(0, -1);
+    while (queryTargetLength(where, token) <= 2000) {
+      where += "x";
+    }
+    expect(queryTargetLength(where)).toBeLessThanOrEqual(2000);
+    expect(queryTargetLength(where, token)).toBeGreaterThan(2000);
+
+    const { client, requests } = fixture(
+      false,
+      true,
+      [createArcGisTokenInterceptor({ getToken: () => token, mode: "query", applyTo: "/rest/services/Flights" })],
+    );
+
+    await client.queryFeatures({ serviceId: "Flights", layerId: 0, where });
+
+    expect(requests).toHaveLength(1);
+    const request = requests[0]!;
+    expect(request.init.method).toBe("POST");
+    expect(request.url.search).toBe("");
+    expect(request.params.get("f")).toBe("json");
+    expect(request.params.get("token")).toBe(token);
+    expect(request.params.get("where")).toBe(where);
   });
 
   it("retains short GET queries", async () => {

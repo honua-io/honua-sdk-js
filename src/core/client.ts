@@ -172,6 +172,7 @@ import type {
   HonuaRawRequest,
   HonuaRelatedRecordsResponse,
   HonuaRequestContext,
+  HonuaRequestAutoMethodPolicy,
   HonuaRequestInterceptor,
   HonuaRequestMutation,
   HonuaResponseContext,
@@ -274,7 +275,6 @@ function resolveRequestUrl(baseUrl: string, path: string): string {
  * will follow before giving up. Mirrors the conventional browser/undici limit of 20.
  */
 const MAX_SAFE_REDIRECTS = 20;
-
 /**
  * HTTP status codes that represent a redirect carrying a `Location` header.
  */
@@ -468,8 +468,13 @@ export class HonuaClient {
     this.transport = options.transport ?? "rest";
     this.protocolTransport = {
       baseUrl: this.baseUrl,
-      requestJson: <T = unknown>(method: QueryMethod, path: string, init?: RequestInit, signal?: AbortSignal) =>
-        this.requestJson(method, path, init, signal) as Promise<T>,
+      requestJson: <T = unknown>(
+        method: QueryMethod,
+        path: string,
+        init?: RequestInit,
+        signal?: AbortSignal,
+        autoMethodPolicy?: HonuaRequestAutoMethodPolicy,
+      ) => this.requestJson(method, path, init, signal, autoMethodPolicy) as Promise<T>,
       requestText: (method, path, requestTextOptions) => this.requestText(method, path, requestTextOptions),
       requestBytes: (method, path, accept, init, signal) => this.requestBytes(method, path, accept, init, signal),
       requestCachedMetadataJson: <T>(cacheKey: string, path: string, metadataOptions?: HonuaMetadataRequestOptions) =>
@@ -481,7 +486,8 @@ export class HonuaClient {
         path: string,
         params: URLSearchParams,
         signal?: AbortSignal,
-      ) => this.requestBinaryWithJsonFallback(method, path, params, signal) as Promise<T>,
+        autoMethodPolicy?: HonuaRequestAutoMethodPolicy,
+      ) => this.requestBinaryWithJsonFallback(method, path, params, signal, autoMethodPolicy) as Promise<T>,
     };
   }
 
@@ -1815,11 +1821,13 @@ export class HonuaClient {
     path: string,
     init?: RequestInit,
     callerSignal?: AbortSignal,
+    autoMethodPolicy?: HonuaRequestAutoMethodPolicy,
   ): Promise<unknown> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
+      autoMethodPolicy,
       init: {
         method,
         headers: await this.composeHeaders({ Accept: "application/json" }, init?.headers),
@@ -1862,11 +1870,13 @@ export class HonuaClient {
     path: string,
     params: URLSearchParams,
     callerSignal?: AbortSignal,
+    autoMethodPolicy?: HonuaRequestAutoMethodPolicy,
   ): Promise<unknown> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
+      autoMethodPolicy,
       init: {
         method,
         headers: await this.composeHeaders({ Accept: "application/x-protobuf, application/json;q=0.9" }),
@@ -2081,6 +2091,7 @@ export class HonuaClient {
     },
   ): Promise<T> {
     let request = await this.applyBeforeInterceptors(initialRequest);
+    request = this.applyAutoRequestMethod(request);
     const retrySignal = options.callerSignal ?? request.init.signal ?? undefined;
     let refreshedAuth = false;
 
@@ -2241,6 +2252,42 @@ export class HonuaClient {
       };
     }
     return next;
+  }
+
+  private applyAutoRequestMethod(request: HonuaRequestContext): HonuaRequestContext {
+    const autoMethodPolicy = request.autoMethodPolicy;
+    if (!autoMethodPolicy || request.method !== "GET") {
+      return request;
+    }
+
+    const requestUrl = new URL(request.url, this.baseUrl || "http://localhost");
+    const requestTargetLength = requestUrl.pathname.length + requestUrl.search.length;
+    if (requestTargetLength <= autoMethodPolicy.maxRequestTargetLength) {
+      return request;
+    }
+
+    const nextParams = new URLSearchParams(requestUrl.search);
+    if (autoMethodPolicy.convertPbfToJson && nextParams.get("f") === "pbf") {
+      nextParams.set("f", "json");
+    }
+
+    const nextMethod = "POST" as const;
+    const nextBody = nextParams.toString();
+    const nextPath = stripQuery(request.path);
+    const nextUrl = isAbsoluteHttpUrl(request.url) ? `${requestUrl.origin}${requestUrl.pathname}` : requestUrl.pathname;
+    return {
+      ...request,
+      path: nextPath,
+      method: nextMethod,
+      url: nextUrl,
+      autoMethodPolicy: undefined,
+      init: {
+        ...request.init,
+        method: nextMethod,
+        headers: mergeHeaders(request.init.headers, { "Content-Type": "application/x-www-form-urlencoded" }),
+        body: nextBody,
+      },
+    };
   }
 
   private async applyAfterInterceptors(
@@ -2427,6 +2474,7 @@ function applyRequestMutation(request: HonuaRequestContext, mutation: HonuaReque
   return {
     url: mutation.url ?? request.url,
     path: request.path,
+    autoMethodPolicy: request.autoMethodPolicy,
     method: mutation.method ?? request.method,
     init: {
       ...nextInit,
