@@ -125,9 +125,10 @@ function buildValue(opts: {
   int64Value?: number;
   int64ValueBig?: bigint;
   uint64ValueBig?: bigint;
+  sint64ValueBig?: bigint;
   boolValue?: boolean;
   isNull?: boolean;
-  fieldIndex: number;
+  fieldIndex?: number;
 }): number[] {
   const v: number[] = [];
   if (opts.stringValue !== undefined) v.push(...stringField(1, opts.stringValue));
@@ -138,9 +139,13 @@ function buildValue(opts: {
   if (opts.int64Value !== undefined) v.push(...tag(6, 0), ...varint64(opts.int64Value));
   if (opts.int64ValueBig !== undefined) v.push(...tag(6, 0), ...varint64Big(opts.int64ValueBig));
   if (opts.uint64ValueBig !== undefined) v.push(...tag(7, 0), ...varint64Big(opts.uint64ValueBig));
+  if (opts.sint64ValueBig !== undefined) {
+    const signed = opts.sint64ValueBig;
+    v.push(...tag(8, 0), ...varint64Big((signed << 1n) ^ (signed >> 63n)));
+  }
   if (opts.boolValue !== undefined) v.push(...boolField(9, opts.boolValue));
   if (opts.isNull) v.push(...boolField(10, true));
-  v.push(...varintField(11, opts.fieldIndex));
+  if (opts.fieldIndex !== undefined) v.push(...varintField(11, opts.fieldIndex));
   return v;
 }
 
@@ -243,6 +248,59 @@ describe("isPbfResponse", () => {
 });
 
 describe("decodePbfQueryResponse", () => {
+  it("reads ArcGIS positional values, including null placeholders and zigzag timestamp epochs", () => {
+    // Esri/arcgis-pbf FeatureCollection.proto: Value.index is optional; normal
+    // FeatureCollection rows omit it. The live helicopter source uses tag 8
+    // for start_t, rather than the tag 6 used by our older indexed fixtures.
+    const epoch = 1768180574110;
+    const featureResult = buildFeatureResult({
+      fields: [buildField("DateOfFlight", 14), buildField("optional_date", 14), buildField("start_t", 5)],
+      features: [
+        buildFeature([
+          buildValue({ stringValue: "2026-01-11" }),
+          buildValue({ isNull: true }),
+          buildValue({ sint64ValueBig: BigInt(epoch) }),
+        ]),
+      ],
+    });
+    const result = decodePbfQueryResponse(toBuffer(buildFeatureCollectionPBuffer("1.0", featureResult)));
+    expect(result.features).toEqual([
+      { attributes: { DateOfFlight: "2026-01-11", optional_date: null, start_t: epoch } },
+    ]);
+  });
+
+  it("honors explicit sparse field indices over attribute position", () => {
+    const featureResult = buildFeatureResult({
+      fields: [buildField("first", 4), buildField("omitted", 4), buildField("last", 4)],
+      features: [
+        buildFeature([
+          buildValue({ stringValue: "third", fieldIndex: 2 }),
+          buildValue({ stringValue: "first", fieldIndex: 0 }),
+        ]),
+      ],
+    });
+    expect(decodePbfQueryResponse(toBuffer(buildFeatureCollectionPBuffer("1.0", featureResult))).features).toEqual([
+      { attributes: { last: "third", first: "first" } },
+    ]);
+  });
+
+  it.each([0n, -1n, 123n, -1768180574110n, 9007199254740993n, -9007199254740993n, (1n << 63n) - 1n, -(1n << 63n)])(
+    "preserves signed zigzag int64 value %s without precision loss",
+    (value) => {
+      const featureResult = buildFeatureResult({
+        fields: [buildField("value", 13)],
+        features: [buildFeature([buildValue({ sint64ValueBig: value })])],
+      });
+      const expected =
+        value >= BigInt(Number.MIN_SAFE_INTEGER) && value <= BigInt(Number.MAX_SAFE_INTEGER)
+          ? Number(value)
+          : value.toString();
+      expect(decodePbfQueryResponse(toBuffer(buildFeatureCollectionPBuffer("1.0", featureResult))).features).toEqual([
+        { attributes: { value: expected } },
+      ]);
+    },
+  );
+
   it("preserves date-only field metadata, ISO values and nulls beside timestamp epochs", () => {
     const epoch = Date.UTC(2024, 1, 29);
     const featureResult = buildFeatureResult({

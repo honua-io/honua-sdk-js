@@ -93,6 +93,10 @@ this discovered schema. After upgrading from a version that discovered these
 fields as `unknown`, use `connectWithSourceSchemaV2({ ...options, refresh: true })`
 to replace an existing discovery snapshot with the current projection.
 
+PBF feature attributes may follow field order without explicit indexes. The decoder
+supports that form and explicit field indexes, including signed zigzag timestamp
+values from ArcGIS. See the pinned [Esri PBF schema](https://github.com/Esri/arcgis-pbf/blob/e23f93a6258b2f06adf7c9415a6f838bddfd9f4c/proto/FeatureCollection/FeatureCollection.proto).
+
 A `known` key is executable identity, not a name hint: every member must be a
 non-nullable scalar whose JSON encoding can produce `FeatureIdentityValue`.
 OData key properties therefore become non-nullable when the CSDL `Nullable`
