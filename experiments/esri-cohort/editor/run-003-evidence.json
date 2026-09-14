@@ -1,0 +1,60 @@
+{
+  "runId": "run-003",
+  "recordedAt": "2026-09-14T03:03:05.546176+00:00",
+  "conversionComplete": false,
+  "backendMigrationVerified": false,
+  "source": "https://developers.arcgis.com/javascript/latest/sample-code/editor-basic/",
+  "originalObserved": [
+    "Three editable layers",
+    "Hazards: 8 templates; Road Closure: 2; Hazard Areas: 2",
+    "Flooding opens point creation draft; draft left with Back, no mutation submitted"
+  ],
+  "convertedObserved": [],
+  "commandMetrics": [
+    {
+      "attemptId": "40a30d44-a375-418f-94a2-61daa4282aeb",
+      "stage": "editor-conversion-build",
+      "elapsedSeconds": 6.562,
+      "status": "failed",
+      "exitCode": 2,
+      "note": "Initial published-package editor composition; retain compiler and bundler findings."
+    },
+    {
+      "attemptId": "457630ad-6158-4870-bea3-0cb102f7a3ef",
+      "stage": "editor-conversion-build",
+      "elapsedSeconds": 6.377,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "Adapt query rows to edit-session canonical features using the discovered primary key; restrict sketch tools to layer geometry."
+    },
+    {
+      "attemptId": "c5a521c9-b91a-4655-85b6-e332cdbab853",
+      "stage": "editor-conversion-install",
+      "elapsedSeconds": 39.308,
+      "status": "passed",
+      "exitCode": 0,
+      "note": "First editor conversion uses published SDK editor workflow, forms, subtype validation and Terra Draw adapter; operational services must be local imports."
+    }
+  ],
+  "validation": [
+    "Final build and app Biome pass",
+    "11 write-binding boundary tests pass",
+    "Root Biome: 1451 files pass"
+  ],
+  "unverified": [
+    "Backend imports and reconciliation",
+    "Browser and editing persistence",
+    "Geometry reshaping/cancel/undo",
+    "Attachments and subtype round trips",
+    "Fresh repeat and snapshot restore"
+  ],
+  "parityGaps": [
+    "Single selection only; original supports multiple selection tools",
+    "Native simple map styles replace original symbols"
+  ],
+  "measurementLimits": [
+    "Model tokens/cost attribution unavailable",
+    "Final build and checks additionally ran outside command recorder",
+    "No browser trace or controlled performance comparison"
+  ]
+}
