@@ -269,7 +269,7 @@ function selectProtocol(protocol: CoverageProtocol): void {
 
   demoState.activeProtocol = protocol;
   demoState.mapSourceId = activeProjection.sourceId;
-  demoState.activeObjectUrl = imageSource.url;
+  demoState.activeObjectUrl = imageSource.url ?? null;
   setText("active-protocol", protocol === "ogc" ? "OGC API image source" : "WCS image source");
   setText("response", `${coverage.bytes.byteLength.toLocaleString()} bytes / ${coverage.contentType}`);
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-protocol]")) {
