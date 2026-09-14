@@ -609,6 +609,18 @@ function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesReq
   if (request.spatialRel !== undefined) {
     params.set("spatialRel", request.spatialRel);
   }
+  if (request.distance !== undefined) {
+    params.set("distance", String(request.distance));
+  }
+  if (request.units !== undefined) {
+    params.set("units", request.units);
+  }
+  if (request.nearestCount !== undefined) {
+    params.set("nearestCount", String(request.nearestCount));
+  }
+  if (request.returnDistance !== undefined) {
+    params.set("returnDistance", String(request.returnDistance));
+  }
   if (request.returnDistinctValues !== undefined) {
     params.set("returnDistinctValues", String(request.returnDistinctValues));
   }
