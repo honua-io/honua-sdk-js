@@ -82,3 +82,18 @@ The lists retained 15/7/2 records without geometry. These were dev-server checks
 against the installed SDK, not CRUD or source-null parity proof. The subsequent
 TypeScript/Vite production build passed in 5.376 seconds (570.73 kB gzip main
 chunk); browser checks of that production build remain separate.
+
+Independent run-004 attachment checks found four hazard files (7,337,532 bytes)
+and four area files (1,154,187 bytes). Source attachment lists, unpaged counts,
+individual-parent lists and privately cached file bytes agree. All seven parents
+map uniquely to imported rows using their non-object-ID attributes; source IDs
+are not assumed to survive import.
+
+The import receipts report all eight files copied with zero failures. Three
+hazard files are readable from the target and match source SHA-256 hashes. The
+remaining hazard parent and all three area parents return `Feature not found`
+from attachment listing, despite being returned by normal feature queries.
+Five target files therefore remain unqualified, alongside the missing attachment
+capability advertisement. Server #4825 now requires attachment visibility and
+authorization to use the published storage binding. These checks do not establish
+Editor write or attachment round-trip parity.
