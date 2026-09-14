@@ -42,11 +42,16 @@ The Vite proxy forwards only the explicitly configured service prefixes.
 
 ## Remaining fidelity work
 
-Full date-range backend import and the related nonspatial complaint table remain
-unqualified. The latter currently fails service import (server #4834); its
-relationship is not fabricated here. The calendar only lists dates actually
-present in the imported flight population. Missing source dates are not shown
-as zero-flight days.
+Full date-range backend publication remains unqualified. The related nonspatial
+table now has an imported 877-row backend: installed SDK candidate `39ab91b8e`
+against server `66a3217a2` passed count, four-page streaming, unique IDs and a typed
+Join_ID filter, with all non-object-ID attributes matching the source. These
+readbacks do not qualify the pending table-metadata changes or the relationship.
+All 579 imported parent keys and 877 child keys match with no orphans, but the
+target related-record endpoint still reports the missing relationship (server
+#4834). That dependency and its UI use remain unfinished. The calendar only lists
+dates actually present in the imported flight population; missing source dates
+are not shown as zero-flight days.
 
 The thematic summary renderer, scale-dependent symbol widths, map navigation constraints, chart selection
 gestures and remaining webmap metadata still require conversion and verification.
