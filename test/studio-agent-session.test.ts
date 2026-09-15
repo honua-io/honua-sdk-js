@@ -498,6 +498,26 @@ describe("createStudioAgentSession turn loop", () => {
     expect(server.chatRequests[1]?.messages.some((message) => message.role === "tool")).toBe(true);
   });
 
+  it("records the assistant's tool calls ahead of their results, as a provider requires", async () => {
+    const args = { id: "status", clause: { field: "status", operator: "=", value: "open" } };
+    const { server, session } = makeSession({
+      turns: [toolTurn([{ id: "call-1", name: "setFilter", args }]), textTurn("Filtered to open incidents.")],
+    });
+
+    await session.chat("Show only open incidents.");
+
+    // OpenAI-compatible and Anthropic providers reject a tool result that answers no
+    // assistant tool call, so the follow-up round must carry the call the model made.
+    const messages = server.chatRequests[1]?.messages ?? [];
+    const result = messages.findIndex((message) => message.role === "tool" && message.toolCallId === "call-1");
+    expect(result).toBeGreaterThan(0);
+    expect(messages[result - 1]).toEqual({
+      role: "assistant",
+      content: "",
+      toolCalls: [{ id: "call-1", name: "setFilter", arguments: args }],
+    });
+  });
+
   it("surfaces a policy denial as a failed tool result without stopping the turn", async () => {
     const server = createScriptedServer({
       turns: [

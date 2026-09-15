@@ -38,6 +38,16 @@ export interface StudioAiChatMessage {
   readonly toolCallId?: string;
   /** For `role: "tool"` messages: the name of the tool that was called. */
   readonly toolName?: string;
+  /** For `role: "assistant"` messages: the tool calls the model made in that turn. */
+  readonly toolCalls?: ReadonlyArray<StudioAiChatToolCall>;
+}
+
+/** One assistant tool call carried back to the proxy (honua-server `message.toolCalls`). */
+export interface StudioAiChatToolCall {
+  readonly id: string;
+  readonly name: string;
+  /** The JSON object arguments the call was dispatched with. */
+  readonly arguments: Readonly<Record<string, unknown>>;
 }
 
 /**
