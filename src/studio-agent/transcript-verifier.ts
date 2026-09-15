@@ -67,6 +67,34 @@ function canonicalJson(value: unknown): string {
     .join(",")}}`;
 }
 
+// The server signs provider events with its enum spelling of `type` (`MessageStart`), the same
+// spelling as its SSE data bodies; the SDK types each event from the SSE `event:` line instead.
+const SERVER_EVENT_TYPE_TO_SDK: Readonly<Record<string, StudioAiChatEvent["type"]>> = {
+  MessageStart: "messageStart",
+  TextDelta: "textDelta",
+  ToolCallStart: "toolCallStart",
+  ToolCallDelta: "toolCallDelta",
+  ToolCallStop: "toolCallStop",
+  MessageStop: "messageStop",
+  Error: "error",
+  TranscriptProvenance: "transcriptProvenance",
+};
+
+function withSdkEventType(event: unknown): unknown {
+  if (!event || typeof event !== "object" || Array.isArray(event)) return event;
+  const type = (event as { type?: unknown }).type;
+  const mapped = typeof type === "string" ? SERVER_EVENT_TYPE_TO_SDK[type] : undefined;
+  return mapped ? { ...(event as Record<string, unknown>), type: mapped } : event;
+}
+
+function decodeSignedJson(value: unknown): unknown {
+  try {
+    return JSON.parse(new TextDecoder().decode(base64Bytes(String(value))));
+  } catch {
+    return undefined;
+  }
+}
+
 function sameBinding(value: Record<string, unknown>, binding: StudioAiTranscriptCertification): boolean {
   return (
     value.candidateId === binding.candidateId &&
@@ -150,10 +178,18 @@ export class StudioAiTranscriptVerifier implements StudioAiTranscriptVerifierLik
     ) {
       return fail("expired-envelope");
     }
-    const signedRequest = new TextDecoder().decode(base64Bytes(String(transcript.request)));
-    if (signedRequest !== canonicalJson(request)) return fail("request-mismatch");
-    const signedEvents = new TextDecoder().decode(base64Bytes(String(transcript.providerEvents)));
-    if (signedEvents !== canonicalJson(events)) return fail("terminal-events-mismatch");
+    // honua-canonical-json-v1 strings use the server's JSON escaping, so the signed bytes may
+    // spell a character as \u0027 where JSON.stringify writes it literally. The digest and
+    // signature above bind those exact bytes; here the signed JSON is decoded and compared
+    // value for value with what this session sent and received.
+    const signedRequest = decodeSignedJson(transcript.request);
+    if (signedRequest === undefined || canonicalJson(signedRequest) !== canonicalJson(request)) {
+      return fail("request-mismatch");
+    }
+    const signedEvents = decodeSignedJson(transcript.providerEvents);
+    if (!Array.isArray(signedEvents) || canonicalJson(signedEvents.map(withSdkEventType)) !== canonicalJson(events)) {
+      return fail("terminal-events-mismatch");
+    }
     const terminal = events.filter((event) => event.type === "messageStop" || event.type === "error");
     if (terminal.length !== 1 || events.at(-1) !== terminal[0] || terminal[0]?.type !== "messageStop")
       return fail("invalid-terminal-sequence");
