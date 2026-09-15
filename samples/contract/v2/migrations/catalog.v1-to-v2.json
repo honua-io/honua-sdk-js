@@ -333,7 +333,7 @@
           "npm run evidence:cog:live"
         ],
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-10-16T02:17:25.730Z"
+        "expiresAt": "2026-10-16T03:49:02.307Z"
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "validation": [
@@ -359,7 +359,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-10-16T02:15:46.960Z"
+        "expiresAt": "2026-10-16T03:47:59.081Z"
       }
     },
     "mcp-gis-assistant": {
@@ -392,7 +392,7 @@
           "npm run evidence:migration-workbench:live"
         ],
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-10-16T02:17:48.251Z"
+        "expiresAt": "2026-10-16T03:49:19.585Z"
       }
     },
     "nl-map-control": {
@@ -538,7 +538,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-10-16T02:18:47.513Z"
+        "expiresAt": "2026-10-16T03:50:02.225Z"
       },
       "validation": [
         "npm run demo:service-explorer:typecheck",
