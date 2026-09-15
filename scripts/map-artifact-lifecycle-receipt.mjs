@@ -628,7 +628,10 @@ await check("supersede-then-rollback-restores-published-version", "AC4", async (
   const secondProposal = second.json?.proposalId ?? second.json?.operation?.proposalId ?? second.json?.data?.proposalId ?? second.json?.data?.operation?.proposalId;
   const selfRollback = secondProposal ? await rest("approver", "POST", `/api/v1/admin/proposals/${secondProposal}/approve`, {}) : undefined;
   item = await itemPointers("author");
-  evidence.rollbackSelfApproval = { requestStatus: second.status, approveStatus: selfRollback?.status, approveOutcome: selfRollback?.json?.status };
+  evidence.rollbackSelfApproval = {
+    requestStatus: second.status, approveStatus: selfRollback?.status, approveOutcome: selfRollback?.json?.status,
+    publishedAfterSelfApproval: item.publishedVersionId === state.v1.versionId ? "v1 (unchanged)" : item.publishedVersionId === v2.versionId ? "v2 (moved)" : "other",
+  };
 
   assert.equal(restored, true, `an approved rollback (target published) must restore v1 as the published version; published is ${evidence.afterApprovedRollback.published}, current is ${evidence.afterApprovedRollback.current}`);
   assert.ok(secondProposal, `a rollback request must enter approval: ${second.status} ${second.text.slice(0, 200)}`);
