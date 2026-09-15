@@ -103,6 +103,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
+
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
 
@@ -243,6 +246,9 @@ jobs:
 
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
 
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
