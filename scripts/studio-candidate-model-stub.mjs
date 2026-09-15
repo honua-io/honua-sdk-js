@@ -125,7 +125,9 @@ createServer(async (request, response) => {
     frame(response, "[DONE]");
     response.end();
   } catch (error) {
+    // The stack goes to the container log (docker logs), never into the response body.
+    console.error(error);
     if (!response.headersSent) response.writeHead(500, { "content-type": "text/plain" });
-    response.end(String(error?.stack ?? error));
+    response.end("model stub error");
   }
 }).listen(8080);
