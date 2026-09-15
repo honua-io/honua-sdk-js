@@ -250,6 +250,79 @@ unsupported event when the browser does not expose `requestFullscreen()`.
 `actions` JSON array and emits `honua-action`. Empty panels render a visible
 unsupported state so apps do not appear to lose configured controls.
 
+## Measurement
+
+`honua-measurement` measures distance and area directly on a MapLibre map, with
+no drawing provider. Click (or tap) adds a vertex; double-click or **Finish**
+completes the sketch; **Escape** or **Cancel** discards it.
+
+```html
+<honua-map id="map"></honua-map>
+<honua-measurement
+  for="map"
+  unit="miles"
+  area-unit="acres"
+  precision="2"
+  fidelity="planar"
+  planar-crs="EPSG:3857"
+></honua-measurement>
+```
+
+| Attribute / property | Values | Default |
+| --- | --- | --- |
+| `unit` / `unit` | `auto`, `meters`, `kilometers`, `feet`, `yards`, `miles`, `nauticalmiles` | `auto` (m / km by magnitude) |
+| `area-unit` / `areaUnit` | `auto`, `square-meters`, `hectares`, `square-kilometers`, `square-feet`, `acres`, `square-miles` | `auto` (m² / ha / km²) |
+| `precision` / `precision` | integer `0`–`20` | per-unit default |
+| `fidelity` / `fidelity` | `geodesic`, `planar` | `geodesic` |
+| `planar-crs` / `planarCrs` | `local` (flat-earth meters around the sketch), `EPSG:3857` (Web Mercator meters, not scale-corrected) | `local` |
+
+Unknown values fall back to the default. Changing a unit or precision only
+reformats the canonical result; changing fidelity or the planar CRS recomputes it
+from the drawn vertices.
+
+The `honua-measure-change` event carries plain data with no renderer types:
+`result.coordinates` are WGS84 `[lng, lat]` (the element's `crs`), `distance` is
+in meters and `area` in square meters, and `result.crs` names the frame they
+were measured in (`EPSG:4326` for geodesic results). A line that crosses the
+antimeridian is measured the short way in every frame. Vertices that are not
+finite, or whose latitude is outside ±90°, are rejected. An area outline that
+crosses itself sets `result.invalid` to `"self-intersecting-ring"` and reports
+no area.
+
+While a mode is active the element claims the map pointer: clicks that land on
+a feature still dispatch `honua-map-click`, but they do not change the shared
+selection that tables, inspectors, and editors are bound to. Removing the
+element releases every map listener, the sketch overlay, and the double-click
+zoom suspension. Double-click zoom is only turned back on if it was on before
+measuring started.
+
+**Custom Elements Manifest.** `@honua/app-platform` publishes
+`custom-elements.json`, advertised through its `customElements` package key.
+The manifest is generated from source (`npm run custom-elements:manifest`) and
+checked against the registered element in `test/custom-elements-manifest.test.ts`.
+
+**React.** React 19 binds custom elements natively, so no wrapper is needed.
+Props that are element properties (`map`, `unit`, `precision`, `planarCrs`, …)
+are assigned as properties, and `onhonua-measure-change` becomes an event
+listener. For typed JSX, declare the tag once in your app:
+
+```ts doc-test=skip reason="module augmentation belongs in a React application's own declaration file"
+import type { HonuaMeasureChangeDetail, HonuaMeasurementElement } from "@honua/app-platform/web-components";
+
+declare module "react" {
+  namespace JSX {
+    interface IntrinsicElements {
+      "honua-measurement": Partial<
+        Pick<HonuaMeasurementElement, "map" | "unit" | "areaUnit" | "precision" | "fidelity" | "planarCrs">
+      > & {
+        ref?: React.Ref<HonuaMeasurementElement>;
+        "onhonua-measure-change"?: (event: CustomEvent<HonuaMeasureChangeDetail>) => void;
+      };
+    }
+  }
+}
+```
+
 ## Time slider
 
 `honua-time-slider` is a view over the headless temporal playback controller

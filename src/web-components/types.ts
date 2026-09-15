@@ -150,6 +150,8 @@ export interface HonuaMeasurementMessages {
   readonly area?: (value: string, finished: boolean) => string;
   readonly vertexDistance?: (count: number) => string;
   readonly vertexArea?: (count: number) => string;
+  /** Status when an area outline crosses itself and has no single enclosed area. */
+  readonly invalidArea?: string;
   readonly offStatus?: string;
   readonly hintOff?: string;
   readonly hintActive?: string;
@@ -697,13 +699,31 @@ export type HonuaMeasureAreaUnit =
 /**
  * Which math produced a `<honua-measurement>` result. `"geodesic"` (the
  * default) is great-circle math over WGS84 lng/lat, matching `geometryEngine`
- * parity elsewhere in the SDK. `"planar"` reprojects vertices into
- * `planarCrs` (Web Mercator by default) and measures Euclidean distance/area
- * there instead — useful when a projected CRS's flat-earth math is what the
- * consuming app expects, at the cost of the usual planar-projection distortion
- * away from the CRS's origin/standard lines.
+ * parity elsewhere in the SDK. `"planar"` projects vertices into the
+ * element's {@link HonuaMeasurePlanarCrs} and measures Euclidean
+ * distance/area there instead — useful when a projected CRS's flat math is
+ * what the consuming app expects, at the cost of that projection's distortion.
  */
 export type HonuaMeasureFidelity = "geodesic" | "planar";
+
+/**
+ * Planar frame for `fidelity: "planar"` on `<honua-measurement>`.
+ *
+ * - `"local"` (default): an equirectangular flat-earth approximation centered
+ *   on the sketch's mean latitude, in meters. Close to ground distance for
+ *   local sketches; not a registered CRS.
+ * - `"EPSG:3857"`: spherical Web Mercator, the projected CRS MapLibre renders
+ *   in. Its meters are not scale-corrected, so values grow by `sec(latitude)`
+ *   (lengths) and `sec²(latitude)` (areas) away from the equator.
+ */
+export type HonuaMeasurePlanarCrs = "local" | "EPSG:3857";
+
+/**
+ * Why `<honua-measurement>` declined to compute a value for the current
+ * geometry. `"self-intersecting-ring"`: an area outline crosses itself, so it
+ * has no single enclosed area.
+ */
+export type HonuaMeasureInvalidReason = "self-intersecting-ring";
 
 /** Caller-supplied messages for `<honua-measure-control>`. */
 export interface HonuaMeasureControlMessages {
@@ -731,8 +751,12 @@ export interface HonuaMeasurementMap {
   removeLayer?(id: string): void;
   getLayer?(id: string): unknown;
   removeSource?(id: string): void;
-  /** Optional double-click-zoom handle disabled while a drawing mode is active. */
-  doubleClickZoom?: { disable?(): void; enable?(): void };
+  /**
+   * Optional double-click-zoom handle disabled while a drawing mode is active.
+   * When `isEnabled` exists, zoom is re-enabled afterwards only if it was
+   * enabled before drawing started.
+   */
+  doubleClickZoom?: { disable?(): void; enable?(): void; isEnabled?(): boolean };
 }
 
 /**
@@ -752,6 +776,14 @@ export interface HonuaMeasureResult {
   area?: number;
   /** Which math produced {@link distance}/{@link area}. Only set by `<honua-measurement>`. */
   fidelity?: HonuaMeasureFidelity;
+  /**
+   * Frame {@link distance}/{@link area} were measured in: `"EPSG:4326"` for
+   * geodesic results, the planar frame otherwise. {@link coordinates} are
+   * always WGS84 lng/lat regardless. Only set by `<honua-measurement>`.
+   */
+  crs?: "EPSG:4326" | HonuaMeasurePlanarCrs;
+  /** Set, with no value, when the geometry cannot be measured. Only set by `<honua-measurement>`. */
+  invalid?: HonuaMeasureInvalidReason;
 }
 
 export interface HonuaMeasureChangeDetail {
