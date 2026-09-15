@@ -135,6 +135,23 @@ docker cp "${extract}:/app/appsettings.Production.json" "$work/appsettings.Produ
 docker rm "$extract" >/dev/null
 chmod 644 "$work/appsettings.Production.json"
 
+# honua-server#4722 made the durable operation secret channel's key-ring
+# certificate mandatory whenever Redis backs it (every image after 3d82e847).
+# Mint a throwaway per-run PKCS#12 so the candidate can boot at all; its only
+# job is to move the key-ring decryption material outside Redis for this
+# isolated, torn-down-on-exit deployment, not to hold any real secret.
+keyring_password="$(openssl rand -hex 16)"
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+  -subj "/CN=honua-realtime-candidate" \
+  -keyout "$work/keyring.key" -out "$work/keyring.crt" >/dev/null 2>&1
+openssl pkcs12 -export \
+  -in "$work/keyring.crt" -inkey "$work/keyring.key" \
+  -out "$work/keyring.p12" -passout "pass:${keyring_password}" >/dev/null 2>&1
+rm -f "$work/keyring.key" "$work/keyring.crt"
+# Bind-mounted read-only; the container's non-root `app` user reads it by the
+# file's own mode, not by matching the host UID.
+chmod 644 "$work/keyring.p12"
+
 cat > "$work/candidate.env" <<EOF
 ASPNETCORE_ENVIRONMENT=Staging
 ASPNETCORE_URLS=http://+:8080
@@ -163,6 +180,8 @@ Oidc__TokenValidation__SymmetricSigningKey=${HONUA_REALTIME_ISSUER_SIGNING_KEY}
 Oidc__TokenValidation__ValidIssuers__0=${HONUA_REALTIME_ISSUER}
 Oidc__TokenValidation__ValidAudiences__0=${HONUA_REALTIME_ISSUER_AUDIENCE}
 Oidc__TokenValidation__ClockSkew=00:00:00
+Operations__SecretChannel__KeyRingCertificatePath=/app/keyring.p12
+Operations__SecretChannel__KeyRingCertificatePassword=${keyring_password}
 EOF
 chmod 600 "$work/candidate.env"
 
@@ -172,6 +191,7 @@ start_candidate() {
     docker run -d --name "$server_container" --network "$network" -p "127.0.0.1:${port}:8080" \
       --env-file "$work/candidate.env" \
       -v "$work/appsettings.Production.json:/app/appsettings.Staging.json:ro" \
+      -v "$work/keyring.p12:/app/keyring.p12:ro" \
       "$image" >/dev/null
     if wait_ready; then
       return 0
