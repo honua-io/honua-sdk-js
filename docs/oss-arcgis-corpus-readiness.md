@@ -7,9 +7,9 @@
 
 Every other migration number Honua publishes comes from Honua-authored fixtures. This page does not: it reports what `honua-migrate` does to **real, third-party, open-source ArcGIS JS applications** that were written by other people, for their own purposes, with no knowledge of the codemod.
 
-The corpus pins 6 public GitHub repositories at an exact commit with a reviewed permissive license. No third-party source is vendored here — the lane clones into an ignored scratch directory, analyzes the working copy, and keeps only the structured records below.
+The corpus pins 7 public GitHub repositories at an exact commit with a reviewed permissive license. No third-party source is vendored here — the lane clones into an ignored scratch directory, analyzes the working copy, and keeps only the structured records below.
 
-- Observation generated: `2026-08-04T02:41:27.182Z`
+- Observation generated: `2026-09-15T00:35:57.619Z`
 - Manifest revision: `2026-08-04`
 - Codemod target: `honua-compat`
 - Lane: opt-in only (`HONUA_OSS_ARCGIS_CORPUS_ENABLED=true`), never part of pull-request CI, static analysis only (no live Esri service contact).
@@ -18,14 +18,14 @@ The corpus pins 6 public GitHub repositories at an exact commit with a reviewed 
 
 | Metric | Value |
 | --- | --- |
-| Apps pinned | 6 |
-| Apps observed | 6 |
+| Apps pinned | 7 |
+| Apps observed | 7 |
 | Apps errored | 0 |
-| Readiness `ready` / `assisted` / `blocked` | 0 / 6 / 0 |
-| Codemod-scoped call sites | 171 |
-| Auto-migrated call sites | 75 |
-| Auto-migrated call-site ratio | 43.9% |
-| ArcGIS module hits outside codemod scope | 146 |
+| Readiness `ready` / `assisted` / `blocked` | 0 / 7 / 0 |
+| Codemod-scoped call sites | 214 |
+| Auto-migrated call sites | 107 |
+| Auto-migrated call-site ratio | 50.0% |
+| ArcGIS module hits outside codemod scope | 151 |
 | Apps with no ArcGIS usage detected | 0 |
 
 ### Top manual-TODO kinds across the corpus
@@ -43,11 +43,12 @@ The corpus pins 6 public GitHub repositories at an exact commit with a reviewed 
 | App | Styles | Readiness | Auto-migrated | Manual TODOs | Unhandled hits | Blocking flags |
 | --- | --- | --- | --- | --- | --- | --- |
 | [CMV — Configurable Map Viewer](#cmv--configurable-map-viewer) | `amd-require`, `widget-heavy` | `assisted` | 0.0% (0/27) | 27 | 69 | — |
-| [WSDOT Bridge Vertical Clearance](#wsdot-bridge-vertical-clearance) | `amd-require`, `featurelayer-centric`, `widget-heavy` | `assisted` | 54.5% (6/11) | 5 | 15 | — |
+| [WSDOT Bridge Vertical Clearance](#wsdot-bridge-vertical-clearance) | `amd-require`, `featurelayer-centric`, `widget-heavy` | `assisted` | 27.3% (3/11) | 8 | 15 | — |
 | [National Park Visits explorer](#national-park-visits-explorer) | `amd-require`, `widget-heavy` | `assisted` | 21.7% (15/69) | 54 | 58 | — |
-| [Utah statewide parcel viewer](#utah-statewide-parcel-viewer) | `featurelayer-centric` | `assisted` | 85.4% (41/48) | 7 | 2 | — |
+| [Utah statewide parcel viewer](#utah-statewide-parcel-viewer) | `featurelayer-centric` | `assisted` | 83.3% (40/48) | 8 | 2 | — |
 | [Utah Bikeways / WFRC bike map](#utah-bikeways--wfrc-bike-map) | `featurelayer-centric`, `widget-heavy` | `assisted` | 77.8% (7/9) | 2 | 1 | — |
-| [Owls of Bavaria](#owls-of-bavaria) | `featurelayer-centric` | `assisted` | 85.7% (6/7) | 1 | 1 | — |
+| [Owls of Bavaria](#owls-of-bavaria) | `featurelayer-centric` | `assisted` | 71.4% (5/7) | 2 | 1 | — |
+| [QG Travel System — Qinghai-Gansu Grand Loop trip planner](#qg-travel-system--qinghai-gansu-grand-loop-trip-planner) | `featurelayer-centric` | `assisted` | 86.1% (37/43) | 6 | 5 | — |
 
 ## App detail
 
@@ -59,7 +60,7 @@ A long-running community-maintained configurable ArcGIS JS 3.x viewer built on D
 - Repository: <https://github.com/cmv/cmv-app>
 - Pinned commit: `8b42b2336b1a4b357dda791c8e492b9612a5f51b`
 - License: `MIT` — https://github.com/cmv/cmv-app/blob/8b42b2336b1a4b357dda791c8e492b9612a5f51b/LICENSE
-- Observed: 2026-08-04
+- Observed: 2026-09-15
 - Scan root: `viewer/js`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
@@ -102,7 +103,7 @@ A production state-DOT lookup tool that lets freight operators find bridge verti
 - Repository: <https://github.com/WSDOT-GIS/bridge-clearance-app>
 - Pinned commit: `f07daaf455ac7c625c2d283c8d9df1e94665e4ea`
 - License: `Unlicense` — https://github.com/WSDOT-GIS/bridge-clearance-app/blob/f07daaf455ac7c625c2d283c8d9df1e94665e4ea/UNLICENSE
-- Observed: 2026-08-04
+- Observed: 2026-09-15
 - Scan root: `src`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
@@ -115,17 +116,18 @@ filesScanned=1 filesWithArcGisImports=1 importCount=21 esriLeafletImportCount=0 
 | Files scanned | 1 |
 | Files importing ArcGIS modules | 1 |
 | Codemod-scoped call sites | 11 |
-| Auto-migrated call-site ratio | 54.5% |
-| Manual-rewrite ratio | 45.5% |
-| Manual-intervention ratio | 76.9% |
+| Auto-migrated call-site ratio | 27.3% |
+| Manual-rewrite ratio | 72.7% |
+| Manual-intervention ratio | 88.5% |
 | Widget sites (automated / assisted / manual) | 0 / 0 / 0 |
 | Widget gate (`--gate 0`) | pass at 100.0% automated |
 
 Top manual-TODO kinds:
 
+- `color` — 2
+- `extent-geometry` — 2
 - `feature-layer` — 2
 - `unique-value-renderer` — 2
-- `extent-geometry` — 1
 
 Top ArcGIS modules outside codemod scope:
 
@@ -143,7 +145,7 @@ A time-series visualization of US National Park visitation built on the ArcGIS J
 - Repository: <https://github.com/ekenes/national-park-visits>
 - Pinned commit: `99b17289593454cc093648f7ba85b51f8ff25bad`
 - License: `Apache-2.0` — https://github.com/ekenes/national-park-visits/blob/99b17289593454cc093648f7ba85b51f8ff25bad/LICENSE
-- Observed: 2026-08-04
+- Observed: 2026-09-15
 - Scan root: `app`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
@@ -186,7 +188,7 @@ The public statewide parcel viewer operated by Utah's state geospatial office. R
 - Repository: <https://github.com/agrc/parcels>
 - Pinned commit: `996fd3e6a597db4996d18a607da8ece72a5b5fa0`
 - License: `MIT` — https://github.com/agrc/parcels/blob/996fd3e6a597db4996d18a607da8ece72a5b5fa0/LICENSE
-- Observed: 2026-08-04
+- Observed: 2026-09-15
 - Scan root: `src`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
@@ -199,9 +201,9 @@ filesScanned=11 filesWithArcGisImports=6 importCount=14 esriLeafletImportCount=0
 | Files scanned | 11 |
 | Files importing ArcGIS modules | 6 |
 | Codemod-scoped call sites | 48 |
-| Auto-migrated call-site ratio | 85.4% |
-| Manual-rewrite ratio | 14.6% |
-| Manual-intervention ratio | 18.0% |
+| Auto-migrated call-site ratio | 83.3% |
+| Manual-rewrite ratio | 16.7% |
+| Manual-intervention ratio | 20.0% |
 | Widget sites (automated / assisted / manual) | 0 / 0 / 0 |
 | Widget gate (`--gate 0`) | pass at 100.0% automated |
 
@@ -210,6 +212,7 @@ Top manual-TODO kinds:
 - `polygon-geometry` — 3
 - `graphic` — 2
 - `map-view` — 1
+- `point-geometry` — 1
 - `reactive-utils` — 1
 
 Top ArcGIS modules outside codemod scope:
@@ -224,7 +227,7 @@ A public bikeway finder for the Wasatch Front. `@arcgis/core` `WebMap` + `MapVie
 - Repository: <https://github.com/agrc/wfrc-bike-map>
 - Pinned commit: `680bcf88b094866a096db1576f61c254f9792a39`
 - License: `MIT` — https://github.com/agrc/wfrc-bike-map/blob/680bcf88b094866a096db1576f61c254f9792a39/LICENSE
-- Observed: 2026-08-04
+- Observed: 2026-09-15
 - Scan root: `src`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
@@ -260,7 +263,7 @@ A citizen-science map of owl sightings in Bavaria sourced from iNaturalist. Smal
 - Repository: <https://github.com/lujoh/owls_of_bavaria>
 - Pinned commit: `284949156925c63b0258aece1f48cd9e4f5ea55d`
 - License: `MIT` — https://github.com/lujoh/owls_of_bavaria/blob/284949156925c63b0258aece1f48cd9e4f5ea55d/LICENSE
-- Observed: 2026-08-04
+- Observed: 2026-09-15
 - Scan root: `src`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
@@ -273,19 +276,59 @@ filesScanned=15 filesWithArcGisImports=3 importCount=8 esriLeafletImportCount=0 
 | Files scanned | 15 |
 | Files importing ArcGIS modules | 3 |
 | Codemod-scoped call sites | 7 |
-| Auto-migrated call-site ratio | 85.7% |
-| Manual-rewrite ratio | 14.3% |
-| Manual-intervention ratio | 25.0% |
+| Auto-migrated call-site ratio | 71.4% |
+| Manual-rewrite ratio | 28.6% |
+| Manual-intervention ratio | 37.5% |
 | Widget sites (automated / assisted / manual) | 0 / 0 / 0 |
 | Widget gate (`--gate 0`) | pass at 100.0% automated |
 
 Top manual-TODO kinds:
 
+- `feature-filter` — 1
 - `feature-layer` — 1
 
 Top ArcGIS modules outside codemod scope:
 
 - `@arcgis/core/layers/support/FeatureEffect` (`static-import`) — 1
+
+### QG Travel System — Qinghai-Gansu Grand Loop trip planner
+
+An individual developer's public-transit trip-planning webgis for the Qinghai-Gansu Grand Loop tourist route in China. Vue 3 + Vite shell around `@arcgis/core` ES modules — imperative `new Map()` / `new MapView()`, `WebTileLayer`, `FeatureLayer`, `GraphicsLayer`, `SketchViewModel`, and `webMercatorUtils` — with the ArcGIS calls isolated in plain `.ts` modules the Vue components import.
+
+- Author: Zenith-Angle (`individual`)
+- Repository: <https://github.com/Zenith-Angle/QG_TravelSystem>
+- Pinned commit: `1b79b87a8958f68585687571fbe16e5328e0fad6`
+- License: `Apache-2.0` — https://github.com/Zenith-Angle/QG_TravelSystem/blob/1b79b87a8958f68585687571fbe16e5328e0fad6/LICENSE
+- Observed: 2026-09-15
+- Scan root: `src`
+
+```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
+filesScanned=13 filesWithArcGisImports=4 importCount=24 esriLeafletImportCount=0 topSymbols=[WebTileLayer:10, Point:8, Graphic:8, PictureMarkerSymbol:8, PopupTemplate:8, GraphicsLayer:5, MapView:4, SimpleMarkerSymbol:4, FeatureLayer:3, MapImageLayer:3] flags=[none]
+```
+
+| Metric | Value |
+| --- | --- |
+| Readiness | `assisted` |
+| Files scanned | 13 |
+| Files importing ArcGIS modules | 4 |
+| Codemod-scoped call sites | 43 |
+| Auto-migrated call-site ratio | 86.1% |
+| Manual-rewrite ratio | 14.0% |
+| Manual-intervention ratio | 22.9% |
+| Widget sites (automated / assisted / manual) | 0 / 1 / 0 |
+| Widget gate (`--gate 0`) | pass at 0.0% automated |
+
+Top manual-TODO kinds:
+
+- `point-geometry` — 4
+- `reactive-utils` — 2
+
+Top ArcGIS modules outside codemod scope:
+
+- `@arcgis/core/layers/WebTileLayer` (`static-import`) — 2
+- `@arcgis/core/assets/esri/themes/light/main.css` (`static-import`) — 1
+- `@arcgis/core/geometry/Circle` (`static-import`) — 1
+- `@arcgis/core/geometry/support/webMercatorUtils` (`static-import`) — 1
 
 ## Does the result still build?
 
