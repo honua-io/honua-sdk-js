@@ -5,10 +5,11 @@
 issue 1397 in a single run: AC1–AC6 against the newest imaged honua-server candidate,
 and AC7 against browser Studio built from honua-studio `main`.
 
-The receipt's status is `failed`, and the only failing acceptance check is AC7. AC1–AC6
-all pass with no deployment deviations. AC7 fails because browser Studio does not compile
-against the SDK this run qualifies, and it does not dispatch through that SDK. The owner
-is honua-io/honua-studio#71.
+The receipt's status is `passed`: all seven acceptance criteria pass in one run, with no
+deployment deviations. AC7 now passes because browser Studio at honua-studio `39c567c`
+(honua-io/honua-studio#72, which fixed honua-io/honua-studio#71) compiles and dispatches on the SDK this run
+qualifies as well as on the SDK it pins. The run's one failing check is the
+honua-io/honua-sdk-js#1744 finding, which is not an acceptance criterion.
 
 ## What ran
 
@@ -16,23 +17,22 @@ is honua-io/honua-studio#71.
   (`nightly-87966c3`), image revision `87966c3f7b6c840ffc4d4da0b451714ab717b18a`,
   dbSchema 120. The running image id was checked against the digest, and its revision
   label against the manifest candidate ref.
-- **Manifest:** the honua-release re-pin to this sha is still pending; the release is
-  pinned at `8862065` by honua-release#354. The manifest the harness read is
-  honua-release trunk's `platform-manifest.yaml` with exactly three lines changed:
-  `candidate.ref`, the honua-server `sha` and its `digest`. Its sha256 is `cf5623ca…`.
+- **Manifest:** honua-release trunk's `platform-manifest.yaml`, unmodified, at
+  `9876d7d6`, the merge of honua-release#356, which re-pinned the release candidate to
+  this sha and digest. Its sha256 is `b4f891e0…`.
 - **Previous release:** `sha256:dd50cd81…` (revision `7ba4226`), booted only for the
   release-swap check.
 - **Studio:** honua-io/honua-studio `main` at
-  `5103fceb2ef7b74faf47ea6650e40278f739ca02`. That commit descends from `685ac57`
-  (honua-studio#69, which deleted the local tool list). The harness archives the
-  commit, not a working tree.
+  `39c567cf48ead0858da48979dbd2d4fff4da4ab4`, the merge of honua-studio#72
+  (`transcriptProvenance` as a first-class chat event, and certified live agent turns).
+  It descends from `685ac57` (honua-studio#69, which deleted the local tool list). The
+  harness now asserts both ancestries, and it archives the commit, not a working tree.
 - **Deployment:** Production startup policy, fresh PostGIS and Redis, an OIDC resource
   server with a per-run HS256 key, a per-run operation key-ring certificate, and an
   Ed25519 transcript-signing key for the Studio AI proxy.
-- **SDK:** built from this branch. The receipt's `sdkSourceSha` is the branch
-  checkpoint `1c532761` the run was made from, retained on the branch's `wip/` backup
-  ref. The only files that differ between that checkpoint and this PR's head are the two
-  receipt files.
+- **SDK:** built from this branch. The receipt's `sdkSourceSha` is `719278cd`, the
+  branch's harness commit on top of honua-sdk-js trunk `144da14d5`. The only files that
+  differ between that commit and this PR's head are the two receipt files.
 - **Principals:**
   - an admin API key
   - interactive end users `alice` (owner) and `bob` (other owner), both holding
@@ -75,7 +75,7 @@ the HTTP API and one per MCP session, and it records that binding as a contract 
 | AC4 | Terminal session executes mutate, validate, save/get/reopen, propose/poll | Pass | See [AC4](#ac4-evidence) |
 | AC5 | Adding or removing a server Studio member changes the discovered set | Pass | See [AC3 and AC5](#ac3-and-ac5-evidence) |
 | AC6 | A principal cannot invoke beyond server authorization | Pass, undeviated | See [AC6](#ac6-evidence) |
-| AC7 | Browser Studio compiles against SDK discovery after deleting its local list | **Fail**: honua-io/honua-studio#71 | See [AC7](#ac7-evidence) |
+| AC7 | Browser Studio compiles against SDK discovery after deleting its local list | Pass | See [AC7](#ac7-evidence) |
 
 ### AC1 evidence
 
@@ -104,8 +104,8 @@ same MCP session (one initialize):
 
 | DefaultView change | Discovered set | Time |
 | --- | --- | --- |
-| to `setup` | 0 to 8 | 0.5 s |
-| back to `default` | 8 to 0 | 8.0 s |
+| to `setup` | 0 to 8 | 7.0 s |
+| back to `default` | 8 to 0 | 7.8 s |
 
 **Release swap with reconnect (AC5).** Swapping releases on the same address changed the
 routed set, with no SDK edit:
@@ -184,27 +184,29 @@ hashing `dist/src/studio-agent/index.js`.
   A UI command resolves to one wire name there. That vocabulary is never given to the
   model or to discovery, so it is not the deleted list.
 
-**Compiles on the same discovery surface: fail.**
+**Compiles and dispatches on the same discovery surface: pass.**
 
-| Step | Pinned `@honua/sdk-js` 0.1.9-beta.0 | SDK from this branch |
+| Step | Pinned `@honua/sdk-js` 0.1.9-beta.0 (`studio-agent/index.js` `4321e235…`) | SDK from this branch (`2749fc57…`) |
 | --- | --- | --- |
-| `npm run typecheck` | Pass | **Fail**: TS2322 at `src/elements/studio-chat-element.ts(476,79)` |
-| `npm run build` | Pass | Pass (Vite does not typecheck) |
-| SDK-discovery element test, run alone | 1 passed | **1 failed**: `expected undefined to be 9` |
+| `npm run typecheck` | Pass | Pass |
+| `npm run build` | Pass | Pass |
+| SDK-discovery element test, run alone | 1 passed | 1 passed |
 
-Both failures come from honua-io/honua-sdk-js#1748. That is the provenance fix AC4's
-certified model turn depends on, and it is not in the published 0.1.9-beta.0.
+On the previous replay (Studio `5103fce`), the SDK-from-this-branch column failed twice.
+Typecheck failed with TS2322, because `transcriptProvenance` was missing from Studio's
+local `StudioAiChatEventType`. The discovery test failed with
+`expected undefined to be 9`, because a model-selected action was never dispatched
+without `certification`. Both came from honua-io/honua-sdk-js#1748, and
+honua-io/honua-studio#72 fixes both:
 
-- **Type:** the fix added `transcriptProvenance` to the SDK's `StudioAiChatEventType`.
-  Studio assigns the SDK's session chat events into its own copy of the proxy contract
-  (`src/chat/ai-contract.ts`), which has no such member.
-- **Runtime:** the session dispatches a model-selected action only with `certification`
-  options and one verified provenance event. Studio's `attachAgentSession` passes no
-  `certification`. In the element test, the model selects the discovered
-  `honua_studio_set_view` and the turn ends at `messageStop` without dispatching.
+- **Type:** `transcriptProvenance` is a first-class event in Studio's copy of the proxy
+  contract.
+- **Runtime:** `attachAgentSession` passes host-supplied `certification` and a transcript
+  verifier to `createStudioAgentSession`. The discovery element test runs a certified
+  transport, so the discovered tool is selected, dispatched and its result fed back.
 
-Both are recorded on honua-io/honua-studio#71, and the fix belongs in Studio. For a
-non-admin Studio user, certification is also refused by the proxy
+Studio receives the certification binding from its host (`agentCertification`). For a
+non-admin Studio user the proxy still refuses certification
 (honua-io/honua-sdk-js#1744, below).
 
 ## Findings
@@ -222,7 +224,7 @@ non-admin Studio user, certification is also refused by the proxy
   uses `update_draft`.
 - **Regression guards still green:** honua-server#4909 (bearer MCP session continuity),
   #4910 (proposal owner poll) and #4919 (prompt budget; this run's largest round
-  counted 16,158 of the 128,000 characters allowed).
+  counted 16,154 of the 128,000 characters allowed).
 
 ## Reproduce
 
