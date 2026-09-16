@@ -1,0 +1,436 @@
+{
+  "schema": "honua.ogc-processes-candidate-replay/v1",
+  "issue": "honua-io/honua-sdk-js#1328",
+  "generatedAt": "2026-09-16T18:59:56.970Z",
+  "scope": "installed registry @honua/sdk-js bytes against a digest-addressed honua-server image; governed geometry.buffer",
+  "harnessSourceSha": "75802d08e6e2d3db69b4b828e20a1b8ec7d883e8",
+  "sdk": {
+    "coordinate": "@honua/sdk-js",
+    "version": "0.1.9-beta.0",
+    "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+    "sourceRevision": "c99e71197dd940ed952aecb024c6de273456f2ae",
+    "provenance": "verified",
+    "provenanceChecks": [
+      {
+        "description": "@honua/sdk-js@0.1.9-beta.0 is published",
+        "status": "pass"
+      },
+      {
+        "description": "dist-tag \"latest\" resolves to 0.1.9-beta.0",
+        "status": "pass"
+      },
+      {
+        "description": "the served tarball hashes to the advertised integrity",
+        "status": "pass"
+      },
+      {
+        "description": "npm recorded a publish attestation bound to the published tarball",
+        "status": "pass"
+      },
+      {
+        "description": "a SLSA provenance attestation is present and decodable",
+        "status": "pass"
+      },
+      {
+        "description": "the provenance is bound to the exact published tarball",
+        "status": "pass"
+      },
+      {
+        "description": "the provenance was produced by this repository's publish workflow",
+        "status": "pass"
+      },
+      {
+        "description": "the published artifact was built from c99e71197dd940ed952aecb024c6de273456f2ae",
+        "status": "pass"
+      }
+    ],
+    "install": {
+      "mode": "clean-npm-ci",
+      "localLinks": false,
+      "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz",
+      "lockDigest": "sha256:0645d6dcf27ab09beb34988e49d64d82fdd97f4a65a49e83596d569bfdb18cc8",
+      "runtime": {
+        "node": "v24.19.0",
+        "npm": "11.17.0",
+        "platform": "linux",
+        "arch": "x64"
+      }
+    }
+  },
+  "server": {
+    "image": "ghcr.io/honua-io/honua-server@sha256:61e06ef3a94d00e4c8fc57ce93e008a5e31b2dcf1da5deb22781fdd42d2d4e51",
+    "revision": "2cc221388ea47d78c29e79eaee62737e4c792351",
+    "runningImageMatches": true,
+    "labelRevision": "2cc221388ea47d78c29e79eaee62737e4c792351",
+    "startupPolicy": "Production; PostGIS 16-3.4; Redis 7.4; per-run key-ring PKCS#12; Licensing Disabled; admin API key"
+  },
+  "status": "passed",
+  "qualification": {
+    "format": "honua.sdk.ogc-processes-candidate-qualification.v1",
+    "schemaVersion": 1,
+    "observedAt": "2026-09-16T19:03:10.331Z",
+    "candidate": {
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.9-beta.0",
+        "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+        "sourceSha": "c99e71197dd940ed952aecb024c6de273456f2ae"
+      },
+      "server": {
+        "sourceSha": "2cc221388ea47d78c29e79eaee62737e4c792351",
+        "imageDigest": "sha256:61e06ef3a94d00e4c8fc57ce93e008a5e31b2dcf1da5deb22781fdd42d2d4e51"
+      },
+      "manifestRevision": "2cc221388ea47d78c29e79eaee62737e4c792351",
+      "evidenceUri": "repo://honua-io/honua-sdk-js/test-results/ogc-processes-candidate-replay.json"
+    },
+    "fixture": {
+      "id": "geometry-buffer-point-4326-v1",
+      "sha256": "92aabf8cc373fda535e0896c43ab445b203d4f6de7b9dfd6cddcdc4aaf2c9097",
+      "processId": "geometry.buffer"
+    },
+    "discovery": {
+      "landingLinkCount": 6,
+      "conformanceClasses": [
+        "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/core",
+        "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/json",
+        "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/ogc-process-description",
+        "http://www.opengis.net/spec/ogcapi-common-1/1.0/conf/core",
+        "http://www.opengis.net/spec/ogcapi-common-1/1.0/conf/json"
+      ],
+      "processCount": 83,
+      "jobControlOptions": [
+        "async-execute",
+        "sync-execute"
+      ],
+      "dismissDeclared": false,
+      "inputNames": [
+        "distance",
+        "geodesic",
+        "srid",
+        "wkb"
+      ],
+      "outputNames": [
+        "outputFeatureLayer"
+      ]
+    },
+    "executions": {
+      "sync": {
+        "status": "successful",
+        "outputNames": [
+          "outputFeatureLayer"
+        ],
+        "oracle": {
+          "geometryType": "Polygon",
+          "vertexCount": 33,
+          "minRadius": 0.00024999999999368567,
+          "maxRadius": 0.0002500000000068733,
+          "expectedRadius": 0.00025
+        },
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/ogc/processes/processes/geometry.buffer/execution",
+            "status": 200,
+            "prefer": null
+          }
+        ]
+      },
+      "async": {
+        "status": "successful",
+        "transitions": [
+          "accepted",
+          "successful"
+        ],
+        "outputNames": [
+          "outputFeatureLayer"
+        ],
+        "oracle": {
+          "geometryType": "Polygon",
+          "vertexCount": 33,
+          "minRadius": 0.00024999999999368567,
+          "maxRadius": 0.0002500000000068733,
+          "expectedRadius": 0.00025
+        },
+        "resultsRetrievedFromLink": true,
+        "cancellation": {
+          "declared": false,
+          "outcome": "refused",
+          "status": "unsupported",
+          "refusal": {
+            "outcome": "refused-locally",
+            "capability": "processes.dismiss",
+            "construct": "dismiss",
+            "missingClass": "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/dismiss",
+            "requests": []
+          },
+          "deleteIssued": false
+        },
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/ogc/processes/processes/geometry.buffer/execution",
+            "status": 201,
+            "prefer": "respond-async"
+          },
+          {
+            "method": "GET",
+            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "status": 200,
+            "prefer": null
+          },
+          {
+            "method": "GET",
+            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "status": 200,
+            "prefer": null
+          },
+          {
+            "method": "GET",
+            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "status": 200,
+            "prefer": null
+          },
+          {
+            "method": "GET",
+            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "status": 200,
+            "prefer": null
+          },
+          {
+            "method": "GET",
+            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "status": 200,
+            "prefer": null
+          },
+          {
+            "method": "GET",
+            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "status": 200,
+            "prefer": null
+          },
+          {
+            "method": "GET",
+            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa/results",
+            "status": 200,
+            "prefer": null
+          }
+        ]
+      }
+    },
+    "gates": [
+      {
+        "id": "sync-execute-undeclared",
+        "declaration": "live",
+        "processId": "honua-geoprocessing",
+        "jobControlOptions": [
+          "async-execute"
+        ],
+        "outcome": "refused-locally",
+        "capability": "processes.sync-execute",
+        "construct": "sync-execute",
+        "missingClass": null,
+        "requests": []
+      },
+      {
+        "id": "sync-execute-undeclared-strict",
+        "declaration": "live",
+        "processId": "honua-geoprocessing",
+        "jobControlOptions": [
+          "async-execute"
+        ],
+        "outcome": "refused-locally",
+        "capability": "processes.sync-execute",
+        "construct": "sync-execute",
+        "missingClass": null,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ogc/processes/conformance",
+            "status": 200
+          },
+          {
+            "method": "GET",
+            "path": "/ogc/processes/processes/honua-geoprocessing",
+            "status": 200
+          }
+        ]
+      },
+      {
+        "id": "core-class-undeclared",
+        "declaration": "derived",
+        "removed": "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/core",
+        "outcome": "refused-locally",
+        "capability": "processes.execute",
+        "construct": "execute",
+        "missingClass": "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/core",
+        "requests": []
+      },
+      {
+        "id": "async-execute-undeclared",
+        "declaration": "derived",
+        "removed": "async-execute",
+        "jobControlOptions": [
+          "sync-execute"
+        ],
+        "outcome": "refused-locally",
+        "capability": "processes.async-execute",
+        "construct": "async-execute",
+        "missingClass": null,
+        "requests": []
+      }
+    ],
+    "governance": {
+      "outcome": "refused",
+      "serverStatus": 401,
+      "error": {
+        "name": "HonuaHttpError",
+        "statusCode": 401,
+        "jobStatus": null,
+        "errorCode": null
+      },
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/ogc/processes/processes/geometry.buffer/execution",
+          "status": 401,
+          "prefer": null
+        }
+      ]
+    },
+    "failure": {
+      "outcome": "rejected",
+      "kind": "request-rejected",
+      "error": {
+        "name": "HonuaHttpError",
+        "statusCode": 400,
+        "jobStatus": null,
+        "errorCode": null
+      },
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/ogc/processes/processes/geometry.buffer/execution",
+          "status": 400,
+          "prefer": "respond-async"
+        }
+      ]
+    },
+    "unknownProcess": {
+      "outcome": "not-found",
+      "error": {
+        "name": "HonuaHttpError",
+        "statusCode": 404,
+        "jobStatus": null,
+        "errorCode": null
+      },
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/ogc/processes/processes/honua-sdk-1328-no-such-process",
+          "status": 404,
+          "prefer": null
+        }
+      ]
+    },
+    "wire": {
+      "requestCount": 20,
+      "preferValues": [
+        "respond-async"
+      ],
+      "respondSyncSent": false
+    },
+    "result": "passed"
+  },
+  "qualificationDigest": "sha256:cc1b752e193f436cab833d1aac03d52053b4002e2fd7ddb50d108eb6fd03e21d",
+  "joins": {
+    "installedPackageCertification": {
+      "issue": "honua-io/honua-sdk-js#39",
+      "path": "test-results/installed-package-certification.json",
+      "receiptDigest": "sha256:dd62f8c666719f36096e66b630eae97c1edb3796d640d53a2209c7c6bc74503e",
+      "bindingCandidateDigest": "sha256:cd7ca76c82ec877f8a0a86effd06d24240d7fce31754743e78c609a92c8530e0",
+      "serverDigest": "sha256:29974ee7b722e3ae15c3b891024e5e70800f412188aeccf5ec3d32d9dac675c1",
+      "verdict": "not-certified",
+      "summary": {
+        "total": 228,
+        "pass": 0,
+        "fail": 0,
+        "blocked": 228
+      },
+      "samePackageBytes": true,
+      "rows": [
+        {
+          "id": "protocol-certification:ogc-processes:landing",
+          "tier": "supported",
+          "counts": true,
+          "installedReceiptVerdict": "blocked",
+          "installedReceiptBlockedBy": "honua-sdk-js#39",
+          "thisReceipt": "observed-passing",
+          "evidence": "discovery.landingLinkCount"
+        },
+        {
+          "id": "protocol-certification:ogc-processes:conformance",
+          "tier": "supported",
+          "counts": true,
+          "installedReceiptVerdict": "blocked",
+          "installedReceiptBlockedBy": "honua-sdk-js#39",
+          "thisReceipt": "observed-passing",
+          "evidence": "discovery.conformanceClasses"
+        },
+        {
+          "id": "protocol-certification:ogc-processes:list",
+          "tier": "supported",
+          "counts": true,
+          "installedReceiptVerdict": "blocked",
+          "installedReceiptBlockedBy": "honua-sdk-js#39",
+          "thisReceipt": "observed-passing",
+          "evidence": "discovery.processCount"
+        },
+        {
+          "id": "protocol-certification:ogc-processes:describe",
+          "tier": "supported",
+          "counts": true,
+          "installedReceiptVerdict": "blocked",
+          "installedReceiptBlockedBy": "honua-sdk-js#39",
+          "thisReceipt": "observed-passing",
+          "evidence": "discovery.jobControlOptions"
+        },
+        {
+          "id": "sdk-operation:ogc-processes-discovery-standalone:discovery",
+          "tier": "supported",
+          "counts": true,
+          "installedReceiptVerdict": "blocked",
+          "installedReceiptBlockedBy": "honua-sdk-js#39",
+          "thisReceipt": "observed-passing",
+          "evidence": "discovery"
+        },
+        {
+          "id": "sdk-operation:ogc-processes-execution-standalone:processes",
+          "tier": "experimental",
+          "counts": false,
+          "installedReceiptVerdict": "not-counted",
+          "thisReceipt": "observed-passing",
+          "evidence": "executions"
+        }
+      ],
+      "promotion": "none: #39's receipt and verdicts are unchanged; the observations above bind this receipt's server image only"
+    },
+    "server": [
+      {
+        "name": "nightly-container-build",
+        "url": "https://github.com/honua-io/honua-server/actions/runs/35084811526",
+        "workflow": "Nightly Container Build",
+        "event": "schedule",
+        "conclusion": "success",
+        "headSha": "2cc221388ea47d78c29e79eaee62737e4c792351"
+      },
+      {
+        "name": "ci",
+        "url": "https://github.com/honua-io/honua-server/actions/runs/35085513511",
+        "workflow": "CI ",
+        "event": "workflow_dispatch",
+        "conclusion": "success",
+        "headSha": "2cc221388ea47d78c29e79eaee62737e4c792351"
+      }
+    ]
+  }
+}
