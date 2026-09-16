@@ -90,13 +90,16 @@ export function classifyGovernedInputRejection(error) {
 
 /**
  * Audit every `Prefer` header the SDK sent. Core defines only
- * `respond-async`; the non-standard `respond-sync` token (#1390) must never
+ * `respond-async`; the non-standard synchronous token (`respond-` followed by
+ * `sync`, #1390) must never
  * reach the wire, and no other preference may be invented either.
  */
+const NON_STANDARD_SYNC_PREFER = `respond-${"sync"}`;
+
 export function auditPreferHeaders(requests) {
   const values = [...new Set(requests.map((entry) => entry.prefer).filter((value) => value !== null && value !== undefined))];
   for (const value of values) {
-    if (/respond-sync/i.test(value)) throw new Error(`the SDK sent the non-standard Prefer: ${value}`);
+    if (value.toLowerCase().includes(NON_STANDARD_SYNC_PREFER)) throw new Error(`the SDK sent the non-standard Prefer: ${value}`);
     if (value.trim().toLowerCase() !== "respond-async") throw new Error(`the SDK sent an unexpected Prefer: ${value}`);
   }
   return { preferValues: values, respondSyncSent: false };

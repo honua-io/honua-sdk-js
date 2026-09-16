@@ -111,7 +111,7 @@ export function renderMarkdown(receipt) {
       "",
       "| Criterion | Observation |",
       "| --- | --- |",
-      `| No \`respond-sync\` | ${q.wire.requestCount} requests; Prefer values sent: ${q.wire.preferValues.map((v) => `\`${v}\``).join(", ") || "none"} |`,
+      `| No non-standard \`Prefer\` token | ${q.wire.requestCount} requests; Prefer values sent: ${q.wire.preferValues.map((v) => `\`${v}\``).join(", ") || "none"} |`,
       `| Mode gates fail closed | ${q.gates.map(gate).join("; ")} |`,
       `| Governed process reaches a terminal result | sync ${q.executions.sync.status}; async ${q.executions.async.status} via ${q.executions.async.transitions?.join(" → ")}; buffer oracle radius ${q.executions.async.oracle?.expectedRadius} |`,
       `| Cancel as declared | dismiss declared: ${q.discovery.dismissDeclared}; cancel ${q.executions.async.cancellation?.outcome}, DELETE issued: ${q.executions.async.cancellation?.deleteIssued ?? true} |`,

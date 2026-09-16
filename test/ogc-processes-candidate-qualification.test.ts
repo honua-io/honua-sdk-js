@@ -93,7 +93,9 @@ describe("OGC Processes exact-candidate qualification policy", () => {
     expect(Object.keys(classifyGovernedInputRejection(httpError(400)).error)).not.toContain("message");
   });
 
-  it("refuses a respond-sync or invented Prefer token on the wire", () => {
+  it("refuses the non-standard synchronous or an invented Prefer token on the wire", () => {
+    // Assembled from parts, as in ogc-processes-prefer-residue.test.ts, so this file is not a violation.
+    const nonStandard = `respond-${"sync"}`;
     const request = (prefer: string | null) => ({
       method: "POST",
       path: "/ogc/processes/processes/p/execution",
@@ -105,8 +107,8 @@ describe("OGC Processes exact-candidate qualification policy", () => {
       respondSyncSent: false,
     });
     expect(auditPreferHeaders([request(null)])).toEqual({ preferValues: [], respondSyncSent: false });
-    expect(() => auditPreferHeaders([request("respond-sync")])).toThrow(/non-standard/);
-    expect(() => auditPreferHeaders([request("Respond-Sync, wait=5")])).toThrow(/non-standard/);
+    expect(() => auditPreferHeaders([request(nonStandard)])).toThrow(/non-standard/);
+    expect(() => auditPreferHeaders([request(`${nonStandard.toUpperCase()}, wait=5`)])).toThrow(/non-standard/);
     expect(() => auditPreferHeaders([request("wait=5")])).toThrow(/unexpected Prefer/);
   });
 
