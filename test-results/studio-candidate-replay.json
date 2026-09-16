@@ -1,9 +1,9 @@
 {
   "schema": "honua.studio-candidate-replay/v1",
   "issue": "honua-io/honua-sdk-js#1397",
-  "generatedAt": "2026-09-16T03:28:24.290Z",
+  "generatedAt": "2026-09-16T03:33:44.113Z",
   "scope": "manifest-pinned honua-server image, source-built SDK, scripted provider behind the real Studio AI proxy; not an installed-client or live-model certification",
-  "sdkSourceSha": "eb8c8d4cb1046017ea9550a44f5d43ed86ec2cda",
+  "sdkSourceSha": "5e007e55b8ea6e0391b9416802cbe3fc432c0fa5",
   "manifestSha256": "120a99cbd2b464b890536a753706283c7eb8c6021da9d5198ff5b85e6c3673af",
   "candidate": {
     "ref": "886206527cc97bad1bbaa5fa6358910ebc45e9c0",
@@ -22,7 +22,7 @@
       ]
     },
     "running": {
-      "container": "sdk1397-8bc3b334-server-current",
+      "container": "sdk1397-260e7da3-server-current",
       "imageId": "sha256:0b16046533e5330ecdd48255c06b5397e869191299e1e5e8cc7b4b2ded60b388",
       "revision": "886206527cc97bad1bbaa5fa6358910ebc45e9c0",
       "boots": 1,
@@ -60,6 +60,23 @@
           "tools": 25
         },
         "serverLog": []
+      }
+    },
+    {
+      "id": "bearer-token-is-bound-to-one-mcp-session",
+      "criterion": "finding (honua-server#4899)",
+      "verdict": "pass",
+      "evidence": {
+        "firstSession": {
+          "opened": true
+        },
+        "sameTokenSecondSession": {
+          "opened": false,
+          "error": "MCP endpoint responded 401 for \"initialize\": {\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"The bearer token is invalid, expired, or issued for a different resource.\",\"data\":{\"code\":\"unauthenticated\",\"requiresReauthentication\":true}}}"
+        },
+        "newlyIssuedTokenSecondSession": {
+          "opened": true
+        }
       }
     },
     {
@@ -325,10 +342,10 @@
           "requiredForCertification": true,
           "keys": [
             {
-              "keyId": "sdk1397-8bc3b334-transcript",
+              "keyId": "sdk1397-260e7da3-transcript",
               "algorithm": "Ed25519",
-              "publicKey": "Wpt92iO6QJJaE4Kn1nbJ3XGtvnlIUq0Cn5TtYmb1nQw=",
-              "fingerprint": "sha256:ae008a8791c8c014a2390c40e1cf6e7c3a23912428d040bd11af2d4e73892634",
+              "publicKey": "er7VY5LrfvVflur1dRWJL5pnQwjjSAcdKd8akO2/4m8=",
+              "fingerprint": "sha256:10f42743b1180a5af766b24c5f577de88e415b17a3eeaa686e9d373c07b82cf6",
               "revoked": false
             }
           ]
@@ -349,50 +366,50 @@
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 22504,
-            "promptCharacters": 3806,
+            "requestBytes": 22506,
+            "promptCharacters": 3808,
             "messages": 3
           },
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 25086,
-            "promptCharacters": 5279,
+            "requestBytes": 25088,
+            "promptCharacters": 5281,
             "messages": 5
           },
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 25451,
-            "promptCharacters": 5418,
+            "requestBytes": 25453,
+            "promptCharacters": 5420,
             "messages": 7
           },
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 27316,
-            "promptCharacters": 6891,
+            "requestBytes": 27318,
+            "promptCharacters": 6893,
             "messages": 9
           },
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 32375,
-            "promptCharacters": 11035,
+            "requestBytes": 32373,
+            "promptCharacters": 11033,
             "messages": 11
           },
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 37252,
-            "promptCharacters": 14950,
+            "requestBytes": 37250,
+            "promptCharacters": 14948,
             "messages": 13
           },
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 39082,
-            "promptCharacters": 16156,
+            "requestBytes": 39080,
+            "promptCharacters": 16154,
             "messages": 15
           }
         ],
@@ -574,93 +591,93 @@
           }
         ],
         "values": {
-          "draftId": "261e6d78-3138-47a4-8134-3be2024debb3",
+          "draftId": "a8440005-456e-4bd1-b317-90a7654c1b9d",
           "ownerId": "00000000-0000-0000-0000-000000000002",
           "generations": {
             "created": 1,
             "updated": 2,
             "reopened": 1
           },
-          "itemId": "703b4f11-b4c7-48bd-b02b-eea5bf730f12",
-          "versionId": "a5499a15-ca20-4c79-a54e-279c4c93be8b",
-          "contentHash": "cf06146d1d413218f41e5199b2e418dd0613f71f2e801a2c59905e80e49f3395",
-          "reopenedDraftId": "bf0055f0-f74f-4e67-9cf6-73087bbe6210",
-          "proposalId": "proposal-fc75fe65508448e0ab7772cbded86749",
-          "publicationPointer": "null|a5499a15-ca20-4c79-a54e-279c4c93be8b",
+          "itemId": "1ed6271c-b190-48b4-81e7-147df8e1a190",
+          "versionId": "a1a07617-45fc-4d5a-bda0-8e67204b42d5",
+          "contentHash": "42f244a0de824303bbb6d210ef10ce783880757856db2b344d71a3d73e209327",
+          "reopenedDraftId": "8bffc5c1-85e0-4d99-9685-5089d25dc9cd",
+          "proposalId": "proposal-ed3a63f6771a470f8bcefdf342d717cf",
+          "publicationPointer": "null|a1a07617-45fc-4d5a-bda0-8e67204b42d5",
           "polls": [
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-fc75fe65508448e0ab7772cbded86749",
-                "operationInstanceId": "opinst-b47cefcfdf0e46698702aea55b436307",
-                "auditId": "21",
-                "correlationId": "00-aa35214761f09ed21d3cfe459f097eb4-a044efb1d24fda10-00",
+                "proposalId": "proposal-ed3a63f6771a470f8bcefdf342d717cf",
+                "operationInstanceId": "opinst-42530895c5744feca1211d510a82e922",
+                "auditId": "22",
+                "correlationId": "00-b54cc3d49f21da4cc121fbf4ef3c7068-bd96a697c5bc6bed-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a5499a15-ca20-4c79-a54e-279c4c93be8b at /studio/sdk1397-admin-api-key-model-8bc3b334.",
+                "summary": "Publish sealed Studio version a1a07617-45fc-4d5a-bda0-8e67204b42d5 at /studio/sdk1397-admin-api-key-model-260e7da3.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=703b4f11-b4c7-48bd-b02b-eea5bf730f12",
-                  "versionId=a5499a15-ca20-4c79-a54e-279c4c93be8b",
-                  "contentHash=cf06146d1d413218f41e5199b2e418dd0613f71f2e801a2c59905e80e49f3395",
-                  "route=/studio/sdk1397-admin-api-key-model-8bc3b334",
+                  "itemId=1ed6271c-b190-48b4-81e7-147df8e1a190",
+                  "versionId=a1a07617-45fc-4d5a-bda0-8e67204b42d5",
+                  "contentHash=42f244a0de824303bbb6d210ef10ce783880757856db2b344d71a3d73e209327",
+                  "route=/studio/sdk1397-admin-api-key-model-260e7da3",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:28:49.5514244+00:00",
-                "updatedAt": "2026-09-16T03:28:49.5616072+00:00"
+                "createdAt": "2026-09-16T03:34:12.2668888+00:00",
+                "updatedAt": "2026-09-16T03:34:12.2740011+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-fc75fe65508448e0ab7772cbded86749",
-                "operationInstanceId": "opinst-b47cefcfdf0e46698702aea55b436307",
-                "auditId": "21",
-                "correlationId": "00-aa35214761f09ed21d3cfe459f097eb4-a044efb1d24fda10-00",
+                "proposalId": "proposal-ed3a63f6771a470f8bcefdf342d717cf",
+                "operationInstanceId": "opinst-42530895c5744feca1211d510a82e922",
+                "auditId": "22",
+                "correlationId": "00-b54cc3d49f21da4cc121fbf4ef3c7068-bd96a697c5bc6bed-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a5499a15-ca20-4c79-a54e-279c4c93be8b at /studio/sdk1397-admin-api-key-model-8bc3b334.",
+                "summary": "Publish sealed Studio version a1a07617-45fc-4d5a-bda0-8e67204b42d5 at /studio/sdk1397-admin-api-key-model-260e7da3.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=703b4f11-b4c7-48bd-b02b-eea5bf730f12",
-                  "versionId=a5499a15-ca20-4c79-a54e-279c4c93be8b",
-                  "contentHash=cf06146d1d413218f41e5199b2e418dd0613f71f2e801a2c59905e80e49f3395",
-                  "route=/studio/sdk1397-admin-api-key-model-8bc3b334",
+                  "itemId=1ed6271c-b190-48b4-81e7-147df8e1a190",
+                  "versionId=a1a07617-45fc-4d5a-bda0-8e67204b42d5",
+                  "contentHash=42f244a0de824303bbb6d210ef10ce783880757856db2b344d71a3d73e209327",
+                  "route=/studio/sdk1397-admin-api-key-model-260e7da3",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:28:49.5514244+00:00",
-                "updatedAt": "2026-09-16T03:28:49.5616072+00:00"
+                "createdAt": "2026-09-16T03:34:12.2668888+00:00",
+                "updatedAt": "2026-09-16T03:34:12.2740011+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-fc75fe65508448e0ab7772cbded86749",
-                "operationInstanceId": "opinst-b47cefcfdf0e46698702aea55b436307",
-                "auditId": "21",
-                "correlationId": "00-aa35214761f09ed21d3cfe459f097eb4-a044efb1d24fda10-00",
+                "proposalId": "proposal-ed3a63f6771a470f8bcefdf342d717cf",
+                "operationInstanceId": "opinst-42530895c5744feca1211d510a82e922",
+                "auditId": "22",
+                "correlationId": "00-b54cc3d49f21da4cc121fbf4ef3c7068-bd96a697c5bc6bed-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a5499a15-ca20-4c79-a54e-279c4c93be8b at /studio/sdk1397-admin-api-key-model-8bc3b334.",
+                "summary": "Publish sealed Studio version a1a07617-45fc-4d5a-bda0-8e67204b42d5 at /studio/sdk1397-admin-api-key-model-260e7da3.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=703b4f11-b4c7-48bd-b02b-eea5bf730f12",
-                  "versionId=a5499a15-ca20-4c79-a54e-279c4c93be8b",
-                  "contentHash=cf06146d1d413218f41e5199b2e418dd0613f71f2e801a2c59905e80e49f3395",
-                  "route=/studio/sdk1397-admin-api-key-model-8bc3b334",
+                  "itemId=1ed6271c-b190-48b4-81e7-147df8e1a190",
+                  "versionId=a1a07617-45fc-4d5a-bda0-8e67204b42d5",
+                  "contentHash=42f244a0de824303bbb6d210ef10ce783880757856db2b344d71a3d73e209327",
+                  "route=/studio/sdk1397-admin-api-key-model-260e7da3",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:28:49.5514244+00:00",
-                "updatedAt": "2026-09-16T03:28:49.5616072+00:00"
+                "createdAt": "2026-09-16T03:34:12.2668888+00:00",
+                "updatedAt": "2026-09-16T03:34:12.2740011+00:00"
               }
             }
           ]
@@ -1312,93 +1329,93 @@
           }
         ],
         "values": {
-          "draftId": "622905ac-01cc-4d6b-b846-7e7fcea9ca43",
+          "draftId": "e8df76f4-79b8-4c0c-8c8b-f6d6cae21bae",
           "ownerId": "00000000-0000-0000-0000-000000000002",
           "generations": {
             "created": 1,
             "updated": 2,
             "reopened": 1
           },
-          "itemId": "980997b1-a672-4bab-9e48-07fd7921b5bd",
-          "versionId": "a76ca6f7-b4ab-4791-9423-76e7807bb389",
-          "contentHash": "86f03822779401b07588dfe5e3a3d8cc801800d9eb1eb7d3cb8b441cf67480f9",
-          "reopenedDraftId": "7999177c-ae38-467e-83bb-08d7ca4c7d0b",
-          "proposalId": "proposal-e9c3b85b6115441fa3507f924f2eacdb",
-          "publicationPointer": "null|a76ca6f7-b4ab-4791-9423-76e7807bb389",
+          "itemId": "b14a886c-6c81-4169-adfb-d395450421ec",
+          "versionId": "c2718e66-f244-40a9-8966-96b88143a604",
+          "contentHash": "980ba1becb2e5acf0a48cc11c4144874ced8e1bdf3b6f77f46c96484a3cddebd",
+          "reopenedDraftId": "1268f52a-6fc0-403e-84a2-0b3161c0d38e",
+          "proposalId": "proposal-7be501eab23149d49a11caa1e78aba4e",
+          "publicationPointer": "null|c2718e66-f244-40a9-8966-96b88143a604",
           "polls": [
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-e9c3b85b6115441fa3507f924f2eacdb",
-                "operationInstanceId": "opinst-c1e9427a4b914c569bea6176860651a3",
-                "auditId": "32",
-                "correlationId": "00-d2ca5bc84d4e3a4043304f17fd156a95-52d051ada6e77573-01",
+                "proposalId": "proposal-7be501eab23149d49a11caa1e78aba4e",
+                "operationInstanceId": "opinst-f5c9f483c8b44cbba9cf53002ae8b151",
+                "auditId": "33",
+                "correlationId": "00-49fb326d232913bf47321c6eb1998e67-3af53084047f9c99-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a76ca6f7-b4ab-4791-9423-76e7807bb389 at /studio/sdk1397-admin-api-key-mcp-8bc3b334.",
+                "summary": "Publish sealed Studio version c2718e66-f244-40a9-8966-96b88143a604 at /studio/sdk1397-admin-api-key-mcp-260e7da3.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=980997b1-a672-4bab-9e48-07fd7921b5bd",
-                  "versionId=a76ca6f7-b4ab-4791-9423-76e7807bb389",
-                  "contentHash=86f03822779401b07588dfe5e3a3d8cc801800d9eb1eb7d3cb8b441cf67480f9",
-                  "route=/studio/sdk1397-admin-api-key-mcp-8bc3b334",
+                  "itemId=b14a886c-6c81-4169-adfb-d395450421ec",
+                  "versionId=c2718e66-f244-40a9-8966-96b88143a604",
+                  "contentHash=980ba1becb2e5acf0a48cc11c4144874ced8e1bdf3b6f77f46c96484a3cddebd",
+                  "route=/studio/sdk1397-admin-api-key-mcp-260e7da3",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:28:51.7856735+00:00",
-                "updatedAt": "2026-09-16T03:28:51.7928887+00:00"
+                "createdAt": "2026-09-16T03:34:14.3202783+00:00",
+                "updatedAt": "2026-09-16T03:34:14.32699+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-e9c3b85b6115441fa3507f924f2eacdb",
-                "operationInstanceId": "opinst-c1e9427a4b914c569bea6176860651a3",
-                "auditId": "32",
-                "correlationId": "00-d2ca5bc84d4e3a4043304f17fd156a95-52d051ada6e77573-01",
+                "proposalId": "proposal-7be501eab23149d49a11caa1e78aba4e",
+                "operationInstanceId": "opinst-f5c9f483c8b44cbba9cf53002ae8b151",
+                "auditId": "33",
+                "correlationId": "00-49fb326d232913bf47321c6eb1998e67-3af53084047f9c99-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a76ca6f7-b4ab-4791-9423-76e7807bb389 at /studio/sdk1397-admin-api-key-mcp-8bc3b334.",
+                "summary": "Publish sealed Studio version c2718e66-f244-40a9-8966-96b88143a604 at /studio/sdk1397-admin-api-key-mcp-260e7da3.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=980997b1-a672-4bab-9e48-07fd7921b5bd",
-                  "versionId=a76ca6f7-b4ab-4791-9423-76e7807bb389",
-                  "contentHash=86f03822779401b07588dfe5e3a3d8cc801800d9eb1eb7d3cb8b441cf67480f9",
-                  "route=/studio/sdk1397-admin-api-key-mcp-8bc3b334",
+                  "itemId=b14a886c-6c81-4169-adfb-d395450421ec",
+                  "versionId=c2718e66-f244-40a9-8966-96b88143a604",
+                  "contentHash=980ba1becb2e5acf0a48cc11c4144874ced8e1bdf3b6f77f46c96484a3cddebd",
+                  "route=/studio/sdk1397-admin-api-key-mcp-260e7da3",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:28:51.7856735+00:00",
-                "updatedAt": "2026-09-16T03:28:51.7928887+00:00"
+                "createdAt": "2026-09-16T03:34:14.3202783+00:00",
+                "updatedAt": "2026-09-16T03:34:14.32699+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-e9c3b85b6115441fa3507f924f2eacdb",
-                "operationInstanceId": "opinst-c1e9427a4b914c569bea6176860651a3",
-                "auditId": "32",
-                "correlationId": "00-d2ca5bc84d4e3a4043304f17fd156a95-52d051ada6e77573-01",
+                "proposalId": "proposal-7be501eab23149d49a11caa1e78aba4e",
+                "operationInstanceId": "opinst-f5c9f483c8b44cbba9cf53002ae8b151",
+                "auditId": "33",
+                "correlationId": "00-49fb326d232913bf47321c6eb1998e67-3af53084047f9c99-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a76ca6f7-b4ab-4791-9423-76e7807bb389 at /studio/sdk1397-admin-api-key-mcp-8bc3b334.",
+                "summary": "Publish sealed Studio version c2718e66-f244-40a9-8966-96b88143a604 at /studio/sdk1397-admin-api-key-mcp-260e7da3.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=980997b1-a672-4bab-9e48-07fd7921b5bd",
-                  "versionId=a76ca6f7-b4ab-4791-9423-76e7807bb389",
-                  "contentHash=86f03822779401b07588dfe5e3a3d8cc801800d9eb1eb7d3cb8b441cf67480f9",
-                  "route=/studio/sdk1397-admin-api-key-mcp-8bc3b334",
+                  "itemId=b14a886c-6c81-4169-adfb-d395450421ec",
+                  "versionId=c2718e66-f244-40a9-8966-96b88143a604",
+                  "contentHash=980ba1becb2e5acf0a48cc11c4144874ced8e1bdf3b6f77f46c96484a3cddebd",
+                  "route=/studio/sdk1397-admin-api-key-mcp-260e7da3",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:28:51.7856735+00:00",
-                "updatedAt": "2026-09-16T03:28:51.7928887+00:00"
+                "createdAt": "2026-09-16T03:34:14.3202783+00:00",
+                "updatedAt": "2026-09-16T03:34:14.32699+00:00"
               }
             }
           ]
@@ -1465,13 +1482,13 @@
               "honua_studio_validate_draft",
               "honua_studio_propose_publication"
             ],
-            "secondsToRefresh": 1.004,
+            "secondsToRefresh": 4.257,
             "toolsListCallsTriggered": 1
           },
           {
             "serverDefaultView": "default",
             "routed": [],
-            "secondsToRefresh": 7.769,
+            "secondsToRefresh": 7.766,
             "toolsListCallsTriggered": 1
           }
         ],
@@ -1481,12 +1498,12 @@
         },
         "streamEvents": [
           {
-            "at": 1789529333683,
+            "at": 1789529656180,
             "type": "toolWatch",
             "status": "connecting"
           },
           {
-            "at": 1789529333693,
+            "at": 1789529656185,
             "type": "toolWatch",
             "status": "open"
           }
@@ -1500,7 +1517,7 @@
       "verdict": "pass",
       "evidence": {
         "previousRunning": {
-          "container": "sdk1397-8bc3b334-server-previous",
+          "container": "sdk1397-260e7da3-server-previous",
           "imageId": "sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
           "revision": "7ba422672e0c751843b17beb36e954a019cc19fb",
           "boots": 1,
@@ -1588,7 +1605,7 @@
     {
       "id": "default-session-classified-discovery:end-user-bearer",
       "criterion": "AC1",
-      "verdict": "fail",
+      "verdict": "pass",
       "evidence": {
         "report": {
           "discovered": 25,
@@ -1723,9 +1740,120 @@
             "Required Studio tool \"honua_studio_bind_interaction\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
             "Required Studio tool \"honua_studio_remove_interaction\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list."
           ]
+        },
+        "fullCatalog": {
+          "descriptors": 124,
+          "classified": [
+            {
+              "name": "honua_studio_create_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_get_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_preview_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_propose_publication",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_reopen_version",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_save_version",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_update_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_validate_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            }
+          ],
+          "unclassifiedStudioNamed": [
+            "honua_studio_add_control",
+            "honua_studio_add_layer",
+            "honua_studio_add_widget",
+            "honua_studio_bind_interaction",
+            "honua_studio_remove_control",
+            "honua_studio_remove_interaction",
+            "honua_studio_remove_layer",
+            "honua_studio_remove_widget",
+            "honua_studio_set_layer_style",
+            "honua_studio_set_layer_visibility",
+            "honua_studio_set_view"
+          ]
+        },
+        "setupView": {
+          "pages": 1,
+          "names": [
+            "honua_list_capabilities",
+            "honua_resolve_entity",
+            "honua_ingest_dataset",
+            "honua_publish_result",
+            "honua_publish_service",
+            "honua_describe_layer",
+            "honua_list_layers",
+            "honua_query_features",
+            "honua_apply_style_preset",
+            "honua_get_style",
+            "honua_render_map",
+            "honua_dry_run_plan",
+            "honua_execute_plan",
+            "honua_list_jobs",
+            "honua_plan_analysis",
+            "honua_validate_plan",
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication",
+            "honua_supported_operation_kinds"
+          ]
         }
-      },
-      "diagnostic": "AssertionError [ERR_ASSERTION]: Studio tool discovery failed: MCP endpoint responded 401 for \"initialize\": {\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"The bearer token is invalid, expired, or issued for a different resource.\",\"data\":{\"code\":\"unauthenticated\",\"requiresReauthentication\":true}}}\n+ actual - expected\n\n+ 'Studio tool discovery failed: MCP endpoint responded 401 for \"initialize\": {\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"The bearer token is invalid, expired, or issued for a different resource.\",\"data\":{\"code\":\"unauthenticated\",\"requiresReauthentication\":true}}}'\n- undefined\n\n    at file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:516:12\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:166:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:979:3"
+      }
     },
     {
       "id": "end-user-model-turn-dispatch",
@@ -1734,42 +1862,397 @@
       "evidence": {
         "uncertified": {
           "status": "error",
-          "errorMessage": "Studio AI proxy responded 401 for the chat request.",
+          "errorMessage": "Model-selected actions require exactly one terminal verified transcript provenance event.",
+          "toolCalls": 0
+        },
+        "transcriptSigning": {
+          "requiredForCertification": true,
+          "keys": [
+            {
+              "keyId": "sdk1397-260e7da3-transcript",
+              "algorithm": "Ed25519",
+              "publicKey": "er7VY5LrfvVflur1dRWJL5pnQwjjSAcdKd8akO2/4m8=",
+              "fingerprint": "sha256:10f42743b1180a5af766b24c5f577de88e415b17a3eeaa686e9d373c07b82cf6",
+              "revoked": false
+            }
+          ]
+        },
+        "certified": {
+          "status": "error",
+          "errorMessage": "Studio AI proxy responded 403 for the chat request.",
           "toolCalls": 0
         }
       },
-      "diagnostic": "AssertionError [ERR_ASSERTION]: capabilities: 401\n\n401 !== 200\n\n    at certifiedTurnOptions (file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:538:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:994:44\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:166:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:982:3"
+      "diagnostic": "AssertionError [ERR_ASSERTION]: an interactive end user's model-selected Studio action cannot dispatch: the SDK requires certified provenance and the proxy forbids certification to non-admin callers\n    at file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:1059:12\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:166:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:1046:3"
     },
     {
       "id": "terminal-session-lifecycle:end-user-bearer",
       "criterion": "AC4",
-      "verdict": "fail",
+      "verdict": "pass",
       "evidence": {
         "mode": "mcp",
         "dispatched": [
           {
             "tool": "honua_studio_create_draft",
             "plane": "composition",
-            "ok": false,
-            "errorMessage": "MCP endpoint responded 401 for \"initialize\": {\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"The bearer token is invalid, expired, or issued for a different resource.\",\"data\":{\"code\":\"unauthenticated\",\"requiresReauthentication\":true}}}"
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_update_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_validate_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_get_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_save_version",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_reopen_version",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_propose_publication",
+            "plane": "composition",
+            "ok": true
+          }
+        ],
+        "values": {
+          "draftId": "8203e850-5020-42d0-b18e-f72b0214dc0c",
+          "ownerId": "subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-260e7da3@tenant:public",
+          "generations": {
+            "created": 1,
+            "updated": 2,
+            "reopened": 1
+          },
+          "itemId": "51560bb7-daa3-4514-9ede-a0f6ed30f144",
+          "versionId": "518f5853-0e93-446f-b1d4-ddad146e82df",
+          "contentHash": "20665bba47296f2237d081916e016400be273cf2554349554641e3c550d95207",
+          "reopenedDraftId": "cfee2efc-d7df-460f-9c2d-2ef9d77cd0bb",
+          "proposalId": "proposal-132dffd73d7749fca1a2fbd520afd2cc",
+          "publicationPointer": "null|518f5853-0e93-446f-b1d4-ddad146e82df",
+          "polls": [
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-132dffd73d7749fca1a2fbd520afd2cc",
+                "operationInstanceId": "opinst-491e260c59b940b9a13ed67ead8538fb",
+                "auditId": "46",
+                "correlationId": "00-129628b5d9592620b73c20b0df3a01a4-dd41e07e8e03077d-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version 518f5853-0e93-446f-b1d4-ddad146e82df at /studio/sdk1397-end-user-bearer-260e7da3.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=51560bb7-daa3-4514-9ede-a0f6ed30f144",
+                  "versionId=518f5853-0e93-446f-b1d4-ddad146e82df",
+                  "contentHash=20665bba47296f2237d081916e016400be273cf2554349554641e3c550d95207",
+                  "route=/studio/sdk1397-end-user-bearer-260e7da3",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T03:34:41.5506022+00:00",
+                "updatedAt": "2026-09-16T03:34:41.5587648+00:00"
+              }
+            },
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-132dffd73d7749fca1a2fbd520afd2cc",
+                "operationInstanceId": "opinst-491e260c59b940b9a13ed67ead8538fb",
+                "auditId": "46",
+                "correlationId": "00-129628b5d9592620b73c20b0df3a01a4-dd41e07e8e03077d-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version 518f5853-0e93-446f-b1d4-ddad146e82df at /studio/sdk1397-end-user-bearer-260e7da3.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=51560bb7-daa3-4514-9ede-a0f6ed30f144",
+                  "versionId=518f5853-0e93-446f-b1d4-ddad146e82df",
+                  "contentHash=20665bba47296f2237d081916e016400be273cf2554349554641e3c550d95207",
+                  "route=/studio/sdk1397-end-user-bearer-260e7da3",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T03:34:41.5506022+00:00",
+                "updatedAt": "2026-09-16T03:34:41.5587648+00:00"
+              }
+            },
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-132dffd73d7749fca1a2fbd520afd2cc",
+                "operationInstanceId": "opinst-491e260c59b940b9a13ed67ead8538fb",
+                "auditId": "46",
+                "correlationId": "00-129628b5d9592620b73c20b0df3a01a4-dd41e07e8e03077d-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version 518f5853-0e93-446f-b1d4-ddad146e82df at /studio/sdk1397-end-user-bearer-260e7da3.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=51560bb7-daa3-4514-9ede-a0f6ed30f144",
+                  "versionId=518f5853-0e93-446f-b1d4-ddad146e82df",
+                  "contentHash=20665bba47296f2237d081916e016400be273cf2554349554641e3c550d95207",
+                  "route=/studio/sdk1397-end-user-bearer-260e7da3",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T03:34:41.5506022+00:00",
+                "updatedAt": "2026-09-16T03:34:41.5587648+00:00"
+              }
+            }
+          ]
+        },
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "initialize"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
           }
         ]
-      },
-      "diagnostic": "AssertionError [ERR_ASSERTION]: dispatched calls differ from the plan\n+ actual - expected\n\n  [\n    'honua_studio_create_draft',\n-   'honua_studio_update_draft',\n-   'honua_studio_validate_draft',\n-   'honua_studio_get_draft',\n-   'honua_studio_save_version',\n-   'honua_studio_reopen_version',\n-   'honua_studio_propose_publication'\n  ]\n\n    at file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:689:12\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:166:5)\n    at async lifecycleChecks (file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:686:3)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:999:26"
+      }
     },
     {
       "id": "rbac-distinct-principal-negatives",
       "criterion": "AC6",
-      "verdict": "fail",
-      "evidence": {},
-      "diagnostic": "AssertionError [ERR_ASSERTION]: no end-user lifecycle draft to attack; the end-user AC4 check did not complete\n    at file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:1002:12\n    at check (file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:166:11)\n    at file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:1001:9\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)"
+      "verdict": "pass",
+      "evidence": {
+        "discoveryByPrincipal": {
+          "sdk1397-bob-260e7da3 (honua.mcp.full, roles [\"sdk1397-author-260e7da3\"])": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ],
+          "sdk1397-carol-260e7da3 (honua.mcp.full, roles [])": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ],
+          "sdk1397-dan-260e7da3 (honua.mcp.full, roles [\"sdk1397-composer-260e7da3\"])": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ],
+          "sdk1397-alice-260e7da3 (honua.mcp.read, roles [\"sdk1397-author-260e7da3\"])": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ]
+        },
+        "anonymousInvoke": {
+          "http": 200,
+          "isError": true
+        },
+        "outcomes": {
+          "otherOwnerRead": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "The caller does not own this Studio resource.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_get_draft",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "The caller does not own this Studio resource.",
+                "studioAuthorizationCode": "studio_authorization/cross_user_denied",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "The caller does not own this Studio resource."
+                }
+              }
+            }
+          },
+          "otherOwnerUpdate": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "The caller does not own this Studio resource.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_update_draft",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "The caller does not own this Studio resource.",
+                "studioAuthorizationCode": "studio_authorization/cross_user_denied",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "The caller does not own this Studio resource."
+                }
+              }
+            }
+          },
+          "otherOwnerSave": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "The caller does not own this Studio resource.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_save_version",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "The caller does not own this Studio resource.",
+                "studioAuthorizationCode": "studio_authorization/cross_user_denied",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "The caller does not own this Studio resource."
+                }
+              }
+            }
+          },
+          "readOnlyScopeUpdate": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "The access token's scopes do not permit 'Create' on StudioDraft. Request a token whose scope claim includes the scope for this operation.",
+              "code": "insufficient_scope",
+              "toolName": "honua_studio_update_draft",
+              "data": {
+                "status": "error",
+                "code": "insufficient_scope",
+                "message": "The access token's scopes do not permit 'Create' on StudioDraft. Request a token whose scope claim includes the scope for this operation.",
+                "studioAuthorizationCode": "studio_authorization/oauth_scope_required",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "The access token's scopes do not permit 'Create' on StudioDraft. Request a token whose scope claim includes the scope for this operation."
+                }
+              }
+            }
+          },
+          "noGrantCreate": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "You do not have permission to perform 'Create' on StudioDraft.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_create_draft",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "You do not have permission to perform 'Create' on StudioDraft.",
+                "studioAuthorizationCode": "studio_authorization/operator_grant_required",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "You do not have permission to perform 'Create' on StudioDraft."
+                }
+              }
+            }
+          },
+          "noPublishGrantPropose": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "'PublishRequest' requires a StudioDraft 'Publish' operator grant.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_propose_publication",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "'PublishRequest' requires a StudioDraft 'Publish' operator grant.",
+                "studioAuthorizationCode": "studio_authorization/elevated_grant_required",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "'PublishRequest' requires a StudioDraft 'Publish' operator grant."
+                }
+              }
+            }
+          },
+          "otherPrincipalProposalPoll": {
+            "http": 200,
+            "error": {
+              "code": -32000,
+              "message": "The caller is not authorized to read this Studio publication proposal.",
+              "data": {
+                "code": "permission_denied"
+              }
+            }
+          }
+        },
+        "durableDraft": {
+          "before": "1|subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-260e7da3@tenant:public",
+          "after": "1|subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-260e7da3@tenant:public"
+        }
+      }
     }
   ],
   "principals": {
     "roles": [
       {
-        "name": "sdk1397-author-8bc3b334",
-        "roleId": "1932b71c-64d1-4999-bfc2-0a0e0e178e69",
+        "name": "sdk1397-author-260e7da3",
+        "roleId": "0a7302d0-6d2f-4edd-960d-9223e715978a",
         "permissions": [
           {
             "service": "StudioDraft",
@@ -1779,8 +2262,8 @@
         ]
       },
       {
-        "name": "sdk1397-composer-8bc3b334",
-        "roleId": "a7ddb92e-49bf-4533-a9f0-374c8dac7e0f",
+        "name": "sdk1397-composer-260e7da3",
+        "roleId": "ad9f1aec-ff84-4117-97c9-3116721f16f6",
         "permissions": [
           {
             "service": "StudioDraft",
@@ -1812,12 +2295,8 @@
     ],
     "tokens": "HS256 from this deployment's issuer/audience/signing key; tid=public; sid+auth_time session evidence; one token per principal"
   },
-  "status": "failed",
+  "status": "passed",
   "findings": [
     "end-user-model-turn-dispatch"
-  ],
-  "serverLogs": {
-    "sdk1397-8bc3b334-server-current": "cationScheme} was not authenticated. Failure message: {FailureMessage}\",\"@tr\":\"7f7d8c7ff1226776da1f6fef36622d02\",\"@sp\":\"5afd996fff6fd06e\",\"AuthenticationScheme\":\"PortalToken\",\"FailureMessage\":\"The supplied portal token is invalid, expired, or bound to a different client.\",\"EventId\":{\"Id\":7,\"Name\":\"AuthenticationSchemeNotAuthenticatedWithFailure\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.PortalTokenAuthenticationHandler\",\"RequestId\":\"0HNOJKAPLFA9R:00000004\",\"RequestPath\":\"/api/v1/studio/ai/capabilities\",\"ConnectionId\":\"0HNOJKAPLFA9R\",\"CorrelationId\":\"00-7f7d8c7ff1226776da1f6fef36622d02-5afd996fff6fd06e-01\",\"EnvironmentName\":\"Production\",\"MachineName\":\"88a72792b610\",\"ThreadId\":28,\"SpanId\":\"5afd996fff6fd06e\",\"TraceId\":\"7f7d8c7ff1226776da1f6fef36622d02\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Honua.Infrastructure.Authentication.PortalTokenAuthenticationHandler[7]\n      \"PortalToken\" was not authenticated. Failure message: \"The supplied portal token is invalid, expired, or bound to a different client.\"\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"GET\" \"/api/v1/studio/ai/capabilities\" responded 401 in 17.1780 ms\n{\"@t\":\"2026-09-16T03:29:24.3169493Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"17.1780\"],\"@tr\":\"7f7d8c7ff1226776da1f6fef36622d02\",\"@sp\":\"5afd996fff6fd06e\",\"RequestHost\":\"127.0.0.1:54254\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"RequestMethod\":\"GET\",\"RequestPath\":\"/api/v1/studio/ai/capabilities\",\"StatusCode\":401,\"Elapsed\":17.178039,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-7f7d8c7ff1226776da1f6fef36622d02-5afd996fff6fd06e-01\",\"RequestId\":\"0HNOJKAPLFA9R:00000004\",\"ConnectionId\":\"0HNOJKAPLFA9R\",\"EnvironmentName\":\"Production\",\"MachineName\":\"88a72792b610\",\"ThreadId\":28,\"SpanId\":\"5afd996fff6fd06e\",\"TraceId\":\"7f7d8c7ff1226776da1f6fef36622d02\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"GET\" \"http\"://\"127.0.0.1:54254\"\"\"\"/api/v1/studio/ai/capabilities\"\"\" - 401 0 null 19.2425ms\n{\"@t\":\"2026-09-16T03:29:24.3178368Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"7f7d8c7ff1226776da1f6fef36622d02\",\"@sp\":\"5afd996fff6fd06e\",\"ElapsedMilliseconds\":19.2425,\"StatusCode\":401,\"ContentType\":null,\"ContentLength\":0,\"Protocol\":\"HTTP/1.1\",\"Method\":\"GET\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:54254\",\"PathBase\":\"\",\"Path\":\"/api/v1/studio/ai/capabilities\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOJKAPLFA9R:00000004\",\"RequestPath\":\"/api/v1/studio/ai/capabilities\",\"ConnectionId\":\"0HNOJKAPLFA9R\",\"EnvironmentName\":\"Production\",\"MachineName\":\"88a72792b610\",\"ThreadId\":28,\"SpanId\":\"5afd996fff6fd06e\",\"TraceId\":\"7f7d8c7ff1226776da1f6fef36622d02\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:54254\"\"\"\"/mcp\"\"\" - \"application/json\" 224\n{\"@t\":\"2026-09-16T03:29:24.3587143Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"@sp\":\"76aa0c8039e38f06\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":224,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:54254\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOJKAPLFA9Q:00000006\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJKAPLFA9Q\",\"EnvironmentName\":\"Production\",\"MachineName\":\"88a72792b610\",\"ThreadId\":22,\"SpanId\":\"76aa0c8039e38f06\",\"TraceId\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\nwarn: Honua.Infrastructure.Authentication.OidcAuthenticationOptions[4211]\n      OIDC token replay detected\n{\"@t\":\"2026-09-16T03:29:24.3633980Z\",\"@mt\":\"OIDC token replay detected\",\"@l\":\"Warning\",\"@tr\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"@sp\":\"76aa0c8039e38f06\",\"EventId\":{\"Id\":4211,\"Name\":\"TokenReplayDetected\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.OidcAuthenticationOptions\",\"RequestId\":\"0HNOJKAPLFA9Q:00000006\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJKAPLFA9Q\",\"CorrelationId\":\"00-ec68be4d6d6575934f84b8f3f2b075d6-76aa0c8039e38f06-01\",\"EnvironmentName\":\"Production\",\"MachineName\":\"88a72792b610\",\"ThreadId\":28,\"SpanId\":\"76aa0c8039e38f06\",\"TraceId\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Honua.Infrastructure.Authentication.PortalTokenAuthenticationHandler[7]\n      \"PortalToken\" was not authenticated. Failure message: \"The supplied portal token is invalid, expired, or bound to a different client.\"\n{\"@t\":\"2026-09-16T03:29:24.3649052Z\",\"@mt\":\"{AuthenticationScheme} was not authenticated. Failure message: {FailureMessage}\",\"@tr\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"@sp\":\"76aa0c8039e38f06\",\"AuthenticationScheme\":\"PortalToken\",\"FailureMessage\":\"The supplied portal token is invalid, expired, or bound to a different client.\",\"EventId\":{\"Id\":7,\"Name\":\"AuthenticationSchemeNotAuthenticatedWithFailure\"},\"SourceContext\":\"Honua.Infrastructure.Authentication.PortalTokenAuthenticationHandler\",\"RequestId\":\"0HNOJKAPLFA9Q:00000006\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJKAPLFA9Q\",\"CorrelationId\":\"00-ec68be4d6d6575934f84b8f3f2b075d6-76aa0c8039e38f06-01\",\"EnvironmentName\":\"Production\",\"MachineName\":\"88a72792b610\",\"ThreadId\":28,\"SpanId\":\"76aa0c8039e38f06\",\"TraceId\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 401 in 21.3886 ms\n{\"@t\":\"2026-09-16T03:29:24.3807716Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"21.3886\"],\"@tr\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"@sp\":\"76aa0c8039e38f06\",\"RequestHost\":\"127.0.0.1:54254\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":401,\"Elapsed\":21.388565,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-ec68be4d6d6575934f84b8f3f2b075d6-76aa0c8039e38f06-01\",\"RequestId\":\"0HNOJKAPLFA9Q:00000006\",\"ConnectionId\":\"0HNOJKAPLFA9Q\",\"EnvironmentName\":\"Production\",\"MachineName\":\"88a72792b610\",\"ThreadId\":22,\"SpanId\":\"76aa0c8039e38f06\",\"TraceId\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:54254\"\"\"\"/mcp\"\"\" - 401 null \"application/json; charset=utf-8\" 23.7622ms\n{\"@t\":\"2026-09-16T03:29:24.3822755Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"@sp\":\"76aa0c8039e38f06\",\"ElapsedMilliseconds\":23.7622,\"StatusCode\":401,\"ContentType\":\"application/json; charset=utf-8\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:54254\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOJKAPLFA9Q:00000006\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJKAPLFA9Q\",\"EnvironmentName\":\"Production\",\"MachineName\":\"88a72792b610\",\"ThreadId\":22,\"SpanId\":\"76aa0c8039e38f06\",\"TraceId\":\"ec68be4d6d6575934f84b8f3f2b075d6\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\n\n",
-    "sdk1397-8bc3b334-server-previous": "\nError response from daemon: No such container: sdk1397-8bc3b334-server-previous\n"
-  }
+  ]
 }
