@@ -182,21 +182,46 @@ function mint(claims, lifetime = 3600) {
   return `${input}.${createHmac("sha256", secrets.jwt).update(input).digest("base64url")}`;
 }
 /**
- * An end user signed in through the IdP: one access token reused for its lifetime,
- * as an OAuth client does, carrying the session evidence (`sid`, `auth_time`) the
- * server requires before it treats a bearer as an interactive human.
+ * An end user signed in through the IdP, carrying the session evidence (`sid`,
+ * `auth_time`) the server requires before it treats a bearer as an interactive human.
+ *
+ * The candidate's token replay protection binds an access token to the surface it is
+ * first admitted on — the ordinary HTTP API, where it is reusable for its lifetime, or
+ * `/mcp`, where it is bound to the session it opens (honua-server#4899, #4909). A client
+ * therefore holds one token per surface and presents a newly issued one when it opens
+ * another MCP session; `tokenFor` is that IdP, and no check ever weakens the protection.
  */
 function endUser(sub, roles, scope = "honua.mcp.full") {
   const claims = { sub, tid: "public", roles, scope, sid: `session-${sub}`, auth_time: Math.floor(Date.now() / 1000) - 60 };
-  let token;
-  return { label: sub, sub, claims, auth: { getAccessToken: async () => (token ??= mint(claims)) } };
+  const held = { mcp: undefined, http: undefined };
+  const issued = [];
+  const actor = {
+    label: sub,
+    sub,
+    claims,
+    issued,
+    /** The token this client currently holds for `path`'s surface; `newSession` asks the IdP for another. */
+    tokenFor(path, { newSession = false } = {}) {
+      const surface = path === "/mcp" || path.startsWith("/mcp/") ? "mcp" : "http";
+      if (newSession && surface === "mcp") held.mcp = undefined;
+      if (held[surface] === undefined) {
+        held[surface] = mint(claims);
+        issued.push({ surface, at: new Date().toISOString(), reason: newSession ? "new MCP session" : "first request" });
+      }
+      return held[surface];
+    },
+  };
+  // The SDK is handed a real credential provider; the recorded fetch below re-selects the
+  // surface's token by request path, because one session speaks to both surfaces.
+  actor.auth = { getAccessToken: async () => actor.tokenFor("/mcp") };
+  return actor;
 }
 const adminKey = { label: "admin-api-key", headers: { "x-api-key": secrets.admin } };
 
-function recordingFetch(log, extraHeaders = {}) {
+function recordingFetch(log, actor) {
   return async (url, init = {}) => {
     const headers = new Headers(init.headers);
-    for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
+    for (const [name, value] of Object.entries(actor.headers ?? {})) headers.set(name, value);
     let rpc;
     try {
       rpc = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
@@ -204,6 +229,11 @@ function recordingFetch(log, extraHeaders = {}) {
       rpc = undefined;
     }
     const path = new URL(String(url)).pathname;
+    if (actor.tokenFor) {
+      // An `initialize` opens another MCP session, which the candidate admits only on a
+      // token it has not already bound (honua-server#4899, #4909).
+      headers.set("authorization", `Bearer ${actor.tokenFor(path, { newSession: rpc?.method === "initialize" })}`);
+    }
     const entry = {
       method: init.method ?? "GET",
       path,
@@ -231,19 +261,20 @@ function mcpClientFor(actor, { view, log = [] } = {}) {
     baseUrl,
     ...(actor.auth ? { auth: actor.auth } : {}),
     ...(view ? { workflowView: view } : {}),
-    fetchImpl: recordingFetch(log, actor.headers),
+    fetchImpl: recordingFetch(log, actor),
   });
 }
 function sessionFor(actor, { log = [], ...options } = {}) {
   return createStudioAgentSession({
     baseUrl,
     ...(actor.auth ? { auth: actor.auth } : {}),
-    fetchImpl: recordingFetch(log, actor.headers),
+    fetchImpl: recordingFetch(log, actor),
     ...options,
   });
 }
-async function authHeaders(actor) {
-  return actor.auth ? { authorization: `Bearer ${await actor.auth.getAccessToken()}` } : { ...actor.headers };
+/** The credential this actor presents on `path`, on the surface that path belongs to. */
+async function authHeaders(actor, path) {
+  return actor.tokenFor ? { authorization: `Bearer ${actor.tokenFor(path)}` } : { ...actor.headers };
 }
 
 function parseBody(text) {
@@ -429,7 +460,7 @@ async function rawMcp(actor, method, params, { view } = {}) {
       "content-type": "application/json",
       accept: "application/json, text/event-stream",
       "mcp-session-id": client.sessionId,
-      ...(await authHeaders(actor)),
+      ...(await authHeaders(actor, "/mcp")),
     },
     body: JSON.stringify({ jsonrpc: "2.0", id: randomUUID(), method, params }),
   });
@@ -533,7 +564,9 @@ async function discoveryCheck(actor, suffix, setupDescriptors) {
 }
 
 async function certifiedTurnOptions(actor, evidence) {
-  const response = await fetch(`${baseUrl}/api/v1/studio/ai/capabilities`, { headers: await authHeaders(actor) });
+  const response = await fetch(`${baseUrl}/api/v1/studio/ai/capabilities`, {
+    headers: await authHeaders(actor, "/api/v1/studio/ai/capabilities"),
+  });
   const manifest = parseBody(await response.text())?.data?.transcriptSigning;
   assert.equal(response.status, 200, `capabilities: ${response.status}`);
   evidence.transcriptSigning = manifest;
@@ -719,7 +752,7 @@ async function lifecycleChecks(actor, suffix, setupDescriptors, mode = "model") 
     Object.assign(lifecycle, { created, updated, saved, reopened, proposed });
 
     const version = await fetch(`${baseUrl}/api/v1/studio/content-items/${saved.itemId}/versions/${saved.versionId}`, {
-      headers: await authHeaders(actor),
+      headers: await authHeaders(actor, `/api/v1/studio/content-items/${saved.itemId}/versions/${saved.versionId}`),
     });
     const versionBody = parseBody(await version.text())?.data;
     assert.equal(version.status, 200, "saved version is not readable by its owner");
@@ -885,6 +918,37 @@ try {
     evidence.serverLog = logsOf(current).split("\n").filter((line) => /replay|principal/i.test(line)).slice(-6);
     assert.ok(evidence.sameTokenSecondRequest.tools, "the bearer's own token was refused on its second request of the same MCP session");
     assert.ok(evidence.freshTokenSameSession.tools, "a token refreshed with identical authority was refused on the same MCP session");
+  });
+
+  // The credential contract every bearer check below is written against, recorded once on
+  // the candidate rather than assumed: a token bound to an MCP session (honua-server#4909)
+  // cannot open another one (#4899), the refusal tells the client to re-authenticate, and a
+  // newly issued token opens the next session. Nothing here relaxes replay protection.
+  await check("bearer-token-is-bound-to-one-mcp-session", "finding (honua-server#4899)", async (evidence) => {
+    const probe = endUser(`sdk1397-probe-${run}`, [author.name]);
+    const openSession = async (token) => {
+      const client = new McpClient({
+        baseUrl,
+        auth: { getAccessToken: async () => token },
+        workflowView: HONUA_STUDIO_TOOL_SETUP_VIEW,
+      });
+      try {
+        await client.initialize();
+        return { opened: Boolean(client.sessionId) };
+      } catch (error) {
+        return { opened: false, error: redact(String(error?.message ?? error)).slice(0, 400) };
+      }
+    };
+    const held = mint(probe.claims);
+    evidence.firstSession = await openSession(held);
+    evidence.sameTokenSecondSession = await openSession(held);
+    evidence.newlyIssuedTokenSecondSession = await openSession(mint(probe.claims));
+    assert.ok(evidence.firstSession.opened, `the IdP-issued token could not open an MCP session: ${evidence.firstSession.error}`);
+    assert.equal(evidence.sameTokenSecondSession.opened, false, "a token already bound to an MCP session opened a second session");
+    assert.match(String(evidence.sameTokenSecondSession.error), /requiresReauthentication|unauthenticated/,
+      `the refusal does not tell the client to re-authenticate: ${evidence.sameTokenSecondSession.error}`);
+    assert.ok(evidence.newlyIssuedTokenSecondSession.opened,
+      `a newly issued token could not open the second session: ${evidence.newlyIssuedTokenSecondSession.error}`);
   });
 
   await discoveryCheck(adminKey, "admin-api-key", setupDescriptors);
