@@ -42,6 +42,19 @@ import {
 // McpWorkflowViewDescriptorClassifier stamps a descriptor only when the tool is a
 // StudioDraftToolBase AND a member of McpWorkflowViewCatalog.Setup at that commit.
 const SETUP_CLASSIFICATION = {
+  "886206527cc97bad1bbaa5fa6358910ebc45e9c0": {
+    revision: "setup.v2",
+    members: [
+      "honua_studio_create_draft",
+      "honua_studio_validate_draft",
+      "honua_studio_get_draft",
+      "honua_studio_update_draft",
+      "honua_studio_preview_draft",
+      "honua_studio_save_version",
+      "honua_studio_reopen_version",
+      "honua_studio_propose_publication",
+    ],
+  },
   "548b7a5263da5a3f2381eb43f232687cdf92b0bf": {
     revision: "setup.v2",
     members: [
@@ -139,15 +152,11 @@ const receipt = {
   manifestSha256: createHash("sha256").update(manifest).digest("hex"),
   candidate: { ref: candidateRef, image, expectedSetup: expected },
   ...(previousImage ? { previous: { ref: previousRef, image: previousImage, expectedSetup: expectedPrevious } } : {}),
-  deploymentDeviations: [
-    {
-      setting: "StudioAiProxy:MaxPromptCharacters=100000",
-      reason:
-        "the default 32000 counts every Studio tool definition again each round; a certified setup-view map " +
-        "lifecycle is refused at its seventh round (propose) with 'Request content exceeds the configured limit'",
-      appliesTo: "every check",
-    },
-  ],
+  // Both deviations the 548b7a5 replay declared are gone: this pin ships a
+  // MaxPromptCharacters default sized for the setup-view lifecycle (honua-server#4919)
+  // and continues a bearer MCP session under token replay protection (#4909), so every
+  // check below runs under the image's own configuration.
+  deploymentDeviations: [],
   checks: [],
 };
 async function check(id, criterion, body) {
@@ -334,8 +343,6 @@ function serverEnv(database, redis, extraEnv) {
     StudioAiProxy__Providers__scripted__Kind: "openai",
     StudioAiProxy__Providers__scripted__Endpoint: `http://${prefix}-model:8080/v1`,
     StudioAiProxy__Providers__scripted__Model: "scripted-terminal-model",
-    // Declared deviation (receipt.deploymentDeviations): the default 32000 stops the lifecycle at propose.
-    StudioAiProxy__MaxPromptCharacters: "100000",
     HONUA_STUDIOAI_SCRIPTED_API_KEY: secrets.provider,
     StudioAiProxy__TranscriptSigning__KeyId: transcriptSigning.keyId,
     // The options validator requires a "://" reference while the env resolver strips only "env:",
@@ -852,9 +859,11 @@ try {
 
   // ── Phase 1: the image's own configuration ──────────────────
 
-  // Server finding, not an SDK criterion: every bearer request is replay-registered by jti,
-  // and an MCP session is bound to the SHA-256 of the exact bearer credential.
-  await check("bearer-mcp-session-continuity", "finding (honua-server)", async (evidence) => {
+  // Regression guard for honua-server#4909, which the 548b7a5 replay found: a bearer MCP
+  // session used to die on its second request, because every bearer request is
+  // replay-registered by jti and the session was bound to the exact credential bytes. The
+  // end-user phase below runs undeviated only while this holds.
+  await check("bearer-mcp-session-continuity", "finding (honua-server#4909)", async (evidence) => {
     const claims = { ...alice.claims };
     const first = mint(claims);
     const client = new McpClient({ baseUrl, auth: { getAccessToken: async () => first }, workflowView: HONUA_STUDIO_TOOL_SETUP_VIEW });
@@ -874,8 +883,8 @@ try {
     evidence.sameTokenSecondRequest = await listWith(first);
     evidence.freshTokenSameSession = await listWith(mint(claims));
     evidence.serverLog = logsOf(current).split("\n").filter((line) => /replay|principal/i.test(line)).slice(-6);
-    assert.ok(evidence.sameTokenSecondRequest.tools || evidence.freshTokenSameSession.tools,
-      "a bearer principal cannot make a second request on its own MCP session under the default token-replay protection");
+    assert.ok(evidence.sameTokenSecondRequest.tools, "the bearer's own token was refused on its second request of the same MCP session");
+    assert.ok(evidence.freshTokenSameSession.tools, "a token refreshed with identical authority was refused on the same MCP session");
   });
 
   await discoveryCheck(adminKey, "admin-api-key", setupDescriptors);
@@ -961,14 +970,11 @@ try {
     });
   }
 
-  // ── Phase 2: end users (declared deviation) ─────────────────
-  const deviation = { Oidc__TokenValidation__EnableTokenReplayProtection: "false" };
-  receipt.deploymentDeviations.push({
-    setting: "Oidc:TokenValidation:EnableTokenReplayProtection=false",
-    reason: "the candidate rejects every second request of a bearer MCP session under the default (see bearer-mcp-session-continuity)",
-    appliesTo: "checks suffixed :end-user-bearer and rbac-distinct-principal-negatives",
-  });
-  receipt.candidate.running = await startServer(image, current, "honua", `${prefix}-redis-current`, deviation);
+  // ── Phase 2: end users, same deployment ─────────────────────
+  // The 548b7a5 replay had to restart here with token replay protection off. This pin
+  // binds an MCP session to the validated authority rather than the credential bytes
+  // (honua-server#4909), so the bearer phase runs on the deployment the candidate ships.
+  assert.deepEqual(receipt.candidate.running.extraEnv, {}, "the end-user phase must run under the image's own configuration");
 
   await discoveryCheck(alice, "end-user-bearer", setupDescriptors);
   // Finding, not an SDK criterion: StudioAgentSession dispatches a model-selected action only with
