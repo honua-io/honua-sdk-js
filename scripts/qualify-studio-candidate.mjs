@@ -8,14 +8,15 @@
 // behind the proxy (scripts/studio-candidate-model-stub.mjs), which records the
 // exact upstream request a provider receives and plays a fixed tool plan.
 //
-// The first phase runs under the image's own configuration with an admin API
-// key. The end-user phase needs a bearer principal to keep an MCP session, which
-// the candidate refuses while JWT replay protection is on (the
-// bearer-mcp-session-continuity check records why), so that phase restarts the
-// same deployment with replay protection off and the receipt declares it.
+// The first phase runs with an admin API key, the second with interactive end-user
+// bearers on the same deployment; both under the image's own configuration.
+//
+// AC7 is browser Studio's half: a honua-studio checkout at or after the commit that
+// deleted its local tool list is archived at HEAD, compiled against the SDK it pins
+// and against this checkout's SDK, and its SDK-discovery element test is run.
 //
 //   npm run build
-//   node scripts/qualify-studio-candidate.mjs <platform-manifest.yaml> \
+//   node scripts/qualify-studio-candidate.mjs <platform-manifest.yaml> --studio <honua-studio checkout> \
 //     [--previous-image <image@digest> --previous-ref <40-char sha>] [--out <file name>]
 //
 // The receipt is written to test-results/ and the command exits 1 unless every
@@ -23,11 +24,12 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac, generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { chmod, copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import {
   HONUA_STUDIO_TOOL_FAMILY,
   HONUA_STUDIO_TOOL_METADATA_KEY,
@@ -42,6 +44,21 @@ import {
 // McpWorkflowViewDescriptorClassifier stamps a descriptor only when the tool is a
 // StudioDraftToolBase AND a member of McpWorkflowViewCatalog.Setup at that commit.
 const SETUP_CLASSIFICATION = {
+  // Unchanged from 8862065: McpWorkflowViewCatalog and the classifier are untouched
+  // between the two commits; the Studio tools only gained a tenant boundary (#4905).
+  "87966c3f7b6c840ffc4d4da0b451714ab717b18a": {
+    revision: "setup.v2",
+    members: [
+      "honua_studio_create_draft",
+      "honua_studio_validate_draft",
+      "honua_studio_get_draft",
+      "honua_studio_update_draft",
+      "honua_studio_preview_draft",
+      "honua_studio_save_version",
+      "honua_studio_reopen_version",
+      "honua_studio_propose_publication",
+    ],
+  },
   "886206527cc97bad1bbaa5fa6358910ebc45e9c0": {
     revision: "setup.v2",
     members: [
@@ -74,8 +91,15 @@ const SETUP_CLASSIFICATION = {
   },
 };
 
+// honua-io/honua-studio#69: deletes STATIC_STUDIO_AGENT_TOOLS, the browser's local copy of the catalog.
+const STUDIO_LOCAL_LIST_DELETION = "685ac572d8736b75d4e483f53631143e5f3fcd5a";
+const STUDIO_DISCOVERY_TEST = {
+  file: "test/elements/studio-chat-element.test.ts",
+  name: "runs a model-selected server tool, feeds its result back, and refreshes the real canvas controller",
+};
+
 const [manifestPath, ...rest] = process.argv.slice(2);
-assert.ok(manifestPath, "usage: node scripts/qualify-studio-candidate.mjs <platform-manifest.yaml> [--previous-image <ref> --previous-ref <sha>]");
+assert.ok(manifestPath, "usage: node scripts/qualify-studio-candidate.mjs <platform-manifest.yaml> --studio <honua-studio checkout> [--previous-image <ref> --previous-ref <sha>]");
 const option = (name) => {
   const index = rest.indexOf(name);
   return index >= 0 ? rest[index + 1] : undefined;
@@ -83,6 +107,8 @@ const option = (name) => {
 const previousImage = option("--previous-image");
 const previousRef = option("--previous-ref");
 assert.equal(Boolean(previousImage), Boolean(previousRef), "--previous-image and --previous-ref go together");
+const studioRoot = option("--studio");
+assert.ok(studioRoot, "--studio <honua-studio checkout> is required: AC7 compiles browser Studio against this SDK");
 const outFile = new URL(`../test-results/${option("--out") ?? "studio-candidate-replay.json"}`, import.meta.url);
 
 const manifest = (await readFile(manifestPath, "utf8")).replaceAll("\r\n", "\n");
@@ -122,8 +148,8 @@ const redact = (value) =>
 const issuer = "https://sdk1397.honua.test";
 const audience = "honua-sdk-1397";
 
-function exec(command, args, { allowFailure = false, timeout = 180_000 } = {}) {
-  const result = spawnSync(command, args, { encoding: "utf8", timeout, windowsHide: true });
+function exec(command, args, { allowFailure = false, timeout = 180_000, cwd } = {}) {
+  const result = spawnSync(command, args, { encoding: "utf8", timeout, windowsHide: true, maxBuffer: 64 * 1024 * 1024, ...(cwd ? { cwd } : {}) });
   if (!allowFailure) {
     assert.equal(result.status, 0, redact(`${command} ${args.slice(0, 2).join(" ")}: ${result.stderr || result.error}`));
   }
@@ -168,7 +194,7 @@ async function check(id, criterion, body) {
   } catch (error) {
     entry.diagnostic = redact(error?.stack ?? error);
   }
-  console.log(`${entry.verdict.toUpperCase()} ${id}`);
+  console.log(`${entry.verdict.toUpperCase()} ${id}${entry.diagnostic ? `\n${entry.diagnostic.split("\n").slice(0, 12).join("\n")}` : ""}`);
   return entry.verdict === "pass";
 }
 
@@ -823,7 +849,107 @@ async function lifecycleChecks(actor, suffix, setupDescriptors, mode = "model") 
   return lifecycle;
 }
 
+// ── AC7: browser Studio on the same discovery surface ─────────
+
+/**
+ * Browser Studio consumes StudioAgentSession discovery instead of a local tool list. Read from
+ * the checkout's committed HEAD (never its working tree): the list is deleted, nothing narrows
+ * discovery with a consumer allowlist, no source names a setup lifecycle tool, and the archive
+ * compiles and runs its SDK-discovery element test against the SDK it pins and this checkout's.
+ */
+async function browserStudioCheck() {
+  return check("browser-studio-compiles-on-sdk-discovery", "AC7", async (evidence) => {
+    const git = (...args) => exec("git", ["-C", studioRoot, ...args]).stdout.trim();
+    const sha = git("rev-parse", "HEAD");
+    const remote = git("config", "--get", "remote.origin.url");
+    receipt.studio = { ref: sha, remote, localListDeletion: STUDIO_LOCAL_LIST_DELETION };
+    evidence.studio = { ref: sha, subject: git("log", "-1", "--format=%s", sha), committedAt: git("log", "-1", "--format=%cI", sha) };
+    assert.match(remote, /honua-io\/honua-studio(\.git)?$/, `--studio is not a honua-studio checkout: ${remote}`);
+    assert.equal(exec("git", ["-C", studioRoot, "merge-base", "--is-ancestor", STUDIO_LOCAL_LIST_DELETION, sha], { allowFailure: true }).status, 0,
+      `studio ${sha} predates the local-list deletion ${STUDIO_LOCAL_LIST_DELETION} (honua-studio#69)`);
+
+    const grep = (pattern, ...paths) =>
+      exec("git", ["-C", studioRoot, "grep", "-n", "-E", pattern, sha, "--", ...paths], { allowFailure: true })
+        .stdout.split("\n").filter(Boolean).map((line) => line.slice(sha.length + 1));
+    const tracked = git("ls-tree", "-r", "--name-only", sha).split("\n");
+    evidence.localList = {
+      fileTracked: tracked.includes("src/chat/studio-agent-tools.ts"),
+      references: grep("STATIC_STUDIO_AGENT_TOOLS|studio-agent-tools"),
+    };
+    assert.equal(evidence.localList.fileTracked, false, "src/chat/studio-agent-tools.ts is still tracked");
+    assert.deepEqual(evidence.localList.references, [], "the local tool list is still referenced");
+    // `#studioTools` is the orchestrator's private MCP client field, not the SDK policy option.
+    evidence.consumerAllowlist = grep("(^|[^#[:alnum:]_])studioTools[[:space:]]*[:=]|allowlist", "src");
+    assert.deepEqual(evidence.consumerAllowlist, [], "Studio narrows SDK discovery with a consumer allowlist");
+    // No source carries a copy of a Studio tool descriptor for the model: no file both names a
+    // honua_studio_* tool and declares an input schema.
+    const namingFiles = new Set(grep("honua_studio_", "src").map((line) => line.split(":")[0]));
+    evidence.descriptorCopies = grep("inputSchema", "src").map((line) => line.split(":")[0]).filter((file) => namingFiles.has(file));
+    assert.deepEqual([...new Set(evidence.descriptorCopies)], [], "Studio source declares a honua_studio_* tool descriptor");
+    evidence.sessionFactory = grep("createStudioAgentSession|@honua/sdk-js/studio-agent", "src");
+    assert.ok(evidence.sessionFactory.some((line) => line.includes("createStudioAgentSession(")), "Studio does not create an SDK StudioAgentSession");
+    // Recorded, not asserted: the names Studio's canvas calls directly through its typed MCP
+    // client (a UI command resolves to one wire name). They are never handed to the model or
+    // to discovery, which is what the deleted list was.
+    evidence.directCallNameLiterals = grep(`^[^*/]*["'](honua_studio_[a-z_]+)["']`, "src");
+
+    const root = join(work, "studio");
+    await mkdir(root);
+    exec("sh", ["-c", 'git -C "$1" archive "$2" | tar -x -C "$3"', "sh", studioRoot, sha, root]);
+    const npmRun = (args, timeout = 900_000) => {
+      const result = exec("npm", args, { cwd: root, timeout, allowFailure: true });
+      return { status: result.status, output: stripVTControlCharacters(redact(`${result.stdout ?? ""}\n${result.stderr ?? ""}`)) };
+    };
+    const npm = (args) => {
+      const { status, output } = npmRun(args);
+      assert.equal(status, 0, `npm ${args.join(" ")} exited ${status}:\n${output.slice(-4_000)}`);
+      return output;
+    };
+    const installedSdk = async () => {
+      const directory = join(root, "node_modules", "@honua", "sdk-js");
+      const index = await readFile(join(directory, "dist", "src", "studio-agent", "index.js"));
+      return {
+        version: JSON.parse(await readFile(join(directory, "package.json"), "utf8")).version,
+        studioAgentIndexSha256: createHash("sha256").update(index).digest("hex"),
+      };
+    };
+    // Every step runs even when an earlier one fails, so the receipt shows each outcome.
+    const compile = () => {
+      const typecheck = npmRun(["run", "typecheck"]);
+      const build = npmRun(["run", "build"]);
+      const test = npmRun(["exec", "--", "vitest", "run", STUDIO_DISCOVERY_TEST.file, "-t", STUDIO_DISCOVERY_TEST.name]);
+      const summary = test.output.match(/Tests\s+([^\n]+)/)?.[1]?.trim();
+      return {
+        typecheck: { status: typecheck.status, errors: typecheck.output.split("\n").filter((line) => /error TS\d+/.test(line) || /^\s+(Type|Types) /.test(line)) },
+        build: { status: build.status, summary: build.output.match(/built in [^\n]+/)?.[0] },
+        discoveryTest: { ...STUDIO_DISCOVERY_TEST, status: test.status, summary },
+      };
+    };
+    const assertCompiled = (label, outcome) => {
+      assert.equal(outcome.typecheck.status, 0, `${label}: Studio typecheck failed:\n${outcome.typecheck.errors.join("\n")}`);
+      assert.equal(outcome.build.status, 0, `${label}: Studio build failed`);
+      assert.match(outcome.discoveryTest.summary ?? "", /^1 passed\b/, `${label}: the SDK-discovery element test did not pass alone: ${outcome.discoveryTest.summary}`);
+    };
+
+    npm(["ci", "--no-audit", "--no-fund"]);
+    evidence.pinnedSdk = { ...(await installedSdk()), ...compile() };
+
+    const packed = exec("npm", ["pack", "--pack-destination", work, "--silent"], { timeout: 300_000 }).stdout.trim().split("\n").pop();
+    npm(["install", "--no-save", "--no-audit", "--no-fund", join(work, packed)]);
+    const source = await installedSdk();
+    const built = createHash("sha256").update(await readFile(new URL("../dist/src/studio-agent/index.js", import.meta.url))).digest("hex");
+    assert.equal(source.studioAgentIndexSha256, built, "Studio did not install this checkout's built SDK");
+    evidence.sourceSdk = { ...source, sdkSourceSha: receipt.sdkSourceSha, ...compile() };
+
+    // The criterion is the SDK this receipt qualifies on the candidate; the pinned release is context.
+    assertCompiled(`pinned @honua/sdk-js ${evidence.pinnedSdk.version}`, evidence.pinnedSdk);
+    assertCompiled(`source SDK ${receipt.sdkSourceSha.slice(0, 9)}`, evidence.sourceSdk);
+  });
+}
+
 try {
+  await browserStudioCheck();
+
   // ── Boot ────────────────────────────────────────────────────
   port = await freePort();
   baseUrl = `http://127.0.0.1:${port}`;

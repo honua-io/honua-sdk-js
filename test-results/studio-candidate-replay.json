@@ -1,13 +1,13 @@
 {
   "schema": "honua.studio-candidate-replay/v1",
   "issue": "honua-io/honua-sdk-js#1397",
-  "generatedAt": "2026-09-16T03:33:44.113Z",
+  "generatedAt": "2026-09-16T09:43:18.158Z",
   "scope": "manifest-pinned honua-server image, source-built SDK, scripted provider behind the real Studio AI proxy; not an installed-client or live-model certification",
-  "sdkSourceSha": "5e007e55b8ea6e0391b9416802cbe3fc432c0fa5",
-  "manifestSha256": "120a99cbd2b464b890536a753706283c7eb8c6021da9d5198ff5b85e6c3673af",
+  "sdkSourceSha": "1c5327619425a66b263b3237e320c66c04e0165b",
+  "manifestSha256": "cf5623cad2a15d0ae5d58c53e9ded4a87aa89f1718eb883474db0095899e9475",
   "candidate": {
-    "ref": "886206527cc97bad1bbaa5fa6358910ebc45e9c0",
-    "image": "ghcr.io/honua-io/honua-server@sha256:0b16046533e5330ecdd48255c06b5397e869191299e1e5e8cc7b4b2ded60b388",
+    "ref": "87966c3f7b6c840ffc4d4da0b451714ab717b18a",
+    "image": "ghcr.io/honua-io/honua-server@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
     "expectedSetup": {
       "revision": "setup.v2",
       "members": [
@@ -22,9 +22,9 @@
       ]
     },
     "running": {
-      "container": "sdk1397-260e7da3-server-current",
-      "imageId": "sha256:0b16046533e5330ecdd48255c06b5397e869191299e1e5e8cc7b4b2ded60b388",
-      "revision": "886206527cc97bad1bbaa5fa6358910ebc45e9c0",
+      "container": "sdk1397-4fd4bad1-server-current",
+      "imageId": "sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
+      "revision": "87966c3f7b6c840ffc4d4da0b451714ab717b18a",
       "boots": 1,
       "extraEnv": {}
     }
@@ -43,6 +43,158 @@
   },
   "deploymentDeviations": [],
   "checks": [
+    {
+      "id": "browser-studio-compiles-on-sdk-discovery",
+      "criterion": "AC7",
+      "verdict": "fail",
+      "evidence": {
+        "studio": {
+          "ref": "5103fceb2ef7b74faf47ea6650e40278f739ca02",
+          "subject": "docs(agents): sync SDK pin doc with 0.1.9-beta.0 (#68)",
+          "committedAt": "2026-09-15T18:24:17-10:00"
+        },
+        "localList": {
+          "fileTracked": false,
+          "references": []
+        },
+        "consumerAllowlist": [],
+        "descriptorCopies": [],
+        "sessionFactory": [
+          "src/elements/studio-app-element.ts:38:import type { StudioAgentSession } from \"@honua/sdk-js/studio-agent\";",
+          "src/elements/studio-chat-element.ts:20:  createStudioAgentSession,",
+          "src/elements/studio-chat-element.ts:21:} from \"@honua/sdk-js/studio-agent\";",
+          "src/elements/studio-chat-element.ts:129:    this.#agentSession = createStudioAgentSession({",
+          "src/mcp/orchestrator.ts:43: * `@honua/sdk-js/studio-agent` now ships `createStudioAgentSession`, and the"
+        ],
+        "directCallNameLiterals": [
+          "src/elements/studio-app-element.ts:807:        if (forwardedCall.name === \"honua_studio_set_layer_visibility\") {",
+          "src/evals/corpus.ts:139:            toolName: \"honua_studio_set_view\",",
+          "src/evals/corpus.ts:166:              { toolName: \"honua_studio_set_view\", arguments: { view: { center: [-157.8583, 21.3069], zoom: 3 } } },",
+          "src/evals/corpus.ts:215:        toolCalls: [{ toolName: \"honua_studio_remove_widget\", arguments: { widgetId: \"legend-parcels\" } }],",
+          "src/evals/corpus.ts:237:          assistant: { toolCalls: [{ toolName: \"honua_studio_remove_widget\", arguments: { widgetId: \"toc-layers\" } }] },",
+          "src/evals/corpus.ts:261:            toolName: \"honua_studio_add_control\",",
+          "src/evals/corpus.ts:267:            toolName: \"honua_studio_bind_interaction\",",
+          "src/evals/corpus.ts:313:                toolName: \"honua_studio_add_control\",",
+          "src/evals/corpus.ts:317:                toolName: \"honua_studio_bind_interaction\",",
+          "src/evals/corpus.ts:344:                toolName: \"honua_studio_add_control\",",
+          "src/evals/corpus.ts:399:            toolCalls: [{ toolName: \"honua_studio_remove_layer\", arguments: { layerId: PARCELS } }],",
+          "src/evals/corpus.ts:565:              { toolName: \"honua_studio_remove_layer\", arguments: { layerId: PARCELS } },",
+          "src/evals/corpus.ts:621:              { toolName: \"honua_studio_publish_version\", arguments: { itemId: \"county-parcels\", versionId: \"v1\" } },",
+          "src/evals/corpus.ts:635:            toolCalls: [{ toolName: \"honua_studio_remove_widget\", arguments: { widgetId: \"toc-layers\" } }],",
+          "src/mcp/studio-tools.ts:242:  \"honua_studio_create_draft\",",
+          "src/mcp/studio-tools.ts:243:  \"honua_studio_get_draft\",",
+          "src/mcp/studio-tools.ts:244:  \"honua_studio_update_draft\",",
+          "src/mcp/studio-tools.ts:245:  \"honua_studio_validate_draft\",",
+          "src/mcp/studio-tools.ts:246:  \"honua_studio_preview_draft\",",
+          "src/mcp/studio-tools.ts:247:  \"honua_studio_add_layer\",",
+          "src/mcp/studio-tools.ts:248:  \"honua_studio_remove_layer\",",
+          "src/mcp/studio-tools.ts:249:  \"honua_studio_set_layer_style\",",
+          "src/mcp/studio-tools.ts:250:  \"honua_studio_set_layer_visibility\",",
+          "src/mcp/studio-tools.ts:251:  \"honua_studio_set_view\",",
+          "src/mcp/studio-tools.ts:252:  \"honua_studio_add_widget\",",
+          "src/mcp/studio-tools.ts:253:  \"honua_studio_remove_widget\",",
+          "src/mcp/studio-tools.ts:254:  \"honua_studio_add_control\",",
+          "src/mcp/studio-tools.ts:255:  \"honua_studio_remove_control\",",
+          "src/mcp/studio-tools.ts:256:  \"honua_studio_bind_interaction\",",
+          "src/mcp/studio-tools.ts:257:  \"honua_studio_remove_interaction\",",
+          "src/mcp/studio-tools.ts:258:  \"honua_studio_propose_publication\",",
+          "src/mcp/studio-tools.ts:293:    const result = await this.client.callTool(\"honua_studio_create_draft\", { ...input });",
+          "src/mcp/studio-tools.ts:298:    const result = await this.client.callTool(\"honua_studio_get_draft\", { draftId });",
+          "src/mcp/studio-tools.ts:303:    const result = await this.client.callTool(\"honua_studio_update_draft\", { ...input });",
+          "src/mcp/studio-tools.ts:308:    const result = await this.client.callTool(\"honua_studio_validate_draft\", { draftId });",
+          "src/mcp/studio-tools.ts:313:    const result = await this.client.callTool(\"honua_studio_preview_draft\", { draftId });",
+          "src/mcp/studio-tools.ts:318:    const result = await this.client.callTool(\"honua_studio_add_layer\", { ...input });",
+          "src/mcp/studio-tools.ts:323:    const result = await this.client.callTool(\"honua_studio_remove_layer\", { ...input });",
+          "src/mcp/studio-tools.ts:328:    const result = await this.client.callTool(\"honua_studio_set_layer_style\", { ...input });",
+          "src/mcp/studio-tools.ts:334:    const result = await this.client.callTool(\"honua_studio_set_layer_visibility\", { ...input });",
+          "src/mcp/studio-tools.ts:339:    const result = await this.client.callTool(\"honua_studio_set_view\", { ...input });",
+          "src/mcp/studio-tools.ts:344:    const result = await this.client.callTool(\"honua_studio_add_widget\", { ...input });",
+          "src/mcp/studio-tools.ts:349:    const result = await this.client.callTool(\"honua_studio_remove_widget\", { ...input });",
+          "src/mcp/studio-tools.ts:354:    const result = await this.client.callTool(\"honua_studio_add_control\", { ...input });",
+          "src/mcp/studio-tools.ts:359:    const result = await this.client.callTool(\"honua_studio_remove_control\", { ...input });",
+          "src/mcp/studio-tools.ts:364:    const result = await this.client.callTool(\"honua_studio_bind_interaction\", { ...input });",
+          "src/mcp/studio-tools.ts:369:    const result = await this.client.callTool(\"honua_studio_remove_interaction\", { ...input });",
+          "src/mcp/studio-tools.ts:374:    const result = await this.client.callTool(\"honua_studio_propose_publication\", { ...input });",
+          "src/mcp/tool-bridge.ts:152:  addLayer: compositionPassthroughEntry(\"addLayer\", \"honua_studio_add_layer\"),",
+          "src/mcp/tool-bridge.ts:153:  removeLayer: compositionPassthroughEntry(\"removeLayer\", \"honua_studio_remove_layer\"),",
+          "src/mcp/tool-bridge.ts:154:  setLayerStyleRef: compositionPassthroughEntry(\"setLayerStyleRef\", \"honua_studio_set_layer_style\"),",
+          "src/mcp/tool-bridge.ts:169:  setVisibility: compositionPassthroughEntry(\"setVisibility\", \"honua_studio_set_layer_visibility\"),",
+          "src/mcp/tool-bridge.ts:170:  setView: compositionPassthroughEntry(\"setView\", \"honua_studio_set_view\"),",
+          "src/mcp/tool-bridge.ts:171:  addWidget: compositionPassthroughEntry(\"addWidget\", \"honua_studio_add_widget\"),",
+          "src/mcp/tool-bridge.ts:172:  removeWidget: compositionPassthroughEntry(\"removeWidget\", \"honua_studio_remove_widget\"),",
+          "src/mcp/tool-bridge.ts:174:  addControl: compositionPassthroughEntry(\"addControl\", \"honua_studio_add_control\"),",
+          "src/mcp/tool-bridge.ts:175:  removeControl: compositionPassthroughEntry(\"removeControl\", \"honua_studio_remove_control\"),",
+          "src/mcp/tool-bridge.ts:176:  bindInteraction: compositionPassthroughEntry(\"bindInteraction\", \"honua_studio_bind_interaction\"),",
+          "src/mcp/tool-bridge.ts:177:  removeInteraction: compositionPassthroughEntry(\"removeInteraction\", \"honua_studio_remove_interaction\"),",
+          "src/mcp/tool-bridge.ts:191:    serverToolName: \"honua_studio_add_layer\",",
+          "src/mcp/tool-bridge.ts:207:    serverToolName: \"honua_studio_add_widget\",",
+          "src/mcp/tool-bridge.ts:227:    serverToolName: \"honua_studio_add_layer\",",
+          "src/mcp/tool-bridge.ts:253:    serverToolName: \"honua_studio_remove_layer\",",
+          "src/mcp/tool-bridge.ts:263:    serverToolName: \"honua_studio_set_layer_style\",",
+          "src/mcp/tool-bridge.ts:276:    serverToolName: \"honua_studio_set_view\",",
+          "src/mcp/tool-bridge.ts:294:    serverToolName: \"honua_studio_add_widget\",",
+          "src/mcp/tool-bridge.ts:305:    serverToolName: \"honua_studio_remove_widget\",",
+          "src/mcp/tool-bridge.ts:320:    serverToolName: \"honua_studio_add_control\",",
+          "src/mcp/tool-bridge.ts:331:    serverToolName: \"honua_studio_remove_control\",",
+          "src/mcp/tool-bridge.ts:344:    serverToolName: \"honua_studio_bind_interaction\",",
+          "src/mcp/tool-bridge.ts:355:    serverToolName: \"honua_studio_remove_interaction\",",
+          "src/mcp/tool-bridge.ts:437:        name: \"honua_studio_add_layer\",",
+          "src/mcp/tool-bridge.ts:442:      return { name: \"honua_studio_remove_layer\", arguments: { ...base, layerId: targetId(command.target) } };",
+          "src/mcp/tool-bridge.ts:445:        name: \"honua_studio_set_layer_style\",",
+          "src/mcp/tool-bridge.ts:456:        name: \"honua_studio_set_layer_visibility\",",
+          "src/mcp/tool-bridge.ts:460:      return { name: \"honua_studio_set_view\", arguments: { ...base, view: { ...command.view } } };",
+          "src/mcp/tool-bridge.ts:462:      return { name: \"honua_studio_add_widget\", arguments: { ...base, widget: { ...command.widget } } };",
+          "src/mcp/tool-bridge.ts:464:      return { name: \"honua_studio_remove_widget\", arguments: { ...base, widgetId: targetId(command.target) } };",
+          "src/mcp/tool-bridge.ts:466:      return { name: \"honua_studio_add_control\", arguments: { ...base, control: { ...command.control } } };",
+          "src/mcp/tool-bridge.ts:470:        name: \"honua_studio_remove_control\",",
+          "src/mcp/tool-bridge.ts:478:      return { name: \"honua_studio_bind_interaction\", arguments: { ...base, interaction: { ...command.interaction } } };",
+          "src/mcp/tool-bridge.ts:480:      return { name: \"honua_studio_remove_interaction\", arguments: { ...base, interactionId: command.interactionId } };"
+        ],
+        "pinnedSdk": {
+          "version": "0.1.9-beta.0",
+          "studioAgentIndexSha256": "4321e235947ecb08dfefc93b734f15664cbca5a3f53a10e4d83bdb75c79b58ea",
+          "typecheck": {
+            "status": 0,
+            "errors": []
+          },
+          "build": {
+            "status": 0,
+            "summary": "built in 532ms"
+          },
+          "discoveryTest": {
+            "file": "test/elements/studio-chat-element.test.ts",
+            "name": "runs a model-selected server tool, feeds its result back, and refreshes the real canvas controller",
+            "status": 0,
+            "summary": "1 passed | 11 skipped (12)"
+          }
+        },
+        "sourceSdk": {
+          "version": "0.1.9-beta.0",
+          "studioAgentIndexSha256": "2749fc572c81584d0ef64136b13752435ed1130b5541f639e5bdcb73825547d8",
+          "sdkSourceSha": "1c5327619425a66b263b3237e320c66c04e0165b",
+          "typecheck": {
+            "status": 2,
+            "errors": [
+              "src/elements/studio-chat-element.ts(476,79): error TS2322: Type 'import(\"/tmp/sdk1397-4fd4bad1-Q8he0F/studio/node_modules/@honua/sdk-js/dist/src/studio-agent/ai-contract\").StudioAiChatEvent' is not assignable to type 'import(\"/tmp/sdk1397-4fd4bad1-Q8he0F/studio/src/chat/ai-contract\").StudioAiChatEvent'.",
+              "  Types of property 'type' are incompatible.",
+              "    Type 'import(\"/tmp/sdk1397-4fd4bad1-Q8he0F/studio/node_modules/@honua/sdk-js/dist/src/studio-agent/ai-contract\").StudioAiChatEventType' is not assignable to type 'import(\"/tmp/sdk1397-4fd4bad1-Q8he0F/studio/src/chat/ai-contract\").StudioAiChatEventType'.",
+              "      Type '\"transcriptProvenance\"' is not assignable to type 'StudioAiChatEventType'."
+            ]
+          },
+          "build": {
+            "status": 0,
+            "summary": "built in 442ms"
+          },
+          "discoveryTest": {
+            "file": "test/elements/studio-chat-element.test.ts",
+            "name": "runs a model-selected server tool, feeds its result back, and refreshes the real canvas controller",
+            "status": 1,
+            "summary": "1 failed | 11 skipped (12)"
+          }
+        }
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: source SDK 1c5327619: Studio typecheck failed:\nsrc/elements/studio-chat-element.ts(476,79): error TS2322: Type 'import(\"/tmp/sdk1397-4fd4bad1-Q8he0F/studio/node_modules/@honua/sdk-js/dist/src/studio-agent/ai-contract\").StudioAiChatEvent' is not assignable to type 'import(\"/tmp/sdk1397-4fd4bad1-Q8he0F/studio/src/chat/ai-contract\").StudioAiChatEvent'.\n  Types of property 'type' are incompatible.\n    Type 'import(\"/tmp/sdk1397-4fd4bad1-Q8he0F/studio/node_modules/@honua/sdk-js/dist/src/studio-agent/ai-contract\").StudioAiChatEventType' is not assignable to type 'import(\"/tmp/sdk1397-4fd4bad1-Q8he0F/studio/src/chat/ai-contract\").StudioAiChatEventType'.\n      Type '\"transcriptProvenance\"' is not assignable to type 'StudioAiChatEventType'.\n\n2 !== 0\n\n    at assertCompiled (file:///home/mike/honua-io/wt-sdkjs-1397-ac7/scripts/qualify-studio-candidate.mjs:929:14)\n    at file:///home/mike/honua-io/wt-sdkjs-1397-ac7/scripts/qualify-studio-candidate.mjs:946:5\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1397-ac7/scripts/qualify-studio-candidate.mjs:192:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-ac7/scripts/qualify-studio-candidate.mjs:951:3"
+    },
     {
       "id": "bearer-mcp-session-continuity",
       "criterion": "finding (honua-server#4909)",
@@ -342,10 +494,10 @@
           "requiredForCertification": true,
           "keys": [
             {
-              "keyId": "sdk1397-260e7da3-transcript",
+              "keyId": "sdk1397-4fd4bad1-transcript",
               "algorithm": "Ed25519",
-              "publicKey": "er7VY5LrfvVflur1dRWJL5pnQwjjSAcdKd8akO2/4m8=",
-              "fingerprint": "sha256:10f42743b1180a5af766b24c5f577de88e415b17a3eeaa686e9d373c07b82cf6",
+              "publicKey": "1k9GS6nmkQNmcXtMIdTbr4dc7MNJCZmEIgPS98DmM4E=",
+              "fingerprint": "sha256:9484ed1128f8ae81bf2fa40e120af1c1b837ab9773a24d6cf66d3ed900460179",
               "revoked": false
             }
           ]
@@ -394,22 +546,22 @@
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 32373,
-            "promptCharacters": 11033,
+            "requestBytes": 32377,
+            "promptCharacters": 11037,
             "messages": 11
           },
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 37250,
-            "promptCharacters": 14948,
+            "requestBytes": 37254,
+            "promptCharacters": 14952,
             "messages": 13
           },
           {
             "method": "POST",
             "path": "/api/v1/studio/ai/chat",
-            "requestBytes": 39080,
-            "promptCharacters": 16154,
+            "requestBytes": 39084,
+            "promptCharacters": 16158,
             "messages": 15
           }
         ],
@@ -591,93 +743,93 @@
           }
         ],
         "values": {
-          "draftId": "a8440005-456e-4bd1-b317-90a7654c1b9d",
+          "draftId": "aa0e1206-6ab7-496d-9a91-3d1a7cb36277",
           "ownerId": "00000000-0000-0000-0000-000000000002",
           "generations": {
             "created": 1,
             "updated": 2,
             "reopened": 1
           },
-          "itemId": "1ed6271c-b190-48b4-81e7-147df8e1a190",
-          "versionId": "a1a07617-45fc-4d5a-bda0-8e67204b42d5",
-          "contentHash": "42f244a0de824303bbb6d210ef10ce783880757856db2b344d71a3d73e209327",
-          "reopenedDraftId": "8bffc5c1-85e0-4d99-9685-5089d25dc9cd",
-          "proposalId": "proposal-ed3a63f6771a470f8bcefdf342d717cf",
-          "publicationPointer": "null|a1a07617-45fc-4d5a-bda0-8e67204b42d5",
+          "itemId": "bd30ed03-d9e8-478f-a9a0-e4436687f058",
+          "versionId": "23170ddf-483a-4ebf-a8f2-688f4997127f",
+          "contentHash": "1e210b6ecad284a685985d12dea03e6b034136e2afe3454889ed8feb9ce30d59",
+          "reopenedDraftId": "bcba9ebf-3765-4883-8d22-731b9f6ff0a5",
+          "proposalId": "proposal-1ed64d1439de4cc28f6794cb632429ab",
+          "publicationPointer": "null|23170ddf-483a-4ebf-a8f2-688f4997127f",
           "polls": [
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-ed3a63f6771a470f8bcefdf342d717cf",
-                "operationInstanceId": "opinst-42530895c5744feca1211d510a82e922",
+                "proposalId": "proposal-1ed64d1439de4cc28f6794cb632429ab",
+                "operationInstanceId": "opinst-77028aca92204047980c3dec819d3c1f",
                 "auditId": "22",
-                "correlationId": "00-b54cc3d49f21da4cc121fbf4ef3c7068-bd96a697c5bc6bed-00",
+                "correlationId": "00-f80342f0e82e2bade641077836662e8a-cea7702cf854d689-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a1a07617-45fc-4d5a-bda0-8e67204b42d5 at /studio/sdk1397-admin-api-key-model-260e7da3.",
+                "summary": "Publish sealed Studio version 23170ddf-483a-4ebf-a8f2-688f4997127f at /studio/sdk1397-admin-api-key-model-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=1ed6271c-b190-48b4-81e7-147df8e1a190",
-                  "versionId=a1a07617-45fc-4d5a-bda0-8e67204b42d5",
-                  "contentHash=42f244a0de824303bbb6d210ef10ce783880757856db2b344d71a3d73e209327",
-                  "route=/studio/sdk1397-admin-api-key-model-260e7da3",
+                  "itemId=bd30ed03-d9e8-478f-a9a0-e4436687f058",
+                  "versionId=23170ddf-483a-4ebf-a8f2-688f4997127f",
+                  "contentHash=1e210b6ecad284a685985d12dea03e6b034136e2afe3454889ed8feb9ce30d59",
+                  "route=/studio/sdk1397-admin-api-key-model-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:12.2668888+00:00",
-                "updatedAt": "2026-09-16T03:34:12.2740011+00:00"
+                "createdAt": "2026-09-16T09:44:00.4653211+00:00",
+                "updatedAt": "2026-09-16T09:44:00.4696213+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-ed3a63f6771a470f8bcefdf342d717cf",
-                "operationInstanceId": "opinst-42530895c5744feca1211d510a82e922",
+                "proposalId": "proposal-1ed64d1439de4cc28f6794cb632429ab",
+                "operationInstanceId": "opinst-77028aca92204047980c3dec819d3c1f",
                 "auditId": "22",
-                "correlationId": "00-b54cc3d49f21da4cc121fbf4ef3c7068-bd96a697c5bc6bed-00",
+                "correlationId": "00-f80342f0e82e2bade641077836662e8a-cea7702cf854d689-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a1a07617-45fc-4d5a-bda0-8e67204b42d5 at /studio/sdk1397-admin-api-key-model-260e7da3.",
+                "summary": "Publish sealed Studio version 23170ddf-483a-4ebf-a8f2-688f4997127f at /studio/sdk1397-admin-api-key-model-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=1ed6271c-b190-48b4-81e7-147df8e1a190",
-                  "versionId=a1a07617-45fc-4d5a-bda0-8e67204b42d5",
-                  "contentHash=42f244a0de824303bbb6d210ef10ce783880757856db2b344d71a3d73e209327",
-                  "route=/studio/sdk1397-admin-api-key-model-260e7da3",
+                  "itemId=bd30ed03-d9e8-478f-a9a0-e4436687f058",
+                  "versionId=23170ddf-483a-4ebf-a8f2-688f4997127f",
+                  "contentHash=1e210b6ecad284a685985d12dea03e6b034136e2afe3454889ed8feb9ce30d59",
+                  "route=/studio/sdk1397-admin-api-key-model-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:12.2668888+00:00",
-                "updatedAt": "2026-09-16T03:34:12.2740011+00:00"
+                "createdAt": "2026-09-16T09:44:00.4653211+00:00",
+                "updatedAt": "2026-09-16T09:44:00.4696213+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-ed3a63f6771a470f8bcefdf342d717cf",
-                "operationInstanceId": "opinst-42530895c5744feca1211d510a82e922",
+                "proposalId": "proposal-1ed64d1439de4cc28f6794cb632429ab",
+                "operationInstanceId": "opinst-77028aca92204047980c3dec819d3c1f",
                 "auditId": "22",
-                "correlationId": "00-b54cc3d49f21da4cc121fbf4ef3c7068-bd96a697c5bc6bed-00",
+                "correlationId": "00-f80342f0e82e2bade641077836662e8a-cea7702cf854d689-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version a1a07617-45fc-4d5a-bda0-8e67204b42d5 at /studio/sdk1397-admin-api-key-model-260e7da3.",
+                "summary": "Publish sealed Studio version 23170ddf-483a-4ebf-a8f2-688f4997127f at /studio/sdk1397-admin-api-key-model-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=1ed6271c-b190-48b4-81e7-147df8e1a190",
-                  "versionId=a1a07617-45fc-4d5a-bda0-8e67204b42d5",
-                  "contentHash=42f244a0de824303bbb6d210ef10ce783880757856db2b344d71a3d73e209327",
-                  "route=/studio/sdk1397-admin-api-key-model-260e7da3",
+                  "itemId=bd30ed03-d9e8-478f-a9a0-e4436687f058",
+                  "versionId=23170ddf-483a-4ebf-a8f2-688f4997127f",
+                  "contentHash=1e210b6ecad284a685985d12dea03e6b034136e2afe3454889ed8feb9ce30d59",
+                  "route=/studio/sdk1397-admin-api-key-model-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:12.2668888+00:00",
-                "updatedAt": "2026-09-16T03:34:12.2740011+00:00"
+                "createdAt": "2026-09-16T09:44:00.4653211+00:00",
+                "updatedAt": "2026-09-16T09:44:00.4696213+00:00"
               }
             }
           ]
@@ -1329,93 +1481,93 @@
           }
         ],
         "values": {
-          "draftId": "e8df76f4-79b8-4c0c-8c8b-f6d6cae21bae",
+          "draftId": "e50ad2d2-c6f3-4f95-9c95-e0ed9e8ca8e3",
           "ownerId": "00000000-0000-0000-0000-000000000002",
           "generations": {
             "created": 1,
             "updated": 2,
             "reopened": 1
           },
-          "itemId": "b14a886c-6c81-4169-adfb-d395450421ec",
-          "versionId": "c2718e66-f244-40a9-8966-96b88143a604",
-          "contentHash": "980ba1becb2e5acf0a48cc11c4144874ced8e1bdf3b6f77f46c96484a3cddebd",
-          "reopenedDraftId": "1268f52a-6fc0-403e-84a2-0b3161c0d38e",
-          "proposalId": "proposal-7be501eab23149d49a11caa1e78aba4e",
-          "publicationPointer": "null|c2718e66-f244-40a9-8966-96b88143a604",
+          "itemId": "f51345eb-babb-4673-82b2-46a9b89e90e0",
+          "versionId": "1d8a587f-e9a6-446b-a803-9d7a00fef863",
+          "contentHash": "182cce1b57aa9496cb3854df103312189b9bb649d88ff21948a0ebb44836a307",
+          "reopenedDraftId": "8cc4c73c-e19d-4b54-a5ef-eaf74a1e7d8a",
+          "proposalId": "proposal-0577e8bc145540609ef190d0914b4359",
+          "publicationPointer": "null|1d8a587f-e9a6-446b-a803-9d7a00fef863",
           "polls": [
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-7be501eab23149d49a11caa1e78aba4e",
-                "operationInstanceId": "opinst-f5c9f483c8b44cbba9cf53002ae8b151",
+                "proposalId": "proposal-0577e8bc145540609ef190d0914b4359",
+                "operationInstanceId": "opinst-7c39a7f570cb4dd380247fad0343ca2c",
                 "auditId": "33",
-                "correlationId": "00-49fb326d232913bf47321c6eb1998e67-3af53084047f9c99-00",
+                "correlationId": "00-297fbbfc938886f31c6f25fb385532d3-bf4a8898aa1fba2a-01",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version c2718e66-f244-40a9-8966-96b88143a604 at /studio/sdk1397-admin-api-key-mcp-260e7da3.",
+                "summary": "Publish sealed Studio version 1d8a587f-e9a6-446b-a803-9d7a00fef863 at /studio/sdk1397-admin-api-key-mcp-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=b14a886c-6c81-4169-adfb-d395450421ec",
-                  "versionId=c2718e66-f244-40a9-8966-96b88143a604",
-                  "contentHash=980ba1becb2e5acf0a48cc11c4144874ced8e1bdf3b6f77f46c96484a3cddebd",
-                  "route=/studio/sdk1397-admin-api-key-mcp-260e7da3",
+                  "itemId=f51345eb-babb-4673-82b2-46a9b89e90e0",
+                  "versionId=1d8a587f-e9a6-446b-a803-9d7a00fef863",
+                  "contentHash=182cce1b57aa9496cb3854df103312189b9bb649d88ff21948a0ebb44836a307",
+                  "route=/studio/sdk1397-admin-api-key-mcp-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:14.3202783+00:00",
-                "updatedAt": "2026-09-16T03:34:14.32699+00:00"
+                "createdAt": "2026-09-16T09:44:02.3738891+00:00",
+                "updatedAt": "2026-09-16T09:44:02.378168+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-7be501eab23149d49a11caa1e78aba4e",
-                "operationInstanceId": "opinst-f5c9f483c8b44cbba9cf53002ae8b151",
+                "proposalId": "proposal-0577e8bc145540609ef190d0914b4359",
+                "operationInstanceId": "opinst-7c39a7f570cb4dd380247fad0343ca2c",
                 "auditId": "33",
-                "correlationId": "00-49fb326d232913bf47321c6eb1998e67-3af53084047f9c99-00",
+                "correlationId": "00-297fbbfc938886f31c6f25fb385532d3-bf4a8898aa1fba2a-01",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version c2718e66-f244-40a9-8966-96b88143a604 at /studio/sdk1397-admin-api-key-mcp-260e7da3.",
+                "summary": "Publish sealed Studio version 1d8a587f-e9a6-446b-a803-9d7a00fef863 at /studio/sdk1397-admin-api-key-mcp-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=b14a886c-6c81-4169-adfb-d395450421ec",
-                  "versionId=c2718e66-f244-40a9-8966-96b88143a604",
-                  "contentHash=980ba1becb2e5acf0a48cc11c4144874ced8e1bdf3b6f77f46c96484a3cddebd",
-                  "route=/studio/sdk1397-admin-api-key-mcp-260e7da3",
+                  "itemId=f51345eb-babb-4673-82b2-46a9b89e90e0",
+                  "versionId=1d8a587f-e9a6-446b-a803-9d7a00fef863",
+                  "contentHash=182cce1b57aa9496cb3854df103312189b9bb649d88ff21948a0ebb44836a307",
+                  "route=/studio/sdk1397-admin-api-key-mcp-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:14.3202783+00:00",
-                "updatedAt": "2026-09-16T03:34:14.32699+00:00"
+                "createdAt": "2026-09-16T09:44:02.3738891+00:00",
+                "updatedAt": "2026-09-16T09:44:02.378168+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-7be501eab23149d49a11caa1e78aba4e",
-                "operationInstanceId": "opinst-f5c9f483c8b44cbba9cf53002ae8b151",
+                "proposalId": "proposal-0577e8bc145540609ef190d0914b4359",
+                "operationInstanceId": "opinst-7c39a7f570cb4dd380247fad0343ca2c",
                 "auditId": "33",
-                "correlationId": "00-49fb326d232913bf47321c6eb1998e67-3af53084047f9c99-00",
+                "correlationId": "00-297fbbfc938886f31c6f25fb385532d3-bf4a8898aa1fba2a-01",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version c2718e66-f244-40a9-8966-96b88143a604 at /studio/sdk1397-admin-api-key-mcp-260e7da3.",
+                "summary": "Publish sealed Studio version 1d8a587f-e9a6-446b-a803-9d7a00fef863 at /studio/sdk1397-admin-api-key-mcp-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=b14a886c-6c81-4169-adfb-d395450421ec",
-                  "versionId=c2718e66-f244-40a9-8966-96b88143a604",
-                  "contentHash=980ba1becb2e5acf0a48cc11c4144874ced8e1bdf3b6f77f46c96484a3cddebd",
-                  "route=/studio/sdk1397-admin-api-key-mcp-260e7da3",
+                  "itemId=f51345eb-babb-4673-82b2-46a9b89e90e0",
+                  "versionId=1d8a587f-e9a6-446b-a803-9d7a00fef863",
+                  "contentHash=182cce1b57aa9496cb3854df103312189b9bb649d88ff21948a0ebb44836a307",
+                  "route=/studio/sdk1397-admin-api-key-mcp-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:14.3202783+00:00",
-                "updatedAt": "2026-09-16T03:34:14.32699+00:00"
+                "createdAt": "2026-09-16T09:44:02.3738891+00:00",
+                "updatedAt": "2026-09-16T09:44:02.378168+00:00"
               }
             }
           ]
@@ -1482,13 +1634,13 @@
               "honua_studio_validate_draft",
               "honua_studio_propose_publication"
             ],
-            "secondsToRefresh": 4.257,
+            "secondsToRefresh": 0.501,
             "toolsListCallsTriggered": 1
           },
           {
             "serverDefaultView": "default",
             "routed": [],
-            "secondsToRefresh": 7.766,
+            "secondsToRefresh": 8.01,
             "toolsListCallsTriggered": 1
           }
         ],
@@ -1498,12 +1650,12 @@
         },
         "streamEvents": [
           {
-            "at": 1789529656180,
+            "at": 1789551844095,
             "type": "toolWatch",
             "status": "connecting"
           },
           {
-            "at": 1789529656185,
+            "at": 1789551844099,
             "type": "toolWatch",
             "status": "open"
           }
@@ -1517,7 +1669,7 @@
       "verdict": "pass",
       "evidence": {
         "previousRunning": {
-          "container": "sdk1397-260e7da3-server-previous",
+          "container": "sdk1397-4fd4bad1-server-previous",
           "imageId": "sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
           "revision": "7ba422672e0c751843b17beb36e954a019cc19fb",
           "boots": 1,
@@ -1525,7 +1677,7 @@
         },
         "steps": [
           {
-            "label": "candidate 8862065",
+            "label": "candidate 87966c3",
             "routed": [
               "honua_studio_create_draft",
               "honua_studio_get_draft",
@@ -1568,7 +1720,7 @@
             }
           },
           {
-            "label": "candidate 8862065 after reconnect",
+            "label": "candidate 87966c3 after reconnect",
             "routed": [
               "honua_studio_create_draft",
               "honua_studio_get_draft",
@@ -1869,10 +2021,10 @@
           "requiredForCertification": true,
           "keys": [
             {
-              "keyId": "sdk1397-260e7da3-transcript",
+              "keyId": "sdk1397-4fd4bad1-transcript",
               "algorithm": "Ed25519",
-              "publicKey": "er7VY5LrfvVflur1dRWJL5pnQwjjSAcdKd8akO2/4m8=",
-              "fingerprint": "sha256:10f42743b1180a5af766b24c5f577de88e415b17a3eeaa686e9d373c07b82cf6",
+              "publicKey": "1k9GS6nmkQNmcXtMIdTbr4dc7MNJCZmEIgPS98DmM4E=",
+              "fingerprint": "sha256:9484ed1128f8ae81bf2fa40e120af1c1b837ab9773a24d6cf66d3ed900460179",
               "revoked": false
             }
           ]
@@ -1883,7 +2035,7 @@
           "toolCalls": 0
         }
       },
-      "diagnostic": "AssertionError [ERR_ASSERTION]: an interactive end user's model-selected Studio action cannot dispatch: the SDK requires certified provenance and the proxy forbids certification to non-admin callers\n    at file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:1059:12\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:166:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-8862065/scripts/qualify-studio-candidate.mjs:1046:3"
+      "diagnostic": "AssertionError [ERR_ASSERTION]: an interactive end user's model-selected Studio action cannot dispatch: the SDK requires certified provenance and the proxy forbids certification to non-admin callers\n    at file:///home/mike/honua-io/wt-sdkjs-1397-ac7/scripts/qualify-studio-candidate.mjs:1185:12\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1397-ac7/scripts/qualify-studio-candidate.mjs:192:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-ac7/scripts/qualify-studio-candidate.mjs:1172:3"
     },
     {
       "id": "terminal-session-lifecycle:end-user-bearer",
@@ -1929,93 +2081,93 @@
           }
         ],
         "values": {
-          "draftId": "8203e850-5020-42d0-b18e-f72b0214dc0c",
-          "ownerId": "subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-260e7da3@tenant:public",
+          "draftId": "f25b3aa4-4e0b-47ce-b7ed-6e4bfb0cded5",
+          "ownerId": "subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-4fd4bad1@tenant:public",
           "generations": {
             "created": 1,
             "updated": 2,
             "reopened": 1
           },
-          "itemId": "51560bb7-daa3-4514-9ede-a0f6ed30f144",
-          "versionId": "518f5853-0e93-446f-b1d4-ddad146e82df",
-          "contentHash": "20665bba47296f2237d081916e016400be273cf2554349554641e3c550d95207",
-          "reopenedDraftId": "cfee2efc-d7df-460f-9c2d-2ef9d77cd0bb",
-          "proposalId": "proposal-132dffd73d7749fca1a2fbd520afd2cc",
-          "publicationPointer": "null|518f5853-0e93-446f-b1d4-ddad146e82df",
+          "itemId": "88aaf806-75e8-457b-86a0-a62b6a9fcc77",
+          "versionId": "be395bed-98e2-408e-b1da-9cd27437c960",
+          "contentHash": "3d23f34184f3048e523d6171f06418182c49df8a427b28650a1e6122a3314044",
+          "reopenedDraftId": "148d3de5-0485-47d9-b748-202b02fad3ee",
+          "proposalId": "proposal-25a85bbec2fb49f8aa6576f59c1be503",
+          "publicationPointer": "null|be395bed-98e2-408e-b1da-9cd27437c960",
           "polls": [
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-132dffd73d7749fca1a2fbd520afd2cc",
-                "operationInstanceId": "opinst-491e260c59b940b9a13ed67ead8538fb",
+                "proposalId": "proposal-25a85bbec2fb49f8aa6576f59c1be503",
+                "operationInstanceId": "opinst-2c30c1e3a21f4f69bd56f8181d171f13",
                 "auditId": "46",
-                "correlationId": "00-129628b5d9592620b73c20b0df3a01a4-dd41e07e8e03077d-00",
+                "correlationId": "00-22e3b4f78ef94642ea4ed21917926536-90394cc794595333-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version 518f5853-0e93-446f-b1d4-ddad146e82df at /studio/sdk1397-end-user-bearer-260e7da3.",
+                "summary": "Publish sealed Studio version be395bed-98e2-408e-b1da-9cd27437c960 at /studio/sdk1397-end-user-bearer-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=51560bb7-daa3-4514-9ede-a0f6ed30f144",
-                  "versionId=518f5853-0e93-446f-b1d4-ddad146e82df",
-                  "contentHash=20665bba47296f2237d081916e016400be273cf2554349554641e3c550d95207",
-                  "route=/studio/sdk1397-end-user-bearer-260e7da3",
+                  "itemId=88aaf806-75e8-457b-86a0-a62b6a9fcc77",
+                  "versionId=be395bed-98e2-408e-b1da-9cd27437c960",
+                  "contentHash=3d23f34184f3048e523d6171f06418182c49df8a427b28650a1e6122a3314044",
+                  "route=/studio/sdk1397-end-user-bearer-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:41.5506022+00:00",
-                "updatedAt": "2026-09-16T03:34:41.5587648+00:00"
+                "createdAt": "2026-09-16T09:44:21.1559406+00:00",
+                "updatedAt": "2026-09-16T09:44:21.1594702+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-132dffd73d7749fca1a2fbd520afd2cc",
-                "operationInstanceId": "opinst-491e260c59b940b9a13ed67ead8538fb",
+                "proposalId": "proposal-25a85bbec2fb49f8aa6576f59c1be503",
+                "operationInstanceId": "opinst-2c30c1e3a21f4f69bd56f8181d171f13",
                 "auditId": "46",
-                "correlationId": "00-129628b5d9592620b73c20b0df3a01a4-dd41e07e8e03077d-00",
+                "correlationId": "00-22e3b4f78ef94642ea4ed21917926536-90394cc794595333-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version 518f5853-0e93-446f-b1d4-ddad146e82df at /studio/sdk1397-end-user-bearer-260e7da3.",
+                "summary": "Publish sealed Studio version be395bed-98e2-408e-b1da-9cd27437c960 at /studio/sdk1397-end-user-bearer-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=51560bb7-daa3-4514-9ede-a0f6ed30f144",
-                  "versionId=518f5853-0e93-446f-b1d4-ddad146e82df",
-                  "contentHash=20665bba47296f2237d081916e016400be273cf2554349554641e3c550d95207",
-                  "route=/studio/sdk1397-end-user-bearer-260e7da3",
+                  "itemId=88aaf806-75e8-457b-86a0-a62b6a9fcc77",
+                  "versionId=be395bed-98e2-408e-b1da-9cd27437c960",
+                  "contentHash=3d23f34184f3048e523d6171f06418182c49df8a427b28650a1e6122a3314044",
+                  "route=/studio/sdk1397-end-user-bearer-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:41.5506022+00:00",
-                "updatedAt": "2026-09-16T03:34:41.5587648+00:00"
+                "createdAt": "2026-09-16T09:44:21.1559406+00:00",
+                "updatedAt": "2026-09-16T09:44:21.1594702+00:00"
               }
             },
             {
               "http": 200,
               "record": {
-                "proposalId": "proposal-132dffd73d7749fca1a2fbd520afd2cc",
-                "operationInstanceId": "opinst-491e260c59b940b9a13ed67ead8538fb",
+                "proposalId": "proposal-25a85bbec2fb49f8aa6576f59c1be503",
+                "operationInstanceId": "opinst-2c30c1e3a21f4f69bd56f8181d171f13",
                 "auditId": "46",
-                "correlationId": "00-129628b5d9592620b73c20b0df3a01a4-dd41e07e8e03077d-00",
+                "correlationId": "00-22e3b4f78ef94642ea4ed21917926536-90394cc794595333-00",
                 "kind": "StudioDraftMutation",
                 "status": "AwaitingApproval",
-                "summary": "Publish sealed Studio version 518f5853-0e93-446f-b1d4-ddad146e82df at /studio/sdk1397-end-user-bearer-260e7da3.",
+                "summary": "Publish sealed Studio version be395bed-98e2-408e-b1da-9cd27437c960 at /studio/sdk1397-end-user-bearer-4fd4bad1.",
                 "riskLevel": "Medium",
                 "diff": [
-                  "itemId=51560bb7-daa3-4514-9ede-a0f6ed30f144",
-                  "versionId=518f5853-0e93-446f-b1d4-ddad146e82df",
-                  "contentHash=20665bba47296f2237d081916e016400be273cf2554349554641e3c550d95207",
-                  "route=/studio/sdk1397-end-user-bearer-260e7da3",
+                  "itemId=88aaf806-75e8-457b-86a0-a62b6a9fcc77",
+                  "versionId=be395bed-98e2-408e-b1da-9cd27437c960",
+                  "contentHash=3d23f34184f3048e523d6171f06418182c49df8a427b28650a1e6122a3314044",
+                  "route=/studio/sdk1397-end-user-bearer-4fd4bad1",
                   "visibility=personal"
                 ],
                 "dryRun": [],
                 "blockingReasons": [],
                 "warnings": [],
-                "createdAt": "2026-09-16T03:34:41.5506022+00:00",
-                "updatedAt": "2026-09-16T03:34:41.5587648+00:00"
+                "createdAt": "2026-09-16T09:44:21.1559406+00:00",
+                "updatedAt": "2026-09-16T09:44:21.1594702+00:00"
               }
             }
           ]
@@ -2070,7 +2222,7 @@
       "verdict": "pass",
       "evidence": {
         "discoveryByPrincipal": {
-          "sdk1397-bob-260e7da3 (honua.mcp.full, roles [\"sdk1397-author-260e7da3\"])": [
+          "sdk1397-bob-4fd4bad1 (honua.mcp.full, roles [\"sdk1397-author-4fd4bad1\"])": [
             "honua_studio_create_draft",
             "honua_studio_get_draft",
             "honua_studio_preview_draft",
@@ -2080,7 +2232,7 @@
             "honua_studio_validate_draft",
             "honua_studio_propose_publication"
           ],
-          "sdk1397-carol-260e7da3 (honua.mcp.full, roles [])": [
+          "sdk1397-carol-4fd4bad1 (honua.mcp.full, roles [])": [
             "honua_studio_create_draft",
             "honua_studio_get_draft",
             "honua_studio_preview_draft",
@@ -2090,7 +2242,7 @@
             "honua_studio_validate_draft",
             "honua_studio_propose_publication"
           ],
-          "sdk1397-dan-260e7da3 (honua.mcp.full, roles [\"sdk1397-composer-260e7da3\"])": [
+          "sdk1397-dan-4fd4bad1 (honua.mcp.full, roles [\"sdk1397-composer-4fd4bad1\"])": [
             "honua_studio_create_draft",
             "honua_studio_get_draft",
             "honua_studio_preview_draft",
@@ -2100,7 +2252,7 @@
             "honua_studio_validate_draft",
             "honua_studio_propose_publication"
           ],
-          "sdk1397-alice-260e7da3 (honua.mcp.read, roles [\"sdk1397-author-260e7da3\"])": [
+          "sdk1397-alice-4fd4bad1 (honua.mcp.read, roles [\"sdk1397-author-4fd4bad1\"])": [
             "honua_studio_create_draft",
             "honua_studio_get_draft",
             "honua_studio_preview_draft",
@@ -2242,17 +2394,22 @@
           }
         },
         "durableDraft": {
-          "before": "1|subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-260e7da3@tenant:public",
-          "after": "1|subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-260e7da3@tenant:public"
+          "before": "1|subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-4fd4bad1@tenant:public",
+          "after": "1|subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-4fd4bad1@tenant:public"
         }
       }
     }
   ],
+  "studio": {
+    "ref": "5103fceb2ef7b74faf47ea6650e40278f739ca02",
+    "remote": "https://github.com/honua-io/honua-studio.git",
+    "localListDeletion": "685ac572d8736b75d4e483f53631143e5f3fcd5a"
+  },
   "principals": {
     "roles": [
       {
-        "name": "sdk1397-author-260e7da3",
-        "roleId": "0a7302d0-6d2f-4edd-960d-9223e715978a",
+        "name": "sdk1397-author-4fd4bad1",
+        "roleId": "f63eb654-9e87-45ea-beed-d1784e9973cd",
         "permissions": [
           {
             "service": "StudioDraft",
@@ -2262,8 +2419,8 @@
         ]
       },
       {
-        "name": "sdk1397-composer-260e7da3",
-        "roleId": "ad9f1aec-ff84-4117-97c9-3116721f16f6",
+        "name": "sdk1397-composer-4fd4bad1",
+        "roleId": "1ae4f882-8627-4ca7-abd1-8590c80a83d6",
         "permissions": [
           {
             "service": "StudioDraft",
@@ -2295,8 +2452,12 @@
     ],
     "tokens": "HS256 from this deployment's issuer/audience/signing key; tid=public; sid+auth_time session evidence; one token per principal"
   },
-  "status": "passed",
+  "status": "failed",
   "findings": [
     "end-user-model-turn-dispatch"
-  ]
+  ],
+  "serverLogs": {
+    "sdk1397-4fd4bad1-server-current": "mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"9.9784\"],\"@tr\":\"4f65b192724be07989fde69a9ad4db05\",\"@sp\":\"1eac1604e1c34e3d\",\"RequestHost\":\"127.0.0.1:55746\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"Bearer\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":9.978351,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-4f65b192724be07989fde69a9ad4db05-1eac1604e1c34e3d-00\",\"RequestId\":\"0HNOJQSAJOND9:00000024\",\"ConnectionId\":\"0HNOJQSAJOND9\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b48273a07c00\",\"ThreadId\":26,\"SpanId\":\"1eac1604e1c34e3d\",\"TraceId\":\"4f65b192724be07989fde69a9ad4db05\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 9.9784 ms\n{\"@t\":\"2026-09-16T09:44:23.3614617Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"4f65b192724be07989fde69a9ad4db05\",\"@sp\":\"1eac1604e1c34e3d\",\"ElapsedMilliseconds\":10.412,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:55746\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOJQSAJOND9:00000024\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJQSAJOND9\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b48273a07c00\",\"ThreadId\":26,\"SpanId\":\"1eac1604e1c34e3d\",\"TraceId\":\"4f65b192724be07989fde69a9ad4db05\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:55746\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 10.412ms\n{\"@t\":\"2026-09-16T09:44:23.3646882Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"6c6b75ee36726a7e6d034582ad103ff7\",\"@sp\":\"46dfdc25153c32d7\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":182,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:55746\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOJQSAJONDA:00000021\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJQSAJONDA\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b48273a07c00\",\"ThreadId\":27,\"SpanId\":\"46dfdc25153c32d7\",\"TraceId\":\"6c6b75ee36726a7e6d034582ad103ff7\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:55746\"\"\"\"/mcp\"\"\" - \"application/json\" 182\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 2.0969 ms\n{\"@t\":\"2026-09-16T09:44:23.3669451Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"2.0969\"],\"@tr\":\"6c6b75ee36726a7e6d034582ad103ff7\",\"@sp\":\"46dfdc25153c32d7\",\"RequestHost\":\"127.0.0.1:55746\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"Bearer\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":2.096859,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-6c6b75ee36726a7e6d034582ad103ff7-46dfdc25153c32d7-00\",\"RequestId\":\"0HNOJQSAJONDA:00000021\",\"ConnectionId\":\"0HNOJQSAJONDA\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b48273a07c00\",\"ThreadId\":27,\"SpanId\":\"46dfdc25153c32d7\",\"TraceId\":\"6c6b75ee36726a7e6d034582ad103ff7\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:55746\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 2.5674ms\n{\"@t\":\"2026-09-16T09:44:23.3672285Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"6c6b75ee36726a7e6d034582ad103ff7\",\"@sp\":\"46dfdc25153c32d7\",\"ElapsedMilliseconds\":2.5674,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:55746\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOJQSAJONDA:00000021\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJQSAJONDA\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b48273a07c00\",\"ThreadId\":27,\"SpanId\":\"46dfdc25153c32d7\",\"TraceId\":\"6c6b75ee36726a7e6d034582ad103ff7\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\n{\"@t\":\"2026-09-16T09:44:23.3697620Z\",\"@mt\":\"Request starting {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {ContentType} {ContentLength}\",\"@tr\":\"efc20e491ebe35cafd70c26f733213f8\",\"@sp\":\"a973ca10a1058a8a\",\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"ContentType\":\"application/json\",\"ContentLength\":166,\"Scheme\":\"http\",\"Host\":\"127.0.0.1:55746\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":1},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOJQSAJOND9:00000025\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJQSAJOND9\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b48273a07c00\",\"ThreadId\":27,\"SpanId\":\"a973ca10a1058a8a\",\"TraceId\":\"efc20e491ebe35cafd70c26f733213f8\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[1]\n      Request starting \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:55746\"\"\"\"/mcp\"\"\" - \"application/json\" 166\ninfo: Serilog.AspNetCore.RequestLoggingMiddleware[0]\n      HTTP \"POST\" \"/mcp\" responded 200 in 2.9395 ms\n{\"@t\":\"2026-09-16T09:44:23.3728620Z\",\"@mt\":\"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms\",\"@r\":[\"2.9395\"],\"@tr\":\"efc20e491ebe35cafd70c26f733213f8\",\"@sp\":\"a973ca10a1058a8a\",\"RequestHost\":\"127.0.0.1:55746\",\"UserAgent\":\"node\",\"Protocol\":\"HTTP/1.1\",\"HonuaProtocol\":\"unknown\",\"HonuaOperation\":\"unknown\",\"AuthenticatedUser\":true,\"AuthenticationType\":\"Bearer\",\"RequestMethod\":\"POST\",\"RequestPath\":\"/mcp\",\"StatusCode\":200,\"Elapsed\":2.939454,\"SourceContext\":\"Serilog.AspNetCore.RequestLoggingMiddleware\",\"CorrelationId\":\"00-efc20e491ebe35cafd70c26f733213f8-a973ca10a1058a8a-00\",\"RequestId\":\"0HNOJQSAJOND9:00000025\",\"ConnectionId\":\"0HNOJQSAJOND9\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b48273a07c00\",\"ThreadId\":27,\"SpanId\":\"a973ca10a1058a8a\",\"TraceId\":\"efc20e491ebe35cafd70c26f733213f8\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\ninfo: Microsoft.AspNetCore.Hosting.Diagnostics[2]\n      Request finished \"HTTP/1.1\" \"POST\" \"http\"://\"127.0.0.1:55746\"\"\"\"/mcp\"\"\" - 200 null \"text/event-stream\" 3.3599ms\n{\"@t\":\"2026-09-16T09:44:23.3730949Z\",\"@mt\":\"Request finished {Protocol} {Method} {Scheme}://{Host}{PathBase}{Path}{QueryString} - {StatusCode} {ContentLength} {ContentType} {ElapsedMilliseconds}ms\",\"@tr\":\"efc20e491ebe35cafd70c26f733213f8\",\"@sp\":\"a973ca10a1058a8a\",\"ElapsedMilliseconds\":3.3599,\"StatusCode\":200,\"ContentType\":\"text/event-stream\",\"ContentLength\":null,\"Protocol\":\"HTTP/1.1\",\"Method\":\"POST\",\"Scheme\":\"http\",\"Host\":\"127.0.0.1:55746\",\"PathBase\":\"\",\"Path\":\"/mcp\",\"QueryString\":\"\",\"EventId\":{\"Id\":2},\"SourceContext\":\"Microsoft.AspNetCore.Hosting.Diagnostics\",\"RequestId\":\"0HNOJQSAJOND9:00000025\",\"RequestPath\":\"/mcp\",\"ConnectionId\":\"0HNOJQSAJOND9\",\"EnvironmentName\":\"Production\",\"MachineName\":\"b48273a07c00\",\"ThreadId\":27,\"SpanId\":\"a973ca10a1058a8a\",\"TraceId\":\"efc20e491ebe35cafd70c26f733213f8\",\"ParentId\":\"0000000000000000\",\"Application\":\"Honua\",\"Version\":\"2026.1.1.0\"}\n\n",
+    "sdk1397-4fd4bad1-server-previous": "\nError response from daemon: No such container: sdk1397-4fd4bad1-server-previous\n"
+  }
 }

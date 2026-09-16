@@ -1,26 +1,38 @@
 # Studio candidate replay for honua-sdk-js#1397
 
 `studio-candidate-replay.json` is the retained receipt of
-`scripts/qualify-studio-candidate.mjs`. It replays the live acceptance criteria of
-issue 1397 against the honua-server image that the release platform manifest pins.
-The receipt's status is `passed`: every acceptance check in it passed on this
-candidate. AC7 is owned by another repository and is not part of that status.
+`scripts/qualify-studio-candidate.mjs`. It replays all seven acceptance criteria of
+issue 1397 in a single run: AC1–AC6 against the newest imaged honua-server candidate,
+and AC7 against browser Studio built from honua-studio `main`.
+
+The receipt's status is `failed`, and the only failing acceptance check is AC7. AC1–AC6
+all pass with no deployment deviations. AC7 fails because browser Studio does not compile
+against the SDK this run qualifies, and it does not dispatch through that SDK. The owner
+is honua-io/honua-studio#71.
 
 ## What ran
 
-- **Candidate:** `ghcr.io/honua-io/honua-server@sha256:0b16046533e5330ecdd48255c06b5397e869191299e1e5e8cc7b4b2ded60b388`
-  (`nightly-8862065`), image revision `886206527cc97bad1bbaa5fa6358910ebc45e9c0`. That
-  matches the manifest candidate ref (manifest sha256 `120a99cb…`, honua-release#354),
-  and the running image id was checked against the digest.
+- **Candidate:** `ghcr.io/honua-io/honua-server@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a`
+  (`nightly-87966c3`), image revision `87966c3f7b6c840ffc4d4da0b451714ab717b18a`,
+  dbSchema 120. The running image id was checked against the digest, and its revision
+  label against the manifest candidate ref.
+- **Manifest:** the honua-release re-pin to this sha is still pending; the release is
+  pinned at `8862065` by honua-release#354. The manifest the harness read is
+  honua-release trunk's `platform-manifest.yaml` with exactly three lines changed:
+  `candidate.ref`, the honua-server `sha` and its `digest`. Its sha256 is `cf5623ca…`.
 - **Previous release:** `sha256:dd50cd81…` (revision `7ba4226`), booted only for the
   release-swap check.
+- **Studio:** honua-io/honua-studio `main` at
+  `5103fceb2ef7b74faf47ea6650e40278f739ca02`. That commit descends from `685ac57`
+  (honua-studio#69, which deleted the local tool list). The harness archives the
+  commit, not a working tree.
 - **Deployment:** Production startup policy, fresh PostGIS and Redis, an OIDC resource
   server with a per-run HS256 key, a per-run operation key-ring certificate, and an
   Ed25519 transcript-signing key for the Studio AI proxy.
 - **SDK:** built from this branch. The receipt's `sdkSourceSha` is the branch
-  checkpoint `5e007e55` the run was made from, retained on the branch's `wip/` backup
-  ref; this PR squashes that history, and the
-  harness, SDK source and built `dist/` the run read are unchanged between the two.
+  checkpoint `1c532761` the run was made from, retained on the branch's `wip/` backup
+  ref. The only files that differ between that checkpoint and this PR's head are the two
+  receipt files.
 - **Principals:**
   - an admin API key
   - interactive end users `alice` (owner) and `bob` (other owner), both holding
@@ -33,19 +45,17 @@ candidate. AC7 is owned by another repository and is not part of that status.
   provider receives and plays a fixed tool plan. Nothing here certifies a live model or
   an installed client.
 
-**No deployment deviations.** The `548b7a5` replay had to raise
-`StudioAiProxy:MaxPromptCharacters` and switch OIDC token replay protection off for its
-end-user checks. This pin ships a default prompt budget sized for the setup-view
-lifecycle (honua-server#4919 — the largest round of this run counted 16,154 of the
-128,000 characters allowed) and continues a bearer MCP session under replay protection
-(#4909), so every check ran under the image's own configuration and the receipt's
-`deploymentDeviations` is empty.
+**No deployment deviations.** Every candidate check ran under the image's own
+configuration: the default prompt budget, and token replay protection on. The receipt's
+`deploymentDeviations` is empty and `candidate.running.extraEnv` is `{}`.
+
+Between `8862065` and `87966c3`, the Studio MCP tools gained a tenant boundary
+(honua-server#4905). `McpWorkflowViewCatalog` and the descriptor classifier are
+unchanged, so the transcribed `setup.v2` membership carries over.
 
 The candidate binds a bearer to the surface it is first admitted on (#4899) and, on
-`/mcp`, to the session it opens (#4909). The harness therefore models a real OAuth
-client: it holds one access token for the ordinary HTTP API and one per MCP session, and
-presents a newly issued token when it opens another session. That is recorded as a
-contract check (`bearer-token-is-bound-to-one-mcp-session`), not assumed:
+`/mcp`, to the session it opens (#4909). The harness therefore holds one access token for
+the HTTP API and one per MCP session, and it records that binding as a contract check:
 
 | Attempt | Result |
 | --- | --- |
@@ -65,14 +75,14 @@ contract check (`bearer-token-is-bound-to-one-mcp-session`), not assumed:
 | AC4 | Terminal session executes mutate, validate, save/get/reopen, propose/poll | Pass | See [AC4](#ac4-evidence) |
 | AC5 | Adding or removing a server Studio member changes the discovered set | Pass | See [AC3 and AC5](#ac3-and-ac5-evidence) |
 | AC6 | A principal cannot invoke beyond server authorization | Pass, undeviated | See [AC6](#ac6-evidence) |
-| AC7 | Browser Studio compiles against SDK discovery after deleting its local list | Open elsewhere | honua-io/honua-studio#69 (closes honua-studio#70), awaiting merge in that repository |
+| AC7 | Browser Studio compiles against SDK discovery after deleting its local list | **Fail**: honua-io/honua-studio#71 | See [AC7](#ac7-evidence) |
 
 ### AC1 evidence
 
 - Default `createStudioAgentSession` negotiated `setup` at initialize, as the admin key
   and as an end-user bearer, with no consumer-configured allowlist.
 - It routed exactly the eight members transcribed from honua-server source at
-  `8862065` (`setup.v2`, family `honua.studio.composition`, view `setup`).
+  `87966c3` (`setup.v2`, family `honua.studio.composition`, view `setup`).
 - It refused the other 17 setup-view descriptors, then routed the same eight after
   reconnect (a new MCP session on a newly issued token).
 - The full catalog (124 descriptors) classifies the same eight.
@@ -94,15 +104,15 @@ same MCP session (one initialize):
 
 | DefaultView change | Discovered set | Time |
 | --- | --- | --- |
-| to `setup` | 0 to 8 | 4.3 s |
-| back to `default` | 8 to 0 | 7.8 s |
+| to `setup` | 0 to 8 | 0.5 s |
+| back to `default` | 8 to 0 | 8.0 s |
 
 **Release swap with reconnect (AC5).** Swapping releases on the same address changed the
 routed set, with no SDK edit:
 
 | Server | Routed |
 | --- | --- |
-| candidate `8862065` | 8 |
+| candidate `87966c3` | 8 |
 | previous release `7ba4226` | 3, without get, update, preview, save and reopen |
 | candidate again | 8 |
 
@@ -128,8 +138,8 @@ Values were checked against literal expectations, not against a snapshot of the 
 - **Proposal:** propose returned `AwaitingApproval` with a `honua://proposals/{id}` URI.
 - **Poll:** the owner read its own proposal three times, `200` each time, receiving the
   operation instance, audit id, correlation id, kind `StudioDraftMutation`, status
-  `AwaitingApproval`, risk level and diff. This is the criterion that failed on the
-  previous pin (honua-server#4910); it now passes as the admin key and as a bearer.
+  `AwaitingApproval`, risk level and diff, as the admin key and as a bearer
+  (honua-server#4910 stays fixed).
 - **Publication stays governed:** afterwards the item's publication pointer read
   `null|<savedVersionId>` in Postgres — no version was published without approval.
 
@@ -153,6 +163,50 @@ Refusals, all under the image's own token replay protection:
 - The owner's own poll succeeds on this pin (see AC4), so the other-principal refusal now
   proves owner scoping rather than a blanket refusal.
 
+### AC7 evidence
+
+The check reads Studio at the committed HEAD. It then compiles an archive of that commit
+twice: once against the `@honua/sdk-js` Studio pins (0.1.9-beta.0 from the registry) and
+once against this checkout's SDK. The SDK-installed check verifies the second install by
+hashing `dist/src/studio-agent/index.js`.
+
+**Local list deleted: pass.**
+
+- `src/chat/studio-agent-tools.ts` is not tracked, and nothing references
+  `STATIC_STUDIO_AGENT_TOOLS`.
+- No source passes a `studioTools` policy or an allowlist.
+- No file both names a `honua_studio_*` tool and declares an `inputSchema`.
+- Studio creates its agent with `createStudioAgentSession` from
+  `@honua/sdk-js/studio-agent`. The tools it hands the session are only the SDK map kit's
+  read tools and `selectFeature`, so composition tools come from discovery.
+- For the record: the receipt lists the `honua_studio_*` names that Studio's canvas calls
+  directly through its typed MCP client (`STUDIO_MCP_TOOL_NAMES`, `mcp/tool-bridge.ts`).
+  A UI command resolves to one wire name there. That vocabulary is never given to the
+  model or to discovery, so it is not the deleted list.
+
+**Compiles on the same discovery surface: fail.**
+
+| Step | Pinned `@honua/sdk-js` 0.1.9-beta.0 | SDK from this branch |
+| --- | --- | --- |
+| `npm run typecheck` | Pass | **Fail**: TS2322 at `src/elements/studio-chat-element.ts(476,79)` |
+| `npm run build` | Pass | Pass (Vite does not typecheck) |
+| SDK-discovery element test, run alone | 1 passed | **1 failed**: `expected undefined to be 9` |
+
+Both failures come from honua-io/honua-sdk-js#1748. That is the provenance fix AC4's
+certified model turn depends on, and it is not in the published 0.1.9-beta.0.
+
+- **Type:** the fix added `transcriptProvenance` to the SDK's `StudioAiChatEventType`.
+  Studio assigns the SDK's session chat events into its own copy of the proxy contract
+  (`src/chat/ai-contract.ts`), which has no such member.
+- **Runtime:** the session dispatches a model-selected action only with `certification`
+  options and one verified provenance event. Studio's `attachAgentSession` passes no
+  `certification`. In the element test, the model selects the discovered
+  `honua_studio_set_view` and the turn ends at `messageStop` without dispatching.
+
+Both are recorded on honua-io/honua-studio#71, and the fix belongs in Studio. For a
+non-admin Studio user, certification is also refused by the proxy
+(honua-io/honua-sdk-js#1744, below).
+
 ## Findings
 
 - **honua-io/honua-sdk-js#1744 (open):** a non-admin end user cannot dispatch
@@ -162,23 +216,24 @@ Refusals, all under the image's own token replay protection:
   AC4 leg therefore runs the same plan as a terminal MCP client. Recorded in the receipt
   as `end-user-model-turn-dispatch`, the run's only failing check; it is a finding, not
   an acceptance criterion.
-- **Not a criterion, recorded for the record:** at `8862065` the eleven granular
+- **Not a criterion, recorded for the record:** at `87966c3` the eleven granular
   composition verbs (`honua_studio_add_layer`, `honua_studio_set_view`, …) are served but
   not classified into `setup`, so the default policy does not route them. The lifecycle
   uses `update_draft`.
-- **Closed by this pin:** honua-server#4909 (bearer MCP session continuity),
-  honua-server#4910 (proposal owner poll) and honua-server#4919 (prompt budget) were
-  filed by the `548b7a5` replay and are all fixed here; the checks that found them are
-  retained as regression guards.
+- **Regression guards still green:** honua-server#4909 (bearer MCP session continuity),
+  #4910 (proposal owner poll) and #4919 (prompt budget; this run's largest round
+  counted 16,158 of the 128,000 characters allowed).
 
 ## Reproduce
 
 ```bash
 npm ci && npm run build
 node scripts/qualify-studio-candidate.mjs <honua-release>/platform-manifest.yaml \
+  --studio <honua-studio checkout> \
   --previous-image ghcr.io/honua-io/honua-server@sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd \
   --previous-ref 7ba422672e0c751843b17beb36e954a019cc19fb
 ```
 
 The command needs Docker with `postgis/postgis:16-3.4`, `redis:7.4-alpine`,
-`alpine/openssl` and `node:22-alpine`. It exits 1 while any acceptance check fails.
+`alpine/openssl` and `node:22-alpine`, plus npm registry access for the Studio install.
+It exits 1 while any acceptance check fails.
