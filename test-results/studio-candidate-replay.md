@@ -3,21 +3,24 @@
 `studio-candidate-replay.json` is the retained receipt of
 `scripts/qualify-studio-candidate.mjs`. It replays the live acceptance criteria of
 issue 1397 against the honua-server image that the release platform manifest pins.
-The receipt's status is `failed`, and this document does not claim that the issue is
-closed.
+The receipt's status is `passed`: every acceptance check in it passed on this
+candidate. AC7 is owned by another repository and is not part of that status.
 
 ## What ran
 
-- **Candidate:** `ghcr.io/honua-io/honua-server@sha256:29974ee7b722e3ae15c3b891024e5e70800f412188aeccf5ec3d32d9dac675c1`,
-  image revision `548b7a5263da5a3f2381eb43f232687cdf92b0bf`. That matches the manifest
-  candidate ref (manifest sha256 `02c076be…`), and the running image id was checked
-  against the digest.
+- **Candidate:** `ghcr.io/honua-io/honua-server@sha256:0b16046533e5330ecdd48255c06b5397e869191299e1e5e8cc7b4b2ded60b388`
+  (`nightly-8862065`), image revision `886206527cc97bad1bbaa5fa6358910ebc45e9c0`. That
+  matches the manifest candidate ref (manifest sha256 `120a99cb…`, honua-release#354),
+  and the running image id was checked against the digest.
 - **Previous release:** `sha256:dd50cd81…` (revision `7ba4226`), booted only for the
   release-swap check.
 - **Deployment:** Production startup policy, fresh PostGIS and Redis, an OIDC resource
   server with a per-run HS256 key, a per-run operation key-ring certificate, and an
   Ed25519 transcript-signing key for the Studio AI proxy.
-- **SDK:** built from `b97898d83` (the receipt's `sdkSourceSha`).
+- **SDK:** built from this branch. The receipt's `sdkSourceSha` is the branch
+  checkpoint `5e007e55` the run was made from, retained on the branch's `wip/` backup
+  ref; this PR squashes that history, and the
+  harness, SDK source and built `dist/` the run read are unchanged between the two.
 - **Principals:**
   - an admin API key
   - interactive end users `alice` (owner) and `bob` (other owner), both holding
@@ -30,12 +33,27 @@ closed.
   provider receives and plays a fixed tool plan. Nothing here certifies a live model or
   an installed client.
 
-Two settings differ from the image's defaults. Both are declared in the receipt:
+**No deployment deviations.** The `548b7a5` replay had to raise
+`StudioAiProxy:MaxPromptCharacters` and switch OIDC token replay protection off for its
+end-user checks. This pin ships a default prompt budget sized for the setup-view
+lifecycle (honua-server#4919 — the largest round of this run counted 16,154 of the
+128,000 characters allowed) and continues a bearer MCP session under replay protection
+(#4909), so every check ran under the image's own configuration and the receipt's
+`deploymentDeviations` is empty.
 
-| Setting | Why | Tracked by |
-| --- | --- | --- |
-| `StudioAiProxy:MaxPromptCharacters=100000` | The default 32000 re-counts every Studio tool definition on each round. A certified map lifecycle is refused at its seventh round (propose). | honua-server#4919 |
-| `Oidc:TokenValidation:EnableTokenReplayProtection=false`, end-user checks only | Under the default, a bearer principal cannot make a second request on its own MCP session. | honua-server#4909 |
+The candidate binds a bearer to the surface it is first admitted on (#4899) and, on
+`/mcp`, to the session it opens (#4909). The harness therefore models a real OAuth
+client: it holds one access token for the ordinary HTTP API and one per MCP session, and
+presents a newly issued token when it opens another session. That is recorded as a
+contract check (`bearer-token-is-bound-to-one-mcp-session`), not assumed:
+
+| Attempt | Result |
+| --- | --- |
+| IdP-issued token opens an MCP session | Opened |
+| Same token opens a second MCP session | 401 `unauthenticated`, `requiresReauthentication: true` |
+| Newly issued token opens the second session | Opened |
+| Held token, second request on its own session | 200, 25 descriptors |
+| Token refreshed with identical authority, same session | 200, 25 descriptors |
 
 ## Acceptance criteria
 
@@ -44,105 +62,114 @@ Two settings differ from the image's defaults. Both are declared in the receipt:
 | AC1 | Server-authored classification routed with no consumer allowlist | Pass | See [AC1](#ac1-evidence) |
 | AC2 | `annotations` and `outputSchema` reach the model | Pass | See [AC2](#ac2-evidence) |
 | AC3 | `tools/list_changed` over a real push channel refreshes without a reconnect | Pass | See [AC3 and AC5](#ac3-and-ac5-evidence) |
-| AC4 | Terminal session executes mutate, validate, save/get/reopen, propose/poll | **Not met** | See [AC4](#ac4-evidence) |
+| AC4 | Terminal session executes mutate, validate, save/get/reopen, propose/poll | Pass | See [AC4](#ac4-evidence) |
 | AC5 | Adding or removing a server Studio member changes the discovered set | Pass | See [AC3 and AC5](#ac3-and-ac5-evidence) |
-| AC6 | A principal cannot invoke beyond server authorization | Pass, with the replay-protection deviation | See [AC6](#ac6-evidence) |
-| AC7 | Browser Studio compiles against SDK discovery after deleting its local list | Open | honua-io/honua-studio#69 (closes honua-studio#70), checks green, awaiting merge |
+| AC6 | A principal cannot invoke beyond server authorization | Pass, undeviated | See [AC6](#ac6-evidence) |
+| AC7 | Browser Studio compiles against SDK discovery after deleting its local list | Open elsewhere | honua-io/honua-studio#69 (closes honua-studio#70), awaiting merge in that repository |
 
 ### AC1 evidence
 
-- Default `createStudioAgentSession` negotiated `setup` at initialize, as the admin key and as an end user.
-- It routed exactly the eight members transcribed from server source (`setup.v2`, family `honua.studio.composition`).
-- It refused the other 17 setup-view descriptors, then routed the same eight after reconnect.
+- Default `createStudioAgentSession` negotiated `setup` at initialize, as the admin key
+  and as an end-user bearer, with no consumer-configured allowlist.
+- It routed exactly the eight members transcribed from honua-server source at
+  `8862065` (`setup.v2`, family `honua.studio.composition`, view `setup`).
+- It refused the other 17 setup-view descriptors, then routed the same eight after
+  reconnect (a new MCP session on a newly issued token).
 - The full catalog (124 descriptors) classifies the same eight.
 
 ### AC2 evidence
 
-- On all 8 provider rounds, every routed tool reached the provider with its input schema unchanged.
-- Its annotations and output schema were present verbatim in the provider description: 8 of 8 tools carry both.
+- On all 8 provider rounds, every routed tool reached the provider with its input schema
+  unchanged.
+- Its annotations and output schema were present verbatim in the provider description:
+  8 of 8 tools carry both.
 - No provider request contained a tool result without its assistant tool call.
 
 ### AC3 and AC5 evidence
 
-**Push without reconnect (AC3, AC5).** A session using the server's default view opened the `GET /mcp` stream (connecting, then open). Changing `Mcp:WorkflowViews:DefaultView` on the running server moved its discovered set with one `tools/list` each time, on the same MCP session (one initialize):
+**Push without reconnect (AC3, AC5).** A session using the server's default view opened
+the `GET /mcp` stream (connecting, then open). Changing `Mcp:WorkflowViews:DefaultView`
+on the running server moved its discovered set with one `tools/list` each time, on the
+same MCP session (one initialize):
 
 | DefaultView change | Discovered set | Time |
 | --- | --- | --- |
-| to `setup` | 0 to 8 | 4.9 s |
-| back to `default` | 8 to 0 | 7.2 s |
+| to `setup` | 0 to 8 | 4.3 s |
+| back to `default` | 8 to 0 | 7.8 s |
 
-**Release swap with reconnect (AC5).** Swapping releases on the same address changed the routed set, with no SDK edit:
+**Release swap with reconnect (AC5).** Swapping releases on the same address changed the
+routed set, with no SDK edit:
 
 | Server | Routed |
 | --- | --- |
-| candidate | 8 |
-| previous release | 3, without get, update, preview, save and reopen |
+| candidate `8862065` | 8 |
+| previous release `7ba4226` | 3, without get, update, preview, save and reopen |
 | candidate again | 8 |
 
 ### AC4 evidence
 
-Three legs each dispatched the full `create_draft`, `update_draft`, `validate_draft`, `get_draft`, `save_version`, `reopen_version`, `propose_publication` path:
-- a certified model turn through the proxy, 8 rounds, every transcript's provenance verified
+Three legs each dispatched the full `create_draft`, `update_draft`, `validate_draft`,
+`get_draft`, `save_version`, `reopen_version`, `propose_publication` path:
+
+- a certified model turn through the proxy, 8 rounds, status `completed`, every
+  transcript's provenance verified
 - the admin key over MCP
-- an end user over MCP
+- an end-user bearer over MCP
 
-Values were checked against literal expectations:
-- **Map content:** Honolulu point ordinates, null elevation, view center, zoom and CRS, and layer title and visibility.
-- **Draft lifecycle:** each update advanced the generation by exactly one, and validation was `valid`.
-- **Saved version:** its hash matched the stored version, and reopen was bound to it.
-- **Proposal:** propose returned `AwaitingApproval` with a `honua://proposals/{id}` URI. The harness checks the publication pointer only after the poll, so this receipt does not evidence it.
+Values were checked against literal expectations, not against a snapshot of the output:
 
-Every leg then failed to poll its own proposal, with `permission_denied` (honua-server#4910).
+- **Map content:** Honolulu point ordinates `[-157.8583, 21.3069]`, feature id 7, null
+  elevation, mutated view center `[-157.8167, 21.2833]`, zoom 11, CRS `EPSG:4326`,
+  format `honua_map_package.v1`, and layer title and visibility.
+- **Draft lifecycle:** each update advanced the generation by exactly one (1 to 2), and
+  validation reported `valid`.
+- **Saved version:** the version read back over REST carried the save response's content
+  hash and the mutated view; reopen was bound to the saved version id.
+- **Proposal:** propose returned `AwaitingApproval` with a `honua://proposals/{id}` URI.
+- **Poll:** the owner read its own proposal three times, `200` each time, receiving the
+  operation instance, audit id, correlation id, kind `StudioDraftMutation`, status
+  `AwaitingApproval`, risk level and diff. This is the criterion that failed on the
+  previous pin (honua-server#4910); it now passes as the admin key and as a bearer.
+- **Publication stays governed:** afterwards the item's publication pointer read
+  `null|<savedVersionId>` in Postgres — no version was published without approval.
 
 ### AC6 evidence
 
-Refusals:
+Refusals, all under the image's own token replay protection:
 
 | Attempt | Result |
 | --- | --- |
-| Other owner reads, updates or saves the owner's draft | `permission_denied` |
-| Read-only scope updates | `insufficient_scope` |
-| No-grant create | `permission_denied` |
-| Owned draft proposed without a Publish grant | `permission_denied` |
+| Other owner reads, updates or saves the owner's draft | "The caller does not own this Studio resource." |
+| Read-only scope updates | "The access token's scopes do not permit 'Create' on StudioDraft." |
+| No-grant create | "You do not have permission to perform 'Create' on StudioDraft." |
+| Owned draft proposed without a Publish grant | "'PublishRequest' requires a StudioDraft 'Publish' operator grant." |
+| Another principal reads the owner's publication proposal | "The caller is not authorized to read this Studio publication proposal." |
 | Anonymous create | `isError` |
 
-- The durable draft generation and owner were unchanged afterwards.
-- Discovery is the same eight tools for every principal. The server treats discovery as not authority, so the refusals are invocation-time.
-- The other principal's proposal read was also refused, but the owner is refused identically (#4910), so that row does not prove owner scoping.
+- No refusal disclosed draft content.
+- The durable draft's generation and owner were unchanged afterwards.
+- Discovery is the same eight tools for every principal. The server treats discovery as
+  not authority, so the refusals are invocation-time.
+- The owner's own poll succeeds on this pin (see AC4), so the other-principal refusal now
+  proves owner scoping rather than a blanket refusal.
 
-## SDK defects found and fixed by this replay
+## Findings
 
-Each of these stopped every certified model turn against the candidate.
-
-1. **Signed request compared as a raw string.** `StudioAiTranscriptVerifier` compared the
-   signed request to its own `JSON.stringify` output. honua-canonical-json-v1 uses the
-   server's JSON escaping, so the real tool descriptions (apostrophes, backticks) never
-   matched. It now decodes the signed request and compares values; the digest and
-   signature still bind the exact bytes.
-2. **Signed event types spelled differently.** The server signs provider event types with
-   its enum spelling (`MessageStart`), while the SDK types events from the SSE `event:`
-   line (`messageStart`). Signed types are now mapped through a fixed table before the
-   value comparison. A type naming a different event still fails.
-3. **Assistant tool calls never recorded.** The session did not record the assistant's
-   tool calls, so every follow-up round sent tool results that answer no assistant tool
-   call. OpenAI-compatible and Anthropic providers reject that. Dispatching rounds now
-   carry `message.toolCalls`.
-
-## Findings filed
-
-- **honua-server#4909:** bearer MCP sessions fail under default replay protection.
-  - Reusing the session's token gets 401 (`OIDC token replay detected`).
-  - A fresh token gets a principal mismatch.
-- **honua-server#4910:** a Studio publication proposal's owner, bearer or API key,
-  cannot read its status. Propose and read use different actor-id formats.
-- **honua-server#4919:** the default `MaxPromptCharacters` stops the lifecycle at propose.
-- **honua-io/honua-sdk-js#1744:** a non-admin end user cannot dispatch model-selected
-  actions.
-  - The SDK requires certified provenance.
-  - The proxy returns 403 to non-admin certification.
-- **Not a criterion, recorded for the record:** at `548b7a5` the eleven granular
-  composition verbs (`add_layer`, `set_view`, …) are served but not classified into
-  `setup`, so the default policy does not route them. The lifecycle uses `update_draft`.
+- **honua-io/honua-sdk-js#1744 (open):** a non-admin end user cannot dispatch
+  model-selected actions. The SDK requires certified transcript provenance
+  ("Model-selected actions require exactly one terminal verified transcript provenance
+  event"), and the proxy answers 403 to a non-admin certification request. The end-user
+  AC4 leg therefore runs the same plan as a terminal MCP client. Recorded in the receipt
+  as `end-user-model-turn-dispatch`, the run's only failing check; it is a finding, not
+  an acceptance criterion.
+- **Not a criterion, recorded for the record:** at `8862065` the eleven granular
+  composition verbs (`honua_studio_add_layer`, `honua_studio_set_view`, …) are served but
+  not classified into `setup`, so the default policy does not route them. The lifecycle
+  uses `update_draft`.
+- **Closed by this pin:** honua-server#4909 (bearer MCP session continuity),
+  honua-server#4910 (proposal owner poll) and honua-server#4919 (prompt budget) were
+  filed by the `548b7a5` replay and are all fixed here; the checks that found them are
+  retained as regression guards.
 
 ## Reproduce
 
