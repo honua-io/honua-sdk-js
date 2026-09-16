@@ -1,17 +1,17 @@
 # OGC API Processes candidate replay (honua-io/honua-sdk-js#1328)
 
-Status: **passed**. Generated 2026-09-16T18:59:56.970Z.
+Status: **passed**. Generated 2026-09-16T19:20:26.933Z.
 
 ## Identity
 
-- SDK: installed `@honua/sdk-js@0.1.9-beta.0` (`sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==`), sealed source `c99e71197dd940ed952aecb024c6de273456f2ae`, provenance verified; harness `75802d08e6e2d3db69b4b828e20a1b8ec7d883e8`
+- SDK: installed `@honua/sdk-js@0.1.9-beta.0` (`sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==`), sealed source `c99e71197dd940ed952aecb024c6de273456f2ae`, provenance verified; harness `d7877203ac0048b3a9c4dd3e0be697ec28cbfa07`
 - Server: `ghcr.io/honua-io/honua-server@sha256:61e06ef3a94d00e4c8fc57ce93e008a5e31b2dcf1da5deb22781fdd42d2d4e51`, revision `2cc221388ea47d78c29e79eaee62737e4c792351`, running image id matches: true
 
 ## Result
 
 | Criterion | Observation |
 | --- | --- |
-| No `respond-sync` | 20 requests; Prefer values sent: `respond-async` |
+| No non-standard `Prefer` token | 20 requests; Prefer values sent: `respond-async` |
 | Mode gates fail closed | sync-execute-undeclared (live): refused-locally `processes.sync-execute`; sync-execute-undeclared-strict (live): refused-locally `processes.sync-execute`; core-class-undeclared (derived): refused-locally `processes.execute`; async-execute-undeclared (derived): refused-locally `processes.async-execute` |
 | Governed process reaches a terminal result | sync successful; async successful via accepted → successful; buffer oracle radius 0.00025 |
 | Cancel as declared | dismiss declared: false; cancel refused, DELETE issued: false |

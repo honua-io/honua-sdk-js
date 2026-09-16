@@ -1,9 +1,9 @@
 {
   "schema": "honua.ogc-processes-candidate-replay/v1",
   "issue": "honua-io/honua-sdk-js#1328",
-  "generatedAt": "2026-09-16T18:59:56.970Z",
+  "generatedAt": "2026-09-16T19:20:26.933Z",
   "scope": "installed registry @honua/sdk-js bytes against a digest-addressed honua-server image; governed geometry.buffer",
-  "harnessSourceSha": "75802d08e6e2d3db69b4b828e20a1b8ec7d883e8",
+  "harnessSourceSha": "d7877203ac0048b3a9c4dd3e0be697ec28cbfa07",
   "sdk": {
     "coordinate": "@honua/sdk-js",
     "version": "0.1.9-beta.0",
@@ -68,7 +68,7 @@
   "qualification": {
     "format": "honua.sdk.ogc-processes-candidate-qualification.v1",
     "schemaVersion": 1,
-    "observedAt": "2026-09-16T19:03:10.331Z",
+    "observedAt": "2026-09-16T19:22:55.252Z",
     "candidate": {
       "sdk": {
         "package": "@honua/sdk-js",
@@ -174,43 +174,43 @@
           },
           {
             "method": "GET",
-            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "path": "/ogc/processes/jobs/gp-1dffde56e34649d3b8a70e532970da1e",
             "status": 200,
             "prefer": null
           },
           {
             "method": "GET",
-            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "path": "/ogc/processes/jobs/gp-1dffde56e34649d3b8a70e532970da1e",
             "status": 200,
             "prefer": null
           },
           {
             "method": "GET",
-            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "path": "/ogc/processes/jobs/gp-1dffde56e34649d3b8a70e532970da1e",
             "status": 200,
             "prefer": null
           },
           {
             "method": "GET",
-            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "path": "/ogc/processes/jobs/gp-1dffde56e34649d3b8a70e532970da1e",
             "status": 200,
             "prefer": null
           },
           {
             "method": "GET",
-            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "path": "/ogc/processes/jobs/gp-1dffde56e34649d3b8a70e532970da1e",
             "status": 200,
             "prefer": null
           },
           {
             "method": "GET",
-            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa",
+            "path": "/ogc/processes/jobs/gp-1dffde56e34649d3b8a70e532970da1e",
             "status": 200,
             "prefer": null
           },
           {
             "method": "GET",
-            "path": "/ogc/processes/jobs/gp-fa764f8e960a48d69126dcbeb211e8aa/results",
+            "path": "/ogc/processes/jobs/gp-1dffde56e34649d3b8a70e532970da1e/results",
             "status": 200,
             "prefer": null
           }
@@ -341,7 +341,7 @@
     },
     "result": "passed"
   },
-  "qualificationDigest": "sha256:cc1b752e193f436cab833d1aac03d52053b4002e2fd7ddb50d108eb6fd03e21d",
+  "qualificationDigest": "sha256:89f687e9e1255cb030165a2545fbd865ee644b748b7565c238876d4f91df3ebb",
   "joins": {
     "installedPackageCertification": {
       "issue": "honua-io/honua-sdk-js#39",
