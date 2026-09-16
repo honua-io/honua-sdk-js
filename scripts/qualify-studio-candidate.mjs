@@ -194,7 +194,7 @@ async function check(id, criterion, body) {
   } catch (error) {
     entry.diagnostic = redact(error?.stack ?? error);
   }
-  console.log(`${entry.verdict.toUpperCase()} ${id}`);
+  console.log(`${entry.verdict.toUpperCase()} ${id}${entry.diagnostic ? `\n${entry.diagnostic.split("\n").slice(0, 12).join("\n")}` : ""}`);
   return entry.verdict === "pass";
 }
 
@@ -896,10 +896,13 @@ async function browserStudioCheck() {
     const root = join(work, "studio");
     await mkdir(root);
     exec("sh", ["-c", 'git -C "$1" archive "$2" | tar -x -C "$3"', "sh", studioRoot, sha, root]);
-    const npm = (args, timeout = 900_000) => {
+    const npmRun = (args, timeout = 900_000) => {
       const result = exec("npm", args, { cwd: root, timeout, allowFailure: true });
-      const output = stripVTControlCharacters(redact(`${result.stdout ?? ""}\n${result.stderr ?? ""}`));
-      assert.equal(result.status, 0, `npm ${args.join(" ")} exited ${result.status}:\n${output.slice(-4_000)}`);
+      return { status: result.status, output: stripVTControlCharacters(redact(`${result.stdout ?? ""}\n${result.stderr ?? ""}`)) };
+    };
+    const npm = (args) => {
+      const { status, output } = npmRun(args);
+      assert.equal(status, 0, `npm ${args.join(" ")} exited ${status}:\n${output.slice(-4_000)}`);
       return output;
     };
     const installedSdk = async () => {
@@ -910,25 +913,37 @@ async function browserStudioCheck() {
         studioAgentIndexSha256: createHash("sha256").update(index).digest("hex"),
       };
     };
-    const compile = (label) => {
-      npm(["run", "typecheck"]);
-      const build = npm(["run", "build"]);
-      const tests = npm(["exec", "--", "vitest", "run", STUDIO_DISCOVERY_TEST.file, "-t", STUDIO_DISCOVERY_TEST.name]);
-      const summary = tests.match(/Tests\s+([^\n]+)/)?.[1]?.trim();
-      assert.match(summary ?? "", /^1 passed\b/, `${label}: the SDK-discovery element test did not pass alone: ${summary}`);
-      return { typecheck: "passed", build: build.match(/built in [^\n]+/)?.[0] ?? "passed", discoveryTest: { ...STUDIO_DISCOVERY_TEST, summary } };
+    // Every step runs even when an earlier one fails, so the receipt shows each outcome.
+    const compile = () => {
+      const typecheck = npmRun(["run", "typecheck"]);
+      const build = npmRun(["run", "build"]);
+      const test = npmRun(["exec", "--", "vitest", "run", STUDIO_DISCOVERY_TEST.file, "-t", STUDIO_DISCOVERY_TEST.name]);
+      const summary = test.output.match(/Tests\s+([^\n]+)/)?.[1]?.trim();
+      return {
+        typecheck: { status: typecheck.status, errors: typecheck.output.split("\n").filter((line) => /error TS\d+/.test(line) || /^\s+(Type|Types) /.test(line)) },
+        build: { status: build.status, summary: build.output.match(/built in [^\n]+/)?.[0] },
+        discoveryTest: { ...STUDIO_DISCOVERY_TEST, status: test.status, summary },
+      };
+    };
+    const assertCompiled = (label, outcome) => {
+      assert.equal(outcome.typecheck.status, 0, `${label}: Studio typecheck failed:\n${outcome.typecheck.errors.join("\n")}`);
+      assert.equal(outcome.build.status, 0, `${label}: Studio build failed`);
+      assert.match(outcome.discoveryTest.summary ?? "", /^1 passed\b/, `${label}: the SDK-discovery element test did not pass alone: ${outcome.discoveryTest.summary}`);
     };
 
     npm(["ci", "--no-audit", "--no-fund"]);
-    const pinned = await installedSdk();
-    evidence.pinnedSdk = { ...pinned, ...compile("pinned SDK") };
+    evidence.pinnedSdk = { ...(await installedSdk()), ...compile() };
 
     const packed = exec("npm", ["pack", "--pack-destination", work, "--silent"], { timeout: 300_000 }).stdout.trim().split("\n").pop();
     npm(["install", "--no-save", "--no-audit", "--no-fund", join(work, packed)]);
     const source = await installedSdk();
     const built = createHash("sha256").update(await readFile(new URL("../dist/src/studio-agent/index.js", import.meta.url))).digest("hex");
     assert.equal(source.studioAgentIndexSha256, built, "Studio did not install this checkout's built SDK");
-    evidence.sourceSdk = { ...source, sdkSourceSha: receipt.sdkSourceSha, ...compile("source SDK") };
+    evidence.sourceSdk = { ...source, sdkSourceSha: receipt.sdkSourceSha, ...compile() };
+
+    // The criterion is the SDK this receipt qualifies on the candidate; the pinned release is context.
+    assertCompiled(`pinned @honua/sdk-js ${evidence.pinnedSdk.version}`, evidence.pinnedSdk);
+    assertCompiled(`source SDK ${receipt.sdkSourceSha.slice(0, 9)}`, evidence.sourceSdk);
   });
 }
 
