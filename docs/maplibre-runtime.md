@@ -32,38 +32,22 @@ writes, or duplicate query logic — `maplibre-gl` stays a peer
 dependency, edits flow through the existing adapters, and queries go
 through the contract's `Source` handles.
 
-## MapLibre 5 and 6 compatibility
+## MapLibre runtime support
 
-**Supported MapLibre majors: 5 and 6.** The optional `maplibre-gl` peer range is
-`^5.0.0 || ^6.0.0`, and 6.x is the recommended major for new apps — it is what
-the development dependency and every runnable example in this repository
-install. MapLibre 5 stays supported for apps that have not migrated yet; it is
-not deprecated in this release, and any future narrowing will be a dated
-decision recorded here rather than a silent break.
+**Security decision, 2026-09-13:** the next SDK release requires `maplibre-gl@^6.4.1`.
+This narrows the former `^5.0.0 || ^6.0.0` peer contract. Every released 5.x and
+6.0.0 through 6.4.0 is affected by
+[GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579);
+no patched 5.x release is available. Upgrade the host renderer to a patched 6.x
+release before upgrading the SDK. Do not override the peer check to retain an
+affected renderer. Already published SDK versions retain their original metadata;
+this source change does not rewrite npm releases.
 
-> **Registry status (2026-08-05).** The widened range is published:
-> `@honua/sdk-js@0.1.4-beta.0` declares `maplibre-gl@^5.0.0 || ^6.0.0`, so an app
-> that installs the SDK from npm and asks for MapLibre 6 resolves cleanly. The
-> `create-honua-app` starters and the generated sample playgrounds pin 6.1.0 on
-> that release (`docs/create-honua-app.md`, `docs/playgrounds.md`), with no
-> `overrides` entry and no `--legacy-peer-deps`. The two registry lanes —
-> `create-app:time-to-map` and `samples:playgrounds:smoke` — are what keep that
-> claim observed rather than asserted.
-
-That claim is gated, not asserted. CI runs a `MapLibre peer-major matrix
-(5.x + 6.x)` step (`npm run test:maplibre-compat`) that:
-
-- typechecks the whole tree against MapLibre 5's typings
-  (`npm run typecheck:maplibre-v5`, `tsconfig.maplibre-v5.json`), while the
-  ordinary `npm run typecheck` covers 6.x;
-- imports the real peer module on both majors and asserts every symbol the SDK
-  reaches for, including live `pmtiles://` protocol registration
-  (`test/maplibre-peer-major-compat.test.ts`, re-run under
-  `vitest.maplibre-v5.config.ts` with the `maplibre-gl-v5` alias);
-- exercises both module packagings the `<honua-map>` renderer must accept
-  (`test/web-components-maplibre-module-compat.test.ts`);
-- renders the same Honua-generated style in a real browser under 5.x and 6.x
-  (`test/playwright/migration-browser-maplibre.spec.mjs`).
+The same peer range flows into generated runtime and React packages. CI checks
+the installed 6.x runtime exports, real protocol registration, module loading,
+and the converted application's browser render. The vulnerable 5.x test alias
+and browser lane have been retired. The `test:maplibre-majors` script name remains
+as a command alias for existing automation and now tests the supported 6.x line.
 
 MapLibre 6 is ESM-only, targets ES2022, and requires WebGL2. Use namespace or
 named imports (`import * as maplibregl from "maplibre-gl"`) rather than the v5

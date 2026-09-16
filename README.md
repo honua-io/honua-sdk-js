@@ -225,7 +225,7 @@ Runtime support, stated up front:
 | Peer / runtime | Supported range |
 |----------------|-----------------|
 | Node.js | `>=20.19` |
-| `maplibre-gl` (optional peer) | **5 and 6** (`^5.0.0 \|\| ^6.0.0`) — the 6.x half ships with the next release; the current published beta declares `^5.0.0`. MapLibre 6 is ESM-only and requires WebGL2 |
+| `maplibre-gl` (optional peer) | **6.4.1 or newer within major 6** (`^6.4.1`). The next SDK release drops affected 5.x and early 6.x peers; published older SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
 | `cesium` (optional peer, scene surface) | `^1.139.0` |
 | `react` / `react-dom` (optional peer, `/react`) | `^18.2.0 \|\| ^19.0.0` |
 
@@ -342,7 +342,7 @@ const states = data.source<{ NAME: string; Total_Pop_2020: number }>();
 const query: Query = {
   filter: queryFilter.and(
     queryFilter.gt("Total_Pop_2020", 1_000_000),
-    queryFilter.spatial("intersects", envelope(-125, 24, -66, 50)),
+    queryFilter.spatial("intersects", envelope(-125, 24, -66, 50, { wkid: 4326 })),
   ),
   outFields: ["NAME", "Total_Pop_2020"],
   pagination: { limit: 100 },
@@ -355,6 +355,12 @@ console.log(plan.fingerprint, plan.steps.map((step) => `${step.engine}:${step.op
 const result = await states.queryAll(query);
 console.log(`Loaded ${result.features.length} states`);
 ```
+
+`envelope`, `point`, and `polygon` default to WGS84 (4326). Pass the input
+spatial reference for projected coordinates. GeoServices query serialization
+emits `inSR` from geometry metadata (or defaults untagged geometry to 4326);
+an explicit `extraParams.inSR` takes precedence for low-level requests. Invalid
+explicit geometry references throw instead of using the layer CRS.
 
 `Query.filter` compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`,
 or DuckDB SQL, and `Query.temporalFilter` compiles to the protocol's own time
