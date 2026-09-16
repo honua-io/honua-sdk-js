@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   OGC_PROCESSES_QUALIFICATION_FORMAT,
+  assertBufferResult,
   assertCandidateEvidenceRedacted,
+  assertLegalJobTransitions,
+  auditPreferHeaders,
   classifyGovernedInputRejection,
+  decodeWkbPoint,
   qualificationEnabled,
 } from "../scripts/ogc-processes-candidate-qualification.mjs";
 
@@ -87,5 +91,65 @@ describe("OGC Processes exact-candidate qualification policy", () => {
     });
     // The projection is retained in evidence, so it must never carry a message.
     expect(Object.keys(classifyGovernedInputRejection(httpError(400)).error)).not.toContain("message");
+  });
+
+  it("refuses a respond-sync or invented Prefer token on the wire", () => {
+    const request = (prefer: string | null) => ({
+      method: "POST",
+      path: "/ogc/processes/processes/p/execution",
+      status: 200,
+      prefer,
+    });
+    expect(auditPreferHeaders([request(null), request("respond-async")])).toEqual({
+      preferValues: ["respond-async"],
+      respondSyncSent: false,
+    });
+    expect(auditPreferHeaders([request(null)])).toEqual({ preferValues: [], respondSyncSent: false });
+    expect(() => auditPreferHeaders([request("respond-sync")])).toThrow(/non-standard/);
+    expect(() => auditPreferHeaders([request("Respond-Sync, wait=5")])).toThrow(/non-standard/);
+    expect(() => auditPreferHeaders([request("wait=5")])).toThrow(/unexpected Prefer/);
+  });
+
+  it("accepts only a legal job lifecycle", () => {
+    expect(assertLegalJobTransitions(["accepted", "accepted", "running", "successful", "successful"])).toEqual([
+      "accepted",
+      "running",
+      "successful",
+    ]);
+    expect(assertLegalJobTransitions(["accepted", "successful"])).toEqual(["accepted", "successful"]);
+    expect(() => assertLegalJobTransitions([])).toThrow(/no job status/);
+    expect(() => assertLegalJobTransitions(["running", "accepted"])).toThrow(/regressed/);
+    expect(() => assertLegalJobTransitions(["successful", "failed"])).toThrow(/after terminal/);
+    expect(() => assertLegalJobTransitions(["accepted", "queued"])).toThrow(/unknown job status/);
+  });
+
+  it("checks buffer results against the decoded input point, not their presence", () => {
+    const center = decodeWkbPoint("AQEAAABQ/Bhz15pewNDVVuwv40JA");
+    expect(center[0]).toBeCloseTo(-122.4194, 6);
+    expect(center[1]).toBeCloseTo(37.7749, 6);
+    const ring = (radius: number) =>
+      Array.from({ length: 9 }, (_, index) => {
+        const angle = (index / 8) * 2 * Math.PI;
+        return [center[0] + radius * Math.cos(angle), center[1] + radius * Math.sin(angle)];
+      });
+    const feature = (radius: number) => ({
+      type: "Feature",
+      geometry: { type: "Polygon", coordinates: [ring(radius)] },
+    });
+    expect(assertBufferResult({ value: feature(0.00025) }, { center, distance: 0.00025 })).toMatchObject({
+      geometryType: "Polygon",
+      vertexCount: 9,
+    });
+    expect(
+      assertBufferResult({ type: "FeatureCollection", features: [feature(0.00025)] }, { center, distance: 0.00025 }),
+    ).toMatchObject({
+      geometryType: "Polygon",
+    });
+    expect(() => assertBufferResult({ value: feature(0.001) }, { center, distance: 0.00025 })).toThrow(/vertices lie/);
+    expect(() =>
+      assertBufferResult({ value: { type: "Point", coordinates: center } }, { center, distance: 0.00025 }),
+    ).toThrow(/expected Polygon/);
+    expect(() => assertBufferResult(undefined, { center, distance: 0.00025 })).toThrow(/missing/);
+    expect(() => decodeWkbPoint(Buffer.alloc(8).toString("base64"))).toThrow(/not a 2D point/);
   });
 });

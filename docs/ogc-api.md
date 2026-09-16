@@ -263,6 +263,23 @@ declared, `cancel()` must refuse locally before issuing a DELETE — which is wh
 the negative also needs a live job, since `cancel()` short-circuits on an
 already-terminal run and would never reach the capability check.
 
+The mode gates are exercised against the candidate's own declarations, and every
+refusal must be issued before the request it guards. A published process that
+declares `async-execute` without `sync-execute` must refuse a synchronous request
+with zero requests on a handle that has read its declaration, and under
+`capabilityPolicy: "strict"` on a fresh client, which must read the conformance
+document and the description itself and still send no execution. Two further
+probes remove one construct from the real declaration (the Core class, and
+`async-execute`) to prove those gates too; they are recorded as `derived`, never
+as something the candidate withheld. Every `Prefer` header on the wire is
+audited: only `respond-async` may appear.
+
+Both executions are checked by an independent oracle: the input WKB point is
+decoded and every vertex of the returned polygon must lie at the requested
+distance from it. The asynchronous job's reported statuses must form a legal
+lifecycle ending at `successful`. The candidate must refuse an unauthenticated
+execution itself (401/403), and an unpublished process must describe as 404.
+
 A bounded invalid-input execution proves the failure path, and only two outcomes
 satisfy it: an `HonuaHttpError` carrying 400 or 422, or an `HonuaJobFailedError`
 whose terminal status is `failed`. Any other error — a local capability refusal,
@@ -277,6 +294,21 @@ digest. Request observations retain only method, path, status, and the standard
 excluded and a final redaction gate rejects credential-shaped output. This is
 candidate qualification input for the at-cut release join, not that release
 receipt itself.
+
+`npm run qualification:ogc-processes:replay -- --image <image@sha256> --server-ref <sha>`
+runs that lane end to end from the installed package. It clean-installs the
+`@honua/sdk-js` registry bytes pinned in
+`config/installed-package-certification.v1.json` with `npm ci`, requires the
+pinned SHA-512 integrity, tarball URL and verified sealed-tag provenance, boots
+the digest-addressed server image under its Production startup policy (PostGIS,
+Redis, a per-run operation key-ring certificate) on a free loopback port, runs the
+qualification, and removes every container it started. The receipt
+`test-results/ogc-processes-candidate-replay.{json,md}` joins the committed #39
+installed-package receipt by digest and records each OGC Processes denominator
+row's verdict there beside this run's observation; that receipt is never
+rewritten, so no blocked cell is promoted. `--server-evidence <name>=<run URL>`
+adds honua-server Actions runs, each required to be successful for the same
+source SHA.
 
 ### STAC API
 
