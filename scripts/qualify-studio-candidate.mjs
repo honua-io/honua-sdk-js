@@ -11,9 +11,10 @@
 // The first phase runs with an admin API key, the second with interactive end-user
 // bearers on the same deployment; both under the image's own configuration.
 //
-// AC7 is browser Studio's half: a honua-studio checkout at or after the commit that
-// deleted its local tool list is archived at HEAD, compiled against the SDK it pins
-// and against this checkout's SDK, and its SDK-discovery element test is run.
+// AC7 is browser Studio's half: a honua-studio checkout at or after the commits that
+// deleted its local tool list (#69) and certified its agent turns (#72) is archived at HEAD,
+// compiled against the SDK it pins and against this checkout's SDK, and its SDK-discovery
+// element test is run.
 //
 //   npm run build
 //   node scripts/qualify-studio-candidate.mjs <platform-manifest.yaml> --studio <honua-studio checkout> \
@@ -93,6 +94,9 @@ const SETUP_CLASSIFICATION = {
 
 // honua-io/honua-studio#69: deletes STATIC_STUDIO_AGENT_TOOLS, the browser's local copy of the catalog.
 const STUDIO_LOCAL_LIST_DELETION = "685ac572d8736b75d4e483f53631143e5f3fcd5a";
+// honua-io/honua-studio#72: `transcriptProvenance` is a first-class chat event and a live agent turn
+// carries certification, so Studio compiles and dispatches on an SDK after honua-sdk-js#1748.
+const STUDIO_TRANSCRIPT_PROVENANCE = "39c567cf48ead0858da48979dbd2d4fff4da4ab4";
 const STUDIO_DISCOVERY_TEST = {
   file: "test/elements/studio-chat-element.test.ts",
   name: "runs a model-selected server tool, feeds its result back, and refreshes the real canvas controller",
@@ -862,11 +866,13 @@ async function browserStudioCheck() {
     const git = (...args) => exec("git", ["-C", studioRoot, ...args]).stdout.trim();
     const sha = git("rev-parse", "HEAD");
     const remote = git("config", "--get", "remote.origin.url");
-    receipt.studio = { ref: sha, remote, localListDeletion: STUDIO_LOCAL_LIST_DELETION };
+    receipt.studio = { ref: sha, remote, localListDeletion: STUDIO_LOCAL_LIST_DELETION, transcriptProvenance: STUDIO_TRANSCRIPT_PROVENANCE };
     evidence.studio = { ref: sha, subject: git("log", "-1", "--format=%s", sha), committedAt: git("log", "-1", "--format=%cI", sha) };
     assert.match(remote, /honua-io\/honua-studio(\.git)?$/, `--studio is not a honua-studio checkout: ${remote}`);
     assert.equal(exec("git", ["-C", studioRoot, "merge-base", "--is-ancestor", STUDIO_LOCAL_LIST_DELETION, sha], { allowFailure: true }).status, 0,
       `studio ${sha} predates the local-list deletion ${STUDIO_LOCAL_LIST_DELETION} (honua-studio#69)`);
+    assert.equal(exec("git", ["-C", studioRoot, "merge-base", "--is-ancestor", STUDIO_TRANSCRIPT_PROVENANCE, sha], { allowFailure: true }).status, 0,
+      `studio ${sha} predates the transcriptProvenance fix ${STUDIO_TRANSCRIPT_PROVENANCE} (honua-studio#72)`);
 
     const grep = (pattern, ...paths) =>
       exec("git", ["-C", studioRoot, "grep", "-n", "-E", pattern, sha, "--", ...paths], { allowFailure: true })
