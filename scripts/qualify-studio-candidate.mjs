@@ -881,10 +881,17 @@ async function browserStudioCheck() {
     // `#studioTools` is the orchestrator's private MCP client field, not the SDK policy option.
     evidence.consumerAllowlist = grep("(^|[^#[:alnum:]_])studioTools[[:space:]]*[:=]|allowlist", "src");
     assert.deepEqual(evidence.consumerAllowlist, [], "Studio narrows SDK discovery with a consumer allowlist");
-    evidence.lifecycleToolNameLiterals = grep(`["'\`](${expected.members.join("|")})["'\`]`, "src");
-    assert.deepEqual(evidence.lifecycleToolNameLiterals, [], "Studio source names a server-classified lifecycle tool");
+    // No source carries a copy of a Studio tool descriptor for the model: no file both names a
+    // honua_studio_* tool and declares an input schema.
+    const namingFiles = new Set(grep("honua_studio_", "src").map((line) => line.split(":")[0]));
+    evidence.descriptorCopies = grep("inputSchema", "src").map((line) => line.split(":")[0]).filter((file) => namingFiles.has(file));
+    assert.deepEqual([...new Set(evidence.descriptorCopies)], [], "Studio source declares a honua_studio_* tool descriptor");
     evidence.sessionFactory = grep("createStudioAgentSession|@honua/sdk-js/studio-agent", "src");
     assert.ok(evidence.sessionFactory.some((line) => line.includes("createStudioAgentSession(")), "Studio does not create an SDK StudioAgentSession");
+    // Recorded, not asserted: the names Studio's canvas calls directly through its typed MCP
+    // client (a UI command resolves to one wire name). They are never handed to the model or
+    // to discovery, which is what the deleted list was.
+    evidence.directCallNameLiterals = grep(`^[^*/]*["'](honua_studio_[a-z_]+)["']`, "src");
 
     const root = join(work, "studio");
     await mkdir(root);
