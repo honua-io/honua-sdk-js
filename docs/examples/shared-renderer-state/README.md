@@ -1,7 +1,7 @@
 ---
 type: index
 title: "Shared MapLibre and Cesium application state"
-description: "This deterministic browser fixture runs a real MapLibre `Map` and a real Cesium `Viewer` in one page against one renderer-neutral Honua state synchronizer. Nothing here hand-rolls a port: the two bindings are the SDK's shipped…"
+description: "Browser example that runs a real MapLibre map and a real Cesium viewer against one renderer-neutral state synchronizer, reading camera, selection, filter, time and attribution back from each renderer."
 ---
 # Shared MapLibre and Cesium application state
 

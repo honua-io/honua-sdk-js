@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Renderer objects and temporal playback"
-description: "First-class renderer objects give standalone MapLibre users the smart-mapping"
+description: "Experimental renderer objects for standalone MapLibre users: class breaks, unique values, heatmaps and clustering as serializable descriptors that compile deterministically to MapLibre style fragments, plus temporal playback."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Renderer objects and temporal playback

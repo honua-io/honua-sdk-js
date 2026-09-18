@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "WFS 2.0 adapter"
-description: "`@honua/sdk-js` ships a first-party WFS 2.0 client that conforms to the"
+description: "First-party WFS 2.0 client that produces the same canonical Source, Query, Result and edit shapes as the GeoServices and OGC Features adapters, so mixed-source apps never touch WFS XML."
 resource: "honua://capability/serve.wfs"
 ---
 # WFS 2.0 adapter

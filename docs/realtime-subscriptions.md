@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Realtime Feature State"
-description: "The `@honua/sdk-js/realtime` entrypoint defines the SDK-side contract for live operational layers. Apps subscribe once to a `RealtimeFeatureTransport` and consume normalized `RealtimeFeatureEvent` values through `RealtimeFeatureState`;…"
+description: "The SDK-side contract for live operational layers: subscription identity, snapshot-then-delta delivery, normalized feature events and the RealtimeFeatureState that runtimes consume."
 resource: "honua://capability/streaming.feature-subscriptions"
 ---
 # Realtime Feature State
