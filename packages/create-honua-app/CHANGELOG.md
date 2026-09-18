@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.3...create-honua-app-v0.1.4) (2026-09-18)
+
+
+### Bug Fixes
+
+* **create-app:** keep scaffold pins on coordinated pair ([#1574](https://github.com/honua-io/honua-sdk-js/issues/1574)) ([8ff121d](https://github.com/honua-io/honua-sdk-js/commit/8ff121de9566849a37ea562df3cc5d02e7531c5f))
+
 ## [0.1.3](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.2...create-honua-app-v0.1.3) (2026-08-26)
 
 
