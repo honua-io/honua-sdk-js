@@ -9,16 +9,9 @@ description: "Use `@honua/sdk-js/coverages` when the output is a raster value gr
 
 Use `@honua/sdk-js/coverages` when the output is a raster value grid rather than vector features or a pre-rendered map. The client keeps protocol details explicit and uses the same `HonuaClient` request pipeline as the rest of the SDK.
 
-## Run the qualified standalone example
+## Runnable example
 
 [`examples/coverages-wcs-basic`](../../examples/coverages-wcs-basic/README.md) executes both real clients against a strict committed transport, renders their PNG results through the same MapLibre image-source helper, and exposes cancellation and structured WCS degradation without a live fallback.
-
-```bash
-npm run demo:coverages-wcs
-npm run test:playwright:coverages-wcs
-```
-
-The example's `fixtureFetch` rejects every unexpected origin. Its browser test separately blocks and records any escaped HTTP request, so the fixture qualification cannot silently become a network-dependent demo. This proves the bundle and developer workflow; it does not claim real-server interoperability.
 
 ## Choose the right raster path
 
