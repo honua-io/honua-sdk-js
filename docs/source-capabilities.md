@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Source capability profiles"
-description: "policy, runtime environment, optional peers, authorization, and an explicit"
+description: "Claimed, observed and effective capability profiles: validate evidence once, evaluate repeatedly, narrow sources with supports(), cache boundaries and effective states."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Source capability profiles

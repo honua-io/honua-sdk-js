@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Honua Web Components"
-description: "`@honua/sdk-js/web-components` registers framework-neutral custom elements for"
+description: "Framework-neutral custom elements for maps, layer lists, legends, tables, search, editing, charts and controls, plus the application shell, measurement, time slider, secure export, and the production feature table and editor."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Honua Web Components
@@ -103,10 +103,6 @@ Locale packs are scoped to a context and cover status messages plus
 `--honua-ui-*` properties, while mount-local tokens override context tokens.
 Neither locale nor theme uses global mutable state, and disposal restores the
 host's original attributes and token values.
-
-The installed-package end-to-end journey, time-bounded evidence, budgets, and
-component-to-test mapping are published in the
-[Application Components Reference Workbench](./application-components-reference.md).
 
 `honua-map` owns a MapLibre GL JS map for package and controller bindings.
 Import MapLibre's CSS in browser demos, then pass either an inline `MapPackage`,
@@ -298,8 +294,6 @@ measuring started.
 
 **Custom Elements Manifest.** `@honua/app-platform` publishes
 `custom-elements.json`, advertised through its `customElements` package key.
-The manifest is generated from source (`npm run custom-elements:manifest`) and
-checked against the registered element in `test/custom-elements-manifest.test.ts`.
 
 **React.** React 19 binds custom elements natively, so no wrapper is needed.
 Props that are element properties (`map`, `unit`, `precision`, `planarCrs`, …)
@@ -326,7 +320,7 @@ declare module "react" {
 ## Time slider
 
 `honua-time-slider` is a view over the headless temporal playback controller
-(`createTemporalPlayback` from `@honua/sdk-js/map`, issue #497). It owns no
+(`createTemporalPlayback` from `@honua/sdk-js/map`). It owns no
 window state and no timer of its own: every gesture becomes one controller
 call, and every rendered value comes back from the controller's own `tick` /
 `play` / `pause` / `end` events. Layered over a realtime source the controller
@@ -377,7 +371,7 @@ state-model-only, exactly as before.
 ## Secure export
 
 Print, snapshot, and sanitized-state export all run through one explicit
-adapter contract (issue #683). There is deliberately no ambient fallback for
+adapter contract. There is deliberately no ambient fallback for
 snapshot or state export: reading renderer pixels needs a canvas the application
 created with `preserveDrawingBuffer: true` and is authorized to read, and
 serializing "the current state" would otherwise carry the signed tile URLs,
@@ -585,21 +579,9 @@ version, schema identity, accepted-plan fingerprint, filter, sort, projection,
 authorization scope, and freshness — so a stale page can never answer a
 different question.
 
-The table consumes only canonical `Source.query()`. Protocol translation of
-its filter, sort, projection, pagination, spatial, and aggregate requests is
-covered by the existing real adapter fixtures:
-
-| Protocol | Adapter evidence |
-| --- | --- |
-| GeoServices | `test/contract/geoservices-conformance.test.ts` |
-| OGC API Features | `test/contract/ogc-features-backend-agnostic.test.ts`, `test/contract/ogc-conformance.test.ts` |
-| WFS 2.0 | `test/contract/wfs-backend-agnostic.test.ts`, `test/contract/wfs.test.ts` |
-| OData v4 | `test/contract/odata-backend-agnostic.test.ts`, `test/contract/odata-conformance.test.ts` |
-
-The engine-level suite separately asserts that the accepted canonical request
-contains the expected page, sort, filter, extent, projection, and aggregation;
-the adapter suites above prove that request is translated without a
-table-specific protocol branch.
+The table consumes only canonical `Source.query()`, so protocol translation of
+its filter, sort, projection, pagination, spatial, and aggregate requests is the
+adapters' job; there is no table-specific protocol branch.
 
 ### Linked exploration state
 
@@ -680,7 +662,7 @@ step with any custom row CSS.
 
 ## Production-Tier Feature Editing (`honua-feature-editor`)
 
-`honua-feature-editor` is the production-tier editing surface (issue #680). It
+`honua-feature-editor` is the production-tier editing surface. It
 composes the public contract edit primitives — `createEditSketchWorkflow`,
 `createEditSession`, snapping, attachment staging, undo/redo, optimistic hooks
 — rather than reimplementing any protocol behavior, and it imports no
@@ -824,66 +806,3 @@ Two lifecycle details worth knowing:
 
 Events: `honua-feature-edit-change` (redacted snapshot on every state change)
 and `honua-feature-edit-commit` (the submit outcome, including `transported`).
-
-## Production qualification matrix
-
-Production support for the component kit is tracked as an enforceable matrix
-rather than a claim in prose: every shipped tag in the component catalog against
-every gate that matters for accessibility, localization, visual behavior, CSP,
-lifecycle cleanup, and bundle cost (issue #683, REQ-004/REQ-005/NFR-001).
-
-The matrix is seeded from what the test suite actually asserts today. `passing`
-requires evidence files that are verified to exist, so deleting the test behind a
-gate fails CI instead of quietly downgrading the claim. `failing` records a
-requirement we know is unmet — including from code inspection, before an
-automated gate exists. `pending` — most of this matrix — means no automated gate
-and no verdict yet. `not-applicable` requires an argument.
-
-These gates are a **different axis** from the catalog's `supportTier`. The tier
-records the functional maturity a feature issue delivered on a component
-(`honua-feature-editor` is `production-tier` because issue #680 delivered
-capability-aware editing, conflict handling, snapping, and attachment staging).
-Gate completion is the strictly harder bar, so the verifier enforces only that
-direction — anything clearing every gate must carry the production tier — and
-every production-tier component's still-open gates are listed as `openGates` in
-the manifest, so the tier can never be mistaken for gate completion.
-
-<!-- component-qualification:start -->
-<!-- GENERATED by scripts/component-qualification.mjs from src/controls/qualification.ts. Do not edit by hand; run npm run qualification:components. -->
-
-414 cells across 23 components x 18 gates: **343 passing**, 0 failing, 21 pending, 50 not applicable.
-
-2 of 23 components have cleared every gate. That is a different axis from the catalog's `supportTier`, which records the functional maturity a feature issue delivered: 2 component(s) are `production-tier` and still carry open gates, listed per component as `openGates` in the manifest.
-
-| Component | Tier | keyboard-behavior | screen-reader-semantics | focus-restoration | reduced-motion | high-contrast | responsive-layout | localization | pseudo-locale | rtl | visual-regression | strict-csp | zero-console-error | deterministic-disposal | duplicate-listener | memory-leak | ssr-import | secure-export | bundle-budget |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `honua-basemap-switcher` (controls) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-swipe-control` (controls) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-legend` (controls) | survival | n/a | pass | n/a | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | n/a | pass | pass | n/a | pass |
-| `honua-layer-list` (controls) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-map` (web-components) | survival | pass | pass | pass | pass | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-layer-list` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-legend` (web-components) | survival | n/a | pass | n/a | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | n/a | pass | pass | n/a | pass |
-| `honua-feature-table` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-feature-inspection` (web-components) | production | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-search` (web-components) | survival | pass | pass | pass | pass | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-editor` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-feature-editor` (web-components) | production | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-chart` (web-components) | survival | n/a | pass | n/a | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | n/a | pass | pass | n/a | pass |
-| `honua-basemap-control` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-bookmarks` (web-components) | survival | pass | pass | pass | pass | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-locate-control` (web-components) | survival | pass | pass | pass | pass | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-measure-control` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-measurement` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-time-slider` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-sketch-control` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-print-export` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | pass | pass |
-| `honua-map-status` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-| `honua-action-panel` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
-
-Gate definitions and per-cell evidence and notes live in
-[`config/component-qualification.v1.json`](../config/component-qualification.v1.json).
-<!-- component-qualification:end -->
-
-Regenerate with `npm run qualification:components`; `npm run
-qualification:components:check` is the CI drift and invariant gate.

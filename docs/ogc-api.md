@@ -1,14 +1,10 @@
 ---
 type: reference
 title: "OGC API Client"
-description: "The developer reference for the first-party OGC API clients: Tiles, Maps, Processes, Records, STAC and Features, and which source file implements each."
+description: "The developer reference for the first-party OGC API clients: Features, Tiles, Maps, Processes, Records and STAC, plus canonical Source registration and capability negotiation."
 resource: "honua://capability/serve.ogc-api-features"
 ---
 # OGC API Client
-
-Status: implemented in `src/core/ogc-tiles.ts`, `src/core/ogc-maps.ts`,
-`src/core/ogc-processes.ts`, `src/core/ogc-records.ts`,
-`src/core/stac.ts`, and (for OGC API Features) `src/core/surfaces.ts`.
 
 This document is the developer reference for the first-party OGC API
 adapter. It complements the design notes in
@@ -240,76 +236,6 @@ Four properties hold whichever server is on the other end:
   10-minute deadline — never an unbounded loop — and stops immediately
   when the supplied `AbortSignal` fires.
 
-#### Exact-candidate qualification
-
-`npm run qualification:ogc-processes:candidate` is the mutation-gated release
-qualification lane. It must be run from an installed, packed SDK against a
-locally bound candidate and requires
-`HONUA_OGC_PROCESSES_QUALIFICATION_ENABLED=true`. The runner discovers and
-describes `geometry.buffer`, validates its declared inputs and outputs, and
-then exercises only the sync, async, and dismiss modes advertised by that
-candidate. Undeclared modes are retained as typed `unsupported` observations,
-never skips or inferred passes.
-
-Result validation and the cancellation probe run on separate async executions.
-Dismissal drives a job to the terminal `dismissed` state, and `IJobRun.results()`
-rejects on any non-success terminal, so awaiting results on the run that was just
-cancelled would fail the lane exactly when the candidate demonstrates dismissal
-correctly. When `dismiss` is declared, the probe requires the job to settle at
-`dismissed` and then requires that dismissed job to refuse to yield results; a
-job that reached its own terminal before the DELETE landed is recorded as a
-`terminal-race` and is never reported as a dismissal proof. When `dismiss` is not
-declared, `cancel()` must refuse locally before issuing a DELETE — which is why
-the negative also needs a live job, since `cancel()` short-circuits on an
-already-terminal run and would never reach the capability check.
-
-The mode gates are exercised against the candidate's own declarations, and every
-refusal must be issued before the request it guards. A published process that
-declares `async-execute` without `sync-execute` must refuse a synchronous request
-with zero requests on a handle that has read its declaration, and under
-`capabilityPolicy: "strict"` on a fresh client, which must read the conformance
-document and the description itself and still send no execution. Two further
-probes remove one construct from the real declaration (the Core class, and
-`async-execute`) to prove those gates too; they are recorded as `derived`, never
-as something the candidate withheld. Every `Prefer` header on the wire is
-audited: only `respond-async` may appear.
-
-Both executions are checked by an independent oracle: the input WKB point is
-decoded and every vertex of the returned polygon must lie at the requested
-distance from it. The asynchronous job's reported statuses must form a legal
-lifecycle ending at `successful`. The candidate must refuse an unauthenticated
-execution itself (401/403), and an unpublished process must describe as 404.
-
-A bounded invalid-input execution proves the failure path, and only two outcomes
-satisfy it: an `HonuaHttpError` carrying 400 or 422, or an `HonuaJobFailedError`
-whose terminal status is `failed`. Any other error — a local capability refusal,
-a 401/403, a 5xx, a poll timeout — fails the lane rather than being recorded as a
-rejection, so the run can never report `result: "passed"` for a candidate that
-never validated the governed input.
-
-The generated JSON records the installed package version and integrity, SDK
-and server source SHAs, server image digest, manifest revision, and fixture
-digest. Request observations retain only method, path, status, and the standard
-`Prefer: respond-async` value; the API key and all authorization headers are
-excluded and a final redaction gate rejects credential-shaped output. This is
-candidate qualification input for the at-cut release join, not that release
-receipt itself.
-
-`npm run qualification:ogc-processes:replay -- --image <image@sha256> --server-ref <sha>`
-runs that lane end to end from the installed package. It clean-installs the
-`@honua/sdk-js` registry bytes pinned in
-`config/installed-package-certification.v1.json` with `npm ci`, requires the
-pinned SHA-512 integrity, tarball URL and verified sealed-tag provenance, boots
-the digest-addressed server image under its Production startup policy (PostGIS,
-Redis, a per-run operation key-ring certificate) on a free loopback port, runs the
-qualification, and removes every container it started. The receipt
-`test-results/ogc-processes-candidate-replay.{json,md}` joins the committed #39
-installed-package receipt by digest and records each OGC Processes denominator
-row's verdict there beside this run's observation; that receipt is never
-rewritten, so no blocked cell is promoted. `--server-evidence <name>=<run URL>`
-adds honua-server Actions runs, each required to be successful for the same
-source SHA.
-
 ### STAC API
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
@@ -487,18 +413,3 @@ client-side aggregation and metadata-bbox extent (see
 [`protocol-capability-matrix.md`](./protocol-capability-matrix.md) for
 the per-protocol coverage). All other adapters honour the strict
 behaviour: a missing capability throws `HonuaCapabilityNotSupportedError`.
-
-## Conformance fixtures
-
-The repo ships parametrized conformance suites under `test/contract/`:
-
-- `ogc-tiles.test.ts` — tileset discovery + tile fetch + Source adapter
-- `ogc-maps.test.ts` — dataset / collection / styled map renders
-- `ogc-processes.test.ts` — `IJobRun` lifecycle, cancel, error paths
-- `ogc-records.test.ts` — Records query params, paging, raw access, Source adapter
-- `stac.test.ts` — GET / POST search + Source adapter
-- `ogc-conformance.test.ts` — conformance-class negotiation
-
-These run against mock fetch responders and are the regression baseline
-for "passes against Honua Server's current OGC parity matrix" (Features
-CITE-certified, Tiles CITE-certified, Maps, Processes async).

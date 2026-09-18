@@ -1,14 +1,10 @@
 ---
 type: reference
 title: "Dynamic Query Tiles"
-description: "`src/runtime/query-tiles.ts` (issue `honua-sdk-js#152`); server contract"
+description: "Describe large sources as viewport-scoped vector tiles that keep canonical Source identity: descriptors, MapLibre helpers, the /query-tiles server contract, and runtime fetch helpers."
 resource: "honua://capability/serve.vector-tiles"
 ---
 # Dynamic Query Tiles
-
-Status: client descriptor/runtime implemented in `src/contract/tiles.ts` and
-`src/runtime/query-tiles.ts` (issue `honua-sdk-js#152`); server contract
-helpers and fixtures added for `honua-sdk-js#164`.
 
 Dynamic query tiles let SDK consumers describe large operational sources as
 viewport-scoped vector tiles while preserving the canonical `Source` identity
@@ -232,15 +228,6 @@ tile misleading, prefer an error response over a silent partial tile.
 - `fetchQueryTileFeatureDetail(descriptor, target, options)` for source
   qualified detail lookup and canonical error parsing.
 - `QueryTileServerResponseError` for structured HTTP failures.
-
-The reusable fixture pack lives at
-`test/fixtures/sdk-contract/query-tile-server.v1.json`. It defines the routes,
-request params, TileJSON metadata, detail response, and degradation/error
-envelopes that server implementations can import into their own contract tests.
-
-Affected server implementation repos are a dependency for production support:
-they must implement the `/query-tiles` route prefix and pass the fixture shape.
-This SDK issue only defines the client helpers, docs, and reusable fixtures.
 
 ## Viewport Lifecycle
 

@@ -1,7 +1,7 @@
 ---
 type: concept
 title: "Metadata Caching Strategy"
-description: "This strategy is the Honua platform default for metadata caching across SDKs,"
+description: "The platform default for metadata caching across SDKs and MCP tools: what is cached, cache keys, TTLs, invalidation triggers, cache-state visibility, and why feature results are not cached."
 ---
 # Metadata Caching Strategy
 
@@ -241,15 +241,3 @@ Incident dashboard requirements:
   freshness must not imply feature freshness.
 - Alerting, dispatch, assignment, and detail panes must hide or disable actions
   that require authoritative live state when the incident stream is stale.
-
-## Recommended Follow-Up Tickets
-
-Do not create these issues automatically from this document. They are proposed
-implementation slices if the platform wants to schedule the strategy.
-
-| Title | Owning repo | Notes |
-| --- | --- | --- |
-| [Platform metadata cache: keys, TTLs, validators, and invalidation events](https://github.com/honua-io/honua-server/issues/916) | `honua-io/honua-server` | Central cache service, source-aware key normalization, validator storage, and invalidation event payloads. |
-| [SDK metadata cache state and refresh hooks](https://github.com/honua-io/honua-sdk-js/issues/94) | `honua-io/honua-sdk-js` | `HonuaCacheState`, `refresh: true`, conditional validators, and stale-if-error reporting across metadata adapters. |
-| [MCP metadata cache state visibility](https://github.com/honua-io/geospatial-mcp/issues/12) | `honua-io/geospatial-mcp` | Structured cache state on metadata-oriented MCP tool responses. |
-| [Realtime samples: guard live state against stale feature-result caches](https://github.com/honua-io/honua-sdk-js/issues/95) | `honua-io/honua-sdk-js` | Sample/runtime assertions that incident feature state comes from realtime cursor/watermark flow or fresh snapshots. |

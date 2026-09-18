@@ -1,12 +1,12 @@
 ---
 type: reference
 title: "Studio Package Contracts (`@honua/sdk-js/studio`)"
-description: "`@honua/sdk-js/studio` is the single, browser-safe import path for the Studio"
+description: "One browser-safe import path for the Studio package families, the unified validation and preview envelopes, the capability manifest, and the publish, share and embed contracts."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Studio Package Contracts (`@honua/sdk-js/studio`)
 
-Status: experimental, implemented for ticket `honua-sdk-js#230`.
+Status: experimental.
 
 `@honua/sdk-js/studio` is the single, browser-safe import path for the Studio
 package families, their unified validation/preview envelopes, the capability
@@ -31,8 +31,7 @@ The barrel exports **only types and pure functions** and never imports from
 `operator`, `esri-compat`, `web-components`, `interactions`, or `realtime` —
 none of the MapLibre/DOM/Console-coupled modules. MCP servers and QGIS plugins
 can import `@honua/sdk-js/studio` without pulling renderer code or triggering a
-build error from Console/Esri internals. This boundary is enforced by a source
-scan in `test/studio/studio-contracts.test.ts`.
+build error from Console/Esri internals.
 
 The established `map` and `app` shapes are re-exported from their leaf modules.
 The distinct `dashboard` artifact is authored by the sdk-js Studio agent path;
@@ -41,12 +40,7 @@ Console and other renderers consume the validated package read-only.
 The `map` family additionally has a published JSON Schema,
 [`schemas/honua-map-package.v1.json`](../schemas/honua-map-package.v1.json)
 (`https://honua.io/schemas/honua-map-package.v1.json`). It is the canonical
-description of the artifact for JS, the CLI, MCP, and Studio alike
-(honua-sdk-js#1426), and it is not documentation *about* the validator — it is
-what the validator is built from: `npm run map-package-schema:generate`
-compiles it into the standalone function `validateMapPackage` runs, and
-`test/runtime/map-package-schema-drift.test.ts` fails the build if the schema
-and `HonuaMapPackage` stop agreeing. `exportMapPackage` / `importMapPackage`
+description of the artifact for JS, the CLI, MCP, and Studio alike, and it is what `validateMapPackage` is built from. `exportMapPackage` / `importMapPackage`
 (`@honua/sdk-js/runtime`) move that artifact between clients without embedded
 credentials or unbounded data.
 
@@ -54,8 +48,7 @@ The schema deliberately stops at the artifact. Lifecycle states (ephemeral
 preview, mutable draft, immutable saved version, publication proposal, active
 publication, superseded), content-hash identity, optimistic concurrency, and
 actor/tenant/authorization fields belong to the canonical honua-server
-composition contract and are projected into the SDK through honua-sdk-js#1397
-and #1398 — never minted client-side.
+composition contract and are never minted client-side.
 
 ## Package families and format constants
 
@@ -203,27 +196,15 @@ preserve unknown properties, writers emit only explicitly supported formats,
 and validators never guess, downgrade, or rewrite an unknown format. Renderer
 state is derived and must not be serialized back into the authored package.
 
-The dashboard artifact may reference the portable map artifact from
-honua-sdk-js#1426 through `mapPackageId`; it does not embed credentials or mint
+The dashboard artifact may reference the portable map artifact through
+`mapPackageId`; it does not embed credentials or mint
 another map representation. Publication state, stable lifecycle identity,
 tenant/actor, authorization, optimistic concurrency, audit, and correlation
-remain outside the package and are coordinated through honua-sdk-js#1398.
+remain outside the package.
 
 ## Cross-surface parity (MCP / QGIS)
 
 The parity layer that makes packages portable across Console, MCP, and QGIS —
 a shared `provenance` envelope, a family-agnostic `validateStudioPackage`
 helper, a documented Vega-Lite chart subset, and cross-surface fixtures — is
-documented in [`studio-package-parity.md`](./studio-package-parity.md)
-(`honua-sdk-js#226`).
-
-## Open questions (pending server contracts)
-
-These are tracked for follow-up once the server shapes are finalized:
-
-- The fetch path for `StudioCapabilityManifest` (dedicated endpoint vs.
-  embedded in another response).
-- Full ETL/workflow/GP package shapes (currently stub-only).
-- Whether embed-token issuance is in scope for the SDK client.
-- Whether the MCP server (`/mcp`) should import package/validation types from
-  `@honua/sdk-js/studio` in a follow-on.
+documented in [`studio-package-parity.md`](./studio-package-parity.md).

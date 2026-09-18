@@ -122,6 +122,78 @@
     {
       "path": "docs/listings/npm-search-verification.md",
       "why": "Generated and drift-checked by `npm run docs:npm-search`. Evidence that the published packages are discoverable on npm, refreshed by running the search again - a measurement, not documentation."
+    },
+    {
+      "path": "docs/application-components-reference.md",
+      "why": "The installed-package qualification workbench: evidence inputs, gate receipts, and the generated maturity matrix. Release evidence for the people qualifying the component kit, not documentation of it."
+    },
+    {
+      "path": "docs/benchmark-methodology.md",
+      "why": "How the four benchmark lanes are run, compared, and gated in CI. Maintainer methodology; no reader of the SDK acts on it."
+    },
+    {
+      "path": "docs/capability-keys.md",
+      "why": "The crosswalk and coverage snapshot are config files with drift gates; the page explains how CI keeps them honest. Maintainer material."
+    },
+    {
+      "path": "docs/columnar-workflow-capability-matrix.md",
+      "why": "A test-evidence matrix bound to server commits. The columnar workflow itself is documented in the walkthrough and columnar-data-plane pages."
+    },
+    {
+      "path": "docs/console-contracts.md",
+      "why": "A historical design reference for a subpath the SDK no longer exports."
+    },
+    {
+      "path": "docs/demo-capability-matrix.md",
+      "why": "Where a reviewer can see or smoke each capability: sample apps, test files, smoke commands, and an issue index. Maintainer material."
+    },
+    {
+      "path": "docs/esri-compat-installed-driver.md",
+      "why": "What one Playwright spec proves against packed bytes and how to reproduce it. A test driver, not documentation of the SDK."
+    },
+    {
+      "path": "docs/esri-sample-corpus.md",
+      "why": "The fixture-only Esri sample corpus and its CI guardrails. Test infrastructure."
+    },
+    {
+      "path": "docs/examples/automatic-source-workflow/README.md",
+      "why": "A headless browser fixture that a Playwright spec asserts against. Test infrastructure, not an example a reader runs."
+    },
+    {
+      "path": "docs/examples/offline-region-reference/README.md",
+      "why": "A browser fixture whose README is mostly the Playwright coverage and shell-manifest scripts behind it. The public offline contract is documented in offline-regions.md."
+    },
+    {
+      "path": "docs/honua-cloud-demo-services.md",
+      "why": "The seeded demo-service configuration contract for the sample portfolio: env vars, smoke commands, reset tokens. Sample infrastructure."
+    },
+    {
+      "path": "docs/immutable-sample-bundles.md",
+      "why": "The content-addressed sample-bundle publisher workflow and its maintenance obligations. Release engineering."
+    },
+    {
+      "path": "docs/installed-first-map-budget.md",
+      "why": "A bundle-regression receipt with dated Windows replays. Release evidence."
+    },
+    {
+      "path": "docs/installed-package-certification.md",
+      "why": "The installed-package certification lane and its current candidate blocker. Release evidence."
+    },
+    {
+      "path": "docs/listings/maplibre-plugin-directory.md",
+      "why": "The ecosystem-listing submission kit and ledger. A record of PRs to other projects, for the maintainer who files them."
+    },
+    {
+      "path": "docs/multidimensional-format-maturity.md",
+      "why": "Self-described internal architecture and curriculum guidance for Zarr, NetCDF and HDF5, with release blockers. Not a support claim; the customer-facing status is in the raster and cloud-native discovery pages."
+    },
+    {
+      "path": "docs/sample-bundles.md",
+      "why": "How sample browser bundles are built, audited, published and discovered. Release engineering."
+    },
+    {
+      "path": "docs/zero-to-map-release-journey.md",
+      "why": "The 2026.1 release qualification journey and the evidence bundle a release owner retains. Release evidence; the agent path is documented in the server's MCP guide."
     }
   ],
   "includedFiles": [],
