@@ -78,6 +78,25 @@ npm run release:zero-to-map -- \
   --output ./zero-to-map-live-receipt.json
 ```
 
+`dbSecretReference` is a request-supplied secret reference: the journey sends
+it to the server, and the server resolves it from its own environment. The
+server the journey runs against must therefore both define that variable (the
+fixture database connection string) and permit it in its allowlist for
+request-supplied secret references (honua-server #5055), which is
+deny-by-default. Permit exactly this one name rather than a prefix, in the
+server's environment:
+
+```sh
+Security__RequestSecretReferences__AllowedEnvironmentVariables__0=HONUA_ZERO_TO_MAP_DB_CONNECTION
+```
+
+Without that entry the `create-connection` action in stage 2 is refused before
+any connection is stored. Server images that predate the setting ignore the
+variable. `honua admin install local` does not write either variable into the
+compose file it generates, so add both to the `honua` service's environment (or
+start an equivalent server yourself) before running with `--execute`. If you
+pass a different `--var dbSecretReference=env:<NAME>`, permit `<NAME>` instead.
+
 The first pass exits `2` with `external-receipt-missing`. It has already run
 stages 1-5 exactly once. Give the checkpoint's resolved
 `consoleReceiptRequest` to the Console producer, carry
