@@ -89,6 +89,25 @@
           "type": "json",
           "path": "config/protocol-certification.v1.json",
           "jsonpath": "$.clientVersion"
+        },
+        {
+          "type": "json",
+          "path": "packages/create-honua-app/templates.manifest.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/create-honua-app/templates/vanilla-ts/package.json",
+          "jsonpath": "$['dependencies']['@honua/sdk-js']"
+        },
+        {
+          "type": "json",
+          "path": "packages/create-honua-app/templates/react-ts/package.json",
+          "jsonpath": "$['dependencies']['@honua/sdk-js']"
+        },
+        {
+          "type": "generic",
+          "path": "docs/playgrounds.md"
         }
       ],
       "changelog-sections": [
