@@ -9,12 +9,15 @@ import { pathToFileURL } from "node:url";
 import { canonical, sha256, freezeCertification, validateInstalledLock, validateObservationEnvelope, validatePackageSet } from "./installed-certification-identity.mjs";
 import { executeCandidateFixture } from "./installed-candidate-fixture.mjs";
 import { verifyPublishedRelease } from "./verify-published-release.mjs";
+import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
-const run = (command, args, options = {}) => {
-  const result = spawnSync(command, args, { encoding: "utf8", ...options });
-  if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed: ${(result.stderr || result.stdout).trim()}`);
-  return result.stdout.trim();
+export const runInstalledCommand = (command, args, options = {}) => {
+  const settings = { encoding: "utf8", windowsHide: true, ...options };
+  const result = command === "npm" ? runNpmSync(args, settings) : spawnSync(command, args, settings);
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed (exit ${result.status}, signal ${result.signal ?? "none"}): ${String(result.stderr || result.stdout || "no output").trim()}`);
+  return String(result.stdout ?? "").trim();
 };
 
 export function buildReceipt({ candidate, denominator, observations = [], binding, generatedAt = new Date().toISOString() }) {
@@ -80,14 +83,14 @@ export async function withInstalledCandidate(candidate, callback, { consumerDepe
     await writeFile(path.join(work, "package.json"), JSON.stringify({ private: true, type: "module", dependencies: {
       ...consumerDependencies, ...Object.fromEntries(candidate.packages.map((p) => [p.coordinate, p.version])),
     } }, null, 2));
-    run("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`], { cwd: work });
-    run("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`], { cwd: work });
+    runInstalledCommand("npm", ["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`], { cwd: work });
+    runInstalledCommand("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund", `--registry=${candidate.package.registry}`], { cwd: work });
     const lock = JSON.parse(await readFile(path.join(work, "package-lock.json"), "utf8"));
     const installed = lock.packages[`node_modules/${candidate.package.coordinate}`];
     const resolution = Object.fromEntries(Object.entries(lock.packages).filter(([key]) => key).map(([key, value]) =>
       [key, { version: value.version, resolved: value.resolved, integrity: value.integrity, peer: value.peer ?? false }]));
     const install = { mode: "clean-npm-ci", localLinks: false, provenance, resolution,
-      lockDigest: sha256(canonical(lock)), runtime: { node: process.version, npm: run("npm", ["--version"]),
+      lockDigest: sha256(canonical(lock)), runtime: { node: process.version, npm: runInstalledCommand("npm", ["--version"]),
         platform: process.platform, arch: process.arch } };
     try {
       install.packages = validateInstalledLock(candidate, lock);
@@ -95,7 +98,7 @@ export async function withInstalledCandidate(candidate, callback, { consumerDepe
       error.install = install;
       throw error;
     }
-    const repoDigests = JSON.parse(run("docker", ["image", "inspect", candidate.server.image, "--format", "{{json .RepoDigests}}"]));
+    const repoDigests = JSON.parse(runInstalledCommand("docker", ["image", "inspect", candidate.server.image, "--format", "{{json .RepoDigests}}"]));
     if (!repoDigests.includes(candidate.server.image)) throw new Error(`local image does not contain pinned digest ${candidate.server.image}`);
     return await callback({ installed, install, packageRoot: path.join(work, "node_modules", candidate.package.coordinate), work });
   } finally { await rm(work, { recursive: true, force: true }); }

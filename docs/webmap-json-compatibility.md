@@ -69,19 +69,6 @@ Primary warning codes emitted by the parser:
 - `vector-tile-partial`
 - `sprite-required`
 
-## Golden Fixtures
-
-Golden fixtures live under:
-
-- `test/fixtures/webmap-json/*/input.json`
-- `test/fixtures/webmap-json/*/expected.json`
-
-Fixture suite test:
-
-- `test/webmap-parse.test.ts`
-
-The suite is executed by `npm test`, which is required in CI (`.github/workflows/ci.yml`) on every PR and push to `trunk`.
-
 ## Manual Intervention Cases
 
 Manual intervention is expected for:

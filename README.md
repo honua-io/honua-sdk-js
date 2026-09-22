@@ -229,7 +229,7 @@ Runtime support, stated up front:
 | `cesium` (optional peer, scene surface) | `^1.139.0` |
 | `react` / `react-dom` (optional peer, `/react`) | `^18.2.0 \|\| ^19.0.0` |
 
-> **Security — pick maplibre-gl 6.4.1 or newer.** [GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579) is a critical XSS sanitizer bypass in `DOM.sanitize()` affecting **every `maplibre-gl` at or below 6.4.0**, patched in 6.4.1 with no backport to 5.x. The peer range above still admits 5.x because this SDK supports and tests both majors — that range is a compatibility statement, not a safety one, so resolving inside it is not enough. If you are on 5.x, moving to 6.4.1 or newer is a security upgrade rather than a feature one.
+> **Security — pick maplibre-gl 6.4.1 or newer.** [GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579) is a critical XSS sanitizer bypass in `DOM.sanitize()` affecting **every `maplibre-gl` at or below 6.4.0**, patched in 6.4.1 with no backport to 5.x. The peer range above is `^6.4.1`, so affected 5.x and 6.0.0 through 6.4.0 releases do not satisfy it.
 
 Starting from scratch? `create-honua-app` scaffolds a working app instead of
 assembling peers — a Vite + TypeScript (or React) starter that already connects
@@ -303,13 +303,13 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/webmap` | 7.6 KiB |
 | `@honua/sdk-js/style` | 16.3 KiB |
 | `@honua/sdk-js/map` | 51.7 KiB |
-| `@honua/sdk-js` (root) | 210.3 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 69.3 KiB |
-| `{ connect }` from the root (tree-shake guard) | 171.5 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 200.4 KiB |
+| `@honua/sdk-js` (root) | 210.6 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 69.6 KiB |
+| `{ connect }` from the root (tree-shake guard) | 171.8 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 200.7 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 171.5 KiB gzip and `{ createHonua }` 200.4 KiB against the 210.3 KiB root, so size-sensitive
+alone costs 171.8 KiB gzip and `{ createHonua }` 200.7 KiB against the 210.6 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -441,7 +441,7 @@ HTTP, no URL-encoding, no `f=json`), prints readable tables by default, and adds
 `--json` / `--format geojson` for machine output.
 
 ```bash
-npm i -g @honua/sdk-js            # or: npx @honua/sdk-js honua <command>
+npm i -g @honua/sdk-js            # or, without installing: npx -p @honua/sdk-js honua <command>
 export HONUA_BASE_URL=https://demo.honua.io   # anonymous reads on the public demo
 
 honua services                    # list published services
@@ -463,6 +463,12 @@ any query compiles to before it runs. Authentication resolves from
 `--api-key`, `HONUA_API_KEY`, or a saved `honua login`. Run `honua --help` for
 the full command surface. This is the recommended command surface for docs and
 demos.
+
+The `npx` form needs `-p`: npx resolves its first argument as a *package* and
+then picks a bin from it, and this package publishes two (`honua` and
+`honua-plugin-certify`), neither named `sdk-js` — so `npx @honua/sdk-js honua`
+fails with "could not determine executable to run" before it ever reads `honua`.
+Naming the package with `-p` leaves the next word as the command.
 
 For support-safe interoperability evidence, `honua doctor` emits a local,
 schema-validated diagnostic bundle with explicit classification/consent,

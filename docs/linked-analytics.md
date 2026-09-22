@@ -1,14 +1,13 @@
 ---
 type: reference
 title: "Linked analytics and chart presentation (experimental)"
-description: "`@honua/sdk-js/analytics` is the versioned seam between accepted analytics"
+description: "The seam between accepted analytics artifacts and whatever draws them: artifact kinds, linked exploration state, the default accessible presentation, adapters and the µPlot reference adapter."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Linked analytics and chart presentation (experimental)
 
 `@honua/sdk-js/analytics` is the versioned seam between accepted analytics
-results and whatever draws them. It is an experimental slice of
-[#682](https://github.com/honua-io/honua-sdk-js/issues/682).
+results and whatever draws them. It is experimental.
 
 Honua does not ship a chart suite and is not going to. What it does ship is the
 contract that lets a server-pushdown widget model, a bounded columnar
@@ -242,14 +241,9 @@ whole artifact-to-options mapping is unit-testable without a canvas.
 
 ## Bundle cost
 
-The `/analytics` barrel exports no adapters, and the bundle gate enforces it
-structurally: both `/analytics` and `tree-shake:analytics-core` declare
-`forbiddenInputs` on `dist/src/analytics/adapters/` and `node_modules/uplot/`,
-so a build fails if either is ever retained. `/analytics/uplot` carries the same
-peer exclusion. Root, `/honua`, and browser entrypoints are unchanged — the
-subpaths are experimental and are not re-exported from any barrel.
-
-See `docs/bundle-sizes.md` for current measurements.
+The `/analytics` barrel exports no adapters, and the µPlot adapter lives on its
+own `/analytics/uplot` subpath with `uplot` as an optional peer, so neither enters
+the root, `/honua`, or browser entrypoints.
 
 ## Limits
 

@@ -77,7 +77,7 @@ URLs/integrities, verified provenance and this mismatch. Verdict: **not-certifie
 not repair those published bytes; a compatible published package set is required.
 
 For a non-certifying check of the fixture oracle while package-set admission is
-blocked, run `node scripts/diagnose-installed-fixture.mjs /tmp/fixture-diagnostic.json`.
+blocked, run `node scripts/diagnose-installed-fixture.mjs test-results/fixture-diagnostic.json`.
 This still installs public package bytes and checks the root SDK's pinned integrity,
 but deliberately cannot emit a certification-schema receipt. The retained diagnostic
 at `test-results/installed-fixture-diagnostic.json` records three passing baseline
@@ -93,3 +93,51 @@ release or demote those promises.
 `npm run certify:installed-examples` reuses package-set verification for the
 example/snippet lane. Its previous executed quickstart budget failure remains
 owned by #1584; this work does not change its budget or verdict.
+
+## Native Windows replay
+
+Both the certification and diagnostic installers use the repository's PATH-aware
+npm launcher, preserving the host's npm/build-lock shim. A failed launch retains
+its original error; a nonzero exit without stderr cannot become a pass or a
+misleading `trim` exception. Callers retain control of subprocess timeouts.
+
+To keep the isolated consumer and npm cache inside this Windows lane, run from
+`C:\Users\mike\honua-io\wt-sdk-js-39-candidate-proof` in PowerShell:
+
+```powershell
+$env:TEMP = Join-Path (Get-Location) 'test-results'
+$env:TMP = $env:TEMP
+$env:npm_config_cache = 'C:\Users\mike\honua-io\.npm-cache'
+node scripts/installed-package-certification.mjs --execute-fixture --output test-results/installed-package-certification.windows.json
+```
+
+The 2026-09-13 pre-fix replay is retained in
+`test-results/installed-package-certification.windows-before.json`: admission
+failed with `Cannot read properties of undefined (reading 'trim')`, before any
+operation executed. The corrected replay is retained separately so neither run
+replaces the earlier candidate evidence.
+
+Prior work was fetched from `test/1328-exact-candidate-receipt` (closed #1581)
+and the newer matching `test/39-candidate-proof` / `wip/test/39-candidate-proof`
+checkpoint. The latter's #1646 implementation is already on trunk and is retained.
+The former's standalone OGC observation adapter predates the frozen-envelope
+contract: it projects `result: passed` without the required per-row assertion and
+scenario-facet evidence. Restoring that adapter would not meet current acceptance;
+the retained OGC qualification collector remains available, and no historical
+OGC result is promoted into the new installed receipt.
+
+The corrected 2026-09-13 clean installation completed on Windows x64 with Node
+24.7.0 and npm 11.5.1. All eight direct package provenance checks passed. Admission
+then rejected `node_modules/@honua/honua-migrate/node_modules/@honua/sdk` at
+`0.1.2-beta.0` (expected `0.1.9-beta.0`). The full dependency resolution, frozen
+identities and provenance are retained in
+`test-results/installed-package-certification.windows.json`, receipt digest
+`sha256:d9a46f099cf9d31bf0cc314cde12e6e8dd919b2d2745d61b5118ef1b34dd9291`.
+It reports **not-certified: 0 pass, 0 fail, 228 blocked** and exits 1. No server
+fixture or supported operation ran after this package-set rejection.
+
+Native validation: `npm run check` passed; the denominator check found no drift;
+59 certification/identity/fixture/workflow regression tests passed with zero
+skips. The package mismatch is a published-byte blocker, not a Windows launcher
+failure. Compatible published packages, complete operation/browser/authorization/
+journey proofs and release-side consumption remain required for #39 closure.

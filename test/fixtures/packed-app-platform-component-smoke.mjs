@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { pathToFileURL } from "node:url";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const { JSDOM } = await import(pathToFileURL(process.env.HONUA_PACKED_JSDOM_ENTRY).href);
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -35,6 +37,7 @@ for (const name of [
 
 const webComponents = await import("@honua/app-platform/web-components");
 const {
+  HonuaMeasurementElement,
   HonuaFeatureEditorElement,
   HonuaFeatureTableElement,
   HonuaPrintExportElement,
@@ -180,6 +183,67 @@ assert.ok((secured.redactions?.length ?? 0) > 0);
 assert.doesNotMatch(JSON.stringify(adapterState), /packed-consumer-secret/);
 assert.doesNotMatch(secured.text ?? "", /packed-consumer-secret/);
 
+// <honua-measurement> from the installed bytes (issue #1419): the package
+// advertises a Custom Elements Manifest, the manifest's claims hold for the
+// packed element, and the element measures and tears down correctly.
+const packageRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.resolve("@honua/app-platform/web-components"))),
+  "..",
+);
+const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
+assert.equal(packageJson.customElements, "./custom-elements.json");
+const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, packageJson.customElements), "utf8"));
+assert.equal(manifest.schemaVersion, "1.0.0");
+const measurementModule = manifest.modules.find((module) =>
+  module.declarations.some((declaration) => declaration.tagName === "honua-measurement"),
+);
+assert.ok(measurementModule, "the packed manifest declares honua-measurement");
+assert.ok(fs.existsSync(path.join(packageRoot, measurementModule.path)), `${measurementModule.path} ships`);
+const measurementDeclaration = measurementModule.declarations.find(
+  (declaration) => declaration.tagName === "honua-measurement",
+);
+assert.equal(customElements.get("honua-measurement"), HonuaMeasurementElement);
+assert.deepEqual(
+  [...HonuaMeasurementElement.observedAttributes].sort(),
+  measurementDeclaration.attributes.map((attribute) => attribute.name).sort(),
+);
+
+const measureListeners = new Map();
+const measureMap = {
+  on(type, listener) {
+    measureListeners.set(type, [...(measureListeners.get(type) ?? []), listener]);
+  },
+  off(type, listener) {
+    measureListeners.set(
+      type,
+      (measureListeners.get(type) ?? []).filter((candidate) => candidate !== listener),
+    );
+  },
+};
+const measurement = document.createElement("honua-measurement");
+measurement.setAttribute("fidelity", "planar");
+measurement.setAttribute("planar-crs", "EPSG:3857");
+measurement.setAttribute("unit", "miles");
+measurement.setAttribute("precision", "3");
+document.body.append(measurement);
+measurement.map = measureMap;
+measurement.setMode("distance");
+for (const lng of [179, -179]) {
+  for (const listener of measureListeners.get("click") ?? []) listener({ lngLat: { lng, lat: 0 } });
+}
+// EPSG:3857 x = R·λ; the antimeridian crossing is the short 2° way.
+const expectedMeters = (6_378_137 * 2 * Math.PI) / 180;
+assert.ok(Math.abs(measurement.result.distance - expectedMeters) < 1e-6);
+assert.equal(measurement.result.crs, "EPSG:3857");
+assert.equal(
+  measurement.shadowRoot?.querySelector("[role='status']")?.textContent,
+  `Distance: ${(expectedMeters / 1609.344).toFixed(3)} mi`,
+);
+measurement.remove();
+for (const type of ["click", "dblclick", "remove"]) {
+  assert.equal(measureListeners.get(type)?.length ?? 0, 0, `${type} listener released`);
+}
+
 console.log(
-  "packedAppPlatformComponents=ok productionFeatureEditor=mounted boundedFeatureTable=50000rows exportCapabilityFailure=closed securityRedaction=proved",
+  "packedAppPlatformComponents=ok packedMeasurement=manifest+antimeridian+teardown productionFeatureEditor=mounted boundedFeatureTable=50000rows exportCapabilityFailure=closed securityRedaction=proved",
 );

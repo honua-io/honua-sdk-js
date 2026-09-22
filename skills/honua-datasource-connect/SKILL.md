@@ -35,6 +35,12 @@ Rules:
 - `secretType: "environment"` + `secretReference: "env:<VAR>"` is the supported
   handoff. Never inline a password, connection string, or token in the body,
   in a plan, or in a message back to the user.
+- The reference is resolved by the **server**, from the server's environment,
+  and only when the operator has permitted it: the server's allowlist for
+  request-supplied secret references is deny-by-default, so `env:<VAR>` needs
+  `Security__RequestSecretReferences__AllowedEnvironmentVariables__<n>=<VAR>` in
+  the server's environment. A refusal here is an operator setting to request,
+  not something to work around by inlining the value.
 - `sslRequired: false` / `sslMode: "Disable"` is correct **only** for a loopback
   fixture database like the journey's. For anything reachable off the host,
   require TLS.

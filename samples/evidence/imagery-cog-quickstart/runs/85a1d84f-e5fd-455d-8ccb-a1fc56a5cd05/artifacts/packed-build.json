@@ -1,0 +1,478 @@
+{
+  "format": "honua.sdk.sample-packed-build-gate.v1",
+  "sampleId": "imagery-cog-quickstart",
+  "sourceRevision": "c6104fb1323b784c10f20707a6a08df6d2567c6e",
+  "command": [
+    "npm",
+    "run",
+    "demo:imagery-cog:build"
+  ],
+  "sdkMode": "packed",
+  "packageTarballSha256": "c4906d9128bd4282cabae69946ba312e8b9297439b4e57d27fc11502632af310",
+  "packageTarball": "samples/evidence/imagery-cog-quickstart/runs/85a1d84f-e5fd-455d-8ccb-a1fc56a5cd05/artifacts/honua-sdk-js-0.1.9-beta.0.tgz",
+  "packageTarballBytes": 10344838,
+  "sampleDistRoot": "samples/evidence/imagery-cog-quickstart/runs/85a1d84f-e5fd-455d-8ccb-a1fc56a5cd05/artifacts/packed-sample-dist",
+  "resolution": {
+    "format": "honua.sdk.sample-resolution.v1",
+    "schemaVersion": 1,
+    "mode": "packed",
+    "package": {
+      "name": "@honua/sdk-js",
+      "version": "0.1.9-beta.0"
+    },
+    "entrypoints": [
+      {
+        "specifier": "@honua/sdk-js/contract",
+        "exportTarget": "./dist/src/contract/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "eb9a6c745c4d3b059847e0fd6fb864919557a2973edf9dfb819f49de12f49708"
+      },
+      {
+        "specifier": "@honua/sdk-js/runtime",
+        "exportTarget": "./dist/src/runtime/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "537b136ef36718cbc82231502a041be722663cc0eca1e69c07388d2e8cfcb2b7"
+      },
+      {
+        "specifier": "@honua/sdk-js/honua",
+        "exportTarget": "./dist/src/honua.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "8ffe3a4da2c851f4a1aedd917840fbab00089ddefc8311116856cc661f130bcf"
+      },
+      {
+        "specifier": "@honua/sdk-js/cog",
+        "exportTarget": "./dist/src/cog/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "807f05095cc8f93d7eef6622d20ad7ecf04939d22758eaf82d02f43ebe79b60d"
+      },
+      {
+        "specifier": "@honua/sdk-js",
+        "exportTarget": "./dist/src/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "8008748993d823bcc238ac3401fbe63efaff0cb6d8a1803f7429f4c36e610661"
+      }
+    ],
+    "bundle": [
+      {
+        "fileName": "assets/index-B6KEFDbg.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1779299,
+        "sha256": "3d804233425f28e7a3fab06dafe99b92a50b292985e5e1c1c886dc8620f5a095"
+      },
+      {
+        "fileName": "assets/basedecoder-BuG7fe0q.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1291,
+        "sha256": "75e9fcda3d7bba0fee379de7aaa82db388b3633bf632ce3acd081395f81a5c0b"
+      },
+      {
+        "fileName": "assets/deflate-CBp13QOc.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 179,
+        "sha256": "08a38d99d926d34c94e18128625460cc74b8b6e95b09777022b4650e9df2ce9c"
+      },
+      {
+        "fileName": "assets/esm-B6JxQVfq.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 18554,
+        "sha256": "2c8845228a3a137328cbe52780016f610ad156f527a0f4118fccbd870fac92ed"
+      },
+      {
+        "fileName": "assets/esm-CK_UuP5G.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 8257,
+        "sha256": "3bf5b29a0e312ffffb746cde92fc8bab2b5f7f5ce265c787de169e7bc2bd3890"
+      },
+      {
+        "fileName": "assets/esm-YL82EdRH.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 69474,
+        "sha256": "34c83486c11a03e37faefdfce1ca5b4b4fb144b47b269ce0a9f89588a76424fd"
+      },
+      {
+        "fileName": "assets/feature_service_pb-Dtm_S-BC.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 22835,
+        "sha256": "569d87ab4adaed86b1e5a001ad2f41a5220aae083193cf1eead827fc0ac95dc5"
+      },
+      {
+        "fileName": "assets/file-CF10jytL.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 64547,
+        "sha256": "7ea110f1bc4c479dcb091cde05588cfdbe1aad86605b5298903416ad89869521"
+      },
+      {
+        "fileName": "assets/fixture-cog-decoder-CH_u6Eei.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 5216,
+        "sha256": "c8aff503de4ef21e5424421ac0149cda503d2fd9dfadaa49769fd41fc6f41914"
+      },
+      {
+        "fileName": "assets/geotiff-cog-decoder-Xgp8KuX-.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 4253,
+        "sha256": "a19ad586df0256402207b805a16be2cfe6d08218ded988c427f7949bd440e1fb"
+      },
+      {
+        "fileName": "assets/geotiff-necyJvr2.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 34726,
+        "sha256": "bb28e82e5f8e8a7f8ff5ef5f2c75c533b590d127dcbdd1da49d84f3e76aa3ffa"
+      },
+      {
+        "fileName": "assets/globals-CmdPTWa9.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 6911,
+        "sha256": "55da6345eded6d320e3b7c5f2f7a09245e5b0026985ab226cd32192bfba7e7ba"
+      },
+      {
+        "fileName": "assets/grpc-adapter-C9GK8gKV.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 11824,
+        "sha256": "aafc94ff4b8e4e872abf274d3528661f41ac4cf89643063601795bdfb48dc70a"
+      },
+      {
+        "fileName": "assets/jpeg-Cth_bn84.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 10827,
+        "sha256": "39b7d59cf5f7809c2ac83e9ceade2839132eba5bd45ac25c6303355baa8ce5a8"
+      },
+      {
+        "fileName": "assets/lerc-B_cMkO4f.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 96980,
+        "sha256": "b28eee262a5f8e875f72ba03b51b0881ad85a825fb3a63f15e58f92815ebc091"
+      },
+      {
+        "fileName": "assets/lzw-D2FslT4L.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1449,
+        "sha256": "f4d18dd479e3914b6ede31544289bd88cc1f82551ea8dcbfd2e299bc16b787de"
+      },
+      {
+        "fileName": "assets/odata-write-codec-CFxfMvZN.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 18695,
+        "sha256": "ba8f4ed74afb1f41a3d9308ae48e850c10c0662f9775eedc76543bbfbff0cc01"
+      },
+      {
+        "fileName": "assets/packbits-DCimUQ1T.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 347,
+        "sha256": "820940add27265cac2befc5627fefbfdd1b1f1ec3d53f7613457649d2fa5b131"
+      },
+      {
+        "fileName": "assets/pako.esm-B3qD_89v.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 46693,
+        "sha256": "b5f6045c5e439c2fd7760a0f7f381d1fc1064e38f56a573d619cc8446abec454"
+      },
+      {
+        "fileName": "assets/raw-A-vJRPpa.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 115,
+        "sha256": "e44d3f26ae64a4ad2db183730d3bb074307db80200cda79831f234f1e35cdbd5"
+      },
+      {
+        "fileName": "assets/webimage-CCNzeXNW.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 941,
+        "sha256": "917bfc4d1d56d55ab06f26cd9a85f957549eafb19496888821983edabd5f9b24"
+      },
+      {
+        "fileName": "assets/zstd-i4Jwubnx.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 81026,
+        "sha256": "5c6276c4367b135b1e9a494a802c84af948e17e9a59e41084b9e98f266cb84e7"
+      },
+      {
+        "fileName": "assets/index-DNhrP7Zc.css",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 121532,
+        "sha256": "2ccd40cbb72837fa4313c0c357394373e0b5590d028cc208b471cb6666b34e18"
+      },
+      {
+        "fileName": "assets/maplibre-gl-worker-B4Xjfr0W.js",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 506662,
+        "sha256": "ef47fbcd138b9e53061c4a5a66940fa1db0bab10c633f584f055f5eb6b2bd49c"
+      },
+      {
+        "fileName": "fixtures/cog/LICENSE.txt",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 96,
+        "sha256": "1d7e8d6e31a96bb9397c10dd7a3d93dcd3a5006c7f3f809afd48f00392d36486"
+      },
+      {
+        "fileName": "fixtures/cog/chunks/0000.bin",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 5672,
+        "sha256": "3e9ed08c2e9482791c98e9e316dcf2f117c459f9988f6f20409e11ee051ca3b5"
+      },
+      {
+        "fileName": "fixtures/cog/chunks/0001.bin",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 12376,
+        "sha256": "73b3f20c8a1b0078c270f9f57812709a6f2f1746ca35edace22adf17e2b38849"
+      },
+      {
+        "fileName": "fixtures/cog/chunks/0002.bin",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 2799,
+        "sha256": "c982f82cb84a5d80e2b03d741ff4ab2ce1bde928f6d7c670e234ae0e091e2205"
+      },
+      {
+        "fileName": "fixtures/cog/item.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 8589,
+        "sha256": "24ecc93ec732af3e6cea81ef099a54db9b39d9428bf5cd2491e48b16526703fb"
+      },
+      {
+        "fileName": "fixtures/cog/manifest.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 3300,
+        "sha256": "843d2eaf81cbd5e6f4c3304eea965780e95ae2cbcced3d23d34ec5c885fc9223"
+      },
+      {
+        "fileName": "fixtures/cog/search.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 10163,
+        "sha256": "0a7cd1d57bf1837c4802c0e71316744bf849f635d98387340c4d33e8962cf9ad"
+      },
+      {
+        "fileName": "fixtures/cog/tiles/image-server-natural-color.png",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1767,
+        "sha256": "6eb6d3e2da86cbb2e0446d0877f1442a84e6e62861ed1da5036ec84446754585"
+      },
+      {
+        "fileName": "fixtures/cog/tiles/terrain-rgb.png",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1850,
+        "sha256": "ae5fb63aa2253af46ccf05016ea19c821e3e49b3c775f0496e639d38b206b008"
+      },
+      {
+        "fileName": "fixtures/cog/tiles/wms-natural-color.png",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1796,
+        "sha256": "6a5c3696a9b030e4275baece68310d50bec821f8c88e9db8ad2c64b65e3848ad"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "assets/basedecoder-BuG7fe0q.js",
+      "bytes": 1291,
+      "sha256": "75e9fcda3d7bba0fee379de7aaa82db388b3633bf632ce3acd081395f81a5c0b"
+    },
+    {
+      "path": "assets/deflate-CBp13QOc.js",
+      "bytes": 179,
+      "sha256": "08a38d99d926d34c94e18128625460cc74b8b6e95b09777022b4650e9df2ce9c"
+    },
+    {
+      "path": "assets/esm-B6JxQVfq.js",
+      "bytes": 18554,
+      "sha256": "2c8845228a3a137328cbe52780016f610ad156f527a0f4118fccbd870fac92ed"
+    },
+    {
+      "path": "assets/esm-CK_UuP5G.js",
+      "bytes": 8257,
+      "sha256": "3bf5b29a0e312ffffb746cde92fc8bab2b5f7f5ce265c787de169e7bc2bd3890"
+    },
+    {
+      "path": "assets/esm-YL82EdRH.js",
+      "bytes": 69474,
+      "sha256": "34c83486c11a03e37faefdfce1ca5b4b4fb144b47b269ce0a9f89588a76424fd"
+    },
+    {
+      "path": "assets/feature_service_pb-Dtm_S-BC.js",
+      "bytes": 22835,
+      "sha256": "569d87ab4adaed86b1e5a001ad2f41a5220aae083193cf1eead827fc0ac95dc5"
+    },
+    {
+      "path": "assets/file-CF10jytL.js",
+      "bytes": 64547,
+      "sha256": "7ea110f1bc4c479dcb091cde05588cfdbe1aad86605b5298903416ad89869521"
+    },
+    {
+      "path": "assets/fixture-cog-decoder-CH_u6Eei.js",
+      "bytes": 5216,
+      "sha256": "c8aff503de4ef21e5424421ac0149cda503d2fd9dfadaa49769fd41fc6f41914"
+    },
+    {
+      "path": "assets/geotiff-cog-decoder-Xgp8KuX-.js",
+      "bytes": 4253,
+      "sha256": "a19ad586df0256402207b805a16be2cfe6d08218ded988c427f7949bd440e1fb"
+    },
+    {
+      "path": "assets/geotiff-necyJvr2.js",
+      "bytes": 34726,
+      "sha256": "bb28e82e5f8e8a7f8ff5ef5f2c75c533b590d127dcbdd1da49d84f3e76aa3ffa"
+    },
+    {
+      "path": "assets/globals-CmdPTWa9.js",
+      "bytes": 6911,
+      "sha256": "55da6345eded6d320e3b7c5f2f7a09245e5b0026985ab226cd32192bfba7e7ba"
+    },
+    {
+      "path": "assets/grpc-adapter-C9GK8gKV.js",
+      "bytes": 11824,
+      "sha256": "aafc94ff4b8e4e872abf274d3528661f41ac4cf89643063601795bdfb48dc70a"
+    },
+    {
+      "path": "assets/index-B6KEFDbg.js",
+      "bytes": 1779299,
+      "sha256": "3d804233425f28e7a3fab06dafe99b92a50b292985e5e1c1c886dc8620f5a095"
+    },
+    {
+      "path": "assets/index-DNhrP7Zc.css",
+      "bytes": 121532,
+      "sha256": "2ccd40cbb72837fa4313c0c357394373e0b5590d028cc208b471cb6666b34e18"
+    },
+    {
+      "path": "assets/jpeg-Cth_bn84.js",
+      "bytes": 10827,
+      "sha256": "39b7d59cf5f7809c2ac83e9ceade2839132eba5bd45ac25c6303355baa8ce5a8"
+    },
+    {
+      "path": "assets/lerc-B_cMkO4f.js",
+      "bytes": 96980,
+      "sha256": "b28eee262a5f8e875f72ba03b51b0881ad85a825fb3a63f15e58f92815ebc091"
+    },
+    {
+      "path": "assets/lzw-D2FslT4L.js",
+      "bytes": 1449,
+      "sha256": "f4d18dd479e3914b6ede31544289bd88cc1f82551ea8dcbfd2e299bc16b787de"
+    },
+    {
+      "path": "assets/maplibre-gl-worker-B4Xjfr0W.js",
+      "bytes": 506662,
+      "sha256": "ef47fbcd138b9e53061c4a5a66940fa1db0bab10c633f584f055f5eb6b2bd49c"
+    },
+    {
+      "path": "assets/odata-write-codec-CFxfMvZN.js",
+      "bytes": 18695,
+      "sha256": "ba8f4ed74afb1f41a3d9308ae48e850c10c0662f9775eedc76543bbfbff0cc01"
+    },
+    {
+      "path": "assets/packbits-DCimUQ1T.js",
+      "bytes": 347,
+      "sha256": "820940add27265cac2befc5627fefbfdd1b1f1ec3d53f7613457649d2fa5b131"
+    },
+    {
+      "path": "assets/pako.esm-B3qD_89v.js",
+      "bytes": 46693,
+      "sha256": "b5f6045c5e439c2fd7760a0f7f381d1fc1064e38f56a573d619cc8446abec454"
+    },
+    {
+      "path": "assets/raw-A-vJRPpa.js",
+      "bytes": 115,
+      "sha256": "e44d3f26ae64a4ad2db183730d3bb074307db80200cda79831f234f1e35cdbd5"
+    },
+    {
+      "path": "assets/webimage-CCNzeXNW.js",
+      "bytes": 941,
+      "sha256": "917bfc4d1d56d55ab06f26cd9a85f957549eafb19496888821983edabd5f9b24"
+    },
+    {
+      "path": "assets/zstd-i4Jwubnx.js",
+      "bytes": 81026,
+      "sha256": "5c6276c4367b135b1e9a494a802c84af948e17e9a59e41084b9e98f266cb84e7"
+    },
+    {
+      "path": "fixtures/cog/LICENSE.txt",
+      "bytes": 96,
+      "sha256": "1d7e8d6e31a96bb9397c10dd7a3d93dcd3a5006c7f3f809afd48f00392d36486"
+    },
+    {
+      "path": "fixtures/cog/chunks/0000.bin",
+      "bytes": 5672,
+      "sha256": "3e9ed08c2e9482791c98e9e316dcf2f117c459f9988f6f20409e11ee051ca3b5"
+    },
+    {
+      "path": "fixtures/cog/chunks/0001.bin",
+      "bytes": 12376,
+      "sha256": "73b3f20c8a1b0078c270f9f57812709a6f2f1746ca35edace22adf17e2b38849"
+    },
+    {
+      "path": "fixtures/cog/chunks/0002.bin",
+      "bytes": 2799,
+      "sha256": "c982f82cb84a5d80e2b03d741ff4ab2ce1bde928f6d7c670e234ae0e091e2205"
+    },
+    {
+      "path": "fixtures/cog/item.json",
+      "bytes": 8589,
+      "sha256": "24ecc93ec732af3e6cea81ef099a54db9b39d9428bf5cd2491e48b16526703fb"
+    },
+    {
+      "path": "fixtures/cog/manifest.json",
+      "bytes": 3300,
+      "sha256": "843d2eaf81cbd5e6f4c3304eea965780e95ae2cbcced3d23d34ec5c885fc9223"
+    },
+    {
+      "path": "fixtures/cog/search.json",
+      "bytes": 10163,
+      "sha256": "0a7cd1d57bf1837c4802c0e71316744bf849f635d98387340c4d33e8962cf9ad"
+    },
+    {
+      "path": "fixtures/cog/tiles/image-server-natural-color.png",
+      "bytes": 1767,
+      "sha256": "6eb6d3e2da86cbb2e0446d0877f1442a84e6e62861ed1da5036ec84446754585"
+    },
+    {
+      "path": "fixtures/cog/tiles/terrain-rgb.png",
+      "bytes": 1850,
+      "sha256": "ae5fb63aa2253af46ccf05016ea19c821e3e49b3c775f0496e639d38b206b008"
+    },
+    {
+      "path": "fixtures/cog/tiles/wms-natural-color.png",
+      "bytes": 1796,
+      "sha256": "6a5c3696a9b030e4275baece68310d50bec821f8c88e9db8ad2c64b65e3848ad"
+    },
+    {
+      "path": "honua-sample-sdk-resolution.json",
+      "bytes": 9621,
+      "sha256": "178114b3278ddff8e50976d66790544029281382e8988040e2d1e8e4f9b901ff"
+    },
+    {
+      "path": "index.html",
+      "bytes": 12845,
+      "sha256": "8d6ac87fdb468369fb3560ea8ed75c2d0279701aaaff7e1cae9d0d212392c580"
+    }
+  ]
+}

@@ -1,14 +1,12 @@
 ---
 type: reference
 title: "Discovery truth and cache identity"
-description: "universal connect workflow in protocol-sized slices. The first production"
+description: "How discovery states what an endpoint can do: claimed versus observed capability evidence, cache identity, and the connect() facade for every supported protocol."
 resource: "honua://capability/discovery.capability-manifest"
 ---
 # Discovery truth and cache identity
 
-Issue [#391](https://github.com/honua-io/honua-sdk-js/issues/391) introduces a
-universal connect workflow in protocol-sized slices. The first production
-slice is the protocol-neutral truth contract used by endpoint detectors and
+The protocol-neutral truth contract used by endpoint detectors and
 metadata adapters. It does not claim that every protocol can already be
 passed to one `connect()` implementation.
 
@@ -545,7 +543,7 @@ callers use `discoverGeoServices()` instead. Export-only or otherwise unproven
 ImageServer metadata follows the same service-shaped path. No protocol falls
 through to heuristic detection.
 
-## Remaining #391 work
+## Not yet covered
 
 - Static asset classification for GeoParquet via `auto` (structural URL
   recognition) and an explicit ambiguity-recovery contract; today GeoParquet

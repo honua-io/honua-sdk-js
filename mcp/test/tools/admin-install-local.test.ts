@@ -2,7 +2,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../../dist/src/control-plane/generated/admin-operations.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../dist/src/control-plane/generated/admin-operations.js")>()),
+  ADMIN_RELEASE_CONTRACT_COMPATIBLE: false,
+  ADMIN_RELEASE_OPERATION_COUNT: 395,
+  ADMIN_RELEASE_CONTRACT_STATUS: "blocked-server-pin-regresses-admin-contract",
+}));
 
 import { execute, schema } from "../../src/tools/admin-install-local.js";
 

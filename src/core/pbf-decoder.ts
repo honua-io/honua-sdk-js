@@ -371,6 +371,12 @@ function decodeValue(reader: PbfReader): { value: unknown; fieldIndex: number } 
         if (wire === WIRE_VARINT) value = safeNumberOrString(reader.readVarint64Bigint());
         else reader.skip(wire);
         break;
+      case 8: // sint64_value (zigzag, used by ArcGIS for timestamp epochs)
+        if (wire === WIRE_VARINT) {
+          const encoded = reader.readVarint64Bigint();
+          value = safeNumberOrString((encoded >> 1n) ^ -(encoded & 1n));
+        } else reader.skip(wire);
+        break;
       case 9: // bool_value
         if (wire === WIRE_VARINT) value = reader.readBool();
         else reader.skip(wire);
@@ -512,10 +518,12 @@ function decodeFeature(
     }
   }
 
-  // Map value entries to field names using field indices
-  for (const entry of valueEntries) {
-    if (entry.fieldIndex >= 0 && entry.fieldIndex < fields.length) {
-      attributes[fields[entry.fieldIndex].name] = entry.value;
+  // FeatureCollection attributes follow field order. The optional Value.index
+  // is also supported when a producer explicitly supplies a field mapping.
+  for (const [position, entry] of valueEntries.entries()) {
+    const fieldIndex = entry.fieldIndex >= 0 ? entry.fieldIndex : position;
+    if (fieldIndex < fields.length) {
+      attributes[fields[fieldIndex].name] = entry.value;
     }
   }
 
@@ -663,6 +671,8 @@ function mapPbfFieldTypeToGeoServices(fieldType: number): string {
       return "esriFieldTypeXML";
     case 13:
       return "esriFieldTypeBigInteger";
+    case 14:
+      return "esriFieldTypeDateOnly";
     default:
       return "esriFieldTypeString";
   }

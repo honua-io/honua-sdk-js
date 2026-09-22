@@ -549,6 +549,21 @@
       },
       "sourcePath": "examples/columnar-query-quickstart",
       "docsPath": "examples/columnar-query-quickstart/README.md",
+      "playground": {
+        "projectPath": "playgrounds/columnar-query-quickstart",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          }
+        ]
+      },
       "capabilities": [
         "cancellation",
         "columnar",
@@ -655,6 +670,21 @@
         "npm run demo:coverages-wcs:build",
         "npm run test:playwright:coverages-wcs"
       ],
+      "playground": {
+        "projectPath": "playgrounds/coverages-wcs-basic",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          }
+        ]
+      },
       "capabilityKeys": [
         "raster.multidim-coverage",
         "serve.ogc-api-coverages",
@@ -920,7 +950,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-10-14T19:43:14.487Z"
+          "expiresAt": "2026-10-17T21:26:34.777Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1026,7 +1056,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-10-14T19:41:04.315Z"
+          "expiresAt": "2026-10-17T21:24:42.804Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1148,7 +1178,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-10-14T19:43:40.440Z"
+          "expiresAt": "2026-10-17T21:26:58.556Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -2063,7 +2093,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-10-14T19:44:51.700Z"
+          "expiresAt": "2026-10-17T21:28:02.640Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
@@ -2399,6 +2429,21 @@
       },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
+      "playground": {
+        "projectPath": "playgrounds/stac-imagery-browser",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          }
+        ]
+      },
       "capabilities": [
         "cancellation",
         "cog",

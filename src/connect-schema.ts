@@ -423,6 +423,8 @@ function geoServicesLogicalType(field: HonuaFieldInfo, native: NativeTypeReferen
       return { kind: "float", bits: 64 };
     case "esriFieldTypeDate":
       return { kind: "timestamp", unit: "millisecond", timezone: "utc" };
+    case "esriFieldTypeDateOnly":
+      return { kind: "date" };
     case "esriFieldTypeGUID":
     case "esriFieldTypeGlobalID":
       return { kind: "uuid" };

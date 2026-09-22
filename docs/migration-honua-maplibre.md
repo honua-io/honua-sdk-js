@@ -1,7 +1,7 @@
 ---
 type: guide
 title: "`honua-maplibre` migration target"
-description: "The `honua-maplibre` codemod target rewrites a curated subset of"
+description: "The honua-maplibre codemod target: MapLibre-native output for the layer/map/view core, widget kit registration, CLI flags, report fields and the manual gaps."
 resource: "https://www.npmjs.com/package/@honua/honua-migrate"
 ---
 # `honua-maplibre` migration target
@@ -13,10 +13,6 @@ through the Esri-shaped compat shims. It is the codemod option that
 produces MapLibre-native output for apps that want to leave the
 ArcGIS JS API behind end-to-end.
 
-This page documents the slice that shipped in PR #208 (commit
-`af1ebee`). It does not close issue #205 — open acceptance items are
-called out under [Manual gaps](#manual-gaps).
-
 ## Canonical migration workbench
 
 [`examples/migration-workbench`](../examples/migration-workbench/README.md)
@@ -27,22 +23,6 @@ report, patch, widget guidance, MapLibre assessment, generated compat target,
 and SHA-256 manifest. The browser only projects and revalidates those
 artifacts; it does not contain a second transform, accept uploads, read
 credentials, or perform cloud import.
-
-Use the artifact and browser gates directly, or exercise the same reviewed
-journey through the sample kit in source and packed SDK modes:
-
-```bash
-npm run demo:migration-workbench:artifacts:check
-npm run test:playwright:migration-workbench
-npm run samples:run -- verify --sample migration-workbench --sdk-mode source
-npm run samples:run -- verify --sample migration-workbench --sdk-mode packed
-```
-
-The catalog carries current packed-build, browser, accessibility, console,
-responsive, screenshot, performance, fixture, and live receipts for this
-journey (#549); its live-evidence lane proves liveness by re-running the real
-`honua-migrate` CLI right now, since the workbench itself never makes a
-non-loopback network request. Gallery projection is tracked by #550.
 
 ## Widget kit registration
 
@@ -271,16 +251,6 @@ appear for any constructor outside that set, and gating flags like
 `--fail-on-manual` will fail closed against apps with widgets,
 renderers, or non-2D-core surfaces.
 
-For contributor validation, use `npm run test:migration:cli`. Its
-prerequisite prepares the SDK once before Vitest starts, and every CLI spec
-executes the same manifest-owned `dist/src/migration/cli.js` artifact. The
-atomic preparation manifest hashes every compiler/control input and the
-complete `dist/` tree, binds workers to one run ID, and revalidates both trees
-at teardown. A direct Vitest invocation may run source-only tests without a
-manifest; a test that consumes built output fails with an actionable
-`npm run prepare:test-sdk` prerequisite error. Composed CI and publish lanes
-use their `:prepared` variants after the single root build.
-
 ## Migration report fields
 
 The report writer is `buildJsMigrationReport`
@@ -336,8 +306,7 @@ see `summarizeJsParityMatrix` and `summarizeJsRuntimeParity`.
 
 ## Manual gaps
 
-Issue #205 is a slice ladder, not a single landing. `honua-maplibre`
-ships the native-rewrite path for the layer/map/view core; the
+`honua-maplibre` ships the native-rewrite path for the layer/map/view core; the
 remaining acceptance items live in
 [`docs/migration-punch-list.md`](./migration-punch-list.md) and stay
 open until they ship. The notable ones, framed against the punch
@@ -370,8 +339,6 @@ list:
   `honua-compat` (some shipped as Tasks D/E/F in the punch list)
   but they do not exist as native MapLibre helpers — under
   `honua-maplibre` they remain manual TODO surfaces.
-- **Playwright smoke / runtime evidence lane for MapLibre output.**
-  Open acceptance item on #205.
 
 For the broader migration story — including the `honua-compat`
 parity surface, the codemod gates, and the test corpus — start at

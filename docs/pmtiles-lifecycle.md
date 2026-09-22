@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Publish MVT to PMTiles"
-description: "`@honua/sdk-js/pmtiles` separates workflows with different trust and maturity boundaries:"
+description: "The PMTiles workflows and their maturity: inspect and render a direct archive, create temporary archives or durable publish artifacts through the server, and read them through a range proxy."
 resource: "honua://capability/serve.vector-tiles"
 ---
 # Publish MVT to PMTiles

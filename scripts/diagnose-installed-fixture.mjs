@@ -1,12 +1,12 @@
 // Fixture-oracle diagnostic only. This cannot emit a release certification receipt.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { freezeCertification, validateInstalledLock } from "./installed-certification-identity.mjs";
 import { executeCandidateFixture } from "./installed-candidate-fixture.mjs";
+import { runInstalledCommand } from "./installed-package-certification.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const output = process.argv[2];
@@ -18,9 +18,8 @@ const work = await mkdtemp(path.join(tmpdir(), "sdk39-diagnostic-"));
 try {
   await writeFile(path.join(work, "package.json"), JSON.stringify({ private: true, type: "module",
     dependencies: Object.fromEntries(candidate.packages.map((p) => [p.coordinate, p.version])) }));
-  const installed = spawnSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund",
+  runInstalledCommand("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund",
     `--registry=${candidate.package.registry}`], { cwd: work, encoding: "utf8", timeout: 240_000 });
-  assert.equal(installed.status, 0, installed.stderr);
   const lock = JSON.parse(await readFile(path.join(work, "package-lock.json")));
   const installedRoot = lock.packages["node_modules/@honua/sdk-js"];
   assert.equal(installedRoot.integrity, candidate.package.integrity);
