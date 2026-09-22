@@ -713,7 +713,9 @@ deprecated at 5.0 mapped to its Honua/MapLibre disposition ahead of the 6.0 remo
 | [honua-console](https://github.com/honua-io/honua-console) | Unified web console — Studio, Catalog, Operate, Share |
 | [honua-sdk-python](https://github.com/honua-io/honua-sdk-python) | Python SDK (same `Dataset`/`Source`/`Query`/`Result` contract) |
 | [honua-sdk-dotnet](https://github.com/honua-io/honua-sdk-dotnet) | .NET SDKs (same contract) |
-| [honua-esri-assess](https://github.com/honua-io/honua-esri-assess) | Esri footprint assessment CLI for migration discovery |
+| [honua-migrate](https://github.com/honua-io/honua-migrate) | Esri migration CLI suite — read-only footprint assessment, service and content migration, codemods, durable runs, reconciliation |
+| [honua-samples](https://github.com/honua-io/honua-samples) | Runnable cross-SDK samples, executed headless in CI against a real server |
+| [geospatial-grpc](https://github.com/honua-io/geospatial-grpc) | Open `geospatial.v1` gRPC standard — the wire contract behind this SDK's gRPC surface |
 | [geospatial-mcp](https://github.com/honua-io/geospatial-mcp) | Open, vendor-neutral geospatial MCP standard |
 
 ## Contributing
