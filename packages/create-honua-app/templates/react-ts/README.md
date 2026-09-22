@@ -49,10 +49,10 @@ effect down. Add `@vitejs/plugin-react` if you want React Fast Refresh — Vite 
 `@connectrpc` packages are the SDK's optional transport peers: they are installed and pinned here so the bundle builds
 without any peer-dependency assembly, and they are what a Honua-server connection uses.
 
-This starter pins **MapLibre GL JS 6.1.0**, which the published `@honua/sdk-js` release accepts as an optional peer
+This starter pins **MapLibre GL JS 6.4.1**, which satisfies the published `@honua/sdk-js` optional peer
 (`^6.4.1`). MapLibre 6 is ESM-only and loads its worker as a separate module, so `src/maplibre-worker.ts`
 calls `setWorkerUrl` with Vite's `?worker&url` import before the first map is created; `src/main.tsx` imports it
-first. Downgrading to MapLibre 5 is supported by the SDK and means deleting that module and its import.
+first. Versions below 6.4.1 do not satisfy the SDK peer. Deleting the worker module is only for a renderer other than MapLibre 6.
 
 ## Checks
 
