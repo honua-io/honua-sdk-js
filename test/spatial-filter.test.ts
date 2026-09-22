@@ -28,7 +28,13 @@ describe("SpatialFilter builders", () => {
   describe("envelope", () => {
     it("produces correct geometry JSON", () => {
       const f = envelope(-118.5, 33.7, -117.5, 34.2);
-      expect(f.geometry).toEqual({ xmin: -118.5, ymin: 33.7, xmax: -117.5, ymax: 34.2 });
+      expect(f.geometry).toEqual({
+        xmin: -118.5,
+        ymin: 33.7,
+        xmax: -117.5,
+        ymax: 34.2,
+        spatialReference: { wkid: 4326 },
+      });
       expect(f.geometryType).toBe("esriGeometryEnvelope");
       expect(f.spatialRel).toBe("esriSpatialRelIntersects");
     });
@@ -44,16 +50,16 @@ describe("SpatialFilter builders", () => {
       });
     });
 
-    it("omits spatialReference when not provided", () => {
+    it("defaults spatialReference to WGS84 when not provided", () => {
       const f = envelope(0, 0, 1, 1);
-      expect(f.geometry).not.toHaveProperty("spatialReference");
+      expect(f.geometry.spatialReference).toEqual({ wkid: 4326 });
     });
   });
 
   describe("point", () => {
     it("produces correct geometry JSON", () => {
       const f = point(-118.24, 34.05);
-      expect(f.geometry).toEqual({ x: -118.24, y: 34.05 });
+      expect(f.geometry).toEqual({ x: -118.24, y: 34.05, spatialReference: { wkid: 4326 } });
       expect(f.geometryType).toBe("esriGeometryPoint");
       expect(f.spatialRel).toBe("esriSpatialRelIntersects");
     });
@@ -63,9 +69,9 @@ describe("SpatialFilter builders", () => {
       expect(f.geometry).toEqual({ x: 10, y: 20, spatialReference: { wkid: 3857 } });
     });
 
-    it("omits spatialReference when not provided", () => {
+    it("defaults spatialReference to WGS84 when not provided", () => {
       const f = point(10, 20);
-      expect(f.geometry).not.toHaveProperty("spatialReference");
+      expect(f.geometry.spatialReference).toEqual({ wkid: 4326 });
     });
   });
 
@@ -81,7 +87,7 @@ describe("SpatialFilter builders", () => {
         ],
       ];
       const f = polygon(rings);
-      expect(f.geometry).toEqual({ rings });
+      expect(f.geometry).toEqual({ rings, spatialReference: { wkid: 4326 } });
       expect(f.geometryType).toBe("esriGeometryPolygon");
       expect(f.spatialRel).toBe("esriSpatialRelIntersects");
     });
@@ -99,7 +105,7 @@ describe("SpatialFilter builders", () => {
       expect(f.geometry).toEqual({ rings, spatialReference: { wkid: 4326 } });
     });
 
-    it("omits spatialReference when not provided", () => {
+    it("defaults spatialReference to WGS84 when not provided", () => {
       const rings = [
         [
           [0, 0],
@@ -109,14 +115,14 @@ describe("SpatialFilter builders", () => {
         ],
       ];
       const f = polygon(rings);
-      expect(f.geometry).not.toHaveProperty("spatialReference");
+      expect(f.geometry.spatialReference).toEqual({ wkid: 4326 });
     });
   });
 
   describe("bufferEnvelope", () => {
     it("creates correct envelope bounds centered on the point", () => {
       const f = bufferEnvelope(10, 20, 5);
-      expect(f.geometry).toEqual({ xmin: 5, ymin: 15, xmax: 15, ymax: 25 });
+      expect(f.geometry).toEqual({ xmin: 5, ymin: 15, xmax: 15, ymax: 25, spatialReference: { wkid: 4326 } });
       expect(f.geometryType).toBe("esriGeometryEnvelope");
       expect(f.spatialRel).toBe("esriSpatialRelIntersects");
     });
@@ -128,12 +134,13 @@ describe("SpatialFilter builders", () => {
         ymin: 33.55,
         xmax: -117.74,
         ymax: 34.55,
+        spatialReference: { wkid: 4326 },
       });
     });
 
     it("handles zero distance (degenerates to a point-sized envelope)", () => {
       const f = bufferEnvelope(5, 10, 0);
-      expect(f.geometry).toEqual({ xmin: 5, ymin: 10, xmax: 5, ymax: 10 });
+      expect(f.geometry).toEqual({ xmin: 5, ymin: 10, xmax: 5, ymax: 10, spatialReference: { wkid: 4326 } });
     });
 
     it("passes through spatialReference", () => {
@@ -461,12 +468,12 @@ describe("SpatialFilter builders", () => {
 
   describe("spatialWithin", () => {
     it("sets spatialRel to esriSpatialRelWithin", () => {
-      const f = spatialWithin({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 });
+      const f = spatialWithin({ xmin: 0, ymin: 0, xmax: 10, ymax: 10, spatialReference: { wkid: 4326 } });
       expect(f.spatialRel).toBe("esriSpatialRelWithin");
     });
 
     it("detects geometry type from shape", () => {
-      const f = spatialWithin({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 });
+      const f = spatialWithin({ xmin: 0, ymin: 0, xmax: 10, ymax: 10, spatialReference: { wkid: 4326 } });
       expect(f.geometryType).toBe("esriGeometryEnvelope");
     });
   });
@@ -479,7 +486,13 @@ describe("SpatialFilter builders", () => {
         where: "POP > 1000",
         ...envelope(-118.5, 33.7, -117.5, 34.2),
       };
-      expect(req.geometry).toEqual({ xmin: -118.5, ymin: 33.7, xmax: -117.5, ymax: 34.2 });
+      expect(req.geometry).toEqual({
+        xmin: -118.5,
+        ymin: 33.7,
+        xmax: -117.5,
+        ymax: 34.2,
+        spatialReference: { wkid: 4326 },
+      });
       expect(req.geometryType).toBe("esriGeometryEnvelope");
       expect(req.spatialRel).toBe("esriSpatialRelIntersects");
       expect(req.serviceId).toBe("cities");
@@ -492,7 +505,7 @@ describe("SpatialFilter builders", () => {
         layerId: 1,
         ...point(10, 20),
       };
-      expect(req.geometry).toEqual({ x: 10, y: 20 });
+      expect(req.geometry).toEqual({ x: 10, y: 20, spatialReference: { wkid: 4326 } });
       expect(req.geometryType).toBe("esriGeometryPoint");
     });
 
@@ -502,7 +515,7 @@ describe("SpatialFilter builders", () => {
         layerId: 0,
         ...bufferEnvelope(0, 0, 5),
       };
-      expect(req.geometry).toEqual({ xmin: -5, ymin: -5, xmax: 5, ymax: 5 });
+      expect(req.geometry).toEqual({ xmin: -5, ymin: -5, xmax: 5, ymax: 5, spatialReference: { wkid: 4326 } });
       expect(req.geometryType).toBe("esriGeometryEnvelope");
     });
 
@@ -537,7 +550,13 @@ describe("SpatialFilter builders", () => {
         .spatialRel(f.spatialRel!)
         .build();
 
-      expect(req.geometry).toEqual({ xmin: -118.5, ymin: 33.7, xmax: -117.5, ymax: 34.2 });
+      expect(req.geometry).toEqual({
+        xmin: -118.5,
+        ymin: 33.7,
+        xmax: -117.5,
+        ymax: 34.2,
+        spatialReference: { wkid: 4326 },
+      });
       expect(req.geometryType).toBe("esriGeometryEnvelope");
       expect(req.spatialRel).toBe("esriSpatialRelIntersects");
       expect(req.where).toBe("POP > 1000");

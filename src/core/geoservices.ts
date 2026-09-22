@@ -10,6 +10,7 @@
  */
 
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
+import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import { encodeServiceIdPath } from "./path-utils.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
@@ -596,6 +597,7 @@ function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesReq
     params.set("objectIds", Array.isArray(request.objectIds) ? request.objectIds.join(",") : String(request.objectIds));
   }
   if (request.geometry !== undefined) {
+    params.set("inSR", String(request.extraParams?.inSR ?? geometryInputSpatialReference(request.geometry)));
     params.set(
       "geometry",
       typeof request.geometry === "object" && request.geometry !== null
