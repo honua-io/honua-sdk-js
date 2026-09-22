@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "PMTiles"
-description: "for an entire pyramid of map tiles (raster or vector). One `.pmtiles` file on"
+description: "PMTiles archives on static hosting: discovery with connect(), rendering through the runtime, archive metadata, and the build-less CDN recipe."
 resource: "honua://capability/serve.vector-tiles"
 ---
 # PMTiles

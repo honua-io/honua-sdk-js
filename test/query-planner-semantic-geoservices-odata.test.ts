@@ -25,7 +25,7 @@ import type {
   TemporalValue,
 } from "../src/query-planner/index.js";
 import { HonuaQueryPlanningError } from "../src/query-planner/types.js";
-import { createSourceSchemaV2 } from "../src/source-schema.js";
+import { createSourceSchemaV2, geoServicesSourceSchemaV2 } from "../src/source-schema.js";
 
 interface Incident {
   readonly id: number;
@@ -423,6 +423,42 @@ function compileOdata(
 }
 
 describe("semantic GeoServices and OData compilers", () => {
+  it("compiles a calendar range from discovered Esri date-only metadata without a schema override", () => {
+    const schema = geoServicesSourceSchemaV2(
+      {
+        id: 0,
+        name: "Flights",
+        fields: [
+          { name: "OBJECTID", type: "esriFieldTypeOID", nullable: false },
+          { name: "DateOfFlight", type: "esriFieldTypeDateOnly", nullable: true },
+        ],
+        objectIdField: "OBJECTID",
+      },
+      { source: "https://example.test/Flights/FeatureServer/0", protocol: "geoservices-feature-service" },
+    )!;
+    const q = createSemanticQueryBuilder<
+      { readonly OBJECTID: number; readonly DateOfFlight: TemporalValue<"date"> },
+      "geoservices-feature-service",
+      "non-spatial"
+    >();
+    const query = q.features({
+      select: ["OBJECTID", "DateOfFlight"] as const,
+      geometry: "omit",
+      filter: q.and(
+        q.comparison("gte", q.property("DateOfFlight"), "2024-02-29" as TemporalValue<"date">),
+        q.comparison("lt", q.property("DateOfFlight"), "2024-03-01" as TemporalValue<"date">),
+      ),
+    });
+    const artifact = compiled(
+      compileSemanticGeoServicesQuery({
+        query,
+        schema,
+        source: { protocol: "geoservices-feature-service", serviceId: "Flights", layerId: 0 },
+      }),
+    );
+    expect(artifact.where).toBe("(\"DateOfFlight\" >= DATE '2024-02-29') AND (\"DateOfFlight\" < DATE '2024-03-01')");
+  });
+
   it("quotes GeoServices identifiers and literals without changing the public-to-physical mapping", () => {
     expect(corpus).toMatchObject({ kind: "honua.semantic-query-equivalence-corpus", version: 1 });
     const hostile = corpus.cases.hostileUnicodeText;

@@ -1,0 +1,2455 @@
+{
+  "schema": "honua.studio-candidate-replay/v1",
+  "issue": "honua-io/honua-sdk-js#1397",
+  "generatedAt": "2026-09-16T17:11:06.426Z",
+  "scope": "manifest-pinned honua-server image, source-built SDK, scripted provider behind the real Studio AI proxy; not an installed-client or live-model certification",
+  "sdkSourceSha": "719278cd19fafb91ad477b4f79e0b5ed941a9396",
+  "manifestSha256": "b4f891e0cb666a2cd298f526ecef7ef056ee64394fd3b20f6e6b0f511776fe73",
+  "candidate": {
+    "ref": "87966c3f7b6c840ffc4d4da0b451714ab717b18a",
+    "image": "ghcr.io/honua-io/honua-server@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
+    "expectedSetup": {
+      "revision": "setup.v2",
+      "members": [
+        "honua_studio_create_draft",
+        "honua_studio_validate_draft",
+        "honua_studio_get_draft",
+        "honua_studio_update_draft",
+        "honua_studio_preview_draft",
+        "honua_studio_save_version",
+        "honua_studio_reopen_version",
+        "honua_studio_propose_publication"
+      ]
+    },
+    "running": {
+      "container": "sdk1397-12cd21a5-server-current",
+      "imageId": "sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
+      "revision": "87966c3f7b6c840ffc4d4da0b451714ab717b18a",
+      "boots": 1,
+      "extraEnv": {}
+    }
+  },
+  "previous": {
+    "ref": "7ba422672e0c751843b17beb36e954a019cc19fb",
+    "image": "ghcr.io/honua-io/honua-server@sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
+    "expectedSetup": {
+      "revision": "setup.v1",
+      "members": [
+        "honua_studio_create_draft",
+        "honua_studio_validate_draft",
+        "honua_studio_propose_publication"
+      ]
+    }
+  },
+  "deploymentDeviations": [],
+  "checks": [
+    {
+      "id": "browser-studio-compiles-on-sdk-discovery",
+      "criterion": "AC7",
+      "verdict": "pass",
+      "evidence": {
+        "studio": {
+          "ref": "39c567cf48ead0858da48979dbd2d4fff4da4ab4",
+          "subject": "fix(chat): make transcriptProvenance a first-class chat event and certify live agent turns (#72)",
+          "committedAt": "2026-09-16T07:07:46-10:00"
+        },
+        "localList": {
+          "fileTracked": false,
+          "references": []
+        },
+        "consumerAllowlist": [],
+        "descriptorCopies": [],
+        "sessionFactory": [
+          "src/elements/studio-app-element.ts:38:import type { StudioAgentSession } from \"@honua/sdk-js/studio-agent\";",
+          "src/elements/studio-chat-element.ts:20:  createStudioAgentSession,",
+          "src/elements/studio-chat-element.ts:21:} from \"@honua/sdk-js/studio-agent\";",
+          "src/elements/studio-chat-element.ts:68:/** The SDK's `StudioAiTranscriptVerifierLike`; `StudioAiTranscriptVerifier` from `@honua/sdk-js/studio-agent` satisfies it. */",
+          "src/elements/studio-chat-element.ts:164:    this.#agentSession = createStudioAgentSession({",
+          "src/mcp/orchestrator.ts:43: * `@honua/sdk-js/studio-agent` now ships `createStudioAgentSession`, and the"
+        ],
+        "directCallNameLiterals": [
+          "src/elements/studio-app-element.ts:830:        if (forwardedCall.name === \"honua_studio_set_layer_visibility\") {",
+          "src/evals/corpus.ts:139:            toolName: \"honua_studio_set_view\",",
+          "src/evals/corpus.ts:166:              { toolName: \"honua_studio_set_view\", arguments: { view: { center: [-157.8583, 21.3069], zoom: 3 } } },",
+          "src/evals/corpus.ts:215:        toolCalls: [{ toolName: \"honua_studio_remove_widget\", arguments: { widgetId: \"legend-parcels\" } }],",
+          "src/evals/corpus.ts:237:          assistant: { toolCalls: [{ toolName: \"honua_studio_remove_widget\", arguments: { widgetId: \"toc-layers\" } }] },",
+          "src/evals/corpus.ts:261:            toolName: \"honua_studio_add_control\",",
+          "src/evals/corpus.ts:267:            toolName: \"honua_studio_bind_interaction\",",
+          "src/evals/corpus.ts:313:                toolName: \"honua_studio_add_control\",",
+          "src/evals/corpus.ts:317:                toolName: \"honua_studio_bind_interaction\",",
+          "src/evals/corpus.ts:344:                toolName: \"honua_studio_add_control\",",
+          "src/evals/corpus.ts:399:            toolCalls: [{ toolName: \"honua_studio_remove_layer\", arguments: { layerId: PARCELS } }],",
+          "src/evals/corpus.ts:565:              { toolName: \"honua_studio_remove_layer\", arguments: { layerId: PARCELS } },",
+          "src/evals/corpus.ts:621:              { toolName: \"honua_studio_publish_version\", arguments: { itemId: \"county-parcels\", versionId: \"v1\" } },",
+          "src/evals/corpus.ts:635:            toolCalls: [{ toolName: \"honua_studio_remove_widget\", arguments: { widgetId: \"toc-layers\" } }],",
+          "src/mcp/studio-tools.ts:242:  \"honua_studio_create_draft\",",
+          "src/mcp/studio-tools.ts:243:  \"honua_studio_get_draft\",",
+          "src/mcp/studio-tools.ts:244:  \"honua_studio_update_draft\",",
+          "src/mcp/studio-tools.ts:245:  \"honua_studio_validate_draft\",",
+          "src/mcp/studio-tools.ts:246:  \"honua_studio_preview_draft\",",
+          "src/mcp/studio-tools.ts:247:  \"honua_studio_add_layer\",",
+          "src/mcp/studio-tools.ts:248:  \"honua_studio_remove_layer\",",
+          "src/mcp/studio-tools.ts:249:  \"honua_studio_set_layer_style\",",
+          "src/mcp/studio-tools.ts:250:  \"honua_studio_set_layer_visibility\",",
+          "src/mcp/studio-tools.ts:251:  \"honua_studio_set_view\",",
+          "src/mcp/studio-tools.ts:252:  \"honua_studio_add_widget\",",
+          "src/mcp/studio-tools.ts:253:  \"honua_studio_remove_widget\",",
+          "src/mcp/studio-tools.ts:254:  \"honua_studio_add_control\",",
+          "src/mcp/studio-tools.ts:255:  \"honua_studio_remove_control\",",
+          "src/mcp/studio-tools.ts:256:  \"honua_studio_bind_interaction\",",
+          "src/mcp/studio-tools.ts:257:  \"honua_studio_remove_interaction\",",
+          "src/mcp/studio-tools.ts:258:  \"honua_studio_propose_publication\",",
+          "src/mcp/studio-tools.ts:293:    const result = await this.client.callTool(\"honua_studio_create_draft\", { ...input });",
+          "src/mcp/studio-tools.ts:298:    const result = await this.client.callTool(\"honua_studio_get_draft\", { draftId });",
+          "src/mcp/studio-tools.ts:303:    const result = await this.client.callTool(\"honua_studio_update_draft\", { ...input });",
+          "src/mcp/studio-tools.ts:308:    const result = await this.client.callTool(\"honua_studio_validate_draft\", { draftId });",
+          "src/mcp/studio-tools.ts:313:    const result = await this.client.callTool(\"honua_studio_preview_draft\", { draftId });",
+          "src/mcp/studio-tools.ts:318:    const result = await this.client.callTool(\"honua_studio_add_layer\", { ...input });",
+          "src/mcp/studio-tools.ts:323:    const result = await this.client.callTool(\"honua_studio_remove_layer\", { ...input });",
+          "src/mcp/studio-tools.ts:328:    const result = await this.client.callTool(\"honua_studio_set_layer_style\", { ...input });",
+          "src/mcp/studio-tools.ts:334:    const result = await this.client.callTool(\"honua_studio_set_layer_visibility\", { ...input });",
+          "src/mcp/studio-tools.ts:339:    const result = await this.client.callTool(\"honua_studio_set_view\", { ...input });",
+          "src/mcp/studio-tools.ts:344:    const result = await this.client.callTool(\"honua_studio_add_widget\", { ...input });",
+          "src/mcp/studio-tools.ts:349:    const result = await this.client.callTool(\"honua_studio_remove_widget\", { ...input });",
+          "src/mcp/studio-tools.ts:354:    const result = await this.client.callTool(\"honua_studio_add_control\", { ...input });",
+          "src/mcp/studio-tools.ts:359:    const result = await this.client.callTool(\"honua_studio_remove_control\", { ...input });",
+          "src/mcp/studio-tools.ts:364:    const result = await this.client.callTool(\"honua_studio_bind_interaction\", { ...input });",
+          "src/mcp/studio-tools.ts:369:    const result = await this.client.callTool(\"honua_studio_remove_interaction\", { ...input });",
+          "src/mcp/studio-tools.ts:374:    const result = await this.client.callTool(\"honua_studio_propose_publication\", { ...input });",
+          "src/mcp/tool-bridge.ts:152:  addLayer: compositionPassthroughEntry(\"addLayer\", \"honua_studio_add_layer\"),",
+          "src/mcp/tool-bridge.ts:153:  removeLayer: compositionPassthroughEntry(\"removeLayer\", \"honua_studio_remove_layer\"),",
+          "src/mcp/tool-bridge.ts:154:  setLayerStyleRef: compositionPassthroughEntry(\"setLayerStyleRef\", \"honua_studio_set_layer_style\"),",
+          "src/mcp/tool-bridge.ts:169:  setVisibility: compositionPassthroughEntry(\"setVisibility\", \"honua_studio_set_layer_visibility\"),",
+          "src/mcp/tool-bridge.ts:170:  setView: compositionPassthroughEntry(\"setView\", \"honua_studio_set_view\"),",
+          "src/mcp/tool-bridge.ts:171:  addWidget: compositionPassthroughEntry(\"addWidget\", \"honua_studio_add_widget\"),",
+          "src/mcp/tool-bridge.ts:172:  removeWidget: compositionPassthroughEntry(\"removeWidget\", \"honua_studio_remove_widget\"),",
+          "src/mcp/tool-bridge.ts:174:  addControl: compositionPassthroughEntry(\"addControl\", \"honua_studio_add_control\"),",
+          "src/mcp/tool-bridge.ts:175:  removeControl: compositionPassthroughEntry(\"removeControl\", \"honua_studio_remove_control\"),",
+          "src/mcp/tool-bridge.ts:176:  bindInteraction: compositionPassthroughEntry(\"bindInteraction\", \"honua_studio_bind_interaction\"),",
+          "src/mcp/tool-bridge.ts:177:  removeInteraction: compositionPassthroughEntry(\"removeInteraction\", \"honua_studio_remove_interaction\"),",
+          "src/mcp/tool-bridge.ts:191:    serverToolName: \"honua_studio_add_layer\",",
+          "src/mcp/tool-bridge.ts:207:    serverToolName: \"honua_studio_add_widget\",",
+          "src/mcp/tool-bridge.ts:227:    serverToolName: \"honua_studio_add_layer\",",
+          "src/mcp/tool-bridge.ts:253:    serverToolName: \"honua_studio_remove_layer\",",
+          "src/mcp/tool-bridge.ts:263:    serverToolName: \"honua_studio_set_layer_style\",",
+          "src/mcp/tool-bridge.ts:276:    serverToolName: \"honua_studio_set_view\",",
+          "src/mcp/tool-bridge.ts:294:    serverToolName: \"honua_studio_add_widget\",",
+          "src/mcp/tool-bridge.ts:305:    serverToolName: \"honua_studio_remove_widget\",",
+          "src/mcp/tool-bridge.ts:320:    serverToolName: \"honua_studio_add_control\",",
+          "src/mcp/tool-bridge.ts:331:    serverToolName: \"honua_studio_remove_control\",",
+          "src/mcp/tool-bridge.ts:344:    serverToolName: \"honua_studio_bind_interaction\",",
+          "src/mcp/tool-bridge.ts:355:    serverToolName: \"honua_studio_remove_interaction\",",
+          "src/mcp/tool-bridge.ts:437:        name: \"honua_studio_add_layer\",",
+          "src/mcp/tool-bridge.ts:442:      return { name: \"honua_studio_remove_layer\", arguments: { ...base, layerId: targetId(command.target) } };",
+          "src/mcp/tool-bridge.ts:445:        name: \"honua_studio_set_layer_style\",",
+          "src/mcp/tool-bridge.ts:456:        name: \"honua_studio_set_layer_visibility\",",
+          "src/mcp/tool-bridge.ts:460:      return { name: \"honua_studio_set_view\", arguments: { ...base, view: { ...command.view } } };",
+          "src/mcp/tool-bridge.ts:462:      return { name: \"honua_studio_add_widget\", arguments: { ...base, widget: { ...command.widget } } };",
+          "src/mcp/tool-bridge.ts:464:      return { name: \"honua_studio_remove_widget\", arguments: { ...base, widgetId: targetId(command.target) } };",
+          "src/mcp/tool-bridge.ts:466:      return { name: \"honua_studio_add_control\", arguments: { ...base, control: { ...command.control } } };",
+          "src/mcp/tool-bridge.ts:470:        name: \"honua_studio_remove_control\",",
+          "src/mcp/tool-bridge.ts:478:      return { name: \"honua_studio_bind_interaction\", arguments: { ...base, interaction: { ...command.interaction } } };",
+          "src/mcp/tool-bridge.ts:480:      return { name: \"honua_studio_remove_interaction\", arguments: { ...base, interactionId: command.interactionId } };"
+        ],
+        "pinnedSdk": {
+          "version": "0.1.9-beta.0",
+          "studioAgentIndexSha256": "4321e235947ecb08dfefc93b734f15664cbca5a3f53a10e4d83bdb75c79b58ea",
+          "typecheck": {
+            "status": 0,
+            "errors": []
+          },
+          "build": {
+            "status": 0,
+            "summary": "built in 803ms"
+          },
+          "discoveryTest": {
+            "file": "test/elements/studio-chat-element.test.ts",
+            "name": "runs a model-selected server tool, feeds its result back, and refreshes the real canvas controller",
+            "status": 0,
+            "summary": "1 passed | 12 skipped (13)"
+          }
+        },
+        "sourceSdk": {
+          "version": "0.1.9-beta.0",
+          "studioAgentIndexSha256": "2749fc572c81584d0ef64136b13752435ed1130b5541f639e5bdcb73825547d8",
+          "sdkSourceSha": "719278cd19fafb91ad477b4f79e0b5ed941a9396",
+          "typecheck": {
+            "status": 0,
+            "errors": []
+          },
+          "build": {
+            "status": 0,
+            "summary": "built in 641ms"
+          },
+          "discoveryTest": {
+            "file": "test/elements/studio-chat-element.test.ts",
+            "name": "runs a model-selected server tool, feeds its result back, and refreshes the real canvas controller",
+            "status": 0,
+            "summary": "1 passed | 12 skipped (13)"
+          }
+        }
+      }
+    },
+    {
+      "id": "bearer-mcp-session-continuity",
+      "criterion": "finding (honua-server#4909)",
+      "verdict": "pass",
+      "evidence": {
+        "initialized": true,
+        "sameTokenSecondRequest": {
+          "http": 200,
+          "wwwAuthenticate": null,
+          "tools": 25
+        },
+        "freshTokenSameSession": {
+          "http": 200,
+          "wwwAuthenticate": null,
+          "tools": 25
+        },
+        "serverLog": []
+      }
+    },
+    {
+      "id": "bearer-token-is-bound-to-one-mcp-session",
+      "criterion": "finding (honua-server#4899)",
+      "verdict": "pass",
+      "evidence": {
+        "firstSession": {
+          "opened": true
+        },
+        "sameTokenSecondSession": {
+          "opened": false,
+          "error": "MCP endpoint responded 401 for \"initialize\": {\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"The bearer token is invalid, expired, or issued for a different resource.\",\"data\":{\"code\":\"unauthenticated\",\"requiresReauthentication\":true}}}"
+        },
+        "newlyIssuedTokenSecondSession": {
+          "opened": true
+        }
+      }
+    },
+    {
+      "id": "default-session-classified-discovery:admin-api-key",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "report": {
+          "discovered": 25,
+          "pages": 1,
+          "routed": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ],
+          "classification": {
+            "families": [
+              "honua.studio.composition"
+            ],
+            "views": [
+              "setup"
+            ],
+            "revisions": [
+              "setup.v2"
+            ]
+          },
+          "rejected": [
+            {
+              "name": "honua_list_capabilities",
+              "reason": "unclassified",
+              "detail": "\"honua_list_capabilities\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_resolve_entity",
+              "reason": "unclassified",
+              "detail": "\"honua_resolve_entity\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_ingest_dataset",
+              "reason": "unclassified",
+              "detail": "\"honua_ingest_dataset\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_publish_result",
+              "reason": "unclassified",
+              "detail": "\"honua_publish_result\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_publish_service",
+              "reason": "unclassified",
+              "detail": "\"honua_publish_service\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_describe_layer",
+              "reason": "unclassified",
+              "detail": "\"honua_describe_layer\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_list_layers",
+              "reason": "unclassified",
+              "detail": "\"honua_list_layers\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_query_features",
+              "reason": "unclassified",
+              "detail": "\"honua_query_features\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_apply_style_preset",
+              "reason": "unclassified",
+              "detail": "\"honua_apply_style_preset\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_get_style",
+              "reason": "unclassified",
+              "detail": "\"honua_get_style\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_render_map",
+              "reason": "unclassified",
+              "detail": "\"honua_render_map\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_dry_run_plan",
+              "reason": "unclassified",
+              "detail": "\"honua_dry_run_plan\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_execute_plan",
+              "reason": "unclassified",
+              "detail": "\"honua_execute_plan\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_list_jobs",
+              "reason": "unclassified",
+              "detail": "\"honua_list_jobs\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_plan_analysis",
+              "reason": "unclassified",
+              "detail": "\"honua_plan_analysis\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_validate_plan",
+              "reason": "unclassified",
+              "detail": "\"honua_validate_plan\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_supported_operation_kinds",
+              "reason": "unclassified",
+              "detail": "\"honua_supported_operation_kinds\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            }
+          ],
+          "missingRequired": [
+            "honua_studio_add_layer",
+            "honua_studio_remove_layer",
+            "honua_studio_set_layer_style",
+            "honua_studio_set_layer_visibility",
+            "honua_studio_set_view",
+            "honua_studio_add_widget",
+            "honua_studio_remove_widget",
+            "honua_studio_bind_interaction",
+            "honua_studio_remove_interaction"
+          ],
+          "diagnostics": [
+            "Required Studio tool \"honua_studio_add_layer\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_remove_layer\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_set_layer_style\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_set_layer_visibility\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_set_view\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_add_widget\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_remove_widget\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_bind_interaction\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_remove_interaction\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list."
+          ]
+        },
+        "fullCatalog": {
+          "descriptors": 124,
+          "classified": [
+            {
+              "name": "honua_studio_create_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_get_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_preview_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_propose_publication",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_reopen_version",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_save_version",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_update_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_validate_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            }
+          ],
+          "unclassifiedStudioNamed": [
+            "honua_studio_add_control",
+            "honua_studio_add_layer",
+            "honua_studio_add_widget",
+            "honua_studio_bind_interaction",
+            "honua_studio_remove_control",
+            "honua_studio_remove_interaction",
+            "honua_studio_remove_layer",
+            "honua_studio_remove_widget",
+            "honua_studio_set_layer_style",
+            "honua_studio_set_layer_visibility",
+            "honua_studio_set_view"
+          ]
+        },
+        "setupView": {
+          "pages": 1,
+          "names": [
+            "honua_list_capabilities",
+            "honua_resolve_entity",
+            "honua_ingest_dataset",
+            "honua_publish_result",
+            "honua_publish_service",
+            "honua_describe_layer",
+            "honua_list_layers",
+            "honua_query_features",
+            "honua_apply_style_preset",
+            "honua_get_style",
+            "honua_render_map",
+            "honua_dry_run_plan",
+            "honua_execute_plan",
+            "honua_list_jobs",
+            "honua_plan_analysis",
+            "honua_validate_plan",
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication",
+            "honua_supported_operation_kinds"
+          ]
+        }
+      }
+    },
+    {
+      "id": "terminal-session-lifecycle:admin-api-key-model",
+      "criterion": "AC4",
+      "verdict": "pass",
+      "evidence": {
+        "mode": "model",
+        "transcriptSigning": {
+          "requiredForCertification": true,
+          "keys": [
+            {
+              "keyId": "sdk1397-12cd21a5-transcript",
+              "algorithm": "Ed25519",
+              "publicKey": "Uj/sjC0BPoI6DjsbEdw3cLn3i4w5ybaUCEvTZbBh4ok=",
+              "fingerprint": "sha256:d3b5463ff15a812923d571f383dcbeea085df89833ffd9e3c9ffd7b45826aef6",
+              "revoked": false
+            }
+          ]
+        },
+        "turn": {
+          "status": "completed",
+          "rounds": 8,
+          "text": "Plan complete."
+        },
+        "chatRequests": [
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat",
+            "requestBytes": 17332,
+            "promptCharacters": 121,
+            "messages": 1
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat",
+            "requestBytes": 22506,
+            "promptCharacters": 3808,
+            "messages": 3
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat",
+            "requestBytes": 25088,
+            "promptCharacters": 5281,
+            "messages": 5
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat",
+            "requestBytes": 25453,
+            "promptCharacters": 5420,
+            "messages": 7
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat",
+            "requestBytes": 27318,
+            "promptCharacters": 6893,
+            "messages": 9
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat",
+            "requestBytes": 32377,
+            "promptCharacters": 11037,
+            "messages": 11
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat",
+            "requestBytes": 37250,
+            "promptCharacters": 14948,
+            "messages": 13
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat",
+            "requestBytes": 39080,
+            "promptCharacters": 16154,
+            "messages": 15
+          }
+        ],
+        "partialDispatch": [
+          {
+            "tool": "honua_studio_create_draft",
+            "ok": true,
+            "contentKeys": [
+              "status",
+              "draft"
+            ],
+            "payloadKeys": [
+              "operation",
+              "draftId",
+              "itemId",
+              "packageKey",
+              "ownerId",
+              "family",
+              "envelope",
+              "validation",
+              "generation",
+              "createdBy",
+              "updatedBy",
+              "createdAt",
+              "updatedAt"
+            ]
+          },
+          {
+            "tool": "honua_studio_update_draft",
+            "ok": true,
+            "contentKeys": [
+              "status",
+              "draft"
+            ],
+            "payloadKeys": [
+              "draftId",
+              "itemId",
+              "packageKey",
+              "ownerId",
+              "family",
+              "envelope",
+              "validation",
+              "generation",
+              "createdBy",
+              "updatedBy",
+              "createdAt",
+              "updatedAt"
+            ]
+          },
+          {
+            "tool": "honua_studio_validate_draft",
+            "ok": true,
+            "contentKeys": [
+              "status",
+              "result"
+            ],
+            "payloadKeys": [
+              "status",
+              "diagnostics",
+              "unsupportedCapabilities",
+              "generatedAt"
+            ]
+          },
+          {
+            "tool": "honua_studio_get_draft",
+            "ok": true,
+            "contentKeys": [
+              "status",
+              "draft"
+            ],
+            "payloadKeys": [
+              "draftId",
+              "itemId",
+              "packageKey",
+              "ownerId",
+              "family",
+              "envelope",
+              "validation",
+              "generation",
+              "createdBy",
+              "updatedBy",
+              "createdAt",
+              "updatedAt"
+            ]
+          },
+          {
+            "tool": "honua_studio_save_version",
+            "ok": true,
+            "contentKeys": [
+              "status",
+              "result"
+            ],
+            "payloadKeys": [
+              "operation",
+              "version"
+            ]
+          },
+          {
+            "tool": "honua_studio_reopen_version",
+            "ok": true,
+            "contentKeys": [
+              "status",
+              "draft"
+            ],
+            "payloadKeys": [
+              "operation",
+              "draftId",
+              "itemId",
+              "packageKey",
+              "ownerId",
+              "family",
+              "envelope",
+              "validation",
+              "baseVersionId",
+              "generation",
+              "createdBy",
+              "updatedBy",
+              "createdAt",
+              "updatedAt"
+            ]
+          },
+          {
+            "tool": "honua_studio_propose_publication",
+            "ok": true,
+            "contentKeys": [
+              "status",
+              "result"
+            ],
+            "payloadKeys": [
+              "operation",
+              "operationInstanceId",
+              "proposalId",
+              "proposalUri",
+              "auditId",
+              "correlationId",
+              "idempotencyIdentity",
+              "status",
+              "humanConfirmationRequired",
+              "message"
+            ]
+          }
+        ],
+        "providerPlanErrors": [],
+        "dispatched": [
+          {
+            "tool": "honua_studio_create_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_update_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_validate_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_get_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_save_version",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_reopen_version",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_propose_publication",
+            "plane": "composition",
+            "ok": true
+          }
+        ],
+        "values": {
+          "draftId": "882e336a-024d-4be1-be57-aa7325fbffca",
+          "ownerId": "00000000-0000-0000-0000-000000000002",
+          "generations": {
+            "created": 1,
+            "updated": 2,
+            "reopened": 1
+          },
+          "itemId": "71b97a65-6b67-45e4-97c9-f98af0002849",
+          "versionId": "e72034e8-dd72-4349-a4ee-c10e11fa15fc",
+          "contentHash": "530942f810ed7d276aa5fc8fa6a55034e9bd4ec79bc4c87345470a9a094f7f97",
+          "reopenedDraftId": "36e1fddd-a4ef-4441-b638-968aba342470",
+          "proposalId": "proposal-3c40e55724044da8ace485338794e184",
+          "publicationPointer": "null|e72034e8-dd72-4349-a4ee-c10e11fa15fc",
+          "polls": [
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-3c40e55724044da8ace485338794e184",
+                "operationInstanceId": "opinst-9ff451a5ac8d4947859a7675b99c6a6d",
+                "auditId": "22",
+                "correlationId": "00-4f41e8fcc0fa3c954acb64f8bdadd0e9-cebc7e7443e334a7-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version e72034e8-dd72-4349-a4ee-c10e11fa15fc at /studio/sdk1397-admin-api-key-model-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=71b97a65-6b67-45e4-97c9-f98af0002849",
+                  "versionId=e72034e8-dd72-4349-a4ee-c10e11fa15fc",
+                  "contentHash=530942f810ed7d276aa5fc8fa6a55034e9bd4ec79bc4c87345470a9a094f7f97",
+                  "route=/studio/sdk1397-admin-api-key-model-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:11.6348528+00:00",
+                "updatedAt": "2026-09-16T17:12:11.6403217+00:00"
+              }
+            },
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-3c40e55724044da8ace485338794e184",
+                "operationInstanceId": "opinst-9ff451a5ac8d4947859a7675b99c6a6d",
+                "auditId": "22",
+                "correlationId": "00-4f41e8fcc0fa3c954acb64f8bdadd0e9-cebc7e7443e334a7-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version e72034e8-dd72-4349-a4ee-c10e11fa15fc at /studio/sdk1397-admin-api-key-model-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=71b97a65-6b67-45e4-97c9-f98af0002849",
+                  "versionId=e72034e8-dd72-4349-a4ee-c10e11fa15fc",
+                  "contentHash=530942f810ed7d276aa5fc8fa6a55034e9bd4ec79bc4c87345470a9a094f7f97",
+                  "route=/studio/sdk1397-admin-api-key-model-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:11.6348528+00:00",
+                "updatedAt": "2026-09-16T17:12:11.6403217+00:00"
+              }
+            },
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-3c40e55724044da8ace485338794e184",
+                "operationInstanceId": "opinst-9ff451a5ac8d4947859a7675b99c6a6d",
+                "auditId": "22",
+                "correlationId": "00-4f41e8fcc0fa3c954acb64f8bdadd0e9-cebc7e7443e334a7-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version e72034e8-dd72-4349-a4ee-c10e11fa15fc at /studio/sdk1397-admin-api-key-model-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=71b97a65-6b67-45e4-97c9-f98af0002849",
+                  "versionId=e72034e8-dd72-4349-a4ee-c10e11fa15fc",
+                  "contentHash=530942f810ed7d276aa5fc8fa6a55034e9bd4ec79bc4c87345470a9a094f7f97",
+                  "route=/studio/sdk1397-admin-api-key-model-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:11.6348528+00:00",
+                "updatedAt": "2026-09-16T17:12:11.6403217+00:00"
+              }
+            }
+          ]
+        },
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "initialize"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/list"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/studio/ai/capabilities"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/studio/ai/chat"
+          }
+        ]
+      }
+    },
+    {
+      "id": "proxy-forwards-annotations-and-output-schema:admin-api-key-model",
+      "criterion": "AC2",
+      "verdict": "pass",
+      "evidence": {
+        "providerRequests": [
+          {
+            "model": "scripted-terminal-model",
+            "roles": [
+              "system",
+              "user"
+            ],
+            "tools": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "orphanToolResults": []
+          },
+          {
+            "model": "scripted-terminal-model",
+            "roles": [
+              "system",
+              "user",
+              "assistant",
+              "tool"
+            ],
+            "tools": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "orphanToolResults": []
+          },
+          {
+            "model": "scripted-terminal-model",
+            "roles": [
+              "system",
+              "user",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool"
+            ],
+            "tools": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "orphanToolResults": []
+          },
+          {
+            "model": "scripted-terminal-model",
+            "roles": [
+              "system",
+              "user",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool"
+            ],
+            "tools": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "orphanToolResults": []
+          },
+          {
+            "model": "scripted-terminal-model",
+            "roles": [
+              "system",
+              "user",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool"
+            ],
+            "tools": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "orphanToolResults": []
+          },
+          {
+            "model": "scripted-terminal-model",
+            "roles": [
+              "system",
+              "user",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool"
+            ],
+            "tools": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "orphanToolResults": []
+          },
+          {
+            "model": "scripted-terminal-model",
+            "roles": [
+              "system",
+              "user",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool"
+            ],
+            "tools": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "orphanToolResults": []
+          },
+          {
+            "model": "scripted-terminal-model",
+            "roles": [
+              "system",
+              "user",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool"
+            ],
+            "tools": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "orphanToolResults": []
+          }
+        ],
+        "firstRequestTools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "honua_studio_create_draft",
+              "description": "Create a mutable Studio package lifecycle draft (query, analysis, map, dashboard, report, form, app, workflow, gp, or etl family). The composition a user and agent build IS this draft (AD-8): the returned draft's generation must be passed as `generation` on every subsequent honua_studio_update_draft / composition-mutation call for optimistic concurrency. The optional `ownerId` field is admin-only; non-admin callers must omit it and become the owner automatically.\n\nTool annotations (JSON): {\"title\":\"Create Studio draft\",\"readOnlyHint\":false,\"destructiveHint\":false,\"idempotentHint\":false}\n\nExpected structured output schema (JSON): {\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"object\",\"required\":[\"operationInstanceId\",\"operationId\",\"status\",\"correlationId\",\"createdAt\",\"updatedAt\"],\"properties\":{\"operationInstanceId\":{\"type\":\"string\"},\"operationId\":{\"type\":\"string\"},\"status\":{\"type\":\"string\"},\"correlationId\":{\"type\":\"string\"},\"auditId\":{\"type\":[\"string\",\"null\"]},\"proposalId\":{\"type\":[\"string\",\"null\"]},\"createdAt\":{\"type\":\"string\"},\"updatedAt\":{\"type\":\"string\"}}},\"draftId\":{\"type\":[\"string\",\"null\"]},\"itemId\":{\"type\":[\"string\",\"null\"]},\"packageKey\":{\"type\":[\"string\",\"null\"]},\"workspaceId\":{\"type\":[\"string\",\"null\"]},\"ownerId\":{\"type\":[\"string\",\"null\"]},\"family\":{\"type\":[\"string\",\"null\"]},\"envelope\":{\"type\":[\"object\",\"null\"]},\"validation\":{\"type\":[\"object\",\"null\"]},\"baseVersionId\":{\"type\":[\"string\",\"null\"]},\"generation\":{\"type\":[\"integer\",\"null\"]},\"createdBy\":{\"type\":[\"string\",\"null\"]},\"updatedBy\":{\"type\":[\"string\",\"null\"]},\"createdAt\":{\"type\":[\"string\",\"null\"]},\"updatedAt\":{\"type\":[\"string\",\"null\"]},\"studioAuthorizationCode\":{},\"status\":{\"type\":\"string\",\"const\":\"error\"},\"code\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"currentGeneration\":{\"type\":[\"integer\",\"null\"],\"minimum\":1},\"error\":{\"type\":\"object\"}},\"oneOf\":[{\"not\":{\"required\":[\"status\",\"code\",\"message\",\"error\"]},\"required\":[\"operation\"],\"properties\":{\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"],\"description\":\"Stable Studio authorization denial code on an error branch.\"}}},{\"required\":[\"status\",\"code\",\"message\",\"error\"],\"properties\":{\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]}}}]}",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "packageKey",
+                  "family",
+                  "schemaVersion"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "packageKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[A-Za-z0-9_.-]+$",
+                    "description": "Machine-friendly package key (letters, numbers, dash, underscore, dot only)."
+                  },
+                  "family": {
+                    "type": "string",
+                    "enum": [
+                      "query",
+                      "analysis",
+                      "map",
+                      "dashboard",
+                      "report",
+                      "form",
+                      "app",
+                      "workflow",
+                      "gp",
+                      "etl"
+                    ],
+                    "description": "Studio package family."
+                  },
+                  "schemaVersion": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "description": "Envelope schema version for the family."
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Workspace identifier."
+                  },
+                  "ownerId": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Admin-only owner principal identifier. Non-admin callers must omit this field and become the owner automatically."
+                  },
+                  "body": {
+                    "type": "object",
+                    "description": "Optional initial composition/family body. Omit to start empty."
+                  },
+                  "itemId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Existing content item id, to add a draft under an existing item."
+                  },
+                  "baseVersionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Immutable version this draft was reopened from, when applicable."
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "honua_studio_get_draft",
+              "description": "Read a Studio package lifecycle draft by id, including its current generation for the next optimistic-concurrency call.\n\nTool annotations (JSON): {\"title\":\"Get Studio draft\",\"readOnlyHint\":true,\"destructiveHint\":false}\n\nExpected structured output schema (JSON): {\"type\":\"object\",\"properties\":{\"draftId\":{\"type\":\"string\"},\"itemId\":{\"type\":\"string\"},\"packageKey\":{\"type\":\"string\"},\"workspaceId\":{\"type\":[\"string\",\"null\"]},\"ownerId\":{\"type\":[\"string\",\"null\"]},\"family\":{\"type\":\"string\"},\"envelope\":{\"type\":\"object\"},\"validation\":{\"type\":\"object\"},\"baseVersionId\":{\"type\":[\"string\",\"null\"]},\"generation\":{\"type\":\"integer\",\"description\":\"Optimistic-concurrency generation. Pass this value as `generation` on the next mutating call for this draft.\"},\"createdBy\":{\"type\":[\"string\",\"null\"]},\"updatedBy\":{\"type\":[\"string\",\"null\"]},\"createdAt\":{\"type\":\"string\"},\"updatedAt\":{\"type\":\"string\"},\"status\":{\"type\":\"string\",\"const\":\"error\"},\"code\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]},\"currentGeneration\":{\"type\":[\"integer\",\"null\"],\"minimum\":1},\"error\":{\"type\":\"object\"}},\"oneOf\":[{\"not\":{\"required\":[\"status\",\"code\",\"message\",\"error\"]},\"required\":[\"draftId\",\"itemId\",\"packageKey\",\"family\",\"envelope\",\"generation\",\"createdAt\",\"updatedAt\"]},{\"required\":[\"status\",\"code\",\"message\",\"error\"]}]}",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "draftId"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Studio package draft id."
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "honua_studio_preview_draft",
+              "description": "Build a read-only preview plan for a Studio package lifecycle draft's current envelope. Genuinely read-only: it does NOT persist a validation summary or change the draft's generation (unlike the REST admin POST .../preview-plan endpoint). For job-backed families (gp, etl, workflow) the plan is planning-only — it does not submit or execute a job.\n\nTool annotations (JSON): {\"title\":\"Preview Studio draft\",\"readOnlyHint\":true,\"destructiveHint\":false}\n\nExpected structured output schema (JSON): {\"type\":\"object\",\"properties\":{\"draftId\":{\"type\":\"string\"},\"family\":{\"type\":\"string\"},\"synchronous\":{\"type\":\"boolean\"},\"requiresJob\":{\"type\":\"boolean\"},\"steps\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"validation\":{\"type\":\"object\"},\"status\":{\"type\":\"string\",\"const\":\"error\"},\"code\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]},\"currentGeneration\":{\"type\":[\"integer\",\"null\"],\"minimum\":1},\"error\":{\"type\":\"object\"}},\"oneOf\":[{\"not\":{\"required\":[\"status\",\"code\",\"message\",\"error\"]},\"required\":[\"draftId\",\"family\",\"synchronous\",\"requiresJob\",\"steps\",\"validation\"]},{\"required\":[\"status\",\"code\",\"message\",\"error\"]}]}",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "draftId"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Studio package draft id."
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "honua_studio_reopen_version",
+              "description": "Create an editable Studio draft from a saved version through the governed Studio runtime. Use its draftId and generation for subsequent edits. An approval-required operation has no reopened draft yet.\n\nTool annotations (JSON): {\"title\":\"Reopen Studio version\",\"readOnlyHint\":false,\"destructiveHint\":false,\"idempotentHint\":false}\n\nExpected structured output schema (JSON): {\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"object\",\"required\":[\"operationInstanceId\",\"operationId\",\"status\",\"correlationId\",\"createdAt\",\"updatedAt\"],\"properties\":{\"operationInstanceId\":{\"type\":\"string\"},\"operationId\":{\"type\":\"string\"},\"status\":{\"type\":\"string\"},\"correlationId\":{\"type\":\"string\"},\"auditId\":{\"type\":[\"string\",\"null\"]},\"proposalId\":{\"type\":[\"string\",\"null\"]},\"createdAt\":{\"type\":\"string\"},\"updatedAt\":{\"type\":\"string\"}}},\"draftId\":{\"type\":[\"string\",\"null\"]},\"itemId\":{\"type\":[\"string\",\"null\"]},\"packageKey\":{\"type\":[\"string\",\"null\"]},\"workspaceId\":{\"type\":[\"string\",\"null\"]},\"ownerId\":{\"type\":[\"string\",\"null\"]},\"family\":{\"type\":[\"string\",\"null\"]},\"envelope\":{\"type\":[\"object\",\"null\"]},\"validation\":{\"type\":[\"object\",\"null\"]},\"baseVersionId\":{\"type\":[\"string\",\"null\"]},\"generation\":{\"type\":[\"integer\",\"null\"]},\"createdBy\":{\"type\":[\"string\",\"null\"]},\"updatedBy\":{\"type\":[\"string\",\"null\"]},\"createdAt\":{\"type\":[\"string\",\"null\"]},\"updatedAt\":{\"type\":[\"string\",\"null\"]},\"studioAuthorizationCode\":{},\"status\":{\"type\":\"string\",\"const\":\"error\"},\"code\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"currentGeneration\":{\"type\":[\"integer\",\"null\"],\"minimum\":1},\"error\":{\"type\":\"object\"}},\"oneOf\":[{\"not\":{\"required\":[\"status\",\"code\",\"message\",\"error\"]},\"required\":[\"operation\"],\"properties\":{\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"],\"description\":\"Stable Studio authorization denial code on an error branch.\"}}},{\"required\":[\"status\",\"code\",\"message\",\"error\"],\"properties\":{\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]}}}]}",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "itemId",
+                  "versionId"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "versionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "honua_studio_save_version",
+              "description": "Save the current Studio draft generation as an immutable version through the governed Studio runtime. Use the returned version.itemId, version.versionId and version.contentHash for publication or reopen. Read the draft again before editing it further because saving refreshes its generation. An approval-required operation has no saved version yet; follow its proposal before continuing.\n\nTool annotations (JSON): {\"title\":\"Save Studio version\",\"readOnlyHint\":false,\"destructiveHint\":false,\"idempotentHint\":false}\n\nExpected structured output schema (JSON): {\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"object\",\"required\":[\"operationId\",\"operationInstanceId\",\"status\"],\"properties\":{\"operationId\":{\"type\":\"string\"},\"operationInstanceId\":{\"type\":\"string\"},\"status\":{\"type\":\"string\"},\"proposalId\":{\"type\":[\"string\",\"null\"]}}},\"version\":{\"type\":[\"object\",\"null\"],\"properties\":{\"itemId\":{\"type\":\"string\"},\"versionId\":{\"type\":\"string\"},\"contentHash\":{\"type\":\"string\"},\"envelope\":{\"type\":\"object\"},\"validation\":{\"type\":\"object\"}}},\"studioAuthorizationCode\":{},\"status\":{\"type\":\"string\",\"const\":\"error\"},\"code\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"currentGeneration\":{\"type\":[\"integer\",\"null\"],\"minimum\":1},\"error\":{\"type\":\"object\"}},\"oneOf\":[{\"not\":{\"required\":[\"status\",\"code\",\"message\",\"error\"]},\"required\":[\"operation\"],\"properties\":{\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]}}},{\"required\":[\"status\",\"code\",\"message\",\"error\"],\"properties\":{\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]}}}]}",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "draftId",
+                  "generation"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "generation": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "changeNote": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "honua_studio_update_draft",
+              "description": "Replace a Studio package lifecycle draft's editable fields (packageKey, workspaceId, ownerId, schemaVersion, format, body) with optimistic-generation checking. Pass the `generation` last read from honua_studio_get_draft/honua_studio_create_draft; a stale generation returns a failed_precondition error — re-fetch and retry rather than blindly resubmitting. The optional `ownerId` field is admin-only; non-admin callers must omit it. Does not accept publicationIntent: use honua_studio_propose_publication to record publish intent.\n\nTool annotations (JSON): {\"title\":\"Update Studio draft\",\"readOnlyHint\":false,\"destructiveHint\":false,\"idempotentHint\":false}\n\nExpected structured output schema (JSON): {\"type\":\"object\",\"properties\":{\"draftId\":{\"type\":\"string\"},\"itemId\":{\"type\":\"string\"},\"packageKey\":{\"type\":\"string\"},\"workspaceId\":{\"type\":[\"string\",\"null\"]},\"ownerId\":{\"type\":[\"string\",\"null\"]},\"family\":{\"type\":\"string\"},\"envelope\":{\"type\":\"object\"},\"validation\":{\"type\":\"object\"},\"baseVersionId\":{\"type\":[\"string\",\"null\"]},\"generation\":{\"type\":\"integer\",\"description\":\"Optimistic-concurrency generation. Pass this value as `generation` on the next mutating call for this draft.\"},\"createdBy\":{\"type\":[\"string\",\"null\"]},\"updatedBy\":{\"type\":[\"string\",\"null\"]},\"createdAt\":{\"type\":\"string\"},\"updatedAt\":{\"type\":\"string\"},\"status\":{\"type\":\"string\",\"const\":\"error\"},\"code\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]},\"currentGeneration\":{\"type\":[\"integer\",\"null\"],\"minimum\":1},\"error\":{\"type\":\"object\"}},\"oneOf\":[{\"not\":{\"required\":[\"status\",\"code\",\"message\",\"error\"]},\"required\":[\"draftId\",\"itemId\",\"packageKey\",\"family\",\"envelope\",\"generation\",\"createdAt\",\"updatedAt\"]},{\"required\":[\"status\",\"code\",\"message\",\"error\"]}]}",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "draftId",
+                  "generation",
+                  "packageKey",
+                  "schemaVersion"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Studio package draft id."
+                  },
+                  "generation": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Expected current draft generation (optimistic concurrency). A mismatch surfaces a failed_precondition error; re-fetch with honua_studio_get_draft and retry."
+                  },
+                  "packageKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "^[A-Za-z0-9_.-]+$",
+                    "description": "Machine-friendly package key (letters, numbers, dash, underscore, dot only)."
+                  },
+                  "schemaVersion": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50,
+                    "description": "Envelope schema version for the family."
+                  },
+                  "format": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "Family-specific package format."
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Workspace identifier."
+                  },
+                  "ownerId": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Admin-only owner principal identifier. Non-admin callers must omit this field; explicit non-admin assignment is rejected."
+                  },
+                  "body": {
+                    "type": "object",
+                    "description": "Replacement composition/family body. Omit to leave the existing body unchanged."
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "honua_studio_validate_draft",
+              "description": "Validate a Studio package lifecycle draft's current envelope and return the validation summary. Genuinely read-only: it does NOT persist the result onto the draft or change its generation (unlike the REST admin POST .../validate endpoint), so it is always safe to call between composition-mutation calls.\n\nTool annotations (JSON): {\"title\":\"Validate Studio draft\",\"readOnlyHint\":true,\"destructiveHint\":false}\n\nExpected structured output schema (JSON): {\"type\":\"object\",\"properties\":{\"status\":{},\"diagnostics\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}},\"unsupportedCapabilities\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"generatedAt\":{\"type\":[\"string\",\"null\"]},\"code\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"},\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]},\"currentGeneration\":{\"type\":[\"integer\",\"null\"],\"minimum\":1},\"error\":{\"type\":\"object\"}},\"oneOf\":[{\"not\":{\"required\":[\"status\",\"code\",\"message\",\"error\"]},\"required\":[\"status\"],\"properties\":{\"status\":{\"type\":\"string\",\"enum\":[\"not-validated\",\"valid\",\"warning\",\"invalid\"]}}},{\"required\":[\"status\",\"code\",\"message\",\"error\"],\"properties\":{\"status\":{\"type\":\"string\",\"const\":\"error\"}}}]}",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "draftId"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Studio package draft id."
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "honua_studio_propose_publication",
+              "description": "Submit an exact saved Studio item/version/contentHash plus route and visibility for human approval. Returns canonical operation and proposal identities; no publication pointer moves before separate-principal approval.\n\nTool annotations (JSON): {\"title\":\"Propose Studio publication\",\"readOnlyHint\":false,\"destructiveHint\":false,\"idempotentHint\":true}\n\nExpected structured output schema (JSON): {\"type\":\"object\",\"properties\":{\"operation\":{\"type\":\"object\"},\"operationInstanceId\":{\"type\":\"string\",\"minLength\":1},\"proposalId\":{\"type\":\"string\",\"minLength\":1},\"proposalUri\":{\"type\":\"string\",\"pattern\":\"^honua://proposals/.+\"},\"auditId\":{\"type\":\"string\",\"minLength\":1},\"correlationId\":{\"type\":\"string\",\"minLength\":1},\"idempotencyIdentity\":{\"type\":\"string\",\"minLength\":1},\"status\":{},\"humanConfirmationRequired\":{\"type\":\"boolean\",\"const\":true},\"message\":{},\"code\":{\"type\":\"string\"},\"studioAuthorizationCode\":{\"type\":[\"string\",\"null\"]},\"currentGeneration\":{\"type\":[\"integer\",\"null\"],\"minimum\":1},\"error\":{\"type\":\"object\"}},\"oneOf\":[{\"not\":{\"required\":[\"status\",\"code\",\"message\",\"error\"]},\"required\":[\"operation\",\"operationInstanceId\",\"proposalId\",\"proposalUri\",\"auditId\",\"correlationId\",\"idempotencyIdentity\",\"status\",\"humanConfirmationRequired\",\"message\"],\"properties\":{\"status\":{\"type\":\"string\",\"const\":\"AwaitingApproval\"},\"message\":{\"type\":\"string\"}}},{\"required\":[\"status\",\"code\",\"message\",\"error\"],\"properties\":{\"status\":{\"type\":\"string\",\"const\":\"error\"},\"message\":{\"type\":\"string\"}}}]}",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "itemId",
+                  "versionId",
+                  "contentHash",
+                  "route",
+                  "visibility"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Studio content item id."
+                  },
+                  "versionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Exact immutable saved version id."
+                  },
+                  "contentHash": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "Exact content hash returned when the version was saved."
+                  },
+                  "route": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Requested target route key."
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Requested visibility target."
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Human-readable rationale recorded for reviewer context."
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "descriptorsWithAnnotations": 8,
+        "descriptorsWithOutputSchema": 8
+      }
+    },
+    {
+      "id": "terminal-session-lifecycle:admin-api-key-mcp",
+      "criterion": "AC4",
+      "verdict": "pass",
+      "evidence": {
+        "mode": "mcp",
+        "dispatched": [
+          {
+            "tool": "honua_studio_create_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_update_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_validate_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_get_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_save_version",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_reopen_version",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_propose_publication",
+            "plane": "composition",
+            "ok": true
+          }
+        ],
+        "values": {
+          "draftId": "99d3d725-2663-4a53-86f4-0ca7588227c8",
+          "ownerId": "00000000-0000-0000-0000-000000000002",
+          "generations": {
+            "created": 1,
+            "updated": 2,
+            "reopened": 1
+          },
+          "itemId": "6c7c9c0b-ed2b-44fb-8142-c2d3640ecdcd",
+          "versionId": "fdb06b06-94c9-445c-81da-640433adbe53",
+          "contentHash": "5e7d6fa92f5cbd3e869cd996db05bdbadf8e7603bcff44a4d62d42764d992afc",
+          "reopenedDraftId": "04505073-5fee-4b69-9d2f-eb1a7b21372c",
+          "proposalId": "proposal-3ef90974e2fa4cf6b36f3214630b3311",
+          "publicationPointer": "null|fdb06b06-94c9-445c-81da-640433adbe53",
+          "polls": [
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-3ef90974e2fa4cf6b36f3214630b3311",
+                "operationInstanceId": "opinst-88799aa64a7f47bd8aba6b9ed1fd95af",
+                "auditId": "33",
+                "correlationId": "00-09f092810c52b7518b6dceba5665e6e6-493100f38653f2a2-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version fdb06b06-94c9-445c-81da-640433adbe53 at /studio/sdk1397-admin-api-key-mcp-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=6c7c9c0b-ed2b-44fb-8142-c2d3640ecdcd",
+                  "versionId=fdb06b06-94c9-445c-81da-640433adbe53",
+                  "contentHash=5e7d6fa92f5cbd3e869cd996db05bdbadf8e7603bcff44a4d62d42764d992afc",
+                  "route=/studio/sdk1397-admin-api-key-mcp-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:13.6161358+00:00",
+                "updatedAt": "2026-09-16T17:12:13.620853+00:00"
+              }
+            },
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-3ef90974e2fa4cf6b36f3214630b3311",
+                "operationInstanceId": "opinst-88799aa64a7f47bd8aba6b9ed1fd95af",
+                "auditId": "33",
+                "correlationId": "00-09f092810c52b7518b6dceba5665e6e6-493100f38653f2a2-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version fdb06b06-94c9-445c-81da-640433adbe53 at /studio/sdk1397-admin-api-key-mcp-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=6c7c9c0b-ed2b-44fb-8142-c2d3640ecdcd",
+                  "versionId=fdb06b06-94c9-445c-81da-640433adbe53",
+                  "contentHash=5e7d6fa92f5cbd3e869cd996db05bdbadf8e7603bcff44a4d62d42764d992afc",
+                  "route=/studio/sdk1397-admin-api-key-mcp-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:13.6161358+00:00",
+                "updatedAt": "2026-09-16T17:12:13.620853+00:00"
+              }
+            },
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-3ef90974e2fa4cf6b36f3214630b3311",
+                "operationInstanceId": "opinst-88799aa64a7f47bd8aba6b9ed1fd95af",
+                "auditId": "33",
+                "correlationId": "00-09f092810c52b7518b6dceba5665e6e6-493100f38653f2a2-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version fdb06b06-94c9-445c-81da-640433adbe53 at /studio/sdk1397-admin-api-key-mcp-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=6c7c9c0b-ed2b-44fb-8142-c2d3640ecdcd",
+                  "versionId=fdb06b06-94c9-445c-81da-640433adbe53",
+                  "contentHash=5e7d6fa92f5cbd3e869cd996db05bdbadf8e7603bcff44a4d62d42764d992afc",
+                  "route=/studio/sdk1397-admin-api-key-mcp-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:13.6161358+00:00",
+                "updatedAt": "2026-09-16T17:12:13.620853+00:00"
+              }
+            }
+          ]
+        },
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "initialize"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          }
+        ]
+      }
+    },
+    {
+      "id": "list-changed-push-changes-discovered-set",
+      "criterion": "AC3, AC5",
+      "verdict": "pass",
+      "evidence": {
+        "phases": [
+          {
+            "serverDefaultView": "setup",
+            "routed": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "secondsToRefresh": 7.012,
+            "toolsListCallsTriggered": 1
+          },
+          {
+            "serverDefaultView": "default",
+            "routed": [],
+            "secondsToRefresh": 7.764,
+            "toolsListCallsTriggered": 1
+          }
+        ],
+        "mcpSession": {
+          "reused": true,
+          "initializeCalls": 1
+        },
+        "streamEvents": [
+          {
+            "at": 1789578735434,
+            "type": "toolWatch",
+            "status": "connecting"
+          },
+          {
+            "at": 1789578735439,
+            "type": "toolWatch",
+            "status": "open"
+          }
+        ],
+        "serverBroadcastLogLines": []
+      }
+    },
+    {
+      "id": "release-swap-reconnect-changes-discovered-set",
+      "criterion": "AC5",
+      "verdict": "pass",
+      "evidence": {
+        "previousRunning": {
+          "container": "sdk1397-12cd21a5-server-previous",
+          "imageId": "sha256:dd50cd81c057e37e73a6144572abdfc90d48de314d7625c54c4ef3b6eb65b0fd",
+          "revision": "7ba422672e0c751843b17beb36e954a019cc19fb",
+          "boots": 1,
+          "extraEnv": {}
+        },
+        "steps": [
+          {
+            "label": "candidate 87966c3",
+            "routed": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "classification": {
+              "families": [
+                "honua.studio.composition"
+              ],
+              "views": [
+                "setup"
+              ],
+              "revisions": [
+                "setup.v2"
+              ]
+            }
+          },
+          {
+            "label": "previous 7ba4226 after reconnect",
+            "routed": [
+              "honua_studio_create_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "classification": {
+              "families": [
+                "honua.studio.composition"
+              ],
+              "views": [
+                "setup"
+              ],
+              "revisions": [
+                "setup.v1"
+              ]
+            }
+          },
+          {
+            "label": "candidate 87966c3 after reconnect",
+            "routed": [
+              "honua_studio_create_draft",
+              "honua_studio_get_draft",
+              "honua_studio_preview_draft",
+              "honua_studio_reopen_version",
+              "honua_studio_save_version",
+              "honua_studio_update_draft",
+              "honua_studio_validate_draft",
+              "honua_studio_propose_publication"
+            ],
+            "classification": {
+              "families": [
+                "honua.studio.composition"
+              ],
+              "views": [
+                "setup"
+              ],
+              "revisions": [
+                "setup.v2"
+              ]
+            }
+          }
+        ],
+        "removedByDowngrade": [
+          "honua_studio_get_draft",
+          "honua_studio_update_draft",
+          "honua_studio_preview_draft",
+          "honua_studio_save_version",
+          "honua_studio_reopen_version"
+        ],
+        "initializeCalls": 3
+      }
+    },
+    {
+      "id": "default-session-classified-discovery:end-user-bearer",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "report": {
+          "discovered": 25,
+          "pages": 1,
+          "routed": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ],
+          "classification": {
+            "families": [
+              "honua.studio.composition"
+            ],
+            "views": [
+              "setup"
+            ],
+            "revisions": [
+              "setup.v2"
+            ]
+          },
+          "rejected": [
+            {
+              "name": "honua_list_capabilities",
+              "reason": "unclassified",
+              "detail": "\"honua_list_capabilities\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_resolve_entity",
+              "reason": "unclassified",
+              "detail": "\"honua_resolve_entity\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_ingest_dataset",
+              "reason": "unclassified",
+              "detail": "\"honua_ingest_dataset\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_publish_result",
+              "reason": "unclassified",
+              "detail": "\"honua_publish_result\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_publish_service",
+              "reason": "unclassified",
+              "detail": "\"honua_publish_service\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_describe_layer",
+              "reason": "unclassified",
+              "detail": "\"honua_describe_layer\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_list_layers",
+              "reason": "unclassified",
+              "detail": "\"honua_list_layers\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_query_features",
+              "reason": "unclassified",
+              "detail": "\"honua_query_features\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_apply_style_preset",
+              "reason": "unclassified",
+              "detail": "\"honua_apply_style_preset\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_get_style",
+              "reason": "unclassified",
+              "detail": "\"honua_get_style\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_render_map",
+              "reason": "unclassified",
+              "detail": "\"honua_render_map\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_dry_run_plan",
+              "reason": "unclassified",
+              "detail": "\"honua_dry_run_plan\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_execute_plan",
+              "reason": "unclassified",
+              "detail": "\"honua_execute_plan\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_list_jobs",
+              "reason": "unclassified",
+              "detail": "\"honua_list_jobs\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_plan_analysis",
+              "reason": "unclassified",
+              "detail": "\"honua_plan_analysis\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_validate_plan",
+              "reason": "unclassified",
+              "detail": "\"honua_validate_plan\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            },
+            {
+              "name": "honua_supported_operation_kinds",
+              "reason": "unclassified",
+              "detail": "\"honua_supported_operation_kinds\" carries no server-owned \"honua.studio\" family classification and is not on this session's configured allowlist, so it is not routed. A current honua-server classifies every Studio composition tool it authorizes for this principal; an unclassified descriptor is either outside that family or served by a server older than honua-server#3695, in which case add the name to `studioTools.allowlist` to route it."
+            }
+          ],
+          "missingRequired": [
+            "honua_studio_add_layer",
+            "honua_studio_remove_layer",
+            "honua_studio_set_layer_style",
+            "honua_studio_set_layer_visibility",
+            "honua_studio_set_view",
+            "honua_studio_add_widget",
+            "honua_studio_remove_widget",
+            "honua_studio_bind_interaction",
+            "honua_studio_remove_interaction"
+          ],
+          "diagnostics": [
+            "Required Studio tool \"honua_studio_add_layer\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_remove_layer\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_set_layer_style\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_set_layer_visibility\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_set_view\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_add_widget\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_remove_widget\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_bind_interaction\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list.",
+            "Required Studio tool \"honua_studio_remove_interaction\" was not advertised by the server's tools/list catalog. If the server renamed or retired it, update this consumer's `studioTools.required` list."
+          ]
+        },
+        "fullCatalog": {
+          "descriptors": 124,
+          "classified": [
+            {
+              "name": "honua_studio_create_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_get_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_preview_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_propose_publication",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_reopen_version",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_save_version",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_update_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            },
+            {
+              "name": "honua_studio_validate_draft",
+              "classification": {
+                "family": "honua.studio.composition",
+                "view": "setup",
+                "revision": "setup.v2"
+              }
+            }
+          ],
+          "unclassifiedStudioNamed": [
+            "honua_studio_add_control",
+            "honua_studio_add_layer",
+            "honua_studio_add_widget",
+            "honua_studio_bind_interaction",
+            "honua_studio_remove_control",
+            "honua_studio_remove_interaction",
+            "honua_studio_remove_layer",
+            "honua_studio_remove_widget",
+            "honua_studio_set_layer_style",
+            "honua_studio_set_layer_visibility",
+            "honua_studio_set_view"
+          ]
+        },
+        "setupView": {
+          "pages": 1,
+          "names": [
+            "honua_list_capabilities",
+            "honua_resolve_entity",
+            "honua_ingest_dataset",
+            "honua_publish_result",
+            "honua_publish_service",
+            "honua_describe_layer",
+            "honua_list_layers",
+            "honua_query_features",
+            "honua_apply_style_preset",
+            "honua_get_style",
+            "honua_render_map",
+            "honua_dry_run_plan",
+            "honua_execute_plan",
+            "honua_list_jobs",
+            "honua_plan_analysis",
+            "honua_validate_plan",
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication",
+            "honua_supported_operation_kinds"
+          ]
+        }
+      }
+    },
+    {
+      "id": "end-user-model-turn-dispatch",
+      "criterion": "finding (honua-sdk-js / honua-server)",
+      "verdict": "fail",
+      "evidence": {
+        "uncertified": {
+          "status": "error",
+          "errorMessage": "Model-selected actions require exactly one terminal verified transcript provenance event.",
+          "toolCalls": 0
+        },
+        "transcriptSigning": {
+          "requiredForCertification": true,
+          "keys": [
+            {
+              "keyId": "sdk1397-12cd21a5-transcript",
+              "algorithm": "Ed25519",
+              "publicKey": "Uj/sjC0BPoI6DjsbEdw3cLn3i4w5ybaUCEvTZbBh4ok=",
+              "fingerprint": "sha256:d3b5463ff15a812923d571f383dcbeea085df89833ffd9e3c9ffd7b45826aef6",
+              "revoked": false
+            }
+          ]
+        },
+        "certified": {
+          "status": "error",
+          "errorMessage": "Studio AI proxy responded 403 for the chat request.",
+          "toolCalls": 0
+        }
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: an interactive end user's model-selected Studio action cannot dispatch: the SDK requires certified provenance and the proxy forbids certification to non-admin callers\n    at file:///home/mike/honua-io/wt-sdkjs-1397-ac7-studio72/scripts/qualify-studio-candidate.mjs:1191:12\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1397-ac7-studio72/scripts/qualify-studio-candidate.mjs:196:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1397-ac7-studio72/scripts/qualify-studio-candidate.mjs:1178:3"
+    },
+    {
+      "id": "terminal-session-lifecycle:end-user-bearer",
+      "criterion": "AC4",
+      "verdict": "pass",
+      "evidence": {
+        "mode": "mcp",
+        "dispatched": [
+          {
+            "tool": "honua_studio_create_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_update_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_validate_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_get_draft",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_save_version",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_reopen_version",
+            "plane": "composition",
+            "ok": true
+          },
+          {
+            "tool": "honua_studio_propose_publication",
+            "plane": "composition",
+            "ok": true
+          }
+        ],
+        "values": {
+          "draftId": "5d2eab1b-7f48-4690-bde4-6f94ce2db092",
+          "ownerId": "subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-12cd21a5@tenant:public",
+          "generations": {
+            "created": 1,
+            "updated": 2,
+            "reopened": 1
+          },
+          "itemId": "1c2c642d-0166-4a76-a6f3-11ff74c5a455",
+          "versionId": "8f5552d8-f334-42ca-ac0e-e76347071bd9",
+          "contentHash": "bf8e991b99ad39158868000fa91fd228bfc4f69caba85001f2b64bf5c530865c",
+          "reopenedDraftId": "9305705c-34c8-4869-a9c9-e23dd519f94b",
+          "proposalId": "proposal-920a3b1a336046a5b3424a01cbe6a650",
+          "publicationPointer": "null|8f5552d8-f334-42ca-ac0e-e76347071bd9",
+          "polls": [
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-920a3b1a336046a5b3424a01cbe6a650",
+                "operationInstanceId": "opinst-68c3f66289014401ad93d9664cd85c49",
+                "auditId": "46",
+                "correlationId": "00-c6db0d3d49dad7b0dd3b91fcdea5a0b8-fb93dbc34e3e5ff9-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version 8f5552d8-f334-42ca-ac0e-e76347071bd9 at /studio/sdk1397-end-user-bearer-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=1c2c642d-0166-4a76-a6f3-11ff74c5a455",
+                  "versionId=8f5552d8-f334-42ca-ac0e-e76347071bd9",
+                  "contentHash=bf8e991b99ad39158868000fa91fd228bfc4f69caba85001f2b64bf5c530865c",
+                  "route=/studio/sdk1397-end-user-bearer-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:40.4248714+00:00",
+                "updatedAt": "2026-09-16T17:12:40.4311127+00:00"
+              }
+            },
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-920a3b1a336046a5b3424a01cbe6a650",
+                "operationInstanceId": "opinst-68c3f66289014401ad93d9664cd85c49",
+                "auditId": "46",
+                "correlationId": "00-c6db0d3d49dad7b0dd3b91fcdea5a0b8-fb93dbc34e3e5ff9-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version 8f5552d8-f334-42ca-ac0e-e76347071bd9 at /studio/sdk1397-end-user-bearer-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=1c2c642d-0166-4a76-a6f3-11ff74c5a455",
+                  "versionId=8f5552d8-f334-42ca-ac0e-e76347071bd9",
+                  "contentHash=bf8e991b99ad39158868000fa91fd228bfc4f69caba85001f2b64bf5c530865c",
+                  "route=/studio/sdk1397-end-user-bearer-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:40.4248714+00:00",
+                "updatedAt": "2026-09-16T17:12:40.4311127+00:00"
+              }
+            },
+            {
+              "http": 200,
+              "record": {
+                "proposalId": "proposal-920a3b1a336046a5b3424a01cbe6a650",
+                "operationInstanceId": "opinst-68c3f66289014401ad93d9664cd85c49",
+                "auditId": "46",
+                "correlationId": "00-c6db0d3d49dad7b0dd3b91fcdea5a0b8-fb93dbc34e3e5ff9-00",
+                "kind": "StudioDraftMutation",
+                "status": "AwaitingApproval",
+                "summary": "Publish sealed Studio version 8f5552d8-f334-42ca-ac0e-e76347071bd9 at /studio/sdk1397-end-user-bearer-12cd21a5.",
+                "riskLevel": "Medium",
+                "diff": [
+                  "itemId=1c2c642d-0166-4a76-a6f3-11ff74c5a455",
+                  "versionId=8f5552d8-f334-42ca-ac0e-e76347071bd9",
+                  "contentHash=bf8e991b99ad39158868000fa91fd228bfc4f69caba85001f2b64bf5c530865c",
+                  "route=/studio/sdk1397-end-user-bearer-12cd21a5",
+                  "visibility=personal"
+                ],
+                "dryRun": [],
+                "blockingReasons": [],
+                "warnings": [],
+                "createdAt": "2026-09-16T17:12:40.4248714+00:00",
+                "updatedAt": "2026-09-16T17:12:40.4311127+00:00"
+              }
+            }
+          ]
+        },
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "initialize"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          },
+          {
+            "method": "POST",
+            "path": "/mcp",
+            "rpc": "tools/call"
+          }
+        ]
+      }
+    },
+    {
+      "id": "rbac-distinct-principal-negatives",
+      "criterion": "AC6",
+      "verdict": "pass",
+      "evidence": {
+        "discoveryByPrincipal": {
+          "sdk1397-bob-12cd21a5 (honua.mcp.full, roles [\"sdk1397-author-12cd21a5\"])": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ],
+          "sdk1397-carol-12cd21a5 (honua.mcp.full, roles [])": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ],
+          "sdk1397-dan-12cd21a5 (honua.mcp.full, roles [\"sdk1397-composer-12cd21a5\"])": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ],
+          "sdk1397-alice-12cd21a5 (honua.mcp.read, roles [\"sdk1397-author-12cd21a5\"])": [
+            "honua_studio_create_draft",
+            "honua_studio_get_draft",
+            "honua_studio_preview_draft",
+            "honua_studio_reopen_version",
+            "honua_studio_save_version",
+            "honua_studio_update_draft",
+            "honua_studio_validate_draft",
+            "honua_studio_propose_publication"
+          ]
+        },
+        "anonymousInvoke": {
+          "http": 200,
+          "isError": true
+        },
+        "outcomes": {
+          "otherOwnerRead": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "The caller does not own this Studio resource.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_get_draft",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "The caller does not own this Studio resource.",
+                "studioAuthorizationCode": "studio_authorization/cross_user_denied",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "The caller does not own this Studio resource."
+                }
+              }
+            }
+          },
+          "otherOwnerUpdate": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "The caller does not own this Studio resource.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_update_draft",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "The caller does not own this Studio resource.",
+                "studioAuthorizationCode": "studio_authorization/cross_user_denied",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "The caller does not own this Studio resource."
+                }
+              }
+            }
+          },
+          "otherOwnerSave": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "The caller does not own this Studio resource.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_save_version",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "The caller does not own this Studio resource.",
+                "studioAuthorizationCode": "studio_authorization/cross_user_denied",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "The caller does not own this Studio resource."
+                }
+              }
+            }
+          },
+          "readOnlyScopeUpdate": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "The access token's scopes do not permit 'Create' on StudioDraft. Request a token whose scope claim includes the scope for this operation.",
+              "code": "insufficient_scope",
+              "toolName": "honua_studio_update_draft",
+              "data": {
+                "status": "error",
+                "code": "insufficient_scope",
+                "message": "The access token's scopes do not permit 'Create' on StudioDraft. Request a token whose scope claim includes the scope for this operation.",
+                "studioAuthorizationCode": "studio_authorization/oauth_scope_required",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "The access token's scopes do not permit 'Create' on StudioDraft. Request a token whose scope claim includes the scope for this operation."
+                }
+              }
+            }
+          },
+          "noGrantCreate": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "You do not have permission to perform 'Create' on StudioDraft.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_create_draft",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "You do not have permission to perform 'Create' on StudioDraft.",
+                "studioAuthorizationCode": "studio_authorization/operator_grant_required",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "You do not have permission to perform 'Create' on StudioDraft."
+                }
+              }
+            }
+          },
+          "noPublishGrantPropose": {
+            "ok": false,
+            "error": {
+              "name": "McpToolError",
+              "message": "'PublishRequest' requires a StudioDraft 'Publish' operator grant.",
+              "code": "permission_denied",
+              "toolName": "honua_studio_propose_publication",
+              "data": {
+                "status": "error",
+                "code": "permission_denied",
+                "message": "'PublishRequest' requires a StudioDraft 'Publish' operator grant.",
+                "studioAuthorizationCode": "studio_authorization/elevated_grant_required",
+                "error": {
+                  "kind": "AuthorizationDenied",
+                  "message": "'PublishRequest' requires a StudioDraft 'Publish' operator grant."
+                }
+              }
+            }
+          },
+          "otherPrincipalProposalPoll": {
+            "http": 200,
+            "error": {
+              "code": -32000,
+              "message": "The caller is not authorized to read this Studio publication proposal.",
+              "data": {
+                "code": "permission_denied"
+              }
+            }
+          }
+        },
+        "durableDraft": {
+          "before": "1|subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-12cd21a5@tenant:public",
+          "after": "1|subject:https%3A%2F%2Fsdk1397.honua.test:sdk1397-alice-12cd21a5@tenant:public"
+        }
+      }
+    }
+  ],
+  "studio": {
+    "ref": "39c567cf48ead0858da48979dbd2d4fff4da4ab4",
+    "remote": "https://github.com/honua-io/honua-studio.git",
+    "localListDeletion": "685ac572d8736b75d4e483f53631143e5f3fcd5a",
+    "transcriptProvenance": "39c567cf48ead0858da48979dbd2d4fff4da4ab4"
+  },
+  "principals": {
+    "roles": [
+      {
+        "name": "sdk1397-author-12cd21a5",
+        "roleId": "031939b6-3c1a-43f0-9cf3-9986fd0cfb9a",
+        "permissions": [
+          {
+            "service": "StudioDraft",
+            "layer": "*",
+            "operation": "*"
+          }
+        ]
+      },
+      {
+        "name": "sdk1397-composer-12cd21a5",
+        "roleId": "71565b2d-eb0a-4c58-b90a-f3fc33b9a91f",
+        "permissions": [
+          {
+            "service": "StudioDraft",
+            "layer": "*",
+            "operation": "Discover"
+          },
+          {
+            "service": "StudioDraft",
+            "layer": "*",
+            "operation": "Read"
+          },
+          {
+            "service": "StudioDraft",
+            "layer": "*",
+            "operation": "Create"
+          },
+          {
+            "service": "StudioDraft",
+            "layer": "*",
+            "operation": "Update"
+          },
+          {
+            "service": "StudioDraft",
+            "layer": "*",
+            "operation": "Execute"
+          }
+        ]
+      }
+    ],
+    "tokens": "HS256 from this deployment's issuer/audience/signing key; tid=public; sid+auth_time session evidence; one token per principal"
+  },
+  "status": "passed",
+  "findings": [
+    "end-user-model-turn-dispatch"
+  ]
+}

@@ -2,6 +2,7 @@
   "$schema": "./support-manifest.schema.json",
   "format": "honua.sdk.support-manifest.v1",
   "schemaVersion": 1,
+  "rasterSourceRegistry": "config/raster-source-registry.v1.json",
   "sdk": {
     "package": "@honua/sdk-js",
     "releaseStatus": "beta"

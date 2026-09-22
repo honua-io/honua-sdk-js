@@ -1,0 +1,321 @@
+{
+  "mode": "harness-diagnostic-only",
+  "generatedAt": "2026-09-15T02:44:25.476Z",
+  "binding": {
+    "candidateDigest": "sha256:cd7ca76c82ec877f8a0a86effd06d24240d7fce31754743e78c609a92c8530e0",
+    "denominatorDigest": "sha256:c2cc79d1a0f0352eeeef29ba6a7bebd7a0196b90eb9e3bc8030f2b39376d4d54",
+    "inputs": {
+      "config/support-manifest.v1.json": "sha256:e1ac66b00a6b0f636c03f15d9fae15225937dc95abc12a8bfeb3561271f4d032",
+      "mcp/release/zero-to-map/journey.v1.json": "sha256:5c2b267695e9748a24fc6b72c732b7f71b0a764e8239691b216fdedddb4c313b",
+      "test/integration/seed/places-roads-v1.sql": "sha256:0ca9671df1f2f210b82592e1139659943960bf384ff42002f1ecf242dd5b3bf1",
+      "scripts/fixtures/installed-features.mjs": "sha256:df0bd581cd60644bb28ef091c29362add1f0ae7501ef29e7ac5aa0cbcd4c0977",
+      "scripts/installed-candidate-fixture.mjs": "sha256:881e32582403e1c93e042ecb7594808eb29be0081e8a15eb4c422c3106b8440f"
+    }
+  },
+  "installedRoot": {
+    "version": "0.1.9-beta.0",
+    "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz",
+    "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+    "license": "Apache-2.0",
+    "dependencies": {
+      "@honua/honua-migrate": "0.1.3-beta.0",
+      "@mapbox/jsonlint-lines-primitives": "2.0.2",
+      "@maplibre/maplibre-gl-style-spec": "^24.7.0"
+    },
+    "bin": {
+      "honua": "dist/src/cli/bin.js",
+      "honua-plugin-certify": "dist/src/plugin/bin.js"
+    },
+    "engines": {
+      "node": ">=20.19.0"
+    },
+    "peerDependencies": {
+      "@bufbuild/protobuf": "^2.0.0",
+      "@connectrpc/connect": "^2.0.0",
+      "@connectrpc/connect-web": "^2.0.0",
+      "@deck.gl/layers": "^9.0.0",
+      "@duckdb/duckdb-wasm": "^1.29.0",
+      "@kepler.gl/actions": "^3.0.0",
+      "@kepler.gl/processors": "^3.0.0",
+      "@turf/area": "^7.0.0",
+      "@turf/bbox": "^7.0.0",
+      "@turf/boolean-contains": "^7.0.0",
+      "@turf/boolean-intersects": "^7.0.0",
+      "@turf/boolean-within": "^7.0.0",
+      "@turf/buffer": "^7.0.0",
+      "@turf/centroid": "^7.0.0",
+      "@turf/convex": "^7.0.0",
+      "@turf/difference": "^7.0.0",
+      "@turf/helpers": "^7.0.0",
+      "@turf/intersect": "^7.0.0",
+      "@turf/length": "^7.0.0",
+      "@turf/nearest-point": "^7.0.0",
+      "@turf/simplify": "^7.0.0",
+      "@turf/union": "^7.0.0",
+      "apache-arrow": "^17.0.0",
+      "cesium": "^1.139.0",
+      "maplibre-gl": "^5.0.0 || ^6.0.0",
+      "pmtiles": "^4.0.0",
+      "proj4": "^2.11.0",
+      "react": "^18.2.0 || ^19.0.0",
+      "react-dom": "^18.2.0 || ^19.0.0",
+      "terra-draw": "^1.32.0",
+      "terra-draw-maplibre-gl-adapter": "^1.4.1",
+      "typescript": "^5.9.2",
+      "uplot": "^1.6.32"
+    },
+    "peerDependenciesMeta": {
+      "@bufbuild/protobuf": {
+        "optional": true
+      },
+      "@connectrpc/connect": {
+        "optional": true
+      },
+      "@connectrpc/connect-web": {
+        "optional": true
+      },
+      "@deck.gl/layers": {
+        "optional": true
+      },
+      "@duckdb/duckdb-wasm": {
+        "optional": true
+      },
+      "@kepler.gl/actions": {
+        "optional": true
+      },
+      "@kepler.gl/processors": {
+        "optional": true
+      },
+      "@turf/area": {
+        "optional": true
+      },
+      "@turf/bbox": {
+        "optional": true
+      },
+      "@turf/boolean-contains": {
+        "optional": true
+      },
+      "@turf/boolean-intersects": {
+        "optional": true
+      },
+      "@turf/boolean-within": {
+        "optional": true
+      },
+      "@turf/buffer": {
+        "optional": true
+      },
+      "@turf/centroid": {
+        "optional": true
+      },
+      "@turf/convex": {
+        "optional": true
+      },
+      "@turf/difference": {
+        "optional": true
+      },
+      "@turf/helpers": {
+        "optional": true
+      },
+      "@turf/intersect": {
+        "optional": true
+      },
+      "@turf/length": {
+        "optional": true
+      },
+      "@turf/nearest-point": {
+        "optional": true
+      },
+      "@turf/simplify": {
+        "optional": true
+      },
+      "@turf/union": {
+        "optional": true
+      },
+      "apache-arrow": {
+        "optional": true
+      },
+      "cesium": {
+        "optional": true
+      },
+      "maplibre-gl": {
+        "optional": true
+      },
+      "pmtiles": {
+        "optional": true
+      },
+      "proj4": {
+        "optional": true
+      },
+      "react": {
+        "optional": true
+      },
+      "react-dom": {
+        "optional": true
+      },
+      "terra-draw": {
+        "optional": true
+      },
+      "terra-draw-maplibre-gl-adapter": {
+        "optional": true
+      },
+      "typescript": {
+        "optional": true
+      },
+      "uplot": {
+        "optional": true
+      }
+    }
+  },
+  "node": "v24.19.0",
+  "candidateSet": {
+    "status": "failed",
+    "diagnostic": "node_modules/@honua/honua-migrate/node_modules/@honua/sdk: nested candidate version mismatch\n+ actual - expected\n\n+ '0.1.2-beta.0'\n- '0.1.9-beta.0'\n       ^\n"
+  },
+  "reason": "Fixture oracle check only; not a package-set certification receipt.",
+  "observations": [
+    {
+      "id": "protocol-certification:featureserver:metadata",
+      "verdict": "pass",
+      "execution": {
+        "mode": "installed-package",
+        "facets": [
+          "positive",
+          "metadata",
+          "media-schema"
+        ],
+        "assertions": 5,
+        "values": {
+          "id": 0,
+          "name": "Test Layer",
+          "geometryType": "esriGeometryPoint",
+          "srid": 4326
+        },
+        "requests": [
+          {
+            "path": "/rest/services/test_service/FeatureServer/0",
+            "status": 200,
+            "bytes": 4715
+          }
+        ]
+      }
+    },
+    {
+      "id": "protocol-certification:featureserver:count",
+      "verdict": "pass",
+      "execution": {
+        "mode": "installed-package",
+        "facets": [
+          "positive",
+          "media-schema"
+        ],
+        "assertions": 2,
+        "values": {
+          "active": 5,
+          "absent": 0
+        },
+        "requests": [
+          {
+            "path": "/rest/services/test_service/FeatureServer/0/query",
+            "status": 200,
+            "bytes": 41
+          },
+          {
+            "path": "/rest/services/test_service/FeatureServer/0/query",
+            "status": 200,
+            "bytes": 41
+          }
+        ]
+      }
+    },
+    {
+      "id": "protocol-certification:featureserver:query",
+      "verdict": "pass",
+      "execution": {
+        "mode": "installed-package",
+        "facets": [
+          "positive",
+          "pagination",
+          "media-schema"
+        ],
+        "assertions": 7,
+        "values": {
+          "features": [
+            [
+              "alpha",
+              1,
+              1.25,
+              -122.49,
+              37.71
+            ],
+            [
+              "gamma",
+              3,
+              3.75,
+              -122.46,
+              37.73
+            ],
+            [
+              "epsilon",
+              5,
+              6.25,
+              -122.43,
+              37.75
+            ],
+            [
+              "eta",
+              7,
+              8.75,
+              -122.4194,
+              37.7749
+            ],
+            [
+              "iota",
+              9,
+              11.25,
+              -122.37,
+              37.79
+            ]
+          ],
+          "nullGeometry": true,
+          "nullDescription": true,
+          "rasterNodata": "not-applicable"
+        },
+        "requests": [
+          {
+            "path": "/rest/services/test_service/FeatureServer/0/query",
+            "status": 200,
+            "bytes": 1092
+          },
+          {
+            "path": "/rest/services/test_service/FeatureServer/0/query",
+            "status": 200,
+            "bytes": 1097
+          },
+          {
+            "path": "/rest/services/test_service/FeatureServer/0/query",
+            "status": 200,
+            "bytes": 991
+          },
+          {
+            "path": "/rest/services/test_service/FeatureServer/0/query",
+            "status": 200,
+            "bytes": 821
+          }
+        ]
+      }
+    }
+  ],
+  "serverRuntime": {
+    "imageId": "sha256:29974ee7b722e3ae15c3b891024e5e70800f412188aeccf5ec3d32d9dac675c1",
+    "image": "ghcr.io/honua-io/honua-server@sha256:29974ee7b722e3ae15c3b891024e5e70800f412188aeccf5ec3d32d9dac675c1",
+    "postgresImageId": "sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5",
+    "redisImageId": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+    "fixture": "places-roads-v1",
+    "transport": "loopback-http",
+    "challenge": {
+      "mutation": "alpha.ratio: 1.25 -> 999",
+      "detected": true,
+      "operation": "protocol-certification:featureserver:query"
+    }
+  }
+}

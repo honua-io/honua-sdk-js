@@ -1,9 +1,9 @@
 {
   "format": "honua.sdk.oss-arcgis-corpus-deep-build.v1",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-04T10:05:23.167Z",
+  "generatedAt": "2026-09-15T01:12:24.062Z",
   "manifestRevision": "2026-08-04",
-  "honuaVersion": "0.1.2-beta.0",
+  "honuaVersion": "0.1.9-beta.0",
   "typescriptVersion": "5.9.3",
   "optInEnvVars": [
     "HONUA_OSS_ARCGIS_CORPUS_ENABLED",
@@ -25,14 +25,15 @@
     ]
   },
   "summary": {
-    "appCount": 1,
-    "buildsPostCodemod": 1,
+    "appCount": 2,
+    "buildsPostCodemod": 2,
     "buildRegressions": 0,
     "errored": 0,
-    "introducedDiagnosticCount": 2,
+    "introducedDiagnosticCount": 18,
     "resolvedDiagnosticCount": 4,
     "buildingApps": [
-      "owls-of-bavaria"
+      "owls-of-bavaria",
+      "qg-travel-system"
     ]
   },
   "apps": [
@@ -42,21 +43,21 @@
       "repoUrl": "https://github.com/lujoh/owls_of_bavaria",
       "commit": "284949156925c63b0258aece1f48cd9e4f5ea55d",
       "licenseSpdxId": "MIT",
-      "observedAt": "2026-08-04",
+      "observedAt": "2026-09-15",
       "outcome": "builds-with-new-diagnostics",
       "install": {
         "command": "npm ci --ignore-scripts --no-audit --no-fund",
         "status": "passed",
         "exitCode": 0,
-        "durationMs": 28050,
-        "outputTail": "added 120 packages in 28s"
+        "durationMs": 162703,
+        "outputTail": "added 120 packages in 3m"
       },
       "honuaInstall": {
         "command": "npm install --ignore-scripts --no-save <packed honua tarballs>",
         "status": "passed",
         "exitCode": 0,
-        "durationMs": 10551,
-        "outputTail": "added 63 packages in 10s"
+        "durationMs": 32562,
+        "outputTail": "added 63 packages in 32s"
       },
       "codemod": {
         "totalCallSites": 7,
@@ -71,15 +72,15 @@
           "command": "node <honua tsc> --noEmit -p tsconfig.honua-deep-probe.json",
           "status": "failed",
           "exitCode": 2,
-          "durationMs": 3959,
+          "durationMs": 14775,
           "outputTail": "src/features/map/loadOwlFeatureLayer.jsx(30,17): error TS2353: Object literal may only specify known properties, and 'type' does not exist in type 'SymbolProperties'.\nsrc/features/map/mapSlice.jsx(8,3): error TS2322: Type 'void' is not assignable to type 'HTMLDivElement'.\nsrc/features/map/mapSlice.jsx(16,27): error TS2339: Property 'owl' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(21,35): error TS2339: Property 'map' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(23,27): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(24,29): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(25,21): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(27,7): error TS2367: This comparison appears to be unintentional because the types 'boolean' and 'string' have no overlap.\nsrc/features/map/mapSlice.jsx(27,19): error TS2339: Property 'owlLayerLoaded' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(74,7): error TS2739: Type '{}' is missing the following properties from type 'WritableDraft<{ species: any; obscured: boolean; year: any; }>': species, obscured, year\nsrc/features/owls/getOwls.jsx(83,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/features/owls/getOwls.jsx(89,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'."
         },
         "build": {
           "command": "npm run build",
           "status": "passed",
           "exitCode": 0,
-          "durationMs": 43131,
-          "outputTail": "dist/assets/ExpandedCIM-6c8d45a7.js                                           172.37 kB │ gzip:  48.07 kB\ndist/assets/WGLContainer-d1d30089.js                                          189.29 kB │ gzip:  44.81 kB\ndist/assets/arcadeUtils-acb200bf.js                                           257.87 kB │ gzip:  62.60 kB\ndist/assets/Popup-7bcb1a21.js                                                 439.76 kB │ gzip: 106.94 kB\ndist/assets/geometryEngineBase-00448903.js                                    627.77 kB │ gzip: 188.01 kB\ndist/assets/index-9d8f26df.js                                               1,470.47 kB │ gzip: 418.73 kB\n✓ built in 41.63s\n(!) %VITE_WEBSITE_TITLE% is not defined in env variables found in /index.html. Is the variable mistyped?\n(!) Some chunks are larger than 500 kBs after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
+          "durationMs": 144252,
+          "outputTail": "dist/assets/ExpandedCIM-6c8d45a7.js                                           172.37 kB │ gzip:  48.07 kB\ndist/assets/WGLContainer-d1d30089.js                                          189.29 kB │ gzip:  44.81 kB\ndist/assets/arcadeUtils-acb200bf.js                                           257.87 kB │ gzip:  62.60 kB\ndist/assets/Popup-7bcb1a21.js                                                 439.76 kB │ gzip: 106.94 kB\ndist/assets/geometryEngineBase-00448903.js                                    627.77 kB │ gzip: 188.01 kB\ndist/assets/index-9d8f26df.js                                               1,470.47 kB │ gzip: 418.73 kB\n✓ built in 2m 19s\n(!) %VITE_WEBSITE_TITLE% is not defined in env variables found in /index.html. Is the variable mistyped?\n(!) Some chunks are larger than 500 kBs after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
         },
         "diagnostics": [
           "src/components/ClearFiltersButton.jsx: error TS2345: Argument of type 'AsyncThunkAction<{ species: any; obscured: any; year: any; }, void, AsyncThunkConfig>' is not assignable to parameter of type 'AnyAction'.",
@@ -116,15 +117,15 @@
           "command": "node <honua tsc> --noEmit -p tsconfig.honua-deep-probe.json",
           "status": "failed",
           "exitCode": 2,
-          "durationMs": 2732,
+          "durationMs": 9184,
           "outputTail": "src/features/map/loadMap.jsx(47,9): error TS2353: Object literal may only specify known properties, and 'type' does not exist in type 'RendererProperties'.\nsrc/features/map/mapSlice.jsx(8,3): error TS2322: Type 'void' is not assignable to type 'string | HTMLElement'.\nsrc/features/map/mapSlice.jsx(16,27): error TS2339: Property 'owl' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(21,35): error TS2339: Property 'map' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(23,27): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(24,29): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(25,21): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(27,7): error TS2367: This comparison appears to be unintentional because the types 'boolean' and 'string' have no overlap.\nsrc/features/map/mapSlice.jsx(27,19): error TS2339: Property 'owlLayerLoaded' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(74,7): error TS2739: Type '{}' is missing the following properties from type 'WritableDraft<{ species: any; obscured: boolean; year: any; }>': species, obscured, year\nsrc/features/owls/getOwls.jsx(83,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/features/owls/getOwls.jsx(89,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'."
         },
         "build": {
           "command": "npm run build",
           "status": "passed",
           "exitCode": 0,
-          "durationMs": 28894,
-          "outputTail": "dist/assets/Pipeline-4b3b8c45.js                                              152.04 kB │ gzip:  42.59 kB\ndist/assets/objectResourceUtils-4780f9a8.js                                   182.41 kB │ gzip:  49.28 kB\ndist/assets/arcadeUtils-0a0d04b5.js                                           257.90 kB │ gzip:  62.62 kB\ndist/assets/SymbolProcessor-513a8a87.js                                       276.36 kB │ gzip:  78.36 kB\ndist/assets/geometryEngineBase-e0437424.js                                    627.78 kB │ gzip: 188.02 kB\ndist/assets/index-1ed6d478.js                                               1,179.60 kB │ gzip: 346.26 kB\n✓ built in 27.86s\n(!) %VITE_WEBSITE_TITLE% is not defined in env variables found in /index.html. Is the variable mistyped?\n(!) Some chunks are larger than 500 kBs after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
+          "durationMs": 122696,
+          "outputTail": "dist/assets/Pipeline-a369c89f.js                                              152.04 kB │ gzip:  42.59 kB\ndist/assets/objectResourceUtils-073c2ace.js                                   182.41 kB │ gzip:  49.29 kB\ndist/assets/arcadeUtils-96b67938.js                                           257.90 kB │ gzip:  62.61 kB\ndist/assets/SymbolProcessor-f2bc263e.js                                       276.36 kB │ gzip:  78.37 kB\ndist/assets/geometryEngineBase-e0437424.js                                    627.78 kB │ gzip: 188.02 kB\ndist/assets/index-7f4cfb4e.js                                               1,179.90 kB │ gzip: 346.33 kB\n✓ built in 1m 59s\n(!) %VITE_WEBSITE_TITLE% is not defined in env variables found in /index.html. Is the variable mistyped?\n(!) Some chunks are larger than 500 kBs after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
         },
         "diagnostics": [
           "src/components/ClearFiltersButton.jsx: error TS2345: Argument of type 'AsyncThunkAction<{ species: any; obscured: any; year: any; }, void, AsyncThunkConfig>' is not assignable to parameter of type 'AnyAction'.",
@@ -164,6 +165,112 @@
         "src/features/map/loadOwlFeatureLayer.jsx: error TS2353: Object literal may only specify known properties, and 'type' does not exist in type 'SymbolProperties'.",
         "src/features/map/mapSlice.jsx: error TS2322: Type 'void' is not assignable to type 'HTMLDivElement'."
       ]
+    },
+    {
+      "appId": "qg-travel-system",
+      "title": "QG Travel System — Qinghai-Gansu Grand Loop trip planner",
+      "repoUrl": "https://github.com/Zenith-Angle/QG_TravelSystem",
+      "commit": "1b79b87a8958f68585687571fbe16e5328e0fad6",
+      "licenseSpdxId": "Apache-2.0",
+      "observedAt": "2026-09-15",
+      "outcome": "builds-with-new-diagnostics",
+      "install": {
+        "command": "npm ci --ignore-scripts --no-audit --no-fund",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 172105,
+        "outputTail": "added 285 packages in 3m\nnpm warn deprecated jpeg-exif@1.1.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.\nnpm warn deprecated crypto-js@4.2.0: Active development of CryptoJS has been discontinued. This library is no longer maintained."
+      },
+      "honuaInstall": {
+        "command": "npm install --ignore-scripts --no-save <packed honua tarballs>",
+        "status": "passed",
+        "exitCode": 0,
+        "durationMs": 31421,
+        "outputTail": "added 59 packages in 31s"
+      },
+      "codemod": {
+        "totalCallSites": 43,
+        "autoMigratedCallSites": 37,
+        "manualCallSites": 6,
+        "seamCallSites": 2,
+        "filesChanged": 2,
+        "compatImportPath": "@honua/sdk-esri-compat"
+      },
+      "baseline": {
+        "typecheck": {
+          "command": "node <honua tsc> --noEmit -p tsconfig.honua-deep-probe.json",
+          "status": "failed",
+          "exitCode": 2,
+          "durationMs": 5128,
+          "outputTail": "src/components/temp_layer.ts(20,67): error TS2307: Cannot find module '@/utils/security.js' or its corresponding type declarations.\nsrc/config.ts(6,56): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/config.ts(7,62): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/config.ts(8,59): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/config.ts(9,60): error TS2339: Property 'env' does not exist on type 'ImportMeta'."
+        },
+        "build": {
+          "command": "npm run build",
+          "status": "passed",
+          "exitCode": 0,
+          "durationMs": 19408,
+          "outputTail": "dist/assets/Graphics3DSymbolLayerFactory-bwwzFBta.js                            201.85 kB │ gzip:  61.16 kB\ndist/assets/editingTools-C8LpY7MJ.js                                            240.86 kB │ gzip:  59.52 kB\ndist/assets/geometryEngineBase-DoEOMwQs.js                                      626.34 kB │ gzip: 191.33 kB\ndist/assets/VideoLayer-DItyg2A2.js                                              724.35 kB │ gzip: 212.36 kB\ndist/assets/UnitFactory-u-QS7gaS.js                                           1,137.93 kB │ gzip: 279.04 kB\ndist/assets/index-aXHen_o8.js                                                 2,900.49 kB │ gzip: 910.68 kB\n✓ built in 17.75s\n[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
+        },
+        "diagnostics": [
+          "src/components/temp_layer.ts: error TS2307: Cannot find module '@/utils/security.js' or its corresponding type declarations.",
+          "src/config.ts: error TS2339: Property 'env' does not exist on type 'ImportMeta'."
+        ]
+      },
+      "migrated": {
+        "typecheck": {
+          "command": "node <honua tsc> --noEmit -p tsconfig.honua-deep-probe.json",
+          "status": "failed",
+          "exitCode": 2,
+          "durationMs": 9855,
+          "outputTail": "  Index signature for type 'string' is missing in type 'Point'.\nsrc/components/temp_layer.ts(301,9): error TS2322: Type 'SimpleMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.\n  Index signature for type 'string' is missing in type 'SimpleMarkerSymbolCompat'.\nsrc/components/temp_layer.ts(303,13): error TS2322: Type 'string' is not assignable to type 'number'.\nsrc/components/temp_layer.ts(318,9): error TS2322: Type 'Circle' is not assignable to type 'CompatGeometryLike'.\n  Index signature for type 'string' is missing in type 'Circle'.\nsrc/components/temp_layer.ts(319,9): error TS2322: Type 'SimpleFillSymbolCompat' is not assignable to type 'CompatSymbolLike'.\n  Index signature for type 'string' is missing in type 'SimpleFillSymbolCompat'.\nsrc/config.ts(6,56): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/config.ts(7,62): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/config.ts(8,59): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/config.ts(9,60): error TS2339: Property 'env' does not exist on type 'ImportMeta'."
+        },
+        "build": {
+          "command": "npm run build",
+          "status": "passed",
+          "exitCode": 0,
+          "durationMs": 20749,
+          "outputTail": "dist/assets/calcite-dialog-BFvza-MC.js                                          197.26 kB │ gzip:  54.58 kB\ndist/assets/FeaturePipelineWorker-DKcRcLlN.js                                   354.35 kB │ gzip:  93.86 kB\ndist/assets/geometryEngineJSON-Bi6c7fwc.js                                      631.00 kB │ gzip: 192.57 kB\ndist/assets/VideoLayer-DLc1eQk3.js                                              732.55 kB │ gzip: 214.55 kB\ndist/assets/UnitFactory-CTe7Zt3V.js                                           1,137.93 kB │ gzip: 279.03 kB\ndist/assets/index-BwAVzert.js                                                 2,910.70 kB │ gzip: 919.03 kB\n✓ built in 17.89s\n[plugin builtin:vite-reporter] \n(!) Some chunks are larger than 500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
+        },
+        "diagnostics": [
+          "src/components/mapConfig.ts: error TS2322: Type 'Point' is not assignable to type 'CompatGeometryLike'.",
+          "src/components/mapConfig.ts: error TS2322: Type 'SimpleMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+          "src/components/mapConfig.ts: error TS2322: Type 'number[]' is not assignable to type 'MapViewCenterLike'.",
+          "src/components/mapConfig.ts: error TS2740: Type 'GraphicsLayerCompat' is missing the following properties from type 'GraphicsLayer': blendMode, effect, maxScale, minScale, and 27 more.",
+          "src/components/mapConfig.ts: error TS2740: Type 'MapViewCompat' is missing the following properties from type 'MapView': animationsEnabled, aria, breakpoints, focused, and 54 more.",
+          "src/components/mapConfig.ts: error TS2740: Type 'SketchCompat' is missing the following properties from type 'Sketch': activeTooltip, availableCreateTools, createGraphic, icon, and 36 more.",
+          "src/components/temp_layer.ts: error TS2307: Cannot find module '@/utils/security.js' or its corresponding type declarations.",
+          "src/components/temp_layer.ts: error TS2322: Type 'Circle' is not assignable to type 'CompatGeometryLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'PictureMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'Point' is not assignable to type 'CompatGeometryLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'PolygonCompat' is not assignable to type 'CompatGeometryLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'PolylineCompat' is not assignable to type 'CompatGeometryLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'PopupTemplateCompat' is not assignable to type 'CompatPopupTemplateLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'SimpleFillSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'SimpleLineSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'SimpleMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+          "src/components/temp_layer.ts: error TS2322: Type 'string' is not assignable to type 'number'.",
+          "src/config.ts: error TS2339: Property 'env' does not exist on type 'ImportMeta'."
+        ]
+      },
+      "introducedDiagnostics": [
+        "src/components/mapConfig.ts: error TS2322: Type 'Point' is not assignable to type 'CompatGeometryLike'.",
+        "src/components/mapConfig.ts: error TS2322: Type 'SimpleMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+        "src/components/mapConfig.ts: error TS2322: Type 'number[]' is not assignable to type 'MapViewCenterLike'.",
+        "src/components/mapConfig.ts: error TS2740: Type 'GraphicsLayerCompat' is missing the following properties from type 'GraphicsLayer': blendMode, effect, maxScale, minScale, and 27 more.",
+        "src/components/mapConfig.ts: error TS2740: Type 'MapViewCompat' is missing the following properties from type 'MapView': animationsEnabled, aria, breakpoints, focused, and 54 more.",
+        "src/components/mapConfig.ts: error TS2740: Type 'SketchCompat' is missing the following properties from type 'Sketch': activeTooltip, availableCreateTools, createGraphic, icon, and 36 more.",
+        "src/components/temp_layer.ts: error TS2322: Type 'Circle' is not assignable to type 'CompatGeometryLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'PictureMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'Point' is not assignable to type 'CompatGeometryLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'PolygonCompat' is not assignable to type 'CompatGeometryLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'PolylineCompat' is not assignable to type 'CompatGeometryLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'PopupTemplateCompat' is not assignable to type 'CompatPopupTemplateLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'SimpleFillSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'SimpleLineSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'SimpleMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.",
+        "src/components/temp_layer.ts: error TS2322: Type 'string' is not assignable to type 'number'."
+      ],
+      "resolvedDiagnostics": []
     }
   ]
 }

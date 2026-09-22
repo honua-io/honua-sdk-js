@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Scene Workspace Interop"
-description: "`@honua/app-platform/scene-workspace` is a renderer-neutral coordination layer for"
+description: "Renderer-neutral coordination for apps that combine a 3D scene, 2D map, table, detail, timeline and realtime status: support status, workspace state, shared MapLibre/Cesium state, scene primitives, diagnostics and the Cesium mount lifecycle."
 resource: "honua://capability/scene.catalog"
 ---
 # Scene Workspace Interop
@@ -18,7 +18,7 @@ optional renderer peers they use.
 
 ## Support status: beta
 
-**Beta** (issue [#931](https://github.com/honua-io/honua-sdk-js/issues/931)).
+**Beta**.
 The renderer-neutral workspace state, the scene primitive contract, and the
 Cesium primitive adapter keep their shape through `@honua/app-platform` 0.1.x:
 no export is renamed or removed, and primitive kinds, diagnostic codes, and
@@ -39,43 +39,10 @@ What may still change inside beta:
 | --- | --- |
 | Honua Server scene discovery (`listScenes`, `getScene`, `sceneToRuntimePrimitives`, …) | Server-attached; outside the open-endpoint evidence behind beta. |
 | `SceneView` and the elevation/analysis widgets | Execute against Honua Server analysis endpoints. |
-| `mountSourceToCesium` / `projectSourceToCesium` / `mountCesiumScene` | Has real-Cesium evidence since `#1050`, which also cleared two of the three named blockers — `refresh()` now diffs instead of rebuilding, and `mountCesiumScene` owns both mounts behind one `dispose()`. Held back for the remaining one: there is no symbology surface, and adding it means new required shapes — see [Tier decision](./cesium-entity-adapter.md#tier-decision-issue-1050). |
-
-The split is enumerated symbol by symbol under `packageLifecycle.surfaceTiers`
-in [`config/support-manifest.v1.json`](../config/support-manifest.v1.json) and
-projected into [`config/public-surface.json`](../config/public-surface.json). An
-export that no tier classifies fails `npm run support:check`, so a new symbol
-cannot inherit beta from the directory it lands in.
-
-Evidence backing the promotion — all release-gated, listed in the generated
-[surface tiers table](./standalone-capability-matrix.md#surface-tiers):
-
-- Workspace and state-sync fixtures: [`test/scene-workspace.test.ts`](../test/scene-workspace.test.ts),
-  [`test/scene-state-sync.test.ts`](../test/scene-state-sync.test.ts).
-- Cesium adapter fixtures, including the hardened model-layer contract:
-  [`test/cesium-scene-adapter.test.ts`](../test/cesium-scene-adapter.test.ts).
-- Bounded mount lifecycle — transactional apply, idempotent release, and
-  fail-closed limits: [`test/cesium-scene-mount.test.ts`](../test/cesium-scene-mount.test.ts).
-- CRS, vertical-datum, and fidelity diagnostics:
-  [`test/scene-primitive-spatial-diagnostics.test.ts`](../test/scene-primitive-spatial-diagnostics.test.ts).
-- Real-Cesium browser matrix and bounded teardown budgets, described in
-  [Real-Cesium browser evidence and teardown budgets](#real-cesium-browser-evidence-and-teardown-budgets):
-  [`test/playwright/cesium-scene-adapter-fixtures.spec.mjs`](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs).
-- Bundle isolation — core and 2D consumers never load Cesium, and the
-  `@honua/app-platform` split re-exports the scene surface:
-  [`scripts/verify-split-packages.mjs`](../scripts/verify-split-packages.mjs),
-  budgeted in [`bundle-budgets.json`](../bundle-budgets.json).
+| `mountSourceToCesium` / `projectSourceToCesium` / `mountCesiumScene` | Two of the three named blockers are cleared — `refresh()` now diffs instead of rebuilding, and `mountCesiumScene` owns both mounts behind one `dispose()`. Held back for the remaining one: there is no symbology surface, and adding it means new required shapes — see [Support status](./cesium-entity-adapter.md#support-status). |
 
 Promotion adds no required dependency: `cesium` stays an optional peer that the
 adapter imports lazily, and no core or 2D bundle ceiling moved.
-
-The browser matrix (`#928`) now crosses camera, quantized-mesh terrain, every
-declared imagery protocol, 3D-Tiles tilesets including a `.pnts` point cloud and
-the server styling sidecar, and a glTF/GLB model against real Cesium objects,
-plus the fail-closed rows for an undeclared imagery protocol and an
-unmaterialized model format. Its teardown budgets are measured, its final-canvas
-GC floor is documented as a floor rather than asserted away, and its DOM-listener
-budget is proven by an injected per-cycle leak.
 
 ## Sample Pattern
 
@@ -208,7 +175,7 @@ const sharedState = createSceneStateSynchronizer({
 });
 ```
 
-Both renderers stay duck-typed: nothing in `src/scene-workspace/` statically
+Both renderers stay duck-typed: nothing in the entrypoint statically
 imports either package, and CesiumJS is reached only through a lazy dynamic
 import performed on the first apply that needs a Cesium constructor.
 
@@ -703,8 +670,7 @@ documented in [Experimental Cesium entity adapter](./cesium-entity-adapter.md).
 It is a bounded feature/entity slice alongside the existing terrain, model,
 and 3D Tiles primitive adapter.
 
-It is proven against real Cesium in the same browser lane as the primitive
-adapter (`#1050`): entities materialize from a live `Source` and an accepted
+Against real Cesium, entities materialize from a live `Source` and an accepted
 plan onto a real `Viewer`, Cesium's own availability decides which of them are
 drawn at a given clock instant, polygon interior rings reach the GPU, the entity
 ceiling fails closed, and disposal returns the collection to baseline inside the
@@ -731,7 +697,7 @@ The slice stays `experimental` regardless, and the reason is recorded rather tha
 implied: with the refresh diff and the single owner landed, the one remaining
 blocker is that there is no symbology surface, and adding it means new required
 shapes rather than purely additive ones. See
-[Tier decision](./cesium-entity-adapter.md#tier-decision-issue-1050).
+[Support status](./cesium-entity-adapter.md#support-status).
 
 ### Cesium layer disposal
 
@@ -757,176 +723,6 @@ feature-detect it.
 
 The application owns the Cesium `Viewer`/`Scene` itself and must dispose that
 target separately.
-
-### Real-Cesium browser evidence and teardown budgets
-
-Everything above is also proven against the real `cesium` package in a real
-Chromium page, not only against the unit suite's `vi.mock("cesium")` seam. The
-lane lives in `test/playwright/cesium-scene-adapter-fixtures.spec.mjs` and runs
-inside the repository's normal browser smoke job:
-
-```bash
-npm run build
-npm run test:playwright:cesium-scene
-```
-
-The fixture mounts one accepted plan through the public
-`createCesiumSceneAdapter` surface onto a live `Viewer` and covers every
-primitive kind the adapter materializes, plus both non-`supported` outcomes:
-
-| Binding | Kind | Expected outcome |
-| --- | --- | --- |
-| `fixture-camera` | `camera` | camera driven to the plan's viewpoint |
-| `fixture-terrain` | `elevation-source` (`quantized-mesh`) | real `CesiumTerrainProvider`, exaggeration applied |
-| `fixture-imagery` | `imagery-layer` (`url-template`) | real `UrlTemplateImageryProvider`, opacity applied |
-| `fixture-imagery-mercator` | `imagery-layer` declaring `EPSG:3857` | renders, and reports `scene-primitive-crs-equivalent` at `equivalent` fidelity |
-| `fixture-tileset` | `model-layer` (`3d-tiles`) | real `Cesium3DTileset` with loaded content, placed by the primitive's `position` |
-| `fixture-model` | `model-layer` (`glb`) | real `Model`, ready, placed and scaled |
-| `fixture-i3s` | `model-layer` (`i3s`) | fails closed with `scene-primitive-model-format-not-materialized`; never reaches a Cesium factory |
-
-A second case widens the imagery axis to **every protocol
-`CESIUM_SCENE_CAPABILITIES` declares**, mounted together on one viewer. Each row
-asserts the provider the adapter routed it to — resolved by `instanceof` against
-the live runtime's constructors, since Cesium ships minified — and the request
-that provider then put on the wire, which is the only place the adapter's
-per-protocol URL and parameter shaping is observable:
-
-| Binding | Protocol | Cesium provider | What the wire shows |
-| --- | --- | --- | --- |
-| `protocol-url-template` | `url-template` | `UrlTemplateImageryProvider` | `{z}/{x}/{y}` tile requests |
-| `protocol-wms` | `wms` | `WebMapServiceImageryProvider` | `GetMap` with the primitive's `layer`, `format`, `styles`, and — from `parameters` — `version=1.3.0`, which makes it a `crs=CRS:84` request rather than an `srs` one |
-| `protocol-wmts` | `wmts` | `WebMapTileServiceImageryProvider` | KVP `GetTile` with `layer`, `style`, `tilematrixset`, `format` |
-| `protocol-single-tile` | `single-tile` | `SingleTileImageryProvider` | one image request, no tile pyramid |
-| `protocol-arcgis-map-server` | `arcgis-imagery` (`…/MapServer`) | `ArcGisMapServerImageryProvider` | the `?f=json` service description, then `/export?f=image&layers=show:0&bboxSR=4326` |
-| `protocol-arcgis-image-server` | `arcgis-imagery` (`…/ImageServer`) | `UrlTemplateImageryProvider` | the adapter's own `/exportImage?f=image&…&bboxSR=3857&imageSR=3857` template |
-| `protocol-unsupported` | `tms` | none | fails closed with `scene-primitive-unsupported`; issues no request |
-
-`arcgis-imagery` appears twice because the adapter forks on the endpoint type,
-and a single row would leave half of that fork unproven. The row set is checked
-against `CESIUM_SCENE_CAPABILITIES.imagery.protocols` itself rather than against
-a copy of it, so a protocol added to the surface without evidence fails the lane
-instead of quietly staying uncovered. Each row also declares a distinct
-`opacity`, which doubles as a check that layer *n* really is row *n*.
-
-A third case covers the **3D-Tiles content variants**, where what distinguishes
-the rows is what the server put in the tileset rather than anything in the
-primitive's shape:
-
-- A `.pnts` **point cloud** loads through Cesium's point-cloud content pipeline
-  (not a glTF that happens to draw points), the primitive's `pointCloudShading`
-  becomes a real `PointCloudShading` on the live tileset with every validated
-  field intact, and the points reach the GPU — all 400 in the fixture grid are
-  selected for rendering, and the tileset is picked out of a real pick pass.
-- A tileset advertising the server's **styling sidecar**
-  (`extras.honua_style`, honua-server#1206) has its `style.json` discovered,
-  fetched, and applied without the caller asking for it. The applied object is a
-  real `Cesium3DTileStyle` carrying both sidecar blocks verbatim, and its colour
-  expression is executed by Cesium's own engine rather than merely assigned.
-- A tileset that advertises nothing fetches nothing and stays unstyled. That
-  silent no-op is half the same contract and would otherwise be invisible.
-
-The styled row binds its tileset by **absolute** URL. The sidecar `uri` is
-relative to the `tileset.json` URL and is resolved with `new URL(uri, tilesetUrl)`,
-so a bare root-relative tileset URI is not a parseable base and the adapter falls
-back to fetching the raw `uri` against the document. Server-issued tileset URLs
-are absolute, so that is what the fixture binds.
-
-Every asset — the glTF/GLB, both glTF-content 3D-Tiles tilesets, the `.pnts`
-point cloud, the styling sidecar, the quantized-mesh terrain tiles, the imagery
-tiles, and the ArcGIS MapServer service description — is generated in-process by
-`test/playwright/cesium-scene-fixture-assets.mjs` and served from loopback. The
-spec aborts and fails on any off-origin request, so the lane has no network
-dependency at all.
-
-The plan is mounted and torn down repeatedly on fresh viewers, and the teardown
-of each cycle is measured against fixed budgets:
-
-- Adapter-owned handles are released **before** the viewer is destroyed: the
-  scene's primitive collection and imagery collection return to their baseline,
-  `terrainProvider` is cleared, and `verticalExaggeration` returns to `1`.
-- The viewer reports `isDestroyed()`, its canvas leaves the DOM, and no
-  `requestAnimationFrame` callback is left pending.
-- DOM event listener retention is bounded as a total across the run. CesiumJS
-  binds a fixed handful of listeners to the widget's own elements and drops them
-  with the element rather than through `removeEventListener`, which is legitimate
-  because those elements are proven collectible; a listener that accumulates
-  across cycles is not. The bound is a run total rather than a per-cycle equality
-  because asynchronous teardown moves listeners between cycles without leaking
-  any.
-- Wall-clock ceilings guard against a teardown path that starts blocking rather
-  than against runner jitter; the spec records the measured actuals next to the
-  ceilings it asserts.
-- Every destroyed `Viewer` object graph must become collectible under forced GC,
-  bounded by the final-canvas GC floor below.
-- CesiumJS pools its `TaskProcessor` web workers globally and deliberately does
-  not terminate them on viewer destroy, so the worker budget is non-growth after
-  the first cycle rather than zero.
-
-#### The final-canvas GC floor
-
-Chromium keeps the most recently used WebGL canvas — and the drawing buffer
-behind it — reachable independently of the page's own references. Nothing the
-page does displaces it: dropping every reference does not, and creating a
-throwaway context afterwards does not either, which was measured rather than
-assumed. So **zero retained canvases is not a property this lane can honestly
-assert**, and asserting it anyway would only teach the next reader to relax the
-budget the first time it flaked.
-
-What the lane asserts instead is that this is a floor and not a slope:
-
-- at most one canvas survives forced collection, however many cycles ran;
-- the survivor is always the *final* cycle's — nothing outlives a non-final
-  cycle;
-- the same bound holds for live WebGL contexts;
-- and the retained count does not scale with the cycle count.
-
-A real retention bug is a slope: it pins one canvas per cycle, so it reports one
-per cycle where the floor reports at most one in total. The spec keeps the cycle
-count above `floor + 1` and asserts that relationship rather than trusting it, so
-the two can never be confused.
-
-#### Proving the listener budget with an injected leak
-
-DOM-listener retention is bounded as a run total rather than as a per-cycle
-equality, because asynchronous teardown moves a listener across a cycle boundary
-without leaking it (`#1055`). A weaker assertion is only an improvement if it
-still fails on the thing it exists to catch, so the lane proves that rather than
-arguing it: one case runs the same predicate twice over the same matrix — once
-on a clean run, where it must hold, and once with a genuine per-cycle listener
-leak injected into the fixture, where it must fail. The injection is a fixture
-flag that defaults to off and is switched on only by that case, so nothing in the
-committed lane leaks by default.
-
-A further case in the same lane covers application time and realtime deltas
-against a live `Viewer`: it mounts a plan with the clock bound, advances
-application time, and asserts that `viewer.clock` moved, that a probe entity's
-Cesium availability changed answer because of it, and that every layer handle —
-and the live `Cesium3DTileset` behind one of them — survived by object identity
-with no rebuild boundary crossed. It then drives one configuration delta and
-asserts that exactly the changed binding was rebuilt, that the change reached the
-renderer (`ImageryLayer.alpha`), and that the unchanged binding was carried
-forward untouched. Its teardown is asserted against the same measured ceilings.
-
-Two further cases in the same lane cover the experimental accepted-plan entity
-path (`#1050`). One connects to a loopback feature service with `createHonua()`,
-accepts a plan with `explainQuery`, mounts it with `mountSourceToCesium`, and
-asserts that every projected feature became a real `Cesium.Entity` whose
-position, polygon hierarchy, availability, and properties are real Cesium
-objects; that Cesium's availability decides what is picked out of a real GPU
-pick pass at two clock instants; that a refresh against a changed source
-preserves a byte-identical feature's `Entity` **by object identity** — together
-with the `viewer.selectedEntity` set on it — while moving the changed one and
-releasing the departed one; and that disposal returns the collection to
-baseline without accumulating entities, viewers, canvases, or listeners across
-cycles. The other runs an entity mount and a primitive mount on one viewer and
-asserts that each disposal releases exactly its own resources, that an
-over-ceiling mount fails closed without disturbing either, and that the same two
-halves under one `mountCesiumScene` owner are released by a single `dispose()`.
-Their budgets are the ones measured here, stated as run totals rather than
-per-cycle equalities.
-
-Console errors and unhandled rejections fail the lane, matching the sample
-console-teardown gate.
 
 ## Cesium scene mount lifecycle
 
@@ -1159,8 +955,7 @@ fingerprint the diff runs on. Re-applying the same plan with a moved timeline
 reuses every handle by identity and mutates only the clock. A realtime *data*
 delta is the other case — it revises a binding's configuration, so exactly that
 binding is rebuilt (`primitive-configuration`) while the rest are carried
-forward. Both properties are asserted against a real `Viewer`, by object
-identity, in `test/playwright/cesium-scene-adapter-fixtures.spec.mjs`.
+forward.
 
 ### Time and delta diagnostic codes
 
@@ -1198,7 +993,7 @@ detail panel aligned. Realtime transport remains separate; it only publishes
 status or deltas that the workspace can expose to renderers.
 
 The Palantir-style operations sample can layer the scene workspace beside the
-app workspace from issue `#71`: the app workspace owns cross-app metadata,
+app workspace: the app workspace owns cross-app metadata,
 jobs, source cache, and reviewable MCP/AI drafts; the scene workspace owns
 renderer-neutral 3D view state and scene-specific evidence.
 

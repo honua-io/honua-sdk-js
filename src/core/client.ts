@@ -95,7 +95,7 @@ import {
   createOgcProcessesAdapter,
 } from "./process-runner.js";
 import type { GeospatialGrpcProcessClient, HonuaProcessAdapter } from "./process-runner.js";
-import type { HonuaProtocolTransport } from "./protocol-transport.js";
+import type { HonuaJsonRequestPolicy, HonuaProtocolTransport } from "./protocol-transport.js";
 import {
   DEFAULT_RETRY_METHODS,
   type NormalizedRetryOptions,
@@ -468,8 +468,13 @@ export class HonuaClient {
     this.transport = options.transport ?? "rest";
     this.protocolTransport = {
       baseUrl: this.baseUrl,
-      requestJson: <T = unknown>(method: QueryMethod, path: string, init?: RequestInit, signal?: AbortSignal) =>
-        this.requestJson(method, path, init, signal) as Promise<T>,
+      requestJson: <T = unknown>(
+        method: QueryMethod,
+        path: string,
+        init?: RequestInit,
+        signal?: AbortSignal,
+        policy?: HonuaJsonRequestPolicy,
+      ) => this.requestJson(method, path, init, signal, policy) as Promise<T>,
       requestText: (method, path, requestTextOptions) => this.requestText(method, path, requestTextOptions),
       requestBytes: (method, path, accept, init, signal) => this.requestBytes(method, path, accept, init, signal),
       requestCachedMetadataJson: <T>(cacheKey: string, path: string, metadataOptions?: HonuaMetadataRequestOptions) =>
@@ -609,7 +614,7 @@ export class HonuaClient {
   private async fetchWithSafeRedirects(
     url: string,
     init: RequestInit,
-    redirectPolicy: "safe-follow" | "error" | "manual" = "safe-follow",
+    redirectPolicy: "safe-follow" | "error" | "manual" | "preserve-method" = "safe-follow",
   ): Promise<Response> {
     let currentUrl = url;
     let currentInit: RequestInit = init;
@@ -667,6 +672,12 @@ export class HonuaClient {
       const downgradeToGet =
         response.status === 303 ||
         ((response.status === 301 || response.status === 302) && method !== "GET" && method !== "HEAD");
+      // A query POST keeps its filters in the body. Surface the 3xx as an HTTP
+      // error instead of replaying an unconstrained GET. 307/308 retain the
+      // method/body and still follow the normal same-origin credential checks.
+      if (redirectPolicy === "preserve-method" && downgradeToGet && method !== "GET" && method !== "HEAD") {
+        return response;
+      }
       currentInit = downgradeToGet ? { ...currentInit, method: "GET", body: null } : currentInit;
       currentUrl = nextUrl;
 
@@ -1815,6 +1826,7 @@ export class HonuaClient {
     path: string,
     init?: RequestInit,
     callerSignal?: AbortSignal,
+    policy?: HonuaJsonRequestPolicy,
   ): Promise<unknown> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
@@ -1829,6 +1841,8 @@ export class HonuaClient {
 
     return this.executeRequest<unknown>(request, {
       callerSignal,
+      readOnlyQuery: policy?.readOnlyQuery,
+      redirect: policy?.readOnlyQuery ? "preserve-method" : undefined,
       finalize: async (response, durationMs, currentRequest, runAfter) => {
         // Parse the original body directly when no after-interceptor will read
         // it; only clone when an interceptor needs an independent copy.
@@ -2055,7 +2069,8 @@ export class HonuaClient {
     options: {
       callerSignal?: AbortSignal;
       okStatuses?: readonly number[];
-      redirect?: "safe-follow" | "error" | "manual";
+      redirect?: "safe-follow" | "error" | "manual" | "preserve-method";
+      readOnlyQuery?: true;
       beforeAttempt?: (request: Readonly<HonuaRequestContext>, attempt: number) => void | Promise<void>;
       beforeReplay?: (
         request: Readonly<HonuaRequestContext>,
@@ -2081,6 +2096,14 @@ export class HonuaClient {
     },
   ): Promise<T> {
     let request = await this.applyBeforeInterceptors(initialRequest);
+    // A before-interceptor that changes the endpoint/method or supplies a
+    // streaming body cannot inherit this narrow read-query replay permission.
+    const readOnlyQuery =
+      options.readOnlyQuery === true &&
+      request.method === "POST" &&
+      request.method === initialRequest.method &&
+      request.url === initialRequest.url &&
+      typeof request.init.body === "string";
     const retrySignal = options.callerSignal ?? request.init.signal ?? undefined;
     let refreshedAuth = false;
 
@@ -2106,7 +2129,7 @@ export class HonuaClient {
         const normalizedError = timeout.didTimeout
           ? new HonuaTimeoutError(this.timeoutMs ?? 0)
           : normalizeNetworkError(error);
-        if (shouldRetryRequest(this.retryOptions, request.method, attempt, undefined, normalizedError)) {
+        if (shouldRetryRequest(this.retryOptions, request.method, attempt, undefined, normalizedError, readOnlyQuery)) {
           await options.beforeReplay?.(cloneRequestContext(request), undefined, "retry");
           await this.sleepBeforeRetry(attempt, undefined, retrySignal);
           continue;
@@ -2184,19 +2207,21 @@ export class HonuaClient {
             !refreshedAuth &&
             (response.status === 401 || response.status === 403) &&
             this.authProvider &&
-            DEFAULT_RETRY_METHODS.has(request.method)
+            (DEFAULT_RETRY_METHODS.has(request.method) || readOnlyQuery)
           ) {
             await options.beforeReplay?.(cloneRequestContext(request), response.status, "authentication");
           }
           const authRefreshedRequest = refreshedAuth
             ? undefined
-            : await this.refreshReplaySafeRequestAuth(request, response.status);
+            : await this.refreshReplaySafeRequestAuth(request, response.status, readOnlyQuery);
           if (authRefreshedRequest) {
             request = authRefreshedRequest;
             refreshedAuth = true;
             continue;
           }
-          if (shouldRetryRequest(this.retryOptions, request.method, attempt, response.status, httpError)) {
+          if (
+            shouldRetryRequest(this.retryOptions, request.method, attempt, response.status, httpError, readOnlyQuery)
+          ) {
             await options.beforeReplay?.(cloneRequestContext(request), response.status, "retry");
             await this.sleepBeforeRetry(attempt, response, retrySignal);
             continue;
@@ -2303,11 +2328,12 @@ export class HonuaClient {
   private async refreshReplaySafeRequestAuth(
     request: HonuaRequestContext,
     statusCode: number,
+    readOnlyQuery = false,
   ): Promise<HonuaRequestContext | undefined> {
     if (
       (statusCode !== 401 && statusCode !== 403) ||
       !this.authProvider ||
-      !DEFAULT_RETRY_METHODS.has(request.method)
+      (!DEFAULT_RETRY_METHODS.has(request.method) && !readOnlyQuery)
     ) {
       return undefined;
     }

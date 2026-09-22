@@ -275,3 +275,173 @@ describe("<honua-measurement> (survival tier)", () => {
     }
   });
 });
+
+/**
+ * Units, precision, and geodesic/planar fidelity (issue #1419): every
+ * expected value below is derived from a closed-form formula written
+ * independently of `#recompute`'s call path, never from a snapshot of the
+ * element's own output.
+ */
+describe("<honua-measurement> units, precision, and fidelity", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  // Mean earth radius turf's geodesic ops use (`@turf/helpers` `earthRadius`).
+  const EARTH_RADIUS_METERS = 6_371_008.8;
+  // Same WGS84 meters-per-degree constants `MeasurementCompat` (src/esri-compat/measurement.ts) uses.
+  const METERS_PER_DEG_LAT = 111_132.92;
+  const METERS_PER_DEG_LON_AT_EQUATOR = 111_412.84;
+
+  it("computes geodesic distance matching the equatorial great-circle arc-length formula", () => {
+    // Two points on the equator: the great circle between them *is* the
+    // equator, so the geodesic distance is exactly radius * angle(radians) —
+    // a closed form independent of haversine or the SDK's own math.
+    const map = makeMap();
+    const element = mount(map);
+    modeButton(element, "distance").click();
+    click(map, 0, 0);
+    click(map, 10, 0);
+
+    const expectedMeters = EARTH_RADIUS_METERS * (10 * (Math.PI / 180));
+    expect(element.result?.distance).toBeCloseTo(expectedMeters, 0);
+    expect(element.result?.fidelity).toBe("geodesic");
+  });
+
+  it("computes geodesic area matching the flat-earth parity formula for a small equatorial patch", () => {
+    // For a patch this small near the equator, spherical excess is
+    // negligible, so the same lat/lon-degree-to-meters approximation the
+    // esri-compat shim uses independently predicts the geodesic area.
+    const map = makeMap();
+    const element = mount(map);
+    modeButton(element, "area").click();
+    click(map, 0, 0);
+    click(map, 0.01, 0);
+    click(map, 0.01, 0.01);
+    click(map, 0, 0.01);
+    element.finish();
+
+    // cos(0) = 1 at the equator.
+    const expectedSquareMeters = 0.01 * METERS_PER_DEG_LAT * (0.01 * METERS_PER_DEG_LON_AT_EQUATOR);
+    expect(Math.abs((element.result?.area ?? 0) - expectedSquareMeters) / expectedSquareMeters).toBeLessThan(0.002);
+  });
+
+  it("handles a distance sketch crossing the antimeridian as the short way around", () => {
+    const map = makeMap();
+    const element = mount(map);
+    modeButton(element, "distance").click();
+    click(map, 179, 0);
+    click(map, -179, 0);
+
+    // The short way is 2 degrees of equatorial arc, not the 358-degree long way.
+    const expectedShortWay = EARTH_RADIUS_METERS * (2 * (Math.PI / 180));
+    const longWay = EARTH_RADIUS_METERS * (358 * (Math.PI / 180));
+    expect(element.result?.distance).toBeCloseTo(expectedShortWay, 0);
+    expect(element.result?.distance).toBeLessThan(longWay / 10);
+  });
+
+  it("reports zero distance/area for degenerate geometry without throwing", () => {
+    const map = makeMap();
+    const distanceElement = mount(map);
+    modeButton(distanceElement, "distance").click();
+    click(map, 5, 5);
+    click(map, 5, 5); // repeated point: zero-length line
+
+    expect(distanceElement.result?.distance).toBe(0);
+
+    document.body.innerHTML = "";
+    const areaMap = makeMap();
+    const areaElement = mount(areaMap);
+    modeButton(areaElement, "area").click();
+    click(areaMap, 0, 0);
+    click(areaMap, 1, 0);
+    click(areaMap, 2, 0); // collinear: degenerate (zero-area) ring
+
+    expect(areaElement.result?.area).toBeCloseTo(0, 6);
+  });
+
+  it("computes planar (flat-earth Euclidean) distance instead of the great circle", () => {
+    const map = makeMap();
+    const element = mount(map);
+    element.fidelity = "planar";
+    modeButton(element, "distance").click();
+    click(map, 0, 0);
+    click(map, 10, 0);
+
+    // At the equator, 10 degrees of longitude is exactly 10 * metersPerDegLon(0) in the
+    // flat-earth approximation — a closed form independent of the implementation.
+    const expectedMeters = 10 * METERS_PER_DEG_LON_AT_EQUATOR;
+    expect(element.result?.fidelity).toBe("planar");
+    expect(element.result?.distance).toBeCloseTo(expectedMeters, 6);
+  });
+
+  it("switching fidelity recomputes from the drawn vertices, not from a formatted value", () => {
+    const map = makeMap();
+    const element = mount(map);
+    modeButton(element, "distance").click();
+    click(map, 0, 0);
+    click(map, 10, 0);
+    const geodesicDistance = element.result?.distance;
+
+    element.fidelity = "planar";
+    const planarDistance = element.result?.distance;
+
+    expect(geodesicDistance).toBeDefined();
+    expect(planarDistance).toBeDefined();
+    // The two fidelities disagree (the sphere radius `@turf/helpers` uses and
+    // the WGS84 meters-per-degree constants are not identical); assert they
+    // were independently recomputed rather than one being derived from the
+    // other's rounded display.
+    expect(planarDistance).not.toBe(geodesicDistance);
+  });
+
+  it("exposes the vertex CRS explicitly as WGS84", () => {
+    const element = mount(makeMap());
+    expect(element.crs).toBe("EPSG:4326");
+  });
+
+  it("reformats an existing result when unit/areaUnit/precision change, without recomputing geometry", () => {
+    const map = makeMap();
+    const element = mount(map);
+    modeButton(element, "distance").click();
+    click(map, 0, 0);
+    click(map, 0, 1); // ~110.6 km
+
+    const rawMeters = element.result?.distance;
+    expect(rawMeters).toBeDefined();
+
+    element.unit = "meters";
+    const meterText = statusText(element);
+    element.unit = "kilometers";
+    expect(statusText(element)).not.toBe(meterText);
+    element.unit = "miles";
+    expect(statusText(element)).toContain("mi");
+    element.precision = 4;
+    expect(statusText(element)).toMatch(/\d\.\d{4} mi/);
+
+    // Switching back to meters must reflect the original full-precision
+    // value, not a value re-derived from any rounded intermediate display.
+    element.unit = "meters";
+    element.precision = undefined;
+    const expectedMeterText = `${(rawMeters as number).toFixed(1)} m`;
+    expect(statusText(element)).toContain(expectedMeterText);
+
+    // The underlying canonical result never changed shape or unit.
+    expect(element.result?.distance).toBe(rawMeters);
+  });
+
+  it("keeps the accessible live-region contract when unit/precision change", () => {
+    const map = makeMap();
+    const element = mount(map);
+    modeButton(element, "area").click();
+    click(map, 0, 0);
+    click(map, 0, 1);
+    click(map, 1, 0);
+
+    element.areaUnit = "acres";
+    element.precision = 2;
+    const status = element.shadowRoot?.querySelector("[role='status']");
+    expect(status?.getAttribute("aria-live")).toBe("polite");
+    expect(status?.textContent).toContain("ac");
+  });
+});

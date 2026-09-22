@@ -147,6 +147,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
+
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
 
@@ -433,7 +436,9 @@ jobs:
       # neither consumes nor invalidates the prepared build the surrounding
       # gates share.
       - name: Validate certification denominator freeze
-        run: npm run verify:certification-denominator
+        run: |
+          npm run verify:certification-denominator
+          npm run test:installed-package-certification
 
       - name: Code style
         run: npm run check
@@ -485,6 +490,9 @@ jobs:
 
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
+
+      - name: Validate documented executable commands
+        run: npm run docs:commands:check
 
       - name: Component qualification matrix
         run: node scripts/component-qualification.mjs check

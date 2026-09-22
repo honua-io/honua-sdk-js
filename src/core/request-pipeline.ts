@@ -98,7 +98,8 @@ export function parseRetryAfterMs(response: Response): number | undefined {
 /**
  * Decide whether a failed attempt should be retried. Idempotent/replay-safe
  * methods (GET/PUT/DELETE) are retried on the configured retry statuses or on
- * transient network/timeout errors; aborts are never retried.
+ * transient network/timeout errors; aborts are never retried. A protocol may
+ * explicitly identify an immutable read-query POST as replay-safe too.
  */
 export function shouldRetryRequest(
   retryOptions: NormalizedRetryOptions | undefined,
@@ -106,12 +107,13 @@ export function shouldRetryRequest(
   attempt: number,
   statusCode: number | undefined,
   error: unknown,
+  readOnlyQuery = false,
 ): boolean {
   if (!retryOptions || attempt >= retryOptions.maxRetries) {
     return false;
   }
 
-  if (!DEFAULT_RETRY_METHODS.has(method)) {
+  if (!DEFAULT_RETRY_METHODS.has(method) && !readOnlyQuery) {
     return false;
   }
 
@@ -242,11 +244,11 @@ export function resolveGrpcRetryDelayMs(
 }
 
 export async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0) {
-    return;
-  }
   if (signal?.aborted) {
     throw new HonuaAbortError();
+  }
+  if (ms <= 0) {
+    return;
   }
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {

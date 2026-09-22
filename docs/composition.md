@@ -1,12 +1,12 @@
 ---
 type: reference
 title: "Mixed-Source Composition"
-description: "`@honua/sdk-js/contract` (`SourceDescriptor`, `Dataset`, `Capabilities`,"
+description: "Rules for a heterogeneous multi-protocol MapPackage on one MapLibre map: weakest-capability intersection and per-source partial failure."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Mixed-Source Composition
 
-Status: implemented (`#22`). Composition rides on the existing
+Composition rides on the existing
 `@honua/sdk-js/contract` (`SourceDescriptor`, `Dataset`, `Capabilities`,
 `Result.degraded[]`) and `@honua/sdk-js/runtime` (`loadMapPackage`)
 surfaces; this guide collects the rules that make a heterogeneous
@@ -153,7 +153,7 @@ intersectCapabilities([...featureSources, ...renderSources]).size; // 0
 ```
 
 The "smarter, per-operation per-source matrix" alternative is exactly
-the abstraction layer this ticket explicitly does not add. Partitioning
+the abstraction layer this surface deliberately does not add. Partitioning
 in the consumer is one line; the cost of a new vocabulary layer would
 be paid forever.
 
@@ -244,7 +244,7 @@ through `HonuaRuntimeTelemetry.error` as a `source-bind` span. It is
 idempotent and a no-op on a disposed runtime.
 
 The composition layer intentionally does not ship a `queryAcross()`
-operator — query fan-out is an operator-component (`#29`) concern.
+operator — query fan-out is an operator-component concern.
 What composition guarantees is that the primitives exist:
 `dataset.sourceIds()` enumerates participants, each `Source.query()`
 runs in isolation against its own protocol, `Result.degraded[]`
@@ -274,11 +274,6 @@ cap.has("query"); // true
 cap.has("applyEdits"); // false — WMS/STAC lack edits
 cap.has("tiles"); // false — FS/OGC/STAC lack tiles
 ```
-
-Coverage: `test/contract/composition.test.ts` (per-source query in
-isolation, weakest-set assertion) and
-`test/honua-mixed-composition-runtime.test.ts` (full
-`loadMapPackage` flow against mock fetch routes).
 
 ### 2. FeatureServer + OData operational layer
 
@@ -402,7 +397,7 @@ implementation, the composition surface only requires that you:
   (post-`$metadata`) flow through.
 - **Mixed-source writes**: write coordination across protocols
   (`applyEdits` semantics for transactional mixed-source updates) is
-  out of scope for `#22`. Single-source `applyEdits` continues to work
+  out of scope. Single-source `applyEdits` continues to work
   normally; the contract guarantees per-source attribution on the
   resulting `degraded[]` entries so downstream coordinators can
   reason about partial outcomes.
@@ -417,5 +412,3 @@ implementation, the composition surface only requires that you:
   `HonuaRuntimeEvent`, telemetry surface.
 - `docs/source-binding-alignment.md` — server-side `SourceBinding` to
   SDK descriptor projection.
-- `test/contract/composition.test.ts` — composition contract suite.
-- `test/honua-mixed-composition-runtime.test.ts` — 4-protocol E2E.

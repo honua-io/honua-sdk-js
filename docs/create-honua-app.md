@@ -26,11 +26,9 @@ The starter package lives in this repository at `packages/create-honua-app`.
 | `vanilla-ts` (default) | `src/main.ts` | `connect → inspect → explain → query → mount`. The SDK owns the MapLibre map and mounts an accepted query plan. |
 | `react-ts` | `src/App.tsx` | The app owns a plain `maplibre-gl` map; the same kernel connection inspects, explains, queries, and mounts onto it. |
 
-Both templates pin **MapLibre GL JS 6.1.0**, the current major, and `npm run create-app:verify` fails if a template
-ever pins a major the SDK does not support. A scaffolded app installs `@honua/sdk-js` **from the registry**, so this
-pin could only move once a published release carried the widened `^5.0.0 || ^6.0.0` peer range (#1004);
-`@honua/sdk-js@0.1.4-beta.0` is that release, and `npm install` resolves the pair with no `overrides` and no
-`--legacy-peer-deps`. MapLibre 5 remains supported by the SDK for apps that have not migrated. Because MapLibre 6 is
+Both templates pin **MapLibre GL JS 6.1.0**, the current major. A scaffolded app installs `@honua/sdk-js` from the
+registry, which declares the `^5.0.0 || ^6.0.0` peer range, so `npm install` resolves the pair with no `overrides` and
+no `--legacy-peer-deps`. MapLibre 5 remains supported by the SDK for apps that have not migrated. Because MapLibre 6 is
 ESM-only and loads its worker as a separate module, each starter ships `src/maplibre-worker.ts` and imports it before
 the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
 
@@ -68,39 +66,3 @@ which is also what makes the starters runnable in a browser playground. See
 Set `VITE_HONUA_ENDPOINT` (and optionally `VITE_HONUA_PROTOCOL`) to run the identical code against any anonymous,
 CORS-enabled GeoServices FeatureServer layer or OGC API Features landing page. Durable credentials never belong in
 Vite environment variables: Vite embeds them in public JavaScript.
-
-## Publication
-
-`create-honua-app` is released by release-please as its own component
-(`packages/create-honua-app` in `release-please-config.json`, tag `create-honua-app-v<version>`) and published by
-`.github/workflows/publish-create-honua-app.yml` through npm trusted publishing — the same OIDC path the SDK and the
-MCP server use, with no `NPM_TOKEN`. Before publishing, that workflow runs the scaffold gates and
-`npm run create-app:verify:package`, which packs the tarball, installs it into a throwaway consumer, and scaffolds
-from the installed copy: a `files` omission or npm's default `.gitignore` exclusion would otherwise ship starters that
-cannot find their own templates while every source-tree gate stayed green.
-
-## How the starters stay current
-
-- `packages/create-honua-app/templates.manifest.json` is the single source of truth for the template list, the pinned
-  SDK version, and the playground providers. The CLI, the playground page, and the verifier all read it.
-- `npm run create-app:verify` fails when a template is missing a file, depends on a version range instead of an exact
-  pin, drifts from the reviewed fixture pack, or advertises a playground link that does not address its directory.
-- `npm run create-app:templates:typecheck` compiles both templates against the repository's SDK sources, so an API
-  change that breaks a starter breaks CI.
-- `npm run create-app:test` covers the CLI grammar, the scaffold behaviour, and the evidence contract.
-- `npm run playgrounds:check` fails when `docs/playgrounds.md` drifts from the manifest.
-
-## Time-to-first-map evidence
-
-`npm run create-app:time-to-map` measures the whole path — scaffold, `npm install`, `npm run build`, serve, and a
-Chromium probe that waits for a MapLibre canvas with rendered features — against a two-minute budget and writes
-`test-results/create-honua-app-time-to-map.json`.
-
-The install step reaches the npm registry, so the lane is opt-in:
-
-```bash
-HONUA_CREATE_APP_LIVE_ENABLED=true npm run create-app:time-to-map
-```
-
-Without the flag the script records a skip document instead of a measurement. A passing document requires a mounted
-map, at least one rendered feature, zero console errors, and zero off-origin requests.

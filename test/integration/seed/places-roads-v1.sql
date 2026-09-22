@@ -1416,3 +1416,170 @@ CREATE TABLE IF NOT EXISTS honua.tile_cache_entries (
 
 CREATE INDEX IF NOT EXISTS tile_cache_entries_cache_zoom_idx
     ON honua.tile_cache_entries (tile_cache_id, zoom_level);
+
+-- ---------------------------------------------------------------------------
+-- Schema-floor guard adoption (honua-server#4889 is the same class of defect,
+-- for the older 055_SetRasterDataExternalStorage EXTERNAL-storage guard).
+--
+-- This seed creates tables directly, before the candidate has ever booted to
+-- run its own migrations and journal them. honua-server's PostgresCoreSchemaGuard
+-- fails closed with SchemaExistsWithoutJournal/MigrationNotApplied the first
+-- time it boots against a schema that already has a migration-owned table (or
+-- is missing one it always creates) without a matching row in the DbUp journal
+-- (`public.schema_versions`, `JournalToPostgresqlTable("public",
+-- "schema_versions")`). Bring the physical schema and the journal into the
+-- state each of these migrations would have left, so the guard treats them as
+-- its own, already-applied effects. Keep in sync with the required migration
+-- list in src/Honua.Server/Startup/ServerCoreSchemaMigrations.cs and the
+-- required tables/columns/indexes in
+-- src/Honua.Db/Postgres/Features/Infrastructure/Migrations/PostgresCoreSchemaGuard.cs.
+-- ---------------------------------------------------------------------------
+
+-- 031_CreateMetadataV2Snapshot.sql / 034_CreateMetadataV2ReleasePackages.sql: this seed
+-- already creates metadata_v2_snapshots/metadata_v2_current (above); add the sidecar
+-- lookup tables and the release-packages table the guard also requires.
+CREATE TABLE IF NOT EXISTS honua.metadata_v2_resources_idx (
+    environment       TEXT          NOT NULL,
+    revision          BIGINT        NOT NULL,
+    resource_id       TEXT          NOT NULL,
+    name              TEXT          NOT NULL,
+    namespace         TEXT          NULL,
+    type              TEXT          NOT NULL,
+    primary_storage_binding_id TEXT NULL,
+    PRIMARY KEY (environment, revision, resource_id),
+    FOREIGN KEY (environment, revision)
+        REFERENCES honua.metadata_v2_snapshots(environment, revision)
+        ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_metadata_v2_resources_name
+    ON honua.metadata_v2_resources_idx (environment, revision, name);
+
+CREATE TABLE IF NOT EXISTS honua.metadata_v2_services_idx (
+    environment       TEXT          NOT NULL,
+    revision          BIGINT        NOT NULL,
+    service_id        TEXT          NOT NULL,
+    name              TEXT          NOT NULL,
+    service_type      TEXT          NOT NULL,
+    route             TEXT          NULL,
+    PRIMARY KEY (environment, revision, service_id),
+    FOREIGN KEY (environment, revision)
+        REFERENCES honua.metadata_v2_snapshots(environment, revision)
+        ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_metadata_v2_services_name
+    ON honua.metadata_v2_services_idx (environment, revision, lower(name));
+
+CREATE TABLE IF NOT EXISTS honua.metadata_v2_publications_idx (
+    environment       TEXT          NOT NULL,
+    revision          BIGINT        NOT NULL,
+    publication_id    TEXT          NOT NULL,
+    service_id        TEXT          NOT NULL,
+    resource_id       TEXT          NOT NULL,
+    storage_binding_id TEXT         NULL,
+    publication_type  TEXT          NOT NULL,
+    path              TEXT          NULL,
+    layer_index       INT           NULL,
+    service_local_id  TEXT          NULL,
+    PRIMARY KEY (environment, revision, publication_id),
+    FOREIGN KEY (environment, revision)
+        REFERENCES honua.metadata_v2_snapshots(environment, revision)
+        ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_metadata_v2_publications_service
+    ON honua.metadata_v2_publications_idx (environment, revision, service_id);
+CREATE INDEX IF NOT EXISTS idx_metadata_v2_publications_resource
+    ON honua.metadata_v2_publications_idx (environment, revision, resource_id);
+
+CREATE TABLE IF NOT EXISTS honua.metadata_v2_storage_bindings_idx (
+    environment       TEXT          NOT NULL,
+    revision          BIGINT        NOT NULL,
+    storage_binding_id TEXT         NOT NULL,
+    resource_id       TEXT          NOT NULL,
+    connection_id     TEXT          NULL,
+    storage_type      TEXT          NOT NULL,
+    locator           TEXT          NOT NULL,
+    PRIMARY KEY (environment, revision, storage_binding_id),
+    FOREIGN KEY (environment, revision)
+        REFERENCES honua.metadata_v2_snapshots(environment, revision)
+        ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_metadata_v2_storage_bindings_resource
+    ON honua.metadata_v2_storage_bindings_idx (environment, revision, resource_id);
+
+CREATE TABLE IF NOT EXISTS honua.metadata_v2_connections_idx (
+    environment       TEXT          NOT NULL,
+    revision          BIGINT        NOT NULL,
+    connection_id     TEXT          NOT NULL,
+    name              TEXT          NOT NULL,
+    type              TEXT          NOT NULL,
+    provider          TEXT          NULL,
+    PRIMARY KEY (environment, revision, connection_id),
+    FOREIGN KEY (environment, revision)
+        REFERENCES honua.metadata_v2_snapshots(environment, revision)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS honua.metadata_v2_release_packages (
+    package_id          UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    package_key         TEXT        NOT NULL,
+    package_namespace   TEXT        NULL,
+    status              TEXT        NOT NULL DEFAULT 'draft',
+    source_environment  TEXT        NOT NULL,
+    source_revision     BIGINT      NOT NULL,
+    source_etag         TEXT        NOT NULL,
+    target_environments JSONB       NOT NULL,
+    entries             JSONB       NOT NULL,
+    package_metadata    JSONB       NOT NULL,
+    created_by          TEXT        NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_metadata_v2_release_packages_key
+    ON honua.metadata_v2_release_packages (
+        (COALESCE(NULLIF(BTRIM(package_namespace), ''), '')),
+        package_key
+    );
+CREATE INDEX IF NOT EXISTS idx_metadata_v2_release_packages_created
+    ON honua.metadata_v2_release_packages (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_metadata_v2_release_packages_status
+    ON honua.metadata_v2_release_packages (status);
+
+-- 059_CreateSensorThings.sql / 116_AddSensorThingsIdSequences.sql: the sta_* tables and
+-- their indexes already exist (above); the guard additionally requires these five
+-- identifier sequences to exist as physical objects (ingest allocates @iot.ids from
+-- them), even though this seed's sta_* tables carry explicit bigint ids instead.
+CREATE SEQUENCE IF NOT EXISTS honua.sta_thing_id_seq;
+CREATE SEQUENCE IF NOT EXISTS honua.sta_sensor_id_seq;
+CREATE SEQUENCE IF NOT EXISTS honua.sta_observed_property_id_seq;
+CREATE SEQUENCE IF NOT EXISTS honua.sta_datastream_id_seq;
+CREATE SEQUENCE IF NOT EXISTS honua.sta_observation_id_seq;
+
+-- 110_PreserveGovernedLineage.sql is deliberately NOT pre-journaled below: it only ALTERs
+-- feature_change_outbox/feature_changes/alert_events, and feature_changes carries a real
+-- trigger-maintained "generation" column (012_AddReplicationDurability.sql) that a hand-written
+-- stub cannot safely replicate (a stub that omits it would leave DbUp's own
+-- "CREATE TABLE IF NOT EXISTS" no-op over the wrong shape forever, since 012/013 are not
+-- guarded and would otherwise run for real). Leaving 012/013/110 off the journal below lets the
+-- candidate's own migrations create/alter them correctly on this first boot.
+
+-- Journal every OTHER migration whose physical effects this seed adopted verbatim (copied
+-- directly from that migration's own DDL, so a real, unguarded, unjournaled migration running
+-- afterward and finding the table already present is a true no-op), matching DbUp's own
+-- journal so the guard sees them as already applied.
+CREATE TABLE IF NOT EXISTS public.schema_versions (
+    schemaversionsid SERIAL PRIMARY KEY,
+    scriptname VARCHAR(255) NOT NULL,
+    applied TIMESTAMP NOT NULL
+);
+INSERT INTO public.schema_versions (scriptname, applied)
+SELECT v.scriptname, NOW()
+FROM (VALUES
+    ('Honua.Server.Migrations.001_CreateHonuaSchema.sql'),
+    ('Honua.Server.Migrations.031_CreateMetadataV2Snapshot.sql'),
+    ('Honua.Server.Migrations.034_CreateMetadataV2ReleasePackages.sql'),
+    ('Honua.Server.Migrations.059_CreateSensorThings.sql'),
+    ('Honua.Server.Migrations.063_CreateRasterOverviews.sql'),
+    ('Honua.Server.Migrations.064_CreateRasterFootprints.sql'),
+    ('Honua.Server.Migrations.116_AddSensorThingsIdSequences.sql')
+) AS v(scriptname)
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_versions sv WHERE sv.scriptname = v.scriptname);

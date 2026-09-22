@@ -1,12 +1,12 @@
 ---
 type: reference
 title: "Warehouse Analytics Sources"
-description: "The SDK now exposes provider-neutral descriptors for CARTO-style analytics"
+description: "Provider-neutral descriptors for warehouse table, query, tileset, H3 and Quadbin sources, with cache identity and pushdown assessment."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Warehouse Analytics Sources
 
-Status: draft contract primitives for issue #184.
+Status: experimental.
 
 The SDK now exposes provider-neutral descriptors for CARTO-style analytics
 sources:

@@ -24,7 +24,32 @@ const canonical = (value: unknown): string => {
 const digest = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
   Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
 
-async function fixture(requestedProvider: string | undefined = "anthropic") {
+// honua-canonical-json-v1 as honua-server writes it: strings use the server's JSON escaping
+// (System.Text.Json's default encoder), which writes HTML-sensitive characters and every
+// non-ASCII UTF-16 code unit as an uppercase \uXXXX escape. JSON structure characters never match.
+const serverCanonical = (value: unknown): string =>
+  canonical(value).replace(
+    /[<>&'+`\u0080-\uffff]/g,
+    (character) => `\\u${character.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}`,
+  );
+
+// The server signs provider events with its own enum spelling of `type` (`MessageStart`), while
+// the SDK's SSE parser types each event from the `event:` line (`messageStart`).
+const serverEventType = (type: string): string => type.charAt(0).toUpperCase() + type.slice(1);
+
+async function fixture(
+  requestedProvider: string | undefined = "anthropic",
+  options: {
+    readonly content?: string;
+    readonly serverEscaping?: boolean;
+    readonly signedEventTypes?: (type: string) => string;
+  } = {},
+) {
+  const encode = options.serverEscaping ? serverCanonical : canonical;
+  const signedEvents = (events: readonly StudioAiChatEvent[]) =>
+    options.signedEventTypes
+      ? events.map((event) => ({ ...event, type: options.signedEventTypes!(event.type) }))
+      : events;
   const keys = await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
   const publicKey = new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey));
   const request: StudioAiChatRequest = {
@@ -37,7 +62,7 @@ async function fixture(requestedProvider: string | undefined = "anthropic") {
     },
     ...(requestedProvider === undefined ? {} : { provider: requestedProvider }),
     model: "claude-sonnet",
-    messages: [{ role: "user", content: "create the map" }],
+    messages: [{ role: "user", content: options.content ?? "create the map" }],
   };
   const events: StudioAiChatEvent[] = [
     { type: "messageStart", model: "claude-sonnet" },
@@ -58,13 +83,13 @@ async function fixture(requestedProvider: string | undefined = "anthropic") {
       keyId: "key-1",
       model: "claude-sonnet",
       provider: "anthropic",
-      providerEvents: b64(encoder.encode(canonical(events))),
+      providerEvents: b64(encoder.encode(encode(signedEvents(events)))),
       releaseId: "2026.1-rc.1",
-      request: b64(encoder.encode(canonical(request))),
+      request: b64(encoder.encode(encode(request))),
       runNonce: "nonce-1",
       schemaVersion: "honua.studio-ai.transcript.v1",
       selectedResponse: "",
-      terminalResultDigest: b64(await crypto.subtle.digest("SHA-256", encoder.encode(canonical(events)))),
+      terminalResultDigest: b64(await crypto.subtle.digest("SHA-256", encoder.encode(encode(signedEvents(events))))),
     }),
   );
   const provenance: StudioAiSignedTranscript = {
@@ -108,6 +133,39 @@ describe("StudioAiTranscriptVerifier", () => {
     await expect(value.verifier.verify(value.provenance, value.request, value.events)).resolves.toEqual({
       ok: false,
       reason: "replay",
+    });
+  });
+
+  it("accepts a transcript whose canonical request and events use the server's string escaping", async () => {
+    // The real candidate's tool descriptions carry apostrophes and backticks
+    // ("the returned draft's generation must be passed as `generation`"); the
+    // server signs them as \u0027 and \u0060.
+    const value = await fixture("anthropic", {
+      content: "set the draft's `generation` + <view> & café",
+      serverEscaping: true,
+      signedEventTypes: serverEventType,
+    });
+    await expect(value.verifier.verify(value.provenance, value.request, value.events)).resolves.toMatchObject({
+      ok: true,
+    });
+  });
+
+  it("rejects a signed event whose server type names a different event than the one received", async () => {
+    const value = await fixture("anthropic", {
+      signedEventTypes: (type) => (type === "toolCallStop" ? "ToolCallDelta" : serverEventType(type)),
+    });
+    await expect(value.verifier.verify(value.provenance, value.request, value.events)).resolves.toEqual({
+      ok: false,
+      reason: "terminal-events-mismatch",
+    });
+  });
+
+  it("still rejects a request whose value differs from the escaped signed request", async () => {
+    const value = await fixture("anthropic", { content: "set the draft's `generation`", serverEscaping: true });
+    (value.request as { messages: unknown }).messages = [{ role: "user", content: "set the draft's `generation`!" }];
+    await expect(value.verifier.verify(value.provenance, value.request, value.events)).resolves.toEqual({
+      ok: false,
+      reason: "request-mismatch",
     });
   });
 

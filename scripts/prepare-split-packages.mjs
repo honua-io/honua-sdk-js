@@ -604,6 +604,13 @@ function createAppPlatformPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.js"), path.join(packageRoot, "connect-url-safety.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.d.ts"), path.join(packageRoot, "connect-url-safety.d.ts"));
   copySourceCapabilityContractSupport(packageRoot);
+  // Custom Elements Manifest for the web components this package registers
+  // (issue #1419), advertised through the conventional `customElements` key so
+  // IDEs, framework binding generators, and agent registries can find it.
+  copyFile(
+    path.join(PROJECT_ROOT, "config", "custom-elements.json"),
+    path.join(packageRoot, "custom-elements.json"),
+  );
 
   const subpathExport = (dir) => ({
     types: `./${dir}/index.d.ts`,
@@ -620,9 +627,11 @@ function createAppPlatformPackage() {
       "Honua application-platform surfaces: app-shell, workspace, scene, operator, studio, and hosted-product clients",
     main: "./app-workspace/index.js",
     types: "./app-workspace/index.d.ts",
+    customElements: "./custom-elements.json",
     exports: {
       ".": subpathExport("app-workspace"),
       ...appPlatformExports,
+      "./custom-elements.json": "./custom-elements.json",
     },
     dependencies: {
       "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
@@ -718,6 +727,7 @@ function writePackageJson(packageRoot, overrides) {
     type: "module",
     main: overrides.main,
     types: overrides.types,
+    customElements: overrides.customElements,
     exports: overrides.exports,
     bin: overrides.bin,
     dependencies: overrides.dependencies,

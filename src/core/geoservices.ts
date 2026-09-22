@@ -107,6 +107,22 @@ export async function getMapLayerMetadata(
 
 // ── FeatureServer / MapServer operations ────────────────────────
 
+// A conservative request-target budget avoids common browser/proxy URL limits.
+// Measure encoded parameters plus the configured base path: Unicode, polygon
+// coordinates, and a deployment prefix (e.g. `/honua`) can all expand the
+// actual request target that `resolveRequestUrl` sends. Explicit caller
+// choices remain authoritative.
+function queryMethod(
+  method: QueryMethod | undefined,
+  path: string,
+  params: URLSearchParams,
+  baseUrl: string,
+): QueryMethod {
+  if (method !== undefined) return method;
+  const url = new URL(`${baseUrl}${path}?${params.toString()}`, globalThis.location?.href ?? "https://honua.invalid");
+  return url.pathname.length + url.search.length > 2_000 ? "POST" : "GET";
+}
+
 /**
  * REST portion of `client.queryFeatures` (the gRPC-web fast path is
  * orchestrated by the client). Maps directly to the FeatureServer `query`
@@ -118,10 +134,8 @@ export async function queryFeaturesRest(
   request: QueryFeaturesRequest,
   preferBinary: boolean,
 ): Promise<HonuaQueryResponse> {
-  const method: QueryMethod = request.method ?? "GET";
-  const usePbf = preferBinary && method === "GET";
   const params = new URLSearchParams();
-  params.set("f", usePbf ? "pbf" : "json");
+  params.set("f", preferBinary && (request.method === undefined || request.method === "GET") ? "pbf" : "json");
   params.set("where", request.where ?? "1=1");
   params.set("outFields", normalizeOutFields(request.outFields));
   params.set("returnGeometry", String(request.returnGeometry ?? true));
@@ -130,6 +144,9 @@ export async function queryFeaturesRest(
   appendQueryExtraParams(params, request);
 
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/query`;
+  const method = queryMethod(request.method, path, params, transport.baseUrl);
+  const usePbf = preferBinary && method === "GET";
+  if (request.method === undefined && method === "POST" && params.get("f") === "pbf") params.set("f", "json");
 
   if (usePbf) {
     return transport.requestBinaryWithJsonFallback<HonuaQueryResponse>(
@@ -154,6 +171,7 @@ export async function queryFeaturesRest(
       body: params.toString(),
     },
     request.signal,
+    request.method === undefined ? { readOnlyQuery: true } : undefined,
   );
 }
 
@@ -161,7 +179,6 @@ export async function queryMapLayer(
   transport: HonuaProtocolTransport,
   request: MapLayerQueryRequest,
 ): Promise<HonuaQueryResponse> {
-  const method: QueryMethod = request.method ?? "GET";
   const params = new URLSearchParams();
   params.set("f", "json");
   params.set("where", request.where ?? "1=1");
@@ -172,6 +189,7 @@ export async function queryMapLayer(
   appendQueryExtraParams(params, request);
 
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
+  const method = queryMethod(request.method, path, params, transport.baseUrl);
   if (method === "GET") {
     return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
   }
@@ -186,6 +204,7 @@ export async function queryMapLayer(
       body: params.toString(),
     },
     request.signal,
+    request.method === undefined ? { readOnlyQuery: true } : undefined,
   );
 }
 
@@ -589,6 +608,18 @@ function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesReq
   }
   if (request.spatialRel !== undefined) {
     params.set("spatialRel", request.spatialRel);
+  }
+  if (request.distance !== undefined) {
+    params.set("distance", String(request.distance));
+  }
+  if (request.units !== undefined) {
+    params.set("units", request.units);
+  }
+  if (request.nearestCount !== undefined) {
+    params.set("nearestCount", String(request.nearestCount));
+  }
+  if (request.returnDistance !== undefined) {
+    params.set("returnDistance", String(request.returnDistance));
   }
   if (request.returnDistinctValues !== undefined) {
     params.set("returnDistinctValues", String(request.returnDistinctValues));

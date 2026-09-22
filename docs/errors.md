@@ -11,19 +11,13 @@ errors migrated in the table below pass the cross-realm `isHonuaError(error)`
 guard. Use their stable classifications to gate retry, refresh, fallback, and
 surface-to-user decisions instead of parsing message strings.
 
-This release covers core transport/auth/protocol errors, discovery, the query
+The envelope covers core transport/auth/protocol errors, discovery, the query
 planner, every public error exported by the stable `map` and `runtime`
-subpaths, the public realtime resume error, and the offline region plus replica
-synchronization classes migrated by
-[#569](https://github.com/honua-io/honua-sdk-js/issues/569), plus the plugin
-registry error migrated by
-[#571](https://github.com/honua-io/honua-sdk-js/issues/571), and the
-stable `agent-tools`/`agent-safety` errors plus the deprecated `generated-app`
-error migrated by [#570](https://github.com/honua-io/honua-sdk-js/issues/570).
-The experimental `nl-map-control` domain's error class remains an explicit
-residual pending a scoped migration; other experimental domains likewise
-retain their current domain-specific contracts until a scoped migration
-lands.
+subpaths, the realtime resume error, the offline region and replica
+synchronization classes, the plugin registry error, and the stable
+`agent-tools`/`agent-safety` errors plus the deprecated `generated-app` error.
+The experimental `nl-map-control` error class and other experimental domains
+keep their own domain-specific contracts.
 
 ## Envelope contract
 
@@ -119,8 +113,6 @@ registered codes, and domain constructors either reject unknown runtime reasons
 or project them to a fixed registered fallback. Focused entrypoints retain only
 the code/domain/category/retryability classifications needed by the error base;
 human-readable registry summaries remain in the explicit public registry.
-`npm run check:error-codes` verifies exact classification parity, registry shape,
-and this class/family documentation.
 
 | Public class | Registered `sdkCode` family |
 |--------------|-----------------------------|
@@ -448,7 +440,7 @@ Two HTTP status sets exist, and they are deliberately different:
 
 | Set | Value | Role |
 |-----|-------|------|
-| Retry-loop default (`DEFAULT_RETRY_STATUSES` in `src/core/request-pipeline.ts`) | `429, 502, 503, 504` | The statuses the opt-in retry loop replays when `retry` is configured and no `retryStatuses` override is supplied. |
+| Retry-loop default (`DEFAULT_RETRY_STATUSES`) | `429, 502, 503, 504` | The statuses the opt-in retry loop replays when `retry` is configured and no `retryStatuses` override is supplied. |
 | Transient classification (`core.http.transient`, and `runtime.query-tiles.transient` for query tiles) | `408, 429, 500, 502, 503, 504` | The statuses whose error instance carries `retryable: true` metadata. |
 
 The loop default is the narrower set on purpose: `429`, `502`, `503`, and `504`

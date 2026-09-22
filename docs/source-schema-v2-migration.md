@@ -1,7 +1,7 @@
 ---
 type: guide
 title: "Source schema v2 migration"
-description: "Source schema v2 is an experimental, vendor-neutral discovery projection. It"
+description: "Opt in to the experimental vendor-neutral source schema v2 discovery projection for GeoServices, OData, GeoParquet, WMS and WMTS without a second metadata request or any change to the default connect path."
 ---
 # Source schema v2 migration
 
@@ -67,6 +67,8 @@ was a string, point, or another portable type.
 | --- | --- |
 | `field.type === "esriFieldTypeOID"` | `field.roles` contains `primary-key` or `feature-id` |
 | `field.type === "esriFieldTypeGeometry"` | `field.roles` contains `geometry`; inspect `schema.geometry` for kind, layout, CRS, and primary-field state |
+| `field.type === "esriFieldTypeDateOnly"` | `field.type.kind === "date"`; values are ISO calendar dates such as `2024-02-29` |
+| `field.type === "esriFieldTypeDate"` | `field.type.kind === "timestamp"` with UTC millisecond semantics |
 | `schema.primaryKey` | `schema.key` (`known`, `none`, or evidence-bearing `unknown`) |
 | `schema.timeField` | `schema.temporal` and the `time-*` field roles |
 | `field.length` | `field.type.kind === "string" && field.type.maxLength` |
@@ -81,6 +83,19 @@ missing GeoServices `domain`, unparsed OData validation annotations, and
 uninspected GeoParquet/Arrow constraints are `unknown/not-reported`, not
 invented declarations of no constraint. An explicit GeoServices `domain: null`
 remains `none/unconstrained`.
+
+GeoServices DateOnly fields retain their native type, nullability, defaults and
+value domains. The PBF decoder preserves the same `esriFieldTypeDateOnly` metadata
+and ISO date strings as JSON. Keep these values as calendar dates; converting
+them to JavaScript `Date` objects introduces time-zone semantics they do not have.
+The semantic GeoServices compiler can build `DATE` comparisons directly from
+this discovered schema. After upgrading from a version that discovered these
+fields as `unknown`, use `connectWithSourceSchemaV2({ ...options, refresh: true })`
+to replace an existing discovery snapshot with the current projection.
+
+PBF feature attributes may follow field order without explicit indexes. The decoder
+supports that form and explicit field indexes, including signed zigzag timestamp
+values from ArcGIS. See the pinned [Esri PBF schema](https://github.com/Esri/arcgis-pbf/blob/e23f93a6258b2f06adf7c9415a6f838bddfd9f4c/proto/FeatureCollection/FeatureCollection.proto).
 
 A `known` key is executable identity, not a name hint: every member must be a
 non-nullable scalar whose JSON encoding can produce `FeatureIdentityValue`.
