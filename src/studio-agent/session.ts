@@ -835,6 +835,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     if (roundText.length > 0) {
       this.#messages.push({ role: "assistant", content: roundText.join("") });
     }
+    const assistantTextIndex = roundText.length > 0 ? this.#messages.length - 1 : -1;
 
     const ready = order
       .map((id) => pending.get(id))
@@ -875,6 +876,19 @@ class StudioAgentSessionImpl implements StudioAgentSession {
           ...(stopReason ? { stopReason } : {}),
           errorMessage: `Transcript provenance rejected: ${verification.reason}.`,
         };
+    }
+
+    if (ready.length > 0 && !inBandError) {
+      // Providers reject a tool result that answers no assistant tool call, so the calls about
+      // to be dispatched are recorded on this round's assistant message (honua-server
+      // `message.toolCalls`), ahead of the role:tool results the turn loop appends.
+      const assistant: StudioAiChatMessage = {
+        role: "assistant",
+        content: assistantTextIndex >= 0 ? roundText.join("") : "",
+        toolCalls: ready.map((call) => ({ id: call.toolCallId, name: call.toolName, arguments: asRecord(call.args) })),
+      };
+      if (assistantTextIndex >= 0) this.#messages[assistantTextIndex] = assistant;
+      else this.#messages.push(assistant);
     }
 
     return {

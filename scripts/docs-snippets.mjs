@@ -6,42 +6,10 @@ import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 
+import { discoverMarkdownFiles, extractFencedBlocks } from "./lib/markdown-fences.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const MARKDOWN_ROOTS = ["README.md", "INSTALL.md", "docs", "examples", "skills"];
-const EXCLUDED_DIRECTORIES = new Set(["dist", "generated", "node_modules"]);
 const JAVASCRIPT_LANGUAGES = new Set(["js", "javascript", "jsx", "ts", "tsx", "typescript"]);
-
-function walkMarkdown(absolutePath, relativePath, output) {
-  const stat = fs.statSync(absolutePath);
-  if (stat.isFile()) {
-    if (absolutePath.endsWith(".md")) output.push(relativePath);
-    return;
-  }
-  for (const entry of fs.readdirSync(absolutePath, { withFileTypes: true })) {
-    if (entry.isDirectory() && EXCLUDED_DIRECTORIES.has(entry.name)) continue;
-    walkMarkdown(path.join(absolutePath, entry.name), path.posix.join(relativePath, entry.name), output);
-  }
-}
-
-export function discoverMarkdownFiles(projectRoot = ROOT, roots = MARKDOWN_ROOTS) {
-  const files = [];
-  for (const root of roots) {
-    const absolute = path.join(projectRoot, root);
-    if (fs.existsSync(absolute)) walkMarkdown(absolute, root, files);
-  }
-  return files.sort();
-}
-
-function stripBlockquotePrefix(line) {
-  let rest = line;
-  let depth = 0;
-  while (true) {
-    const match = /^ {0,3}>[ \t]?/.exec(rest);
-    if (!match) return { depth, rest };
-    rest = rest.slice(match[0].length);
-    depth += 1;
-  }
-}
 
 function parseQuotedAttribute(info, name, location) {
   const occurrences = [...info.matchAll(new RegExp(`(?:^|\\s)${name}=`, "g"))];
@@ -71,54 +39,22 @@ function directiveFromInfo(info, location) {
   return { directive, prelude, reason };
 }
 
-function openingFence(line) {
-  const { depth, rest } = stripBlockquotePrefix(line);
-  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(rest);
-  if (!match) return undefined;
-  const info = match[2].trim();
-  if (match[1][0] === "`" && info.includes("`")) return undefined;
-  return { depth, info, marker: match[1][0], markerLength: match[1].length };
-}
-
-function isClosingFence(line, opening) {
-  const { depth, rest } = stripBlockquotePrefix(line);
-  if (depth !== opening.depth) return false;
-  return new RegExp(`^ {0,3}${opening.marker}{${opening.markerLength},}[ \\t]*$`).test(rest);
-}
-
-function contentWithoutContainer(line, depth) {
-  const stripped = stripBlockquotePrefix(line);
-  return stripped.depth === depth ? stripped.rest : line;
-}
+// Re-exported so `discoverMarkdownFiles` keeps one import site for callers
+// that read snippets and nothing else.
+export { discoverMarkdownFiles, extractFencedBlocks };
 
 export function extractSnippets(markdown, sourcePath) {
-  const lines = markdown.split(/\r?\n/);
   const snippets = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const opening = openingFence(lines[index]);
-    if (!opening) continue;
-    const language = opening.info.split(/\s+/, 1)[0].toLowerCase();
-    const startLine = index + 1;
-    const content = [];
-    let closed = false;
-    for (index += 1; index < lines.length; index += 1) {
-      if (isClosingFence(lines[index], opening)) {
-        closed = true;
-        break;
-      }
-      content.push(contentWithoutContainer(lines[index], opening.depth));
-    }
-    if (!closed) throw new Error(`${sourcePath}:${startLine}: unclosed Markdown fence`);
-    if (!JAVASCRIPT_LANGUAGES.has(language)) continue;
-    const location = `${sourcePath}:${startLine}`;
-    const directive = directiveFromInfo(opening.info, location);
+  for (const block of extractFencedBlocks(markdown, sourcePath)) {
+    if (!JAVASCRIPT_LANGUAGES.has(block.language)) continue;
+    const location = `${block.sourcePath}:${block.startLine}`;
     snippets.push({
-      code: content.join("\n"),
-      language,
+      code: block.content,
+      language: block.language,
       location,
-      sourcePath,
-      startLine,
-      ...directive,
+      sourcePath: block.sourcePath,
+      startLine: block.startLine,
+      ...directiveFromInfo(block.info, location),
     });
   }
   return snippets;

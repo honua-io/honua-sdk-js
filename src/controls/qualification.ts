@@ -456,8 +456,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       },
       {
         ids: ["web-components.measurement"],
-        evidence: ["test/web-components-measurement-element.test.ts"],
-        note: "Escape cancels an in-progress measurement via a real keydown.",
+        evidence: ["test/web-components-measurement-element.test.ts", "test/web-components-measurement-parity.test.ts"],
+        note: "Escape cancels an in-progress measurement via a real keydown, but leaves an Escape typed into another text field, or already consumed by another handler, alone.",
       },
       {
         ids: [TIME_SLIDER],
@@ -1243,8 +1243,12 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       },
       {
         ids: ["web-components.measurement"],
-        evidence: ["test/web-components-measurement-element.test.ts"],
-        note: "Disconnecting unbinds every map listener and restores double-click zoom.",
+        evidence: [
+          "test/web-components-measurement-element.test.ts",
+          "test/web-components-measurement-parity.test.ts",
+          "test/react/measurement-element.test.tsx",
+        ],
+        note: "Disconnecting (directly or by React unmount) unbinds every map listener including remove, releases the shared-selection pointer claim, and restores double-click zoom only when it was enabled before; a destroyed map is dropped without being called back.",
       },
       {
         ids: [TIME_SLIDER],
@@ -1309,8 +1313,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       },
       {
         ids: ["web-components.measurement"],
-        evidence: ["test/web-components-measurement-element.test.ts"],
-        note: "Repeated mode rerenders leave exactly one map click and one double-click listener, proving handlers are not accumulated.",
+        evidence: ["test/web-components-measurement-element.test.ts", "test/web-components-measurement-parity.test.ts"],
+        note: "Repeated mode rerenders, and moving the element in the DOM while a mode is active, leave exactly one map click, double-click, and remove listener, proving handlers are not accumulated.",
       },
       {
         ids: [TIME_SLIDER],

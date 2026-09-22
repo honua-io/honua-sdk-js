@@ -4,8 +4,9 @@
     "method": "POST",
     "path": "/api/v1/studio/content-items/item-parcels-1/rollback-requests",
     "body": {
-      "versionId": "version-parcels-1",
-      "pointer": "both"
+      "targetVersionId": "version-parcels-1",
+      "pointer": "both",
+      "reason": "Restore the reviewed parcels version"
     }
   },
   "response": {
@@ -15,15 +16,16 @@
       "data": {
         "requestId": "rollback-1",
         "itemId": "item-parcels-1",
-        "versionId": "version-parcels-1",
+        "targetVersionId": "version-parcels-1",
         "pointer": "both",
         "pointers": {
           "itemId": "item-parcels-1",
           "currentVersionId": "version-parcels-1",
           "publishedVersionId": "version-parcels-1"
         },
-        "createdAt": "2026-07-02T00:05:00Z",
-        "createdBy": "actor-1"
+        "requestedBy": "actor-1",
+        "reason": "Restore the reviewed parcels version",
+        "createdAt": "2026-07-02T00:05:00Z"
       },
       "timestamp": "2026-07-02T00:05:00Z"
     }

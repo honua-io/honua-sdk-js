@@ -17,6 +17,19 @@ export function classifyGovernedInputRejection(error: unknown): {
   error: GovernedInputRejectionProjection;
 };
 
+export function auditPreferHeaders(
+  requests: ReadonlyArray<{ prefer: string | null | undefined }>,
+): { preferValues: string[]; respondSyncSent: false };
+
+export function assertLegalJobTransitions(statuses: readonly string[]): string[];
+
+export function decodeWkbPoint(base64: string): [number, number];
+
+export function assertBufferResult(
+  output: unknown,
+  options: { center: readonly [number, number] | number[]; distance: number; tolerance?: number },
+): { geometryType: string; vertexCount: number; minRadius: number; maxRadius: number; expectedRadius: number };
+
 export function collectOgcProcessesCandidateQualification(options: {
   sdk: { HonuaClient: new (options: Record<string, unknown>) => unknown };
   baseUrl: string;

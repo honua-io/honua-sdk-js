@@ -103,6 +103,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
+
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
 
@@ -243,6 +246,9 @@ jobs:
 
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
 
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
@@ -464,6 +470,9 @@ jobs:
 
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
+
+      - name: Validate documented executable commands
+        run: npm run docs:commands:check
 
       - name: Component qualification matrix
         # Runs against the already-built dist/, so it does not rebuild. Fails on

@@ -9,6 +9,7 @@ import {
   HONUA_STUDIO_LIFECYCLE_BASE_PATH,
   type HonuaStudioError,
   HonuaStudioLifecycleClient,
+  type StudioRollbackRequestInput,
   createHonuaStudioLifecycleClient,
   isHonuaStudioError,
   isHonuaStudioGenerationConflict,
@@ -372,9 +373,18 @@ describe("HonuaStudioLifecycleClient", () => {
     const contract = fixture("rollback-request.v1.json");
     const { client, requests } = clientFor(contract);
 
-    const rollback = await client.rollbackRequests.create("item-parcels-1", contract.request.body as never);
+    // Typed input: the declared request shape must be the server's wire
+    // contract (`targetVersionId`, `pointer`, `reason`), or this fails to compile.
+    const input: StudioRollbackRequestInput = {
+      targetVersionId: "version-parcels-1",
+      pointer: "both",
+      reason: "Restore the reviewed parcels version",
+    };
+    const rollback = await client.rollbackRequests.create("item-parcels-1", input);
 
     expect(requests[0]).toMatchObject({ method: "POST", body: contract.request.body });
+    expect(rollback.targetVersionId).toBe("version-parcels-1");
+    expect(rollback.reason).toBe("Restore the reviewed parcels version");
     expect(rollback.pointer).toBe("both");
     expect(rollback.pointers).toEqual({
       itemId: "item-parcels-1",

@@ -1,16 +1,14 @@
 ---
 type: reference
 title: "Kepler.gl analytics workspace bridge (experimental)"
-description: "`@honua/sdk-js/kepler` projects an accepted Honua result, a columnar artifact, or"
+description: "Project Honua results, columnar artifacts or remote tile sources into a Kepler.gl workspace with provenance, linked state, bounded deltas and credential redaction."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Kepler.gl analytics workspace bridge (experimental)
 
 `@honua/sdk-js/kepler` projects an accepted Honua result, a columnar artifact, or
 a supported remote tile/imagery source into a [Kepler.gl](https://kepler.gl)
-workspace. It is an experimental slice of
-[#684](https://github.com/honua-io/honua-sdk-js/issues/684) under the analytics
-epic [#384](https://github.com/honua-io/honua-sdk-js/issues/384).
+workspace. It is experimental.
 
 Honua keeps discovery, query, plan, edit, and stream semantics. Kepler owns
 exploratory presentation. The bridge is the seam: it carries capability truth,
@@ -33,9 +31,8 @@ this entrypoint imports them:
 - Every projection, mapping, and reconciliation function works with no peer
   present at all — peers are needed only to dispatch into a live Kepler store.
 
-The `/kepler` bundle budget (`bundle-budgets.json`) declares
-`node_modules/@kepler.gl/`, `react`, `react-dom`, and `redux` as forbidden
-inputs, so CI fails if any of them ever enters the static graph.
+Nothing in the `/kepler` entrypoint's static graph imports Kepler, React, or
+Redux.
 
 ## Ingestion mapping table
 
@@ -268,61 +265,17 @@ This is an explicit processor path, not a claim of Arrow-buffer zero-copy:
 Kepler's current processor returns a row-oriented dataset. The future
 zero-copy contract remains separately reported as unsupported.
 
-## Packed browser qualification
+## Renderer requirement
 
-The SDK's split package is qualified in a real browser by
-`test/playwright/kepler-arrow-packed.spec.mjs`. The test builds
-`dist/packages/honua-sdk`, serves only that packed `@honua/sdk/kepler` tree, and
-opens the Arrow adapter through the public entrypoint. It verifies the declared
-Kepler compatibility range, Arrow processor projection, zero GeoJSON bytes,
-temporal and row-identity metadata, provenance, and bridge workspace metrics.
-
-Run the bounded qualification with:
-
-```bash
-npm run test:playwright:kepler-arrow-packed
-```
-
-The focused test always runs `npm run build:split-packages` from the current
-checkout before starting its browser server. This prevents a clean checkout
-from failing on missing output and prevents an ignored stale `dist/` tree from
-being qualified accidentally. To run the Playwright file directly, it has the
-same build behavior:
-
-```bash
-npx playwright test test/playwright/kepler-arrow-packed.spec.mjs
-```
-
-The fixture injects the processor result and therefore proves the SDK adapter
-and packed browser boundary without claiming that a live Arrow object or
-`honua-site` deployment has been exercised.
-
-## Cloud-native journey handoff and live evidence
-
-`examples/spatial-analytics-workbench/src/kepler-handoff.ts` executes the
-accepted #547 fixture plan and returns a reusable `KeplerResultProjectionRequest`.
-`examples/kepler-analytics/` used to open that request and its three replay
-datasets through `createKeplerWorkspaceBridge()`. That example was retired in
-September 2026 — `@kepler.gl/components@3.2.6` pins `maplibre-gl ^3.6.2`, and
-every release at or below 6.4.0 carries
+The former `examples/kepler-analytics` demo was retired: `@kepler.gl/components@3.2.6`
+pins `maplibre-gl ^3.6.2`, and every MapLibre release at or below 6.4.0 carries
 [GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579) with no
 patched 3.x. **The bridge itself is unaffected**: it produces workspace
 configuration and carries no renderer dependency of its own, so a host on
 maplibre-gl 6.4.1 or newer can use it today.
-
-The matching live lane is `.github/workflows/spatial-analytics-kepler-live.yml`.
-On its schedule (and on manual dispatch), it builds `@honua/sdk` split-package
-output, executes one bounded anonymous aggregate query against the reviewed
-SampleServer6 CitizenRequests layer, and opens the actual accepted result
-through the packed `@honua/sdk/kepler` entrypoint. Evidence requires direct
-aggregate-row ingestion, zero GeoJSON bytes, preserved row count and plan
-fingerprint, and disposal of the bridge. The workflow uploads the evidence for
-90 days and never substitutes fixture rows when the public query fails.
 
 ## Known gaps
 
 - Kepler's Arrow/GeoArrow buffer-preserving path remains unsupported; the new
   processor path is bounded and GeoJSON-free but intentionally reports its
   row-oriented processor boundary.
-- The packed fixture and scheduled public live lanes qualify the SDK-owned
-  handoff. Publication of the demo in `honua-site` remains a site-owned concern.

@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Discover cloud-native sources"
-description: "Use `@honua/sdk-js/cloud-native-discovery` when an application needs to answer"
+description: "Ask a deployment or a single object what it can do before choosing a protocol adapter, and get back a stable data-only discovery document for source pickers, configuration and diagnostics."
 resource: "honua://capability/raster.cloud-storage-config"
 ---
 # Discover cloud-native sources

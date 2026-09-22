@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Protocol × Capability Matrix"
-description: "Native (`✓`) claims mirror the default capability set per protocol; per-source"
+description: "Which operations each protocol adapter supports natively, through a client fallback, or not at all, plus typed filter support and per-protocol notes."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Protocol × Capability Matrix
@@ -935,20 +935,3 @@ Promising a capability the weakest source lacks is the worst possible
 mixed-source failure mode (silent wrong result). The full guide and
 the per-operation partitioning pattern live in
 [`composition.md`](./composition.md).
-
-## Maintaining the matrix
-
-When you add or remove a capability for any protocol:
-
-1. Update `PROTOCOL_DEFAULT_CAPABILITIES` in `src/contract/types.ts`.
-2. Update this table.
-3. Update the conformance scenario in `test/contract/` so the canonical
-   tests fail the right way for the new shape.
-4. Per-source downgrades are the caller's responsibility today: pass an
-   intersected `Capabilities` set on `SourceDescriptor.capabilities`. When
-   automatic metadata-driven downgrades land in the adapter constructors,
-   document the override in the adapter's source file and add a unit test
-   covering the intersected set.
-5. Adapters that emit `Result.degraded[]` should populate
-   `DegradedReason.sourceId` with `descriptor.id` so mixed-source fan-outs
-   can attribute the degradation back to the source that emitted it.

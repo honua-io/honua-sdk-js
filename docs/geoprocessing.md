@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Geoprocessing with OGC API Processes and Esri GPServer"
-description: "The SDK has two supported HTTP geoprocessing paths. OGC API Processes is the"
+description: "Discover, execute, watch and cancel geoprocessing through OGC API Processes or Esri GPServer with one IJobRun contract."
 resource: "honua://capability/process.geoprocessing"
 ---
 # Geoprocessing with OGC API Processes and Esri GPServer
@@ -167,10 +167,3 @@ a deployment's `/mcp`, or through the runner on this page over HTTP.
 - Job polling follows same-origin `Location` and results links when advertised,
   then falls back to the Core route templates.
 - Cross-origin job links and non-JSON document responses fail closed.
-
-The raw OGC synchronous/GeoJSON candidate receipt remains gated on
-honua-server#3268 and honua-demo-infra#68. The SDK's GPServer job/result contract
-is covered independently, but a live release run still requires a seeded
-`geoprocessing/Buffer` task. When either deployment capability is absent,
-release evidence must record an explicit blocked/skip receipt; discovery is not
-execution evidence.

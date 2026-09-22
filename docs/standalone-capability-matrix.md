@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix"
-description: "This is the generated, evidence-linked line between capabilities that work"
+description: "Generated matrix of which SDK capabilities work against any standards-speaking endpoint and which need Honua Server, with the tier that says what you have to run yourself."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix

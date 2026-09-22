@@ -142,9 +142,8 @@ migration codemod rewrites
 
 ### Parity tolerances
 
-Numerical parity is tested in `test/geometry-engine-compat.test.ts` against
-analytically-derived expected outputs (fixtures use Web Mercator geometries so
-planar ops have exact values):
+Numerical parity against analytically derived expected values (Web Mercator
+geometries, so planar ops have exact values):
 
 - **planar area / length:** exact to `< 1e-6` relative (pure coordinate
   arithmetic).

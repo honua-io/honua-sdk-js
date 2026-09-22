@@ -1,0 +1,97 @@
+{
+  "candidate": {
+    "package": {
+      "coordinate": "@honua/sdk-js",
+      "version": "0.1.9-beta.0",
+      "registry": "https://registry.npmjs.org",
+      "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ=="
+    },
+    "release": "2026.1",
+    "source": "config/installed-package-certification.v1.json"
+  },
+  "control": {
+    "discriminates": true,
+    "executed": "npx --yes @honua/sdk-js@0.1.9-beta.0 honua --help",
+    "expectation": "npm cannot choose between the two bins this package publishes",
+    "issue": "honua-sdk-js#1596",
+    "reason": "npm could not choose a bin from the package",
+    "resolved": false,
+    "stderr": "npm error could not determine executable to run\nnpm error A complete log of this run can be found in: C:\\Users\\mike\\AppData\\Local\\Temp\\honua-docs-commands-registry-L6fQog\\cache\\_logs\\2026-09-13T19_03_37_108Z-debug-0.log"
+  },
+  "generatedAt": "2026-09-13T19:03:37.509Z",
+  "install": {
+    "mode": "default-resolution",
+    "packages": {
+      "@honua/sdk": {
+        "integrity": "sha512-oTQioVgdEHjh+OaIg3sUDMHDwqFi9vkcecXGMgEczKf2c5QK+XGnq3SP+UObWW7MTmmH0R+AxEFFA5bucPtN7w==",
+        "resolved": "https://registry.npmjs.org/@honua/sdk/-/sdk-0.1.2-beta.0.tgz",
+        "version": "0.1.2-beta.0"
+      },
+      "@honua/sdk-esri-compat": {
+        "integrity": "sha512-uLJE2npoEer2H2Gf6bdTjy+cfFHMnEsdDI8kupRLkxu24Iq2jjpKBwTDPjmwDorm4x6q2VParkCZoxCHGrz8aA==",
+        "resolved": "https://registry.npmjs.org/@honua/sdk-esri-compat/-/sdk-esri-compat-0.1.2-beta.0.tgz",
+        "version": "0.1.2-beta.0"
+      },
+      "@honua/sdk-js": {
+        "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+        "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz",
+        "version": "0.1.9-beta.0"
+      }
+    },
+    "registry": "https://registry.npmjs.org"
+  },
+  "observations": [
+    {
+      "argumentsElided": true,
+      "documented": "npx -p @honua/sdk-js honua <command>",
+      "executable": "honua",
+      "exitCode": 0,
+      "location": "README.md:437",
+      "package": "@honua/sdk-js",
+      "probe": "npx --yes --package @honua/sdk-js@0.1.9-beta.0 honua --help",
+      "resolved": true,
+      "stderr": "",
+      "stdout": "honua — command-line client for Honua geospatial servers (wraps @honua/sdk-js)\n\nUSAGE\n  honua <command> [options]\n\nCATALOG\n  honua services                              List published services\n  honua layers <service>                      List layers/tables in a service\n\nDATA\n  honua query <service>/<layer> [options]     Query features (the workhorse verb)\n      --where <sql>        SQL filter (default 1=1)\n      --bbox minx,miny,maxx,maxy   Spatial intersect filter (WGS84)\n      --fields <name>      Output field (repeatable; default *)\n      --count              Return a feature count only\n  ",
+      "verdict": "pass"
+    },
+    {
+      "argumentsElided": true,
+      "documented": "npx -p @honua/sdk-js honua-plugin-certify --manifest ./manifest.json --host ./host.json --pretty",
+      "executable": "honua-plugin-certify",
+      "exitCode": 0,
+      "location": "docs/plugin-manifest-certification.md:391",
+      "package": "@honua/sdk-js",
+      "probe": "npx --yes --package @honua/sdk-js@0.1.9-beta.0 honua-plugin-certify --help",
+      "resolved": true,
+      "stderr": "",
+      "stdout": "honua-plugin-certify — certify a Honua plugin manifest against a host snapshot.\n\nUsage:\n  honua-plugin-certify --manifest <file> --host <file> [--out <file>] [--pretty]\n  honua-plugin-certify --verify <report-file>\n\nOptions:\n  --manifest, -m <file>  Path to the plugin manifest JSON (required to certify).\n  --host, -H <file>      Path to the certification host snapshot JSON (required to certify).\n  --verify, -V <file>    Re-check an archived report's integrity digests instead of certifying.\n  --out, -o <file>       Write the report JSON to <file> instead of stdout.\n  --pretty               Pret",
+      "verdict": "pass"
+    },
+    {
+      "argumentsElided": true,
+      "documented": "npx -p @honua/sdk-js honua-plugin-certify --verify ./report.json",
+      "executable": "honua-plugin-certify",
+      "exitCode": 0,
+      "location": "docs/plugin-manifest-certification.md:411",
+      "package": "@honua/sdk-js",
+      "probe": "npx --yes --package @honua/sdk-js@0.1.9-beta.0 honua-plugin-certify --help",
+      "resolved": true,
+      "stderr": "",
+      "stdout": "honua-plugin-certify — certify a Honua plugin manifest against a host snapshot.\n\nUsage:\n  honua-plugin-certify --manifest <file> --host <file> [--out <file>] [--pretty]\n  honua-plugin-certify --verify <report-file>\n\nOptions:\n  --manifest, -m <file>  Path to the plugin manifest JSON (required to certify).\n  --host, -H <file>      Path to the certification host snapshot JSON (required to certify).\n  --verify, -V <file>    Re-check an archived report's integrity digests instead of certifying.\n  --out, -o <file>       Write the report JSON to <file> instead of stdout.\n  --pretty               Pret",
+      "verdict": "pass"
+    }
+  ],
+  "runtime": {
+    "arch": "x64",
+    "node": "v24.7.0",
+    "npm": "11.5.1",
+    "platform": "win32"
+  },
+  "schema": "honua.sdk-documented-command-execution/v1",
+  "summary": {
+    "fail": 0,
+    "pass": 3,
+    "total": 3
+  },
+  "verdict": "certified"
+}
