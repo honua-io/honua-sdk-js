@@ -26,12 +26,14 @@ ArcGIS JavaScript runtime.
 ## Use canonical tooling where it helps
 
 The canonical JS engine lives in `honua-io/honua-migrate/packages/javascript`.
-Its standalone npm CLI is `honua-js-migrate`; pin the selected package version
-instead of a moving latest version for repeat runs.
+Its standalone npm CLI is `honua-js-migrate`, a bin of `@honua/honua-migrate`.
+`npx` fetches its first argument as a package, so name that package. Pin
+`@honua/honua-migrate@<version>` in place of the unversioned package below
+for a repeat run.
 
 ```bash
-npx honua-js-migrate scan ./src
-npx honua-js-migrate codemod ./src --target honua-maplibre --report migration-report.json
+npx -p @honua/honua-migrate honua-js-migrate scan ./src
+npx -p @honua/honua-migrate honua-js-migrate codemod ./src --target honua-maplibre --report migration-report.json
 ```
 
 Check the installed CLI's `--help` for supported commands and flags. Codemod is
