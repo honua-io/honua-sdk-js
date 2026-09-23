@@ -13,6 +13,7 @@ import type {
   HonuaMapServiceSourceSpecification,
   HonuaSourceSpecification,
 } from "../style/specification.js";
+import type { RendererConversionOptions } from "../style/visual-variables.js";
 import { convertLabelingInfo } from "./convert-label.js";
 import { type HonuaPopupConfig, convertPopupInfo } from "./convert-popup.js";
 import { convertRenderer } from "./convert-renderer.js";
@@ -29,6 +30,7 @@ export function convertOperationalLayer(
   opLayer: WebMapOperationalLayer,
   index: number,
   warn: WarningCollector,
+  options: RendererConversionOptions = {},
 ): LayerConversionResult {
   const result: LayerConversionResult = { sources: {}, layers: [] };
   const layerWarn = warn.child(`operationalLayers[${index}]`);
@@ -74,7 +76,7 @@ export function convertOperationalLayer(
 
   // Convert renderer
   const renderer = opLayer.layerDefinition?.drawingInfo?.renderer;
-  const rendererResult = convertRenderer(renderer, layerWarn.child("layerDefinition.drawingInfo.renderer"));
+  const rendererResult = convertRenderer(renderer, layerWarn.child("layerDefinition.drawingInfo.renderer"), options);
 
   if (rendererResult) {
     const layer: HonuaLayerSpecification = {
@@ -110,7 +112,22 @@ export function convertOperationalLayer(
       layer.metadata = { ...layer.metadata, title: opLayer.title };
     }
 
+    if (rendererResult.visualVariableLegends?.length) {
+      layer.metadata = { ...layer.metadata, "honua:visual-variable-legends": rendererResult.visualVariableLegends };
+    }
     result.layers.push(layer);
+    for (const [outlineIndex, extra] of (rendererResult.additionalLayers ?? []).entries()) {
+      const outline: HonuaLayerSpecification = {
+        ...layer,
+        id: `${layerId}-outline-${outlineIndex}`,
+        type: extra.layerType,
+        paint: { ...extra.paint },
+        layout: { ...extra.layout, ...(opLayer.visibility === false ? { visibility: "none" } : {}) },
+      };
+      if (transparency != null && transparency > 0) applyTransparency(outline, transparency);
+      if (opLayer.opacity != null && opLayer.opacity < 1) applyOpacity(outline, opLayer.opacity);
+      result.layers.push(outline);
+    }
   } else if (!renderer) {
     // No renderer — create a default layer so the source is referenced
     const layer: HonuaLayerSpecification = {
@@ -158,7 +175,7 @@ function applyOpacity(layer: HonuaLayerSpecification, opacity: number): void {
       paint["fill-opacity"] = opacity;
       break;
     case "line":
-      paint["line-opacity"] = opacity;
+      paint["line-opacity"] = (typeof paint["line-opacity"] === "number" ? paint["line-opacity"] : 1) * opacity;
       break;
     case "circle":
       paint["circle-opacity"] = opacity;

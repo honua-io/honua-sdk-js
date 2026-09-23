@@ -604,6 +604,7 @@ function buildContentWebMapReport(
   warningCount: number;
   rewrittenUrlCount: number;
   warningCodes: Record<string, number>;
+  warnings: ReturnType<typeof parseWebMap>["warnings"];
   manualInterventionNeeded: boolean;
 } {
   const warningCodes: Record<string, number> = {};
@@ -624,11 +625,14 @@ function buildContentWebMapReport(
     warningCount: result.warnings.length,
     rewrittenUrlCount,
     warningCodes,
+    warnings: result.warnings,
     manualInterventionNeeded,
   };
 }
 
 const MANUAL_INTERVENTION_WARNING_CODES = new Set([
+  "unsupported-visual-variable",
+  "unsupported-renderer-semantics",
   "unsupported-renderer",
   "unsupported-layer-type",
   "unsupported-feature-collection",

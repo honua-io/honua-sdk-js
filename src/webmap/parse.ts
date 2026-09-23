@@ -5,6 +5,7 @@
  */
 
 import type { HonuaStyleSpecification } from "../style/specification.js";
+import type { RendererConversionOptions } from "../style/visual-variables.js";
 import { convertBasemap } from "./convert-basemap.js";
 import { convertExtent, convertInitialViewpoint } from "./convert-extent.js";
 import { convertOperationalLayer } from "./convert-layer.js";
@@ -17,7 +18,7 @@ import {
   warnUnknownProperties,
 } from "./warnings.js";
 
-export interface ParseWebMapOptions {
+export interface ParseWebMapOptions extends RendererConversionOptions {
   /** If true, include basemap layers. Defaults to true. */
   includeBasemap?: boolean;
 }
@@ -57,7 +58,7 @@ export function parseWebMap(input: WebMapJson, options?: ParseWebMapOptions): Pa
     const opLayers = input.operationalLayers;
     for (let i = 0; i < opLayers.length; i++) {
       const opLayer: WebMapOperationalLayer = opLayers[i];
-      const layerResult = convertOperationalLayer(opLayer, i, warn);
+      const layerResult = convertOperationalLayer(opLayer, i, warn, options);
       Object.assign(sources, layerResult.sources);
       layers.push(...layerResult.layers);
       if (layerResult.popup) {

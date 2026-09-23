@@ -73,3 +73,5 @@ export type {
   WebMapLayerDefinition,
   EsriColor,
 } from "./types.js";
+
+export type { RendererConversionOptions, VisualVariableLegend } from "../style/visual-variables.js";

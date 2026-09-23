@@ -19,6 +19,7 @@
  */
 
 import type { HonuaStyleSpecification } from "../style/specification.js";
+import type { RendererConversionOptions } from "../style/visual-variables.js";
 import { parseWebMap } from "../webmap/parse.js";
 import type { WebMapJson } from "../webmap/types.js";
 import type { WebMapWarning } from "../webmap/warnings.js";
@@ -52,7 +53,7 @@ export interface WebMapMapLibreManualGap {
   context?: Record<string, unknown>;
 }
 
-export interface WebMapJsonToMapLibreStyleOptions {
+export interface WebMapJsonToMapLibreStyleOptions extends RendererConversionOptions {
   /** Whether to include the basemap in the derived style. Defaults to true. */
   includeBasemap?: boolean;
 }
@@ -80,6 +81,7 @@ export function webmapJsonToMapLibreStyle(
   options: WebMapJsonToMapLibreStyleOptions = {},
 ): WebMapJsonToMapLibreStyleResult {
   const parsed = parseWebMap(webmap, {
+    ...options,
     includeBasemap: options.includeBasemap !== false,
   });
 
@@ -128,6 +130,8 @@ function classifyWarning(warning: WebMapWarning, webmap: WebMapJson): WebMapMapL
       };
     }
 
+    case "unsupported-visual-variable":
+    case "unsupported-renderer-semantics":
     case "unsupported-renderer": {
       return {
         kind: "unsupported-renderer",
