@@ -56,6 +56,7 @@
     "test:certification": "npm run build --silent && vitest run test/certification && node dist/src/certification/cli.js",
     "test:certification:admin": "vitest run test/proxy.test.ts test/certification/admin-parity.test.ts",
     "certify:admin-parity": "npm run build --silent && node dist/src/certification/admin-parity.js",
+    "certify:setup-parity": "npm run build --silent && node dist/src/certification/setup-parity.js",
     "test:certification:artifact": "npm run build --silent && node dist/src/certification/cli.js --artifact-only",
     "test:certification:standalone": "npm run build --silent && node dist/src/certification/cli.js --target standalone",
     "test:certification:standalone-ogc": "npm run build --silent && node dist/src/certification/cli.js --target standalone-ogc",
@@ -102,6 +103,7 @@
     "dist/src",
     "release/zero-to-map",
     "certification/geospatial-mcp-schemas",
+    "certification/setup-parity.md",
     "README.md",
     "LICENSE"
   ],

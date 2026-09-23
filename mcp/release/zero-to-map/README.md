@@ -1,5 +1,13 @@
 # Zero-to-map 2026.1 release journey
 
+The September 9 release decision on #1401 narrows first-cut qualification.
+This older journey still exercises the broader Admin/analysis and multi-family
+Studio integration. Its roster is not the bounded 2026.1 setup gate. Use the
+[pinned setup catalog check](../../certification/setup-parity.md) for that
+gate's HTTP/stdio discovery evidence; retain separate install and style/render
+execution receipts. Full Admin MCP and broader analysis qualification remain
+outside the bounded first-cut dependency chain.
+
 This bundle is the executable contract for `honua-release#123` D9.3: install
 Honua, configure and publish deterministic data with AI-accessible admin tools,
 run Buffer through the AI-facing Esri MCP tool, the SDK's Esri GPServer

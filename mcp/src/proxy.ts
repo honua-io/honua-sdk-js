@@ -20,6 +20,13 @@ import { requireSecureCredentialEndpoint } from "./credential-endpoint.js";
 import { isMainEntrypoint } from "./entrypoint.js";
 import { SERVER_VERSION } from "./index.js";
 
+// MCP permits server extensions such as Honua's tools/list `view`. The SDK's
+// nested params schema strips unknown keys by default, so preserve them before
+// forwarding or a stdio caller silently receives the default catalog instead.
+const ForwardedListToolsRequestSchema = ListToolsRequestSchema.extend({
+  params: ListToolsRequestSchema.shape.params.unwrap().passthrough().optional(),
+});
+
 /**
  * Transport-symmetric stdio proxy for the honua MCP surface (honua-server #1950).
  *
@@ -134,7 +141,7 @@ export function createProxyServer(upstream: Client): Server {
 
   // ── Tools ──────────────────────────────────────────────────────
   if (upstreamCapabilities.tools) {
-    server.setRequestHandler(ListToolsRequestSchema, async (request) => upstream.listTools(request.params));
+    server.setRequestHandler(ForwardedListToolsRequestSchema, async (request) => upstream.listTools(request.params));
     server.setRequestHandler(CallToolRequestSchema, async (request) => upstream.callTool(request.params));
   }
 

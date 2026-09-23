@@ -5,6 +5,14 @@ description: "The 2026.1 release journey answers one end-to-end question: can an
 ---
 # Zero-to-map release journey
 
+The September 9, 2026 scope decision on #1401 limits the first cut to the
+bounded setup → configure → publish path. The broader integration driver
+described below is retained engineering, not a requirement to enable full
+Admin MCP, additional analysis families or dashboards for that cut. Use the
+[pinned bounded catalog qualification](../mcp/certification/setup-parity.md)
+for current HTTP/stdio discovery evidence, alongside separate immutable
+install, task execution and style/render receipts.
+
 The 2026.1 release journey answers one end-to-end question: can an operator use
 AI-facing Honua surfaces to install the platform, configure services and
 geoprocessing, then create and save a map app without pretending that an agent
