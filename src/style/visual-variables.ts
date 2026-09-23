@@ -124,6 +124,9 @@ export function compileVisualVariables(
     if (assigned.has(property))
       return reject(`Multiple variables target ${property}; only the first supported variable is applied.`);
     let rawStops = input.stops;
+    const stopPath = (index: number, property: string) => input.stops !== undefined
+      ? `stops[${index}].${property}`
+      : `${index === 0 ? "min" : "max"}${property === "value" ? "DataValue" : "Size"}`;
     if (!color && rawStops === undefined)
       rawStops = [
         { value: input.minDataValue, size: input.minSize },
@@ -140,7 +143,7 @@ export function compileVisualVariables(
         (scale && stop.value <= 0) ||
         (i > 0 && stop.value <= stops[i - 1].value)
       )
-        return reject("Stop values must be finite, strictly ascending, and positive for scale.", `stops[${i}].value`);
+        return reject("Stop values must be finite, strictly ascending, and positive for scale.", stopPath(i, "value"));
       for (const property of Object.keys(stop)) {
         if (!["value", "label", color ? "color" : "size"].includes(property)) {
           return reject(
@@ -160,7 +163,7 @@ export function compileVisualVariables(
         if (!finite(stop.size) || stop.size < 0)
           return reject(
             "Size stops require a finite nonnegative size in points; nested scale ranges are unsupported.",
-            `stops[${i}].size`,
+            stopPath(i, "size"),
           );
         const size = (stop.size * (96 / 72)) / (layerType === "circle" ? 2 : 1);
         stops.push({ value: stop.value, output: size, label, size });

@@ -172,6 +172,18 @@ const DEFAULT_REAL_SAMPLE_FIXTURE_NAMES = [
 ] as const;
 const DEFAULT_DEMO_FIXTURE_NAME = MIGRATION_DEMO_PRIMARY_TARGET.fixtureName;
 
+const MANUAL_INTERVENTION_WARNING_CODES = new Set([
+  "unsupported-visual-variable",
+  "unsupported-renderer-semantics",
+  "unsupported-renderer",
+  "unsupported-layer-type",
+  "unsupported-feature-collection",
+  "unsupported-arcade-expression",
+  "unsupported-3d-property",
+  "complex-arcade",
+  "complex-label-expression",
+]);
+
 const parsed = parseArgs(process.argv.slice(2));
 if (!parsed) {
   printUsage();
@@ -630,17 +642,7 @@ function buildContentWebMapReport(
   };
 }
 
-const MANUAL_INTERVENTION_WARNING_CODES = new Set([
-  "unsupported-visual-variable",
-  "unsupported-renderer-semantics",
-  "unsupported-renderer",
-  "unsupported-layer-type",
-  "unsupported-feature-collection",
-  "unsupported-arcade-expression",
-  "unsupported-3d-property",
-  "complex-arcade",
-  "complex-label-expression",
-]);
+
 
 function runFixtures(args: ParsedArgs): void {
   const fixturesRoot = args.target;
