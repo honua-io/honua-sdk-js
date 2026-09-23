@@ -1,0 +1,418 @@
+{
+  "schema": "honua.map-artifact-lifecycle-receipt/v1",
+  "issue": "honua-io/honua-sdk-js#1426",
+  "generatedAt": "<time>",
+  "candidate": {
+    "image": "ghcr.io/honua-io/honua-server@sha256:<sha256>",
+    "digest": "sha256:<sha256>",
+    "revision": "548b7a5263da5a3f2381eb43f232687cdf92b0bf",
+    "imageRevisionLabel": "548b7a5263da5a3f2381eb43f232687cdf92b0bf",
+    "deploymentFingerprint": "sha256:<sha256>",
+    "defaultsChanged": {
+      "Licensing__Mode": "2026.1 ships licensing disabled",
+      "Oidc__TokenValidation__EnableTokenReplayProtection": "default true makes every bearer JWT single-use; a bearer MCP session cannot make a second request"
+    }
+  },
+  "clients": {
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.9-beta.0",
+      "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+      "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz"
+    },
+    "cli": {
+      "bin": "honua",
+      "package": "@honua/sdk-js",
+      "version": "0.1.9-beta.0"
+    },
+    "studio": {
+      "repository": "honua-io/honua-studio",
+      "revision": "c7193a8efc34838dda8babdc10267d5e3687e9ea",
+      "files": [
+        {
+          "file": "src/lifecycle/lifecycle-client.ts",
+          "sha256": "<sha256>"
+        },
+        {
+          "file": "src/lifecycle/lifecycle-errors.ts",
+          "sha256": "<sha256>"
+        },
+        {
+          "file": "src/lifecycle/lifecycle-types.ts",
+          "sha256": "<sha256>"
+        }
+      ],
+      "note": "self-hosted Studio's lifecycle client module, loaded with Node type stripping; the Studio bundle itself is not an npm artifact"
+    },
+    "node": "v24.19.0"
+  },
+  "checks": [
+    {
+      "id": "installed-client-identity",
+      "criterion": "AC5",
+      "verdict": "pass",
+      "evidence": {
+        "sdk": {
+          "package": "@honua/sdk-js",
+          "version": "0.1.9-beta.0",
+          "integrity": "sha512-xVJnTpZnscV1exvoSGH/I1qbqhlxTy3FcldKJTCQe8N2gq5legwV8huu2FKGVmvi+/bc9pnvu4HobpsIGnR5OQ==",
+          "resolved": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.1.9-beta.0.tgz"
+        },
+        "cli": {
+          "bin": "honua",
+          "package": "@honua/sdk-js",
+          "version": "0.1.9-beta.0"
+        },
+        "studio": {
+          "repository": "honua-io/honua-studio",
+          "revision": "c7193a8efc34838dda8babdc10267d5e3687e9ea",
+          "files": [
+            {
+              "file": "src/lifecycle/lifecycle-client.ts",
+              "sha256": "<sha256>"
+            },
+            {
+              "file": "src/lifecycle/lifecycle-errors.ts",
+              "sha256": "<sha256>"
+            },
+            {
+              "file": "src/lifecycle/lifecycle-types.ts",
+              "sha256": "<sha256>"
+            }
+          ],
+          "note": "self-hosted Studio's lifecycle client module, loaded with Node type stripping; the Studio bundle itself is not an npm artifact"
+        },
+        "node": "v24.19.0"
+      }
+    },
+    {
+      "id": "candidate-readiness",
+      "criterion": "AC5",
+      "verdict": "pass",
+      "evidence": {
+        "ready": 200
+      }
+    },
+    {
+      "id": "portable-fixture-valid-and-export-roundtrip",
+      "criterion": "AC2",
+      "verdict": "pass",
+      "evidence": {
+        "fixtureSha256": "<sha256>",
+        "exportFingerprint": "{\"controls\":[],\"createdAt\":\"2026-09-15T00:00:00Z\",\"format\":\"honua_map_package.v1\",\"initialView\":{\"bbox\":[-158.3,20.9,-157.4,21.7],\"center\":[-157.8583,21.3069],\"crs\":\"EPSG:4326\",\"zoom\":5},\"interactions\":[],\"layers\":[],\"mapPackageId\":\"honolulu-places\",\"mapSpec\":{\"layers\":[{\"id\":\"places\",\"paint\":{\"circle-color\":\"#d93f3f\",\"circle-radius\":12},\"source\":\"places\",\"type\":\"circle\"}],\"sources\":{\"places\":{\"data\":{\"features\":[{\"geometry\":{\"coordinates\":[-157.8583,21.3069],\"type\":\"Point\"},\"id\":7,\"properties\":{\"elevation\":null,\"name\":\"Honolulu\"},\"type\":\"Feature\"}],\"type\":\"FeatureCollection\"},\"type\":\"geojson\"}},\"version\":8},\"sourceBindings\":[],\"status\":\"Draft\",\"styleRefs\":[{\"body\":{\"places\":{\"paint\":{\"circle-color\":\"#d93f3f\",\"circle-radius\":12,\"circle-stroke-color\":\"#ffffff\",\"circle-stroke-width\":2}}},\"label\":\"Places status\",\"styleId\":\"places-status\"},{\"body\":{\"places\":{\"paint\":{\"circle-color\":\"#1f3b4d\",\"circle-radius\":12}}},\"label\":\"Places status (dark)\",\"styleId\":\"places-status-dark\"}],\"view\":{\"center\":[-157.8583,21.3069],\"crs\":\"EPSG:4326\",\"zoom\":5},\"widgets\":[]}"
+      }
+    },
+    {
+      "id": "server-accepts-sdk-canonical-artifact",
+      "criterion": "AC2",
+      "verdict": "fail",
+      "evidence": {
+        "validation": {
+          "status": "invalid",
+          "diagnostics": [
+            {
+              "code": "studio.body.invalid",
+              "severity": "error",
+              "path": "/body",
+              "message": "package body does not match the declared family format."
+            }
+          ],
+          "unsupportedCapabilities": [],
+          "generatedAt": "<time>"
+        }
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: the server rejects the SDK canonical artifact: [{\"code\":\"studio.body.invalid\",\"severity\":\"error\",\"path\":\"/body\",\"message\":\"package body does not match the declared family format.\"}]\n\n'invalid' !== 'valid'\n\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:244:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:236:1"
+    },
+    {
+      "id": "terminal-create-draft",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "generation": 1,
+        "ownerBinding": "subject:<issuer>:map-author@tenant:public"
+      }
+    },
+    {
+      "id": "terminal-style-and-view",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "generation": 4,
+        "view": {
+          "crs": "EPSG:4326",
+          "zoom": 9,
+          "center": [
+            -157.8583,
+            21.3069
+          ]
+        },
+        "layer": {
+          "id": "places",
+          "type": "circle",
+          "title": "Honolulu places",
+          "visible": true,
+          "sourceId": "places",
+          "styleRef": "places-status"
+        }
+      }
+    },
+    {
+      "id": "terminal-stale-generation-fails-closed",
+      "criterion": "AC4",
+      "verdict": "pass",
+      "evidence": {
+        "refusal": "Stale draft generation; refresh and retry."
+      }
+    },
+    {
+      "id": "terminal-validate-and-preview-is-not-persisted",
+      "criterion": "AC1 AC3",
+      "verdict": "pass",
+      "evidence": {
+        "preview": {
+          "draftId": "<uuid>",
+          "family": "map",
+          "synchronous": true,
+          "requiresJob": false,
+          "steps": [
+            "validate-envelope",
+            "prepare-inline-preview"
+          ],
+          "validation": {
+            "status": "valid",
+            "diagnostics": [],
+            "unsupportedCapabilities": [],
+            "generatedAt": "<time>"
+          }
+        },
+        "itemState": "draft"
+      }
+    },
+    {
+      "id": "terminal-save-immutable-version",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "versionNumber": 1,
+        "itemState": "current"
+      }
+    },
+    {
+      "id": "rendered-pixels-of-saved-version",
+      "criterion": "AC1",
+      "verdict": "fail",
+      "evidence": {
+        "png": {
+          "width": 1240,
+          "height": 1754,
+          "sha256": "<sha256>",
+          "pageInk": 4384,
+          "bodyInk": 0,
+          "dominant": []
+        }
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: the exported map page body has 0 non-background pixels; the map, its features and style did not render\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:351:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:341:1"
+    },
+    {
+      "id": "renderer-pixels-of-saved-artifact",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "renderer": "Chromium 145.0.7632.6 WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+        "maplibreVersion": "6.0.0",
+        "pngSha256": "<sha256>",
+        "boundStyle": "places-status",
+        "centre": [
+          217,
+          63,
+          63,
+          255
+        ],
+        "expectedFill": [
+          217,
+          63,
+          63
+        ],
+        "corner": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "inkPixels": 440
+      }
+    },
+    {
+      "id": "saved-version-is-immutable",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "draftEditedAfterSave": "generation 5 -> 6"
+      }
+    },
+    {
+      "id": "terminal-reopen-version",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "baseVersionBound": true
+      }
+    },
+    {
+      "id": "js-sdk-reads-same-version",
+      "criterion": "AC2",
+      "verdict": "pass",
+      "evidence": {
+        "canonicalBodySha256": "<sha256>"
+      }
+    },
+    {
+      "id": "studio-client-reads-and-reopens-same-version",
+      "criterion": "AC2",
+      "verdict": "pass",
+      "evidence": {
+        "canonicalBodySha256": "<sha256>"
+      }
+    },
+    {
+      "id": "mcp-js-studio-byte-identical-version-payload",
+      "criterion": "AC2",
+      "verdict": "pass",
+      "evidence": {
+        "bodyBytesSha256": "<sha256>"
+      }
+    },
+    {
+      "id": "cli-publishes-portable-artifact",
+      "criterion": "AC2",
+      "verdict": "fail",
+      "evidence": {
+        "exitCode": 2,
+        "output": "error: Command map-package.publish failed with HTTP 400.\n",
+        "lifecycleVerbs": "the installed CLI has no Studio draft/version/proposal verbs; `map publish` targets the control-plane package API"
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: the installed CLI must publish the saved portable artifact\n\n2 !== 0\n\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:462:10)\n    at check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:11)\n    at file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:453:7\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)"
+    },
+    {
+      "id": "proposal-negatives-fail-closed",
+      "criterion": "AC4",
+      "verdict": "fail",
+      "evidence": {},
+      "diagnostic": "AssertionError [ERR_ASSERTION]: another tenant's administrator must not propose this item\n\nfalse !== true\n\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:475:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:469:1"
+    },
+    {
+      "id": "terminal-proposes-publication",
+      "criterion": "AC1 AC3",
+      "verdict": "pass",
+      "evidence": {
+        "status": "AwaitingApproval"
+      }
+    },
+    {
+      "id": "approval-negatives-fail-closed",
+      "criterion": "AC4",
+      "verdict": "fail",
+      "evidence": {
+        "statuses": {
+          "viewer": 403,
+          "foreignTenant": 404,
+          "self": 200
+        },
+        "selfOutcome": {
+          "status": "Succeeded",
+          "resolvedBy": "map-author"
+        },
+        "itemAfterRefusals": {
+          "state": "published",
+          "published": true
+        }
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: self-approval must be refused; the candidate answered 200 Succeeded (honua-server#4901)\n\n200 !== 403\n\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:522:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:498:1"
+    },
+    {
+      "id": "separate-principal-approval-activates-publication",
+      "criterion": "AC1",
+      "verdict": "pass",
+      "evidence": {
+        "itemState": "published",
+        "activeUrl": "/maps/<run>",
+        "replayStatus": 409
+      }
+    },
+    {
+      "id": "final-governed-url-resolves",
+      "criterion": "AC1 AC5",
+      "verdict": "fail",
+      "evidence": {
+        "finalUrl": "/maps/<run>",
+        "statuses": {
+          "anonymous": 404,
+          "authenticated": 404
+        }
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: the Active publication URL /maps/<run> is not served (404/404)\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:556:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:550:1"
+    },
+    {
+      "id": "cross-tenant-reads-fail-closed",
+      "criterion": "AC4",
+      "verdict": "fail",
+      "evidence": {},
+      "diagnostic": "AssertionError [ERR_ASSERTION]: another tenant must not read the version through the JS client\n\nfalse !== true\n\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:561:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:559:1"
+    },
+    {
+      "id": "supersede-then-rollback-restores-published-version",
+      "criterion": "AC4",
+      "verdict": "fail",
+      "evidence": {
+        "v2Centre": [
+          31,
+          59,
+          77,
+          255
+        ],
+        "foreignRollback": {
+          "status": 202,
+          "operationStatus": 4,
+          "proposalId": true
+        },
+        "publishedAfterForeignRollback": "v2 (unchanged)",
+        "rollbackStatus": 202,
+        "rollbackGoverned": true,
+        "afterApprovedRollback": {
+          "published": "v1",
+          "current": "v2"
+        },
+        "v2VersionNumber": 2,
+        "rollbackSelfApproval": {
+          "requestStatus": 202,
+          "approveStatus": 200,
+          "approveOutcome": "Succeeded"
+        }
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: the rollback requester must not approve it; the candidate answered 200 (honua-server#4901)\n\n200 !== 403\n\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:635:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:574:1"
+    },
+    {
+      "id": "js-sdk-rollback-request-uses-server-contract",
+      "criterion": "AC2 AC4",
+      "verdict": "fail",
+      "evidence": {
+        "rejected": true,
+        "message": "HTTP 400: Request failed",
+        "declaredInput": "StudioRollbackRequestInput { versionId, pointer, message }",
+        "serverInput": "CreateStudioRollbackRequest { targetVersionId, pointer, reason }"
+      },
+      "diagnostic": "AssertionError [ERR_ASSERTION]: the installed JS client's declared rollback input is refused by the candidate: HTTP 400: Request failed\n\ntrue !== false\n\n    at check.requires (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:650:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async check (file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:164:5)\n    at async file:///home/mike/honua-io/wt-sdkjs-1426/scripts/map-artifact-lifecycle-receipt.mjs:639:1"
+    }
+  ],
+  "findings": [],
+  "summary": {
+    "pass": 16,
+    "fail": 9,
+    "blocked": 0
+  },
+  "verdict": "not-qualified",
+  "deterministicProjection": {
+    "fields": "candidate, clients, check ids/criteria/verdicts",
+    "sha256": "032efa6a55d55c2f7bca05b8c419d211cb523183a778355596c9493339f2cbcc"
+  }
+}

@@ -1,3 +1,8 @@
+---
+type: index
+title: "Publish a Honua layer as PMTiles"
+description: "Server-side walkthrough that submits a durable Honua publish job, reports bounded progress and turns the finished PMTiles artifact into renderer-neutral and MapLibre source descriptors."
+---
 # Publish a Honua layer as PMTiles
 
 This server-side walkthrough submits a durable Honua `publish` job, reports

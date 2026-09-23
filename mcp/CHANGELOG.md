@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.1.10-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.9-beta.0...mcp-server-v0.1.10-beta.0) (2026-09-22)
+
+
+### Bug Fixes
+
+* **cli:** harden admin and connection command contracts ([#1598](https://github.com/honua-io/honua-sdk-js/issues/1598)) ([b3ad280](https://github.com/honua-io/honua-sdk-js/commit/b3ad28019c865634b9989f7919d6db2d5bb3e7f5))
+* **mcp:** verify zero-to-map config pins ([#1550](https://github.com/honua-io/honua-sdk-js/issues/1550)) ([2ae8bbd](https://github.com/honua-io/honua-sdk-js/commit/2ae8bbd0bca37edf84dfa0695d43fe8317bc3e74))
+* **release:** prove published-layer style rendering and pin the preflight to the full catalog ([#1542](https://github.com/honua-io/honua-sdk-js/issues/1542)) ([f936d37](https://github.com/honua-io/honua-sdk-js/commit/f936d37bf6c41d64f5e7a2daf6d0d89f8faeb8f5))
+* **release:** prove visible decoded pixels in zero-to-map render receipts ([#1644](https://github.com/honua-io/honua-sdk-js/issues/1644)) ([6c1e593](https://github.com/honua-io/honua-sdk-js/commit/6c1e593ce9dee03dcca4c4afde6343a89f53a69c))
+* take trunk green (MCP import contract, Kepler fflate, exception renewal) ([#1623](https://github.com/honua-io/honua-sdk-js/issues/1623)) ([e495f14](https://github.com/honua-io/honua-sdk-js/commit/e495f14f8d04b7c5c6ee570c516be96dbab37815))
+
+
+### Documentation
+
+* **zero-to-map:** state the server allowlist entry the journey's database secret reference needs ([33cff9c](https://github.com/honua-io/honua-sdk-js/commit/33cff9cdb6e81223243a76bc2eff24cda6b8f194))
+* **zero-to-map:** state the server allowlist entry the journey's database secret reference needs ([cec6a4d](https://github.com/honua-io/honua-sdk-js/commit/cec6a4d3eeccc32c5ea2eab1eba56fd229d3eb22))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.10-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.9-beta.0 to ^0.1.10-beta.0
+
 ## [0.1.9-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.8-beta.0...mcp-server-v0.1.9-beta.0) (2026-08-29)
 
 

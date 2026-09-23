@@ -441,10 +441,9 @@ describe("wms / Source adapter", () => {
     expect(observed?.get("J")).toBe("0");
     expect(observed?.get("INFO_FORMAT")).toBe("application/json");
     expect(observed?.get("QUERY_LAYERS")).toBe("parcels");
-    // WGS84 lon/lat point with no explicit spatial reference defaults
-    // to CRS:84 (lon, lat axis order) per WMS 1.3.0; outSr is the
+    // The helper tags WGS84 explicitly, so WMS uses EPSG:4326; outSr is the
     // output SR and must not leak into the input CRS.
-    expect(observed?.get("CRS")).toBe("CRS:84");
+    expect(observed?.get("CRS")).toBe("EPSG:4326");
     expect(result.features).toHaveLength(1);
     expect(result.features[0]?.attributes.OBJECTID).toBe(7);
   });

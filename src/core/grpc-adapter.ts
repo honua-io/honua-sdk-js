@@ -23,6 +23,7 @@ import {
   StatisticType,
 } from "../gen/geospatial/v1/index.js";
 import { HonuaGrpcError } from "./errors.js";
+import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import type {
   HonuaCountResponse,
   HonuaExtentResponse,
@@ -221,8 +222,12 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
       filter.spatialRelationship = SpatialRelationship.INTERSECTS;
     }
 
-    if (spatialReference) {
-      filter.spatialReference = spatialReference;
+    const inputSpatialReference =
+      spatialReference ??
+      toProtoSpatialReference(request.extraParams?.inSR) ??
+      toProtoSpatialReference(geometryInputSpatialReference(request.geometry));
+    if (inputSpatialReference) {
+      filter.spatialReference = inputSpatialReference;
     }
 
     const distance = request.distance ?? parseExtraNumber(request.extraParams ?? {}, "distance");

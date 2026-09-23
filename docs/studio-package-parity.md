@@ -1,8 +1,13 @@
-# Studio package parity: MCP, QGIS, and Console (`honua-sdk-js#226`)
+---
+type: reference
+title: "Studio package parity: MCP, QGIS, and Console"
+description: "How an AI-generated map, dashboard or report keeps parity with the hand-authored package contracts, so generated output is a first-class package rather than a special case."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
+# Studio package parity: MCP, QGIS, and Console
 
-Status: experimental, implemented for ticket `honua-sdk-js#226` (parity layer on
-top of the package contracts from `honua-sdk-js#225`, see
-[`studio-package-contracts.md`](./studio-package-contracts.md)).
+Status: experimental. This is the parity layer on top of the
+[package contracts](studio-package-contracts.md).
 
 The goal is that an AI-generated spatial output — a map, dashboard, report, or
 app package — is **portable across Honua Studio/Console, MCP clients, and the
@@ -43,7 +48,7 @@ same provenance shape as Console — there is no surface-specific variant.
 
 `validateStudioPackage(family, pkg, options)` validates a package of any family
 produced by an MCP client, the QGIS plugin, or the SDK, returning the unified
-`StudioPackageValidationResponse<T>` from `#225`. For the `map` family it
+`StudioPackageValidationResponse<T>`. For the `map` family it
 delegates to the established structural `validateMapPackage`; for the other
 families it runs the shared base checks (identity field, `format`, lifecycle)
 plus provenance checks when an envelope is present. Pass
@@ -55,12 +60,6 @@ if (!response.valid) {
   for (const d of response.diagnostics) console.warn(d.code, d.message);
 }
 ```
-
-Fixtures for all four package variants — map-only, dashboard, report, app — live
-in [`test/fixtures/studio-packages/`](../test/fixtures/studio-packages/) and are
-shaped exactly as MCP/QGIS would emit them (`provenance.origin` of `mcp`/`qgis`).
-They are openable by Console and exercised by
-`test/studio/studio-package-parity.test.ts`.
 
 ## Charts use a documented Vega-Lite subset
 

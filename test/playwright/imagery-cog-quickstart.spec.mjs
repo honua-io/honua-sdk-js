@@ -20,8 +20,14 @@ const WORKFLOW_SELECTORS = [
 ];
 // The WFS ProtocolModule is part of the synchronous HonuaClient surface used
 // by this sample's /honua entrypoint. Reset the ceiling to the verified
-// post-WFS measurement plus the repository's standard 10% headroom.
-const BUNDLE_BYTES_BUDGET = 2_899_353;
+// measurement plus the repository's standard 10% headroom.
+//
+// Raised again for maplibre-gl. GHSA-jrc7-96c5-q579 is a critical XSS sanitizer
+// bypass covering every release at or below 6.4.0 with no patched 3.x/4.x/5.x,
+// so the dev floor moved to ^6.4.1 and the lockfile resolved 6.9.0 - measured
+// 2,957,530 here, 58 KB above the previous ceiling. The fourth pinned value
+// that bump moved; see #1684 for the full set.
+const BUNDLE_BYTES_BUDGET = 3_255_000;
 const HEAP_BYTES_BUDGET = 192 * 1024 * 1024;
 
 test.setTimeout(90_000);

@@ -287,13 +287,19 @@ describe("odata / buildOdataSpatialFilter", () => {
     // the Boundary column's SRID, not the lexically-first `Location`
     // column's 4326 — otherwise the server would reproject 4326
     // longitudes against a column whose declared CRS is Web Mercator.
-    const filter = buildOdataSpatialFilter(envelope(-13_700_000, 4_400_000, -13_400_000, 5_500_000), {
-      geometryColumn: "Boundary",
-      geometryFields: [
-        { name: "Location", type: "Edm.Geography", isSpatial: true, srid: 4326 },
-        { name: "Boundary", type: "Edm.Geometry", isSpatial: true, srid: 3857 },
-      ],
-    });
+    const filter = buildOdataSpatialFilter(
+      {
+        geometry: { xmin: -13_700_000, ymin: 4_400_000, xmax: -13_400_000, ymax: 5_500_000 },
+        geometryType: "esriGeometryEnvelope",
+      },
+      {
+        geometryColumn: "Boundary",
+        geometryFields: [
+          { name: "Location", type: "Edm.Geography", isSpatial: true, srid: 4326 },
+          { name: "Boundary", type: "Edm.Geometry", isSpatial: true, srid: 3857 },
+        ],
+      },
+    );
     expect(filter).toMatch(/geo\.intersects\(Boundary,/);
     expect(filter).toMatch(/SRID=3857;/);
     expect(filter).not.toMatch(/SRID=4326/);
@@ -304,13 +310,16 @@ describe("odata / buildOdataSpatialFilter", () => {
     // an `SRID=`. Using another spatial field's SRID would silently
     // mis-tag the literal; the safer path is to omit the SRID prefix
     // and let the column's server-declared default apply.
-    const filter = buildOdataSpatialFilter(envelope(-123, 37, -120, 45), {
-      geometryColumn: "Boundary",
-      geometryFields: [
-        { name: "Location", type: "Edm.Geography", isSpatial: true, srid: 4326 },
-        { name: "Boundary", type: "Edm.Geometry", isSpatial: true },
-      ],
-    });
+    const filter = buildOdataSpatialFilter(
+      { geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 }, geometryType: "esriGeometryEnvelope" },
+      {
+        geometryColumn: "Boundary",
+        geometryFields: [
+          { name: "Location", type: "Edm.Geography", isSpatial: true, srid: 4326 },
+          { name: "Boundary", type: "Edm.Geometry", isSpatial: true },
+        ],
+      },
+    );
     expect(filter).toMatch(/geo\.intersects\(Boundary,/);
     expect(filter).not.toMatch(/SRID=/);
   });

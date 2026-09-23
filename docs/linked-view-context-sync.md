@@ -1,8 +1,13 @@
+---
+type: reference
+title: "Linked-View Context Sync"
+description: "Coordinates maps, tables, charts and graphs so a selection or filter in one updates the others. An optional integration layer over ExplorationContext, interactions and realtime."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Linked-View Context Sync
 
-Status: optional SDK/UI integration layer for issue `#72`, building on the
-`ExplorationContext`, `@honua/sdk-js/interactions`, and
-`@honua/sdk-js/realtime` public surfaces.
+An optional SDK/UI integration layer built on `ExplorationContext`,
+`@honua/sdk-js/interactions`, and `@honua/sdk-js/realtime`.
 
 Linked-view context sync coordinates maps, tables, charts or graphs, filter
 controls, detail panels, and live operational layers without wiring those
@@ -171,14 +176,3 @@ watermark metadata in the realtime store. Selection reconciliation removes
 tombstoned and, by default, missing live records from the shared selection so
 map highlights, table rows, charts, and detail panels do not point at archived
 features.
-
-## Adoption Paths
-
-Issue `#56` can adopt this layer for sample and application work by binding
-maps, grids, charts, filters, and details through one `ExplorationContext`
-instead of custom pairwise callbacks.
-
-Issue `#57` can reuse the realtime reconciliation path for the incident
-operations dashboard so live feature deltas, map highlights, table rows,
-charts, filters, and detail panels converge through the same context instead
-of pairwise synchronization callbacks.

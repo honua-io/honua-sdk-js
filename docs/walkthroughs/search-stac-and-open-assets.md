@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Walkthrough: search STAC and open an asset"
+description: "Use this walkthrough when an application needs to discover a catalog, run a bounded Item Search, and hand the selected asset to the SDK surface that can execute it."
+---
 # Walkthrough: search STAC and open an asset
 
 Use this walkthrough when an application needs to discover a catalog, run a bounded Item Search, and hand the selected asset to the SDK surface that can execute it.

@@ -122,9 +122,12 @@ describe("honua-site consumer handoff", () => {
           sourceImplementationDuplicated: false,
         },
         counts: {
-          cards: 32,
+          // 31, not 32, since #1674 retired kepler-analytics: one fewer card and
+          // one fewer canonical route. #1681 corrected the sample count in
+          // capability-sample-matrix.test.ts and missed these.
+          cards: 31,
           qualifiedJourneys: 4,
-          canonicalRoutes: 32,
+          canonicalRoutes: 31,
           legacyRoutes: 20,
           gaps: inputs.matrix.gaps.length,
         },

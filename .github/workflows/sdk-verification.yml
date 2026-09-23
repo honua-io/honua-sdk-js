@@ -147,6 +147,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
+
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
 
@@ -433,7 +436,9 @@ jobs:
       # neither consumes nor invalidates the prepared build the surrounding
       # gates share.
       - name: Validate certification denominator freeze
-        run: npm run verify:certification-denominator
+        run: |
+          npm run verify:certification-denominator
+          npm run test:installed-package-certification
 
       - name: Code style
         run: npm run check
@@ -443,6 +448,18 @@ jobs:
 
       - name: Verify comparison page freshness
         run: npm run docs:comparison:check
+
+      # The OKF bundle (docs/okf-bundle.v1.json) declares which pages are
+      # published documentation. The gate proves every page inside the boundary
+      # carries valid v0.2 frontmatter and that its relative links resolve;
+      # SUMMARY.md is derived from the same boundary, so a page added to one and
+      # not the other fails here rather than shipping a table of contents that
+      # disagrees with the bundle.
+      - name: Verify OKF documentation bundle
+        run: python3 scripts/check-okf-bundle.py
+
+      - name: Verify GitBook table of contents is derived
+        run: python3 scripts/generate-summary.py --check
 
       - name: Verify MCP eval scorecard freshness
         run: npm run docs:mcp-scorecard:check
@@ -473,6 +490,9 @@ jobs:
 
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
+
+      - name: Validate documented executable commands
+        run: npm run docs:commands:check
 
       - name: Component qualification matrix
         run: node scripts/component-qualification.mjs check

@@ -1,6 +1,11 @@
+---
+type: guide
+title: "Honua App Bootstrap (`@honua/sdk-js/app`)"
+description: "createHonuaApp(), a framework-neutral bootstrap over the client, hosted package fetcher, runtime, controllers and optional package watcher."
+---
 # Honua App Bootstrap (`@honua/sdk-js/app`)
 
-Status: experimental Beta helper for issue `#177`.
+Status: experimental.
 
 `createHonuaApp()` is a framework-neutral bootstrap layer over the existing
 client, hosted package fetcher, runtime, app controller, web-component

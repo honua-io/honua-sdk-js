@@ -61,6 +61,7 @@ export type {
   StudioAiChatEvent,
   StudioAiChatEventType,
   StudioAiChatMessage,
+  StudioAiChatToolCall,
   StudioAiChatRequest,
   StudioAiRole,
   StudioAiStopReason,

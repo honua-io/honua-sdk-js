@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Saved-Map Collaboration"
+description: "The SDK-side contract for collaborative saved-map editing: join a session and exchange operations through a transport adapter that hides whether the server uses WebSocket, WebTransport or SSE."
+resource: "honua://capability/collaboration.map-sessions"
+---
 # Saved-Map Collaboration
 
 `@honua/sdk-js/collaboration` defines the SDK-side contract for collaborative saved-map editing. Portal code talks to `HonuaSavedMapCollaborationSession`; transport adapters hide whether the server uses WebSocket, WebTransport, SSE, or a fixture.
@@ -92,7 +98,7 @@ Pass `reconnect({ replayOperations: false })` when the server channel itself wil
 
 ## Portal Integration Notes
 
-Use the fixture transport for component and smoke tests until honua-server#971/#972/#973 expose the production transport. Portal should not branch on WebSocket/WebTransport details; only the adapter should decode server frames and call the SDK transport interface.
+Use the fixture transport for component and smoke tests until the production transport ships. Portal should not branch on WebSocket/WebTransport details; only the adapter should decode server frames and call the SDK transport interface.
 
 Typical Portal flow:
 

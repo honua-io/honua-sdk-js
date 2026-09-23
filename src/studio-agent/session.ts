@@ -89,7 +89,12 @@ import {
   type StudioMcpDraft,
 } from "./mcp-protocol.js";
 import { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
-import { StudioToolCatalog, type StudioToolDiscoveryReport, type StudioToolPolicy } from "./tool-catalog.js";
+import {
+  HONUA_STUDIO_TOOL_SETUP_VIEW,
+  StudioToolCatalog,
+  type StudioToolDiscoveryReport,
+  type StudioToolPolicy,
+} from "./tool-catalog.js";
 import type { StudioAiTranscriptVerification, StudioAiTranscriptVerifierLike } from "./transcript-verifier.js";
 import type { ChatTransport } from "./transport.js";
 
@@ -120,6 +125,8 @@ export interface StudioAgentSessionOptions {
   readonly transport?: ChatTransport;
   /** Replaces the MCP client used for composition-tool routing. */
   readonly mcpClient?: McpClient;
+  /** Server-authored workflow view for SDK-created MCP clients. @default "setup" */
+  readonly mcpWorkflowView?: string;
   /**
    * Which server-advertised Studio descriptors this session may route and
    * advertise. Defaults approve the canonical server family in every view, keep
@@ -828,6 +835,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     if (roundText.length > 0) {
       this.#messages.push({ role: "assistant", content: roundText.join("") });
     }
+    const assistantTextIndex = roundText.length > 0 ? this.#messages.length - 1 : -1;
 
     const ready = order
       .map((id) => pending.get(id))
@@ -868,6 +876,19 @@ class StudioAgentSessionImpl implements StudioAgentSession {
           ...(stopReason ? { stopReason } : {}),
           errorMessage: `Transcript provenance rejected: ${verification.reason}.`,
         };
+    }
+
+    if (ready.length > 0 && !inBandError) {
+      // Providers reject a tool result that answers no assistant tool call, so the calls about
+      // to be dispatched are recorded on this round's assistant message (honua-server
+      // `message.toolCalls`), ahead of the role:tool results the turn loop appends.
+      const assistant: StudioAiChatMessage = {
+        role: "assistant",
+        content: assistantTextIndex >= 0 ? roundText.join("") : "",
+        toolCalls: ready.map((call) => ({ id: call.toolCallId, name: call.toolName, arguments: asRecord(call.args) })),
+      };
+      if (assistantTextIndex >= 0) this.#messages[assistantTextIndex] = assistant;
+      else this.#messages.push(assistant);
     }
 
     return {
@@ -1041,6 +1062,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   #ensureMcpClient(): McpClient {
     if (!this.#mcpClient) {
       this.#mcpClient = new McpClient({
+        workflowView: this.#options.mcpWorkflowView ?? HONUA_STUDIO_TOOL_SETUP_VIEW,
         ...(this.#options.baseUrl !== undefined ? { baseUrl: this.#options.baseUrl } : {}),
         ...(this.#options.auth ? { auth: this.#options.auth } : {}),
         ...(this.#options.fetchImpl ? { fetchImpl: this.#options.fetchImpl } : {}),
