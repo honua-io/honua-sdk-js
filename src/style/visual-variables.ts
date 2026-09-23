@@ -124,9 +124,10 @@ export function compileVisualVariables(
     if (assigned.has(property))
       return reject(`Multiple variables target ${property}; only the first supported variable is applied.`);
     let rawStops = input.stops;
-    const stopPath = (index: number, property: string) => input.stops !== undefined
-      ? `stops[${index}].${property}`
-      : `${index === 0 ? "min" : "max"}${property === "value" ? "DataValue" : "Size"}`;
+    const stopPath = (index: number, property: string) =>
+      input.stops !== undefined
+        ? `stops[${index}].${property}`
+        : `${index === 0 ? "min" : "max"}${property === "value" ? "DataValue" : "Size"}`;
     if (!color && rawStops === undefined)
       rawStops = [
         { value: input.minDataValue, size: input.minSize },

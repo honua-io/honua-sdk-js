@@ -225,7 +225,23 @@ describe("WebMap visual variables", () => {
 
   it("points nested scale-dependent ranges at the original property", () => {
     const warn = createWarningCollector();
-    convertRenderer({ type: "simple", symbol: line, visualVariables: [{ type: "sizeInfo", field: "Value", minDataValue: 0, maxDataValue: 10, minSize: { expression: "view.scale" }, maxSize: 12 }] }, warn);
+    convertRenderer(
+      {
+        type: "simple",
+        symbol: line,
+        visualVariables: [
+          {
+            type: "sizeInfo",
+            field: "Value",
+            minDataValue: 0,
+            maxDataValue: 10,
+            minSize: { expression: "view.scale" },
+            maxSize: 12,
+          },
+        ],
+      },
+      warn,
+    );
     expect(warn.warnings[0]).toMatchObject({ code: "unsupported-visual-variable", path: "visualVariables[0].minSize" });
   });
 

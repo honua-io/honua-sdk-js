@@ -642,8 +642,6 @@ function buildContentWebMapReport(
   };
 }
 
-
-
 function runFixtures(args: ParsedArgs): void {
   const fixturesRoot = args.target;
   const fixtureNames =

@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
+test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] } });
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 test("WebMap point, line and outline scale ramps render at multiple zooms and latitudes", async ({ page }) => {
@@ -12,7 +14,7 @@ test("WebMap point, line and outline scale ramps render at multiple zooms and la
     const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
     if (pathname === "/") {
       response.setHeader("content-type", "text/html");
-      response.end('<html><head><style>body{margin:0}#map{width:256px;height:256px}</style></head><body><div id="map"></div><script src="/node_modules/maplibre-gl/dist/maplibre-gl.js"></script></body></html>');
+      response.end('<html><head><style>body{margin:0}#map{width:256px;height:256px}</style></head><body><div id="map"></div></body></html>');
       return;
     }
     const filename = path.resolve(root, `.${pathname}`);
@@ -29,6 +31,7 @@ test("WebMap point, line and outline scale ramps render at multiple zooms and la
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const evidence = await page.evaluate(async () => {
+      const maplibregl = await import("/node_modules/maplibre-gl/dist/maplibre-gl.mjs");
       const { convertRenderer, createWarningCollector } = await import("/dist/src/webmap/index.js");
       const scale0 = 2 * Math.PI * 6378137 * 96 / (512 * 0.0254);
       const measurements = [];
@@ -94,6 +97,7 @@ test("WebMap point, line and outline scale ramps render at multiple zooms and la
       map.remove();
       return { measurements, colorSamples, mapErrors };
     });
+    await test.info().attach("scale-rendering-evidence", { body: JSON.stringify(evidence, null, 2), contentType: "application/json" });
     expect(evidence.mapErrors).toEqual([]);
     expect(errors).toEqual([]);
     expect(evidence.measurements).toHaveLength(12);
@@ -105,7 +109,6 @@ test("WebMap point, line and outline scale ramps render at multiple zooms and la
         expect(Math.abs(sample.actual[component] - sample.expected[component]), JSON.stringify(sample)).toBeLessThanOrEqual(3);
       }
     }
-    await test.info().attach("scale-rendering-evidence", { body: JSON.stringify(evidence, null, 2), contentType: "application/json" });
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
