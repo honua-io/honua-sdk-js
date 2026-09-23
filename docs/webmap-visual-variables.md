@@ -10,7 +10,7 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 renderer projections share the visual-variable compiler. Conversion is pure:
 it reads only supplied JSON and never fetches item metadata or feature values.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires caller-supplied WebMap JSON"
 const result = parseWebMap(webmap, { fieldMap: { Speed: "speed" } });
 ```
 

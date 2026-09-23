@@ -98,6 +98,7 @@
 * [Warehouse Analytics Sources](warehouse-analytics-sources.md)
 * [Honua Web Components](web-components.md)
 * [WebMap JSON Compatibility Contract](webmap-json-compatibility.md)
+* [WebMap visual variables](webmap-visual-variables.md)
 * [WFS 2.0 adapter](wfs.md)
 * [ArcGIS widget-removal survival guide](widget-survival-guide.md)
 * [Zarr client](zarr.md)
