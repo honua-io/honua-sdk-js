@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Source capability profiles"
+description: "Claimed, observed and effective capability profiles: validate evidence once, evaluate repeatedly, narrow sources with supports(), cache boundaries and effective states."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Source capability profiles
 
 > **Experimental.** `@honua/sdk-js/source-capabilities` is the canonical v2

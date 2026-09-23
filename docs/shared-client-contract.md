@@ -1,12 +1,16 @@
+---
+type: reference
+title: "Shared Client Contract"
+description: "The protocol-neutral vocabulary every adapter speaks: Dataset, Source, Query, Result, capabilities and negotiation, the source factory, edit sessions, and IJobRun."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Shared Client Contract
-
-Status: implemented in `src/contract/` (ticket `honua-sdk-js-23`).
 
 The shared contract is the protocol-neutral vocabulary every Honua data
 adapter speaks. It exists so cross-protocol code — exploration views,
 visual builders, and the server `SourceBinding`/`MapPackage` exporters
 — can be written once against `Dataset` / `Source` / `Query` / `Result`
-/ `MapBinding` rather than re-litigating the surface in each ticket.
+/ `MapBinding` rather than re-litigating the surface per protocol.
 
 ## Goals (and non-goals)
 
@@ -36,16 +40,7 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   AST in `@honua/sdk-js/query-planner` follows separate compiler/execution
   workflows over the same filter shape.
 
-## Module layout
-
-```
-src/contract/
-├── index.ts                 # barrel — re-exports types and source factories
-├── spatial-aggregation.ts   # indexed aggregation request/response metadata
-├── tiles.ts                 # dynamic query tile descriptors, cache keys, identity
-├── types.ts                 # protocol, capability, source, dataset, query, result
-└── source.ts                # createDataset + built-in adapters
-```
+## Entrypoint
 
 Public entrypoint: `@honua/sdk-js/contract` (also re-exported from the
 top-level `@honua/sdk-js` and `@honua/sdk-js/honua` barrels).
@@ -58,10 +53,9 @@ names and casing. For example, the same operation may surface as `queryAll()`
 in TypeScript, `query_all()` in Python, and `QueryAllAsync()` in .NET.
 
 The binding policy and cross-SDK fixture pack are documented in
-[`sdk-surface-alignment.md`](./sdk-surface-alignment.md). The JSON fixture pack
-lives under `test/fixtures/sdk-contract/`; it is intentionally language-neutral
-so downstream SDKs can consume the same protocol, capability, result,
-unsupported-capability, and degraded-result scenarios.
+[`sdk-surface-alignment.md`](./sdk-surface-alignment.md). A language-neutral JSON fixture pack lets downstream SDKs consume the same
+protocol, capability, result, unsupported-capability, and degraded-result
+scenarios.
 
 ## Canonical nouns
 
@@ -95,10 +89,7 @@ filters, projection fields, output spatial reference, tile matrix set, extent,
 simplification tolerance, max features, cache partitioning, and cache busting.
 
 `@honua/sdk-js/contract` exports route builders, parser helpers, response
-types, and the `QUERY_TILE_SERVER_CONTRACT_VERSION` constant. The reusable
-fixture lives at `test/fixtures/sdk-contract/query-tile-server.v1.json` and is
-intended for Honua server implementation repos to consume in their own
-conformance tests.
+types, and the `QUERY_TILE_SERVER_CONTRACT_VERSION` constant.
 
 ## Capability negotiation
 
@@ -317,7 +308,7 @@ operations — raw `where`, raw `outFields`, GeoServices `calculate` /
 `validateSQL` / replica / `queryBins` / `getEstimates` — that the
 canonical `Source` surface intentionally does not expose. The
 `adapter()` method is preserved as a legacy alias for callers written
-against the original ticket-23 surface; it returns the same instance.
+against the original surface; it returns the same instance.
 The `AdapterTypeMap` interface uses TypeScript declaration merging so
 adapter tickets can plug in their own kind → instance type mapping
 without touching this file.
@@ -348,25 +339,6 @@ HonuaOgcCollectionMap`, `ogc-processes` → `HonuaOgcProcesses`,
 `wfs` → `HonuaWfsFeatureType`, and `odata` → `HonuaOdataEntitySet`.
 The WFS root handle (capabilities cache, stored-query discovery) is
 reachable through `Source.protocol("wfs").root`.
-
-## What downstream tickets must consume
-
-1. New protocol adapters must implement `Source<T>` and register either
-   as a built-in `case` in `buildBuiltInSource` (the precedent followed
-   by `wmsSource` / `wmtsSource` / `wfsSource` / `odataSource`) or
-   through `CreateDatasetOptions.resolveSource`. They must declare
-   their default capability set in `PROTOCOL_DEFAULT_CAPABILITIES`
-   (this file owns that table — adapter PRs extend it).
-2. Visual builder, exploration, and server-export tickets must consume
-   `Dataset` / `Source` / `Query` / `Result` / `MapBinding` rather than
-   the per-class request shapes (`QueryFeaturesRequest`, etc.). Per-class
-   shapes are still available via `Source.adapter()` for legacy paths.
-3. New error types must flow through `HonuaError` and `isHonuaError`.
-   This ticket added `HonuaCapabilityNotSupportedError` and
-   `HonuaExplorationContextError`. The first-party WMS / WMTS adapter
-   ticket extended the union with `HonuaWmsCapabilitiesParseError` and
-   `HonuaWmtsCapabilitiesParseError` so callers can classify XML parser
-   failures through the same guard.
 
 ## Async operations: `IJobRun`
 
@@ -498,20 +470,3 @@ to gate on a specific extension (CQL2, transactions, etc.) use
 `hasOgcConformanceClass(...)` with a substring match. No OGC
 conformance class name appears as a primary SDK type, per the ticket
 constraint.
-
-## Test coverage
-
-Conformance fixtures under `test/contract/` exercise the canonical
-surface against mock adapters for each protocol. Adding a new protocol
-adapter means adding a fixture there; the parametrized scenarios run
-unchanged.
-
-- `test/contract/conformance.test.ts` — cross-protocol parametric
-  scenarios. Each new adapter registers a harness; the suite runs the
-  same query / queryExtent / queryAggregate / stream cases against
-  every harness.
-- `test/contract/odata-conformance.test.ts` — adapter-specific
-  translation rules and escape-hatch surface (`metadata`, `batch`,
-  `apply`, `search`, `delta`, `raw`).
-- `test/contract/ogc-conformance.test.ts` — the conformance-class
-  → capability negotiation translation table.

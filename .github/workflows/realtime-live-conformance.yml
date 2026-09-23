@@ -1,30 +1,53 @@
 name: Realtime Cross-Transport Conformance
 
-# Deterministic fixture proof runs before the scheduled/manual honua-server
-# observation. This workflow is intentionally not a pull-request gate: the
-# network lane records server capability and availability without letting
-# either masquerade as SDK semantics.
+# Deterministic fixture proof runs first in both lanes. This workflow is
+# intentionally not a pull-request gate.
+#
+# deployment  Observes a reviewed, already-deployed honua-server and retains
+#             the v1 fixture/live classifications. The weekly schedule and the
+#             honua-release bundle dispatch run this lane.
+# candidate   Boots an isolated deployment of the exact candidate server image
+#             (the honua-release manifest pin unless candidate_image and
+#             server_revision are supplied) with two protected tenants and a
+#             short-TTL, revocable issuer, observes it with the v1 collector, and
+#             mints realtime-preview-evidence.json — the v2 live authorization
+#             receipt honua-server's Realtime Preview Qualification consumes
+#             (#1692, honua-server#3871). It runs daily so a receipt inside the
+#             qualifier's 24-hour freshness window exists, and a re-pin re-mints
+#             it on the next run.
+#
+# Both lanes retain one artifact, realtime-cross-transport-conformance-<run_id>.
 #
 # Exit-code contract from scripts/realtime-conformance-evidence.mjs:
 #   0 = every advertised transport executed, or the server explicitly does
 #       not advertise realtime support
 #   1 = an advertised transport or capability contract failed semantically
 #   2 = the server/network was degraded and no semantic conclusion is valid
+# scripts/realtime-live-authorization-receipt.mjs exits 1 unless every
+# authorization row passed on the live transcript.
 on:
   schedule:
-    - cron: "20 6 * * 3" # Wednesdays 06:20 UTC
+    - cron: "20 6 * * 3" # Wednesdays 06:20 UTC — deployment lane
+    - cron: "40 5 * * *" # daily 05:40 UTC — candidate lane
   workflow_dispatch:
     inputs:
+      lane:
+        description: "deployment observes base_url; candidate boots the exact candidate image and mints the live authorization receipt"
+        type: choice
+        options:
+          - deployment
+          - candidate
+        default: deployment
       base_url:
-        description: "Reviewed honua-server origin"
+        description: "Reviewed honua-server origin (deployment lane)"
         type: string
         default: "https://demo.honua.io"
       source_id:
-        description: "Source that advertises snapshot-plus-delta history"
+        description: "Source that advertises snapshot-plus-delta history (deployment lane)"
         type: string
         default: "maui-parcels"
       layer_id:
-        description: "Layer within the reviewed source"
+        description: "Layer within the reviewed source (deployment lane)"
         type: string
         default: "1"
       server_revision:
@@ -33,13 +56,21 @@ on:
           own capability response or manifest; supply this only to assert that
           the deployment answering is the reviewed one. A mismatch fails every
           advertised transport. Leave blank to accept whatever the deployment
-          reports.
+          reports. The candidate lane requires it together with candidate_image.
         type: string
         required: false
       server_version:
         description: "Optional mutable server release version, recorded when the server publishes none"
         type: string
         required: false
+      candidate_image:
+        description: "Candidate lane: ghcr.io/honua-io/honua-server@sha256:<digest>. Blank uses the honua-release manifest pin."
+        type: string
+        required: false
+      candidate_environment:
+        description: "Candidate lane: environment identity recorded in the receipt and passed to Realtime Preview Qualification"
+        type: string
+        default: "sdk-isolated-two-tenant"
       drive_controlled_mutation:
         description: >-
           Drive one bounded insert plus a per-transport touch through the
@@ -59,12 +90,18 @@ permissions:
 env:
   NODE_VERSION: "20.19.0"
   HONUA_REALTIME_LIVE_CONFORMANCE_ENABLED: "true"
+  # A scheduled run has no inputs; the cron expression selects the lane.
+  LANE: ${{ github.event_name == 'schedule' && (github.event.schedule == '40 5 * * *' && 'candidate' || 'deployment') || inputs.lane || 'deployment' }}
 
 jobs:
   realtime-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
+      # The receipt binds every observation to the workflow execution window,
+      # so the start is recorded before anything else runs.
+      - name: Record workflow execution start
+        run: echo "HONUA_REALTIME_WORKFLOW_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -90,6 +127,7 @@ jobs:
       # `collector-failed` document if it cannot classify anything, so this
       # step can no longer end without producing evidence.
       - name: Observe advertised honua-server transports
+        if: env.LANE == 'deployment'
         env:
           HONUA_SAMPLE_SOURCE_REVISION: ${{ github.sha }}
           HONUA_REALTIME_LIVE_BASE_URL: ${{ inputs.base_url || 'https://demo.honua.io' }}
@@ -115,6 +153,92 @@ jobs:
           --baseline-only
           --strict
           ${{ inputs.allow_degraded && '--allow-degraded' || '' }}
+      - name: Resolve the exact candidate identity
+        if: env.LANE == 'candidate'
+        env:
+          CANDIDATE_IMAGE: ${{ inputs.candidate_image }}
+          CANDIDATE_REVISION: ${{ inputs.server_revision }}
+        run: |
+          node --input-type=module <<'EOF'
+          import fs from "node:fs";
+          import { parse } from "yaml";
+          let image = process.env.CANDIDATE_IMAGE?.trim() ?? "";
+          let revision = process.env.CANDIDATE_REVISION?.trim() ?? "";
+          let source = "workflow_dispatch inputs";
+          if (image === "") {
+            if (revision !== "") throw new Error("server_revision without candidate_image cannot select a candidate");
+            const response = await fetch("https://raw.githubusercontent.com/honua-io/honua-release/trunk/platform-manifest.yaml");
+            if (!response.ok) throw new Error(`honua-release manifest answered ${response.status}`);
+            const server = parse(await response.text())?.components?.["honua-server"];
+            const repository = String(server?.image ?? "").replace(/:[^/:]+$/u, "");
+            image = `${repository}@${server?.digest}`;
+            revision = String(server?.sha ?? "");
+            source = "honua-release trunk platform-manifest.yaml components.honua-server";
+          }
+          const match = /^[^\s@]+@(sha256:[0-9a-f]{64})$/u.exec(image);
+          if (!match) throw new Error(`candidate image '${image}' is not pinned by digest`);
+          if (!/^[0-9a-f]{40}$/u.test(revision)) throw new Error(`candidate revision '${revision}' is not a commit SHA`);
+          fs.appendFileSync(process.env.GITHUB_ENV, [
+            `HONUA_REALTIME_CANDIDATE_IMAGE=${image}`,
+            `HONUA_REALTIME_CANDIDATE_IMAGE_DIGEST=${match[1]}`,
+            `HONUA_REALTIME_CANDIDATE_REVISION=${revision}`,
+            "",
+          ].join("\n"));
+          console.log(`candidate ${image} (${revision}) from ${source}`);
+          EOF
+      - name: Generate per-run candidate credentials
+        if: env.LANE == 'candidate'
+        run: |
+          admin="Rt1692!$(openssl rand -hex 16)"
+          signing="$(openssl rand -hex 32)"
+          echo "::add-mask::$admin"
+          echo "::add-mask::$signing"
+          {
+            echo "HONUA_REALTIME_CANDIDATE_ADMIN_API_KEY=$admin"
+            echo "HONUA_REALTIME_ISSUER_SIGNING_KEY=$signing"
+          } >> "$GITHUB_ENV"
+      - name: Boot the isolated two-tenant candidate deployment
+        if: env.LANE == 'candidate'
+        env:
+          HONUA_REALTIME_ISSUER: https://issuer.realtime-conformance.invalid
+          HONUA_REALTIME_ISSUER_AUDIENCE: honua-realtime-conformance
+          HONUA_REALTIME_CANDIDATE_DESCRIPTOR: test-results/realtime-candidate-deployment.json
+        run: |
+          set -euo pipefail
+          bash scripts/realtime-live-candidate-deployment.sh up
+          fingerprint="$(node -e 'process.stdout.write(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).fingerprint)' "$HONUA_REALTIME_CANDIDATE_DESCRIPTOR")"
+          echo "HONUA_REALTIME_CANDIDATE_DEPLOYMENT_FINGERPRINT=$fingerprint" >> "$GITHUB_ENV"
+      - name: Observe the candidate's advertised transports
+        if: env.LANE == 'candidate'
+        env:
+          HONUA_SAMPLE_SOURCE_REVISION: ${{ github.sha }}
+          HONUA_REALTIME_LIVE_BASE_URL: http://127.0.0.1:18080
+          HONUA_REALTIME_LIVE_SOURCE_ID: test_service
+          HONUA_REALTIME_LIVE_LAYER_ID: "0"
+          HONUA_REALTIME_LIVE_SERVER_REVISION: ${{ env.HONUA_REALTIME_CANDIDATE_REVISION }}
+          HONUA_REALTIME_LIVE_API_KEY: ${{ env.HONUA_REALTIME_CANDIDATE_ADMIN_API_KEY }}
+        run: >-
+          node scripts/realtime-conformance-evidence.mjs
+          --lane live
+          --output test-results/realtime-live-conformance-evidence.json
+          --baseline-only
+          --strict
+      - name: Mint the live authorization receipt
+        if: always() && env.LANE == 'candidate' && env.HONUA_REALTIME_CANDIDATE_DEPLOYMENT_FINGERPRINT != ''
+        env:
+          HONUA_SAMPLE_SOURCE_REVISION: ${{ github.sha }}
+          HONUA_REALTIME_CANDIDATE_BASE_URL: http://127.0.0.1:18080
+          HONUA_REALTIME_CANDIDATE_ENVIRONMENT: ${{ inputs.candidate_environment || 'sdk-isolated-two-tenant' }}
+          HONUA_REALTIME_ISSUER: https://issuer.realtime-conformance.invalid
+          HONUA_REALTIME_ISSUER_AUDIENCE: honua-realtime-conformance
+          HONUA_REALTIME_ISSUER_REFERER: https://realtime-conformance.invalid/
+        run: node scripts/realtime-live-authorization-receipt.mjs --output test-results/realtime-preview-evidence.json
+      - name: Retain candidate server diagnostics
+        if: failure() && env.LANE == 'candidate'
+        run: bash scripts/realtime-live-candidate-deployment.sh logs > test-results/realtime-candidate-server.log
+      - name: Tear down the candidate deployment
+        if: always() && env.LANE == 'candidate'
+        run: bash scripts/realtime-live-candidate-deployment.sh down
       - name: Publish revision-bearing conformance evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -123,14 +247,25 @@ jobs:
           path: |
             test-results/realtime-fixture-conformance-evidence.json
             test-results/realtime-live-conformance-evidence.json
+            test-results/realtime-preview-evidence.json
+            test-results/realtime-candidate-deployment.json
           if-no-files-found: warn
           retention-days: 90
-      - name: Summarize fixture and live classifications
+      - name: Retain candidate diagnostics
+        if: failure() && env.LANE == 'candidate'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: realtime-candidate-diagnostics-${{ github.run_id }}
+          path: test-results/realtime-candidate-server.log
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Summarize fixture, live and authorization classifications
         if: always()
         run: |
           node --input-type=module -e '
             import fs from "node:fs";
             import { summarizeRealtimeConformanceEvidence } from "./scripts/realtime-conformance-evidence.mjs";
+            import { summarizeLiveAuthorizationReceipt } from "./scripts/realtime-live-authorization-receipt.mjs";
             const paths = [
               "test-results/realtime-fixture-conformance-evidence.json",
               "test-results/realtime-live-conformance-evidence.json",
@@ -143,6 +278,10 @@ jobs:
               }
               const evidence = JSON.parse(fs.readFileSync(path, "utf8"));
               lines.push("```", ...summarizeRealtimeConformanceEvidence(evidence), "```", "");
+            }
+            const receipt = "test-results/realtime-preview-evidence.json";
+            if (fs.existsSync(receipt)) {
+              lines.push("## Live authorization receipt", "", "```", ...summarizeLiveAuthorizationReceipt(JSON.parse(fs.readFileSync(receipt, "utf8"))), "```", "");
             }
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
           '

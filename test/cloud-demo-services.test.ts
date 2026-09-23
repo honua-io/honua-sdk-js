@@ -62,7 +62,6 @@ const requiredProfileIds = [
   "quickstart-feature-readonly",
   "service-explorer-feature-readonly",
   "storytelling-25d-readonly",
-  "kepler-analytics-materialized",
   "incident-realtime-stream",
   "edit-workflow-writable-guarded",
 ] as const;

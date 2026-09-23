@@ -37,7 +37,7 @@ repository does not publish, or leaves a journey stage with no skill.
 
 | Skill | Use it when |
 | --- | --- |
-| [`honua-arcgis-migration`](./honua-arcgis-migration/SKILL.md) | Migrating an existing ArcGIS Maps SDK for JavaScript (@arcgis/core) app to Honua — running the honua-migrate scan and codemod, reading the parity/gate reports, and resolving the manual-intervention warnings the codemod flags. |
+| [`honua-arcgis-migration`](./honua-arcgis-migration/SKILL.md) | Migrate an existing ArcGIS JavaScript app and its service dependencies to Honua using native SDK primitives, agentic code conversion and optional canonical codemods. |
 | [`honua-mcp-setup`](./honua-mcp-setup/SKILL.md) | Connecting an MCP client (Claude Desktop, Claude Code, or any MCP-compatible agent) to ANY public ArcGIS/OGC FeatureServer via @honua/mcp-server — the platform-free geospatial MCP server. |
 | [`honua-sdk-quickstart`](./honua-sdk-quickstart/SKILL.md) | Writing or reviewing code that uses @honua/sdk-js — installing the SDK, constructing a HonuaClient, building a Dataset/Source and querying features across GeoServices/OGC/WFS/STAC/OData, or handling capability errors. |
 

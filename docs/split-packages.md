@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Advanced: split-package build target"
+description: "For nearly all consumers the canonical install is the single `@honua/sdk-js`"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Advanced: split-package build target
 
 For nearly all consumers the canonical install is the single `@honua/sdk-js`
@@ -36,13 +42,6 @@ alongside the split SDK:
 ```bash
 npm install @honua/sdk @bufbuild/protobuf @connectrpc/connect @connectrpc/connect-web
 ```
-
-`npm run verify:split-packages` installs the generated package into a fresh
-consumer, opts into those peers, and executes a unary `QueryFeatures` call
-through the packed SDK's real protobuf adapter and Connect gRPC-Web transport.
-The deterministic in-process protocol fixture verifies request serialization,
-authentication headers, response framing, and response decoding without an
-external service. It does not replace live Honua Server conformance testing.
 
 ## How to build the split tarballs
 

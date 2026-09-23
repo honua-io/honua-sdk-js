@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Console SDK contracts: ownership and parity (`honua-sdk-js#225`)"
+description: "subpath shown below is no longer exported by the stable SDK surface. Current"
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Console SDK contracts: ownership and parity (`honua-sdk-js#225`)
 
 Status: historical design reference. The experimental `@honua/sdk-js/console`

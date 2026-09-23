@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Operator Components"
+description: "Framework-neutral operator controllers and the workspace orchestrator: chat, clarification, plan review, execution, map and builder workspaces, and approvals."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Operator Components
 
 The operator module exposes framework-neutral controllers and a workspace

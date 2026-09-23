@@ -44,7 +44,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import {
@@ -269,7 +269,7 @@ async function main(argv) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.argv.slice(2)).catch((error) => {
     process.stderr.write(`skip-attestation renewal failed: ${error instanceof Error ? error.stack : String(error)}\n`);
     process.exitCode = 1;

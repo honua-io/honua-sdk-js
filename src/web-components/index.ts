@@ -176,6 +176,14 @@ export {
 export type { HonuaFeatureTableConflictDetail } from "./elements.js";
 
 export { HonuaMeasurementElement, defineHonuaMeasurement } from "./measurement.js";
+export {
+  convertArea,
+  convertDistance,
+  formatAreaValue,
+  formatDistanceValue,
+  planarArea,
+  planarLength,
+} from "./measurement-units.js";
 
 // ── time slider over the temporal playback controller (issue #959) ───────
 export { HonuaTimeSliderElement, defineHonuaTimeSlider } from "./time-slider.js";
@@ -486,9 +494,14 @@ export type {
   HonuaMapInteractionDetail,
   HonuaMapInteractionPoint,
   HonuaMapReadyDetail,
+  HonuaMeasureAreaUnit,
   HonuaMeasureChangeDetail,
   HonuaMeasureControlMessages,
+  HonuaMeasureDistanceUnit,
+  HonuaMeasureFidelity,
+  HonuaMeasureInvalidReason,
   HonuaMeasureMode,
+  HonuaMeasurePlanarCrs,
   HonuaMeasurementMessages,
   HonuaPrintExportMessages,
   HonuaMeasureProvider,

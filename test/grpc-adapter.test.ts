@@ -186,6 +186,16 @@ describe("toProtoQueryRequest", () => {
     expect(result.spatialFilter?.geometry?.shape.case).toBe("polygon");
   });
 
+  it("defaults an untagged geometry to WGS84 on the gRPC filter", () => {
+    const result = toProtoQueryRequest({
+      serviceId: "test",
+      layerId: 0,
+      geometry: { x: -157.8, y: 21.3 },
+    });
+
+    expect(result.spatialFilter?.spatialReference?.wkid).toBe(4326);
+  });
+
   it("maps outSr from request object", () => {
     const result = toProtoQueryRequest({
       serviceId: "test",

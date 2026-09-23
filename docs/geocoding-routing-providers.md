@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Provider-pluggable geocoding and routing"
+description: "Provider-neutral geocoding and routing contracts with adapters for Nominatim, Photon, Pelias, OSRM, Valhalla and the Honua facade, plus the CLI."
+resource: "honua://capability/geocoding.forward"
+---
 # Provider-pluggable geocoding and routing
 
 > Status: **experimental** (`@experimental` JSDoc). Shapes may change in any
@@ -215,11 +221,3 @@ Suggest paths should debounce in the UI (see the typeahead example in the
 results: most community usage policies (Nominatim in particular) prohibit
 systematic caching/bulk harvesting, and provenance is recorded per result so
 downstream stores can honor per-provider terms.
-
-## Testing
-
-Unit tests run against recorded fixtures (`test/fixtures/providers/`) and
-never touch the network. The live smoke lane
-(`test/provider-live-smoke.test.ts`) is opt-in via
-`HONUA_PROVIDER_LIVE_SMOKE=1`, sends exactly one request per test, and sets a
-real `User-Agent` for Nominatim.

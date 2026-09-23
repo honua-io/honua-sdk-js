@@ -1,3 +1,8 @@
+---
+type: index
+title: "Cesium Route Playback Spike"
+description: "An exploratory Cesium consumer of one bounded Honua FeatureServer query: route playback with optional terrain, the explicit conversion steps, and the URL parameters."
+---
 # Cesium Route Playback Spike
 
 This example is an exploratory 3D consumer workflow for `honua-sdk-js`. It does
@@ -180,27 +185,6 @@ When terrain sampling fails:
 - the example falls back to the non-terrain height mode
 - the failure is surfaced in the warnings list and result summary
 
-## Gap Analysis
-
-What worked directly:
-
-- current `HonuaClient` query and compatibility surfaces were enough for a small
-  browser prototype
-- Cesium can render a believable moving-route workflow from a Honua-shaped
-  polyline response without changing SDK exports
-- the repo's existing browser smoke-test lane can validate both fixture and live
-  code paths
-
-What is still missing:
-
-- no documented Honua terrain, 3D Tiles, or I3S contract in this repo
-- no approved stable public route dataset is referenced here, so fixture mode is
-  the canonical reproducible path
-- source Z units are not validated by contract, so the example must label them as
-  unverified display heights
-- Cesium setup still requires local asset serving and optional terrain
-  configuration outside the SDK runtime surface
-
 ## Diagnostics And Verification
 
 The example surfaces its runtime state in two places:
@@ -244,37 +228,3 @@ lands on `window.__cesiumRoutePlaybackDone`, failures populate only
 `window.__cesiumRoutePlaybackError`, and successes populate only
 `window.__cesiumRoutePlaybackResult`.
 
-Verification commands:
-
-```bash
-npm run build
-npx vitest run test/cesium-route-playback.test.ts
-npx playwright test test/playwright/cesium-route-playback.spec.mjs
-```
-
-The Playwright lane validates both the default fixture path and the live-query
-path against a local mock Honua server, including the compatibility request and
-the `returnZ=true` query contract.
-
-## Recommendation
-
-Keep this example exploratory.
-
-Reasoning:
-
-- it proves a credible consumer-side 3D story for one workflow today
-- it does not yet justify claiming first-class 3D parity for Honua itself
-- the strongest missing pieces are platform contracts and demo-data governance,
-  not SDK syntax
-
-Promotion to a portfolio demo should wait for a stable route dataset and a
-documented terrain or 3D scene contract.
-
-## Bounded Follow-On Child Tickets
-
-- `honua-sdk-js`: extract the route-normalization helpers from this example only
-  if another maintained sample needs the same conversion path
-- `honua-server`: publish one documented, stable, Z-aware demo route layer for
-  browser samples
-- `honua-server`: define a terrain or 3D scene contract before any portfolio
-  claim of near-parity 3D support

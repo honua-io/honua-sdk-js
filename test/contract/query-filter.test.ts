@@ -261,3 +261,26 @@ describe("query filter / plan identity", () => {
     );
   });
 });
+
+describe("GeoServices query input CRS", () => {
+  it.each([
+    [undefined, 4326],
+    [{ wkid: 26911 }, 26911],
+    [{ wkid: 102100, latestWkid: 3857 }, 3857],
+    [{ wkt: 'LOCAL_CS["test"]' }, JSON.stringify({ wkt: 'LOCAL_CS["test"]' })],
+  ])("preserves the input reference in typed and direct filters: %j", (sr, expected) => {
+    const geometry = envelope(-125, 24, -66, 50, sr);
+    for (const query of [{ spatialFilter: geometry }, { filter: queryFilter.spatial("intersects", geometry) }]) {
+      const ir = createQueryIr({
+        descriptor: {
+          id: "states",
+          protocol: "geoservices-feature-service",
+          locator: { url: "https://mock.honua.test", serviceId: "states", layerId: 0 },
+          capabilities: capabilities(["query"]),
+        },
+        query,
+      });
+      expect(compileGeoServicesQuery(ir.source, ir.query).inSr).toBe(expected);
+    }
+  });
+});

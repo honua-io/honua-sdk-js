@@ -426,24 +426,17 @@ export class StudioToolCatalog {
   }
 
   /**
-   * The routed descriptors in the proxy's HTTP tool shape. The server's exact
-   * `name`, `description`, and `inputSchema` are passed through untouched;
-   * `title`/`outputSchema`/`annotations` are retained on the catalog entry (see
-   * {@link descriptor}) but are not part of the proxy's wire contract
-   * ({@link StudioAiToolDefinition}), which carries only the triple.
-   *
-   * honua-server does send `annotations` and `outputSchema` on every classified
-   * Studio descriptor, so the loss is at the proxy hop, not at discovery:
-   * widening this to reach the model needs honua-server's
-   * `StudioAiToolDefinition` (`Features/StudioAiProxy/Domain/StudioAiChatModels.cs`)
-   * to grow the fields first, which honua-server#3695 did not do. Adding them
-   * here alone would only produce request fields the proxy drops.
+   * Project routed descriptors onto the proxy contract without interpreting
+   * the server's schemas or behavior annotations. Classification remains a
+   * routing decision; only approved descriptors reach this projection.
    */
   public toolDefinitions(): readonly StudioAiToolDefinition[] {
     return this.entries.map((entry) => ({
       name: entry.descriptor.name,
       ...(entry.descriptor.description !== undefined ? { description: entry.descriptor.description } : {}),
       inputSchema: entry.descriptor.inputSchema,
+      ...(entry.descriptor.annotations !== undefined ? { annotations: entry.descriptor.annotations } : {}),
+      ...(entry.descriptor.outputSchema !== undefined ? { outputSchema: entry.descriptor.outputSchema } : {}),
     }));
   }
 

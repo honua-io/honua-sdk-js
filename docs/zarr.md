@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Zarr client"
+description: "Experimental client for Honua Server's versioned Zarr registration and tile-serving contract, reusing an existing HonuaClient for auth, retries, timeouts and interceptors."
+resource: "honua://capability/raster.multidim-coverage"
+---
 # Zarr client
 
 `@honua/sdk-js/zarr` is an experimental client for Honua Server's versioned

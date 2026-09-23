@@ -1,6 +1,12 @@
+---
+type: reference
+title: "Filter Registry"
+description: "The shared filter clause registry behind crossfilter behaviour: clause model, owners and scopes, and the query, widget, linked-view and runtime projections."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Filter Registry
 
-Status: experimental SDK state primitive for issue `#179`.
+Status: experimental.
 Public entrypoint: `@honua/sdk-js/filter-registry`, also re-exported from
 the top-level and `@honua/sdk-js/honua` barrels.
 

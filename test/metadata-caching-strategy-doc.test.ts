@@ -46,7 +46,6 @@ const requiredSections = [
   "## SDK And MCP Cache-State Visibility",
   "## Feature, Query, And Result Caching",
   "## Realtime Incident Dashboard Constraints",
-  "## Recommended Follow-Up Tickets",
 ] as const;
 
 function readStrategyDoc(): string {

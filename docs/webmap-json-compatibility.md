@@ -1,3 +1,9 @@
+---
+type: reference
+title: "WebMap JSON Compatibility Contract"
+description: "Version target: ArcGIS WebMap JSON `2.x` (current AGOL output)."
+resource: "honua://capability/serve.geoservices-root"
+---
 # WebMap JSON Compatibility Contract
 
 This document defines the compatibility contract for `parseWebMap()` in `@honua/sdk-js/webmap`.
@@ -62,19 +68,6 @@ Primary warning codes emitted by the parser:
 - `complex-label-expression`
 - `vector-tile-partial`
 - `sprite-required`
-
-## Golden Fixtures
-
-Golden fixtures live under:
-
-- `test/fixtures/webmap-json/*/input.json`
-- `test/fixtures/webmap-json/*/expected.json`
-
-Fixture suite test:
-
-- `test/webmap-parse.test.ts`
-
-The suite is executed by `npm test`, which is required in CI (`.github/workflows/ci.yml`) on every PR and push to `trunk`.
 
 ## Manual Intervention Cases
 

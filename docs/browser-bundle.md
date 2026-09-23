@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Prebuilt browser bundle (CDN / build-less)"
+description: "The prebuilt, self-contained browser bundle for static sites and build-less pages: artifacts, CDN usage, and what is bundled versus external."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Prebuilt browser bundle (CDN / build-less)
 
 `@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended
@@ -81,23 +87,3 @@ does not inline multi-megabyte map/protobuf runtimes:
 If you use a part of the SDK that needs one of these (e.g. the MapLibre runtime
 or gRPC transport), load that peer yourself — for the IIFE build, ensure it is
 available on the page before the code path that needs it runs.
-
-## Building the bundle
-
-```bash
-npm run build          # canonical tsc ESM + types output (dist/src)
-npm run build:browser  # esbuild → dist/browser/*.js (+ .map)
-```
-
-`scripts/build-browser-bundle.mjs` bundles straight from `src/index.ts` using
-the locally installed `esbuild`, so it does not strictly require `npm run build`
-to have run first — but `npm run build:browser` is the documented entry point.
-It is intentionally **not** wired into the CI `build` step so an esbuild option
-mismatch can never break the main release build; run it explicitly (or at
-publish time) to produce the artifact. The script smoke-checks that the IIFE
-build defines the `HonuaSDK` global and prints the output sizes.
-
-> Note: `dist/` is gitignored. The browser bundle is produced at build/publish
-> time, not committed to source control. The `files` array in `package.json`
-> includes `dist/browser` so the artifact is included in the published npm
-> tarball.

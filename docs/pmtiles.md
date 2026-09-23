@@ -1,3 +1,9 @@
+---
+type: reference
+title: "PMTiles"
+description: "PMTiles archives on static hosting: discovery with connect(), rendering through the runtime, archive metadata, and the build-less CDN recipe."
+resource: "honua://capability/serve.vector-tiles"
+---
 # PMTiles
 
 [PMTiles](https://github.com/protomaps/PMTiles) is a single-file archive format

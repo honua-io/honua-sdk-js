@@ -1,3 +1,8 @@
+---
+type: guide
+title: "Server-optional quickstart"
+description: "Running against public GeoServices and OGC endpoints with no Honua server in the loop."
+---
 # Standalone quickstart moved to First Map
 
 The server-optional public-endpoint workflow is now the canonical
@@ -17,11 +22,6 @@ The historical commands remain compatibility aliases and execute that same app:
 npm run demo:standalone
 npm run demo:standalone:mock
 ```
-
-The [`examples/standalone-quickstart`](../examples/standalone-quickstart/README.md) directory is documentation-only.
-It must not regain source, fixture, Vite, or Playwright implementations. Existing links can remain stable while new
-guides and sample catalog entries point directly to
-[`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md).
 
 For the lower-level caller-owned-map API, see the focused
 [`mountSource` data-to-map bridge recipe](./data-to-map-bridge.md). For a framework-specific integration, keep using
