@@ -52,5 +52,8 @@ describe("Studio command adapter", () => {
       "/api/v1/studio/package-drafts/draft-1",
     ]);
     expect(studioTransport.requests[1].headers.get("idempotency-key")).toBe("draft-version-key");
+    for (const request of [...studioTransport.requests, ...sdkTransport.requests]) {
+      expect(request.headers.get("x-correlation-id")).toBe(invocation.correlationId);
+    }
   });
 });

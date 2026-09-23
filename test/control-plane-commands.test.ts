@@ -142,6 +142,7 @@ describe("command receipts", () => {
     expect(requests[0].method).toBe("POST");
     expect(requests[0].path).toBe("/api/v1/admin/connections/conn-1/test");
     expect(requests[0].headers["idempotency-key"]).toBeUndefined();
+    expect(requests[0].headers["x-correlation-id"]).toBe(receipt.correlationId);
     expect(requests[0].body).toBeUndefined();
     expect(receipt.resourceRef).toEqual({ type: "connection", id: "conn-1" });
     expect(receipt.idempotencyKey).toBeUndefined();
@@ -160,6 +161,7 @@ describe("command receipts", () => {
     expect(requests[0].path).toBe("/api/v1/admin/packages");
     expect(requests[0].headers["idempotency-key"]).toBe(receipt.idempotencyKey);
     expect(requests[0].headers["if-match"]).toBe('W/"6"');
+    expect(requests[0].headers["x-correlation-id"]).toBe(receipt.correlationId);
 
     expect(receipt.kind).toBe("honua.command.receipt.v1");
     expect(receipt.status).toBe("ok");
@@ -216,6 +218,38 @@ describe("command receipts", () => {
     });
     expect(receipt.output).toBeUndefined();
   });
+
+  it.each(["cli", "mcp", "studio", "sdk"] as const)(
+    "preserves an explicit server correlation id and extra headers on %s",
+    async (transport) => {
+      const { requests, fetchFn } = recorder();
+      const receipt = await runtimeFor(fetchFn).execute(
+        mapPackagePublishCommand,
+        { mapId: "map-ops", package: MAP_PACKAGE },
+        { transport, correlationId: "  release.2026:abc_123-xyz  ", headers: new Headers({ "X-Client-Version": "1" }) },
+      );
+      expect(receipt.correlationId).toBe("release.2026:abc_123-xyz");
+      expect(requests[0].headers["x-correlation-id"]).toBe(receipt.correlationId);
+      expect(requests[0].headers["x-client-version"]).toBe("1");
+    },
+  );
+
+  it.each(["a".repeat(65), "has space", "bad\r\nheader", "non-ascii-é", "bad/format"])(
+    "refuses correlation ids the server would replace: %j",
+    async (correlationId) => {
+      const { requests, fetchFn } = recorder();
+      for (const dryRun of [false, true]) {
+        await expect(
+          runtimeFor(fetchFn).execute(
+            mapPackagePublishCommand,
+            { mapId: "map-ops", package: MAP_PACKAGE },
+            { transport: "sdk", correlationId, dryRun },
+          ),
+        ).rejects.toMatchObject({ kind: "validation", issues: [{ path: "correlationId" }] });
+      }
+      expect(requests).toHaveLength(0);
+    },
+  );
 });
 
 describe("command error taxonomy", () => {
@@ -435,6 +469,8 @@ describe("transports adapt input and output only", () => {
     expect(cli.requests[0].path).toBe(js.requests[0].path);
     expect(cli.requests[0].body).toEqual(js.requests[0].body);
     expect(cli.requests[0].headers["idempotency-key"]).toBe(js.requests[0].headers["idempotency-key"]);
+    expect(cli.requests[0].headers["x-correlation-id"]).toBe(cliReceipt.correlationId);
+    expect(js.requests[0].headers["x-correlation-id"]).toBe(jsReceipt.correlationId);
   });
 
   it("adapts CLI flags into exactly the input and invocation a JS caller would pass", () => {
@@ -528,7 +564,16 @@ describe("no shared administrator credential and no client-side authorization by
     // value on the wire than the receipt and the invocation record claim,
     // breaking the retry and audit guarantees the receipt exists to provide.
     for (const transport of ["cli", "mcp", "studio", "sdk"] as const) {
-      for (const header of ["Idempotency-Key", "idempotency-key", "IDEMPOTENCY-KEY", "If-Match", "iF-MaTcH"]) {
+      for (const header of [
+        "Idempotency-Key",
+        "idempotency-key",
+        "IDEMPOTENCY-KEY",
+        "If-Match",
+        "iF-MaTcH",
+        "X-Correlation-ID",
+        "x-correlation-id",
+        "X-CORRELATION-ID",
+      ]) {
         const { requests, fetchFn } = recorder();
         const error = await runtimeFor(fetchFn)
           .execute(
@@ -542,7 +587,7 @@ describe("no shared administrator credential and no client-side authorization by
         expect(requests, `${transport} / ${header}`).toHaveLength(0);
       }
     }
-    expect(HONUA_COMMAND_OWNED_HEADERS).toEqual(["idempotency-key", "if-match"]);
+    expect(HONUA_COMMAND_OWNED_HEADERS).toEqual(["idempotency-key", "if-match", "x-correlation-id"]);
   });
 
   it("keeps the command-owned key on the Studio write path too", async () => {
