@@ -189,6 +189,8 @@ describe("transports adapt input and output only", () => {
     expect(mcpSide.requests[0].body).toEqual(jsSide.requests[0].body);
     expect(mcpSide.requests[0].headers["idempotency-key"]).toBe(jsSide.requests[0].headers["idempotency-key"]);
     expect(mcpSide.requests[0].headers["idempotency-key"]).toBe(mcpReceipt.idempotencyKey);
+    expect(mcpSide.requests[0].headers["x-correlation-id"]).toBe(mcpReceipt.correlationId);
+    expect(jsSide.requests[0].headers["x-correlation-id"]).toBe(jsReceipt.correlationId);
   });
 
   it("previews through MCP without contacting the server, exactly as the shared runtime does", async () => {
