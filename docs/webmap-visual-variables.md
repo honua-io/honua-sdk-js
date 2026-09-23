@@ -1,3 +1,9 @@
+---
+type: reference
+title: "WebMap visual variables"
+description: "Supported color and size ramps, scale conversion, field bindings, legends, and diagnostics for WebMap and compatibility renderers."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # WebMap visual variables
 
 `convertRenderer`, `parseWebMap`, `webmapJsonToMapLibreStyle`, and compatibility
