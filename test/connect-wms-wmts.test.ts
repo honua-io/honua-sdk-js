@@ -1217,7 +1217,7 @@ describe("connect() — capabilities-driven WMS GetFeatureInfo", () => {
       REQUEST: "GetFeatureInfo",
       LAYERS: "parcels",
       QUERY_LAYERS: "parcels",
-      CRS: "CRS:84",
+      CRS: "EPSG:4326",
       WIDTH: "1",
       HEIGHT: "1",
       I: "0",
@@ -1226,11 +1226,11 @@ describe("connect() — capabilities-driven WMS GetFeatureInfo", () => {
       FEATURE_COUNT: "5",
     });
     const bbox = numericBbox(url);
-    // CRS:84 is longitude/latitude, so the canonical envelope is not transposed.
-    expect(bbox[0]).toBeCloseTo(-157.9001, 9);
-    expect(bbox[1]).toBeCloseTo(21.2999, 9);
-    expect(bbox[2]).toBeCloseTo(-157.8999, 9);
-    expect(bbox[3]).toBeCloseTo(21.3001, 9);
+    // The helper tags WGS84 explicitly; WMS 1.3 EPSG:4326 uses latitude/longitude.
+    expect(bbox[1]).toBeCloseTo(-157.9001, 9);
+    expect(bbox[0]).toBeCloseTo(21.2999, 9);
+    expect(bbox[3]).toBeCloseTo(-157.8999, 9);
+    expect(bbox[2]).toBeCloseTo(21.3001, 9);
     expect(result.exceededTransferLimit).toBe(false);
     expect(result.features).toEqual([
       {

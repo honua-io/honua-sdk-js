@@ -1,7 +1,26 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { buildReceipt, withInstalledCandidate } from "../../scripts/installed-package-certification.mjs";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { buildReceipt, certify, withInstalledCandidate, runInstalledCommand } from "../../scripts/installed-package-certification.mjs";
+
+test("installed consumer launches the host npm from a directory with spaces", async () => {
+  const work = await mkdtemp(path.join(tmpdir(), "honua installed npm "));
+  try {
+    assert.match(runInstalledCommand("npm", ["--version"], { cwd: work }), /^\d+\.\d+\.\d+$/);
+  } finally { await rm(work, { recursive: true, force: true }); }
+});
+
+test("installed consumer preserves command startup errors instead of masking them with trim", () => {
+  assert.throws(() => runInstalledCommand("honua-certification-command-does-not-exist", []), { code: "ENOENT" });
+});
+
+test("installed consumer cannot accept a failing command without stderr", () => {
+  assert.throws(() => runInstalledCommand(process.execPath, ["-e", "process.exit(7)"]), /exit 7.*no output/);
+});
 
 const candidate = { release: "2026.1", package: { coordinate: "@honua/sdk-js", version: "0.1.9-beta.0" },
   server: { digest: `sha256:${"3".repeat(64)}` }, install: { localLinks: false }, defaultBlocker: "honua-sdk-js#1113" };
@@ -51,4 +70,40 @@ test("rejects server image and digest drift before installing", async () => {
     package: { coordinate: "@honua/sdk-js", version: "0.1.9-beta.0" },
     server: { image: "ghcr.io/honua-io/honua-server@sha256:1", digest: "sha256:2" },
   }, async () => {}), /server image digest mismatch: sha256:1 vs sha256:2/);
+});
+
+test("empty or duplicate denominators cannot certify", () => {
+  assert.throws(() => buildReceipt({ candidate, denominator: { rows: [] } }), /empty supported denominator/);
+  assert.throws(() => buildReceipt({ candidate, denominator: { rows: [...denominator.rows, denominator.rows[0]] } }), /duplicate denominator/);
+});
+
+test("unrecognized operation cannot disappear from the receipt", () => {
+  assert.throws(() => buildReceipt({ candidate, denominator, observations: [{ id: "typo", verdict: "pass" }] }), /unknown observation id/);
+});
+
+const withStaleReceipt = async (run) => {
+  const dir = await mkdtemp(path.join(tmpdir(), "honua-package-cert-"));
+  const output = path.join(dir, "installed-package-certification.json");
+  await writeFile(output, `${JSON.stringify({ generatedAt: "2026-09-01T23:39:42.869Z", verdict: "certified" }, null, 2)}\n`);
+  try { return await run(output); } finally { await rm(dir, { recursive: true, force: true }); }
+};
+
+test("a drifted denominator cannot leave the previous candidate's receipt in place", async () => {
+  await withStaleReceipt(async (output) => {
+    const receipt = await certify({ output, freeze: () => { throw new Error("certification denominator has drifted"); } });
+    assert.equal(receipt.verdict, "not-certified");
+    assert.equal(receipt.binding, undefined);
+    assert.match(receipt.install.diagnostic, /certification denominator has drifted/);
+    const written = JSON.parse(await readFile(output, "utf8"));
+    assert.equal(written.receiptDigest, receipt.receiptDigest);
+    assert.notEqual(written.generatedAt, "2026-09-01T23:39:42.869Z");
+  });
+});
+
+test("the previous receipt is gone before admission, so an aborted run cannot upload it", async () => {
+  await withStaleReceipt(async (output) => {
+    let survived;
+    await certify({ output, freeze: async () => ({}), admit: async () => { survived = existsSync(output); throw new Error("package provenance failed"); } });
+    assert.equal(survived, false);
+  });
 });

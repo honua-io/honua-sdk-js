@@ -1,3 +1,9 @@
+---
+type: reference
+title: "MapPackage Realtime Watch"
+description: "Follow hosted MapPackage changes over a realtime channel with polling fallback: client usage, message contract, lifecycle and auth."
+resource: "honua://capability/streaming.feature-subscriptions"
+---
 # MapPackage Realtime Watch
 
 `watchMapPackage` can follow hosted `MapPackage` changes over a realtime

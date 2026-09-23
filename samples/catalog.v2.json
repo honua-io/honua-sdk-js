@@ -290,7 +290,7 @@
             "npm run demo:ai-spatial-builder:live-evidence"
           ],
           "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-10-08T18:00:00.000Z"
+          "expiresAt": "2026-12-11T06:57:14.942Z"
         }
       },
       "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy.",
@@ -549,6 +549,21 @@
       },
       "sourcePath": "examples/columnar-query-quickstart",
       "docsPath": "examples/columnar-query-quickstart/README.md",
+      "playground": {
+        "projectPath": "playgrounds/columnar-query-quickstart",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          }
+        ]
+      },
       "capabilities": [
         "cancellation",
         "columnar",
@@ -655,6 +670,21 @@
         "npm run demo:coverages-wcs:build",
         "npm run test:playwright:coverages-wcs"
       ],
+      "playground": {
+        "projectPath": "playgrounds/coverages-wcs-basic",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          }
+        ]
+      },
       "capabilityKeys": [
         "raster.multidim-coverage",
         "serve.ogc-api-coverages",
@@ -920,7 +950,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-10-06T21:30:43.198Z"
+          "expiresAt": "2026-10-17T21:26:34.777Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -934,148 +964,6 @@
         "npx vitest run test/cog-maplibre.test.ts",
         "npx vitest run test/imagery-terrain-journey.test.ts",
         "npm run test:playwright:imagery-cog"
-      ]
-    },
-    {
-      "id": "kepler-analytics",
-      "title": "Kepler operations analytics",
-      "summary": "Replays operations data through kepler.gl with linked filters and KPI evidence.",
-      "sourceKind": "root-example",
-      "track": "lab",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Retain as a renderer recipe and align it with the columnar large-data journey.",
-        "targetRelease": "0.2.0-beta.0"
-      },
-      "sourcePath": "examples/kepler-analytics",
-      "docsPath": "examples/kepler-analytics/README.md",
-      "capabilities": [
-        "analytics",
-        "linked-filters",
-        "replay"
-      ],
-      "capabilityKeys": [],
-      "protocols": [
-        "geojson",
-        "honua"
-      ],
-      "renderers": [
-        "kepler"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "config": [
-          "HONUA_DEMO_API_KEY",
-          "HONUA_DEMO_BASE_URL",
-          "HONUA_DEMO_BEARER_TOKEN",
-          "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID",
-          "HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID",
-          "HONUA_DEMO_ENV_LABEL",
-          "HONUA_DEMO_INCIDENTS_LAYER_ID",
-          "HONUA_DEMO_INCIDENTS_SERVICE_ID",
-          "HONUA_DEMO_UNIT_TRACKS_LAYER_ID",
-          "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID",
-          "VITE_KEPLER_STYLE_URL",
-          "VITE_KEPLER_USE_MAPBOX_DEFAULTS",
-          "VITE_MAPBOX_TOKEN"
-        ],
-        "provenance": "Committed Honua export with refresh metadata.",
-        "attribution": "Synthetic Honua operations fixture.",
-        "freshness": "Fixture metadata records the source retrieval time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle reads a public Mapbox token; it is explicitly classified as public, but the current browser policy does not approve credential values.",
-        "configClassifications": [
-          {
-            "name": "HONUA_DEMO_API_KEY",
-            "exposure": "server-only",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "HONUA_DEMO_BASE_URL",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_DEMO_BEARER_TOKEN",
-            "exposure": "server-only",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_DEMO_ENV_LABEL",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_DEMO_INCIDENTS_LAYER_ID",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_DEMO_INCIDENTS_SERVICE_ID",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_DEMO_UNIT_TRACKS_LAYER_ID",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID",
-            "exposure": "server-only",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_KEPLER_STYLE_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_KEPLER_USE_MAPBOX_DEFAULTS",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_MAPBOX_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "public-token"
-          }
-        ]
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:kepler:smoke"
-          ]
-        },
-        "live": {
-          "mode": "public-live",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "The committed export is labeled replayed rather than live.",
-      "validationProfile": "browser-lab",
-      "validation": [
-        "npm run demo:kepler:build",
-        "npm run demo:kepler:smoke"
       ]
     },
     {
@@ -1168,7 +1056,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-10-06T21:28:38.987Z"
+          "expiresAt": "2026-10-17T21:24:42.804Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1290,7 +1178,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-10-06T21:31:08.942Z"
+          "expiresAt": "2026-10-17T21:26:58.556Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -2058,7 +1946,7 @@
             "npm run bench:live"
           ],
           "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-10-10T02:18:02.730Z"
+          "expiresAt": "2026-12-11T06:57:15.239Z"
         }
       },
       "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile.",
@@ -2205,7 +2093,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-10-06T21:32:14.957Z"
+          "expiresAt": "2026-10-17T21:28:02.640Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
@@ -2541,6 +2429,21 @@
       },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
+      "playground": {
+        "projectPath": "playgrounds/stac-imagery-browser",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          }
+        ]
+      },
       "capabilities": [
         "cancellation",
         "cog",

@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 
 import { deriveExcludedSamples, derivePublishedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
@@ -8522,7 +8522,7 @@ async function main(argv) {
   throw new Error(`Unknown command: ${command}`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.argv.slice(2)).catch((error) => {
     process.stderr.write(`sample contract failed: ${error instanceof Error ? error.stack : String(error)}\n`);
     process.exitCode = 1;

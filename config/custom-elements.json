@@ -1,0 +1,341 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "web-components/measurement.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "customElement": true,
+          "tagName": "honua-measurement",
+          "name": "HonuaMeasurementElement",
+          "description": "Distance and area measurement drawn directly on a MapLibre map.",
+          "superclass": {
+            "name": "HTMLElement",
+            "package": "global:"
+          },
+          "members": [
+            {
+              "kind": "method",
+              "name": "addVertex",
+              "privacy": "public",
+              "description": "Adds a vertex programmatically (same as a map click). Returns `false`, changing nothing, when no mode is active or the position is not a usable WGS84 vertex (non-finite, or latitude outside `[-90, 90]`).",
+              "parameters": [
+                {
+                  "name": "lngLat",
+                  "type": {
+                    "text": "readonly [number, number]"
+                  }
+                }
+              ],
+              "return": {
+                "type": {
+                  "text": "boolean"
+                }
+              }
+            },
+            {
+              "kind": "field",
+              "name": "areaUnit",
+              "privacy": "public",
+              "description": "Displayed area unit. `\"auto\"` (default) keeps the metric auto-scaling behavior. Changing this reformats the existing full-precision result — it never recomputes from a rounded display value.",
+              "type": {
+                "text": "\"auto\" | \"square-meters\" | \"hectares\" | \"square-kilometers\" | \"square-feet\" | \"acres\" | \"square-miles\""
+              }
+            },
+            {
+              "kind": "method",
+              "name": "cancel",
+              "privacy": "public",
+              "description": "Cancels the in-progress sketch (same as Escape); the mode stays active.",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "connect",
+              "privacy": "public",
+              "description": "Wires the widget to a MapLibre map. Equivalent to setting `.map`.",
+              "parameters": [
+                {
+                  "name": "map",
+                  "type": {
+                    "text": "HonuaMeasurementMap"
+                  }
+                }
+              ],
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "field",
+              "name": "crs",
+              "privacy": "public",
+              "readonly": true,
+              "description": "CRS vertices are recorded in. Always WGS84 (`\"EPSG:4326\"`): vertices come from map click events, which report geographic lng/lat regardless of the map's own projection. Exposed so a consumer never has to assume it.",
+              "type": {
+                "text": "\"EPSG:4326\""
+              }
+            },
+            {
+              "kind": "field",
+              "name": "fidelity",
+              "privacy": "public",
+              "description": "Which math computes `result.distance` / `result.area`: `\"geodesic\"` (default, great-circle over WGS84) or `\"planar\"` (Euclidean, in the `planarCrs` frame — see `./measurement-units.js`). Changing this recomputes from the drawn vertices, since it changes which math produces the canonical value.",
+              "type": {
+                "text": "\"geodesic\" | \"planar\""
+              }
+            },
+            {
+              "kind": "method",
+              "name": "finish",
+              "privacy": "public",
+              "description": "Finishes the in-progress sketch (same as double-click).",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "field",
+              "name": "map",
+              "privacy": "public",
+              "description": "The MapLibre map this widget draws on.",
+              "type": {
+                "text": "HonuaMeasurementMap | undefined"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "messages",
+              "privacy": "public",
+              "description": "Caller-supplied labels, statuses, and ARIA text; unset entries keep the English defaults.",
+              "type": {
+                "text": "HonuaMeasurementMessages"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "mode",
+              "privacy": "public",
+              "readonly": true,
+              "description": "The active measure mode.",
+              "type": {
+                "text": "\"off\" | \"distance\" | \"area\""
+              }
+            },
+            {
+              "kind": "field",
+              "name": "planarCrs",
+              "privacy": "public",
+              "description": "Planar frame used when `fidelity` is `\"planar\"`: `\"local\"` (default, flat-earth meters around the sketch) or `\"EPSG:3857\"` (Web Mercator meters, not scale-corrected). Recomputes like `fidelity` does.",
+              "type": {
+                "text": "\"local\" | \"EPSG:3857\""
+              }
+            },
+            {
+              "kind": "field",
+              "name": "precision",
+              "privacy": "public",
+              "description": "Decimal digits for the displayed value. `undefined` (default) uses a per-unit default.",
+              "type": {
+                "text": "number | undefined"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "result",
+              "privacy": "public",
+              "readonly": true,
+              "description": "The current (or last finished) measurement result.",
+              "type": {
+                "text": "HonuaMeasureResult | undefined"
+              }
+            },
+            {
+              "kind": "method",
+              "name": "setMode",
+              "privacy": "public",
+              "description": "Activates a measure mode; `\"off\"` cancels any in-progress sketch.",
+              "parameters": [
+                {
+                  "name": "mode",
+                  "type": {
+                    "text": "\"off\" | \"distance\" | \"area\""
+                  }
+                }
+              ],
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "field",
+              "name": "unit",
+              "privacy": "public",
+              "description": "Displayed distance unit. `\"auto\"` (default) keeps the metric auto-scaling behavior. Changing this reformats the existing full-precision result — it never recomputes from a rounded display value.",
+              "type": {
+                "text": "\"auto\" | \"meters\" | \"kilometers\" | \"feet\" | \"yards\" | \"miles\" | \"nauticalmiles\""
+              }
+            },
+            {
+              "kind": "field",
+              "name": "vertices",
+              "privacy": "public",
+              "readonly": true,
+              "description": "The in-progress vertex list (`[lng, lat]` positions).",
+              "type": {
+                "text": "readonly (readonly [number, number])[]"
+              }
+            }
+          ],
+          "attributes": [
+            {
+              "name": "for",
+              "description": "`id` of the `<honua-map>` (or any element exposing `.map`) to measure on.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "label",
+              "description": "Heading and accessible name of the panel; `messages.label` wins when set.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "unit",
+              "fieldName": "unit",
+              "description": "Displayed distance unit. `\"auto\"` (default) keeps the metric auto-scaling behavior. Changing this reformats the existing full-precision result — it never recomputes from a rounded display value.",
+              "type": {
+                "text": "\"auto\" | \"meters\" | \"kilometers\" | \"feet\" | \"yards\" | \"miles\" | \"nauticalmiles\""
+              }
+            },
+            {
+              "name": "area-unit",
+              "fieldName": "areaUnit",
+              "description": "Displayed area unit. `\"auto\"` (default) keeps the metric auto-scaling behavior. Changing this reformats the existing full-precision result — it never recomputes from a rounded display value.",
+              "type": {
+                "text": "\"auto\" | \"square-meters\" | \"hectares\" | \"square-kilometers\" | \"square-feet\" | \"acres\" | \"square-miles\""
+              }
+            },
+            {
+              "name": "precision",
+              "fieldName": "precision",
+              "description": "Decimal digits for the displayed value. `undefined` (default) uses a per-unit default.",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "name": "fidelity",
+              "fieldName": "fidelity",
+              "description": "Which math computes `result.distance` / `result.area`: `\"geodesic\"` (default, great-circle over WGS84) or `\"planar\"` (Euclidean, in the `planarCrs` frame — see `./measurement-units.js`). Changing this recomputes from the drawn vertices, since it changes which math produces the canonical value.",
+              "type": {
+                "text": "\"geodesic\" | \"planar\""
+              }
+            },
+            {
+              "name": "planar-crs",
+              "fieldName": "planarCrs",
+              "description": "Planar frame used when `fidelity` is `\"planar\"`: `\"local\"` (default, flat-earth meters around the sketch) or `\"EPSG:3857\"` (Web Mercator meters, not scale-corrected). Recomputes like `fidelity` does.",
+              "type": {
+                "text": "\"local\" | \"EPSG:3857\""
+              }
+            }
+          ],
+          "events": [
+            {
+              "name": "honua-measure-change",
+              "description": "A mode, vertex, result, fidelity, or planar CRS change. Bubbles and is composed.",
+              "type": {
+                "text": "CustomEvent<HonuaMeasureChangeDetail>"
+              }
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "panel",
+              "description": "The measurement panel."
+            },
+            {
+              "name": "mode",
+              "description": "Each mode toggle button."
+            },
+            {
+              "name": "value",
+              "description": "The live result readout (`role=\"status\"`)."
+            },
+            {
+              "name": "finish",
+              "description": "The Finish button."
+            },
+            {
+              "name": "cancel",
+              "description": "The Cancel button."
+            }
+          ],
+          "cssProperties": [
+            {
+              "name": "--honua-ui-bg",
+              "default": "#ffffff"
+            },
+            {
+              "name": "--honua-ui-fg",
+              "default": "#172033"
+            },
+            {
+              "name": "--honua-ui-muted",
+              "default": "#667085"
+            },
+            {
+              "name": "--honua-ui-border",
+              "default": "#d0d5dd"
+            },
+            {
+              "name": "--honua-ui-accent",
+              "default": "#1d4ed8"
+            },
+            {
+              "name": "--honua-ui-accent-fg",
+              "default": "#ffffff"
+            }
+          ],
+          "source": {
+            "href": "https://github.com/honua-io/honua-sdk-js/blob/trunk/src/web-components/measurement.ts"
+          }
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "HonuaMeasurementElement",
+          "declaration": {
+            "name": "HonuaMeasurementElement",
+            "module": "web-components/measurement.js"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "name": "honua-measurement",
+          "declaration": {
+            "name": "HonuaMeasurementElement",
+            "module": "web-components/measurement.js"
+          }
+        }
+      ]
+    }
+  ]
+}

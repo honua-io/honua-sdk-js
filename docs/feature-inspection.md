@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Feature inspection"
+description: "One inspection workflow for a map hit, search result or table row: source-qualified identity, details, attachments, related records, safe popups, and realtime updates."
+resource: "honua://capability/serve.ogc-api-features"
+---
 # Feature inspection
 
 `@honua/sdk-js/web-components` provides one inspection workflow for a map hit,

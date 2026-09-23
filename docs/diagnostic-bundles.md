@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Sanitized diagnostic bundles (`honua doctor`)"
+description: "Create a sanitized, schema-pinned support bundle locally with honua doctor: what is captured, how raw values are redacted, and how to review the bundle before sending anything."
+resource: "honua://capability/ops.observability"
+---
 # Sanitized diagnostic bundles (`honua doctor`)
 
 `honua doctor` creates a local, bounded support artifact without uploading it. The command uses the canonical

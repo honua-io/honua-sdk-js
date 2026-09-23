@@ -1,3 +1,9 @@
+---
+type: reference
+title: "`@honua/geometry` — client-side geometry operations"
+description: "Curated, tree-shakeable geometry operations that run in the browser with no server round trip. Split-packaged as @honua/geometry and also reachable on the @honua/sdk-js/geometry subpath."
+resource: "https://www.npmjs.com/package/@honua/geometry"
+---
 # `@honua/geometry` — client-side geometry operations
 
 `@honua/geometry` (the `@honua/sdk-js/geometry` subpath, split-packaged as
@@ -136,9 +142,8 @@ migration codemod rewrites
 
 ### Parity tolerances
 
-Numerical parity is tested in `test/geometry-engine-compat.test.ts` against
-analytically-derived expected outputs (fixtures use Web Mercator geometries so
-planar ops have exact values):
+Numerical parity against analytically derived expected values (Web Mercator
+geometries, so planar ops have exact values):
 
 - **planar area / length:** exact to `< 1e-6` relative (pure coordinate
   arithmetic).

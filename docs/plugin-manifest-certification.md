@@ -1,7 +1,12 @@
+---
+type: reference
+title: "Plugin manifest and certification contract"
+description: "The versioned plugin SDK: authoring a manifest, compatibility policy, the security boundary, the application-local registry, the certification kit, signed reports, support status and governance."
+resource: "honua://capability/plugin.sdk"
+---
 # Plugin manifest and certification contract
 
-The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK
-tracked by [issue #392](https://github.com/honua-io/honua-sdk-js/issues/392).
+The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK.
 It lets a third-party package describe its compatibility and authority boundary
 as inert JSON, produces a deterministic report for a specific host, and runs an
 application-local lifecycle plus behavioral conformance without granting the
@@ -217,172 +222,19 @@ Plugin modules remain external to SDK core. Merely importing the root SDK or an
 unrelated subpath does not import a plugin factory, initialize a registry, or
 pull mapping/database peers into the bundle.
 
-## Reference plugins for every kind
-
-Every declared kind ships a minimal, external-style reference implementation so
-authors can copy a working shape rather than a bare interface. Each is a small
-factory carrying inert manifest JSON, a typed extension, and lifecycle hooks;
-none of them are imported by SDK core. They live beside the tests at
-`test/fixtures/plugins/` (`external-style.ts` plus `reference/`) and are
-exercised end to end — certification, registration, extension call, and
-disposal — in `test/plugin-reference-samples.test.ts`.
-
-| Kind | Reference plugin | Capabilities | What it demonstrates |
-| --- | --- | --- | --- |
-| `protocol` | `referenceProtocolPlugin` | `query` | Bounding-box feature count over the origin-restricted network service |
-| `source-format` | `referenceSourceFormatPlugin` | `read` | Read-only `lng,lat` text parsing with no requested authority |
-| `renderer` | `referenceRendererPlugin` | `2d` | Pure point-to-draw-command translation |
-| `auth` | `referenceAuthPlugin` | `authorize` | Header resolution from a scope-restricted credential service |
-| `geocoder-routing` | `referenceGeocoderPlugin` | `geocode` | Offline gazetteer lookup |
-| `analysis` | `referenceAnalysisPlugin` | `execute`, `cancel` | Cancellable reduction honouring an `AbortSignal` |
-| `cache` | `referenceCachePlugin` | `read`, `write`, `invalidate` | Persistent cache over granted scoped storage |
-| `realtime` | `referenceRealtimePlugin` | `subscribe` | Push subscription through the realtime service |
-| `style` | `externalStylePlugin` | `validate` | The original external-style sample (issue #424/#466) |
-
-Each manifest certifies against one shared host that grants exactly the
-authorities the samples request, so the security boundary stays honest: the
-`auth` sample only ever receives the `reference.read` scope identifier, the
-`cache` sample only writes through scoped storage, and the `protocol` sample's
-network calls are restricted to its declared origin.
-
-## First-party protocol dogfooding (issues #538 and #655)
-
-The renderer kind proved the plugin seam is real for an out-of-tree module
-(OpenLayers, issue #566): third-party and first-party (`maplibreRenderer`)
-renderers both satisfy the same plain `RendererAdapter` contract
-(`src/kernel/renderer.ts`) without the kernel importing `HonuaPluginRegistry`
-at all. `protocol` did not yet have an equivalent story — every built-in
-protocol adapter was constructed by privileged code paths inside
-`src/contract/source.ts`.
-
-`ProtocolModule` (`src/contract/protocol-module.ts`) is the minimal
-discovery/capability/diagnostics/disposal seam for a `Source.protocol(...)`
-escape-hatch adapter, mirroring `RendererAdapter`.
-`QueryCapableProtocolModule` is its atomic query extension: query-capable
-modules must implement both typed `compile` / `execute` hooks, while
-discovery-only modules implement neither. Compiler input uses a
-credential-free identity and deterministic query representation; runtime
-authority stays on the discovered handle and explicitly injected
-dependencies.
-
-The first bounded built-in migrated onto the seam was PMTiles (tiles-only, so
-it honestly omits the query pair):
-
-- `pmtilesProtocolModule()` (`src/contract/pmtiles.ts`) is the seam-shaped
-  factory. `pmtilesSource()` builds its `Source.protocol("pmtiles")` escape
-  hatch through this exact factory instead of constructing
-  `HonuaPmtilesArchive` directly.
-- `pmtilesProtocolPlugin()` (`@honua/sdk-js/plugin`,
-  `src/plugin/pmtiles-protocol-plugin.ts`) packages the identical factory as a
-  certifiable `HonuaPluginFactory<"protocol">`. Registering it through
-  `HonuaPluginRegistry` and calling `pmtilesSource()` both end up constructing
-  the archive adapter through the same `ProtocolModule`, proving the built-in
-  carries no special registry privilege
-  (`test/plugin-pmtiles-protocol-seam.test.ts`).
-- `test/fixtures/plugins/cloud-tiles/` is a structurally independent
-  out-of-tree protocol module (it shares no implementation with
-  `src/contract/pmtiles.ts`) that implements the same `ProtocolModule`
-  contract and certifies through the identical kit
-  (`test/plugin-cloud-tiles-certification.test.ts`), closing REQ-004: the
-  same conformance harness runs in-tree and against an independent module.
-
-Issue #655 adds the first query-capable built-in:
-
-- `odataProtocolModule(client)` binds OData discovery, the typed
-  `HonuaOdataEntitySet` escape hatch, deterministic compilation, and
-  `query` / `queryAll` execution. Discovery remains synchronous and performs
-  no I/O; `$metadata` is still loaded lazily by the entity-set adapter. The
-  OData-specific factory and planner types are exported from the experimental
-  `@honua/sdk-js/query-planner` subpath; only the protocol-neutral module
-  contracts are exported from stable `@honua/sdk-js/contract`.
-- `odataSource()` discovers through that module and routes its existing wire
-  behavior through the module executor. The planner dispatches through the
-  exact `odataProtocolQueryCompiler` hook installed on the module, so module
-  consumers and built-in planning cannot drift onto separate compilers.
-- Executable OData artifacts use the operation-bound
-  `odata-v4-protocol-query-v1` identity and contain the exact operation plus an
-  entity-set identity, but no origin, credentials, or signal. Execution rejects
-  an artifact whose operation or entity set does not match the requested
-  execution and discovered handle before I/O, keeping the injected client's
-  authority boundary explicit. The operation-neutral `odata-v4-query-v1`
-  artifact remains the unchanged output of the legacy experimental
-  `compileOdataQuery()` helper.
-- `test/fixtures/plugins/portable-query/` is an independent, out-of-tree-style
-  query module. It imports only the public contract and plugin entrypoints,
-  certifies through `HonuaPluginRegistry`, and proves deterministic compile,
-  handle-bound execution, and idempotent disposal without sharing OData or SDK
-  internal implementation.
-
-Issue #823 migrates WFS 2.0 through that proven query seam:
-
-- `wfsProtocolModule(client)` owns synchronous feature-type discovery,
-  credential-free deterministic FES/KVP compilation, lazy GetCapabilities
-  evidence, negotiated GeoJSON output, advertised GET/POST DCP routing, and
-  canonical `query` / `queryAll` execution. `wfsSource()` routes `query`,
-  `queryAll`, and bounded page streaming through the same module while
-  preserving the existing `HonuaWfsFeatureType` escape hatch.
-- Planner dispatch and module consumers call the exact
-  `wfsProtocolQueryCompiler` hook. Executable
-  `wfs-2.0-protocol-query-v1` artifacts bind the operation, canonical
-  endpoint/type identity, method, paging, projection, sorting, CRS, and FES or
-  bbox intent without carrying credentials, signals, clients, negotiated
-  formats, or transport objects. The legacy operation-neutral
-  `compileWfsQuery()` output remains unchanged. Persisted
-  `wfs-2.0-get-feature-v1` plans are first integrity-checked against that
-  legacy compiler, then rebuilt through the operation-bound compiler before
-  parsing, serialization, or execution; the unchanged `1.0` plan version never
-  silently changes the meaning of an existing snapshot.
-- Execution accepts only handles discovered by that module instance and rejects
-  operation swaps, endpoint/type substitution, credential-query or
-  authorization-scope substitution, paging-context drift, invalid method
-  selection, and disposed handles before network I/O. Artifacts retain only a
-  secret-free authority digest. Runtime cancellation, capability/output
-  evidence, and client authority remain on the handle; only settled capability
-  snapshots are cached, so concurrent callers retain independent cancellation.
-- Before `GetFeature`, execution binds exact WFS 2.0 version, feature QName and
-  namespace, advertised DCP method/authority, GeoJSON output spelling, and
-  advertised filter/response CRS evidence. GET-only servers never receive a
-  POST; qualified GET and POST requests carry their required namespace binding.
-  Filter geometry CRS is compiled independently from response `outSr`, including
-  authority-axis ordering. Bounded XML/GeoJSON reads, bounded XML parsing,
-  strict GeoJSON projection, and zero-progress detection fail closed.
-- `test/plugin-wfs-protocol-seam.test.ts` certifies the same factory through
-  public contract/query-planner/plugin entrypoints and covers compiler parity,
-  persistence, built-in query-family behavior, authority isolation,
-  cancellation, typed capability failures, and repeated disposal. The packed
-  SDK gate also imports, types, compiles, executes, and disposes the installed
-  WFS module.
-
-### Remaining protocol-module migration assessment
-
-Issue #655 proves the versioned query seam; it does not turn the remainder into
-one mechanical migration. Future work should stay in bounded Specifica
-children of the adapter-extensibility epic:
-
-| Recommended child scope | Remaining adapters | Why it stays separate |
-| --- | --- | --- |
-| HTTP feature query adapters | OGC API Features; GeoServices feature/map/image | Pagination, aggregation, edits, and capability negotiation are wider than the OData proof |
-| Opaque/local execution adapters | GeoParquet | Resource-handle authority, optional DuckDB peer loading, worker lifecycle, and v1/v2 compiled artifacts must move together |
-| RPC query adapter | gRPC FeatureService | Generated protobuf/connect peers and transport disposal have distinct bundle and authority constraints |
-| Discovery/render/catalog adapters | OGC Tiles/Maps/Records/Processes, WMS, WMTS, STAC | These need discovery or render/search hooks rather than reusing the query executor blindly |
-| Utility-only adapters | GeoServices Geometry Service and GP Service | Job/utility lifecycles are not feature-query execution and require their own module capability contract |
-
-Each child should migrate one coherent adapter family, retain the current
-escape-hatch identity, and carry its existing protocol conformance suite plus
-bundle-budget evidence. This avoids reopening the public hook shape while also
-avoiding a high-risk all-protocol rewrite.
-
 ## Running the certification kit independently
 
 The certification logic is also exposed as a runnable kit so a third party can
 validate their own plugin outside this repository. Installing the SDK provides
-the `honua-plugin-certify` bin, which reads a manifest and a host snapshot as
+the `honua-plugin-certify` bin — name the package with `npx -p`, since no npm
+package is called `honua-plugin-certify` and a bare `npx honua-plugin-certify`
+therefore fails to resolve. It reads a manifest and a host snapshot as
 inert JSON text, certifies one against the other, prints the deterministic
 report to stdout (or `--out`), and resolves an exit code:
 
 ```sh
 # 0 = certified, 1 = rejected, 2 = usage/input error
-npx honua-plugin-certify --manifest ./manifest.json --host ./host.json --pretty
+npx -p @honua/sdk-js honua-plugin-certify --manifest ./manifest.json --host ./host.json --pretty
 ```
 
 The bin never resolves or executes the plugin entrypoint; it only reads the two
@@ -402,7 +254,7 @@ kit re-checks that receipt so an archived report is verifiably tamper-evident:
 
 ```sh
 # 0 = verified intact, 1 = tampered, 2 = usage/input error
-npx honua-plugin-certify --verify ./report.json
+npx -p @honua/sdk-js honua-plugin-certify --verify ./report.json
 ```
 
 The same check is available programmatically as
@@ -459,9 +311,7 @@ deterministic behavioral suite and returns a frozen, digest-sealed
 `HonuaPluginConformanceReport`. The harness registers the plugin in an
 application-local registry with instrumented host services and counts integer
 observations only — no wall-clock time, randomness, or host path — so the report
-serializes identically on every run and is committed as a golden report
-(`test/fixtures/plugins/golden/conformance-report.json`) and asserted
-byte-for-byte in `test/plugin-conformance.test.ts`.
+serializes identically on every run.
 
 Three scenarios are covered, each an observation compared against a declared
 bound:
@@ -474,9 +324,7 @@ bound:
 | `bundle-metadata` | The declared bundle footprint stays within budget with complete inventory metadata (`minifiedBytes`, `gzipBytes`, `metadataComplete`). |
 
 The report binds the certification digest it was run against, so a conformance
-result cannot be replayed against a different manifest or host. The reference
-retry-capable plugin exercised end to end lives at
-`test/fixtures/plugins/reference/conformance.ts`.
+result cannot be replayed against a different manifest or host.
 
 ## Certification governance policy
 

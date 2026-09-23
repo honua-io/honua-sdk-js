@@ -1,19 +1,17 @@
+---
+type: reference
+title: "Read multidimensional coverages with OGC API Coverages and WCS"
+description: "Use `@honua/sdk-js/coverages` when the output is a raster value grid rather than vector features or a pre-rendered map. The client keeps protocol details explicit and uses the same `HonuaClient` request pipeline as the rest of the SDK."
+---
 # Read multidimensional coverages with OGC API Coverages and WCS
 
-> **Maturity: experimental.** The standalone fixture is release-gated in a real browser, but there is no reviewed anonymous live OGC API Coverages or WCS canary. [Issue #1115](https://github.com/honua-io/honua-sdk-js/issues/1115) remains open until scheduled bounded interoperability evidence exists.
+> **Maturity: experimental.** The standalone fixture is release-gated in a real browser, but there is no reviewed anonymous live OGC API Coverages or WCS canary. The canonical raster source registry therefore keeps both adapters experimental.
 
 Use `@honua/sdk-js/coverages` when the output is a raster value grid rather than vector features or a pre-rendered map. The client keeps protocol details explicit and uses the same `HonuaClient` request pipeline as the rest of the SDK.
 
-## Run the qualified standalone example
+## Runnable example
 
 [`examples/coverages-wcs-basic`](../../examples/coverages-wcs-basic/README.md) executes both real clients against a strict committed transport, renders their PNG results through the same MapLibre image-source helper, and exposes cancellation and structured WCS degradation without a live fallback.
-
-```bash
-npm run demo:coverages-wcs
-npm run test:playwright:coverages-wcs
-```
-
-The example's `fixtureFetch` rejects every unexpected origin. Its browser test separately blocks and records any escaped HTTP request, so the fixture qualification cannot silently become a network-dependent demo. This proves the bundle and developer workflow; it does not claim real-server interoperability.
 
 ## Choose the right raster path
 
@@ -99,4 +97,4 @@ The WCS client supports GetCapabilities, DescribeCoverage, GetCoverage, repeated
 
 ## Discovery integration status
 
-This package subpath is usable directly. Automatic capability-manifest selection through `connect()` depends on issue #1114 and should be added by rebasing its protocol registry work rather than duplicating discovery policy here.
+This package subpath is usable directly. Discovery and session capability selection project from `config/raster-source-registry.v1.json`; adapters consume advertised endpoints and never derive them from labels or URL shapes.

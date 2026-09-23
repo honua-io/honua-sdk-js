@@ -1,7 +1,12 @@
+---
+type: reference
+title: "Downloadable offline regions (experimental)"
+description: "Downloadable offline regions: manifests, the download coordinator, IndexedDB store, offline reads, tiles, storage budgets, the durable edit queue, conflict handling and local-first status."
+resource: "honua://capability/fieldops.offline-sync"
+---
 # Downloadable offline regions (experimental)
 
-`@honua/sdk-js/offline` contains bounded, independently usable slices of issue
-[#396](https://github.com/honua-io/honua-sdk-js/issues/396). It defines a
+`@honua/sdk-js/offline` defines a
 versioned manifest, storage-neutral download coordinator, persistent browser
 store, durable edit queue, and composed local-first status. It does not make the
 broader local-first feature complete.
@@ -941,7 +946,6 @@ primitives; they do **not** claim end-to-end exactly-once synchronization.
 Applications must bind the injected transport to established Honua Server
 replica-sync, upload-cursor, and conflict-review contracts exposed through
 `@honua/app-platform`; this offline storage subpath does not duplicate that
-client or manufacture server acknowledgement. End-to-end integration evidence
-remains required before issue #396 can satisfy its Beta acceptance criteria.
+client or manufacture server acknowledgement.
 This entrypoint is `@experimental` and subpath-only so the root and browser
 bundles do not absorb it.

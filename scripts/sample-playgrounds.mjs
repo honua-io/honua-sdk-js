@@ -135,7 +135,7 @@ const PINNED_DEPENDENCIES = Object.freeze({
   // all. The scaffold starters carry the same shim and the same pin
   // (`packages/create-honua-app/templates/*/src/maplibre-worker.ts`), so a
   // reader who scaffolds and a reader who opens a playground get one renderer.
-  "maplibre-gl": "6.1.0",
+  "maplibre-gl": "6.4.1",
   "apache-arrow": "17.0.0",
   "@bufbuild/protobuf": "2.13.0",
   "@connectrpc/connect": "2.1.2",

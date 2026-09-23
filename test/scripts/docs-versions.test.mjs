@@ -121,6 +121,7 @@ test("release projection updates without a committed generated manifest", () => 
       "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
       "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
       "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
+      "packages/create-honua-app/templates.manifest.json",
       "samples/contract/v1/fixtures/sample-evidence.fixture.json",
       "samples/contract/v1/fixtures/sample-evidence.live.json",
       "samples/contract/v1/fixtures/sample-evidence.skipped.json",

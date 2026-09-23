@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Honua Web Components"
+description: "Framework-neutral custom elements for maps, layer lists, legends, tables, search, editing, charts and controls, plus the application shell, measurement, time slider, secure export, and the production feature table and editor."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Honua Web Components
 
 `@honua/sdk-js/web-components` registers framework-neutral custom elements for
@@ -97,10 +103,6 @@ Locale packs are scoped to a context and cover status messages plus
 `--honua-ui-*` properties, while mount-local tokens override context tokens.
 Neither locale nor theme uses global mutable state, and disposal restores the
 host's original attributes and token values.
-
-The installed-package end-to-end journey, time-bounded evidence, budgets, and
-component-to-test mapping are published in the
-[Application Components Reference Workbench](./application-components-reference.md).
 
 `honua-map` owns a MapLibre GL JS map for package and controller bindings.
 Import MapLibre's CSS in browser demos, then pass either an inline `MapPackage`,
@@ -244,10 +246,81 @@ unsupported event when the browser does not expose `requestFullscreen()`.
 `actions` JSON array and emits `honua-action`. Empty panels render a visible
 unsupported state so apps do not appear to lose configured controls.
 
+## Measurement
+
+`honua-measurement` measures distance and area directly on a MapLibre map, with
+no drawing provider. Click (or tap) adds a vertex; double-click or **Finish**
+completes the sketch; **Escape** or **Cancel** discards it.
+
+```html
+<honua-map id="map"></honua-map>
+<honua-measurement
+  for="map"
+  unit="miles"
+  area-unit="acres"
+  precision="2"
+  fidelity="planar"
+  planar-crs="EPSG:3857"
+></honua-measurement>
+```
+
+| Attribute / property | Values | Default |
+| --- | --- | --- |
+| `unit` / `unit` | `auto`, `meters`, `kilometers`, `feet`, `yards`, `miles`, `nauticalmiles` | `auto` (m / km by magnitude) |
+| `area-unit` / `areaUnit` | `auto`, `square-meters`, `hectares`, `square-kilometers`, `square-feet`, `acres`, `square-miles` | `auto` (m² / ha / km²) |
+| `precision` / `precision` | integer `0`–`20` | per-unit default |
+| `fidelity` / `fidelity` | `geodesic`, `planar` | `geodesic` |
+| `planar-crs` / `planarCrs` | `local` (flat-earth meters around the sketch), `EPSG:3857` (Web Mercator meters, not scale-corrected) | `local` |
+
+Unknown values fall back to the default. Changing a unit or precision only
+reformats the canonical result; changing fidelity or the planar CRS recomputes it
+from the drawn vertices.
+
+The `honua-measure-change` event carries plain data with no renderer types:
+`result.coordinates` are WGS84 `[lng, lat]` (the element's `crs`), `distance` is
+in meters and `area` in square meters, and `result.crs` names the frame they
+were measured in (`EPSG:4326` for geodesic results). A line that crosses the
+antimeridian is measured the short way in every frame. Vertices that are not
+finite, or whose latitude is outside ±90°, are rejected. An area outline that
+crosses itself sets `result.invalid` to `"self-intersecting-ring"` and reports
+no area.
+
+While a mode is active the element claims the map pointer: clicks that land on
+a feature still dispatch `honua-map-click`, but they do not change the shared
+selection that tables, inspectors, and editors are bound to. Removing the
+element releases every map listener, the sketch overlay, and the double-click
+zoom suspension. Double-click zoom is only turned back on if it was on before
+measuring started.
+
+**Custom Elements Manifest.** `@honua/app-platform` publishes
+`custom-elements.json`, advertised through its `customElements` package key.
+
+**React.** React 19 binds custom elements natively, so no wrapper is needed.
+Props that are element properties (`map`, `unit`, `precision`, `planarCrs`, …)
+are assigned as properties, and `onhonua-measure-change` becomes an event
+listener. For typed JSX, declare the tag once in your app:
+
+```ts doc-test=skip reason="module augmentation belongs in a React application's own declaration file"
+import type { HonuaMeasureChangeDetail, HonuaMeasurementElement } from "@honua/app-platform/web-components";
+
+declare module "react" {
+  namespace JSX {
+    interface IntrinsicElements {
+      "honua-measurement": Partial<
+        Pick<HonuaMeasurementElement, "map" | "unit" | "areaUnit" | "precision" | "fidelity" | "planarCrs">
+      > & {
+        ref?: React.Ref<HonuaMeasurementElement>;
+        "onhonua-measure-change"?: (event: CustomEvent<HonuaMeasureChangeDetail>) => void;
+      };
+    }
+  }
+}
+```
+
 ## Time slider
 
 `honua-time-slider` is a view over the headless temporal playback controller
-(`createTemporalPlayback` from `@honua/sdk-js/map`, issue #497). It owns no
+(`createTemporalPlayback` from `@honua/sdk-js/map`). It owns no
 window state and no timer of its own: every gesture becomes one controller
 call, and every rendered value comes back from the controller's own `tick` /
 `play` / `pause` / `end` events. Layered over a realtime source the controller
@@ -298,7 +371,7 @@ state-model-only, exactly as before.
 ## Secure export
 
 Print, snapshot, and sanitized-state export all run through one explicit
-adapter contract (issue #683). There is deliberately no ambient fallback for
+adapter contract. There is deliberately no ambient fallback for
 snapshot or state export: reading renderer pixels needs a canvas the application
 created with `preserveDrawingBuffer: true` and is authorized to read, and
 serializing "the current state" would otherwise carry the signed tile URLs,
@@ -506,21 +579,9 @@ version, schema identity, accepted-plan fingerprint, filter, sort, projection,
 authorization scope, and freshness — so a stale page can never answer a
 different question.
 
-The table consumes only canonical `Source.query()`. Protocol translation of
-its filter, sort, projection, pagination, spatial, and aggregate requests is
-covered by the existing real adapter fixtures:
-
-| Protocol | Adapter evidence |
-| --- | --- |
-| GeoServices | `test/contract/geoservices-conformance.test.ts` |
-| OGC API Features | `test/contract/ogc-features-backend-agnostic.test.ts`, `test/contract/ogc-conformance.test.ts` |
-| WFS 2.0 | `test/contract/wfs-backend-agnostic.test.ts`, `test/contract/wfs.test.ts` |
-| OData v4 | `test/contract/odata-backend-agnostic.test.ts`, `test/contract/odata-conformance.test.ts` |
-
-The engine-level suite separately asserts that the accepted canonical request
-contains the expected page, sort, filter, extent, projection, and aggregation;
-the adapter suites above prove that request is translated without a
-table-specific protocol branch.
+The table consumes only canonical `Source.query()`, so protocol translation of
+its filter, sort, projection, pagination, spatial, and aggregate requests is the
+adapters' job; there is no table-specific protocol branch.
 
 ### Linked exploration state
 
@@ -601,7 +662,7 @@ step with any custom row CSS.
 
 ## Production-Tier Feature Editing (`honua-feature-editor`)
 
-`honua-feature-editor` is the production-tier editing surface (issue #680). It
+`honua-feature-editor` is the production-tier editing surface. It
 composes the public contract edit primitives — `createEditSketchWorkflow`,
 `createEditSession`, snapping, attachment staging, undo/redo, optimistic hooks
 — rather than reimplementing any protocol behavior, and it imports no
@@ -748,26 +809,13 @@ and `honua-feature-edit-commit` (the submit outcome, including `transported`).
 
 ## Production qualification matrix
 
-Production support for the component kit is tracked as an enforceable matrix
-rather than a claim in prose: every shipped tag in the component catalog against
-every gate that matters for accessibility, localization, visual behavior, CSP,
-lifecycle cleanup, and bundle cost (issue #683, REQ-004/REQ-005/NFR-001).
-
-The matrix is seeded from what the test suite actually asserts today. `passing`
-requires evidence files that are verified to exist, so deleting the test behind a
-gate fails CI instead of quietly downgrading the claim. `failing` records a
-requirement we know is unmet — including from code inspection, before an
-automated gate exists. `pending` — most of this matrix — means no automated gate
-and no verdict yet. `not-applicable` requires an argument.
-
-These gates are a **different axis** from the catalog's `supportTier`. The tier
-records the functional maturity a feature issue delivered on a component
-(`honua-feature-editor` is `production-tier` because issue #680 delivered
-capability-aware editing, conflict handling, snapping, and attachment staging).
-Gate completion is the strictly harder bar, so the verifier enforces only that
-direction — anything clearing every gate must carry the production tier — and
-every production-tier component's still-open gates are listed as `openGates` in
-the manifest, so the tier can never be mistaken for gate completion.
+Production support for the component kit is tracked as a matrix rather than a
+claim in prose: every shipped tag against every gate that matters for
+accessibility, localization, visual behaviour, CSP, lifecycle cleanup and bundle
+cost. `pass` means an automated check backs the claim, `pending` means there is
+no verdict yet, and `n/a` carries an argument. The `Tier` column records the
+functional maturity a component has reached, which is a different axis from
+clearing every gate.
 
 <!-- component-qualification:start -->
 <!-- GENERATED by scripts/component-qualification.mjs from src/controls/qualification.ts. Do not edit by hand; run npm run qualification:components. -->
@@ -805,6 +853,3 @@ the manifest, so the tier can never be mistaken for gate completion.
 Gate definitions and per-cell evidence and notes live in
 [`config/component-qualification.v1.json`](../config/component-qualification.v1.json).
 <!-- component-qualification:end -->
-
-Regenerate with `npm run qualification:components`; `npm run
-qualification:components:check` is the CI drift and invariant gate.

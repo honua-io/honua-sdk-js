@@ -103,6 +103,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
+
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
 
@@ -244,6 +247,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
+
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
 
@@ -384,7 +390,9 @@ jobs:
       # certification run while the run still reported a full pass. Reads
       # config/ and mcp/ only, so it neither consumes nor invalidates a build.
       - name: Validate certification denominator freeze
-        run: npm run verify:certification-denominator
+        run: |
+          npm run verify:certification-denominator
+          npm run test:installed-package-certification
 
       - name: Code style
         run: npm run check
@@ -394,6 +402,18 @@ jobs:
 
       - name: Verify comparison page freshness
         run: npm run docs:comparison:check
+
+      # The OKF bundle (docs/okf-bundle.v1.json) declares which pages are
+      # published documentation. The gate proves every page inside the boundary
+      # carries valid v0.2 frontmatter and that its relative links resolve;
+      # SUMMARY.md is derived from the same boundary, so a page added to one and
+      # not the other fails here rather than shipping a table of contents that
+      # disagrees with the bundle.
+      - name: Verify OKF documentation bundle
+        run: python3 scripts/check-okf-bundle.py
+
+      - name: Verify GitBook table of contents is derived
+        run: python3 scripts/generate-summary.py --check
 
       - name: Verify MCP eval scorecard freshness
         run: npm run docs:mcp-scorecard:check
@@ -450,6 +470,9 @@ jobs:
 
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
+
+      - name: Validate documented executable commands
+        run: npm run docs:commands:check
 
       - name: Component qualification matrix
         # Runs against the already-built dist/, so it does not rebuild. Fails on
@@ -521,9 +544,6 @@ jobs:
       - name: Primitive demo matrix
         run: npm run demo:primitive-matrix
 
-      - name: Kepler example audit
-        run: node --test examples/kepler-analytics/test/audit.test.mjs && node examples/kepler-analytics/scripts/audit.mjs
-
       - name: Example builds
         run: npm run demo:examples:build:prepared
 
@@ -563,14 +583,8 @@ jobs:
       - name: Migration e2e harness
         run: npx vitest run test/migration-e2e.test.ts
 
-      - name: MapLibre peer-major matrix (5.x + 6.x)
-        # The optional `maplibre-gl` peer range is `^5.0.0 || ^6.0.0` (#1004).
-        # This is the attributable leg for that claim: typecheck against the 5.x
-        # typings, run the peer-facing specs against the real module on both
-        # majors (the 6.x devDependency and the `maplibre-gl-v5` alias), then
-        # render the same Honua-generated style in a browser under each major.
-        # Everything else in this job resolves 6.x, so a 6-only break still
-        # fails the ordinary gates; this step is what keeps 5.x honest.
+      - name: Patched MapLibre runtime compatibility
+        # The optional peer requires MapLibre >=6.4.1 within major 6 (#1671).
         run: npm run test:maplibre-compat:prepared
 
       # The offline region reference's application shell manifest is

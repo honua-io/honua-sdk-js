@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Data-to-map bridge (`mountSource`)"
+description: "mountSource(), the standalone data-to-map bridge: strategy selection, diagnostics, default styling, interactions, filter updates, disposal and the option reference."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Data-to-map bridge (`mountSource`)
 
 > Status: `@experimental` — the surface ships on the stable `/map` entrypoint

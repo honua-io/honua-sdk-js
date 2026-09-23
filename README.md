@@ -77,7 +77,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.1.9-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.1.10-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -225,9 +225,11 @@ Runtime support, stated up front:
 | Peer / runtime | Supported range |
 |----------------|-----------------|
 | Node.js | `>=20.19` |
-| `maplibre-gl` (optional peer) | **5 and 6** (`^5.0.0 \|\| ^6.0.0`) — the 6.x half ships with the next release; the current published beta declares `^5.0.0`. MapLibre 6 is ESM-only and requires WebGL2 |
+| `maplibre-gl` (optional peer) | **6.4.1 or newer within major 6** (`^6.4.1`). The next SDK release drops affected 5.x and early 6.x peers; published older SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
 | `cesium` (optional peer, scene surface) | `^1.139.0` |
 | `react` / `react-dom` (optional peer, `/react`) | `^18.2.0 \|\| ^19.0.0` |
+
+> **Security — pick maplibre-gl 6.4.1 or newer.** [GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579) is a critical XSS sanitizer bypass in `DOM.sanitize()` affecting **every `maplibre-gl` at or below 6.4.0**, patched in 6.4.1 with no backport to 5.x. The peer range above is `^6.4.1`, so affected 5.x and 6.0.0 through 6.4.0 releases do not satisfy it.
 
 Starting from scratch? `create-honua-app` scaffolds a working app instead of
 assembling peers — a Vite + TypeScript (or React) starter that already connects
@@ -301,13 +303,13 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/webmap` | 7.6 KiB |
 | `@honua/sdk-js/style` | 16.3 KiB |
 | `@honua/sdk-js/map` | 51.7 KiB |
-| `@honua/sdk-js` (root) | 210.3 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 69.3 KiB |
-| `{ connect }` from the root (tree-shake guard) | 171.5 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 200.4 KiB |
+| `@honua/sdk-js` (root) | 210.6 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 69.6 KiB |
+| `{ connect }` from the root (tree-shake guard) | 171.8 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 200.7 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 171.5 KiB gzip and `{ createHonua }` 200.4 KiB against the 210.3 KiB root, so size-sensitive
+alone costs 171.8 KiB gzip and `{ createHonua }` 200.7 KiB against the 210.6 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -340,7 +342,7 @@ const states = data.source<{ NAME: string; Total_Pop_2020: number }>();
 const query: Query = {
   filter: queryFilter.and(
     queryFilter.gt("Total_Pop_2020", 1_000_000),
-    queryFilter.spatial("intersects", envelope(-125, 24, -66, 50)),
+    queryFilter.spatial("intersects", envelope(-125, 24, -66, 50, { wkid: 4326 })),
   ),
   outFields: ["NAME", "Total_Pop_2020"],
   pagination: { limit: 100 },
@@ -353,6 +355,12 @@ console.log(plan.fingerprint, plan.steps.map((step) => `${step.engine}:${step.op
 const result = await states.queryAll(query);
 console.log(`Loaded ${result.features.length} states`);
 ```
+
+`envelope`, `point`, and `polygon` default to WGS84 (4326). Pass the input
+spatial reference for projected coordinates. GeoServices query serialization
+emits `inSR` from geometry metadata (or defaults untagged geometry to 4326);
+an explicit `extraParams.inSR` takes precedence for low-level requests. Invalid
+explicit geometry references throw instead of using the layer CRS.
 
 `Query.filter` compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`,
 or DuckDB SQL, and `Query.temporalFilter` compiles to the protocol's own time
@@ -433,7 +441,7 @@ HTTP, no URL-encoding, no `f=json`), prints readable tables by default, and adds
 `--json` / `--format geojson` for machine output.
 
 ```bash
-npm i -g @honua/sdk-js            # or: npx @honua/sdk-js honua <command>
+npm i -g @honua/sdk-js            # or, without installing: npx -p @honua/sdk-js honua <command>
 export HONUA_BASE_URL=https://demo.honua.io   # anonymous reads on the public demo
 
 honua services                    # list published services
@@ -456,6 +464,12 @@ any query compiles to before it runs. Authentication resolves from
 the full command surface. This is the recommended command surface for docs and
 demos.
 
+The `npx` form needs `-p`: npx resolves its first argument as a *package* and
+then picks a bin from it, and this package publishes two (`honua` and
+`honua-plugin-certify`), neither named `sdk-js` — so `npx @honua/sdk-js honua`
+fails with "could not determine executable to run" before it ever reads `honua`.
+Naming the package with `-p` leaves the next word as the command.
+
 For support-safe interoperability evidence, `honua doctor` emits a local,
 schema-validated diagnostic bundle with explicit classification/consent,
 credential and PII redaction, bounded previews, and original-byte SHA-256
@@ -467,7 +481,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 35 executable examples: 4 qualified golden samples, 13 recipes, 15 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 4 qualified golden samples, 13 recipes, 14 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at
@@ -503,6 +517,8 @@ tables, and backwards-compatibility policy live in:
 - [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — what each protocol supports
 
 ## Documentation
+
+- **[Full documentation index](docs/SUMMARY.md)** — every published page, generated from the documentation bundle so it cannot drift.
 
 - [`docs/generated/learning-paths.md`](./docs/generated/learning-paths.md) — task-oriented progression backed by runnable examples and checked SDK imports
 - [`docs/quickstart.md`](./docs/quickstart.md) — guided quickstart walkthrough
@@ -697,7 +713,9 @@ deprecated at 5.0 mapped to its Honua/MapLibre disposition ahead of the 6.0 remo
 | [honua-console](https://github.com/honua-io/honua-console) | Unified web console — Studio, Catalog, Operate, Share |
 | [honua-sdk-python](https://github.com/honua-io/honua-sdk-python) | Python SDK (same `Dataset`/`Source`/`Query`/`Result` contract) |
 | [honua-sdk-dotnet](https://github.com/honua-io/honua-sdk-dotnet) | .NET SDKs (same contract) |
-| [honua-esri-assess](https://github.com/honua-io/honua-esri-assess) | Esri footprint assessment CLI for migration discovery |
+| [honua-migrate](https://github.com/honua-io/honua-migrate) | Esri migration CLI suite — read-only footprint assessment, service and content migration, codemods, durable runs, reconciliation |
+| [honua-samples](https://github.com/honua-io/honua-samples) | Runnable cross-SDK samples, executed headless in CI against a real server |
+| [geospatial-grpc](https://github.com/honua-io/geospatial-grpc) | Open `geospatial.v1` gRPC standard — the wire contract behind this SDK's gRPC surface |
 | [geospatial-mcp](https://github.com/honua-io/geospatial-mcp) | Open, vendor-neutral geospatial MCP standard |
 
 ## Contributing

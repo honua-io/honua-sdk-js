@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Honua AI Map Kit"
+description: "A provider-ready AI map kit over the agent tools: MCP and OpenAI tool-schema converters, map-context and system-prompt helpers, and policy controls for read-only mode, allowlists, result limits and audit sinks."
+resource: "honua://capability/ai.agent-operations"
+---
 # Honua AI Map Kit
 
 `@honua/sdk-js/agent-tools` exposes a provider-ready AI map kit for bounded

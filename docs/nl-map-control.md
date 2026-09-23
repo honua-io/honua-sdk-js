@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Natural-language map control (`@honua/sdk-js/nl-map-control`)"
+description: "Turn a natural-language instruction into a typed, inspectable plan over the agent tools and execute only reviewed plans: safety model, API, self-correction, the MCP path and errors."
+resource: "honua://capability/ai.agent-operations"
+---
 # Natural-language map control (`@honua/sdk-js/nl-map-control`)
 
 > **Experimental.** Symbols on this subpath are `@experimental` and may change
@@ -119,11 +125,8 @@ supports the operation. Retries are bounded (`maxSelfCorrections`, default
 ### Deterministic replay
 
 `createRecordedNlLlm(exchanges)` replays committed request/response
-fixtures in order and fails loudly on drift. The SDK's own test lane
-(`test/nl-map-control.test.ts` + `test/fixtures/nl-map-control/`) replays
-recorded completions to byte-identical plans, effects, and receipts against
-a mock runtime host; the gallery demo (`npm run demo:nl-map-control`) uses
-the same fixtures so it is deterministic with no API key.
+fixtures in order and fails loudly on drift. The gallery demo (`npm run demo:nl-map-control`) replays recorded
+completions, so it is deterministic with no API key.
 
 ## The MCP path
 

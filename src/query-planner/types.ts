@@ -452,6 +452,8 @@ export interface ExplainGeoParquetQueryOptions<T = Record<string, unknown>> exte
 }
 
 export interface GeoServicesCompiledQueryV1 {
+  /** Explicit input CRS for every query geometry; untagged inputs default to WGS84. */
+  readonly inSr?: string | number;
   readonly compiler: "geoservices-rest-query-v1";
   readonly serviceId: string;
   readonly layerId: number;

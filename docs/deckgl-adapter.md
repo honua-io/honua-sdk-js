@@ -1,9 +1,13 @@
+---
+type: reference
+title: "deck.gl binary adapter (experimental)"
+description: "A renderer-neutral, zero-copy boundary between Honua plan/source identity and deck.gl binary layers: scatterplot, path and polygon, picking identity, and MapLibre overlay sync."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # deck.gl binary adapter (experimental)
 
 `@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source
-identity and deck.gl binary layer data. It is an experimental slice of
-[#388](https://github.com/honua-io/honua-sdk-js/issues/388), not the complete
-GPU analytics workstream.
+identity and deck.gl binary layer data. It is experimental.
 
 The adapter projects `scatterplot` (point), `feature-path` (line), and
 `feature-polygon` (hole-free polygon) data from caller-owned typed arrays. It
@@ -163,7 +167,7 @@ added layer back before `mount()` returns.
 
 ## Shared map state (MapLibre overlay mode)
 
-`#561` adds a focused renderer-state seam so a deck.gl overlay can share
+A focused renderer-state seam lets a deck.gl overlay share
 camera and selection with a MapLibre basemap it draws over, without either
 side owning the other's core query semantics:
 
@@ -218,7 +222,6 @@ input-array precision, fidelity, and absence of an implicit fallback.
 Unsupported or malformed paths throw a typed error rather than materializing
 feature objects or silently downgrading.
 
-Remaining #388 work includes indexed and aggregate layer families (H3/Quadbin,
-heatmap, cluster, contour, trips), realtime buffer patch/rebuild rules, WebGPU
-boundaries, and the million-feature browser benchmark against
-[#387](https://github.com/honua-io/honua-sdk-js/issues/387).
+Not yet covered: indexed and aggregate layer families (H3/Quadbin, heatmap,
+cluster, contour, trips), realtime buffer patch/rebuild rules, and WebGPU
+boundaries.
