@@ -21,7 +21,7 @@
  *   every transport. The claimed {@link HonuaCommandIdentity} is echoed onto
  *   the receipt and never placed on the wire.
  * - **No caller-owned request identity.** The same screen refuses
- *   {@link HONUA_COMMAND_OWNED_HEADERS} — the `Idempotency-Key` and `If-Match`
+ *   {@link HONUA_COMMAND_OWNED_HEADERS} — the `Idempotency-Key`, `If-Match`, and `X-Correlation-ID`
  *   the runtime derives and records on the receipt. Both screens compare
  *   header names case-insensitively, so `Idempotency-Key`, `idempotency-key`,
  *   and `IDEMPOTENCY-KEY` are the same header to them. Without this a caller
@@ -99,14 +99,14 @@ const RESERVED_HEADER_SET: ReadonlySet<string> = new Set<string>(HONUA_COMMAND_R
 /**
  * Headers the runtime derives and records on the receipt.
  *
- * A caller-supplied value for either one would put a different key on the wire
+ * A caller-supplied value would put a different key on the wire
  * than the receipt claims, which breaks exactly the two guarantees the receipt
  * exists to provide: that a retry collapses to one server-side effect, and that
  * an audit join can match a receipt to the request it describes. Callers set
- * these through {@link HonuaCommandInvocation.idempotencyKey} and
- * {@link HonuaCommandInvocation.ifMatch}, which are recorded.
+ * these through {@link HonuaCommandInvocation.idempotencyKey},
+ * {@link HonuaCommandInvocation.ifMatch}, and {@link HonuaCommandInvocation.correlationId}, which are recorded.
  */
-export const HONUA_COMMAND_OWNED_HEADERS = ["idempotency-key", "if-match"] as const;
+export const HONUA_COMMAND_OWNED_HEADERS = ["idempotency-key", "if-match", "x-correlation-id"] as const;
 
 const OWNED_HEADER_SET: ReadonlySet<string> = new Set<string>(HONUA_COMMAND_OWNED_HEADERS);
 
@@ -118,7 +118,7 @@ export interface HonuaCommandInvocation {
   readonly identity?: HonuaCommandIdentity;
   /** Explicit `Idempotency-Key`; derived deterministically from the input when omitted. */
   readonly idempotencyKey?: string;
-  /** Explicit correlation id; derived from the idempotency key when omitted. */
+  /** Explicit server correlation id (1–64 ASCII letters, digits, `-_.:`); derived when omitted. */
   readonly correlationId?: string;
   /** Preview only — the runtime returns the plan and never calls `execute`. */
   readonly dryRun?: boolean;
@@ -203,6 +203,19 @@ export class HonuaCommandRuntime {
 
     assertNoAuthorityOverride(command.id, invocation.headers, { correlationId, idempotencyKey });
     assertNoCommandKeyOverride(command.id, invocation.headers, { correlationId, idempotencyKey });
+    // Match the server's CorrelationIdMiddleware contract. An unsupported id
+    // would be silently replaced there, leaving the receipt unable to join it.
+    if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(correlationId)) {
+      throw new HonuaCommandError(
+        "validation",
+        command.id,
+        "Command correlationId must contain 1–64 ASCII letters, digits, hyphens, underscores, dots, or colons.",
+        {
+          ...failureContext,
+          issues: [{ path: "correlationId", message: "must match the server correlation-id format" }],
+        },
+      );
+    }
 
     // Schema first, then the command's own cross-field rules. Both run before
     // `plan`, so the dry-run preview below is reachable only for input the real
@@ -234,13 +247,17 @@ export class HonuaCommandRuntime {
       correlationId,
       dryRun: invocation.dryRun === true,
       ...(invocation.signal ? { signal: invocation.signal } : {}),
-      requestOptions: (overrides: HonuaControlPlaneRequestOptions = {}) => ({
-        ...(invocation.signal ? { signal: invocation.signal } : {}),
-        ...(command.mode === "action" ? { idempotencyKey } : {}),
-        ...(invocation.ifMatch ? { ifMatch: invocation.ifMatch } : {}),
-        ...(invocation.headers ? { headers: invocation.headers } : {}),
-        ...overrides,
-      }),
+      requestOptions: (overrides: HonuaControlPlaneRequestOptions = {}) => {
+        const headers = new Headers(overrides.headers ?? invocation.headers);
+        headers.set("X-Correlation-ID", correlationId);
+        return {
+          ...(invocation.signal ? { signal: invocation.signal } : {}),
+          ...(command.mode === "action" ? { idempotencyKey } : {}),
+          ...(invocation.ifMatch ? { ifMatch: invocation.ifMatch } : {}),
+          ...overrides,
+          headers,
+        };
+      },
     };
 
     let plan: ReturnType<typeof command.plan>;
@@ -326,7 +343,7 @@ export function assertNoCommandKeyOverride(
   throw new HonuaCommandError(
     "validation",
     commandId,
-    `Command ${commandId} refused caller-supplied header(s) it derives itself: ${named}. Set them through the invocation's \`idempotencyKey\` / \`ifMatch\` so the value on the wire is the value the receipt records.`,
+    `Command ${commandId} refused caller-supplied header(s) it derives itself: ${named}. Set them through the invocation's \`idempotencyKey\` / \`ifMatch\` / \`correlationId\` so the value on the wire is the value the receipt records.`,
     {
       ...context,
       issues: offending.sort().map((name) => ({

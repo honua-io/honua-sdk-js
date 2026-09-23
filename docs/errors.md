@@ -19,6 +19,11 @@ synchronization classes, the plugin registry error, and the stable
 The experimental `nl-map-control` error class and other experimental domains
 keep their own domain-specific contracts.
 
+The migration records for [offline errors (#569)](https://github.com/honua-io/honua-sdk-js/issues/569),
+[agent errors (#570)](https://github.com/honua-io/honua-sdk-js/issues/570), and
+[plugin errors (#571)](https://github.com/honua-io/honua-sdk-js/issues/571) describe
+the compatibility and serialization requirements for those envelope families.
+
 ## Envelope contract
 
 Every migrated instance has these common fields:
