@@ -300,9 +300,9 @@ generated from that measurement, tree-shake guards included:
 | --- | ---: |
 | `@honua/sdk-js/expr` | 2.4 KiB |
 | `@honua/sdk-js/geocoding` | 9.2 KiB |
-| `@honua/sdk-js/webmap` | 7.6 KiB |
-| `@honua/sdk-js/style` | 16.3 KiB |
-| `@honua/sdk-js/map` | 51.7 KiB |
+| `@honua/sdk-js/webmap` | 10.7 KiB |
+| `@honua/sdk-js/style` | 16.4 KiB |
+| `@honua/sdk-js/map` | 54.9 KiB |
 | `@honua/sdk-js` (root) | 210.9 KiB |
 | `{ HonuaClient }` from the root (tree-shake guard) | 69.9 KiB |
 | `{ connect }` from the root (tree-shake guard) | 172.0 KiB |
