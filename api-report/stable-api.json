@@ -377,7 +377,7 @@
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
       "exportCount": 1188,
-      "signatureSha256": "757caf72566187985f1b5b45615c07f56d824584b550b037f8596e0196b084eb",
+      "signatureSha256": "953da2fc13d0e91234e7b2b757b14094b182f61eff9d4a5a6d4c9e1ddcc91e78",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -2085,8 +2085,8 @@
     {
       "subpath": "@honua/sdk-js/esri-compat",
       "types": "dist/src/esri-compat-entry.d.ts",
-      "exportCount": 522,
-      "signatureSha256": "2ccbca34b01672f538abd3456cdad13290ac74a4923d805b294e785954949ef4",
+      "exportCount": 523,
+      "signatureSha256": "a230b728c746808422b8d219f261059d8d7e96f8cfa7898a0fa981b6ef6735df",
       "exports": [
         "AddressToLocationsParamsCompat — interface",
         "AddressesToLocationsParamsCompat — interface",
@@ -2574,6 +2574,7 @@
         "WebMapLoadStatusCompat — type",
         "ZoomCompat — class",
         "ZoomCompatOptions — interface",
+        "convertSimpleRendererCompat — function",
         "createArcGisTokenInterceptor — function",
         "createEsriRequestInterceptors — function",
         "esriConfig — const",
@@ -3205,8 +3206,8 @@
     {
       "subpath": "@honua/sdk-js/webmap",
       "types": "dist/src/webmap/index.d.ts",
-      "exportCount": 58,
-      "signatureSha256": "aa0244cfed4a67366573177fa08085a6b7e28a2dc26ba5f7e97b3e4e21068919",
+      "exportCount": 60,
+      "signatureSha256": "38465d8ca043868b7494210ad40304a7cad062879166367ff3fed81feefc5d6c",
       "exports": [
         "BasemapConversionResult — interface",
         "CONTRACT — const",
@@ -3221,8 +3222,10 @@
         "LayerConversionResult — interface",
         "ParseWebMapOptions — interface",
         "ParseWebMapResult — interface",
+        "RendererConversionOptions — interface",
         "RendererConversionResult — interface",
         "SymbolConversionResult — interface",
+        "VisualVariableLegend — interface",
         "WarningCollector — interface",
         "WebMapBaseMap — interface",
         "WebMapBaseMapLayer — interface",
@@ -3501,7 +3504,7 @@
       "subpath": "@honua/sdk-js/style",
       "types": "dist/src/style/index.d.ts",
       "exportCount": 49,
-      "signatureSha256": "3391a5403f36bd14a1dfae07f061e6d215fe4b4b43b394db1ad3ca913962a40e",
+      "signatureSha256": "df79ceeb13d28bfa109983dbfd461d87920212171b8a260d9d8550c2a6ba1d72",
       "exports": [
         "ClassBreakEntry — interface",
         "ClassBreaksRenderer — interface",
@@ -3558,7 +3561,7 @@
       "subpath": "@honua/sdk-js/map",
       "types": "dist/src/map/index.d.ts",
       "exportCount": 123,
-      "signatureSha256": "40831499d5c172a41e56cf57e26d1db6486b7f226e86f7e25d0ff13037e8e1dd",
+      "signatureSha256": "e1a1fa7fc9cd82427eac7a70e22237c386901476677e953ce281a0af9bd5e942",
       "exports": [
         "AUTOMATIC_MAPLIBRE_PLAN_KIND — const",
         "AUTOMATIC_MAPLIBRE_PLAN_VERSION — const",
