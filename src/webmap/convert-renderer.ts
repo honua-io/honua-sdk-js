@@ -15,6 +15,7 @@ import { classBreaksRenderer, uniqueValueRenderer } from "../style/renderers.js"
 import {
   type RendererConversionOptions,
   type VisualVariableLegend,
+  bindRendererField,
   compileVisualVariables,
 } from "../style/visual-variables.js";
 import { convertSymbol, esriLineStyleToDashArray } from "./convert-symbol.js";
@@ -131,9 +132,9 @@ export function uniqueValueRendererFromWebMap(
   }
 
   const base = uniqueValueRenderer({
-    field: options.fieldMap?.[renderer.field1 ?? ""] ?? renderer.field1 ?? "",
-    ...(renderer.field2 !== undefined ? { field2: options.fieldMap?.[renderer.field2] ?? renderer.field2 } : {}),
-    ...(renderer.field3 !== undefined ? { field3: options.fieldMap?.[renderer.field3] ?? renderer.field3 } : {}),
+    field: bindRendererField(renderer.field1 ?? "", options),
+    ...(renderer.field2 !== undefined ? { field2: bindRendererField(renderer.field2, options) } : {}),
+    ...(renderer.field3 !== undefined ? { field3: bindRendererField(renderer.field3, options) } : {}),
     ...(renderer.fieldDelimiter !== undefined ? { fieldDelimiter: renderer.fieldDelimiter } : {}),
     values,
     ...(renderer.defaultLabel !== undefined ? { defaultLabel: renderer.defaultLabel } : {}),
@@ -200,7 +201,7 @@ export function classBreaksRendererFromWebMap(
   }
 
   const base = classBreaksRenderer({
-    field: options.fieldMap?.[field] ?? field,
+    field: bindRendererField(field, options),
     breaks: entries,
     ...(renderer.defaultLabel !== undefined ? { defaultLabel: renderer.defaultLabel } : {}),
     ...defaultStyleFromSymbol(renderer.defaultSymbol, warn, renderer.visualVariables),
@@ -365,7 +366,7 @@ function outlineFromRenderer(
     if (!input.field || !input.classBreakInfos?.length) return [width(input.defaultSymbol), paint];
     return [
       classBreaksRenderer({
-        field: options.fieldMap?.[input.field] ?? input.field,
+        field: bindRendererField(input.field, options),
         breaks: input.classBreakInfos.map((entry) => ({
           min: entry.classMinValue,
           max: entry.classMaxValue,
@@ -380,9 +381,9 @@ function outlineFromRenderer(
   if (!input.uniqueValueInfos?.length) return [width(input.defaultSymbol), paint];
   return [
     uniqueValueRenderer({
-      field: options.fieldMap?.[input.field1 ?? ""] ?? input.field1 ?? "",
-      field2: input.field2 ? (options.fieldMap?.[input.field2] ?? input.field2) : undefined,
-      field3: input.field3 ? (options.fieldMap?.[input.field3] ?? input.field3) : undefined,
+      field: bindRendererField(input.field1 ?? "", options),
+      field2: input.field2 ? bindRendererField(input.field2, options) : undefined,
+      field3: input.field3 ? bindRendererField(input.field3, options) : undefined,
       fieldDelimiter: input.fieldDelimiter,
       values: input.uniqueValueInfos.map((entry) => ({
         value: entry.value,

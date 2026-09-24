@@ -19,6 +19,12 @@ export interface RendererConversionOptions {
   fieldMap?: Readonly<Record<string, string>>;
 }
 
+/** Apply only explicit bindings; prototype names are valid source fields. */
+export function bindRendererField(field: string, options: RendererConversionOptions): string {
+  const bindings = options.fieldMap;
+  return bindings && Object.hasOwn(bindings, field) ? (bindings[field] ?? field) : field;
+}
+
 export interface VisualVariableLegend {
   type: "color" | "size";
   field?: string;
@@ -170,7 +176,7 @@ export function compileVisualVariables(
         stops.push({ value: stop.value, output: size, label, size });
       }
     }
-    const field = typeof input.field === "string" ? (options.fieldMap?.[input.field] ?? input.field) : undefined;
+    const field = typeof input.field === "string" ? bindRendererField(input.field, options) : undefined;
     const sourceFallback = missingSafeStyle(
       outline ? outlineWidth : (basePaint[property] ?? (color ? "transparent" : 0)),
     );

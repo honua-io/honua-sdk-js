@@ -260,6 +260,62 @@ describe("WebMap visual variables", () => {
     expect(evaluate(width, "line-width", { Kind: "b", Value: null })).toBe(8);
   });
 
+  it.each(["constructor", "toString", "valueOf", "__proto__"])(
+    "uses only own field bindings for %s in variables, classifications and outlines",
+    (sourceField) => {
+      for (const type of ["simple", "classBreaks", "uniqueValue"]) {
+        for (const polygon of [false, true]) {
+          const makeInput = (field: string): WebMapRenderer => {
+            const symbol = (width: number) =>
+              polygon ? { type: "esriSFS", color: [70, 80, 90, 255], outline: { ...line, width } } : { ...line, width };
+            const common = {
+              visualVariables: [
+                { ...color, field },
+                { ...size, field, ...(polygon ? { target: "outline" } : {}) },
+              ],
+            };
+            if (type === "simple") return { type, symbol: symbol(3), ...common };
+            if (type === "classBreaks")
+              return {
+                type,
+                field,
+                minValue: 0,
+                classBreakInfos: [
+                  { classMaxValue: 5, symbol: symbol(3) },
+                  { classMaxValue: 10, symbol: symbol(6) },
+                ],
+                ...common,
+              };
+            return {
+              type,
+              field1: field,
+              field2: field,
+              field3: field,
+              uniqueValueInfos: [
+                { value: "1, 1, 1", symbol: symbol(3) },
+                { value: "2, 2, 2", symbol: symbol(6) },
+              ],
+              ...common,
+            };
+          };
+          const input = makeInput(sourceField);
+          const baseline = converted(input);
+          for (const fieldMap of [{}, Object.create({ [sourceField]: "inherited" })]) {
+            const warnings = createWarningCollector();
+            expect(convertRenderer(input, warnings, { fieldMap })).toEqual(baseline);
+            expect(warnings.warnings).toEqual([]);
+          }
+          const warnings = createWarningCollector();
+          expect(convertRenderer(input, warnings, { fieldMap: { [sourceField]: "mapped" } })).toEqual(
+            converted(makeInput("mapped")),
+          );
+          expect(warnings.warnings).toEqual([]);
+          expect(baseline.visualVariableLegends?.every((legend) => legend.field === sourceField)).toBe(true);
+        }
+      }
+    },
+  );
+
   it("shares WebMap and compat compilation, retains clone/update state, and remaps fields", () => {
     const input = fixture.renderer;
     const options = { fieldMap: { Speed: "speed" } };
