@@ -13,8 +13,8 @@ publish. Publishing is the `honua-publish-layers` skill.
 
 ## Create the connection by reference, never by value
 
-`honua_admin_connection_create` takes a body whose credential is a
-**reference**, not a password:
+`honua_admin_connections_create` takes the OpenAPI body properties flat. The
+credential is a **reference**, not a password, and there is no `body` wrapper:
 
 ```json
 {
@@ -54,7 +54,7 @@ The equivalent admin REST operations, if you are driving the CLI instead, are
 ## Test before trusting
 
 ```
-honua_admin_connection_test  { "id": "<connectionId>" }
+honua_admin_connections_test  { "id": "<connectionId>" }
 ```
 
 A saved connection that was never tested is not evidence. Run the test and read
@@ -78,15 +78,13 @@ The journey imports by URL so nothing is uploaded from the agent's machine:
 ```
 honua_admin_import_upload_url
 {
-  "body": {
-    "sourceUrl": "<https url to the file>",
-    "fileName": "parcels.geojson",
-    "tableName": "zero_to_map_parcels",
-    "targetSchema": "public",
-    "sourceSrid": 4326,
-    "targetSrid": 4326,
-    "overwriteExisting": true
-  }
+  "sourceUrl": "<https url to the file>",
+  "fileName": "parcels.geojson",
+  "tableName": "zero_to_map_parcels",
+  "targetSchema": "public",
+  "sourceSrid": 4326,
+  "targetSrid": 4326,
+  "overwriteExisting": true
 }
 ```
 

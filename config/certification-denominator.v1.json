@@ -111,8 +111,8 @@
     },
     {
       "path": "mcp/release/zero-to-map/journey.v1.json",
-      "bytes": 70820,
-      "sha256": "sha256:5c2b267695e9748a24fc6b72c732b7f71b0a764e8239691b216fdedddb4c313b"
+      "bytes": 51349,
+      "sha256": "sha256:6cefd925406953b61aa5809120fdd2a64f1496c9b013f9efa94cb5e54d58c789"
     },
     {
       "path": "schemas/honua-map-package.v1.json",
@@ -526,20 +526,20 @@
     }
   },
   "digests": {
-    "inputs": "sha256:514207cc8e4604db3220c50f362e4f273240c8434faafb8967096007f29f5f17",
+    "inputs": "sha256:074ad1a13822b43bb30e90e3ef29dbf4f4704ea0a5bf699cc60410f0d1b74fd5",
     "capabilityProfile": "sha256:b39f35595f99d6b11e87c0bdf5752a09a34eae8cc01006c0d67d654afdf079f3",
     "supportProfile": "sha256:7aaa73ac15c045a52c790ca0fb6a27f4ec9665fe71b5051389a676da2c85be90",
-    "rows": "sha256:b03cc9f0f64871c7c3fe69f68667595b7365b52d7f8de16f9929aa1525d2eb2d"
+    "rows": "sha256:ae65f8c13a4348c60b4ebee4ff25f14c0cd0ac2f6048afdf144316d2e8071770"
   },
   "summary": {
-    "rows": 300,
-    "counting": 228,
+    "rows": 295,
+    "counting": 223,
     "visibleNonCounting": 72,
     "renderer": 2,
     "portableMapArtifact": 48,
     "rendererFromPortableMapArtifact": 2,
     "byTier": {
-      "supported": 234,
+      "supported": 229,
       "beta": 24,
       "experimental": 28,
       "facade-required": 5,
@@ -550,7 +550,7 @@
       "protocol-certification": 67,
       "protocol-operation": 73,
       "sdk-operation": 89,
-      "terminal-journey": 71
+      "terminal-journey": 66
     }
   },
   "rows": [
@@ -6344,7 +6344,7 @@
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
       "kind": "mcp",
-      "tool": "honua_admin_connection_create",
+      "tool": "honua_admin_connections_create",
       "adminProjection": {
         "operationId": "admin.connection.create",
         "method": "POST",
@@ -6488,7 +6488,7 @@
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
       "kind": "mcp",
-      "tool": "honua_admin_service_set_access_policy",
+      "tool": "honua_admin_services_access_policy_set",
       "adminProjection": {
         "operationId": "admin.service.set-access-policy",
         "method": "PUT",
@@ -6512,7 +6512,7 @@
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
       "kind": "mcp",
-      "tool": "honua_admin_connection_test",
+      "tool": "honua_admin_connections_test",
       "adminProjection": {
         "operationId": "admin.connection.test",
         "method": "POST",
@@ -6555,7 +6555,7 @@
       "id": "terminal-journey:artifact:verify-dashboard-public-url",
       "family": "terminal-journey",
       "subject": "artifact",
-      "label": "Require an identity-bound HTTP 200 from the approved dashboard URL",
+      "label": "Require an identity-bound HTTP 200 from the published dashboard URL",
       "operation": "verify-dashboard-public-url",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
@@ -6575,7 +6575,7 @@
       "id": "terminal-journey:artifact:verify-map-public-url",
       "family": "terminal-journey",
       "subject": "artifact",
-      "label": "Require an identity-bound HTTP 200 from the approved map URL",
+      "label": "Require an identity-bound HTTP 200 from the published map URL",
       "operation": "verify-map-public-url",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
@@ -6595,7 +6595,7 @@
       "id": "terminal-journey:artifact:verify-share-url",
       "family": "terminal-journey",
       "subject": "artifact",
-      "label": "Require an identity-bound HTTP 200 from the approved app share URL",
+      "label": "Require an identity-bound HTTP 200 from the published app share URL",
       "operation": "verify-share-url",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
@@ -6612,14 +6612,54 @@
     },
     {
       "cappedBy": null,
-      "id": "terminal-journey:console:console-approval",
+      "id": "terminal-journey:console:fetch-app-share-url",
       "family": "terminal-journey",
       "subject": "console",
-      "label": "Import the Console health, release, audit, and recovery receipt",
-      "operation": "console-approval",
+      "label": "Require HTTP 200 from the published app share URL",
+      "operation": "fetch-app-share-url",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "receipt",
+      "kind": "http",
+      "tool": null,
+      "adminProjection": null,
+      "source": {
+        "path": "mcp/release/zero-to-map/journey.v1.json",
+        "pointer": "/stages/6/actions/1"
+      },
+      "evidence": [],
+      "counts": true,
+      "environmentSkipAllowed": false
+    },
+    {
+      "cappedBy": null,
+      "id": "terminal-journey:console:fetch-dashboard-share-url",
+      "family": "terminal-journey",
+      "subject": "console",
+      "label": "Require HTTP 200 from the published dashboard share URL",
+      "operation": "fetch-dashboard-share-url",
+      "tier": "supported",
+      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
+      "kind": "http",
+      "tool": null,
+      "adminProjection": null,
+      "source": {
+        "path": "mcp/release/zero-to-map/journey.v1.json",
+        "pointer": "/stages/6/actions/2"
+      },
+      "evidence": [],
+      "counts": true,
+      "environmentSkipAllowed": false
+    },
+    {
+      "cappedBy": null,
+      "id": "terminal-journey:console:fetch-map-share-url",
+      "family": "terminal-journey",
+      "subject": "console",
+      "label": "Require HTTP 200 from the published map share URL",
+      "operation": "fetch-map-share-url",
+      "tier": "supported",
+      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
+      "kind": "http",
       "tool": null,
       "adminProjection": null,
       "source": {
@@ -6635,131 +6675,11 @@
       "id": "terminal-journey:geoprocessing:buffer-esri-gpserver",
       "family": "terminal-journey",
       "subject": "geoprocessing",
-      "label": "Prove the same Buffer task through the SDK GPServer protocol adapter",
+      "label": "Prove geometry.buffer through the SDK GPServer runner",
       "operation": "buffer-esri-gpserver",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
       "kind": "gpserver",
-      "tool": null,
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/3/actions/5"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:buffer-esri-mcp",
-      "family": "terminal-journey",
-      "subject": "geoprocessing",
-      "label": "Execute the AI-selected Esri Buffer task through MCP",
-      "operation": "buffer-esri-mcp",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp",
-      "tool": "honua_esri_gp_execute_task",
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/3/actions/2"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:buffer-parcels",
-      "family": "terminal-journey",
-      "subject": "geoprocessing",
-      "label": "Run the MCP direct verb and retain its artifact for Studio",
-      "operation": "buffer-parcels",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp",
-      "tool": "honua_buffer_features",
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/3/actions/6"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:describe-esri-buffer",
-      "family": "terminal-journey",
-      "subject": "geoprocessing",
-      "label": "Resolve the Esri Buffer alias to the canonical process",
-      "operation": "describe-esri-buffer",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp",
-      "tool": "honua_esri_gp_describe_task",
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/3/actions/1"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:list-esri-gp-tasks",
-      "family": "terminal-journey",
-      "subject": "geoprocessing",
-      "label": "Discover the Esri-compatible GP task catalog through MCP",
-      "operation": "list-esri-gp-tasks",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp",
-      "tool": "honua_esri_gp_list_tasks",
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/3/actions/0"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:read-direct-buffer-results",
-      "family": "terminal-journey",
-      "subject": "geoprocessing",
-      "label": "Retain the direct analysis artifact for Studio",
-      "operation": "read-direct-buffer-results",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp-resource",
-      "tool": null,
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/3/actions/8"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:read-esri-mcp-buffer-results",
-      "family": "terminal-journey",
-      "subject": "geoprocessing",
-      "label": "Join the Esri MCP job to its result package and artifact",
-      "operation": "read-esri-mcp-buffer-results",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp-resource",
       "tool": null,
       "adminProjection": null,
       "source": {
@@ -6772,19 +6692,19 @@
     },
     {
       "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:wait-direct-buffer",
+      "id": "terminal-journey:geoprocessing:execute-buffer-plan",
       "family": "terminal-journey",
       "subject": "geoprocessing",
-      "label": "Poll the direct analysis job to terminal success",
-      "operation": "wait-direct-buffer",
+      "label": "Execute the validated buffer plan",
+      "operation": "execute-buffer-plan",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp-resource",
-      "tool": null,
+      "kind": "mcp",
+      "tool": "honua_execute_plan",
       "adminProjection": null,
       "source": {
         "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/3/actions/7"
+        "pointer": "/stages/3/actions/1"
       },
       "evidence": [],
       "counts": true,
@@ -6792,11 +6712,11 @@
     },
     {
       "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:wait-esri-mcp-buffer",
+      "id": "terminal-journey:geoprocessing:read-buffer-results",
       "family": "terminal-journey",
       "subject": "geoprocessing",
-      "label": "Poll the Esri MCP job to terminal success",
-      "operation": "wait-esri-mcp-buffer",
+      "label": "Read the buffer artifact for Studio",
+      "operation": "read-buffer-results",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
       "kind": "mcp-resource",
@@ -6805,6 +6725,46 @@
       "source": {
         "path": "mcp/release/zero-to-map/journey.v1.json",
         "pointer": "/stages/3/actions/3"
+      },
+      "evidence": [],
+      "counts": true,
+      "environmentSkipAllowed": false
+    },
+    {
+      "cappedBy": null,
+      "id": "terminal-journey:geoprocessing:validate-buffer-plan",
+      "family": "terminal-journey",
+      "subject": "geoprocessing",
+      "label": "Validate analytics.buffer-aggregate against the published parcel layer",
+      "operation": "validate-buffer-plan",
+      "tier": "supported",
+      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
+      "kind": "mcp",
+      "tool": "honua_validate_plan",
+      "adminProjection": null,
+      "source": {
+        "path": "mcp/release/zero-to-map/journey.v1.json",
+        "pointer": "/stages/3/actions/0"
+      },
+      "evidence": [],
+      "counts": true,
+      "environmentSkipAllowed": false
+    },
+    {
+      "cappedBy": null,
+      "id": "terminal-journey:geoprocessing:wait-buffer-job",
+      "family": "terminal-journey",
+      "subject": "geoprocessing",
+      "label": "Poll the buffer job to terminal success",
+      "operation": "wait-buffer-job",
+      "tier": "supported",
+      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
+      "kind": "mcp-resource",
+      "tool": null,
+      "adminProjection": null,
+      "source": {
+        "path": "mcp/release/zero-to-map/journey.v1.json",
+        "pointer": "/stages/3/actions/2"
       },
       "evidence": [],
       "counts": true,
@@ -6855,8 +6815,28 @@
       "id": "terminal-journey:proposal:propose-app-publication",
       "family": "terminal-journey",
       "subject": "proposal",
-      "label": "Record the public app publication intent",
+      "label": "Publish the saved app version",
       "operation": "propose-app-publication",
+      "tier": "supported",
+      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
+      "kind": "mcp",
+      "tool": "honua_studio_propose_publication",
+      "adminProjection": null,
+      "source": {
+        "path": "mcp/release/zero-to-map/journey.v1.json",
+        "pointer": "/stages/5/actions/1"
+      },
+      "evidence": [],
+      "counts": true,
+      "environmentSkipAllowed": false
+    },
+    {
+      "cappedBy": null,
+      "id": "terminal-journey:proposal:propose-dashboard-publication",
+      "family": "terminal-journey",
+      "subject": "proposal",
+      "label": "Publish the saved dashboard version",
+      "operation": "propose-dashboard-publication",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
       "kind": "mcp",
@@ -6872,30 +6852,10 @@
     },
     {
       "cappedBy": null,
-      "id": "terminal-journey:proposal:propose-dashboard-publication",
-      "family": "terminal-journey",
-      "subject": "proposal",
-      "label": "Record the public dashboard publication intent",
-      "operation": "propose-dashboard-publication",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp",
-      "tool": "honua_studio_propose_publication",
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/5/actions/4"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
       "id": "terminal-journey:proposal:propose-map-publication",
       "family": "terminal-journey",
       "subject": "proposal",
-      "label": "Record the public map publication intent",
+      "label": "Publish the saved map version",
       "operation": "propose-map-publication",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
@@ -6905,66 +6865,6 @@
       "source": {
         "path": "mcp/release/zero-to-map/journey.v1.json",
         "pointer": "/stages/5/actions/0"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:proposal:save-app-publication-version",
-      "family": "terminal-journey",
-      "subject": "proposal",
-      "label": "Save the intent-bearing app as the governed publication version",
-      "operation": "save-app-publication-version",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp",
-      "tool": "honua_studio_save_version",
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/5/actions/3"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:proposal:save-dashboard-publication-version",
-      "family": "terminal-journey",
-      "subject": "proposal",
-      "label": "Save the intent-bearing dashboard as the governed publication version",
-      "operation": "save-dashboard-publication-version",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp",
-      "tool": "honua_studio_save_version",
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/5/actions/5"
-      },
-      "evidence": [],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "terminal-journey:proposal:save-map-publication-version",
-      "family": "terminal-journey",
-      "subject": "proposal",
-      "label": "Save the intent-bearing map as the governed publication version",
-      "operation": "save-map-publication-version",
-      "tier": "supported",
-      "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
-      "kind": "mcp",
-      "tool": "honua_studio_save_version",
-      "adminProjection": null,
-      "source": {
-        "path": "mcp/release/zero-to-map/journey.v1.json",
-        "pointer": "/stages/5/actions/1"
       },
       "evidence": [],
       "counts": true,

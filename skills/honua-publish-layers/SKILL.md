@@ -16,18 +16,16 @@ job that reached a terminal success state — see `honua-datasource-connect`.
 ```
 honua_admin_layer_publish
 {
-  "id": "<connectionId>",
-  "body": {
-    "schema": "public",
-    "table": "zero_to_map_parcels",
-    "layerName": "Parcels",
-    "serviceName": "zero-to-map",
-    "geometryColumn": "geometry",
-    "geometryType": "Polygon",
-    "srid": 4326,
-    "primaryKey": "parcel_id",
-    "enabled": true
-  }
+  "connectionId": "<connectionId>",
+  "schema": "public",
+  "table": "zero_to_map_parcels",
+  "layerName": "Parcels",
+  "serviceName": "zero-to-map",
+  "geometryColumn": "geometry",
+  "geometryType": "Polygon",
+  "srid": 4326,
+  "primaryKey": "parcel_id",
+  "enabled": true
 }
 ```
 
@@ -56,10 +54,11 @@ Publication does not decide visibility. The journey sets it as a separate,
 auditable step:
 
 ```
-honua_admin_service_set_access_policy
+honua_admin_services_access_policy_set
 {
   "serviceName": "zero-to-map",
-  "body": { "allowAnonymous": true, "allowAnonymousWrite": false }
+  "allowAnonymous": true,
+  "allowAnonymousWrite": false
 }
 ```
 

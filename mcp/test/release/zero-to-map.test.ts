@@ -2,12 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
-import {
-  ADMIN_MCP_EXCLUDED_OPERATIONS,
-  ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
-  ADMIN_MCP_PUBLISHED_TOOL_NAMES,
-  MCP_DEFAULT_STATIC_TOOL_COUNT,
-} from "@honua/sdk-js/control-plane";
+import { ADMIN_MCP_EXCLUDED_OPERATIONS } from "@honua/sdk-js/control-plane";
 import { describe, expect, it } from "vitest";
 import {
   parseInstallAccessCredential,
@@ -18,19 +13,15 @@ import {
   type JourneyAdapter,
   type JourneyBlockedError,
   type JourneyExecutionResult,
-  type JourneyPauseSnapshot,
-  ZERO_TO_MAP_ADDITIVE_PROFILES,
-  ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT,
-  ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
-  ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT,
+  ZERO_TO_MAP_CLOSED_ROSTER_ID,
   ZERO_TO_MAP_FULL_CATALOG_VIEW,
-  ZERO_TO_MAP_REQUIRED_PROFILES,
   ZERO_TO_MAP_WORKFLOW_VIEW_CONFIG_KEY,
   ZERO_TO_MAP_WORKFLOW_VIEW_ENV_KEY,
   assertRenderedPng,
   parseZeroToMapPlan,
+  resolvePublishedShareUrl,
   runZeroToMapJourney,
-  validateJourneyResume,
+  zeroToMapClosedRoster,
 } from "../../src/release/zero-to-map.js";
 
 const bundleRoot = fileURLToPath(new URL("../../release/zero-to-map/", import.meta.url));
@@ -39,36 +30,12 @@ async function loadPlan() {
   return parseZeroToMapPlan(JSON.parse(await readFile(`${bundleRoot}/journey.v1.json`, "utf8")) as unknown);
 }
 
-/** Members of every additive profile the candidate must advertise (6 analysis + 3 Esri GP). */
-function profileMemberNames(): string[] {
-  return ZERO_TO_MAP_ADDITIVE_PROFILES.flatMap((profile) => [
-    ...profile.confirmedMembers,
-    ...Array.from(
-      { length: profile.memberCount - profile.confirmedMembers.length },
-      (_, index) => `honua_fixture_${profile.id.replace(/-/g, "_")}_${String(index).padStart(2, "0")}`,
-    ),
-  ]);
-}
-
-/**
- * A profile-enabled candidate catalog: the 432-tool base roster (47 static plus
- * 385 published Admin projections) plus the additive analysis and Esri GP
- * profile members. The total is derived from the profile contract, never
- * written down.
- */
+/** The closed roster and nothing else. A larger catalog is a separate case. */
 function completeCatalog(
   requiredTools: readonly string[],
   inputSchema: (name: string) => Readonly<Record<string, unknown>> = () => ({ type: "object" }),
 ) {
-  const profileNames = profileMemberNames();
-  const profileSet = new Set(profileNames);
-  const staticNames = new Set(
-    requiredTools.filter((name) => !name.startsWith("honua_admin_") && !profileSet.has(name)),
-  );
-  for (let index = 0; staticNames.size < MCP_DEFAULT_STATIC_TOOL_COUNT; index += 1) {
-    staticNames.add(`honua_fixture_static_${String(index).padStart(2, "0")}`);
-  }
-  return [...ADMIN_MCP_PUBLISHED_TOOL_NAMES, ...staticNames, ...profileNames].map((name) => ({
+  return [...new Set(requiredTools)].sort().map((name) => ({
     name,
     inputSchema: inputSchema(name),
   }));
@@ -137,79 +104,68 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(zoning).toMatchObject({ type: "FeatureCollection" });
     expect(zoning.features).toHaveLength(2);
 
-    const esriGpContract = JSON.parse(await readFile(`${bundleRoot}/contracts/esri-gp-mcp.v1.json`, "utf8")) as {
-      schemaVersion: string;
-      tools: Array<{ name: string; inputSchema: unknown; output: { required: string[] } }>;
-    };
-    expect(esriGpContract.schemaVersion).toBe("honua.esri-gp-mcp-contract/v1");
-    expect(esriGpContract.tools.map((tool) => tool.name)).toEqual([
-      "honua_esri_gp_list_tasks",
-      "honua_esri_gp_describe_task",
-      "honua_esri_gp_execute_task",
-    ]);
-    expect(esriGpContract.tools[2]).toMatchObject({
-      inputSchema: {
-        required: ["serviceId", "taskName", "parameters"],
-        additionalProperties: false,
-      },
-      output: {
-        required: ["jobId", "status", "resourceUri", "serviceId", "taskName", "processId"],
-      },
-    });
+    const calledTools = plan.stages.flatMap((stage) =>
+      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+    );
+    expect(calledTools).not.toEqual(
+      expect.arrayContaining([
+        "honua_esri_gp_list_tasks",
+        "honua_esri_gp_describe_task",
+        "honua_esri_gp_execute_task",
+        "honua_buffer_features",
+      ]),
+    );
+    expect(plan.stages.flatMap((stage) => stage.actions).some((action) => action.kind === "receipt")).toBe(false);
 
     const geoprocessing = new Map(plan.stages[3]?.actions.map((action) => [action.id, action]));
-    expect(geoprocessing.get("list-esri-gp-tasks")).toMatchObject({
-      kind: "mcp",
-      tool: "honua_esri_gp_list_tasks",
-      arguments: {},
-    });
-    expect(geoprocessing.get("describe-esri-buffer")).toMatchObject({
-      kind: "mcp",
-      tool: "honua_esri_gp_describe_task",
-      arguments: { taskName: "Buffer" },
-      captures: [
-        { variable: "esriGpTaskName", equals: "Buffer" },
-        { variable: "esriGpProcessId", equals: "geometry.buffer" },
-      ],
-    });
-    expect(geoprocessing.get("buffer-esri-mcp")).toMatchObject({
-      kind: "mcp",
-      tool: "honua_esri_gp_execute_task",
-      arguments: {
-        serviceId: "analysis",
-        taskName: "Buffer",
-        parameters: {
-          wkb: {
-            geometryType: "esriGeometryPolygon",
-            spatialReference: { wkid: 4326 },
-            features: [{ attributes: { parcel_id: "P-101" } }],
-          },
-          distance: 0.00025,
+    const bufferPlan = {
+      planId: "2026.1-zero-to-map-buffer",
+      steps: [
+        {
+          stepId: "buffer-parcels",
+          kind: "Geoprocess",
+          processId: "analytics.buffer-aggregate",
+          inputs: { layerId: "${parcelsLayerId}", distance: "25", unit: "meters" },
         },
-      },
+      ],
+      outputs: ["FeatureLayer"],
+    };
+    expect(geoprocessing.get("validate-buffer-plan")).toMatchObject({
+      kind: "mcp",
+      tool: "honua_validate_plan",
+      arguments: { plan: bufferPlan },
     });
-    expect(geoprocessing.get("wait-esri-mcp-buffer")).toMatchObject({
+    expect(geoprocessing.get("execute-buffer-plan")).toMatchObject({
+      kind: "mcp",
+      tool: "honua_execute_plan",
+      arguments: { plan: bufferPlan, idempotencyKey: "2026.1-zero-to-map-buffer" },
+      captures: [{ variable: "bufferJobId", pointers: ["/structuredContent/jobId"] }],
+    });
+    expect(geoprocessing.get("wait-buffer-job")).toMatchObject({
       kind: "mcp-resource",
-      uri: "honua://jobs/${esriMcpJobId}",
+      uri: "honua://jobs/${bufferJobId}",
       waitFor: { equals: "Succeeded", terminal: ["Succeeded", "Failed", "Cancelled"] },
     });
-    expect(geoprocessing.get("read-esri-mcp-buffer-results")).toMatchObject({
+    expect(geoprocessing.get("read-buffer-results")).toMatchObject({
       kind: "mcp-resource",
-      uri: "${esriMcpResultsUri}",
+      uri: "honua://jobs/${bufferJobId}/results",
+      captures: expect.arrayContaining([
+        expect.objectContaining({
+          variable: "bufferArtifactId",
+          parsedPointers: ["/artifacts/0/artifactId"],
+        }),
+      ]),
     });
     expect(geoprocessing.get("buffer-esri-gpserver")).toMatchObject({
       kind: "gpserver",
+      processId: "geometry.buffer",
+      parameters: { wkb: expect.any(String), srid: 4326, distance: 0.00025 },
       captures: [{ variable: "gpServerJobId", pointers: ["/jobId"] }],
     });
-    expect(geoprocessing.get("buffer-parcels")).toMatchObject({
-      kind: "mcp",
-      tool: "honua_buffer_features",
-      captures: [{ variable: "directAnalysisJobId", pointers: ["/structuredContent/jobId"] }],
-    });
-    expect(geoprocessing.get("read-direct-buffer-results")).toMatchObject({
-      kind: "mcp-resource",
-      captures: expect.arrayContaining([expect.objectContaining({ variable: "bufferArtifactId" })]),
-    });
+    expect(geoprocessing.get("buffer-esri-gpserver")).not.toHaveProperty("parameters.layerId");
+    expect(
+      (geoprocessing.get("buffer-esri-gpserver") as { parameters: Record<string, unknown> }).parameters,
+    ).not.toHaveProperty("layerId");
 
     const studio = new Map(plan.stages[4]?.actions.map((action) => [action.id, action]));
     expect([
@@ -231,14 +187,28 @@ describe("zero-to-map D9.3 release journey", () => {
           changeNote: `2026.1 zero-to-map ${family}`,
         },
         captures: expect.arrayContaining([
-          expect.objectContaining({ variable: `${family}VersionId` }),
-          expect.objectContaining({ variable: `${family}ContentHash` }),
+          expect.objectContaining({
+            variable: `${family}VersionId`,
+            pointers: ["/structuredContent/version/versionId"],
+          }),
+          expect.objectContaining({
+            variable: `${family}VersionNumber`,
+            pointers: ["/structuredContent/version/versionNumber"],
+          }),
+          expect.objectContaining({
+            variable: `${family}ContentHash`,
+            pointers: ["/structuredContent/version/contentHash"],
+          }),
         ]),
       });
       expect(studio.get(`get-${family}-version`)).toMatchObject({
         kind: "mcp",
         tool: "honua_studio_get_version",
         arguments: { itemId: `\${${family}ItemId}`, versionId: `\${${family}VersionId}` },
+        captures: expect.arrayContaining([
+          expect.objectContaining({ pointers: ["/structuredContent/versionId"] }),
+          expect.objectContaining({ pointers: ["/structuredContent/contentHash"] }),
+        ]),
       });
       expect(studio.get(`reopen-${family}-version`)).toMatchObject({
         kind: "mcp",
@@ -300,67 +270,50 @@ describe("zero-to-map D9.3 release journey", () => {
       }
     }
 
-    const consoleContract = JSON.parse(
-      await readFile(`${bundleRoot}/contracts/console-receipt.schema.json`, "utf8"),
-    ) as {
-      required: string[];
-      properties: Record<string, { required?: string[]; properties?: Record<string, { required?: string[] }> }>;
-      $defs: Record<string, { required?: string[] }>;
-    };
-    expect(consoleContract.required).toEqual(
-      expect.arrayContaining(["proposals", "publications", "audit", "resources", "candidate", "checks", "shareUrl"]),
+    const shareUrls = ["${mapShareUrl}", "${appShareUrl}", "${dashboardShareUrl}"];
+    expect(plan.stages[6]?.actions.map((action) => [action.kind, action.kind === "http" ? action.url : ""])).toEqual(
+      shareUrls.map((url) => ["http", url]),
     );
-    expect(consoleContract.properties.resources?.required).toContain("studio");
-    expect(consoleContract.$defs.studioFamiliesResource?.required).toEqual(["map", "app", "dashboard"]);
-
-    const proposal = new Map(plan.stages[5]?.actions.map((action) => [action.id, action]));
-    for (const family of ["map", "app", "dashboard"] as const) {
-      expect(proposal.get(`propose-${family}-publication`)).toMatchObject({
-        kind: "mcp",
-        tool: "honua_studio_propose_publication",
-        forbiddenPointers: expect.arrayContaining(["/structuredContent/publicationId", "/structuredContent/publicUrl"]),
-      });
-      expect(proposal.get(`save-${family}-publication-version`)).toMatchObject({
-        kind: "mcp",
-        tool: "honua_studio_save_version",
-        arguments: {
-          draftId: `\${${family}ReopenedDraftId}`,
-          generation: `\${${family}ProposalGeneration}`,
-          changeNote: `2026.1 zero-to-map ${family} publication intent`,
-        },
-        captures: expect.arrayContaining([
-          expect.objectContaining({ variable: `${family}PublicationVersionId` }),
-          expect.objectContaining({ variable: `${family}PublicationContentHash` }),
-        ]),
-      });
-    }
     expect(plan.stages[7]?.actions.map((action) => action.id)).toEqual([
       "verify-map-public-url",
       "verify-share-url",
       "verify-dashboard-public-url",
     ]);
-    const consoleApproval = plan.stages[6]?.actions[0];
-    expect(consoleApproval).toMatchObject({
-      kind: "receipt",
-      matches: {
-        "/resources/studio/map/versionId": "${mapVersionId}",
-        "/resources/studio/app/versionId": "${appVersionId}",
-        "/resources/studio/dashboard/versionId": "${dashboardVersionId}",
-        "/publications/map/versionId": "${mapPublicationVersionId}",
-        "/publications/app/versionId": "${appPublicationVersionId}",
-        "/publications/dashboard/versionId": "${dashboardPublicationVersionId}",
-      },
-    });
+    expect(plan.stages[7]?.actions.map((action) => (action.kind === "http" ? action.url : ""))).toEqual(shareUrls);
+
+    const proposal = new Map(plan.stages[5]?.actions.map((action) => [action.id, action]));
+    const proposalRoutes = { map: "${mapRoute}", app: "${route}", dashboard: "${dashboardRoute}" } as const;
+    for (const family of ["map", "app", "dashboard"] as const) {
+      const action = proposal.get(`propose-${family}-publication`);
+      expect(action).toMatchObject({
+        kind: "mcp",
+        tool: "honua_studio_propose_publication",
+        arguments: {
+          itemId: `\${${family}ItemId}`,
+          versionId: `\${${family}VersionId}`,
+          contentHash: `\${${family}ContentHash}`,
+          route: proposalRoutes[family],
+          visibility: "public",
+        },
+        captures: expect.arrayContaining([
+          expect.objectContaining({ variable: `${family}HumanConfirmationRequired`, equals: false }),
+          expect.objectContaining({ variable: `${family}ShareUrl`, pointers: ["/structuredContent/shareUrl"] }),
+        ]),
+      });
+      expect(action && "forbiddenPointers" in action ? action.forbiddenPointers : undefined).toBeUndefined();
+      expect(action?.kind === "mcp" ? action.arguments : {}).not.toHaveProperty("draftId");
+      expect(action?.kind === "mcp" ? action.arguments : {}).not.toHaveProperty("generation");
+      expect(action?.kind === "mcp" ? action.arguments : {}).not.toHaveProperty("embed");
+      expect(proposal.has(`save-${family}-publication-version`)).toBe(false);
+    }
 
     const admin = new Map(plan.stages[1]?.actions.map((action) => [action.id, action]));
     expect(admin.get("create-connection")).toMatchObject({
       kind: "mcp",
-      tool: "honua_admin_connection_create",
+      tool: "honua_admin_connections_create",
       arguments: {
-        body: expect.objectContaining({
-          secretReference: "${dbSecretReference}",
-          secretType: "${dbSecretType}",
-        }),
+        secretReference: "${dbSecretReference}",
+        secretType: "${dbSecretType}",
       },
       captures: [
         {
@@ -369,18 +322,23 @@ describe("zero-to-map D9.3 release journey", () => {
         },
       ],
     });
-    expect(
-      (admin.get("create-connection") as { arguments: { body: Record<string, unknown> } }).arguments.body,
-    ).not.toHaveProperty("password");
+    expect(admin.get("create-connection")?.kind === "mcp" ? admin.get("create-connection") : undefined).toMatchObject({
+      arguments: expect.not.objectContaining({ body: expect.anything(), password: expect.anything() }),
+    });
     expect(admin.get("test-connection")).toMatchObject({
       kind: "mcp",
-      tool: "honua_admin_connection_test",
+      tool: "honua_admin_connections_test",
       arguments: { id: "${connectionId}" },
     });
     expect(admin.get("publish-parcels")).toMatchObject({
       kind: "mcp",
       tool: "honua_admin_layer_publish",
-      arguments: { id: "${connectionId}" },
+      arguments: {
+        connectionId: "${connectionId}",
+        schema: "public",
+        table: "${parcelsTable}",
+        layerName: "Parcels",
+      },
       captures: [
         {
           pointers: ["/structuredContent/details/response"],
@@ -388,17 +346,22 @@ describe("zero-to-map D9.3 release journey", () => {
         },
       ],
     });
+    expect(admin.get("set-public-access")).toMatchObject({
+      kind: "mcp",
+      tool: "honua_admin_services_access_policy_set",
+      arguments: { serviceName: "${serviceName}", allowAnonymous: true, allowAnonymousWrite: false },
+    });
     expect(plan.stages[1]?.actions.filter((action) => action.kind === "mcp").map((action) => action.tool)).toEqual([
       "honua_admin_server_status",
       "honua_admin_api_key_list",
       "honua_admin_api_key_effective_permissions",
-      "honua_admin_connection_create",
-      "honua_admin_connection_test",
+      "honua_admin_connections_create",
+      "honua_admin_connections_test",
       "honua_admin_import_upload_url",
       "honua_admin_import_upload_url",
       "honua_admin_layer_publish",
       "honua_admin_layer_publish",
-      "honua_admin_service_set_access_policy",
+      "honua_admin_services_access_policy_set",
     ]);
     expect(plan.stages.flatMap((stage) => stage.actions).map((action) => action.id)).not.toContain("create-scoped-key");
     expect(ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.toolName)).toContain(
@@ -408,7 +371,7 @@ describe("zero-to-map D9.3 release journey", () => {
 
   it("honors the server PublishedOperation handle instead of guessing top-level endpoint ids", () => {
     const completed = adminOperation("admin.connection.create", { data: { connectionId: "connection-1" } }).value;
-    expect(requireCompletedPublishedOperation("honua_admin_connection_create", completed)).toMatchObject({
+    expect(requireCompletedPublishedOperation("honua_admin_connections_create", completed)).toMatchObject({
       operationId: "admin.connection.create",
       status: "Completed",
       handleId: "handle-admin.connection.create",
@@ -552,11 +515,9 @@ describe("zero-to-map D9.3 release journey", () => {
     ]);
   });
 
-  it("rejects a live catalog with tools beyond the derived base + profile roster", async () => {
+  it("accepts tools beyond the closed roster instead of requiring a 441-tool catalog", async () => {
     const plan = await loadPlan();
-    const requiredTools = plan.stages.flatMap((stage) =>
-      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
-    );
+    const requiredTools = zeroToMapClosedRoster(plan);
     let mutationCalled = false;
     const adapter: JourneyAdapter = {
       async runCli(args) {
@@ -567,7 +528,7 @@ describe("zero-to-map D9.3 release journey", () => {
       },
       async callTool() {
         mutationCalled = true;
-        return {};
+        throw new Error("closed-roster preflight allowed the first call");
       },
       async readImageResource() {
         throw new Error("this journey must not fetch rendered image artifacts");
@@ -576,7 +537,6 @@ describe("zero-to-map D9.3 release journey", () => {
         return {};
       },
       async runGpServer() {
-        mutationCalled = true;
         return {};
       },
       async readReceipt() {
@@ -588,40 +548,43 @@ describe("zero-to-map D9.3 release journey", () => {
     };
 
     const receipt = await runZeroToMapJourney(plan, adapter, { execute: true, now: deterministicClock() });
-    expect(receipt.status).toBe("blocked");
-    expect(receipt.stages[1]?.actions[0]).toMatchObject({ code: "mcp-catalog-incomplete" });
-    expect(mutationCalled).toBe(false);
+    expect(receipt.status).toBe("failed");
+    expect(receipt.stages[1]?.actions[0]?.code).not.toBe("mcp-catalog-incomplete");
+    expect(mutationCalled).toBe(true);
+    expect(receipt.catalog?.activeProfiles).toEqual([ZERO_TO_MAP_CLOSED_ROSTER_ID]);
+    expect(receipt.catalog?.expectedTotalTools).toBe(requiredTools.length);
+    expect(receipt.catalog?.advertisedTotalTools).toBe(requiredTools.length + 1);
   });
 
-  it("derives the enabled candidate total from the base roster plus the enabled profiles", () => {
-    expect(ZERO_TO_MAP_REQUIRED_PROFILES).toEqual(["base", "analysis", "esri-gp"]);
-    expect(ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT).toBe(
-      MCP_DEFAULT_STATIC_TOOL_COUNT + ADMIN_MCP_PUBLISHED_TOOL_NAMES.length,
-    );
-    expect(ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT).toBe(432);
-    expect(ZERO_TO_MAP_ADDITIVE_PROFILES.map((profile) => [profile.id, profile.memberCount])).toEqual([
-      ["analysis", 6],
-      ["esri-gp", 3],
-    ]);
-    // 441 is derived, never written down: base + analysis + esri-gp.
-    expect(ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT).toBe(
-      ZERO_TO_MAP_BASE_PROFILE_TOOL_COUNT +
-        ZERO_TO_MAP_ADDITIVE_PROFILES.reduce((total, profile) => total + profile.memberCount, 0),
-    );
-    expect(ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT).toBe(441);
-  });
-
-  it("names the disabled profile, its stage and its action when only the base roster is advertised", async () => {
+  it("asserts the closed roster this journey calls, not a profile total", async () => {
     const plan = await loadPlan();
-    const baseOnly = [
-      ...ADMIN_MCP_PUBLISHED_TOOL_NAMES,
-      ...Array.from(
-        { length: MCP_DEFAULT_STATIC_TOOL_COUNT },
-        (_, index) => `honua_fixture_static_${String(index).padStart(2, "0")}`,
-      ),
-    ].map((name) => ({ name, inputSchema: { type: "object" } }));
+    const roster = zeroToMapClosedRoster(plan);
+    expect(roster).toEqual(
+      [
+        ...new Set(
+          plan.stages.flatMap((stage) =>
+            stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+          ),
+        ),
+      ].sort(),
+    );
+    expect(roster).toEqual(
+      expect.arrayContaining([
+        "honua_admin_connections_create",
+        "honua_admin_connections_test",
+        "honua_admin_services_access_policy_set",
+        "honua_validate_plan",
+        "honua_execute_plan",
+        "honua_studio_propose_publication",
+      ]),
+    );
+    expect(roster).not.toEqual(expect.arrayContaining(["honua_esri_gp_list_tasks", "honua_buffer_features"]));
+    expect(roster.length).toBeLessThan(100);
+  });
 
-    const receipt = await runZeroToMapJourney(plan, catalogAdapter(baseOnly), {
+  it("names the missing closed-roster tool, its stage and its action", async () => {
+    const plan = await loadPlan();
+    const receipt = await runZeroToMapJourney(plan, catalogAdapter([]), {
       execute: true,
       now: deterministicClock(),
     });
@@ -629,22 +592,16 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(receipt.status).toBe("blocked");
     const action = receipt.stages[1]?.actions[0];
     expect(action).toMatchObject({ status: "blocked", code: "mcp-catalog-incomplete" });
-    expect(action?.message).toContain("the esri-gp profile is not advertised");
-    expect(action?.message).toContain("honua_esri_gp_list_tasks (stage 4 ");
-    expect(action?.message).toContain("the analysis profile is not advertised");
-    expect(action?.message).toContain("honua_buffer_features (stage 4 ");
-    expect(action?.message).toContain("Enable the esri-gp server profile on the candidate and rerun.");
-    // The base roster itself is intact, so nothing accuses it of being wrong.
-    expect(action?.message).not.toContain("published Admin projections are absent");
+    expect(action?.message).toContain("honua_validate_plan (stage 4 geoprocessing, action validate-buffer-plan)");
+    expect(action?.message).toContain("honua_execute_plan (stage 4 geoprocessing, action execute-buffer-plan)");
+    expect(action?.message).not.toContain("esri-gp");
+    expect(action?.message).not.toContain("441");
     expect(receipt.catalog).toBeUndefined();
   });
 
-  it("reports a short catalog as a pagination truncation rather than a roster decision", async () => {
+  it("names a missing closed-roster member instead of a shortfall from a catalog total", async () => {
     const plan = await loadPlan();
-    const requiredTools = plan.stages.flatMap((stage) =>
-      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
-    );
-    const truncated = completeCatalog(requiredTools).slice(0, -3);
+    const truncated = completeCatalog(zeroToMapClosedRoster(plan)).slice(0, -3);
 
     const receipt = await runZeroToMapJourney(plan, catalogAdapter(truncated), {
       execute: true,
@@ -653,24 +610,15 @@ describe("zero-to-map D9.3 release journey", () => {
 
     const action = receipt.stages[1]?.actions[0];
     expect(action).toMatchObject({ status: "blocked", code: "mcp-catalog-incomplete" });
-    expect(action?.message).toContain(
-      `truncated: the catalog returned ${ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT - 3} of ${ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT} tools (3 short)`,
-    );
-    expect(action?.message).toContain("pagination fault, not a roster decision");
+    expect(action?.message).toContain(`the ${ZERO_TO_MAP_CLOSED_ROSTER_ID} roster is not advertised`);
+    expect(action?.message).not.toContain("truncated:");
+    expect(action?.message).not.toContain("441");
   });
 
-  it("separates duplicate, excluded and unexpected members into distinct findings", async () => {
+  it("reports a duplicate catalog member without treating extra tools as a roster fault", async () => {
     const plan = await loadPlan();
-    const requiredTools = plan.stages.flatMap((stage) =>
-      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
-    );
-    const excluded = ADMIN_MCP_EXCLUDED_OPERATIONS[0]?.toolName as string;
-    const catalog = completeCatalog(requiredTools);
-    const drifted = [
-      ...catalog,
-      { name: excluded, inputSchema: { type: "object" } },
-      { name: catalog[0]?.name as string, inputSchema: { type: "object" } },
-    ];
+    const catalog = completeCatalog(zeroToMapClosedRoster(plan));
+    const drifted = [...catalog, { name: catalog[0]?.name as string, inputSchema: { type: "object" } }];
 
     const receipt = await runZeroToMapJourney(plan, catalogAdapter(drifted), {
       execute: true,
@@ -680,17 +628,14 @@ describe("zero-to-map D9.3 release journey", () => {
     const action = receipt.stages[1]?.actions[0];
     expect(action).toMatchObject({ status: "blocked", code: "mcp-catalog-incomplete" });
     expect(action?.message).toContain(`duplicate: the catalog advertises ${catalog[0]?.name} more than once`);
-    expect(action?.message).toContain(`excluded: the catalog advertises audited secret/session operations ${excluded}`);
-    expect(action?.message).toContain("unexpected: the catalog advertises unpublished Admin tools");
-    expect(action?.message).not.toContain("truncated:");
+    expect(action?.message).not.toContain("unexpected:");
+    expect(action?.message).not.toContain("excluded:");
   });
 
-  it("records the active profiles, roster digests and audited exclusions on the receipt", async () => {
+  it("records the closed roster and its digest on the receipt", async () => {
     const plan = await loadPlan();
-    const requiredTools = plan.stages.flatMap((stage) =>
-      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
-    );
-    const catalog = completeCatalog(requiredTools);
+    const roster = zeroToMapClosedRoster(plan);
+    const catalog = completeCatalog(roster);
     const adapter: JourneyAdapter = {
       ...catalogAdapter(catalog),
       async callTool(tool) {
@@ -701,21 +646,20 @@ describe("zero-to-map D9.3 release journey", () => {
     const receipt = await runZeroToMapJourney(plan, adapter, { execute: true, now: deterministicClock() });
 
     expect(receipt.status).toBe("failed");
+    const adminCount = roster.filter((name) => name.startsWith("honua_admin_")).length;
     expect(receipt.catalog).toMatchObject({
       schemaVersion: "honua.zero-to-map.catalog/v1",
-      activeProfiles: ["base", "analysis", "esri-gp"],
-      expectedTotalTools: ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT,
-      advertisedTotalTools: ZERO_TO_MAP_EXPECTED_TOTAL_TOOL_COUNT,
-      baseStaticTools: MCP_DEFAULT_STATIC_TOOL_COUNT,
-      baseAdminTools: ADMIN_MCP_PUBLISHED_TOOL_NAMES.length,
-      auditedExclusions: ADMIN_MCP_EXCLUDED_OPERATIONS.length,
-      exclusionRosterSha256: ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
+      activeProfiles: [ZERO_TO_MAP_CLOSED_ROSTER_ID],
+      expectedTotalTools: roster.length,
+      advertisedTotalTools: roster.length,
+      baseStaticTools: roster.length - adminCount,
+      baseAdminTools: adminCount,
+      auditedExclusions: 0,
     });
-    expect(receipt.catalog?.auditedExclusions).toBe(11);
     expect(receipt.catalog?.profiles.map((profile) => [profile.id, profile.advertisedMembers])).toEqual([
-      ["esri-gp", 3],
-      ["analysis", 6],
+      [ZERO_TO_MAP_CLOSED_ROSTER_ID, roster.length],
     ]);
+    expect(receipt.catalog?.profiles[0]?.confirmedMembers).toEqual(roster);
     for (const digest of [
       receipt.catalog?.catalogSha256,
       receipt.catalog?.adminRosterSha256,
@@ -780,7 +724,13 @@ describe("zero-to-map D9.3 release journey", () => {
       code: "mcp-catalog-incomplete",
     });
     expect(receipt.stages[1]?.actions[0]?.message).toContain(
-      "honua_studio_save_version, honua_studio_get_version, honua_studio_reopen_version",
+      "honua_studio_save_version (stage 5 studio, action save-map-version)",
+    );
+    expect(receipt.stages[1]?.actions[0]?.message).toContain(
+      "honua_studio_get_version (stage 5 studio, action get-map-version)",
+    );
+    expect(receipt.stages[1]?.actions[0]?.message).toContain(
+      "honua_studio_reopen_version (stage 5 studio, action reopen-map-version)",
     );
     expect(calls.filter((call) => call.startsWith("tools/call"))).toEqual([]);
   });
@@ -801,7 +751,7 @@ describe("zero-to-map D9.3 release journey", () => {
       },
       async listTools() {
         return completeCatalog(requiredTools, (name) =>
-          name === "honua_admin_connection_create"
+          name === "honua_admin_connections_create"
             ? {
                 type: "object",
                 additionalProperties: false,
@@ -841,68 +791,24 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(calls).toEqual([]);
   });
 
-  it("rejects a passed Console receipt that is not bound to this journey", async () => {
-    const source = await loadPlan();
-    const plan = {
-      ...source,
-      stages: source.stages.map((stage) =>
-        stage.number < 7
-          ? {
-              ...stage,
-              actions: [{ id: `fixture-${stage.number}`, title: "fixture", kind: "cli" as const, args: [] }],
-            }
-          : stage,
-      ),
-    };
-    const adapter: JourneyAdapter = {
-      async runCli() {
-        return {};
-      },
-      async listTools() {
-        return [];
-      },
-      async callTool() {
-        return {};
-      },
-      async readImageResource() {
-        throw new Error("this journey must not fetch rendered image artifacts");
-      },
-      async readResource() {
-        return {};
-      },
-      async runGpServer() {
-        return {};
-      },
-      async readReceipt() {
-        return {
-          value: {
-            schemaVersion: ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
-            journeyId: "some-other-journey",
-            releaseContract: source.releaseContract,
-            status: "passed",
-          },
-        };
-      },
-      async checkHttp() {
-        return {};
-      },
-    };
-
-    const receipt = await runZeroToMapJourney(plan, adapter, { execute: true, now: deterministicClock() });
-    expect(receipt.status).toBe("failed");
-    expect(receipt.stages[6]?.actions[0]).toMatchObject({
-      status: "failed",
-      message: "console-approval receipt identity mismatch at /journeyId",
-    });
+  it("resolves a root-relative share URL on the MCP origin and refuses public HTTP", () => {
+    expect(resolvePublishedShareUrl("/api/v1/studio/published/zero-to-map", "http://127.0.0.1:8080/mcp")).toBe(
+      "http://127.0.0.1:8080/api/v1/studio/published/zero-to-map",
+    );
+    expect(resolvePublishedShareUrl("https://candidate.example.test/api/v1/studio/published/zero-to-map")).toBe(
+      "https://candidate.example.test/api/v1/studio/published/zero-to-map",
+    );
+    expect(() => resolvePublishedShareUrl("http://candidate.example.test/map")).toThrow(/HTTPS/);
+    expect(() => resolvePublishedShareUrl("/api/v1/studio/published/zero-to-map")).toThrow(/MCP endpoint/);
   });
 
-  it("pauses and resumes the canonical captured-id and mutable-generation journey without replay", async () => {
+  it("publishes with one admin credential and fetches the share URLs", async () => {
     const plan = await loadPlan();
-    const requiredTools = plan.stages.flatMap((stage) =>
-      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
-    );
+    const requiredTools = zeroToMapClosedRoster(plan);
     const seenArguments = new Map<string, Readonly<Record<string, unknown>>>();
-    const studioLayerArguments: Readonly<Record<string, unknown>>[] = [];
+    const resourceUris: string[] = [];
+    const publicUrls: string[] = [];
+    let receiptReads = 0;
     const studio = {
       map: {
         draftId: "11111111-1111-4111-8111-111111111111",
@@ -910,8 +816,7 @@ describe("zero-to-map D9.3 release journey", () => {
         versionId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         reopenedDraftId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
         contentHash: "sha256:map",
-        publicationVersionId: "abababab-abab-4bab-8bab-abababababab",
-        publicationContentHash: "sha256:map-publication",
+        route: "zero-to-map-map",
       },
       app: {
         draftId: "22222222-2222-4222-8222-222222222222",
@@ -919,8 +824,7 @@ describe("zero-to-map D9.3 release journey", () => {
         versionId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
         reopenedDraftId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
         contentHash: "sha256:app",
-        publicationVersionId: "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd",
-        publicationContentHash: "sha256:app-publication",
+        route: "zero-to-map",
       },
       dashboard: {
         draftId: "33333333-3333-4333-8333-333333333333",
@@ -928,17 +832,11 @@ describe("zero-to-map D9.3 release journey", () => {
         versionId: "55555555-5555-4555-8555-555555555555",
         reopenedDraftId: "66666666-6666-4666-8666-666666666666",
         contentHash: "sha256:dashboard",
-        publicationVersionId: "efefefef-efef-4fef-8fef-efefefefefef",
-        publicationContentHash: "sha256:dashboard-publication",
+        route: "zero-to-map-dashboard",
       },
     } as const;
     const generations = new Map<string, number>();
-    const publicationArguments: Readonly<Record<string, unknown>>[] = [];
-    const publicUrls: string[] = [];
     let layerId = 0;
-    let proposalGeneration = 0;
-    let consoleReceiptAvailable = false;
-    let paused: JourneyPauseSnapshot | undefined;
     const adapter: JourneyAdapter = {
       async runCli(args) {
         return cliResult(args);
@@ -948,15 +846,13 @@ describe("zero-to-map D9.3 release journey", () => {
       },
       async callTool(tool, args) {
         seenArguments.set(tool, args);
-        if (tool === "honua_studio_add_layer") studioLayerArguments.push(args);
         if (tool === "honua_admin_api_key_list") {
           return adminOperation("admin.api-key.list", {
             data: [
               {
                 id: "11111111-1111-4111-8111-111111111111",
-                name: "honua-local-agent",
-                permissions: ["admin:read", "admin:write"],
                 status: "active",
+                permissions: ["admin:read", "admin:write"],
               },
             ],
           });
@@ -965,130 +861,57 @@ describe("zero-to-map D9.3 release journey", () => {
           return adminOperation("admin.api-key.effective-permissions", {
             data: {
               id: "11111111-1111-4111-8111-111111111111",
-              name: "honua-local-agent",
-              permissions: ["admin:read", "admin:write"],
               status: "active",
               canAuthenticate: true,
+              permissions: ["admin:read", "admin:write"],
             },
           });
         }
-        if (tool === "honua_admin_connection_create") {
-          return adminOperation("admin.connection.create", { data: { connectionId: "connection-1" } });
+        if (tool === "honua_admin_connections_create") {
+          return adminOperation("admin.connections.create", { data: { connectionId: "connection-1" } });
         }
         if (tool === "honua_admin_layer_publish") {
           layerId += 1;
           return adminOperation("admin.layer.publish", { data: { layerId } });
         }
         if (tool === "honua_get_style") {
-          // List mode publishes the preset catalog; resolve mode answers the
-          // layer's current primary style, which is the preset after it is
-          // applied.
           return Object.keys(args).length === 0
-            ? value({
-                styles: [{ styleId: "style_canonical", title: "Canonical", uri: "honua://styles/style_canonical" }],
-              })
-            : value({ styleId: "style_canonical", styleVersion: 3, encodings: [] });
+            ? value({ styles: [{ styleId: "style_canonical" }] })
+            : value({ styleId: "style_canonical", styleVersion: args.includeStylesheet === true ? 1 : 3 });
         }
         if (tool === "honua_apply_style_preset") {
-          return value({
-            serviceId: "zero-to-map",
-            layerId: 1,
-            styleId: "style_canonical",
-            styleVersion: 3,
-            applied: true,
-          });
+          return value({ styleId: "style_canonical", styleVersion: 3, applied: true });
         }
         if (tool === "honua_render_map") {
           return value({
-            format: "image/png",
-            width: 512,
-            height: 512,
-            byteLength: 2100,
-            bbox: [-122.68, 45.5, -122.6, 45.56],
-            bboxSrid: 4326,
-            layers: [{ serviceId: "zero-to-map", layerId: 1, styleId: "style_canonical" }],
-            image: {
-              format: "image/png",
-              width: 512,
-              height: 512,
-              byteLength: 2100,
-              uri: "honua://renders/zero-to-map-parcels.png",
-              inlined: false,
-            },
+            layers: [{ styleId: "style_canonical" }],
+            image: { width: 512, height: 512, uri: "honua://renders/zero-to-map-parcels.png" },
           });
         }
-        if (tool === "honua_buffer_features") {
-          return value({
-            jobId: "direct-buffer-1",
-            status: "queued",
-            resourceUri: "honua://jobs/direct-buffer-1",
-            artifacts: [],
-          });
-        }
-        if (tool === "honua_esri_gp_list_tasks") {
-          return value({
-            tasks: [
-              {
-                taskName: "Buffer",
-                processId: "geometry.buffer",
-                displayName: "Buffer",
-                category: "geometry",
-                isAlias: true,
-                supportsSynchronousExecution: false,
-              },
-            ],
-          });
-        }
-        if (tool === "honua_esri_gp_describe_task") {
-          return value({
-            taskName: "Buffer",
-            processId: "geometry.buffer",
-            displayName: "Buffer",
-            description: "Buffer geometry",
-            category: "geometry",
-            executionType: "esriExecutionTypeAsynchronous",
-            supportsSynchronousExecution: false,
-            parameters: [],
-          });
-        }
-        if (tool === "honua_esri_gp_execute_task") {
-          return value({
-            jobId: "esri-mcp-buffer-1",
-            status: "queued",
-            resourceUri: "honua://jobs/esri-mcp-buffer-1",
-            serviceId: "analysis",
-            taskName: "Buffer",
-            processId: "geometry.buffer",
-          });
+        if (tool === "honua_validate_plan" || tool === "honua_execute_plan") {
+          return value(tool === "honua_execute_plan" ? { jobId: "buffer-job-1", status: "queued" } : { valid: true });
         }
         if (tool === "honua_studio_create_draft") {
-          const family = args.family as keyof typeof studio;
-          const identity = studio[family];
+          const identity = studio[args.family as keyof typeof studio];
           generations.set(identity.draftId, 1);
           return value({ draftId: identity.draftId, itemId: identity.itemId, generation: 1 });
         }
         if (tool === "honua_studio_save_version") {
-          const identity = Object.values(studio).find(
-            (candidate) => candidate.draftId === args.draftId || candidate.reopenedDraftId === args.draftId,
-          );
+          const identity = Object.values(studio).find((candidate) => candidate.draftId === args.draftId);
           if (!identity) throw new Error(`unknown Studio draft ${String(args.draftId)}`);
-          const publication = identity.reopenedDraftId === args.draftId;
           return value({
-            itemId: identity.itemId,
-            versionId: publication ? identity.publicationVersionId : identity.versionId,
-            versionNumber: publication ? 2 : 1,
-            contentHash: publication ? identity.publicationContentHash : identity.contentHash,
+            version: {
+              itemId: identity.itemId,
+              versionId: identity.versionId,
+              versionNumber: 1,
+              contentHash: identity.contentHash,
+            },
           });
         }
         if (tool === "honua_studio_get_version") {
           const identity = Object.values(studio).find((candidate) => candidate.itemId === args.itemId);
           if (!identity) throw new Error(`unknown Studio item ${String(args.itemId)}`);
-          return value({
-            itemId: identity.itemId,
-            versionId: identity.versionId,
-            versionNumber: 1,
-            contentHash: identity.contentHash,
-          });
+          return value({ versionId: identity.versionId, contentHash: identity.contentHash });
         }
         if (tool === "honua_studio_reopen_version") {
           const identity = Object.values(studio).find((candidate) => candidate.itemId === args.itemId);
@@ -1102,14 +925,11 @@ describe("zero-to-map D9.3 release journey", () => {
           });
         }
         if (tool === "honua_studio_propose_publication") {
-          publicationArguments.push(args);
-          const draftId = String(args.draftId);
-          proposalGeneration = (generations.get(draftId) ?? 0) + 1;
-          generations.set(draftId, proposalGeneration);
+          const identity = Object.values(studio).find((candidate) => candidate.itemId === args.itemId);
+          if (!identity) throw new Error(`unknown Studio item ${String(args.itemId)}`);
           return value({
-            draft: { draftId, generation: proposalGeneration },
-            recorded: true,
-            humanConfirmationRequired: true,
+            humanConfirmationRequired: false,
+            shareUrl: `https://candidate.example.test/api/v1/studio/published/${identity.route}`,
           });
         }
         if (tool.startsWith("honua_studio_") && tool !== "honua_studio_validate_draft") {
@@ -1120,160 +940,31 @@ describe("zero-to-map D9.3 release journey", () => {
         }
         return tool === "honua_studio_validate_draft" ? value({ status: "valid" }) : value({ ok: true });
       },
-      async readImageResource(action, expected) {
-        // The candidate returns the render by reference; the driver fetches the
-        // bytes and judges them, so the fixture must be a real PNG.
+      async readImageResource(_action, expected) {
         return {
-          value: { contents: [{ uri: action.uri }] },
+          value: { contents: [{ uri: expected.uri }] },
           evidence: assertRenderedPng(pngFixture(512, 512), "image/png", expected),
         };
       },
       async readResource(action) {
-        const jobId = action.uri.includes("esri-mcp-buffer-1") ? "esri-mcp-buffer-1" : "direct-buffer-1";
+        resourceUris.push(action.uri);
         if (action.uri.endsWith("/results")) {
-          const artifactId = jobId === "esri-mcp-buffer-1" ? "artifact-esri-mcp-1" : "artifact-buffer-1";
           return resourceValue(action.uri, {
-            jobId,
-            resultPackageId: `results-${jobId}`,
-            status: "Succeeded",
-            artifacts: [{ artifactId, kind: "FeatureLayer", label: "Buffer output" }],
+            jobId: "buffer-job-1",
+            artifacts: [{ artifactId: "artifact-buffer-1", kind: "FeatureLayer" }],
           });
         }
-        return resourceValue(action.uri, {
-          jobId,
-          status: "Succeeded",
-          resultsUri: `honua://jobs/${jobId}/results`,
-        });
+        return resourceValue(action.uri, { jobId: "buffer-job-1", status: "Succeeded" });
       },
       async runGpServer(action) {
-        expect(action).toMatchObject({
-          serviceId: "geoprocessing",
-          taskName: "Buffer",
-          processId: "geometry.buffer",
-          parameters: { srid: 4326, distance: 0.00025 },
-          resultNames: ["outputFeatureLayer"],
-        });
-        return {
-          value: {
-            jobId: "gp-buffer-1",
-            status: "successful",
-            outputs: { outputFeatureLayer: { value: "data:application/geo+json;base64,e30=" } },
-          },
-          evidence: { protocol: "geoservices-gp" },
-        };
+        expect(action.processId).toBe("geometry.buffer");
+        expect(action.parameters).toMatchObject({ wkb: expect.any(String), srid: 4326 });
+        expect(action.parameters).not.toHaveProperty("layerId");
+        return { value: { jobId: "gp-buffer-1", status: "successful" }, evidence: { protocol: "geoservices-gp" } };
       },
-      async readReceipt(actionId) {
-        expect(actionId).toBe("console-approval");
-        if (!consoleReceiptAvailable) return undefined;
-        return {
-          value: {
-            schemaVersion: ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
-            journeyId: plan.journeyId,
-            releaseContract: plan.releaseContract,
-            status: "passed",
-            proposals: {
-              map: {
-                draftId: studio.map.reopenedDraftId,
-                generation: proposalGeneration,
-                route: "zero-to-map-map",
-                proposalId: "77777777-7777-4777-8777-777777777777",
-                executionOperationId: "operation-map",
-              },
-              app: {
-                draftId: studio.app.reopenedDraftId,
-                generation: proposalGeneration,
-                route: "zero-to-map",
-                proposalId: "88888888-8888-4888-8888-888888888888",
-                executionOperationId: "operation-app",
-              },
-              dashboard: {
-                draftId: studio.dashboard.reopenedDraftId,
-                generation: proposalGeneration,
-                route: "zero-to-map-dashboard",
-                proposalId: "99999999-9999-4999-8999-999999999999",
-                executionOperationId: "operation-dashboard",
-              },
-            },
-            publications: {
-              map: {
-                requestId: "77777777-7777-4777-8777-777777777777",
-                itemId: studio.map.itemId,
-                versionId: studio.map.publicationVersionId,
-                status: "published",
-                publicationId: "publication-map",
-                publicUrl: "https://example.test/maps/zero-to-map-map",
-              },
-              app: {
-                requestId: "88888888-8888-4888-8888-888888888888",
-                itemId: studio.app.itemId,
-                versionId: studio.app.publicationVersionId,
-                status: "published",
-                publicationId: "publication-app",
-                publicUrl: "https://example.test/apps/zero-to-map",
-              },
-              dashboard: {
-                requestId: "99999999-9999-4999-8999-999999999999",
-                itemId: studio.dashboard.itemId,
-                versionId: studio.dashboard.publicationVersionId,
-                status: "published",
-                publicationId: "publication-dashboard",
-                publicUrl: "https://example.test/dashboards/zero-to-map-dashboard",
-              },
-            },
-            audit: {
-              map: { correlationId: "correlation-map", operationId: "operation-map" },
-              app: { correlationId: "correlation-app", operationId: "operation-app" },
-              dashboard: { correlationId: "correlation-dashboard", operationId: "operation-dashboard" },
-            },
-            resources: {
-              connectionId: "connection-1",
-              serviceId: "zero-to-map",
-              layerIds: { parcels: 1, zoning: 2 },
-              jobs: {
-                esriMcp: "esri-mcp-buffer-1",
-                gpServer: "gp-buffer-1",
-                directAnalysis: "direct-buffer-1",
-              },
-              gp: {
-                jobId: "esri-mcp-buffer-1",
-                serviceId: "analysis",
-                taskName: "Buffer",
-                processId: "geometry.buffer",
-                resultPackageId: "results-esri-mcp-buffer-1",
-                artifactId: "artifact-esri-mcp-1",
-              },
-              gpServerResultNames: ["outputFeatureLayer"],
-              artifactId: "artifact-buffer-1",
-              studio: {
-                map: {
-                  draftId: studio.map.draftId,
-                  itemId: studio.map.itemId,
-                  versionId: studio.map.versionId,
-                  contentHash: studio.map.contentHash,
-                  reopenedDraftId: studio.map.reopenedDraftId,
-                },
-                app: {
-                  draftId: studio.app.draftId,
-                  itemId: studio.app.itemId,
-                  versionId: studio.app.versionId,
-                  contentHash: studio.app.contentHash,
-                  reopenedDraftId: studio.app.reopenedDraftId,
-                },
-                dashboard: {
-                  draftId: studio.dashboard.draftId,
-                  itemId: studio.dashboard.itemId,
-                  versionId: studio.dashboard.versionId,
-                  contentHash: studio.dashboard.contentHash,
-                  reopenedDraftId: studio.dashboard.reopenedDraftId,
-                },
-              },
-            },
-            candidate: { candidateId: "candidate-1", releaseId: "release-1" },
-            checks: { health: "passed", audit: "passed", recovery: "passed" },
-            shareUrl: "https://example.test/apps/zero-to-map",
-          },
-          evidence: { sha256: "fixture" },
-        };
+      async readReceipt() {
+        receiptReads += 1;
+        throw new Error("the operator journey must not import a console receipt");
       },
       async checkHttp(url, expectedStatus) {
         expect(expectedStatus).toBe(200);
@@ -1282,161 +973,60 @@ describe("zero-to-map D9.3 release journey", () => {
       },
     };
 
-    const executionVariables = {
-      dbPassword: "not-recorded",
-      fixtureBaseUrl: "https://fixtures.example.test",
-      candidateId: "candidate-1",
-      releaseId: "release-1",
-    };
-    const first = await runZeroToMapJourney(plan, adapter, {
-      execute: true,
-      now: deterministicClock(),
-      variables: executionVariables,
-      onExternalReceiptMissing(snapshot) {
-        paused = snapshot;
-      },
-    });
-
-    expect(first.status).toBe("blocked");
-    expect(paused?.resumeAt).toEqual({ stageId: "console", actionId: "console-approval" });
-    expect(paused?.capturedVariables.fixtureBaseUrl).toBe("https://fixtures.example.test");
-    expect(validateJourneyResume(plan, paused as JourneyPauseSnapshot, executionVariables)).toBe(6);
-    expect(
-      validateJourneyResume(plan, paused as JourneyPauseSnapshot, {
-        dbPassword: executionVariables.dbPassword,
-        candidateId: executionVariables.candidateId,
-        releaseId: executionVariables.releaseId,
-      }),
-    ).toBe(6);
-    expect(() =>
-      validateJourneyResume(plan, paused as JourneyPauseSnapshot, {
-        ...executionVariables,
-        fixtureBaseUrl: "https://lookalike.example.test",
-      }),
-    ).toThrow("checkpoint seed fixtureBaseUrl");
-
-    const generationJump = structuredClone(paused as JourneyPauseSnapshot);
-    const firstMapMutation = generationJump.completedStages[4]?.actions.find(
-      (action) => action.id === "add-map-parcels-layer",
-    );
-    if (!firstMapMutation?.captures) throw new Error("canonical map generation capture is missing");
-    (firstMapMutation.captures as Record<string, unknown>).mapGeneration = 3;
-    expect(() => validateJourneyResume(plan, generationJump, executionVariables)).toThrow(
-      "must advance by exactly one",
-    );
-
-    const requireMapMutation = (candidatePlan: typeof plan) => {
-      const action = candidatePlan.stages[4]?.actions.find((candidate) => candidate.id === "add-map-parcels-layer");
-      if (!action || action.kind !== "mcp") throw new Error("canonical map mutation action is missing");
-      return action;
-    };
-
-    const nonStudioPlan = structuredClone(plan) as typeof plan;
-    (requireMapMutation(nonStudioPlan) as { tool: string }).tool = "honua_admin_generation_advance";
-    expect(() => validateJourneyResume(nonStudioPlan, paused as JourneyPauseSnapshot, executionVariables)).toThrow(
-      "checkpoint capture mapGeneration is duplicated",
-    );
-
-    const crossDraftPlan = structuredClone(plan) as typeof plan;
-    (requireMapMutation(crossDraftPlan).arguments as Record<string, unknown>).draftId = "${appDraftId}";
-    expect(() => validateJourneyResume(crossDraftPlan, paused as JourneyPauseSnapshot, executionVariables)).toThrow(
-      "is not the same Studio draft generation stream",
-    );
-
-    const wrongSourcePlan = structuredClone(plan) as typeof plan;
-    const wrongSourceCapture = requireMapMutation(wrongSourcePlan).captures?.find(
-      (capture) => capture.variable === "mapGeneration",
-    );
-    if (!wrongSourceCapture) throw new Error("canonical map generation capture is missing");
-    (wrongSourceCapture as { pointers: string[] }).pointers = ["/structuredContent/notGeneration"];
-    expect(() => validateJourneyResume(wrongSourcePlan, paused as JourneyPauseSnapshot, executionVariables)).toThrow(
-      "is not the same Studio draft generation stream",
-    );
-
-    const finalGenerationMismatch = structuredClone(paused as JourneyPauseSnapshot);
-    (finalGenerationMismatch.capturedVariables as Record<string, unknown>).mapGeneration = 999;
-    expect(() => validateJourneyResume(plan, finalGenerationMismatch, executionVariables)).toThrow(
-      "captured variables do not match",
-    );
-
-    const duplicateImmutablePlan = structuredClone(plan) as typeof plan;
-    const duplicateImmutableResume = structuredClone(paused as JourneyPauseSnapshot);
-    const testConnection = duplicateImmutablePlan.stages[1]?.actions.find((action) => action.id === "test-connection");
-    const testConnectionReceipt = duplicateImmutableResume.completedStages[1]?.actions.find(
-      (action) => action.id === "test-connection",
-    );
-    if (!testConnection || !testConnectionReceipt) throw new Error("canonical connection test action is missing");
-    (testConnection as { captures?: Array<{ variable: string; pointers: string[] }> }).captures = [
-      { variable: "connectionId", pointers: ["/structuredContent/connectionId"] },
-    ];
-    (testConnectionReceipt as { captures?: Record<string, unknown> }).captures = { connectionId: "connection-1" };
-    expect(() => validateJourneyResume(duplicateImmutablePlan, duplicateImmutableResume, executionVariables)).toThrow(
-      "checkpoint capture connectionId is duplicated",
-    );
-
-    const mutationArgumentsBeforeResume = publicationArguments.length + studioLayerArguments.length;
-    consoleReceiptAvailable = true;
     const receipt = await runZeroToMapJourney(plan, adapter, {
       execute: true,
       now: deterministicClock(),
-      variables: executionVariables,
-      resume: paused as JourneyPauseSnapshot,
-    });
-
-    expect(receipt.status, JSON.stringify(receipt, null, 2)).toBe("passed");
-    expect(receipt.stages.slice(0, 5)).toEqual(first.stages.slice(0, 5));
-    expect(publicationArguments.length + studioLayerArguments.length).toBe(mutationArgumentsBeforeResume);
-    expect(receipt.blockers).toEqual([]);
-
-    for (const fixtureBaseUrl of [
-      "http://fixtures.example.test",
-      "https://user:password@fixtures.example.test",
-      "https://127.0.0.1",
-      "https://fixtures.local",
-      "https://[::1]",
-    ]) {
-      await expect(
-        runZeroToMapJourney(plan, adapter, {
-          execute: true,
-          variables: { ...executionVariables, fixtureBaseUrl },
-        }),
-      ).rejects.toThrow(/public HTTPS|loopback or private/);
-    }
-    expect(receipt.dependencyRefs).toContain("honua-server#3268 synchronous OGC process execution and GeoJSON inputs");
-    expect(receipt.stages.every((stage) => stage.status === "passed")).toBe(true);
-    expect(seenArguments.get("honua_admin_connection_test")).toEqual({ id: "connection-1" });
-    expect(seenArguments.get("honua_buffer_features")).toMatchObject({
-      source: { serviceId: "zero-to-map", layerId: 1 },
-    });
-    expect(seenArguments.get("honua_esri_gp_execute_task")).toMatchObject({
-      serviceId: "analysis",
-      taskName: "Buffer",
-      parameters: {
-        wkb: {
-          geometryType: "esriGeometryPolygon",
-          spatialReference: { wkid: 4326 },
-          features: [{ attributes: { parcel_id: "P-101" } }],
-        },
-        distance: 0.00025,
+      variables: {
+        dbPassword: "not-recorded",
+        fixtureBaseUrl: "https://fixtures.example.test",
+        candidateId: "candidate-1",
+        releaseId: "release-1",
       },
     });
-    expect(studioLayerArguments).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ draftId: studio.map.draftId }),
-        expect.objectContaining({ draftId: studio.app.draftId }),
-        expect.objectContaining({ draftId: studio.dashboard.draftId }),
-      ]),
-    );
-    expect(publicationArguments).toEqual([
-      expect.objectContaining({ draftId: studio.map.reopenedDraftId, route: "zero-to-map-map" }),
-      expect.objectContaining({ draftId: studio.app.reopenedDraftId, route: "zero-to-map" }),
-      expect.objectContaining({ draftId: studio.dashboard.reopenedDraftId, route: "zero-to-map-dashboard" }),
-    ]);
-    expect(publicUrls).toEqual([
-      "https://example.test/maps/zero-to-map-map",
-      "https://example.test/apps/zero-to-map",
-      "https://example.test/dashboards/zero-to-map-dashboard",
-    ]);
+
+    expect(receipt.status, JSON.stringify(receipt.blockers, null, 2)).toBe("passed");
+    expect(receiptReads).toBe(0);
+    expect(JSON.stringify(receipt)).not.toContain("not-recorded");
+    expect(seenArguments.get("honua_admin_connections_create")).toMatchObject({
+      secretReference: "env:HONUA_ZERO_TO_MAP_DB_CONNECTION",
+      secretType: "environment",
+    });
+    expect(seenArguments.get("honua_admin_connections_create")).not.toHaveProperty("body");
+    expect(seenArguments.get("honua_admin_connections_test")).toEqual({ id: "connection-1" });
+    expect(seenArguments.get("honua_admin_layer_publish")).toMatchObject({
+      connectionId: "connection-1",
+      schema: "public",
+      table: "zero_to_map_zoning",
+      layerName: "Zoning",
+    });
+    expect(seenArguments.get("honua_admin_services_access_policy_set")).toEqual({
+      serviceName: "zero-to-map",
+      allowAnonymous: true,
+      allowAnonymousWrite: false,
+    });
+    expect(seenArguments.get("honua_execute_plan")).toMatchObject({
+      plan: {
+        steps: [{ processId: "analytics.buffer-aggregate", inputs: { layerId: 1, distance: "25", unit: "meters" } }],
+      },
+    });
+    expect(resourceUris).toEqual(["honua://jobs/buffer-job-1", "honua://jobs/buffer-job-1/results"]);
+    expect(seenArguments.get("honua_studio_add_layer")).toMatchObject({
+      layer: { sourceId: "honua://artifacts/artifact-buffer-1" },
+    });
+    expect(seenArguments.get("honua_studio_propose_publication")).toEqual({
+      itemId: studio.dashboard.itemId,
+      versionId: studio.dashboard.versionId,
+      contentHash: studio.dashboard.contentHash,
+      route: "zero-to-map-dashboard",
+      visibility: "public",
+      note: "2026.1 D9.3 zero-to-map dashboard candidate",
+    });
+    const shareUrls = [
+      "https://candidate.example.test/api/v1/studio/published/zero-to-map-map",
+      "https://candidate.example.test/api/v1/studio/published/zero-to-map",
+      "https://candidate.example.test/api/v1/studio/published/zero-to-map-dashboard",
+    ];
+    expect(publicUrls).toEqual([...shareUrls, ...shareUrls]);
   });
 
   it("plans the canonical published-layer style and render proof", async () => {
