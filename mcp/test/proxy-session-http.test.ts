@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createServer, type ServerResponse } from "node:http";
+import { type ServerResponse, createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createInterface } from "node:readline";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,15 +14,24 @@ afterEach(async () => {
 
 function initialize(view: unknown = "setup") {
   return {
-    protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "downstream", version: "1" },
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "downstream", version: "1" },
     _meta: { [selector]: view, Authorization: "must-not-forward", "Mcp-Session-Id": "client-forged" },
   };
 }
 
 function catalog(view: string) {
   return {
-    tools: [{ name: `tool_${view}`, description: "Canonical μ schema", inputSchema: { type: "object", properties: {} },
-      outputSchema: { type: "object", properties: { value: { type: "string" } } }, annotations: { readOnlyHint: true } }],
+    tools: [
+      {
+        name: `tool_${view}`,
+        description: "Canonical μ schema",
+        inputSchema: { type: "object", properties: {} },
+        outputSchema: { type: "object", properties: { value: { type: "string" } } },
+        annotations: { readOnlyHint: true },
+      },
+    ],
     _meta: { view, revision: `${view}.v1`, descriptorDigest: `sha256:${"a".repeat(64)}` },
   };
 }
@@ -33,24 +42,39 @@ async function upstreamFixture(holdInitialize = false) {
   const requests: { body: Record<string, any>; session?: string; authorization?: string }[] = [];
   let abandonedInitializations = 0;
   const server = createServer(async (req, res) => {
-    if (req.headers["x-api-key"] !== adminKey) { res.writeHead(401).end(); return; }
+    if (req.headers["x-api-key"] !== adminKey) {
+      res.writeHead(401).end();
+      return;
+    }
     const session = req.headers["mcp-session-id"] as string | undefined;
     if (req.method === "GET") {
-      if (!session || !sessions.has(session)) { res.writeHead(404).end(); return; }
+      if (!session || !sessions.has(session)) {
+        res.writeHead(404).end();
+        return;
+      }
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
       res.write(": connected\n\n");
       streams.set(session, res);
       return;
     }
-    if (req.method === "DELETE") { if (session) sessions.delete(session); res.writeHead(204).end(); return; }
-    if (req.method !== "POST") { res.writeHead(405).end(); return; }
+    if (req.method === "DELETE") {
+      if (session) sessions.delete(session);
+      res.writeHead(204).end();
+      return;
+    }
+    if (req.method !== "POST") {
+      res.writeHead(405).end();
+      return;
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
     requests.push({ body, session, authorization: req.headers.authorization });
     if (body.method === "initialize") {
       if (holdInitialize) {
-        res.on("close", () => { abandonedInitializations++; });
+        res.on("close", () => {
+          abandonedInitializations++;
+        });
         return;
       }
       const view = body.params?._meta?.[selector] ?? "default";
@@ -62,15 +86,31 @@ async function upstreamFixture(holdInitialize = false) {
       const id = randomUUID();
       sessions.set(id, view);
       res.writeHead(200, { "Content-Type": "application/json", "Mcp-Session-Id": id });
-      res.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: {
-        protocolVersion: body.params.protocolVersion, serverInfo: { name: "http-session-fixture", version: "1" },
-        capabilities: { tools: { listChanged: true } },
-      } }));
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: {
+            protocolVersion: body.params.protocolVersion,
+            serverInfo: { name: "http-session-fixture", version: "1" },
+            capabilities: { tools: { listChanged: true } },
+          },
+        }),
+      );
       return;
     }
-    if (!session || !sessions.has(session)) { res.writeHead(404).end(); return; }
-    if (body.id === undefined) { res.writeHead(202).end(); return; }
-    if (body.method !== "tools/list") { res.writeHead(400).end(); return; }
+    if (!session || !sessions.has(session)) {
+      res.writeHead(404).end();
+      return;
+    }
+    if (body.id === undefined) {
+      res.writeHead(202).end();
+      return;
+    }
+    if (body.method !== "tools/list") {
+      res.writeHead(400).end();
+      return;
+    }
     const view = body.params?.view ?? body.params?._meta?.[selector] ?? sessions.get(session);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: catalog(view) }));
@@ -81,8 +121,12 @@ async function upstreamFixture(holdInitialize = false) {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
-  return { requests, streams, abandonedInitializations: () => abandonedInitializations,
-    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp` };
+  return {
+    requests,
+    streams,
+    abandonedInitializations: () => abandonedInitializations,
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/mcp`,
+  };
 }
 
 function childProxy(url: string) {
@@ -90,14 +134,25 @@ function childProxy(url: string) {
   // The ordinary source suite is explicitly source smoke, never registry proof.
   const installed = process.env.HONUA_MCP_INSTALLED_PROXY;
   const child = spawn(installed ?? process.execPath, installed ? [] : ["dist/src/proxy.js"], {
-    env: { ...process.env, HONUA_MCP_REMOTE_URL: url, HONUA_API_KEY: adminKey, HONUA_ADMIN_KEY: "", HONUA_MCP_AUTH_TOKEN: "" },
+    env: {
+      ...process.env,
+      HONUA_MCP_REMOTE_URL: url,
+      HONUA_API_KEY: adminKey,
+      HONUA_ADMIN_KEY: "",
+      HONUA_MCP_AUTH_TOKEN: "",
+    },
     stdio: ["pipe", "pipe", "pipe"],
   });
-  const responses = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  const responses = new Map<
+    number,
+    { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
+  >();
   const notifications: any[] = [];
   let nextId = 0;
   let stderr = "";
-  child.stderr.on("data", (data) => { stderr += data; });
+  child.stderr.on("data", (data) => {
+    stderr += data;
+  });
   const lines = createInterface({ input: child.stdout });
   lines.on("line", (line) => {
     const message = JSON.parse(line);
@@ -108,24 +163,28 @@ function childProxy(url: string) {
         responses.delete(message.id);
         waiting.resolve(message);
       }
-    }
-    else notifications.push(message);
+    } else notifications.push(message);
   });
-  const exited = new Promise<number | null>((resolve) => child.on("close", (code) => {
-    for (const waiting of responses.values()) {
-      clearTimeout(waiting.timer);
-      waiting.reject(new Error("Proxy exited before responding"));
-    }
-    responses.clear();
-    resolve(code);
-  }));
+  const exited = new Promise<number | null>((resolve) =>
+    child.on("close", (code) => {
+      for (const waiting of responses.values()) {
+        clearTimeout(waiting.timer);
+        waiting.reject(new Error("Proxy exited before responding"));
+      }
+      responses.clear();
+      resolve(code);
+    }),
+  );
   cleanup.push(async () => {
     child.kill();
     await exited;
     lines.close();
   });
   return {
-    notifications, exited, stderr: () => stderr, closeInput: () => child.stdin.end(),
+    notifications,
+    exited,
+    stderr: () => stderr,
+    closeInput: () => child.stdin.end(),
     request(method: string, params?: unknown): Promise<any> {
       const id = ++nextId;
       return new Promise((resolve, reject) => {
@@ -134,7 +193,9 @@ function childProxy(url: string) {
         child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
       });
     },
-    notify() { child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`); },
+    notify() {
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
+    },
   };
 }
 
@@ -157,17 +218,28 @@ describe("real HTTP and spawned stdio session negotiation", () => {
     expect(new Set(lists.map((request) => request.session)).size).toBe(1);
     expect(lists[0].session).toMatch(/^[a-f0-9-]{36}$/);
 
-    const direct = await fetch(server.url, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": adminKey },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: initialize() }) });
+    const direct = await fetch(server.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": adminKey },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: initialize() }),
+    });
     const session = direct.headers.get("Mcp-Session-Id");
     expect(session).toBeTruthy();
     await direct.json();
-    const response = await fetch(server.url, { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": adminKey, "Mcp-Session-Id": session! },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }) });
+    const response = await fetch(server.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": adminKey, "Mcp-Session-Id": session! },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+    });
     expect((await response.json()).result).toEqual(selected.result);
     await expect.poll(() => server.streams.size).toBeGreaterThan(0);
-    for (const stream of server.streams.values()) stream.write(`event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" })}\n\n`);
-    await expect.poll(() => proxy.notifications.some((message) => message.method === "notifications/tools/list_changed")).toBe(true);
+    for (const stream of server.streams.values())
+      stream.write(
+        `event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" })}\n\n`,
+      );
+    await expect
+      .poll(() => proxy.notifications.some((message) => message.method === "notifications/tools/list_changed"))
+      .toBe(true);
   });
 
   it.each([42, "x".repeat(65)])("rejects malformed initialize without any upstream request: %j", async (view) => {

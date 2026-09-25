@@ -98,10 +98,14 @@ export class DeferredInitializationTransport implements Transport {
     this.buffered.length = 0;
     this.rejectView?.(error);
     this.onerror?.(error);
-    const reply = message && "id" in message
-      ? this.downstream.send({ jsonrpc: "2.0", id: message.id, error: { code: -32600, message: error.message } })
-      : Promise.resolve();
-    void reply.catch(() => {}).finally(() => this.downstream.close()).catch(() => {});
+    const reply =
+      message && "id" in message
+        ? this.downstream.send({ jsonrpc: "2.0", id: message.id, error: { code: -32600, message: error.message } })
+        : Promise.resolve();
+    void reply
+      .catch(() => {})
+      .finally(() => this.downstream.close())
+      .catch(() => {});
   }
 
   async start(): Promise<void> {

@@ -111,7 +111,11 @@ export function buildUpstreamHeaders(options: ProxyOptions): Record<string, stri
 }
 
 /** Connect an upstream MCP client to the remote honua /mcp over streamable HTTP. */
-export async function connectUpstream(options: ProxyOptions, workflowView?: string, signal?: AbortSignal): Promise<Client> {
+export async function connectUpstream(
+  options: ProxyOptions,
+  workflowView?: string,
+  signal?: AbortSignal,
+): Promise<Client> {
   const headers = buildUpstreamHeaders(options);
   const remoteUrl = validateProxyOptions(options);
   const transport = new StreamableHTTPClientTransport(remoteUrl, {
@@ -124,10 +128,13 @@ export async function connectUpstream(options: ProxyOptions, workflowView?: stri
     const send = transport.send.bind(transport);
     transport.send = async (message, sendOptions) => {
       if ("method" in message && message.method === "initialize") {
-        return send({
-          ...message,
-          params: { ...message.params, _meta: { [WORKFLOW_VIEW_META_KEY]: workflowView } },
-        }, sendOptions);
+        return send(
+          {
+            ...message,
+            params: { ...message.params, _meta: { [WORKFLOW_VIEW_META_KEY]: workflowView } },
+          },
+          sendOptions,
+        );
       }
       return send(message, sendOptions);
     };
@@ -218,7 +225,9 @@ export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<vo
   let server: Server | undefined;
   let closing = false;
   let shutdownPromise: Promise<void> | undefined;
-  const inputEnded = () => { void shutdown(); };
+  const inputEnded = () => {
+    void shutdown();
+  };
 
   // Tear down both ends together so a dropped upstream surfaces to the client.
   const shutdown = (): Promise<void> => {
@@ -235,7 +244,9 @@ export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<vo
   };
   // Until Server.connect installs its lifecycle hook, EOF/timeout must cancel
   // the pending upstream initialize too; no detached HTTP session may survive.
-  transport.onclose = () => { initialization.abort(); };
+  transport.onclose = () => {
+    initialization.abort();
+  };
   // The SDK stdio transport watches data/error, but does not turn stdin EOF
   // into its onclose callback. Own that process lifecycle boundary explicitly.
   process.stdin.once("end", inputEnded);
