@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ADMIN_MCP_PUBLISHED_TOOL_NAMES, MCP_DEFAULT_STATIC_TOOL_COUNT } from "@honua/sdk-js/control-plane";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -19,7 +18,6 @@ import { assertAwsEcsProvisionBindings, parseAwsEcsProvisionBinding } from "../.
 import {
   type JourneyAdapter,
   type JourneyPauseSnapshot,
-  ZERO_TO_MAP_ADDITIVE_PROFILES,
   ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
   parseZeroToMapPlan,
   runZeroToMapJourney,
@@ -37,21 +35,7 @@ const bindings: ZeroToMapCheckpointBindings = {
 };
 
 function completeCatalog(requiredTool: string) {
-  const profileNames = ZERO_TO_MAP_ADDITIVE_PROFILES.flatMap((profile) => [
-    ...profile.confirmedMembers,
-    ...Array.from(
-      { length: profile.memberCount - profile.confirmedMembers.length },
-      (_, index) => `honua_fixture_${profile.id.replace(/-/g, "_")}_${String(index).padStart(2, "0")}`,
-    ),
-  ]);
-  const staticNames = new Set(profileNames.includes(requiredTool) ? [] : [requiredTool]);
-  for (let index = 0; staticNames.size < MCP_DEFAULT_STATIC_TOOL_COUNT; index += 1) {
-    staticNames.add(`honua_fixture_static_${String(index).padStart(2, "0")}`);
-  }
-  return [...ADMIN_MCP_PUBLISHED_TOOL_NAMES, ...staticNames, ...profileNames].map((name) => ({
-    name,
-    inputSchema: { type: "object" },
-  }));
+  return [{ name: requiredTool, inputSchema: { type: "object" } }];
 }
 
 function fixturePlan() {
@@ -430,8 +414,8 @@ describe("zero-to-map pause/resume checkpoint", () => {
         schemaVersion: "honua.zero-to-map.catalog/v1",
         activeProfiles: ["base"],
         requestedView: "full" as const,
-        expectedTotalTools: 441,
-        advertisedTotalTools: 441,
+        expectedTotalTools: 4,
+        advertisedTotalTools: 4,
         baseStaticTools: 47,
         baseAdminTools: 385,
         auditedExclusions: 11,

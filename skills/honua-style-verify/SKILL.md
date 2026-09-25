@@ -108,14 +108,13 @@ refuses any other value.
 
 ## Verify the rendered artifact (stage `artifact`)
 
-The journey's final gate is deliberately dumb and therefore honest: an
-identity-bound HTTP 200 from the approved URL
-(`mcp/release/zero-to-map/journey.v1.json`, stage `artifact` — the map public
-URL, the app share URL, and the dashboard public URL).
+The journey's final gate is deliberately dumb and therefore honest: HTTP 200
+from each share URL captured on `honua_studio_propose_publication`
+(`mcp/release/zero-to-map/journey.v1.json`, stages `console` and `artifact`).
 
-- The URL only exists after a human approved the candidate in Console. An agent
-  cannot mint it by proposing (stage `proposal` explicitly forbids
-  `publicUrl` / `shareUrl` / `publicationId` in the propose response).
+- An admin publish returns `shareUrl` in the same session. Do not wait for a
+  second principal, and do not treat a missing `shareUrl` on an admin result as
+  success.
 - A 200 proves reachability. It does not prove the map looks right. For visual
   confirmation, load the returned map package in a MapLibre runtime and
   inspect it, or hand the URL to the human.

@@ -13,70 +13,47 @@ Admin MCP, additional analysis families or dashboards for that cut. Use the
 for current HTTP/stdio discovery evidence, alongside separate immutable
 install, task execution and style/render receipts.
 
-The 2026.1 release journey answers one end-to-end question: can an operator use
-AI-facing Honua surfaces to install the platform, configure services and
-geoprocessing, then create and save a map app without pretending that an agent
-performed the human publication gate?
+The 2026.1 release journey answers one end-to-end question: can one admin, in
+one session, install the platform, configure services, buffer a published
+layer, and publish a map, app, and dashboard whose share URLs return HTTP 200?
 
 The executable bundle lives at
 [`mcp/release/zero-to-map`](../mcp/release/zero-to-map/README.md). It implements
-the seven stages from `honua-release#123` D9.3:
+the stages from `honua-release#123` D9.3:
 
 1. Run the control-plane Docker installer and verify API, MCP, and Console.
-2. Use the generated admin MCP surface to test a connection, import fixtures,
-   publish layers, set access, and create a scoped key.
-3. Discover and execute the Esri-compatible Buffer task through MCP, poll its
-   job/result resources to a retained artifact, prove the same task through the
-   SDK's GPServer adapter, then run and poll the dataset-oriented MCP Buffer
-   verb separately.
-4. Use Studio MCP tools to create a draft, add layers and the retained GP
+2. Use the closed admin roster to create a connection, import fixtures, publish
+   layers, and set access. Arguments are the flat published fields.
+3. Buffer the published parcel layer with `honua_validate_plan` then
+   `honua_execute_plan` for `analytics.buffer-aggregate`. Poll
+   `honua://jobs/{jobId}` to terminal success and read `artifacts[].artifactId`
+   from `honua://jobs/{jobId}/results`. Separately, prove `geometry.buffer`
+   through `HonuaClient.geoprocessingRunner()` with WKB. That process has no
+   `layerId`. The journey does not call `honua_esri_gp_*` or
+   `honua_buffer_features`.
+4. Use Studio MCP tools to create a draft, add layers and the retained buffer
    artifact, style and show it, set the view, add a chart/control/interaction,
-   validate, and reopen the saved draft.
-5. Record publication intent while structurally requiring human confirmation.
-6. Import a Console receipt bound to the exact connection/service/layers, all
-   three GP jobs and result identities, draft, real admin proposal, execution
-   operation, audit correlation, and approved release candidate, including
-   health and recovery checks.
-7. Require HTTP 200 from the stable approved share URL.
+   validate, save, read the version, and reopen it.
+5. Call `honua_studio_propose_publication` after save, with `itemId`,
+   `versionId`, `contentHash`, `route`, `visibility`, and `note`. An admin
+   result has `humanConfirmationRequired: false` and a `shareUrl`.
+6. Fetch those share URLs and require HTTP 200. One admin credential. No second
+   principal and no Console receipt.
 
-The GP story is deliberately dual-surface. `honua_esri_gp_list_tasks`,
-`honua_esri_gp_describe_task`, and `honua_esri_gp_execute_task` are the
-AI-facing Esri compatibility roster; the third tool is executed, then its
-`honua://jobs/{id}` and `/results` resources are joined before the gate passes.
-`HonuaClient.geoprocessingRunner()` separately drives the GPServer task with the
-same `IJobRun` lifecycle used elsewhere in the SDK.
-`honua_buffer_features` is the native MCP dataset-reference verb. Honua's server
-owns the process catalog and translation; the journey does not invent external
-ArcGIS Server federation.
-
-All four are members of opt-in conformance profiles - `esri-gp` and `analysis`
-respectively - that this journey *requires of a candidate server* and preflights
-before the first mutation. They are not tools you can call on a stock
-deployment: neither honua-server's `/mcp` nor
-[`@honua/mcp-server`](mcp-server.md) advertises them today. If you are not
-running this release journey, geoprocessing goes through `honua_plan_analysis` →
-`honua_validate_plan` → `honua_execute_plan`, or through
-[`HonuaClient.geoprocessingRunner()`](geoprocessing.md).
+Save captures read `/structuredContent/version/versionId`,
+`/structuredContent/version/contentHash`, and `versionNumber` under `version`.
+`honua_studio_get_version` still returns top-level `versionId` and `contentHash`.
+`details.response` on admin calls stays a string; the journey `JSON.parse`s it
+and reads `/data/connectionId` and `/data/layerId`.
 
 Contract mode is the default and is safe to run in CI. It validates the plan,
-records live execution as blocked, and skips dependent stages. Live mode is
-explicit (`--execute --yes`), preflights the complete MCP catalog before the
-first MCP mutation, blocks on missing deployment capabilities, and accepts a
-Console receipt only when its journey, resource, job, result, proposal,
-execution-operation, audit-correlation, candidate, and release identities
-match.
-
-The catalog preflight verifies the `base`, `analysis`, and `esri-gp` server
-profiles independently and derives the expected total (432 + 6 + 3 = 441)
-instead of asserting one hardcoded number; it records the active profiles and
-the roster digests on the journey receipt. Enabling those profiles on a local
-candidate still depends on honua-server#3363/#3430/#3431: the server
-configuration key that turns them on is not yet published, so
-`honua admin install local --profile gp-dev --yes` grants the Pro edition but cannot
-yet request the profiles. (`--yes` is required: the command creates files and starts
-Docker containers, so without it, or without `--dry-run`, it refuses to run.) The Studio `PublicationIntent` is not mislabeled as the separate admin
-approval proposal.
+records live execution as blocked, and never starts Docker. Live mode is
+explicit (`--execute --yes`). The preflight asserts the closed roster this
+journey calls. It does not require 432 or 441 tools and it does not require the
+`analysis` or `esri-gp` profiles. (`--yes` is required: the install command
+creates files and starts Docker containers, so without it, or without
+`--dry-run`, it refuses to run.)
 
 The checked-in fixtures and simulated tests are contract evidence, not a live
-candidate recording. A release owner must retain the driver receipt, Console
-receipt hash, and the final URL response as the release evidence bundle.
+candidate recording. A release owner retains the driver receipt and the three
+HTTP 200 responses.

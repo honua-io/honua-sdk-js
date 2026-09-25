@@ -1,58 +1,52 @@
 ---
 name: honua-geoprocessing
-description: Use when an agent must discover, execute, poll, cancel, and consume a Honua geoprocessing task — the Esri-compatible MCP GP roster, the native dataset-reference MCP verb, and the SDK's OGC API Processes / GPServer runners, including job polling to a terminal state and turning a result artifact into something a map can bind. Covers 2026.1 zero-to-map stage 3 (geoprocessing).
+description: Use when an agent must validate, execute, poll, and consume a Honua geoprocessing plan — analytics.buffer-aggregate through honua_validate_plan and honua_execute_plan, plus the SDK GPServer runner for geometry.buffer — including job polling to a terminal state and turning a result artifact into something a map can bind. Covers 2026.1 zero-to-map stage 4 (geoprocessing).
 release: "2026.1"
 stages: [geoprocessing]
 ---
 
-# GP discovery, execution, wait/cancel, and result use (stage 3: `geoprocessing`)
+# Buffer a published layer, then prove geometry.buffer (stage 4: `geoprocessing`)
 
 Honua's server owns one process catalog and execution engine. Everything below
 is an adapter over it — the SDK does **not** federate to an external ArcGIS
 Server (`docs/geoprocessing.md`).
 
-There are three surfaces. Pick one deliberately.
+There are two surfaces. Pick one deliberately. The unshipped Esri GP roster and
+the dataset-reference buffer verb are not on this journey.
 
-## A. Esri-compatible MCP roster (the AI-facing path)
+## A. Published-layer buffer (the journey path)
 
-Three tools, used in order:
+`analytics.buffer-aggregate` reads a published `layerId`. `geometry.buffer`
+accepts one WKB and has no `layerId`, so it cannot read the published parcels.
 
-1. `honua_esri_gp_list_tasks` — the GP task catalog. Discover; never hardcode.
-2. `honua_esri_gp_describe_task` with `{ "taskName": "Buffer" }` — resolves the
-   Esri alias to the canonical process. For `Buffer` that is
-   `processId: "geometry.buffer"`. Read the advertised parameters here rather
-   than assuming Esri parameter names.
-3. `honua_esri_gp_execute_task`:
-
-```json
-{
-  "serviceId": "analysis",
-  "taskName": "Buffer",
-  "parameters": { "wkb": { "...esri feature set..." }, "distance": 0.00025 },
-  "idempotencyKey": "<stable key for this logical run>"
-}
-```
-
-Always pass an `idempotencyKey`. Retrying without one submits a second job.
-
-The alias is *name* compatibility, not a second parameter translator. Send the
-task's advertised inputs.
-
-## B. Native MCP dataset verb
-
-`honua_buffer_features` is the dataset-reference verb — it takes a published
-source, not inline geometry:
+1. `honua_validate_plan` with a plan whose step `processId` is
+   `analytics.buffer-aggregate` and whose inputs include the published parcel
+   `layerId`.
+2. `honua_execute_plan` with that same plan. Capture `jobId`.
 
 ```json
 {
-  "source": { "serviceId": "zero-to-map", "layerId": "<parcelsLayerId>" },
-  "distance": 25, "unit": "meters", "dissolve": false, "outSrid": 4326
+  "plan": {
+    "planId": "2026.1-zero-to-map-buffer",
+    "steps": [
+      {
+        "stepId": "buffer-parcels",
+        "kind": "Geoprocess",
+        "processId": "analytics.buffer-aggregate",
+        "inputs": { "layerId": "<parcelsLayerId>", "distance": "25", "unit": "meters" }
+      }
+    ],
+    "outputs": ["FeatureLayer"]
+  }
 }
 ```
 
-Note the unit difference from `geometry.buffer`, which is **planar**: an
-EPSG:4326 distance there is in *degrees*, not metres. Mixing these up is the
-usual cause of a buffer that is either invisible or the size of a county.
+Pass an `idempotencyKey` on execute. Retrying without one submits a second job.
+
+## B. SDK GPServer runner (the separate proof)
+
+`geometry.buffer` is planar: an EPSG:4326 distance is in *degrees*, not metres.
+Send WKB. Do not send `layerId`.
 
 ## C. SDK runners (in your own code)
 
@@ -78,10 +72,10 @@ state:
 - Resource `honua://jobs/<jobId>`; wait for `/status` to reach `Succeeded`.
   Terminal states are `Succeeded`, `Failed`, `Cancelled`. The journey polls at
   500 ms with a 120 s deadline — bound your own polling the same way.
-- The job carries a `resultsUri`. Read it to get `resultPackageId` and
-  `artifacts[].artifactId`. **Join the artifact to the job**: do not treat a
-  `Succeeded` status as the result.
-- Retain `artifactId`. Stage 4 binds it as `honua://artifacts/<artifactId>`
+- Read `honua://jobs/<jobId>/results` and take `artifacts[].artifactId`.
+  **Join the artifact to the job**: do not treat a `Succeeded` status as the
+  result.
+- Retain `artifactId`. The studio stage binds it as `honua://artifacts/<artifactId>`
   when adding the analysis layer to a Studio draft.
 
 In SDK code the equivalent is `await run.results({ pollIntervalMs, deadlineMs })`
@@ -111,6 +105,6 @@ Geoprocessing is compute the user pays for. Before executing:
 
 - `docs/geoprocessing.md` — OGC Processes and GPServer, with compiled examples.
 - `mcp/release/zero-to-map/journey.v1.json` — stage `geoprocessing`.
-- `docs/zero-to-map-release-journey.md` — why the GP story is dual-surface.
+- `docs/zero-to-map-release-journey.md` — the buffer stage and the GPServer proof.
 - `examples/geoprocessing-job-runner/` — a runnable job-runner demo
   (`npm run demo:gp-runner:typecheck`).

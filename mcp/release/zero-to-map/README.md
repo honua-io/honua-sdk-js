@@ -9,15 +9,17 @@ execution receipts. Full Admin MCP and broader analysis qualification remain
 outside the bounded first-cut dependency chain.
 
 This bundle is the executable contract for `honua-release#123` D9.3: install
-Honua, configure and publish deterministic data with AI-accessible admin tools,
-run Buffer through the AI-facing Esri MCP tool, the SDK's Esri GPServer
-compatibility path, and the MCP-native analysis verb, compose distinct map,
-app, and dashboard packages in Studio, save each as an immutable version, read
-that exact version, reopen it as a new draft, record three publication intents,
-and save three new intent-bearing versions. It then stops at the human Console
-gate before verifying the three approved public URLs. Both MCP
-jobs are polled through `honua://jobs/{id}` and joined to their
-`honua://jobs/{id}/results` packages; a queued submission alone cannot pass.
+Honua, configure and publish deterministic data with the closed admin roster,
+buffer the published parcels with `honua_validate_plan` then
+`honua_execute_plan` (`analytics.buffer-aggregate`), prove `geometry.buffer`
+through the SDK GPServer runner, compose distinct map, app, and dashboard
+packages in Studio, save each as an immutable version, and publish that saved
+version. An admin `honua_studio_propose_publication` returns `shareUrl` with
+`humanConfirmationRequired: false`. The same session fetches each share URL and
+requires HTTP 200. It does not import a Console receipt and it does not require
+a second principal. The buffer job is polled through `honua://jobs/{jobId}` to
+terminal success, and `artifacts[].artifactId` is read from
+`honua://jobs/{jobId}/results`; a queued submission alone cannot pass.
 
 The driver reuses `honua admin install` and `honua-mcp-proxy`. It does not ship
 a second installer, admin client, or MCP transport. The installer is the
@@ -57,17 +59,21 @@ Prerequisites:
 
 - Node.js 20.19 or newer and Docker with Compose
 - the 2026.1 `honua` CLI work from `honua-sdk-js#1370-#1373`
-- a server build exposing the complete default 432-tool roster (47 static plus
-  385 `honua_admin_*` tools), with all eleven secret/session Admin operations
-  absent, **and** the `analysis` and `esri-gp` server profiles enabled so the
-  three `honua_esri_gp_*` tools and `honua_buffer_features` are advertised
-  (441 tools in total), plus the Studio lifecycle tools including
-  `honua_studio_save_version`, `honua_studio_get_version`, and
-  `honua_studio_reopen_version`
-- the `geoprocessing/Buffer` GPServer task seeded by the deployment
+- one admin credential. The journey does not require a second principal
+- a server build that advertises the closed operator roster this journey calls:
+  `honua_admin_connections_create`, `honua_admin_connections_test`,
+  `honua_admin_import_upload_url`, `honua_admin_layer_publish`,
+  `honua_admin_services_access_policy_set`, `honua_admin_server_status`,
+  `honua_admin_api_key_list`, `honua_admin_api_key_effective_permissions`,
+  `honua_validate_plan`, `honua_execute_plan`, and the Studio lifecycle tools
+  including `honua_studio_save_version`, `honua_studio_get_version`,
+  `honua_studio_reopen_version`, and `honua_studio_propose_publication`.
+  It does not require a 432- or 441-tool catalog, and it does not require the
+  `analysis` or `esri-gp` profiles. `honua_esri_gp_*` and `honua_buffer_features`
+  are not called
+- the `geoprocessing/Buffer` GPServer task seeded for the separate
+  `geometry.buffer` proof. That task takes WKB and has no `layerId`
 - these fixtures available to the server at an HTTP(S) base URL
-- a writable checkpoint path; the first pass emits the exact resolved Console
-  receipt request after all pre-approval work completes
 
 Serve the checked-in fixtures from a URL reachable by the Honua container, for
 example with an existing static-file server. Then run:
@@ -105,26 +111,13 @@ compose file it generates, so add both to the `honua` service's environment (or
 start an equivalent server yourself) before running with `--execute`. If you
 pass a different `--var dbSecretReference=env:<NAME>`, permit `<NAME>` instead.
 
-The first pass exits `2` with `external-receipt-missing`. It has already run
-stages 1-5 exactly once. Give the checkpoint's resolved
-`consoleReceiptRequest` to the Console producer, carry
-`checkpoint.integrity.digest` outside that file, and resume with the same
-command plus:
-
-```sh
-  --checkpoint-digest <checkpoint.integrity.digest> \
-  --console-receipt ./console-approval.json
-```
-
-The resume atomically claims the checkpoint before any adapter work. A second
-or concurrent claimant fails closed. The checkpoint is bound to the exact plan
-bytes, SDK source SHA (`HONUA_SOURCE_REVISION`), target, MCP endpoint,
-candidate/release, and (for AWS) provisioning receipt; it contains only
-allowlisted captures/evidence, including the non-secret deterministic
-`serviceName` identity and access-credential ID/grants/reference digest required
-by external producers, and never the database password, admin key, token, or
-authorization material. A successful resume
-marks it consumed and binds the final receipt hash.
+The live run does not pause for a Console receipt. An admin publish returns
+`shareUrl` (`/api/v1/studio/published` plus the route) with
+`humanConfirmationRequired: false`, and the journey fetches that URL. A
+root-relative share path is resolved against the MCP endpoint origin. HTTP is
+accepted only for a loopback origin; any other share URL must be HTTPS and must
+not embed credentials. One admin credential performs configuration, publication,
+and the fetch.
 
 For a deployment already provisioned by the DevOps ECS producer, use
 `--target aws-ecs --provision-receipt <pre-teardown-binding.json>`. The binding
@@ -134,27 +127,14 @@ the real image/digest, Terraform, readiness, and a secret-free access receipt
 whose reference digest is verified against the producer's Secrets Manager ARN;
 it does not invoke or pretend to invoke the Docker installer.
 
-The catalog is checked in full before the first MCP call. Missing tools or
-input-schema drift block the run without sending that call.
-
-The preflight verifies each enabled server profile independently and *derives*
-the expected total from them; it never compares the catalog against a single
-hardcoded number:
-
-| Profile | Members | Verified by |
-| --- | --- | --- |
-| `base` | 47 static + 385 `honua_admin_*` = 432 | the generated Admin contract, plus the 11 audited secret/session exclusions proven absent |
-| `analysis` | 6 | `honua_buffer_features` by name; the rest by declared size (the server has not published an `analysis` roster - honua-server#3363) |
-| `esri-gp` | 3 | exactly `honua_esri_gp_list_tasks`, `honua_esri_gp_describe_task`, `honua_esri_gp_execute_task` from `contracts/esri-gp-mcp.v1.json` |
-
-The enabled candidate therefore advertises 432 + 6 + 3 = 441 tools. A missing,
-unexpected, duplicate, excluded, truncated, or schema-drifted member fails with
-its own labelled finding naming the journey stage and action that needs the
-tool; a short catalog is reported as a pagination fault rather than a roster
-decision. The pagination safety ceiling in `listAllTools` is deliberately
-separate from every roster number, so reading a larger profile-enabled catalog
-is never mistaken for a hostile server. Default-profile certification
-(`certifyAdminCatalogParity`) continues to require exactly 432.
+The catalog is checked before the first MCP call. The preflight selects
+`tools/list` view `full` and asserts the closed roster: every tool this journey
+calls, by name, with the stage and action that needs it. It does not require
+432 or 441 tools and it does not require the `analysis` or `esri-gp` profiles.
+Extra advertised tools are not a failure. A duplicate name or an input schema
+that rejects a planned argument blocks the run without sending that call.
+Default-profile certification (`certifyAdminCatalogParity`) is a separate gate
+and is not this journey's roster.
 
 The connection is
 created with `secretReference` + `secretType`; raw database credentials never
@@ -172,30 +152,20 @@ The Studio version tools are also preflighted before the first server mutation.
 Map, app, and dashboard each exercise layer, style, view, widget, and control
 mutations before validation; family-specific shortcuts or embedded lookalikes
 cannot satisfy the release roster.
-The journey does not treat `honua_studio_get_draft` as reopen evidence: every
-family must capture its `itemId`, immutable `versionId`, `contentHash`, and the
-new draft whose `baseVersionId` points back to that exact version. After the
-proposal increments that reopened draft's generation, the journey saves a new
-immutable publication version. Console must create and publish the request for
-that new version, never the earlier pre-intent version.
-
-The Console receipt is accepted only when it is `passed` and binds this
-journey/release contract to the exact connection, service, layers, three GP job
-identities, result packages/artifacts, map/app/dashboard draft and immutable
-version identities, all three reopened drafts and intent-bearing publication
-versions, all three Console request/publication/status/public-URL identities,
-execution operations, audit correlations, routes, candidate, and release. Each
-audit operation must equal its family's execution operation, each proposal ID
-must equal its publication request ID, and the app public URL must equal the
-top-level share URL. The Studio proposal actions reject any pre-approval
-publication ID or public URL and must report both `recorded=true` and
-`humanConfirmationRequired=true`. Agent execution never claims the human
-publication step. Stage 7 independently requires identity-preserving HTTPS
-HTTP 200 responses for map, app, and dashboard URLs.
+The journey does not treat `honua_studio_get_draft` as reopen evidence. Save
+captures read `/structuredContent/version/versionId`,
+`/structuredContent/version/contentHash`, and `versionNumber` under `version`.
+`honua_studio_get_version` still returns top-level `versionId` and `contentHash`.
+Publication runs after that save. `honua_studio_propose_publication` takes
+`itemId`, `versionId`, `contentHash`, `route`, `visibility`, and `note`. It does
+not take `draftId`, `generation`, or `embed`. For this admin journey the result
+has `humanConfirmationRequired: false` and a `shareUrl`. The journey fetches
+each share URL and requires HTTP 200. It does not forbid `shareUrl` and it does
+not wait for a second principal.
 
 ## Evidence status
 
 The fixtures, plan, contracts, and simulated end-to-end tests are deterministic.
-They are not a live release recording. Until all deployment dependencies are
-available and an operator supplies a matching Console receipt, the honest
-candidate result is `blocked`/`skipped`, not passed.
+They are not a live release recording. Contract mode stays `blocked` and does
+not start Docker. A live pass is the same admin session reaching HTTP 200 on
+the three share URLs.

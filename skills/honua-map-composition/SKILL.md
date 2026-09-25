@@ -1,6 +1,6 @@
 ---
 name: honua-map-composition
-description: Use when composing a Honua map, app, or dashboard through Studio MCP tools and getting it toward publication — creating a draft, adding layers/widgets/controls/interactions, validating, saving an immutable version, reopening it, and recording publication intent without bypassing the human approval gate. Covers 2026.1 zero-to-map stage 4 (studio) and stage 5 (proposal).
+description: Use when composing a Honua map, app, or dashboard through Studio MCP tools and publishing a saved version — creating a draft, adding layers/widgets/controls/interactions, validating, saving an immutable version, reopening it, and calling honua_studio_propose_publication with the saved item, version, and content hash. Covers 2026.1 zero-to-map stages studio and proposal.
 release: "2026.1"
 stages: [studio, proposal]
 ---
@@ -60,29 +60,24 @@ then working on the new draft id/generation it returns — never mutating the
 saved version in place. Always `get_version` after `save_version`: that
 round-trip is what proves the save actually persisted what you composed.
 
-## Publication intent is not publication
+## Publish the saved version
 
-Stage `proposal` records intent and structurally requires human confirmation:
+Save first. `honua_studio_save_version` nests `versionId`, `contentHash`, and
+`versionNumber` under `version`. `honua_studio_get_version` still returns
+top-level `versionId` and `contentHash`. Then propose that exact version:
 
 ```
 honua_studio_propose_publication
-{ draftId, generation, route: "<route>", visibility: "public", embed: true, note: "<why>" }
-
-honua_studio_save_version
-{ draftId, generation, changeNote: "<publication intent>" }
+{ itemId, versionId, contentHash, route: "<route>", visibility: "public", note: "<why>" }
 ```
 
-The hard rules:
+Do not send `draftId`, `generation`, or `embed`.
 
-- The propose response **does not** return `publicationId`, `publicUrl`, or
-  `shareUrl` — the journey declares those as forbidden pointers. If you find
-  yourself constructing a public URL, you have skipped the gate.
-- A Studio `PublicationIntent` is *not* the admin approval proposal, and not
-  Console approval. Do not describe it as "published".
-- `visibility: "public"` is a human decision. Ask; do not infer it.
-- An agent never self-approves. Approval happens in Console (stage `console`),
-  and only then does the stable URL exist for stage `artifact` to verify.
-- The intent must be saved as a version to be governed — propose then save.
+For the admin journey the result has `humanConfirmationRequired: false` and a
+`shareUrl`. Capture `shareUrl` and fetch it; HTTP 200 is the publication proof.
+A caller who is not admin still gets `humanConfirmationRequired: true` and no
+share URL. Do not invent a second principal id for the admin path.
+`visibility: "public"` is a decision the admin is making in this session.
 
 This boundary is the SDK's documented agent-safety posture: plans are proposed,
 signed, and approved out of band, and receipts record what actually ran. See

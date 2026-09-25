@@ -589,6 +589,16 @@ export function protocolCertificationRows({
  * action naming a tool the Admin projection no longer publishes fails the gate
  * instead of becoming an unexecutable denominator row.
  */
+/**
+ * Coverage rows still name the historical singular aliases. The journey calls
+ * `PublishedOperationTool.ProjectName` for the same REST operations.
+ */
+const JOURNEY_ADMIN_TOOL_ALIASES = {
+  honua_admin_connections_create: "honua_admin_connection_create",
+  honua_admin_connections_test: "honua_admin_connection_test",
+  honua_admin_services_access_policy_set: "honua_admin_service_set_access_policy",
+};
+
 export function terminalJourneyRows({ journey, adminMcpCoverage }) {
   const errors = [];
   const projections = new Map((adminMcpCoverage.projected ?? []).map((entry) => [entry.toolName, entry]));
@@ -602,7 +612,9 @@ export function terminalJourneyRows({ journey, adminMcpCoverage }) {
 
   (journey.stages ?? []).forEach((stage, stageIndex) => {
     (stage.actions ?? []).forEach((action, actionIndex) => {
-      const projection = action.tool ? projections.get(action.tool) : undefined;
+      const projection = action.tool
+        ? (projections.get(action.tool) ?? projections.get(JOURNEY_ADMIN_TOOL_ALIASES[action.tool]))
+        : undefined;
       if (typeof action.tool === "string" && action.tool.startsWith(ADMIN_TOOL_PREFIX) && !projection) {
         errors.push(
           `${JOURNEY_PATH} stage "${stage.id}" invokes admin tool "${action.tool}", which ${ADMIN_MCP_COVERAGE_PATH} does not project`,
