@@ -5,9 +5,13 @@ import { DeferredInitializationTransport, readWorkflowView } from "../src/proxy-
 
 function initialize(value?: unknown): JSONRPCMessage {
   return {
-    jsonrpc: "2.0", id: 1, method: "initialize",
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
     params: {
-      protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" },
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1" },
       _meta: { "honua.io/workflow-view": value },
     },
   };
@@ -55,7 +59,9 @@ describe("proxy initialize boundary", () => {
     const selected = h.transport.waitForInitialize();
     h.emit({ jsonrpc: "2.0", id: 1, method: "tools/list" });
     await expect(selected).rejects.toThrow("Invalid initialize");
-    expect(h.raw.send).toHaveBeenCalledWith(expect.objectContaining({ error: expect.objectContaining({ code: -32600 }) }));
+    expect(h.raw.send).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ code: -32600 }) }),
+    );
   });
 
   it.each(["connecting", "connected"])("rejects duplicate initialization while %s", async (phase) => {
@@ -67,7 +73,9 @@ describe("proxy initialize boundary", () => {
     h.transport.onmessage = received;
     if (phase === "connected") await h.transport.start();
     h.emit(initialize("full"));
-    expect(h.raw.send).toHaveBeenCalledWith(expect.objectContaining({ error: expect.objectContaining({ message: "Duplicate initialize is not permitted" }) }));
+    expect(h.raw.send).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ message: "Duplicate initialize is not permitted" }) }),
+    );
     expect(received).toHaveBeenCalledTimes(phase === "connected" ? 1 : 0);
     await expect(h.transport.send({ jsonrpc: "2.0", method: "notifications/initialized" })).rejects.toThrow("closed");
   });
@@ -79,7 +87,9 @@ describe("proxy initialize boundary", () => {
     await selected;
     if (bound === "bytes") h.emit({ jsonrpc: "2.0", id: 2, method: "ping", params: { data: "x".repeat(65536) } });
     else for (let id = 2; id <= 17; id++) h.emit({ jsonrpc: "2.0", id, method: "ping" });
-    expect(h.raw.send).toHaveBeenCalledWith(expect.objectContaining({ error: expect.objectContaining({ message: "Proxy initialization buffer exceeded" }) }));
+    expect(h.raw.send).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ message: "Proxy initialization buffer exceeded" }) }),
+    );
     await expect(h.transport.start()).rejects.toThrow("not available");
   });
 
