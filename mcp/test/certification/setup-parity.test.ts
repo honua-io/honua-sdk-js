@@ -40,9 +40,9 @@ function manifest(): SetupCatalogManifest {
     serverInfo: { name: "honua", version: "2026.1" },
     view: "setup",
     revision: "setup.v2",
-    revisionDigest: digest,
-    membershipDigest: digest,
-    descriptorDigest: digest,
+    revisionDigest: `sha256:${digest}`,
+    membershipDigest: `sha256:${digest}`,
+    descriptorDigest: `sha256:${digest}`,
     tools: [structuredClone(tool)],
   };
 }
@@ -155,6 +155,9 @@ describe("pinned server manifest", () => {
     { packages: [{ name: "@honua/mcp-server", version: "latest", integrity: "missing" }] },
     { view: "full" },
     { revisionDigest: "unknown" },
+    { revisionDigest: digest },
+    { membershipDigest: `sha512:${digest}` },
+    { descriptorDigest: `sha256:${digest.slice(1)}` },
     { tools: [] },
     { tools: [tool, tool] },
     { tools: [{ name: "bad" }] },
