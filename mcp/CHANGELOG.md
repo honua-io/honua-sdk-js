@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.11-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.10-beta.0...mcp-server-v0.1.11-beta.0) (2026-09-25)
+
+
+### Features
+
+* **mcp:** retarget zero-to-map to the operator roster ([#1780](https://github.com/honua-io/honua-sdk-js/issues/1780)) ([d10ee0c](https://github.com/honua-io/honua-sdk-js/commit/d10ee0c124b6da69273462f4facfa7ff3f9a230b))
+
+
+### Bug Fixes
+
+* **control-plane:** propagate command correlation identity ([0ea481a](https://github.com/honua-io/honua-sdk-js/commit/0ea481a168d9be4557ac02b97bc78518980c9561))
+* **control-plane:** propagate command correlation identity ([3651c1d](https://github.com/honua-io/honua-sdk-js/commit/3651c1dcc314ade61af953ac139747c1c2d85f1e))
+* **mcp:** preserve and qualify bounded setup views ([7ae5927](https://github.com/honua-io/honua-sdk-js/commit/7ae59277c6c00ae43bcc425138e62ac0f143c17a))
+* **mcp:** preserve workflow view across stdio proxy requests ([89494fe](https://github.com/honua-io/honua-sdk-js/commit/89494fefea654b388304053b4b0d715e5d88d53f))
+* **mcp:** qualify bounded setup catalogs against pinned descriptors ([e18f905](https://github.com/honua-io/honua-sdk-js/commit/e18f905f37daa093de5912e3f669fda17c44d69b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.11-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.10-beta.0 to ^0.1.11-beta.0
+
 ## [0.1.10-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.9-beta.0...mcp-server-v0.1.10-beta.0) (2026-09-22)
 
 
