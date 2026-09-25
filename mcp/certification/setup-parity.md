@@ -44,9 +44,22 @@ The placeholders above illustrate the shape and are deliberately invalid as
 qualification input. Discover the view from the server's capabilities; do not
 invent profile switches or assemble a replacement tool roster in the client.
 Retain complete descriptions, input/output schemas, annotations and `_meta`.
-The server's opaque digests are compared to the reviewed pin. The receipt also
+The server's digests retain their `sha256:` prefix and are compared to the
+reviewed pin. Bare hexadecimal or another algorithm is rejected. The receipt also
 computes independent normalized descriptor hashes for HTTP and stdio; these
 use a different serialization from the server and have distinct field names.
+
+The stdio proxy forwards the optional `honua.io/workflow-view` initialize
+metadata selector to its upstream initialize, then retains the server-issued
+session for subsequent requests. Per-request view overrides do not change that
+session's selection. Other downstream initialize metadata never supplies upstream
+credentials or configuration. Invalid or duplicate initialization fails closed;
+the pending handshake is bounded to 30 seconds, 16 messages and 64 KiB.
+
+The `MCP session negotiation contract` workflow tests this behavior over real
+loopback HTTP and a spawned stdio process, then repeats through npm's executable
+from locally packed and installed source tarballs. These engineering receipts do
+not qualify a published registry package or change the frozen release pins.
 
 The check drains all pages over direct HTTP and a real child-process stdio
 proxy, carrying the selected view on every page. It fails on missing, extra,

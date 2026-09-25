@@ -19,6 +19,7 @@ import {
 import { requireSecureCredentialEndpoint } from "./credential-endpoint.js";
 import { isMainEntrypoint } from "./entrypoint.js";
 import { SERVER_VERSION } from "./index.js";
+import { DeferredInitializationTransport, WORKFLOW_VIEW_META_KEY } from "./proxy-initialization.js";
 
 // MCP permits server extensions such as Honua's tools/list `view`. The SDK's
 // nested params schema strips unknown keys by default, so preserve them before
@@ -110,15 +111,38 @@ export function buildUpstreamHeaders(options: ProxyOptions): Record<string, stri
 }
 
 /** Connect an upstream MCP client to the remote honua /mcp over streamable HTTP. */
-export async function connectUpstream(options: ProxyOptions): Promise<Client> {
+export async function connectUpstream(options: ProxyOptions, workflowView?: string, signal?: AbortSignal): Promise<Client> {
   const headers = buildUpstreamHeaders(options);
   const remoteUrl = validateProxyOptions(options);
   const transport = new StreamableHTTPClientTransport(remoteUrl, {
     requestInit: { ...(Object.keys(headers).length > 0 ? { headers } : {}), redirect: "manual" },
   });
+  // Client.connect owns protocol negotiation, session headers and initialized.
+  // Add only the recognized view to its initialize; downstream metadata cannot
+  // inject credentials, client identity or other upstream configuration.
+  if (workflowView !== undefined) {
+    const send = transport.send.bind(transport);
+    transport.send = async (message, sendOptions) => {
+      if ("method" in message && message.method === "initialize") {
+        return send({
+          ...message,
+          params: { ...message.params, _meta: { [WORKFLOW_VIEW_META_KEY]: workflowView } },
+        }, sendOptions);
+      }
+      return send(message, sendOptions);
+    };
+  }
   const client = new Client({ name: "honua-mcp-stdio-proxy", version: SERVER_VERSION });
-  await client.connect(transport);
-  return client;
+  try {
+    await client.connect(transport, { timeout: 30_000, signal });
+    return client;
+  } catch (error) {
+    // Client.connect starts cleanup on failure, but does not await it. Retain
+    // ownership here until the transport and its pending HTTP/SSE work close.
+    await client.close().catch(() => {});
+    await transport.close().catch(() => {});
+    throw error;
+  }
 }
 
 /**
@@ -188,20 +212,51 @@ export function createProxyServer(upstream: Client): Server {
  */
 export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const options = resolveProxyOptions(env);
-  const upstream = await connectUpstream(options);
-  const server = createProxyServer(upstream);
+  const transport = new DeferredInitializationTransport(new StdioServerTransport());
+  const initialization = new AbortController();
+  let upstream: Client | undefined;
+  let server: Server | undefined;
+  let closing = false;
+  let shutdownPromise: Promise<void> | undefined;
+  const inputEnded = () => { void shutdown(); };
 
   // Tear down both ends together so a dropped upstream surfaces to the client.
-  const shutdown = async () => {
-    await server.close().catch(() => {});
-    await upstream.close().catch(() => {});
+  const shutdown = (): Promise<void> => {
+    if (closing) return shutdownPromise ?? Promise.resolve();
+    closing = true;
+    process.stdin.off("end", inputEnded);
+    initialization.abort();
+    shutdownPromise = (async () => {
+      await server?.close().catch(() => {});
+      await transport.close().catch(() => {});
+      await upstream?.close().catch(() => {});
+    })();
+    return shutdownPromise;
   };
-  upstream.onclose = () => {
-    void shutdown();
-  };
-
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  // Until Server.connect installs its lifecycle hook, EOF/timeout must cancel
+  // the pending upstream initialize too; no detached HTTP session may survive.
+  transport.onclose = () => { initialization.abort(); };
+  // The SDK stdio transport watches data/error, but does not turn stdin EOF
+  // into its onclose callback. Own that process lifecycle boundary explicitly.
+  process.stdin.once("end", inputEnded);
+  try {
+    const workflowView = await transport.waitForInitialize();
+    upstream = await connectUpstream(options, workflowView, initialization.signal);
+    if (closing || initialization.signal.aborted) {
+      await upstream.close().catch(() => {});
+      throw new Error("Downstream closed while the upstream session connected");
+    }
+    server = createProxyServer(upstream);
+    const closeBoth = () => {
+      void shutdown();
+    };
+    upstream.onclose = closeBoth;
+    server.onclose = closeBoth;
+    await server.connect(transport);
+  } catch {
+    await shutdown();
+    throw new Error("Proxy initialization failed; verify the endpoint, credentials and workflow view");
+  }
 }
 
 if (isMainEntrypoint(import.meta.url)) {

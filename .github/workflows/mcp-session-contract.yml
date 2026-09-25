@@ -1,0 +1,80 @@
+name: MCP session negotiation contract
+
+on:
+  pull_request:
+    paths:
+      - mcp/src/proxy.ts
+      - mcp/src/proxy-initialization.ts
+      - mcp/src/certification/setup-parity.ts
+      - mcp/test/proxy*.test.ts
+      - mcp/test/certification/setup-parity.test.ts
+      - .github/workflows/mcp-session-contract.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-session-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  session-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20.19.0"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mcp/package-lock.json
+      - name: Build SDK dependency and MCP package
+        run: |
+          npm ci
+          npm run build
+          npm ci --prefix mcp
+          npm run typecheck --prefix mcp
+          npm run build --prefix mcp
+      - name: Focused source and real HTTP contract tests
+        working-directory: mcp
+        run: npm run test:unit -- test/proxy.test.ts test/proxy-initialization.test.ts test/proxy-session-http.test.ts test/certification/setup-parity.test.ts --reporter=default --reporter=json --outputFile=session-source-tests.json
+      - name: Install exact locally packed packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="$RUNNER_TEMP/mcp-session-packages"
+          install_dir="$RUNNER_TEMP/mcp-session-installed"
+          mkdir -p "$package_dir" "$install_dir"
+          npm pack --ignore-scripts --pack-destination "$package_dir" --json > "$RUNNER_TEMP/sdk-pack.json"
+          npm pack ./mcp --ignore-scripts --pack-destination "$package_dir" --json > "$RUNNER_TEMP/mcp-pack.json"
+          sdk_file=$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP+'/sdk-pack.json'))[0].filename")
+          mcp_file=$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP+'/mcp-pack.json'))[0].filename")
+          npm install --prefix "$install_dir" --ignore-scripts --no-audit --no-fund "$package_dir/$sdk_file" "$package_dir/$mcp_file"
+          echo "HONUA_MCP_INSTALLED_PROXY=$install_dir/node_modules/.bin/honua-mcp-proxy" >> "$GITHUB_ENV"
+          sha256sum "$package_dir/$sdk_file" "$package_dir/$mcp_file" > mcp/session-package-sha256.txt
+      - name: Real HTTP through npm-installed executable
+        working-directory: mcp
+        run: npm run test:unit -- test/proxy-session-http.test.ts --reporter=default --reporter=json --outputFile=session-installed-tests.json
+      - name: Check MCP code style
+        working-directory: mcp
+        run: npm run check
+      - name: Retain formatter diagnostics after a failure
+        if: failure()
+        working-directory: mcp
+        run: |
+          npx --no-install biome format --write src/proxy.ts src/proxy-initialization.ts src/certification/setup-parity.ts test/proxy-initialization.test.ts test/proxy-session-http.test.ts test/certification/setup-parity.test.ts
+          git diff -- . > session-format.patch
+      - name: Retain focused proof
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mcp-session-contract
+          path: |
+            mcp/session-source-tests.json
+            mcp/session-installed-tests.json
+            mcp/session-package-sha256.txt
+            mcp/session-format.patch
+          if-no-files-found: warn
