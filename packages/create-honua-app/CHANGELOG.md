@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.4...create-honua-app-v0.1.5) (2026-09-25)
+
+
+### Bug Fixes
+
+* keep starter MapLibre on the peer minimum and stamp gRPC input CRS ([c37e1bc](https://github.com/honua-io/honua-sdk-js/commit/c37e1bc18e5aa443fccb05c6a5944763550e48df))
+
 ## [0.1.4](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.3...create-honua-app-v0.1.4) (2026-09-22)
 
 
