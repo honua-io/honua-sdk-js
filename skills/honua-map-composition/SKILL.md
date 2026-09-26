@@ -42,6 +42,24 @@ honua_studio_validate_draft { draftId, generation }
 `honua_generated_app_manifest.v1` for dashboards. A loader refuses any other
 value. The full family table is in `docs/studio-package-contracts.md`.
 
+## From the terminal
+
+`honua_studio_create_draft` and `honua_studio_validate_draft` are MCP tools.
+The `honua` CLI has no `studio` command. The same two calls over HTTP, with
+`HONUA_ADMIN_KEY` set and never printed, are:
+
+- create: `POST /api/v1/studio/package-drafts`
+- validate: `POST /api/v1/studio/package-drafts/{draftId}/validate`
+
+`honua_studio_add_layer` has no separate route. Put the layer in the draft
+body. A published layer's `sourceId` is
+`honua://services/<serviceName>/layers/<layerId>`.
+
+On the current server a map package is refused until it has `format`,
+`mapPackageId`, `sourceBindings`, `mapSpec`, `status`, `createdAt`, and
+`locator.url`. `docs/studio-package-contracts.md` does not list the last three;
+the loader still requires them.
+
 Widgets and controls bind to a layer by `sourceId`; `honua_studio_bind_interaction`
 is what makes a chart selection drive the map. A dashboard with an unbound chart
 is a screenshot, not a dashboard.

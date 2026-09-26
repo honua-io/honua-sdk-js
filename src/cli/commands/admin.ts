@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { ADMIN_OPERATIONS, type AdminOperationId, HonuaAdminClient } from "../../control-plane/index.js";
 import {
+  LOCAL_POSTGIS_BOOTSTRAP_SQL,
   type LocalInstallProfile,
   cloudInstallHandoff,
   getHonuaLocalStatus,
@@ -32,6 +33,15 @@ USAGE
   honua admin api <operationId> [options]
   honua admin operations [group]
   honua admin install local|cloud|status [options]
+
+INSTALL
+  honua admin install local --yes [--directory <dir>] [--profile quickstart|gp-dev]
+      [--http-port <port>] [--timeout-ms <ms>] [--dry-run]
+  honua admin install status [--directory <dir>]
+  honua admin install cloud [aws]
+  --directory defaults to .honua. Create it outside the git repo you are editing.
+  --http-port defaults to 8080. Pass another localhost port when 8080 is taken.
+  --dry-run prints the compose file and does not start Docker. --yes is required to start it.
 
 GROUPS
   connect  import  publish  configure  secure  release  operate
@@ -232,6 +242,7 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
         directory,
         profile,
         compose: renderLocalCompose({ profile }),
+        postgisBootstrapSql: LOCAL_POSTGIS_BOOTSTRAP_SQL,
         executed: false,
       }),
     );

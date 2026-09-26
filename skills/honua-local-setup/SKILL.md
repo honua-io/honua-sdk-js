@@ -30,15 +30,43 @@ The equivalent CLI, and what the journey actually records, is:
 honua admin install local --profile gp-dev --yes --directory .honua-zero-to-map
 ```
 
+Create `.honua-zero-to-map` outside the git repository you are editing.
+`--http-port` defaults to `8080`. When that localhost port is already taken,
+pass another one (`--http-port 18081`). `--dry-run` prints the compose file
+and does not start containers. `--yes` is required before Docker starts.
+
+`honua admin` is the control-plane CLI shipped by `@honua/sdk-js`. If `honua`
+on `PATH` fails before Docker starts with `ModuleNotFoundError` for the Python
+SDK, that `PATH` entry is the Python data-plane console script and its
+checkout is missing. Reinstall that package from the live `honua-sdk-python`
+tree (`python3 -m pip install -e packages/honua-sdk`). A working Python CLI
+forwards `admin` to the JavaScript binary. When the JavaScript `honua` is not
+the other `honua` on `PATH`, set `HONUA_JS_CLI` to `dist/src/cli/bin.js` from
+`@honua/sdk-js`, or invoke that file with `node` and the same arguments.
+Do not switch to the bootstrap MCP install tool to get around this: that tool
+still requires an explicit human `confirm`.
+
 ## 2. Verify readiness before doing anything else
 
 ```bash
 honua admin install status --directory .honua-zero-to-map
 ```
 
-Do not advance to connections, imports, or geoprocessing until this reports API,
-MCP, and Console ready. A failure here is an install failure, not a data
+Do not advance to connections, imports, or geoprocessing until `ready` is
+true. That flag is `/healthz/ready`. Container health only checks
+`/healthz/live`, so a healthy container can still be Not Ready while the
+database migration is failing. A 503 here is an install failure, not a data
 problem, and retrying downstream calls will only produce misleading errors.
+The installer creates the PostGIS and pgRouting extensions in the `public`
+schema before the server migrates, then seeds `public.zero_to_map_parcels`
+(one polygon, `parcel_id`, SRID 4326). It also sets `HONUA_LOCAL_DB_PASSWORD`
+on the server to the full `Host=postgres;...` connection string. Re-run the
+same install command after a compose change; it reuses the directory and does
+not print the admin key. `honua` on PATH must be this control-plane CLI.
+`honua admin`, `honua map`, and `honua services` are the same program. A
+Python `honua` that only implements `services`, `layers`, `style`, and
+`doctor` is the data-plane shim; once its package imports, a console
+invocation forwards to this CLI.
 
 ## 3. Secure handoff — the part agents get wrong
 

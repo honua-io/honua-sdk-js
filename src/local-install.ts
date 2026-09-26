@@ -218,6 +218,7 @@ export async function installHonuaLocal(
   await mkdir(directory, { recursive: true });
   await writePrivateFileAtomic(envFile, renderEnv(env));
   await writeFile(composeFile, renderLocalCompose({ profile }), "utf8");
+  await writeFile(path.join(directory, "postgis-bootstrap.sql"), LOCAL_POSTGIS_BOOTSTRAP_SQL, "utf8");
 
   const run = runtime.run ?? runCommand;
   await requireCommand(run, dockerCommand, ["version", "--format", "{{.Server.Version}}"], directory, "Docker Engine");
@@ -344,6 +345,36 @@ export async function getHonuaLocalStatus(
  * with an actionable "enable the <profile> server profile" diagnostic in the
  * meantime.
  */
+/** Extensions must live in public. The server resolves unqualified `geometry` there. */
+export const LOCAL_POSTGIS_BOOTSTRAP_SQL = `DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_extension e
+    JOIN pg_namespace n ON n.oid = e.extnamespace
+    WHERE e.extname = 'postgis' AND n.nspname <> 'public'
+  ) THEN
+    DROP EXTENSION IF EXISTS pgrouting;
+    DROP EXTENSION postgis;
+  END IF;
+END
+$$;
+CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pgrouting WITH SCHEMA public;
+CREATE TABLE IF NOT EXISTS public.zero_to_map_parcels (
+  parcel_id integer PRIMARY KEY,
+  name text NOT NULL,
+  geometry geometry(Polygon, 4326) NOT NULL
+);
+INSERT INTO public.zero_to_map_parcels (parcel_id, name, geometry)
+VALUES (
+  1,
+  'origin',
+  ST_SetSRID(ST_GeomFromText('POLYGON((-157.86 21.30, -157.85 21.30, -157.85 21.31, -157.86 21.31, -157.86 21.30))'), 4326)
+)
+ON CONFLICT (parcel_id) DO NOTHING;
+`;
+
 export function renderLocalCompose(options: { readonly profile: LocalInstallProfile }): string {
   const gpEdition = options.profile === "gp-dev" ? "Pro" : "";
   return `name: honua-local
@@ -362,6 +393,20 @@ services:
       timeout: 5s
       retries: 20
     restart: unless-stopped
+  postgis-bootstrap:
+    image: pgrouting/pgrouting:17-3.5-3.7.3
+    environment:
+      PGHOST: postgres
+      PGUSER: honua
+      PGDATABASE: honua
+      PGPASSWORD: \${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgis-bootstrap.sql:/bootstrap.sql:ro
+    entrypoint: ["psql", "-v", "ON_ERROR_STOP=1", "-f", "/bootstrap.sql"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
   redis:
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
@@ -380,6 +425,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: "Host=postgres;Database=honua;Username=honua;Password=\${POSTGRES_PASSWORD}"
+      HONUA_LOCAL_DB_PASSWORD: "Host=postgres;Database=honua;Username=honua;Password=\${POSTGRES_PASSWORD}"
       ConnectionStrings__Redis: redis:6379
       HONUA_ADMIN_PASSWORD: \${HONUA_ADMIN_PASSWORD}
       Security__ConnectionEncryption__MasterKey: \${HONUA_CONNECTION_ENCRYPTION_MASTER_KEY}
@@ -390,8 +436,8 @@ services:
       Kestrel__Endpoints__Http__Url: http://+:8080
       Kestrel__Endpoints__Http__Protocols: Http1
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgis-bootstrap:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     volumes:
