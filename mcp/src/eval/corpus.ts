@@ -2,8 +2,8 @@ import { NORTHSTAR_CORPUS } from "./northstar-corpus.js";
 import { OGC_CORPUS } from "./ogc-corpus.js";
 import { OPERATOR_CORPUS } from "./operator-corpus.js";
 import { STANDALONE_CORPUS } from "./standalone-corpus.js";
-import { WORKFLOW_CORPUS } from "./workflow-corpus.js";
 import type { Scenario } from "./types.js";
+import { WORKFLOW_CORPUS } from "./workflow-corpus.js";
 
 /**
  * Held-out corpus of GIS workflows for the cross-model eval (honua-server #1956).

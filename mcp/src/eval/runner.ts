@@ -9,9 +9,9 @@ import { connectUpstream, resolveProxyOptions } from "../proxy.js";
 import { isOgcCorpus, isStandaloneCorpus, resolveCorpus } from "./corpus.js";
 import { resolveDrivers } from "./drivers/index.js";
 import { grade } from "./grade.js";
-import { annotateTranscript, blockedTranscript, redactTranscript, unavailableProfiles } from "./workflow-corpus.js";
 import { type AuthMode, type EvalReport, assembleReport } from "./report.js";
 import type { ModelDriver, Scenario, ToolCallResult, WorkflowContext } from "./types.js";
+import { annotateTranscript, blockedTranscript, redactTranscript, unavailableProfiles } from "./workflow-corpus.js";
 
 /**
  * Cross-model eval runner (honua-server #1956).

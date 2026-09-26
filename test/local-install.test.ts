@@ -16,9 +16,9 @@ import {
   LOCAL_INSTALL_MCP_PACKAGE_NAME,
   LOCAL_INSTALL_MCP_PACKAGE_VERSION,
   LOCAL_INSTALL_SERVER_IMAGE,
+  LOCAL_POSTGIS_BOOTSTRAP_SQL,
   cloudInstallHandoff,
   getHonuaLocalStatus,
-  LOCAL_POSTGIS_BOOTSTRAP_SQL,
   installHonuaLocal,
   renderLocalCompose,
   renderMcpConfig,
@@ -41,7 +41,9 @@ describe("local Honua installer", () => {
     const gp = renderLocalCompose({ profile: "gp-dev" });
     expect(LOCAL_INSTALL_SERVER_IMAGE).toContain("@sha256:");
     expect(quickstart).toContain("pgrouting/pgrouting:17-3.5-3.7.3");
-    expect(quickstart).toContain("HONUA_LOCAL_DB_PASSWORD: \"Host=postgres;Database=honua;Username=honua;Password=${POSTGRES_PASSWORD}\"");
+    expect(quickstart).toContain(
+      'HONUA_LOCAL_DB_PASSWORD: "Host=postgres;Database=honua;Username=honua;Password=${POSTGRES_PASSWORD}"',
+    );
     expect(LOCAL_POSTGIS_BOOTSTRAP_SQL).toContain("public.zero_to_map_parcels");
     expect(quickstart).toContain("postgis-bootstrap.sql:/bootstrap.sql:ro");
     expect(LOCAL_POSTGIS_BOOTSTRAP_SQL).toContain("CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public");
