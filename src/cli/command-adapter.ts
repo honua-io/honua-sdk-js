@@ -20,7 +20,6 @@
  */
 
 import type { HonuaCommand, HonuaCommandInvocation, HonuaCommandReceipt } from "../control-plane/index.js";
-import { HonuaCommandError } from "../control-plane/index.js";
 import type { ParsedArgs } from "./args.js";
 import { ArgError, getBoolean, getString } from "./args.js";
 import { createCommandRuntime } from "./client.js";
@@ -98,10 +97,9 @@ export interface RunCommandVerbOptions<TInput, TOutput> {
 /**
  * Execute one command through the shared runtime and render its receipt.
  *
- * @throws {ArgError} for a missing confirmation, or for a `validation` /
- *   `authorization` {@link HonuaCommandError} so the terminal reports caller
- *   mistakes without a stack trace. The taxonomy is the command layer's; this
- *   only chooses how the terminal presents it.
+ * @throws {ArgError} for a missing confirmation. Command failures propagate as
+ *   `HonuaCommandError`, including the correlation id, so the terminal can
+ *   join them to the server audit trail instead of dropping that key.
  */
 export async function runCommandVerb<TInput, TOutput>(options: RunCommandVerbOptions<TInput, TOutput>): Promise<void> {
   const { command, input, invocation, parsed, ctx } = options;
@@ -109,16 +107,7 @@ export async function runCommandVerb<TInput, TOutput>(options: RunCommandVerbOpt
     throw new ArgError(options.confirm);
   }
   const runtime = createCommandRuntime({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, profile: ctx.profile });
-
-  let receipt: HonuaCommandReceipt<TOutput>;
-  try {
-    receipt = await runtime.execute(command, input, invocation);
-  } catch (error) {
-    if (error instanceof HonuaCommandError && (error.kind === "validation" || error.kind === "authorization")) {
-      throw new ArgError(error.message);
-    }
-    throw error;
-  }
+  const receipt = await runtime.execute(command, input, invocation);
 
   if (getBoolean(parsed, "json")) {
     printLine(renderJson(receipt));
