@@ -44,9 +44,9 @@ value. The full family table is in `docs/studio-package-contracts.md`.
 
 ## From the terminal
 
-These `honua_studio_*` names are MCP tools. The `honua` CLI has no `studio`
-command. The same two calls over HTTP, with `HONUA_ADMIN_KEY` set and never
-printed, are:
+`honua_studio_create_draft` and `honua_studio_validate_draft` are MCP tools.
+The `honua` CLI has no `studio` command. The same two calls over HTTP, with
+`HONUA_ADMIN_KEY` set and never printed, are:
 
 - create: `POST /api/v1/studio/package-drafts`
 - validate: `POST /api/v1/studio/package-drafts/{draftId}/validate`
