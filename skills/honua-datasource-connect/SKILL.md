@@ -47,9 +47,19 @@ Rules:
 - Capture `/data/connectionId` from the response. Every later call in this stage
   is keyed on it.
 
-The equivalent admin REST operations, if you are driving the CLI instead, are
-`createConnection` (`POST /connections`) and `testDraftConnection`
-(`POST /connections/test`) — see `docs/admin-cli-reference.md`.
+The equivalent CLI is `honua admin connect createConnection --body @file --yes`
+and `honua admin connect testDraftConnection --body @file`. `testConnection`
+tests a saved id. See `docs/admin-cli-reference.md`.
+
+A directory created by `honua admin install local` names the database service
+`postgres` (not `postgis`). The server reads `secretReference` as a full
+connection string, not a bare password. That install sets
+`HONUA_LOCAL_DB_PASSWORD` to
+`Host=postgres;Database=honua;Username=honua;Password=...`, so the reference
+for the bundled database is `env:HONUA_LOCAL_DB_PASSWORD`.
+`env:HONUA_ZERO_TO_MAP_DB_CONNECTION` is only for a journey that injects that
+variable itself. Do not copy the password into the body. A password-only
+`env:` reference returns `isHealthy: false` with no reason.
 
 ## Test before trusting
 

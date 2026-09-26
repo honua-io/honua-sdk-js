@@ -44,9 +44,13 @@ Notes that prevent the common failures:
   (`PUT /connections/{id}/layers/{layerId}/enabled`) flips it later.
 - `getPublishedLayers` (`GET /connections/{id}/layers`) is the inventory call.
 
-The underlying admin REST operation is `publishLayer`
-(`POST /connections/{id}/layers`); the full `publish` group is in
-`docs/admin-cli-reference.md`.
+The CLI is `honua admin publish publishLayer --path id=<connectionId> --body @file --yes`.
+The full `publish` group is in `docs/admin-cli-reference.md`.
+
+`honua admin install local` creates `public.zero_to_map_parcels` with
+`parcel_id`, polygon `geometry` in SRID 4326, and one row, so this body can be
+published without a separate import. `publishLayer` rejects an empty table.
+The pgRouting `ways` tables in that database are empty and will not publish.
 
 ## Set access explicitly
 

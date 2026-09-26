@@ -2,6 +2,7 @@ import { NORTHSTAR_CORPUS } from "./northstar-corpus.js";
 import { OGC_CORPUS } from "./ogc-corpus.js";
 import { OPERATOR_CORPUS } from "./operator-corpus.js";
 import { STANDALONE_CORPUS } from "./standalone-corpus.js";
+import { WORKFLOW_CORPUS } from "./workflow-corpus.js";
 import type { Scenario } from "./types.js";
 
 /**
@@ -137,6 +138,8 @@ export function resolveCorpus(env: NodeJS.ProcessEnv = process.env): Scenario[] 
       return STANDALONE_CORPUS;
     case "ogc":
       return OGC_CORPUS;
+    case "workflow":
+      return WORKFLOW_CORPUS;
     case "all":
       // `all` spans the Honua-surface corpora only. The platform-free standalone
       // corpus targets a DIFFERENT surface (a plain FeatureServer fixture) and is
