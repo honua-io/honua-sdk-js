@@ -47,11 +47,7 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     prompt:
       "Connect Honua to its local database by secret reference, prove the connection works, then import the parcels file from its URL and wait until that import job succeeds. Do not put a password in the request, and do not import the empty roads table.",
     criteria: {
-      requiredTools: [
-        "honua_admin_connection_create",
-        "honua_admin_connection_test",
-        "honua_admin_import_upload_url",
-      ],
+      requiredTools: ["honua_admin_connection_create", "honua_admin_connection_test", "honua_admin_import_upload_url"],
       expectedToolSequence: [
         "honua_admin_connection_create",
         "honua_admin_connection_test",

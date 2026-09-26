@@ -4,11 +4,11 @@ import path from "node:path";
 
 import { ADMIN_OPERATIONS, type AdminOperationId, HonuaAdminClient } from "../../control-plane/index.js";
 import {
+  LOCAL_POSTGIS_BOOTSTRAP_SQL,
   type LocalInstallProfile,
   cloudInstallHandoff,
   getHonuaLocalStatus,
   installHonuaLocal,
-  LOCAL_POSTGIS_BOOTSTRAP_SQL,
   renderLocalCompose,
 } from "../../local-install.js";
 import {
