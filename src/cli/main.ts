@@ -9,6 +9,7 @@
  * @packageDocumentation
  */
 
+import { HonuaCommandError } from "../control-plane/index.js";
 import { ArgError, getBoolean, getString, parseArgs } from "./args.js";
 import type { FlagSpec, ParsedArgs } from "./args.js";
 import type { CommandContext, CommandHandler } from "./command.js";
@@ -265,12 +266,17 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
     return 0;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (getBoolean(parsed, "json")) {
+    if (err instanceof HonuaCommandError && getBoolean(parsed, "json")) {
+      // Keep the correlation id in the terminal's failure record. A message-only
+      // error cannot be joined to the server audit row the command just created.
+      printLine(JSON.stringify({ ...err.toJSON(), message }), process.stderr);
+    } else if (getBoolean(parsed, "json")) {
       printLine(JSON.stringify({ error: message }), process.stderr);
     } else {
       printLine(`error: ${message}`, process.stderr);
     }
     if (err instanceof ArgError) return 2;
+    if (err instanceof HonuaCommandError && (err.kind === "validation" || err.kind === "authorization")) return 2;
     return 1;
   }
 }

@@ -855,4 +855,35 @@ describe("the terminal release journey runs on the shared command layer", () => 
       expect(invocation.transport).toBe("cli");
     }
   });
+
+  it("prints the command correlation id when a CLI failure is the only receipt", async () => {
+    const denied = recorder(() => ({ status: 403, body: { title: "Forbidden" } }));
+    vi.stubGlobal("fetch", denied.fetchFn);
+    const output = capture();
+    const exitCode = await run([
+      "connection",
+      "test",
+      "conn-denied",
+      "--yes",
+      "--json",
+      "--base-url",
+      "https://example.test",
+    ]);
+    vi.restoreAllMocks();
+
+    const direct = await runtimeFor(recorder(() => ({ status: 403, body: { title: "Forbidden" } })).fetchFn)
+      .execute(connectionTestCommand, { connectionId: "conn-denied" }, { transport: "sdk" })
+      .catch((thrown: unknown) => thrown);
+
+    expect(exitCode).toBe(2);
+    expect(direct).toBeInstanceOf(HonuaCommandError);
+    const cliError = JSON.parse(output.join("")) as { correlationId?: string; errorKind?: string; statusCode?: number };
+    expect(cliError).toMatchObject({
+      errorKind: "authorization",
+      commandId: "connection.test",
+      statusCode: 403,
+      correlationId: (direct as HonuaCommandError).correlationId,
+    });
+    expect(denied.requests[0]?.headers["x-correlation-id"]).toBe(cliError.correlationId);
+  });
 });
