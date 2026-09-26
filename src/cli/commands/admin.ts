@@ -19,6 +19,7 @@ import {
 } from "../admin-secret-output.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getArray, getBoolean, getNumber, getString } from "../args.js";
+import { qualifyBoundedSetup } from "../bounded-qualification.js";
 import type { CommandContext } from "../command.js";
 import { resolveAdminConnection } from "../config.js";
 import { printLine, renderJson } from "../output.js";
@@ -32,6 +33,7 @@ USAGE
   honua admin api <operationId> [options]
   honua admin operations [group]
   honua admin install local|cloud|status [options]
+  honua admin qualify --directory <dir> --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file> [options]
 
 GROUPS
   connect  import  publish  configure  secure  release  operate
@@ -65,6 +67,10 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   }
   if (group === "install") {
     await installCommand(parsed);
+    return;
+  }
+  if (group === "qualify") {
+    await qualifyCommand(parsed);
     return;
   }
   if (group !== "api" && !ADMIN_GROUPS.has(group)) {
@@ -207,6 +213,58 @@ function rollbackOperation(
     return { operationId: "revokeEmbedKey", resourceId };
   }
   return null;
+}
+
+async function qualifyCommand(parsed: ParsedArgs): Promise<void> {
+  const manifestPath = getString(parsed, "manifest");
+  const manifestSha256 = getString(parsed, "manifest-sha256");
+  const catalogReceiptPath = getString(parsed, "catalog-receipt");
+  if (!manifestPath || !manifestSha256 || !catalogReceiptPath) {
+    throw new ArgError(
+      "Usage: honua admin qualify --directory <dir> --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file>",
+    );
+  }
+  const serviceId = getString(parsed, "service-id");
+  const layerId = getString(parsed, "layer-id");
+  const styleEvidencePath = getString(parsed, "style-evidence");
+  const stylePngPath = getString(parsed, "style-png");
+  const liveStyle = Boolean(serviceId || layerId);
+  if (liveStyle && (styleEvidencePath || stylePngPath)) {
+    throw new ArgError(
+      "Pass either a live --service-id/--layer-id style run or --style-evidence with --style-png, not both.",
+    );
+  }
+  if (liveStyle && !getBoolean(parsed, "yes")) {
+    throw new ArgError(
+      "Style/render mutates the published layer. Re-run with --yes, or replay --style-evidence and --style-png.",
+    );
+  }
+  const bbox = liveStyle ? parseBbox(getString(parsed, "bbox")) : undefined;
+  const receipt = await qualifyBoundedSetup({
+    directory: path.resolve(getString(parsed, "directory") ?? ".honua"),
+    manifestPath,
+    manifestSha256,
+    catalogReceiptPath,
+    ...(getString(parsed, "output") ? { outputPath: getString(parsed, "output") } : {}),
+    ...(serviceId ? { serviceId } : {}),
+    ...(layerId ? { layerId } : {}),
+    ...(bbox ? { bbox } : {}),
+    ...(styleEvidencePath ? { styleEvidencePath } : {}),
+    ...(stylePngPath ? { stylePngPath } : {}),
+    executeStyle: liveStyle,
+  });
+  printLine(renderJson(receipt));
+  if (!receipt.pass) {
+    throw new Error(receipt.differences.join("; "));
+  }
+}
+
+function parseBbox(value: string | undefined): [number, number, number, number] {
+  const parts = value?.split(",").map((item) => Number(item.trim())) ?? [];
+  if (parts.length !== 4 || parts.some((item) => !Number.isFinite(item))) {
+    throw new ArgError("--bbox must be minx,miny,maxx,maxy when qualifying a live style/render.");
+  }
+  return [parts[0]!, parts[1]!, parts[2]!, parts[3]!];
 }
 
 async function installCommand(parsed: ParsedArgs): Promise<void> {

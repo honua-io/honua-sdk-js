@@ -104,11 +104,15 @@ export interface McpToolDescriptor {
 
 export interface McpToolsListParams {
   readonly cursor?: string;
+  /** Server-authored workflow view. Sent on every page, not only the first. */
+  readonly view?: string;
 }
 
 export interface McpToolsListResult {
   readonly tools: readonly McpToolDescriptor[];
   readonly nextCursor?: string;
+  /** Server-authored view revision metadata, when the candidate publishes it. */
+  readonly _meta?: Record<string, unknown>;
 }
 
 // ── tools/call ────────────────────────────────────────────────

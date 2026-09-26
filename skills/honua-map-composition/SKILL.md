@@ -78,6 +78,10 @@ For the admin journey the result has `humanConfirmationRequired: false` and a
 A caller who is not admin still gets `humanConfirmationRequired: true` and no
 share URL. Do not invent a second principal id for the admin path.
 `visibility: "public"` is a decision the admin is making in this session.
+The bounded 2026.1 qualification does not require a second principal or a
+dashboard publication. Map save and `honua_studio_propose_publication` remain
+the supported publication path; human approval stays `humanConfirmationRequired`
+on a non-admin result.
 
 This boundary is the SDK's documented agent-safety posture: plans are proposed,
 signed, and approved out of band, and receipts record what actually ran. See

@@ -36,9 +36,33 @@ honua admin install local --profile gp-dev --yes --directory .honua-zero-to-map
 honua admin install status --directory .honua-zero-to-map
 ```
 
-Do not advance to connections, imports, or geoprocessing until this reports API,
-MCP, and Console ready. A failure here is an install failure, not a data
-problem, and retrying downstream calls will only produce misleading errors.
+Do not advance to connections, imports, or geoprocessing until `ready` is
+true. That flag is `/healthz/ready`. A failure here is an install failure,
+not a data problem.
+
+The 2026.1 qualification command checks the immutable image pin, readiness,
+effective grants, server identity, and the server-authored bounded workflow
+view. It does not guess an MCP profile switch:
+
+```bash
+honua admin qualify --directory .honua-zero-to-map \
+  --manifest reviewed-setup-manifest.json \
+  --manifest-sha256 <independently-pinned-digest> \
+  --catalog-receipt setup-catalog-receipt.json \
+  --style-evidence style-sequence.json \
+  --style-png rendered.png \
+  --output qualification.json
+```
+
+Produce `setup-catalog-receipt.json` with `npm --prefix mcp run certify:setup-parity`.
+A live apply uses `--service-id`, `--layer-id`, `--bbox`, and `--yes` instead
+of the replay files. The receipt is redacted. It is not a pass when the
+bounded view omits `geometry.buffer`, when HTTP and stdio descriptor hashes
+differ, or when the rendered PNG is empty or flat.
+
+Unsupported for this cut: the full Admin MCP roster, the `analysis` and
+`esri-gp` profiles, a guessed `Mcp__Profiles` value, a hard-coded 441-tool
+success count, and dashboard publication.
 
 ## 3. Secure handoff — the part agents get wrong
 

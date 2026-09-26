@@ -39,6 +39,10 @@ If you want the served layer's default style changed and you are not going
 through the server tool, that is the admin path (`updateAdminLayerStyle`, or
 `suggestLayerStyle` for a proposal) — see `docs/admin-cli-reference.md`.
 
+The bounded 2026.1 proof is `honua admin qualify` (see `honua-local-setup`).
+A discovered preset that returns `applied: false`, or a PNG that decodes to
+one flat colour, fails. Dashboard share URLs are not this proof.
+
 ## Prove a published layer's style reaches pixels (stage `style`)
 
 Stage 3 is the only place the journey proves that styling a *published* layer —

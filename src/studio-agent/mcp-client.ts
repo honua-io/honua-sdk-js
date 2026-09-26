@@ -102,18 +102,27 @@ export interface McpListAllToolsOptions {
    * deadline of its own, is indefinitely.
    */
   readonly signal?: AbortSignal;
+  /** Copied onto every `tools/list` page so a bounded view cannot expire after page one. */
+  readonly view?: string;
 }
 
 /** Every descriptor `tools/list` advertised, plus how many pages it took. */
 export interface McpToolListing {
   readonly tools: readonly McpToolDescriptor[];
   readonly pages: number;
+  /** View metadata from the pages. Absent when the server did not send `_meta`. */
+  readonly metadata?: Record<string, unknown>;
 }
 
 export interface McpClientOptions {
   /** The `/mcp` endpoint's base — the client POSTs to `${baseUrl}/mcp`. @default "/api" */
   readonly baseUrl?: string;
   readonly auth?: StudioAiTokenSource;
+  /**
+   * API key sent as `x-api-key`, the same scheme as `honua-mcp-proxy`.
+   * Mutually exclusive with {@link McpClientOptions.auth}.
+   */
+  readonly apiKey?: string;
   /** Advertised in `initialize`'s `clientInfo`. */
   readonly clientName?: string;
   readonly clientVersion?: string;
@@ -144,14 +153,19 @@ export class McpClient {
   readonly #clientName: string;
   readonly #clientVersion: string;
   readonly #workflowView: string | undefined;
+  readonly #apiKey: string | undefined;
   readonly #fetchImpl: typeof fetch;
   #sessionId: string | undefined;
   #initializeResult: McpInitializeResult | undefined;
   #initializing: Promise<McpInitializeResult> | undefined;
 
   public constructor(options: McpClientOptions = {}) {
+    if (options.apiKey && options.auth) {
+      throw new Error("Configure exactly one MCP authentication scheme.");
+    }
     this.#baseUrl = options.baseUrl ?? "/api";
     this.#auth = options.auth;
+    this.#apiKey = options.apiKey;
     this.#clientName = options.clientName ?? "honua-sdk-js";
     this.#clientVersion = options.clientVersion ?? "0.0.0";
     this.#workflowView = options.workflowView;
@@ -240,15 +254,31 @@ export class McpClient {
     const seenCursors = new Set<string>();
     let cursor: string | undefined;
     let pages = 0;
+    let metadata: Record<string, unknown> | undefined;
 
     while (pages < maxPages) {
-      const page = await this.listTools(cursor === undefined ? {} : { cursor }, options.signal);
+      const page = await this.listTools(
+        {
+          ...(options.view !== undefined ? { view: options.view } : {}),
+          ...(cursor !== undefined ? { cursor } : {}),
+        },
+        options.signal,
+      );
       pages += 1;
+      if (page._meta) {
+        if (metadata && stableMeta(metadata) !== stableMeta(page._meta)) {
+          throw new McpProtocolError(
+            `MCP tools/list changed view metadata after ${pages} pages; refusing a partial catalog.`,
+            JSON_RPC_INTERNAL_ERROR,
+          );
+        }
+        metadata = page._meta;
+      }
       if (Array.isArray(page.tools)) tools.push(...page.tools);
 
       const next = page.nextCursor;
       if (next === undefined || next === "") {
-        return { tools, pages };
+        return { tools, pages, ...(metadata ? { metadata } : {}) };
       }
       if (seenCursors.has(next)) {
         throw new McpProtocolError(
@@ -309,6 +339,12 @@ export class McpClient {
    * (`result.isError: true`) — never returns a result the caller has to
    * remember to check `.isError` on.
    */
+  /** `resources/read`. Binary artifacts come back as base64 `blob` contents. */
+  public async readResource(uri: string): Promise<{ contents?: readonly Record<string, unknown>[] }> {
+    await this.initialize();
+    return this.#send("resources/read", { uri });
+  }
+
   public async callTool(name: string, args: Record<string, unknown> = {}): Promise<McpToolsCallResult> {
     await this.initialize();
     const params: McpToolsCallParams = { name, arguments: args };
@@ -325,6 +361,7 @@ export class McpClient {
       accept: "application/json, text/event-stream",
     };
     if (this.#sessionId) headers["mcp-session-id"] = this.#sessionId;
+    if (this.#apiKey) headers["x-api-key"] = this.#apiKey;
     if (this.#auth) {
       const token = await this.#auth.getAccessToken();
       if (token) headers.authorization = `Bearer ${token}`;
@@ -401,6 +438,14 @@ export class McpClient {
  * (or a generic message) rather than ever throwing an unstructured error for
  * a structured failure contract.
  */
+function stableMeta(value: Record<string, unknown>): string {
+  return JSON.stringify(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, value[key]]),
+  );
+}
+
 function parseToolError(result: McpToolsCallResult, toolName: string): McpToolError {
   const structured = result.structuredContent;
   if (structured && typeof structured.code === "string" && typeof structured.message === "string") {

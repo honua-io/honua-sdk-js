@@ -84,7 +84,7 @@ interface ProvisionedAdminCredential {
   readonly provisioned: boolean;
 }
 
-const LOCAL_AGENT_GRANTS = ["admin:read", "admin:write"] as const;
+export const LOCAL_AGENT_GRANTS = ["admin:read", "admin:write"] as const;
 
 export interface LocalInstallStatus {
   readonly installed: boolean;
@@ -333,16 +333,10 @@ export async function getHonuaLocalStatus(
 /**
  * Render the local Docker compose file for an install profile.
  *
- * KNOWN GAP (honua-server#3363/#3430/#3431): `gp-dev` grants the Pro edition
- * but cannot yet request the `base`, `analysis`, and `esri-gp` MCP server
- * profiles that the zero-to-map journey needs, because the server has not
- * published the configuration key that enables them. Nothing in this checkout -
- * fixture, journey plan, generated Admin contract, or documentation - names
- * that key, and emitting a guessed environment variable would produce a compose
- * file that silently does nothing. The key is deliberately left unset until the
- * server contract lands; `mcp/src/release/zero-to-map.ts` fails the preflight
- * with an actionable "enable the <profile> server profile" diagnostic in the
- * meantime.
+ * The 2026.1 bounded setup does not enable MCP profiles from this file.
+ * `analysis` and `esri-gp` are not the first-cut gate, and a guessed
+ * `Mcp__Profiles` value would silently do nothing. `honua admin qualify`
+ * compares the server-authored workflow view with the pinned manifest instead.
  */
 export function renderLocalCompose(options: { readonly profile: LocalInstallProfile }): string {
   const gpEdition = options.profile === "gp-dev" ? "Pro" : "";
@@ -657,6 +651,44 @@ async function runCommand(command: string, args: readonly string[], cwd: string)
     child.on("error", reject);
     child.on("close", (exitCode) => resolve({ exitCode: exitCode ?? 1, stdout, stderr }));
   });
+}
+
+/** Read a local install env file after its private-file proof. Missing file is empty. */
+export async function readVerifiedLocalEnv(directory: string): Promise<Record<string, string>> {
+  return readEnv(path.join(path.resolve(directory), ".env"));
+}
+
+/**
+ * Resolve the credential already written for this install and return only
+ * secret-free identity and effective grants.
+ */
+export async function inspectLocalAgentAccess(
+  baseUrl: string,
+  material: string,
+  fetchFn?: typeof fetch,
+): Promise<{
+  readonly id: string;
+  readonly name: string;
+  readonly requestedGrants: readonly string[];
+  readonly effectiveGrants: readonly string[];
+  readonly canAuthenticate: true;
+}> {
+  const credential = await resolveExistingAdminKey(baseUrl, material, fetchFn);
+  return {
+    id: credential.id,
+    name: credential.name,
+    requestedGrants: credential.requestedGrants,
+    effectiveGrants: credential.effectiveGrants,
+    canAuthenticate: true,
+  };
+}
+
+export async function runLocalInstallCommand(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+): Promise<CommandResult> {
+  return runCommand(command, args, cwd);
 }
 
 async function readEnv(filePath: string): Promise<Record<string, string>> {

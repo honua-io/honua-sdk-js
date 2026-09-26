@@ -68,6 +68,11 @@ render-map → read-resource PNG, and versioned-guidance receipts for
 honua-release#123/#129/#161. Existing `assertRenderedPng` checks reject empty
 or flat renders; a catalog match alone cannot establish style success.
 
+`honua admin qualify` joins this receipt to the local install pin, effective
+grants, server identity, and the style/render PNG proof. It re-reads the
+bounded view over HTTP, requires this receipt's HTTP and stdio descriptor
+hashes to match, and still does not treat a catalog match as style success.
+
 The older zero-to-map runner retains its broader workflow as an explicit
 legacy integration exercise. It must not be used as the 2026.1 bounded catalog
 gate, or its full Admin/analysis prerequisites would reintroduce deferred

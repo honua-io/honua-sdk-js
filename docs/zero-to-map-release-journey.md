@@ -10,8 +10,8 @@ bounded setup → configure → publish path. The broader integration driver
 described below is retained engineering, not a requirement to enable full
 Admin MCP, additional analysis families or dashboards for that cut. Use the
 [pinned bounded catalog qualification](../mcp/certification/setup-parity.md)
-for current HTTP/stdio discovery evidence, alongside separate immutable
-install, task execution and style/render receipts.
+for current HTTP/stdio discovery evidence. `honua admin qualify` joins that
+receipt to the immutable local install and the style/render PNG proof.
 
 The 2026.1 release journey answers one end-to-end question: can one admin, in
 one session, install the platform, configure services, buffer a published
