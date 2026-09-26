@@ -71,6 +71,13 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "bundle-id" },
   { name: "preview-bytes" },
   { name: "timeout-ms" },
+  { name: "manifest" },
+  { name: "manifest-sha256" },
+  { name: "catalog-receipt" },
+  { name: "service-id" },
+  { name: "layer-id" },
+  { name: "style-evidence" },
+  { name: "style-png" },
   { name: "package" },
   { name: "message" },
   { name: "source-kind" },
@@ -196,6 +203,10 @@ ADMIN CONTROL PLANE
                                                configure/secure/release/operate)
   honua admin api <operationId> [options]      Complete 396-operation escape hatch
   honua admin operations [group]               List generated operation inventory
+  honua admin qualify --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file>
+      Qualify local setup, the bounded workflow view, and style/render.
+      Add --service-id --layer-id --bbox minx,miny,maxx,maxy --yes to apply a discovered preset.
+      Or replay --style-evidence <file> --style-png <file>. --output writes the redacted receipt.
 
 GLOBAL OPTIONS
   --base-url <url>     Server base URL (or env HONUA_BASE_URL)
