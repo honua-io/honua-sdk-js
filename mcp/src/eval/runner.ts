@@ -9,6 +9,7 @@ import { connectUpstream, resolveProxyOptions } from "../proxy.js";
 import { isOgcCorpus, isStandaloneCorpus, resolveCorpus } from "./corpus.js";
 import { resolveDrivers } from "./drivers/index.js";
 import { grade } from "./grade.js";
+import { annotateTranscript, blockedTranscript, redactTranscript, unavailableProfiles } from "./workflow-corpus.js";
 import { type AuthMode, type EvalReport, assembleReport } from "./report.js";
 import type { ModelDriver, Scenario, ToolCallResult, WorkflowContext } from "./types.js";
 
@@ -168,10 +169,21 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
     }));
     const ctx = buildContext(surface.client, tools);
 
+    const activeProfiles = (env.HONUA_SERVER_PROFILES ?? "")
+      .split(",")
+      .map((profile) => profile.trim())
+      .filter((profile) => profile.length > 0);
     const graded: Parameters<typeof assembleReport>[0]["graded"] = [];
     for (const driver of drivers) {
       for (const scenario of corpus) {
-        const transcript = await driver.runWorkflow(scenario, ctx);
+        const missing = unavailableProfiles(scenario, activeProfiles);
+        const raw =
+          missing.length > 0
+            ? blockedTranscript(driver.id, scenario, missing)
+            : await driver.runWorkflow(scenario, ctx);
+        const transcript = redactTranscript(
+          annotateTranscript(raw, scenario, driver.vendor === "deterministic" ? "HARNESS_DRIVEN" : "MODEL_SELECTED"),
+        );
         graded.push({ grade: grade(scenario, transcript), transcript });
       }
     }

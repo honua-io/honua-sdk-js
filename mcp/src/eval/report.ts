@@ -45,6 +45,8 @@ export interface ModelScorecard {
   fail: number;
   clarified: number;
   error: number;
+  /** Scenarios skipped because a required server profile is off. Not a pass. */
+  blocked: number;
   /** pass / scenarios. */
   successRate: number;
   /** clarified / scenarios. */
@@ -138,6 +140,7 @@ export function assembleReport(input: AssembleInput): EvalReport {
     const fail = own.filter((r) => r.outcome === "fail").length;
     const clarified = own.filter((r) => r.outcome === "clarified").length;
     const error = own.filter((r) => r.outcome === "error").length;
+    const blocked = own.filter((r) => r.outcome === "blocked").length;
     const withToolErrors = own.filter((r) => r.errorCount > 0).length;
     const totalToolErrors = own.reduce((acc, r) => acc + r.errorCount, 0);
     const rate = (n: number) => (scenarios === 0 ? 0 : Number((n / scenarios).toFixed(4)));
@@ -152,6 +155,7 @@ export function assembleReport(input: AssembleInput): EvalReport {
       fail,
       clarified,
       error,
+      blocked,
       successRate: rate(pass),
       clarificationRate: rate(clarified),
       editRate: rate(withToolErrors),
@@ -160,7 +164,9 @@ export function assembleReport(input: AssembleInput): EvalReport {
   });
 
   const control = models.find((m) => m.vendor === "deterministic");
-  const controlPass = control ? control.fail === 0 && control.error === 0 && control.scenarios > 0 : false;
+  const controlPass = control
+    ? control.fail === 0 && control.error === 0 && control.blocked === 0 && control.scenarios > 0
+    : false;
   const liveModelsEvaluated = models.filter((m) => m.vendor !== "deterministic" && m.scenarios > 0).length;
 
   const requiredTools = corpusRequiredTools(input.corpus);
@@ -223,16 +229,18 @@ export function renderMarkdown(report: EvalReport): string {
 
   lines.push("## Per-model scorecard");
   lines.push("");
-  lines.push("| Model | Vendor | Avail | Pass | Fail | Clarified | Error | Success | Clarify | Edit |");
-  lines.push("| --- | --- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+  lines.push("| Model | Vendor | Avail | Pass | Fail | Clarified | Error | Blocked | Success | Clarify | Edit |");
+  lines.push("| --- | --- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
   for (const m of report.models) {
     lines.push(
-      `| \`${m.id}\` | ${m.vendor} | ${m.available ? "yes" : "no"} | ${m.pass} | ${m.fail} | ${m.clarified} | ${m.error} | ${pct(m.successRate)} | ${pct(m.clarificationRate)} | ${pct(m.editRate)} |`,
+      `| \`${m.id}\` | ${m.vendor} | ${m.available ? "yes" : "no"} | ${m.pass} | ${m.fail} | ${m.clarified} | ${m.error} | ${m.blocked} | ${pct(m.successRate)} | ${pct(m.clarificationRate)} | ${pct(m.editRate)} |`,
     );
   }
   lines.push("");
 
-  const failures = report.results.filter((r) => r.outcome === "fail" || r.outcome === "error");
+  const failures = report.results.filter(
+    (r) => r.outcome === "fail" || r.outcome === "error" || r.outcome === "blocked",
+  );
   if (failures.length > 0) {
     lines.push("## Non-passing results");
     lines.push("");

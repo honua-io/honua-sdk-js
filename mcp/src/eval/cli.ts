@@ -23,7 +23,7 @@ import { runEval } from "./runner.js";
  *                    explicit request yields an honest driverError, not a silent
  *                    skip. Without --driver, drivers are auto-resolved from env.
  *   --corpus <name>  Select the corpus explicitly: analyst | operator | northstar |
- *                    standalone | ogc | all. This overrides HONUA_EVAL_CORPUS and is how the `eval:live`
+ *                    standalone | ogc | workflow | all. This overrides HONUA_EVAL_CORPUS and is how the `eval:live`
  *                    script targets the operator surface without relying on shell env
  *                    (cross-platform). `northstar` targets the three P1-gate
  *                    workflows; `standalone` and `ogc` target the two platform-free
@@ -41,7 +41,7 @@ import { runEval } from "./runner.js";
  * never hardcoded — they come from the environment.
  */
 
-const CORPUS_NAMES = ["analyst", "operator", "northstar", "standalone", "ogc", "all"] as const;
+const CORPUS_NAMES = ["analyst", "operator", "northstar", "standalone", "ogc", "workflow", "all"] as const;
 type CorpusName = (typeof CORPUS_NAMES)[number];
 
 interface CliOptions {
