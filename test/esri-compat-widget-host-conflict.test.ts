@@ -35,8 +35,7 @@ describe("HonuaWidgetHost tag-ownership verification", () => {
     expect(await host.mount()).toBeUndefined();
     expect(container.children).toHaveLength(0);
 
-    // The shim path degrades to headless: LegendCompat still loads and
-    // computes items, it just does not render a component into the container.
+    // A foreign class owns the kit tag, so LegendCompat paints a plain list.
     const legend = new LegendCompat({
       map: {
         layers: [
@@ -55,7 +54,8 @@ describe("HonuaWidgetHost tag-ownership verification", () => {
     await legend.load();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(legend.items).toHaveLength(1);
-    expect(container.children).toHaveLength(0);
+    expect(container.querySelector("honua-legend")).toBeNull();
+    expect(container.querySelector("li")?.textContent).toBe("Residential");
 
     // Tags the kit still owns keep mounting (the kit import registered them).
     const listContainer = document.createElement("div");
