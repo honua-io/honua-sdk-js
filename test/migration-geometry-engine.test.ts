@@ -30,6 +30,7 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
         "import geometryEngine from '@arcgis/core/geometry/geometryEngine';",
         "export function measure(a: unknown, b: unknown) {",
         "  const merged = geometryEngine.union([a, b]);",
+        "  const center = geometryEngine.centroid(merged);",
         "  const acres = geometryEngine.planarArea(merged, 'acres');",
         "  return { merged, acres };",
         "}",
@@ -50,6 +51,7 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
     expect(nextSource).toContain('import { geometryEngineCompat as geometryEngine } from "@honua/sdk-esri-compat";');
     // Covered op call sites are left as-is (they resolve to the shim).
     expect(nextSource).toContain("geometryEngine.union([a, b])");
+    expect(nextSource).toContain("geometryEngine.centroid(merged)");
     expect(nextSource).toContain("geometryEngine.planarArea(merged, 'acres')");
     expect(nextSource).not.toContain("@arcgis/core/geometry/geometryEngine");
   });

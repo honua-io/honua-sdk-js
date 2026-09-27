@@ -1,4 +1,5 @@
 import { HonuaClient } from "../core/client.js";
+import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { encodeServiceIdPath } from "../core/path-utils.js";
 import type {
   ApplyEditsRequest,
@@ -218,11 +219,6 @@ export class FeatureLayerCompat {
   }
 
   public async load(): Promise<FeatureLayerCompat> {
-    if (this.source) {
-      this.loaded = true;
-      this.loadStatus = "loaded";
-      return this;
-    }
     if (!this.loaded) {
       this.loadStatus = "loading";
       this.notifyWatchers("loadStatus", this.loadStatus);
@@ -232,7 +228,9 @@ export class FeatureLayerCompat {
         this,
       );
       try {
-        this.metadata = await this.client.getLayerMetadata(this.serviceId, this.layerId);
+        this.metadata = this.isInMemory
+          ? { fields: this.fields ?? [] }
+          : await this.client.getLayerMetadata(this.serviceId, this.layerId);
         this.notifyWatchers("metadata", this.metadata);
         this.loaded = true;
         this.notifyWatchers("loaded", this.loaded);
@@ -422,7 +420,7 @@ export class FeatureLayerCompat {
   }
 
   public listFields(): readonly HonuaFieldInfo[] {
-    return extractFieldDefinitions(this.metadata);
+    return extractFieldDefinitions(this.isInMemory ? { fields: this.fields } : this.metadata);
   }
 
   public getField(fieldName: string): HonuaFieldInfo | undefined {
@@ -448,14 +446,45 @@ export class FeatureLayerCompat {
     };
   }
 
-  public queryFeatures(options: FeatureLayerQueryOptions = {}): Promise<HonuaQueryResponse> {
-    if (this.source) {
-      return Promise.resolve({
-        objectIdFieldName: this.objectIdField,
-        features: [...this.source] as HonuaFeature[],
-        exceededTransferLimit: false,
-      });
+  private get isInMemory(): boolean {
+    return this.source !== undefined && this.url === undefined;
+  }
+
+  private async queryMemory(options: FeatureLayerQueryOptions): Promise<HonuaQueryResponse> {
+    options.signal?.throwIfAborted();
+    for (const where of [this.definitionExpression, options.where]) {
+      if (where !== undefined && !/^\s*1\s*=\s*1\s*$/.test(where)) {
+        throw new HonuaCapabilityNotSupportedError("where", "in-memory", this.id);
+      }
     }
+    if (this.timeExtent) throw new HonuaCapabilityNotSupportedError("time", "in-memory", this.id);
+    for (const key of Object.keys(options.extraParams ?? {})) {
+      if (key !== "resultOffset" && key !== "resultRecordCount") {
+        throw new HonuaCapabilityNotSupportedError(key, "in-memory", this.id);
+      }
+    }
+    const source = this.source as readonly HonuaFeature[];
+    const offset = Number(options.extraParams?.resultOffset ?? 0);
+    const count = Number(options.extraParams?.resultRecordCount ?? source.length);
+    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(count) || count < 0) {
+      throw new RangeError("In-memory pagination requires nonnegative safe integers");
+    }
+    const requestedFields = options.outFields ?? this.outFields ?? ["*"];
+    const fields = (Array.isArray(requestedFields) ? requestedFields : requestedFields.split(",")).map((f) => f.trim());
+    return {
+      objectIdFieldName: this.objectIdField,
+      features: source.slice(offset, offset + count).map((feature) => ({
+        attributes: Object.fromEntries(
+          Object.entries(feature.attributes).filter(([key]) => fields.includes("*") || fields.includes(key)),
+        ),
+        ...(options.returnGeometry === false ? {} : { geometry: feature.geometry }),
+      })),
+      exceededTransferLimit: offset + count < source.length,
+    };
+  }
+
+  public queryFeatures(options: FeatureLayerQueryOptions = {}): Promise<HonuaQueryResponse> {
+    if (this.isInMemory) return this.queryMemory(options);
     const timeParam = buildTimeParam(this.timeExtent, options.extraParams);
     return this.client.queryFeatures({
       serviceId: this.serviceId,
@@ -545,6 +574,14 @@ export class FeatureLayerCompat {
   }
 
   public async queryObjectIds(options: FeatureLayerQueryCountOptions = {}): Promise<number[]> {
+    if (this.isInMemory) {
+      const { features = [] } = await this.queryMemory({ ...options, outFields: ["*"], returnGeometry: false });
+      return features
+        .map((feature) =>
+          this.objectIdField ? Number(feature.attributes[this.objectIdField]) : extractObjectId(feature),
+        )
+        .filter((id): id is number => typeof id === "number" && Number.isFinite(id));
+    }
     const response = (await this.client.queryFeatures({
       serviceId: this.serviceId,
       layerId: this.layerId,
@@ -570,6 +607,7 @@ export class FeatureLayerCompat {
   }
 
   public async queryFeatureCount(options: FeatureLayerQueryCountOptions = {}): Promise<number> {
+    if (this.isInMemory) return (await this.queryMemory(options)).features?.length ?? 0;
     const response = (await this.client.queryFeatures({
       serviceId: this.serviceId,
       layerId: this.layerId,
@@ -590,6 +628,46 @@ export class FeatureLayerCompat {
   }
 
   public async queryExtent(options: FeatureLayerQueryCountOptions = {}): Promise<FeatureLayerQueryExtentResult> {
+    if (this.isInMemory) {
+      const { features = [] } = await this.queryMemory(options);
+      let extent: HonuaExtent | null = null;
+      for (const { geometry } of features) {
+        if (!geometry) continue;
+        const g = geometry as Record<string, unknown>;
+        const coordinates =
+          typeof g.x === "number"
+            ? [[g.x, g.y]]
+            : typeof g.xmin === "number"
+              ? [
+                  [g.xmin, g.ymin],
+                  [g.xmax, g.ymax],
+                ]
+              : Array.isArray(g.points)
+                ? g.points
+                : Array.isArray(g.paths)
+                  ? g.paths.flat()
+                  : Array.isArray(g.rings)
+                    ? g.rings.flat()
+                    : undefined;
+        if (!coordinates) throw new HonuaCapabilityNotSupportedError("geometry extent", "in-memory", this.id);
+        for (const [x, y] of coordinates) {
+          if (!Number.isFinite(x) || !Number.isFinite(y)) throw new TypeError("Invalid in-memory coordinates");
+          if (!extent)
+            extent = {
+              xmin: x,
+              ymin: y,
+              xmax: x,
+              ymax: y,
+              spatialReference: geometry.spatialReference as HonuaExtent["spatialReference"],
+            };
+          extent.xmin = Math.min(extent.xmin, x);
+          extent.ymin = Math.min(extent.ymin, y);
+          extent.xmax = Math.max(extent.xmax, x);
+          extent.ymax = Math.max(extent.ymax, y);
+        }
+      }
+      return { extent, count: features.length };
+    }
     const response = (await this.client.queryFeatures({
       serviceId: this.serviceId,
       layerId: this.layerId,
