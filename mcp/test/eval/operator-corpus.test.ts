@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CORPUS, resolveCorpus } from "../../src/eval/corpus.js";
 import { NORTHSTAR_CORPUS } from "../../src/eval/northstar-corpus.js";
 import { OPERATOR_CORPUS } from "../../src/eval/operator-corpus.js";
+import { WORKFLOW_CORPUS } from "../../src/eval/workflow-corpus.js";
 
 const MUTATING_TOOLS = ["honua_execute_plan", "honua_propose_operation"];
 
@@ -99,9 +100,12 @@ describe("corpus resolution (#1956)", () => {
 
   it("concatenates every corpus for 'all'", () => {
     const all = resolveCorpus({ HONUA_EVAL_CORPUS: "all" });
-    expect(all.length).toBe(CORPUS.length + OPERATOR_CORPUS.length + NORTHSTAR_CORPUS.length);
+    const afterOperator = CORPUS.length + OPERATOR_CORPUS.length;
+    const afterNorthstar = afterOperator + NORTHSTAR_CORPUS.length;
+    expect(all.length).toBe(afterNorthstar + WORKFLOW_CORPUS.length);
     expect(all.slice(0, CORPUS.length)).toEqual(CORPUS);
-    expect(all.slice(CORPUS.length, CORPUS.length + OPERATOR_CORPUS.length)).toEqual(OPERATOR_CORPUS);
-    expect(all.slice(CORPUS.length + OPERATOR_CORPUS.length)).toEqual(NORTHSTAR_CORPUS);
+    expect(all.slice(CORPUS.length, afterOperator)).toEqual(OPERATOR_CORPUS);
+    expect(all.slice(afterOperator, afterNorthstar)).toEqual(NORTHSTAR_CORPUS);
+    expect(all.slice(afterNorthstar)).toEqual(WORKFLOW_CORPUS);
   });
 });
