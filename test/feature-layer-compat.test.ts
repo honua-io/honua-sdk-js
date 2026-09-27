@@ -1238,4 +1238,31 @@ describe("FeatureLayerCompat", () => {
     expect(captured.body).toBeInstanceOf(FormData);
     expect(captured.body?.get("attachmentId")).toBe("7");
   });
+
+  it("keeps an in-memory source local for query and edits", async () => {
+    const layer = new FeatureLayerCompat({
+      source: [],
+      objectIdField: "OBJECTID",
+      fields: [{ name: "name", type: "string" }],
+    });
+
+    await layer.applyEdits({
+      addFeatures: [
+        { attributes: { name: "Cafe" }, geometry: { x: 1, y: 2 } },
+        { attributes: { name: "Park" }, geometry: { x: 3, y: 4 } },
+      ],
+    });
+    const ids = await layer.queryObjectIds();
+    expect(ids).toEqual([1, 2]);
+
+    const matched = await layer.queryFeatures({ where: "name='Cafe'" });
+    expect(matched.features).toHaveLength(1);
+    expect(matched.features?.[0]?.attributes).toMatchObject({ name: "Cafe" });
+
+    const extent = await layer.queryExtent({ where: "name='Park'" });
+    expect(extent).toEqual({ extent: { xmin: 3, ymin: 4, xmax: 3, ymax: 4 }, count: 1 });
+
+    await layer.applyEdits({ deleteFeatures: [{ objectId: 1 }] });
+    expect(await layer.queryFeatureCount()).toBe(1);
+  });
 });

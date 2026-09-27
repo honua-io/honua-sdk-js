@@ -2,6 +2,7 @@ import { CompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import {
   RouteLayerCompat,
   type RouteLayerCompatOptions,
+  routeStopFromUnknown,
   type RouteSolveResultCompat,
   type RouteStopCompat,
 } from "./route-layer.js";
@@ -31,6 +32,8 @@ export interface RouteTaskStopsFeatureSetCompat {
 export interface RouteTaskSolveParametersCompat {
   stops?: readonly RouteStopCompat[] | RouteTaskStopsFeatureSetCompat;
   returnDirections?: boolean;
+  /** ArcGIS travel mode name or the mode object returned by retrieveTravelModes. */
+  travelMode?: unknown;
 }
 
 export interface RouteTaskDirectionsFeatureCompat {
@@ -172,7 +175,9 @@ export class RouteTaskCompat {
     try {
       const layer = new RouteLayerCompat({
         stops,
-        routeProvider: this.routeProvider,
+        routeProvider:
+          this.routeProvider ??
+          (this.url ? arcGisRouteServiceProvider(this.url, this.apiKey, params.travelMode) : undefined),
         eventBus: this.eventBus,
       });
       const route = await layer.solve();
@@ -214,11 +219,7 @@ function normalizeStops(rawStops: RouteTaskSolveParametersCompat["stops"]): read
     return [];
   }
   if (Array.isArray(rawStops)) {
-    const arrayStops = rawStops as readonly RouteStopCompat[];
-    return arrayStops.map((stop) => ({
-      name: stop.name,
-      location: [stop.location[0], stop.location[1]],
-    }));
+    return rawStops.map((stop) => routeStopFromUnknown(stop));
   }
 
   const featureSet = rawStops as RouteTaskStopsFeatureSetCompat;
@@ -241,6 +242,117 @@ function normalizeStops(rawStops: RouteTaskSolveParametersCompat["stops"]): read
     });
   }
   return stops;
+}
+
+export function buildRouteTaskSolveResult(
+  route: RouteSolveResultCompat,
+  stops: readonly RouteStopCompat[],
+  includeDirections: boolean,
+): RouteTaskSolveResultCompat {
+  return buildSolveResult(route, stops, includeDirections);
+}
+
+function arcGisRouteServiceProvider(
+  url: string,
+  apiKey: string | undefined,
+  travelMode?: unknown,
+): NonNullable<RouteLayerCompatOptions["routeProvider"]> {
+  return async (stops) => {
+    const solveUrl = new URL(`${url.replace(/\/$/, "")}/solve`);
+    solveUrl.searchParams.set("f", "json");
+    solveUrl.searchParams.set("returnDirections", "true");
+    solveUrl.searchParams.set("directionsLengthUnits", "esriNAUKilometers");
+    solveUrl.searchParams.set(
+      "stops",
+      JSON.stringify({
+        features: stops.map((stop) => ({
+          geometry: stopGeometry(stop),
+          attributes: { Name: stop.name ?? "" },
+        })),
+      }),
+    );
+    if (travelMode !== undefined && travelMode !== null) {
+      solveUrl.searchParams.set("travelMode", typeof travelMode === "string" ? travelMode : JSON.stringify(travelMode));
+    }
+    if (apiKey) {
+      solveUrl.searchParams.set("token", apiKey);
+    }
+    const response = await fetch(solveUrl);
+    const json = (await response.json()) as {
+      error?: { message?: string };
+      routes?: {
+        features?: Array<{
+          geometry?: { paths?: number[][][] };
+          attributes?: Record<string, unknown>;
+        }>;
+      };
+      directions?: Array<{
+        features?: Array<{ attributes?: { text?: unknown; length?: unknown; time?: unknown } }>;
+      }>;
+    };
+    if (!response.ok || json.error) {
+      throw new Error(json.error?.message ?? `Route solve failed (${response.status}).`);
+    }
+    const feature = json.routes?.features?.[0];
+    const path = (feature?.geometry?.paths ?? []).flatMap((ring) =>
+      ring
+        .filter((point) => point.length >= 2)
+        .map((point) => [point[0] ?? 0, point[1] ?? 0] as [number, number]),
+    );
+    const kilometers = numberAttribute(feature?.attributes, "Total_Kilometers");
+    const minutes = numberAttribute(feature?.attributes, "Total_TravelTime");
+    const metersFromPath = pathLengthMeters(path);
+    const directionFeatures = (json.directions?.[0]?.features ?? [])
+      .map((step) => {
+        const text = step.attributes?.text;
+        if (typeof text !== "string" || text.length === 0) {
+          return undefined;
+        }
+        const length = step.attributes?.length;
+        const time = step.attributes?.time;
+        return {
+          text,
+          lengthKilometers: typeof length === "number" && Number.isFinite(length) ? length : 0,
+          timeMinutes: typeof time === "number" && Number.isFinite(time) ? time : 0,
+        };
+      })
+      .filter((step): step is NonNullable<typeof step> => step !== undefined);
+    return {
+      path: path.length > 0 ? path : stops.map((stop) => [stop.location[0], stop.location[1]]),
+      totalLengthMeters: kilometers !== undefined ? kilometers * 1000 : metersFromPath,
+      totalTimeSeconds: minutes !== undefined ? minutes * 60 : metersFromPath / 13.4112,
+      ...(directionFeatures.length > 0 ? { directionFeatures } : {}),
+    };
+  };
+}
+
+function stopGeometry(stop: RouteStopCompat): { x: number; y: number; spatialReference: { wkid: number } } {
+  const [x, y] = stop.location;
+  const webMercator = Math.abs(x) > 180 || Math.abs(y) > 90;
+  return { x, y, spatialReference: { wkid: webMercator ? 102100 : 4326 } };
+}
+
+function numberAttribute(attributes: Record<string, unknown> | undefined, name: string): number | undefined {
+  const value = attributes?.[name];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function pathLengthMeters(path: readonly [number, number][]): number {
+  let total = 0;
+  for (let index = 1; index < path.length; index += 1) {
+    const previous = path[index - 1];
+    const current = path[index];
+    if (!previous || !current) {
+      continue;
+    }
+    const dLon = ((current[0] - previous[0]) * Math.PI) / 180;
+    const dLat = ((current[1] - previous[1]) * Math.PI) / 180;
+    const lat1 = (previous[1] * Math.PI) / 180;
+    const lat2 = (current[1] * Math.PI) / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    total += 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  return total;
 }
 
 function buildSolveResult(
@@ -282,6 +394,20 @@ function buildSolveResult(
 }
 
 function buildDirectionFeatures(route: RouteSolveResultCompat): readonly RouteTaskDirectionsFeatureCompat[] {
+  if (route.directionFeatures && route.directionFeatures.length > 0) {
+    const path = route.path.map((point) => [point[0], point[1]] as [number, number]);
+    return route.directionFeatures.map((step) => ({
+      attributes: {
+        text: step.text,
+        length: step.lengthKilometers,
+        time: step.timeMinutes,
+      },
+      geometry: {
+        paths: [path],
+        spatialReference: { wkid: 4326 },
+      },
+    }));
+  }
   if (route.path.length < 2 || route.totalLengthMeters <= 0) {
     return [];
   }

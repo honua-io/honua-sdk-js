@@ -1,5 +1,7 @@
 import { CompatEventBus, resolveCompatEventBus } from "./event-bus.js";
 import { FeatureFilterCompat, type FeatureFilterCompatOptions } from "./feature-filter.js";
+import { GraphicsLayerCompat } from "./graphics-layer.js";
+import { type CompatMapSurface, lonLatFromUnknown, mountCompatMap, resolveViewContainer } from "./map-view-mount.js";
 
 // ── Structural Type Aliases ───────────────────────────────────
 
@@ -790,11 +792,14 @@ export class MapViewCompat {
   public readonly eventBus: CompatEventBus;
   public readonly popup: MapViewPopupCompat;
   public readonly ui: MapViewUiCompat;
+  /** Esri `MapView.graphics`, the overlay collection `view.graphics.add` writes. */
+  public readonly graphics: GraphicsLayerCompat;
 
   private readonly eventListeners: Map<string, Set<(event: unknown) => void>>;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
   private readonly layerViews: Map<unknown, MapViewLayerViewCompat>;
-  private readonly readyPromise: Promise<MapViewCompat>;
+  private loadPromise: Promise<MapViewCompat> | undefined;
+  private mapSurface: CompatMapSurface | undefined;
 
   public constructor(options: MapViewCompatOptions = {}) {
     this.map = options.map;
@@ -838,13 +843,30 @@ export class MapViewCompat {
     this.ui = new MapViewUiCompat(this.eventBus, (components) => {
       this.notifyWatchers("ui.components", components);
     });
+    this.graphics = new GraphicsLayerCompat({ id: "view-graphics", title: "Graphics", eventBus: this.eventBus });
+    this.graphics.eventBus.onAny((event) => {
+      if (event.type.startsWith("graphics-layer.")) {
+        this.mapSurface?.setGraphics(this.graphics.graphics);
+      }
+    });
     this.eventListeners = new Map();
     this.watchListeners = new Map();
     this.layerViews = new Map();
-    this.readyPromise = Promise.resolve(this);
   }
 
-  public async load(): Promise<MapViewCompat> {
+  /** Esri `view.ready`. True once {@link load} has finished. */
+  public get ready(): boolean {
+    return this.loaded;
+  }
+
+  public load(): Promise<MapViewCompat> {
+    if (!this.loadPromise) {
+      this.loadPromise = this.performLoad();
+    }
+    return this.loadPromise;
+  }
+
+  private async performLoad(): Promise<MapViewCompat> {
     if (this.loaded) {
       return this;
     }
@@ -852,13 +874,44 @@ export class MapViewCompat {
     this.loadStatus = "loading";
     this.notifyWatchers("loadStatus", this.loadStatus);
     this.eventBus.emit("view.loading", undefined, this);
-    await this.readyPromise;
+    const mapWithLoad = this.map as { load?: () => Promise<unknown> } | undefined;
+    if (mapWithLoad && typeof mapWithLoad.load === "function") {
+      await mapWithLoad.load();
+    }
+    await this.mountSurface();
     this.loaded = true;
     this.notifyWatchers("loaded", this.loaded);
     this.loadStatus = "loaded";
     this.notifyWatchers("loadStatus", this.loadStatus);
     this.eventBus.emit("view.loaded", undefined, this);
+    this.emit("arcgisViewReadyChange", { target: this });
     return this;
+  }
+
+  public addEventListener(
+    type: string,
+    listener: ((event: unknown) => void) | { handleEvent: (event: Event) => void },
+  ): void {
+    const callback =
+      typeof listener === "function" ? listener : (event: unknown) => listener.handleEvent(event as Event);
+    this.on(type, callback);
+  }
+
+  public removeEventListener(type: string, listener: (event: unknown) => void): void {
+    this.eventListeners.get(type)?.delete(listener);
+  }
+
+  private async mountSurface(): Promise<void> {
+    const container = resolveViewContainer(this.container);
+    if (!container) {
+      return;
+    }
+    const surface = await mountCompatMap(container, lonLatFromUnknown(this.center), this.zoom);
+    if (!surface) {
+      return;
+    }
+    this.mapSurface = surface;
+    surface.setGraphics(this.graphics.graphics);
   }
 
   public async when(callback?: (view: MapViewCompat) => void): Promise<MapViewCompat> {
@@ -964,12 +1017,14 @@ export class MapViewCompat {
     this.center = center;
     this.notifyWatchers("center", this.center);
     this.eventBus.emit("view.center-changed", { center }, this);
+    this.mapSurface?.setView(lonLatFromUnknown(center), this.zoom);
   }
 
   public setZoom(zoom: number | undefined): void {
     this.zoom = zoom;
     this.notifyWatchers("zoom", this.zoom);
     this.eventBus.emit("view.zoom-changed", { zoom }, this);
+    this.mapSurface?.setView(lonLatFromUnknown(this.center), zoom);
   }
 
   public setScale(scale: number | undefined): void {
@@ -1114,6 +1169,8 @@ export class MapViewCompat {
   }
 
   public destroy(): void {
+    this.mapSurface?.destroy();
+    this.mapSurface = undefined;
     this.eventBus.emit("view.destroy", undefined, this);
     this.emit("destroy", undefined);
     this.ui.removeAll();

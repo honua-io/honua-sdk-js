@@ -66,8 +66,14 @@ export type FeatureLayerQueryAllOptions = FeatureLayerQueryOptions & {
 
 export interface FeatureLayerEditsOptions {
   adds?: unknown[];
+  /** Esri `FeatureLayer.applyEdits` name for {@link adds}. */
+  addFeatures?: unknown[];
   updates?: unknown[];
-  deletes?: number[] | string;
+  /** Esri `FeatureLayer.applyEdits` name for {@link updates}. */
+  updateFeatures?: unknown[];
+  deletes?: number[] | string | readonly { objectId?: number }[];
+  /** Esri `FeatureLayer.applyEdits` name for {@link deletes}. */
+  deleteFeatures?: readonly (number | { objectId?: number })[];
   rollbackOnFailure?: boolean;
 }
 
@@ -450,20 +456,35 @@ export class FeatureLayerCompat {
     return this.source !== undefined && this.url === undefined;
   }
 
-  private async queryMemory(options: FeatureLayerQueryOptions): Promise<HonuaQueryResponse> {
-    options.signal?.throwIfAborted();
-    for (const where of [this.definitionExpression, options.where]) {
-      if (where !== undefined && !/^\s*1\s*=\s*1\s*$/.test(where)) {
+  private assertSupportedMemoryWhere(where: string | undefined): void {
+    if (where === undefined) {
+      return;
+    }
+    const clause = where.trim();
+    if (clause.length === 0 || /^\s*1\s*=\s*1\s*$/.test(clause)) {
+      return;
+    }
+    for (const part of splitWhereAnd(clause)) {
+      if (!isSupportedWhereComparison(part)) {
         throw new HonuaCapabilityNotSupportedError("where", "in-memory", this.id);
       }
     }
+  }
+
+  private async queryMemory(options: FeatureLayerQueryOptions): Promise<HonuaQueryResponse> {
+    options.signal?.throwIfAborted();
+    this.assertSupportedMemoryWhere(this.definitionExpression);
+    this.assertSupportedMemoryWhere(options.where);
     if (this.timeExtent) throw new HonuaCapabilityNotSupportedError("time", "in-memory", this.id);
     for (const key of Object.keys(options.extraParams ?? {})) {
       if (key !== "resultOffset" && key !== "resultRecordCount") {
         throw new HonuaCapabilityNotSupportedError(key, "in-memory", this.id);
       }
     }
-    const source = this.source as readonly HonuaFeature[];
+    const source = ((this.source ?? []) as readonly HonuaFeature[]).filter(
+      (feature) =>
+        featureMatchesWhere(feature, this.definitionExpression) && featureMatchesWhere(feature, options.where),
+    );
     const offset = Number(options.extraParams?.resultOffset ?? 0);
     const count = Number(options.extraParams?.resultRecordCount ?? source.length);
     if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(count) || count < 0) {
@@ -688,12 +709,20 @@ export class FeatureLayerCompat {
   }
 
   public async applyEdits(options: FeatureLayerEditsOptions): Promise<HonuaApplyEditsResponse> {
+    const adds = options.adds ?? options.addFeatures;
+    const updates = options.updates ?? options.updateFeatures;
+    const deletes = normalizeEditDeletes(options.deletes ?? options.deleteFeatures);
+    if (this.isInMemory) {
+      const result = applyMemoryEdits(this.source as unknown[], this.objectIdField, adds, updates, deletes);
+      this.eventBus.emit("feature-layer.edits", { result, layerId: this.id }, this);
+      return result;
+    }
     const result = await this.client.applyEdits({
       serviceId: this.serviceId,
       layerId: this.layerId,
-      adds: options.adds as ApplyEditsRequest["adds"],
-      updates: options.updates as ApplyEditsRequest["updates"],
-      deletes: options.deletes,
+      adds: adds as ApplyEditsRequest["adds"],
+      updates: updates as ApplyEditsRequest["updates"],
+      deletes,
       rollbackOnFailure: options.rollbackOnFailure,
     });
     this.eventBus.emit("feature-layer.edits", { result, layerId: this.id }, this);
@@ -1059,4 +1088,165 @@ function copyToArrayBuffer(chunk: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(chunk.byteLength);
   copy.set(chunk);
   return copy.buffer;
+}
+
+function featureAttributes(feature: unknown): Record<string, unknown> {
+  if (!feature || typeof feature !== "object") {
+    return {};
+  }
+  const attributes = (feature as { attributes?: unknown }).attributes;
+  return attributes && typeof attributes === "object" ? (attributes as Record<string, unknown>) : {};
+}
+
+function featureObjectId(feature: unknown, objectIdField: string | undefined): number | undefined {
+  const attributes = featureAttributes(feature);
+  const raw = attributes[objectIdField ?? "OBJECTID"] ?? attributes.OBJECTID ?? attributes.objectId;
+  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function featureMatchesWhere(feature: unknown, where: string | undefined): boolean {
+  const clause = (where ?? "1=1").trim();
+  if (clause.length === 0 || clause === "1=1" || clause.replace(/\s+/g, "").toLowerCase() === "1=1") {
+    return true;
+  }
+  return splitWhereAnd(clause).every((part) => featureMatchesComparison(feature, part));
+}
+
+function splitWhereAnd(where: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | undefined;
+  for (let index = 0; index < where.length; index += 1) {
+    const char = where[index] ?? "";
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        if (where[index + 1] === quote) {
+          current += quote;
+          index += 1;
+        } else {
+          quote = undefined;
+        }
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (where.slice(index, index + 5).toLowerCase() === " and ") {
+      parts.push(current.trim());
+      current = "";
+      index += 4;
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim().length > 0) {
+    parts.push(current.trim());
+  }
+  return parts;
+}
+
+function isSupportedWhereComparison(comparison: string): boolean {
+  return /^([A-Za-z_][\w.]*)\s*(=|like)\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|-?\d+(?:\.\d+)?)$/i.test(comparison.trim());
+}
+
+function featureMatchesComparison(feature: unknown, comparison: string): boolean {
+  const match = /^([A-Za-z_][\w.]*)\s*(=|like)\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|-?\d+(?:\.\d+)?)$/i.exec(
+    comparison.trim(),
+  );
+  if (!match) {
+    return false;
+  }
+  const field = match[1] ?? "";
+  const operator = (match[2] ?? "").toLowerCase();
+  const expected = unquoteWhereLiteral(match[3] ?? "");
+  const attributes = featureAttributes(feature);
+  const actual = Object.entries(attributes).find(([name]) => name.toLowerCase() === field.toLowerCase())?.[1];
+  const actualText = actual === undefined || actual === null ? "" : String(actual);
+  if (operator === "like") {
+    const pattern = expected
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/%/g, ".*")
+      .replace(/_/g, ".");
+    return new RegExp(`^${pattern}$`, "i").test(actualText);
+  }
+  return (
+    actualText === expected ||
+    (expected !== "" && Number(actualText) === Number(expected) && Number.isFinite(Number(expected)))
+  );
+}
+
+function unquoteWhereLiteral(value: string): string {
+  const trimmed = value.trim();
+  const quote = trimmed[0];
+  if ((quote === "'" || quote === '"') && trimmed.endsWith(quote) && trimmed.length >= 2) {
+    return trimmed.slice(1, -1).replaceAll(`${quote}${quote}`, quote);
+  }
+  return trimmed;
+}
+
+function normalizeEditDeletes(
+  deletes: FeatureLayerEditsOptions["deletes"] | FeatureLayerEditsOptions["deleteFeatures"],
+): number[] | string | undefined {
+  if (deletes === undefined) {
+    return undefined;
+  }
+  if (typeof deletes === "string") {
+    return deletes;
+  }
+  return deletes
+    .map((entry) => (typeof entry === "number" ? entry : entry.objectId))
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+}
+
+function applyMemoryEdits(
+  features: unknown[],
+  objectIdField: string | undefined,
+  adds: readonly unknown[] | undefined,
+  updates: readonly unknown[] | undefined,
+  deletes: number[] | string | undefined,
+): HonuaApplyEditsResponse {
+  const deleteIds = new Set(Array.isArray(deletes) ? deletes : []);
+  const deleteResults = [...deleteIds].map((objectId) => {
+    const index = features.findIndex((feature) => featureObjectId(feature, objectIdField) === objectId);
+    if (index >= 0) {
+      features.splice(index, 1);
+    }
+    return { objectId, success: index >= 0 };
+  });
+  let nextId = 0;
+  for (const feature of features) {
+    nextId = Math.max(nextId, featureObjectId(feature, objectIdField) ?? 0);
+  }
+  const addResults = (adds ?? []).map((feature) => {
+    const existing = featureObjectId(feature, objectIdField);
+    const objectId = existing ?? ++nextId;
+    if (existing === undefined && feature && typeof feature === "object") {
+      const record = feature as { attributes?: Record<string, unknown> };
+      record.attributes = { ...(record.attributes ?? {}), [objectIdField ?? "OBJECTID"]: objectId };
+    }
+    features.push(feature);
+    return { objectId, success: true };
+  });
+  const updateResults = (updates ?? []).map((feature) => {
+    const objectId = featureObjectId(feature, objectIdField);
+    if (objectId === undefined) {
+      return { objectId: -1, success: false, error: { code: 400, description: "Update is missing an object id." } };
+    }
+    const index = features.findIndex((candidate) => featureObjectId(candidate, objectIdField) === objectId);
+    if (index < 0) {
+      return {
+        objectId,
+        success: false,
+        error: { code: 404, description: "Feature was not in the in-memory source." },
+      };
+    }
+    features[index] = feature;
+    return { objectId, success: true };
+  });
+  return { addResults, updateResults, deleteResults };
 }

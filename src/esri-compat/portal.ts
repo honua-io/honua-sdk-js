@@ -284,6 +284,15 @@ export class PortalCompat {
     return this.getJson<PortalItem>(`/content/items/${encodeURIComponent(itemId)}`, {}, options.token ?? this.token);
   }
 
+  /** `GET /sharing/rest/content/items/{id}/data`. Web maps return their operational layers here. */
+  public async getItemData(itemId: string, options: PortalGetItemOptions = {}): Promise<unknown> {
+    return this.getJson<unknown>(
+      `/content/items/${encodeURIComponent(itemId)}/data`,
+      {},
+      options.token ?? this.token,
+    );
+  }
+
   /**
    * Resolve an item (fetching it when given an id), parse its service `url`, and
    * return an authenticated handle. Feature Service items yield a

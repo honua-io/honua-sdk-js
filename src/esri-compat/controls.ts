@@ -442,6 +442,7 @@ export class ZoomCompat extends BaseControlCompat {
   public constructor(options: ZoomCompatOptions = {}) {
     super(options);
     this.layout = options.layout ?? "vertical";
+    mountZoomButtons(this);
   }
 
   public zoomIn(step = 1): number | undefined {
@@ -453,16 +454,54 @@ export class ZoomCompat extends BaseControlCompat {
   }
 
   private adjustZoom(delta: number): number | undefined {
-    if (!isRecord(this.view) || typeof this.view.zoom !== "number" || !Number.isFinite(this.view.zoom)) {
+    if (!isRecord(this.view)) {
       return undefined;
     }
-
-    const next = this.view.zoom + delta;
+    const current = typeof this.view.zoom === "number" && Number.isFinite(this.view.zoom) ? this.view.zoom : 2;
+    const next = current + delta;
     this.view.zoom = next;
+    const goTo = this.view.goTo;
+    if (typeof goTo === "function") {
+      void goTo.call(this.view, { zoom: next });
+    }
     this.notifyWatchers("zoom", next);
     this.eventBus.emit("zoom.changed", { zoom: next, delta }, this);
     return next;
   }
+}
+
+function mountZoomButtons(zoom: ZoomCompat): void {
+  const container = zoom.container;
+  const element =
+    typeof HTMLElement !== "undefined" && container instanceof HTMLElement
+      ? container
+      : typeof container === "string" && typeof document !== "undefined"
+        ? document.getElementById(container)
+        : null;
+  if (!element) {
+    return;
+  }
+  const bar = document.createElement("div");
+  bar.style.display = "flex";
+  bar.style.flexDirection = zoom.layout === "horizontal" ? "row" : "column";
+  bar.style.gap = "4px";
+  for (const [label, step] of [
+    ["+", 1],
+    ["−", -1],
+  ] as const) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", () => {
+      if (step > 0) {
+        zoom.zoomIn();
+      } else {
+        zoom.zoomOut();
+      }
+    });
+    bar.append(button);
+  }
+  element.append(bar);
 }
 
 // ---------------------------------------------------------------------------

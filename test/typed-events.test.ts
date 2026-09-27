@@ -131,7 +131,7 @@ describe("Typed event emitter (Direction 20)", () => {
 
   describe("GraphicCompat typed watch()", () => {
     it("narrow geometry watcher receives typed geometry", () => {
-      let receivedGeometry: Record<string, unknown> | null | undefined;
+      let receivedGeometry: object | null | undefined;
 
       const graphic = new GraphicCompat();
       graphic.watch("geometry", (value) => {
@@ -143,7 +143,7 @@ describe("Typed event emitter (Direction 20)", () => {
     });
 
     it("narrow symbol watcher receives typed symbol", () => {
-      let receivedSymbol: Record<string, unknown> | null | undefined;
+      let receivedSymbol: object | null | undefined;
 
       const graphic = new GraphicCompat();
       graphic.watch("symbol", (value) => {

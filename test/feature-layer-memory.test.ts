@@ -22,9 +22,13 @@ describe("in-memory FeatureLayer queries", () => {
     expect((await layer.queryFeatures({ extraParams: { resultOffset: 4 } })).features).toEqual([]);
   });
 
-  it("rejects unsupported filters instead of silently ignoring them", async () => {
+  it("applies equality filters and rejects clauses it cannot evaluate", async () => {
     const layer = new FeatureLayerCompat({ source });
-    await expect(layer.queryFeatures({ where: "id = 1" })).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+    expect((await layer.queryFeatures({ where: "id = 1" })).features).toEqual([source[0]]);
+    await expect(layer.queryFeatures({ where: "id > 1" })).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+    await expect(layer.queryFeatures({ where: "id = 1 OR id = 2" })).rejects.toBeInstanceOf(
+      HonuaCapabilityNotSupportedError,
+    );
     await expect(layer.queryFeatures({ extraParams: { orderByFields: "id DESC" } })).rejects.toBeInstanceOf(
       HonuaCapabilityNotSupportedError,
     );
@@ -32,7 +36,7 @@ describe("in-memory FeatureLayer queries", () => {
     layer.timeExtent = { start: new Date(0), end: new Date(1) };
     await expect(layer.queryFeatures()).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
     const filtered = new FeatureLayerCompat({ source, definitionExpression: "id = 1" });
-    await expect(filtered.queryFeatures({ where: "1=1" })).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+    expect((await filtered.queryFeatures({ where: "1=1" })).features).toEqual([source[0]]);
     await expect(layer.queryFeatures({ signal: AbortSignal.abort() })).rejects.toThrow();
   });
 
@@ -43,12 +47,18 @@ describe("in-memory FeatureLayer queries", () => {
     expect(await layer.queryObjectIds()).toEqual([1, 2, 3, 4]);
     expect(await layer.queryFeatureCount()).toBe(4);
     expect(await layer.queryExtent()).toEqual({ count: 4, extent: { xmin: 1, ymin: -4, xmax: 4, ymax: -1 } });
+    expect(await layer.queryObjectIds({ where: "id = 1" })).toEqual([1]);
+    expect(await layer.queryFeatureCount({ where: "id = 1" })).toBe(1);
+    expect(await layer.queryExtent({ where: "id = 1" })).toEqual({
+      count: 1,
+      extent: { xmin: 1, ymin: -1, xmax: 1, ymax: -1 },
+    });
     for (const query of [
       layer.queryObjectIds.bind(layer),
       layer.queryFeatureCount.bind(layer),
       layer.queryExtent.bind(layer),
     ]) {
-      await expect(query({ where: "id = 1" })).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+      await expect(query({ where: "id > 1" })).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
     }
     expect(network).not.toHaveBeenCalled();
     expect(await new FeatureLayerCompat({ source: [] }).queryExtent()).toEqual({ count: 0, extent: null });
