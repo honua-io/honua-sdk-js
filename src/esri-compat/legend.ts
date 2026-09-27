@@ -199,25 +199,18 @@ export class LegendCompat {
 
   /** Pushes the current items into the delegated `<honua-legend>` element. */
   private async renderWidgetHost(): Promise<void> {
-    const rows =
-      this.items.length > 0 ? this.items : legendRowsForLayers(this.resolveLegendLayers(), this.includeHidden);
     const host = this.widgetHost;
-    if (host) {
-      const items = rows.flatMap((group, groupIndex) =>
-        group.entries.map((entry, entryIndex) => ({
-          id: `${groupIndex}-${entryIndex}`,
-          label: entry.label,
-          ...(entry.imageData ? { iconUrl: `data:${entry.contentType ?? "image/png"};base64,${entry.imageData}` } : {}),
-        })),
-      );
-      await host.update((element) => {
-        element.items = items;
-      });
-      if (host.element) {
-        return;
-      }
-    }
-    renderLegendList(this.container, rows);
+    if (!host) return;
+    const items = this.items.flatMap((group, groupIndex) =>
+      group.entries.map((entry, entryIndex) => ({
+        id: `${groupIndex}-${entryIndex}`,
+        label: entry.label,
+        ...(entry.imageData ? { iconUrl: `data:${entry.contentType ?? "image/png"};base64,${entry.imageData}` } : {}),
+      })),
+    );
+    await host.update((element) => {
+      element.items = items;
+    });
   }
 
   private resolveLegendLayers(): unknown[] {
@@ -243,58 +236,6 @@ export class LegendCompat {
       safeInvokeCompatListener(listener, value);
     }
   }
-}
-
-function legendRowsForLayers(layers: readonly unknown[], includeHidden: boolean): LegendLayerGroupCompat[] {
-  const rows: LegendLayerGroupCompat[] = [];
-  for (const layer of layers) {
-    if (!includeHidden && !isLayerVisible(layer)) {
-      continue;
-    }
-    const title = toLayerTitle(layer, rows.length);
-    rows.push({
-      layer,
-      title,
-      entries: [
-        {
-          layerId: undefined,
-          layerName: title,
-          label: title,
-          imageData: undefined,
-          contentType: undefined,
-          width: undefined,
-          height: undefined,
-        },
-      ],
-    });
-  }
-  return rows;
-}
-
-function renderLegendList(container: unknown, items: readonly LegendLayerGroupCompat[]): void {
-  const element =
-    typeof HTMLElement !== "undefined" && container instanceof HTMLElement
-      ? container
-      : typeof container === "string" && typeof document !== "undefined"
-        ? document.getElementById(container)
-        : undefined;
-  if (typeof HTMLElement === "undefined" || typeof document === "undefined" || !(element instanceof HTMLElement)) {
-    return;
-  }
-  element.replaceChildren();
-  const list = document.createElement("ul");
-  for (const group of items) {
-    const item = document.createElement("li");
-    item.textContent = group.entries.map((entry) => entry.label).join(", ") || group.title;
-    list.append(item);
-  }
-  if (items.length === 0) {
-    const empty = document.createElement("p");
-    empty.textContent = "No layers";
-    element.append(empty);
-    return;
-  }
-  element.append(list);
 }
 
 async function extractLegendEntries(layer: unknown): Promise<LegendItemCompat[]> {

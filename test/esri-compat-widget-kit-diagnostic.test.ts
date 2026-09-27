@@ -266,13 +266,10 @@ describe("missing widget-kit diagnostic", () => {
     await layerList.load();
     await flushMicrotasks();
 
-    // The shims still compute their state model. Legend paints a plain list
-    // when the kit element is absent.
+    // The shims still compute their state model; only the rendering degrades.
     expect(legend.items).toHaveLength(1);
     expect(layerList.items).toHaveLength(1);
-    const legendContainer = document.getElementById("legend-container");
-    expect(legendContainer?.querySelector("honua-legend")).toBeNull();
-    expect(legendContainer?.querySelector("li")?.textContent).toBe("Residential");
+    expect(document.getElementById("legend-container")?.children).toHaveLength(0);
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(events).toHaveLength(1);
