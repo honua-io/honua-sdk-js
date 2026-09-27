@@ -384,7 +384,7 @@ export type {
   LocatorSuggestionCompat,
   SuggestLocationsParamsCompat,
 } from "./esri-compat/locator.js";
-export { DirectionsCompat } from "./esri-compat/directions.js";
+export { DirectionsCompat, DirectionsViewModelCompat } from "./esri-compat/directions.js";
 export type {
   DirectionsCompatOptions,
   DirectionsHandleCompat,

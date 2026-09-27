@@ -22,14 +22,20 @@ import { parseFeatureLayerUrl } from "./url.js";
 const DEFAULT_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 export interface FeatureLayerCompatOptions {
-  url: string;
+  /** Service layer URL. Omit when {@link source} holds the features in memory. */
+  url?: string;
+  /** In-memory graphics. When set without {@link url}, the layer does not call a service. */
+  source?: readonly unknown[];
+  fields?: readonly unknown[];
+  objectIdField?: string;
+  geometryType?: string;
   id?: string;
   title?: string;
   outFields?: string | string[];
   definitionExpression?: string;
   renderer?: unknown;
   popupTemplate?: unknown;
-  labelingInfo?: unknown[];
+  labelingInfo?: unknown[] | unknown;
   labelsVisible?: boolean;
   opacity?: number;
   visible?: boolean;
@@ -135,7 +141,11 @@ export interface FeatureLayerHandleCompat {
 }
 
 export class FeatureLayerCompat {
-  public readonly url: string;
+  public readonly url: string | undefined;
+  public readonly source: readonly unknown[] | undefined;
+  public readonly fields: readonly unknown[] | undefined;
+  public readonly objectIdField: string | undefined;
+  public readonly geometryType: string | undefined;
   public id: string;
   public title: string | undefined;
   public readonly serviceId: string;
@@ -164,11 +174,16 @@ export class FeatureLayerCompat {
   private readonly maxAttachmentBytes: number;
 
   public constructor(options: FeatureLayerCompatOptions) {
-    const parsed = parseFeatureLayerUrl(options.url);
+    const inMemory = options.source !== undefined && options.url === undefined;
+    const parsed = inMemory ? undefined : parseFeatureLayerUrl(options.url ?? "");
     this.url = options.url;
-    this.serviceId = parsed.serviceId;
-    this.layerId = parsed.layerId;
-    this.id = options.id ?? `${this.serviceId}-${this.layerId}`;
+    this.source = options.source === undefined ? undefined : [...options.source];
+    this.fields = options.fields === undefined ? undefined : [...options.fields];
+    this.objectIdField = options.objectIdField;
+    this.geometryType = options.geometryType;
+    this.serviceId = parsed?.serviceId ?? "memory";
+    this.layerId = parsed?.layerId ?? 0;
+    this.id = options.id ?? (parsed ? `${this.serviceId}-${this.layerId}` : "memory-feature-layer");
     this.title = options.title;
     this.outFields =
       options.outFields === undefined
@@ -179,7 +194,11 @@ export class FeatureLayerCompat {
     this.definitionExpression = options.definitionExpression;
     this.renderer = options.renderer;
     this.popupTemplate = options.popupTemplate;
-    this.labelingInfo = Array.isArray(options.labelingInfo) ? [...options.labelingInfo] : [];
+    this.labelingInfo = Array.isArray(options.labelingInfo)
+      ? [...options.labelingInfo]
+      : options.labelingInfo === undefined
+        ? []
+        : [options.labelingInfo];
     this.labelsVisible = options.labelsVisible ?? true;
     this.opacity = normalizeOpacity(options.opacity ?? 1);
     this.visible = options.visible ?? true;
@@ -192,13 +211,18 @@ export class FeatureLayerCompat {
     this.metadata = undefined;
     this.timeExtent = undefined;
     this.eventBus = options.eventBus ?? resolveCompatEventBus(options.client) ?? new CompatEventBus();
-    this.client = options.client ?? new HonuaClient({ baseUrl: parsed.baseUrl });
+    this.client = options.client ?? new HonuaClient({ baseUrl: parsed?.baseUrl ?? "https://memory.invalid" });
     this.watchListeners = new Map();
     this.eventListeners = new Map();
     this.maxAttachmentBytes = normalizeAttachmentSizeLimit(options.maxAttachmentBytes);
   }
 
   public async load(): Promise<FeatureLayerCompat> {
+    if (this.source) {
+      this.loaded = true;
+      this.loadStatus = "loaded";
+      return this;
+    }
     if (!this.loaded) {
       this.loadStatus = "loading";
       this.notifyWatchers("loadStatus", this.loadStatus);
@@ -425,6 +449,13 @@ export class FeatureLayerCompat {
   }
 
   public queryFeatures(options: FeatureLayerQueryOptions = {}): Promise<HonuaQueryResponse> {
+    if (this.source) {
+      return Promise.resolve({
+        objectIdFieldName: this.objectIdField,
+        features: [...this.source] as HonuaFeature[],
+        exceededTransferLimit: false,
+      });
+    }
     const timeParam = buildTimeParam(this.timeExtent, options.extraParams);
     return this.client.queryFeatures({
       serviceId: this.serviceId,

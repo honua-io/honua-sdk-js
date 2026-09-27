@@ -163,3 +163,48 @@ export class DirectionsCompat {
     }
   }
 }
+
+/**
+ * The Esri `DirectionsViewModel` shape used by webpack 4.x apps: a view, a stop
+ * collection, `load`, `getDirections`, and `reset`. `selectedTravelMode` is
+ * stored and not solved; a route provider does not report travel modes yet.
+ */
+export class DirectionsViewModelCompat {
+  public view: unknown;
+  public loaded: boolean;
+  public selectedTravelMode: unknown;
+  public readonly layer: RouteLayerCompat;
+  public readonly stops: {
+    removeAll(): void;
+    addMany(stops: readonly RouteStopCompat[]): void;
+  };
+
+  public constructor(options: { view?: unknown; routeProvider?: RouteLayerCompatOptions["routeProvider"] } = {}) {
+    this.view = options.view;
+    this.loaded = false;
+    this.selectedTravelMode = undefined;
+    this.layer = new RouteLayerCompat({ routeProvider: options.routeProvider });
+    this.stops = {
+      removeAll: () => {
+        this.layer.clearStops();
+      },
+      addMany: (stops) => {
+        this.layer.addStops(stops);
+      },
+    };
+  }
+
+  public async load(): Promise<this> {
+    await this.layer.load();
+    this.loaded = true;
+    return this;
+  }
+
+  public getDirections(): Promise<RouteSolveResultCompat | undefined> {
+    return this.layer.solve();
+  }
+
+  public reset(): void {
+    this.layer.clearStops();
+  }
+}

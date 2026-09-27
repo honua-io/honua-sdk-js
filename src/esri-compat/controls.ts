@@ -323,6 +323,8 @@ export interface LocatePositionCompat {
 export class LocateCompat extends BaseControlCompat {
   public readonly zoom: number | undefined;
   public lastPosition: LocatePositionCompat | undefined;
+  /** Mirrors the Esri Locate view model state watched by `watchUtils.init`. */
+  public readonly viewModel: { state: "ready" | "disabled" };
 
   private readonly locateProvider: () => Promise<LocatePositionCompat>;
 
@@ -334,10 +336,12 @@ export class LocateCompat extends BaseControlCompat {
     super(options);
     this.zoom = options.zoom;
     this.lastPosition = undefined;
+    this.viewModel = { state: "ready" };
     this.locateProvider = options.locateProvider ?? getDefaultLocateProvider();
   }
 
   public async locate(): Promise<LocatePositionCompat> {
+    this.viewModel.state = "disabled";
     this.eventBus.emit("locate.start", undefined, this);
 
     try {
@@ -363,8 +367,10 @@ export class LocateCompat extends BaseControlCompat {
         },
         this,
       );
+      this.viewModel.state = "ready";
       return position;
     } catch (error) {
+      this.viewModel.state = "ready";
       this.eventBus.emit("locate.error", { error }, this);
       throw error;
     }
