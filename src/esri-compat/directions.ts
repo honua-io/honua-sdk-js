@@ -245,10 +245,17 @@ export class DirectionsViewModelCompat {
     if (this.layer.stops.length < 2) {
       return undefined;
     }
+    const routeProvider =
+      this.routeProvider ??
+      arcGisRouteServiceProvider(
+        this.routeServiceUrl,
+        tokenForRouteService(this.routeServiceUrl, this.apiKey),
+        this.selectedTravelMode,
+      );
     const task = new RouteTaskCompat({
-      url: this.routeProvider ? undefined : this.routeServiceUrl,
+      url: undefined,
       apiKey: tokenForRouteService(this.routeServiceUrl, this.apiKey),
-      routeProvider: this.routeProvider,
+      routeProvider,
     });
     return task.solve({
       stops: [...this.layer.stops],
