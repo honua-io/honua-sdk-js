@@ -157,7 +157,9 @@ export function lonLatFromUnknown(value: unknown): [number, number] | undefined 
   return [record.x, record.y];
 }
 
-function graphicToFeatures(graphic: unknown): Array<{ type: "Feature"; geometry: unknown; properties: Record<string, unknown> }> {
+function graphicToFeatures(
+  graphic: unknown,
+): Array<{ type: "Feature"; geometry: unknown; properties: Record<string, unknown> }> {
   if (!graphic || typeof graphic !== "object") {
     return [];
   }

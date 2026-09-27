@@ -286,11 +286,7 @@ export class PortalCompat {
 
   /** `GET /sharing/rest/content/items/{id}/data`. Web maps return their operational layers here. */
   public async getItemData(itemId: string, options: PortalGetItemOptions = {}): Promise<unknown> {
-    return this.getJson<unknown>(
-      `/content/items/${encodeURIComponent(itemId)}/data`,
-      {},
-      options.token ?? this.token,
-    );
+    return this.getJson<unknown>(`/content/items/${encodeURIComponent(itemId)}/data`, {}, options.token ?? this.token);
   }
 
   /**

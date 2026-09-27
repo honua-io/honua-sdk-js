@@ -2,9 +2,9 @@ import { CompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import {
   RouteLayerCompat,
   type RouteLayerCompatOptions,
-  routeStopFromUnknown,
   type RouteSolveResultCompat,
   type RouteStopCompat,
+  routeStopFromUnknown,
 } from "./route-layer.js";
 
 export interface RouteTaskCompatOptions {
@@ -295,9 +295,7 @@ function arcGisRouteServiceProvider(
     }
     const feature = json.routes?.features?.[0];
     const path = (feature?.geometry?.paths ?? []).flatMap((ring) =>
-      ring
-        .filter((point) => point.length >= 2)
-        .map((point) => [point[0] ?? 0, point[1] ?? 0] as [number, number]),
+      ring.filter((point) => point.length >= 2).map((point) => [point[0] ?? 0, point[1] ?? 0] as [number, number]),
     );
     const kilometers = numberAttribute(feature?.attributes, "Total_Kilometers");
     const minutes = numberAttribute(feature?.attributes, "Total_TravelTime");

@@ -1,13 +1,13 @@
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { identityManager } from "./identity-manager.js";
-import { RouteTaskCompat, type RouteTaskSolveResultCompat } from "./route-task.js";
 import {
   RouteLayerCompat,
   type RouteLayerCompatOptions,
-  routeStopFromUnknown,
   type RouteSolveResultCompat,
   type RouteStopCompat,
+  routeStopFromUnknown,
 } from "./route-layer.js";
+import { RouteTaskCompat, type RouteTaskSolveResultCompat } from "./route-task.js";
 
 /** Default `routeServiceUrl` on Esri `DirectionsViewModel` for the 4.x widget apps. */
 const DEFAULT_ROUTE_SERVICE_URL = "https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
@@ -304,9 +304,7 @@ function tokenForRouteService(url: string, apiKey: string | undefined): string |
       if (credentialHost === "arcgis.com" || credentialHost.endsWith(".arcgis.com")) {
         return credential.token;
       }
-    } catch {
-      continue;
-    }
+    } catch {}
   }
   return undefined;
 }
