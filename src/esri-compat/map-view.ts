@@ -918,7 +918,12 @@ export class MapViewCompat {
 
   public load(): Promise<MapViewCompat> {
     if (!this.loadPromise) {
-      this.loadPromise = this.performLoad();
+      const pending = this.performLoad();
+      // `void view.when()` starts this promise and does not await it.
+      // Awaiters still receive the rejection. This handler only keeps a
+      // background start from becoming an uncaught page error.
+      void pending.catch(() => undefined);
+      this.loadPromise = pending;
     }
     return this.loadPromise;
   }
@@ -1186,13 +1191,16 @@ export class MapViewCompat {
     }
   }
 
-  public async when(callback?: (view: MapViewCompat) => void): Promise<MapViewCompat> {
-    const view = await this.load();
-    if (callback) {
-      callback(view);
-    }
-
-    return view;
+  public when(callback?: (view: MapViewCompat) => void): Promise<MapViewCompat> {
+    const pending = this.load().then((view) => {
+      if (callback) {
+        callback(view);
+      }
+      return view;
+    });
+    // Same as load(): a discarded `void view.when()` must not become a page error.
+    void pending.catch(() => undefined);
+    return pending;
   }
 
   public toMap(screenPoint: MapViewScreenPoint): MapViewMapPoint {
