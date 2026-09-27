@@ -919,4 +919,17 @@ describe("MapViewCompat", () => {
     expect(lv1).toBe(lv2);
     expect(view.allLayerViews).toHaveLength(1);
   });
+
+  it("exposes graphics and fires arcgisViewReadyChange from when()", async () => {
+    const view = new MapViewCompat();
+    const events: string[] = [];
+    view.addEventListener("arcgisViewReadyChange", () => {
+      events.push("ready");
+    });
+    view.graphics.add({ geometry: { x: 1, y: 2 }, symbol: { type: "simple-marker" } });
+    await view.when();
+    expect(view.ready).toBe(true);
+    expect(view.graphics.graphics).toHaveLength(1);
+    expect(events).toEqual(["ready"]);
+  });
 });

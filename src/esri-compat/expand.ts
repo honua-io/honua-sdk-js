@@ -39,6 +39,12 @@ export class ExpandCompat {
     this.mode = options.mode ?? "auto";
     this.group = options.group;
     this.watchListeners = new Map();
+    mountExpand(this);
+  }
+
+  public attachContainer(element: HTMLElement): void {
+    (this as { container: unknown }).container = element;
+    mountExpand(this);
   }
 
   public async load(): Promise<ExpandCompat> {
@@ -87,6 +93,7 @@ export class ExpandCompat {
     this.expanded = true;
     this.notifyWatchers("expanded", this.expanded);
     this.eventBus.emit("expand.changed", { expanded: true }, this);
+    syncExpand(this);
   }
 
   public collapse(): void {
@@ -96,6 +103,7 @@ export class ExpandCompat {
     this.expanded = false;
     this.notifyWatchers("expanded", this.expanded);
     this.eventBus.emit("expand.changed", { expanded: false }, this);
+    syncExpand(this);
   }
 
   public toggle(force?: boolean): boolean {
@@ -122,4 +130,62 @@ export class ExpandCompat {
       safeInvokeCompatListener(listener, value);
     }
   }
+}
+
+function mountExpand(expand: ExpandCompat): void {
+  const element = widgetElement(expand.container);
+  if (!element || typeof document === "undefined") {
+    return;
+  }
+  element.replaceChildren();
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = expand.expanded ? "Collapse" : "Expand";
+  const panel = document.createElement("div");
+  panel.className = "honua-expand-panel";
+  panel.hidden = !expand.expanded;
+  appendExpandContent(panel, expand.content);
+  button.addEventListener("click", () => {
+    expand.toggle();
+  });
+  element.append(button, panel);
+}
+
+function syncExpand(expand: ExpandCompat): void {
+  const element = widgetElement(expand.container);
+  const panel = element?.querySelector(".honua-expand-panel");
+  const button = element?.querySelector("button");
+  if (typeof HTMLElement !== "undefined" && panel instanceof HTMLElement) {
+    panel.hidden = !expand.expanded;
+  }
+  if (button) {
+    button.textContent = expand.expanded ? "Collapse" : "Expand";
+  }
+}
+
+function appendExpandContent(panel: HTMLElement, content: unknown): void {
+  if (typeof HTMLElement !== "undefined" && content instanceof HTMLElement) {
+    panel.append(content);
+    return;
+  }
+  const nested = widgetElement((content as { container?: unknown } | undefined)?.container);
+  if (nested) {
+    panel.append(nested);
+    return;
+  }
+  panel.textContent = "Content";
+}
+
+function widgetElement(container: unknown): HTMLElement | undefined {
+  if (typeof HTMLElement === "undefined") {
+    return undefined;
+  }
+  if (container instanceof HTMLElement) {
+    return container;
+  }
+  if (typeof container === "string" && typeof document !== "undefined") {
+    const element = document.getElementById(container);
+    return element instanceof HTMLElement ? element : undefined;
+  }
+  return undefined;
 }

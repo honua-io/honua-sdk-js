@@ -1,14 +1,23 @@
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { lonLatFromUnknown } from "./map-view-mount.js";
 
 export interface RouteStopCompat {
   name?: string;
   location: [number, number];
 }
 
+export interface RouteDirectionStepCompat {
+  text: string;
+  lengthKilometers: number;
+  timeMinutes: number;
+}
+
 export interface RouteSolveResultCompat {
   path: [number, number][];
   totalLengthMeters: number;
   totalTimeSeconds: number;
+  /** Turn-by-turn steps from a route service. Absent results use the path geometry. */
+  directionFeatures?: readonly RouteDirectionStepCompat[];
 }
 
 export interface RouteLayerCompatOptions {
@@ -181,6 +190,7 @@ export class RouteLayerCompat {
         path: result.path.map((point) => [point[0], point[1]]),
         totalLengthMeters: result.totalLengthMeters,
         totalTimeSeconds: result.totalTimeSeconds,
+        ...(result.directionFeatures ? { directionFeatures: result.directionFeatures } : {}),
       };
       this.notifyWatchers("route", this.route);
       this.eventBus.emit("route-layer.solve-completed", { layerId: this.id, route: this.route }, this);
@@ -237,11 +247,37 @@ export class RouteLayerCompat {
   }
 }
 
-function cloneRouteStop(stop: RouteStopCompat): RouteStopCompat {
-  return {
-    name: stop.name,
-    location: [stop.location[0], stop.location[1]],
+export function routeStopFromUnknown(stop: unknown): RouteStopCompat {
+  if (!stop || typeof stop !== "object") {
+    throw new Error("Route stop is missing a location.");
+  }
+  const record = stop as {
+    name?: unknown;
+    location?: unknown;
+    geometry?: unknown;
+    attributes?: { Name?: unknown; name?: unknown };
   };
+  const fromPair = coordinatePair(record.location);
+  const fromGeometry = record.geometry === undefined ? undefined : lonLatFromUnknown(record.geometry);
+  const location = fromPair ?? fromGeometry;
+  if (!location) {
+    throw new Error("Route stop is missing a location.");
+  }
+  const attributeName = record.attributes?.Name ?? record.attributes?.name;
+  const name =
+    typeof record.name === "string" ? record.name : typeof attributeName === "string" ? attributeName : undefined;
+  return { name, location: [location[0], location[1]] };
+}
+
+function coordinatePair(value: unknown): [number, number] | undefined {
+  if (Array.isArray(value) && value.length >= 2 && typeof value[0] === "number" && typeof value[1] === "number") {
+    return [value[0], value[1]];
+  }
+  return undefined;
+}
+
+function cloneRouteStop(stop: RouteStopCompat): RouteStopCompat {
+  return routeStopFromUnknown(stop);
 }
 
 function defaultRouteProvider(stops: readonly RouteStopCompat[]): RouteSolveResultCompat {

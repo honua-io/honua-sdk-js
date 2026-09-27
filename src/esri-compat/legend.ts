@@ -41,7 +41,7 @@ export interface LegendHandleCompat {
 export class LegendCompat {
   public readonly view: unknown;
   public readonly map: unknown;
-  public readonly container: unknown;
+  public container: unknown;
   public readonly eventBus: CompatEventBus;
   public readonly includeHidden: boolean;
   public loaded: boolean;
@@ -93,6 +93,13 @@ export class LegendCompat {
       this.subscriptions.push(this.eventBus.on("group-layer.layers-cleared", () => void this.refresh()));
       this.subscriptions.push(this.eventBus.on("layer.visibility-changed", () => void this.refresh()));
       this.subscriptions.push(this.eventBus.on("layer.legend-updated", () => void this.refresh()));
+    }
+    if (typeof HTMLElement !== "undefined" && this.container instanceof HTMLElement) {
+      queueMicrotask(() => {
+        if (this.loadStatus === "not-loaded") {
+          void this.load();
+        }
+      });
     }
   }
 
@@ -171,6 +178,15 @@ export class LegendCompat {
     this.eventBus.emit("legend.updated", { layerCount: groups.length }, this);
     void this.renderWidgetHost();
     return this.items;
+  }
+
+  public attachContainer(element: HTMLElement): void {
+    this.container = element;
+    if (this.loaded) {
+      void this.renderWidgetHost();
+      return;
+    }
+    void this.load();
   }
 
   public destroy(): void {

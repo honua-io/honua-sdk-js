@@ -284,6 +284,11 @@ export class PortalCompat {
     return this.getJson<PortalItem>(`/content/items/${encodeURIComponent(itemId)}`, {}, options.token ?? this.token);
   }
 
+  /** `GET /sharing/rest/content/items/{id}/data`. Web maps return their operational layers here. */
+  public async getItemData(itemId: string, options: PortalGetItemOptions = {}): Promise<unknown> {
+    return this.getJson<unknown>(`/content/items/${encodeURIComponent(itemId)}/data`, {}, options.token ?? this.token);
+  }
+
   /**
    * Resolve an item (fetching it when given an id), parse its service `url`, and
    * return an authenticated handle. Feature Service items yield a
@@ -383,8 +388,9 @@ export class PortalCompat {
         query.set(key, String(value));
       }
     }
-    if (token) {
-      query.set("token", token);
+    const authToken = token ?? this.apiKey ?? identityManager.findCredential(this.sharingRestBase)?.token;
+    if (authToken) {
+      query.set("token", authToken);
     }
     const response = await this.fetchFn(`${this.sharingRestBase}${path}?${query.toString()}`);
     const json = (await response.json()) as T & EsriErrorEnvelope;

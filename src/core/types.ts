@@ -1047,6 +1047,10 @@ export interface HonuaApplyEditsResponse {
   addResults?: HonuaEditResult[];
   updateResults?: HonuaEditResult[];
   deleteResults?: HonuaEditResult[];
+  /** Esri FeatureLayer.applyEdits names for the same results. */
+  addFeatureResults?: HonuaEditResult[];
+  updateFeatureResults?: HonuaEditResult[];
+  deleteFeatureResults?: HonuaEditResult[];
 }
 
 // ── Related Records Response ──────────────────

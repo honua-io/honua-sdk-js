@@ -69,6 +69,7 @@ const GEOMETRY_ENGINE_COVERED_OPS: ReadonlySet<string> = new Set([
   "planarLength",
   "simplify",
   "convexHull",
+  "centroid",
   "contains",
   "intersects",
 ]);

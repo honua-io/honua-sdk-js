@@ -33,9 +33,18 @@ describe("WebMapCompat", () => {
     });
 
     let callbackMap: WebMapCompat | undefined;
-    const resolved = await map.when((readyMap) => {
-      callbackMap = readyMap;
-    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error("portal item is not available in this test");
+    }) as typeof fetch;
+    let resolved: WebMapCompat;
+    try {
+      resolved = await map.when((readyMap) => {
+        callbackMap = readyMap;
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
 
     map.setPortalItem({ id: "abc124" });
 
@@ -66,6 +75,44 @@ describe("WebMapCompat", () => {
     expect(loadStatusValues).toHaveLength(watchSnapshot.loadStatus);
     expect(loadedValues).toHaveLength(watchSnapshot.loaded);
     expect(portalItemValues).toHaveLength(watchSnapshot.portalItem);
+  });
+
+  it("adds feature layers from the portal item before the map is ready", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/data")) {
+        return new Response(
+          JSON.stringify({
+            operationalLayers: [
+              {
+                id: "places",
+                title: "Places",
+                url: "https://services.example/arcgis/rest/services/Places/FeatureServer/0",
+                visibility: true,
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ id: "item1", title: "My Map", type: "Web Map" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    try {
+      const map = new WebMapCompat({
+        portalItem: { id: "item1", portal: { url: "https://portal.example" } },
+      });
+      await map.load();
+      expect(map.portalItem).toMatchObject({ id: "item1", title: "My Map" });
+      expect(map.layers).toHaveLength(1);
+      expect(map.layers[0]).toMatchObject({ title: "Places", id: "places" });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("inherits map-level options and mutators", () => {

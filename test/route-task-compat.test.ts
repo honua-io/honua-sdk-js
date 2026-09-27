@@ -53,29 +53,57 @@ describe("RouteTaskCompat", () => {
 
   it("solves route parameters and returns routeResults payload", async () => {
     const task = new RouteTaskCompat({
-      url: "https://example.test/rest/services/network/RouteServer",
+      url: "https://routing.example.com/rest/services/network/RouteServer",
     });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      expect(String(input)).toContain("https://routing.example.com/rest/services/network/RouteServer/solve");
+      return new Response(
+        JSON.stringify({
+          routes: {
+            features: [
+              {
+                geometry: {
+                  paths: [
+                    [
+                      [-157.8583, 21.3069],
+                      [-157.9076, 21.3035],
+                    ],
+                  ],
+                },
+                attributes: { Total_Kilometers: 5, Total_TravelTime: 12 },
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
 
-    const result = await task.solve({
-      stops: {
-        features: [
-          { geometry: { x: -157.8583, y: 21.3069 }, attributes: { Name: "Start" } },
-          { geometry: { x: -157.9076, y: 21.3035 }, attributes: { Name: "End" } },
-        ],
-      },
-      returnDirections: true,
-    });
+    try {
+      const result = await task.solve({
+        stops: {
+          features: [
+            { geometry: { x: -157.8583, y: 21.3069 }, attributes: { Name: "Start" } },
+            { geometry: { x: -157.9076, y: 21.3035 }, attributes: { Name: "End" } },
+          ],
+        },
+        returnDirections: true,
+      });
 
-    expect(result.routeResults).toHaveLength(1);
-    const [first] = result.routeResults;
-    expect(first.route.geometry.paths[0]).toHaveLength(2);
-    expect(first.route.attributes.Total_Kilometers).toBeGreaterThan(0);
-    expect(first.route.attributes.Total_TravelTime).toBeGreaterThan(0);
-    expect(first.directions?.features.length).toBeGreaterThan(0);
-    expect(first.stops).toEqual([
-      { name: "Start", location: [-157.8583, 21.3069] },
-      { name: "End", location: [-157.9076, 21.3035] },
-    ]);
+      expect(result.routeResults).toHaveLength(1);
+      const [first] = result.routeResults;
+      expect(first?.route.geometry.paths[0]).toHaveLength(2);
+      expect(first?.route.attributes.Total_Kilometers).toBeGreaterThan(0);
+      expect(first?.route.attributes.Total_TravelTime).toBeGreaterThan(0);
+      expect(first?.directions?.features.length).toBeGreaterThan(0);
+      expect(first?.stops).toEqual([
+        { name: "Start", location: [-157.8583, 21.3069] },
+        { name: "End", location: [-157.9076, 21.3035] },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("emits solve lifecycle events", async () => {
