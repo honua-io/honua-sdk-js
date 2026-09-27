@@ -377,7 +377,7 @@
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
       "exportCount": 1188,
-      "signatureSha256": "953da2fc13d0e91234e7b2b757b14094b182f61eff9d4a5a6d4c9e1ddcc91e78",
+      "signatureSha256": "7e91dea4f86071aeb8d79c40ca2fb449b30bd68e24f574b292fa9a186a8375fc",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -2085,8 +2085,8 @@
     {
       "subpath": "@honua/sdk-js/esri-compat",
       "types": "dist/src/esri-compat-entry.d.ts",
-      "exportCount": 523,
-      "signatureSha256": "a230b728c746808422b8d219f261059d8d7e96f8cfa7898a0fa981b6ef6735df",
+      "exportCount": 524,
+      "signatureSha256": "b94e02ff5a4ac3f8210b0f655d71686360c12455de3eb99db70e40a42488fbf8",
       "exports": [
         "AddressToLocationsParamsCompat — interface",
         "AddressesToLocationsParamsCompat — interface",
@@ -2148,6 +2148,7 @@
         "DirectionsHandleCompat — interface",
         "DirectionsLoadStatusCompat — type",
         "DirectionsSolveSummaryCompat — interface",
+        "DirectionsViewModelCompat — class",
         "DistanceMeasurement2DCompat — class",
         "DistanceMeasurement2DCompatOptions — interface",
         "DistanceMeasurement2DHandleCompat — interface",
