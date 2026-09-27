@@ -169,14 +169,20 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
     }));
     const ctx = buildContext(surface.client, tools);
 
+    const profilesConfigured = env.HONUA_SERVER_PROFILES !== undefined;
     const activeProfiles = (env.HONUA_SERVER_PROFILES ?? "")
       .split(",")
       .map((profile) => profile.trim())
       .filter((profile) => profile.length > 0);
+    const advertised = new Set(tools.map((tool) => tool.name));
     const graded: Parameters<typeof assembleReport>[0]["graded"] = [];
     for (const driver of drivers) {
       for (const scenario of corpus) {
-        const missing = unavailableProfiles(scenario, activeProfiles);
+        const missingProfiles = profilesConfigured ? unavailableProfiles(scenario, activeProfiles) : [];
+        const toolsPresent = scenario.criteria.requiredTools.every((tool) => advertised.has(tool));
+        // An unset HONUA_SERVER_PROFILES is unknown, not proof the profiles are off.
+        // Advertised tools are stronger evidence than a partial profile list.
+        const missing = toolsPresent ? [] : missingProfiles;
         const raw =
           missing.length > 0
             ? blockedTranscript(driver.id, scenario, missing)

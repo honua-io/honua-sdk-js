@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CORPUS, resolveCorpus } from "../../src/eval/corpus.js";
 import { DeterministicDriver } from "../../src/eval/drivers/deterministic.js";
 import { grade } from "../../src/eval/grade.js";
+import { assembleReport } from "../../src/eval/report.js";
 import type { WorkflowContext, WorkflowTranscript } from "../../src/eval/types.js";
 import {
   WORKFLOW_CORPUS,
@@ -25,6 +26,9 @@ describe("workflow corpus", () => {
   it("selects the workflow corpus without changing the default", () => {
     expect(resolveCorpus({}).map((scenario) => scenario.id)).toEqual(CORPUS.map((scenario) => scenario.id));
     expect(resolveCorpus({ HONUA_EVAL_CORPUS: "workflow" })).toBe(WORKFLOW_CORPUS);
+    const all = resolveCorpus({ HONUA_EVAL_CORPUS: "all" }).map((scenario) => scenario.id);
+    expect(all).toContain("compose-families");
+    expect(all).toContain("buffer-three-ways");
   });
 
   it("keeps journey payloads and the journey file out of the prompts", () => {
@@ -121,5 +125,52 @@ describe("workflow corpus", () => {
     );
     expect(grade(scenario, result).outcome).toBe("pass");
     expect(result.skillId).toBe("honua-datasource-connect");
+  });
+
+  it("requires a full lifecycle for map, app, and dashboard", () => {
+    const scenario = WORKFLOW_CORPUS.find((item) => item.id === "compose-families")!;
+    const families = scenario.script.map((step) => step.args.family);
+    expect(families.filter((family) => family === "map")).toHaveLength(5);
+    expect(families.filter((family) => family === "app")).toHaveLength(5);
+    expect(families.filter((family) => family === "dashboard")).toHaveLength(5);
+    const failed = transcript({
+      scenarioId: scenario.id,
+      steps: scenario.script.map((step) => ({ ...step, isError: true })),
+      errorCount: scenario.script.length,
+      finalAnswer: "",
+    });
+    expect(grade(scenario, failed).outcome).toBe("fail");
+  });
+
+  it("writes journey annotations into the saved report", () => {
+    const scenario = WORKFLOW_CORPUS.find((item) => item.id === "compose-families")!;
+    const annotated = annotateTranscript(
+      transcript({
+        scenarioId: scenario.id,
+        steps: [{ tool: "honua_studio_create_draft", args: { family: "map", draftId: "map-draft" }, isError: false }],
+      }),
+      scenario,
+      "MODEL_SELECTED",
+    );
+    const report = assembleReport({
+      backend: "offline",
+      mcpTransport: "in-memory",
+      auth: "none",
+      provenance: {
+        suiteGitSha: "test",
+        suiteGitShaSource: "git",
+        targetUrl: "offline",
+        protocolVersion: null,
+        toolCount: 1,
+        authMode: "none",
+      },
+      advertisedTools: ["honua_studio_create_draft"],
+      corpus: [scenario],
+      drivers: [new DeterministicDriver()],
+      graded: [{ grade: grade(scenario, annotated), transcript: annotated }],
+    });
+    expect(report.results[0]?.journeyStage).toBe("studio");
+    expect(report.results[0]?.attribution).toBe("MODEL_SELECTED");
+    expect(report.results[0]?.capturedIds?.["map.draftId"]).toBe("map-draft");
   });
 });

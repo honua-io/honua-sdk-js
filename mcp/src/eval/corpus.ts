@@ -141,11 +141,9 @@ export function resolveCorpus(env: NodeJS.ProcessEnv = process.env): Scenario[] 
     case "workflow":
       return WORKFLOW_CORPUS;
     case "all":
-      // `all` spans the Honua-surface corpora only. The platform-free standalone
-      // corpus targets a DIFFERENT surface (a plain FeatureServer fixture) and is
-      // selected explicitly via `standalone`; mixing it here would run its
-      // census-specific scenarios against an operator surface.
-      return [...CORPUS, ...OPERATOR_CORPUS, ...NORTHSTAR_CORPUS];
+      // `all` spans the Honua-surface corpora. Standalone and OGC stay out:
+      // they target a different fixture surface. Workflow is the same surface.
+      return [...CORPUS, ...OPERATOR_CORPUS, ...NORTHSTAR_CORPUS, ...WORKFLOW_CORPUS];
     default:
       return CORPUS;
   }

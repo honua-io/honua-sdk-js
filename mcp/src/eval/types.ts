@@ -93,8 +93,12 @@ export interface SuccessCriteria {
    * model that sets `allowAnonymous` or proposes `visibility: public`.
    */
   forbiddenArgumentText?: string[];
+  /** Substrings that must appear in the tool-argument JSON. */
+  requiredArgumentText?: string[];
   /** Any tool whose name contains "approve" fails the scenario. */
   forbidApproval?: boolean;
+  /** A tool result with isError fails the scenario. The control cannot pass on a failed call. */
+  failOnToolError?: boolean;
 }
 
 /** One GIS workflow in the held-out corpus. */

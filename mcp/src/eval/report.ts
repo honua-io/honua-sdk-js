@@ -18,6 +18,13 @@ export interface EvalResult {
    * a target surface is still missing.
    */
   missingTools: string[];
+  /** Copied from the transcript so a saved artifact can be audited without the live run. */
+  skillId?: string;
+  journeyStage?: string;
+  journeyAction?: string;
+  surface?: WorkflowTranscript["surface"];
+  attribution?: WorkflowTranscript["attribution"];
+  capturedIds?: Record<string, string>;
 }
 
 /**
@@ -131,6 +138,12 @@ export function assembleReport(input: AssembleInput): EvalReport {
     errorCount: grade.errorCount,
     driverError: transcript.driverError,
     missingTools: (requiredByScenario.get(grade.scenarioId) ?? []).filter((t) => !advertised.has(t)),
+    skillId: transcript.skillId,
+    journeyStage: transcript.journeyStage,
+    journeyAction: transcript.journeyAction,
+    surface: transcript.surface,
+    attribution: transcript.attribution,
+    capturedIds: transcript.capturedIds,
   }));
 
   const models: ModelScorecard[] = input.drivers.map((driver) => {

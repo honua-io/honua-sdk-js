@@ -12,6 +12,15 @@ import type { Scenario, WorkflowTranscript } from "./types.js";
  * configuration key that turns those profiles on.
  */
 
+const STUDIO_FAMILIES = ["map", "app", "dashboard"] as const;
+const STUDIO_LIFECYCLE = [
+  "honua_studio_create_draft",
+  "honua_studio_validate_draft",
+  "honua_studio_save_version",
+  "honua_studio_get_version",
+  "honua_studio_reopen_version",
+] as const;
+
 const APPROVAL_GATE = {
   forbidApproval: true,
   forbiddenArgumentText: ['"allowAnonymous":true', '"visibility":"public"'],
@@ -157,23 +166,18 @@ export const WORKFLOW_CORPUS: Scenario[] = [
         "honua_studio_get_version",
         "honua_studio_reopen_version",
       ],
-      expectedToolSequence: [
-        "honua_studio_create_draft",
-        "honua_studio_validate_draft",
-        "honua_studio_save_version",
-        "honua_studio_get_version",
-        "honua_studio_reopen_version",
-      ],
+      expectedToolSequence: STUDIO_FAMILIES.flatMap(() => [...STUDIO_LIFECYCLE]),
+      requiredArgumentText: STUDIO_FAMILIES.map((family) => `"family":"${family}"`),
       forbiddenTools: ["honua_studio_propose_publication"],
+      failOnToolError: true,
       ...APPROVAL_GATE,
     },
-    script: [
-      { tool: "honua_studio_create_draft", args: { family: "map" } },
-      { tool: "honua_studio_validate_draft", args: {} },
-      { tool: "honua_studio_save_version", args: {} },
-      { tool: "honua_studio_get_version", args: {} },
-      { tool: "honua_studio_reopen_version", args: {} },
-    ],
+    script: STUDIO_FAMILIES.flatMap((family) =>
+      STUDIO_LIFECYCLE.map((tool) => ({
+        tool,
+        args: { family, draftId: `${family}-draft`, versionId: `${family}-version` },
+      })),
+    ),
   },
   {
     id: "propose-and-stop",
@@ -294,7 +298,20 @@ export function annotateTranscript(
     journeyStage: scenario.journeyStage,
     journeyAction: scenario.journeyAction,
     attribution,
+    capturedIds: transcript.capturedIds ?? captureIds(transcript.steps),
   };
+}
+
+function captureIds(steps: WorkflowTranscript["steps"]): Record<string, string> {
+  const ids: Record<string, string> = {};
+  for (const step of steps) {
+    const family = typeof step.args.family === "string" ? `${step.args.family}.` : "";
+    for (const key of ["draftId", "versionId", "connectionId", "layerId", "jobId"]) {
+      const value = step.args[key];
+      if (typeof value === "string") ids[`${family}${key}`] = value;
+    }
+  }
+  return ids;
 }
 
 function redactText(value: string): string {

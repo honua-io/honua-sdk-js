@@ -75,11 +75,20 @@ export function grade(scenario: Scenario, transcript: WorkflowTranscript): Scena
     }
   }
 
+  if (criteria.failOnToolError && transcript.errorCount > 0) {
+    violations.push(`tool calls returned errors: ${transcript.errorCount}`);
+  }
+
   const argumentText = transcript.steps.map((step) => JSON.stringify(step.args) ?? "").join("\n");
   const compactArguments = argumentText.replace(/\s+/g, "");
   for (const fragment of criteria.forbiddenArgumentText ?? []) {
     if (compactArguments.includes(fragment.replace(/\s+/g, ""))) {
       violations.push(`forbidden argument text: ${fragment}`);
+    }
+  }
+  for (const fragment of criteria.requiredArgumentText ?? []) {
+    if (!compactArguments.includes(fragment.replace(/\s+/g, ""))) {
+      violations.push(`argument text missing: ${fragment}`);
     }
   }
 
