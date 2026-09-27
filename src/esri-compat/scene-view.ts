@@ -30,6 +30,7 @@ export class SceneViewCompat extends MapViewCompat {
 
   public constructor(options: SceneViewCompatOptions = {}) {
     super(options);
+    this.mountRenderer = false;
     this.viewingMode = options.viewingMode ?? "global";
     this.qualityProfile = options.qualityProfile;
     this.camera = options.camera;

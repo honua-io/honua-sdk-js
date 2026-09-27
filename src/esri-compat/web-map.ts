@@ -10,8 +10,13 @@ export type WebMapLoadStatusCompat = MapLoadStatusCompat;
 export type WebMapHandleCompat = MapCompatHandle;
 
 export class WebMapCompat extends MapCompat {
+  public initialExtent:
+    | { xmin: number; ymin: number; xmax: number; ymax: number; spatialReference?: { wkid?: number } }
+    | undefined;
+
   public constructor(options: WebMapCompatOptions = {}) {
     super(options);
+    this.initialExtent = undefined;
   }
 
   public override async load(): Promise<WebMapCompat> {
@@ -33,6 +38,13 @@ export class WebMapCompat extends MapCompat {
       const item = await portal.getItem(portalItem.id);
       this.setPortalItem({ ...portalItem.raw, ...item, id: portalItem.id });
       const data = await portal.getItemData(portalItem.id);
+      const viewState = readWebMapViewState(data);
+      if (viewState.extent) {
+        this.initialExtent = viewState.extent;
+      }
+      if (this.basemap === undefined && viewState.basemap !== undefined) {
+        this.setBasemap(viewState.basemap);
+      }
       for (const layer of featureLayersFromWebMap(data)) {
         this.add(layer);
       }
@@ -70,6 +82,57 @@ function readPortalItem(value: unknown): { id: string; portalUrl?: string; raw: 
   }
   const portalUrl = typeof record.portal?.url === "string" ? record.portal.url : undefined;
   return { id: record.id, portalUrl, raw: value as Record<string, unknown> };
+}
+
+function readWebMapViewState(data: unknown): {
+  extent?: { xmin: number; ymin: number; xmax: number; ymax: number; spatialReference?: { wkid?: number } };
+  basemap?: unknown;
+} {
+  if (!data || typeof data !== "object") {
+    return {};
+  }
+  const record = data as {
+    basemap?: unknown;
+    baseMap?: unknown;
+    extent?: unknown;
+    initialState?: { viewpoint?: { targetGeometry?: unknown } };
+  };
+  const target = record.initialState?.viewpoint?.targetGeometry ?? record.extent;
+  return {
+    basemap: record.basemap ?? record.baseMap,
+    extent: readExtent(target),
+  };
+}
+
+function readExtent(
+  value: unknown,
+): { xmin: number; ymin: number; xmax: number; ymax: number; spatialReference?: { wkid?: number } } | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as {
+    xmin?: unknown;
+    ymin?: unknown;
+    xmax?: unknown;
+    ymax?: unknown;
+    spatialReference?: { wkid?: unknown };
+  };
+  if (
+    typeof record.xmin !== "number" ||
+    typeof record.ymin !== "number" ||
+    typeof record.xmax !== "number" ||
+    typeof record.ymax !== "number"
+  ) {
+    return undefined;
+  }
+  const wkid = record.spatialReference?.wkid;
+  return {
+    xmin: record.xmin,
+    ymin: record.ymin,
+    xmax: record.xmax,
+    ymax: record.ymax,
+    ...(typeof wkid === "number" ? { spatialReference: { wkid } } : {}),
+  };
 }
 
 function featureLayersFromWebMap(data: unknown): FeatureLayerCompat[] {

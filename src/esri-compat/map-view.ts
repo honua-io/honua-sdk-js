@@ -1,7 +1,14 @@
 import { CompatEventBus, resolveCompatEventBus } from "./event-bus.js";
 import { FeatureFilterCompat, type FeatureFilterCompatOptions } from "./feature-filter.js";
 import { GraphicsLayerCompat } from "./graphics-layer.js";
-import { type CompatMapSurface, lonLatFromUnknown, mountCompatMap, resolveViewContainer } from "./map-view-mount.js";
+import {
+  type CompatMapExtent,
+  type CompatMapSurface,
+  coordinateToLonLat,
+  lonLatFromUnknown,
+  mountCompatMap,
+  resolveViewContainer,
+} from "./map-view-mount.js";
 
 // ── Structural Type Aliases ───────────────────────────────────
 
@@ -138,7 +145,7 @@ export interface MapViewHandle {
   remove(): void;
 }
 
-export type MapViewLoadStatusCompat = "not-loaded" | "loading" | "loaded";
+export type MapViewLoadStatusCompat = "not-loaded" | "loading" | "loaded" | "failed";
 
 export interface MapViewPopupOpenOptions {
   location?: MapViewCenterLike | Record<string, unknown>;
@@ -154,6 +161,8 @@ export interface MapViewScreenPoint {
 
 export interface MapViewMapPoint extends MapViewScreenPoint {
   spatialReference?: MapViewSpatialReferenceLike;
+  longitude?: number;
+  latitude?: number;
 }
 
 export interface MapViewHitTestEvent {
@@ -780,11 +789,13 @@ export class MapViewCompat {
   public container: HTMLElement | string | null | undefined;
   public loaded: boolean;
   public loadStatus: MapViewLoadStatusCompat;
-  public center: MapViewCenterLike | undefined;
-  public zoom: number | undefined;
+  /** SceneView turns this off so a 2D canvas is not presented as a scene. */
+  protected mountRenderer = true;
+  private centerValue: MapViewCenterLike | undefined;
+  private zoomValue: number | undefined;
+  private extentValue: MapViewExtentLike | undefined;
   public scale: number | undefined;
   public rotation: number | undefined;
-  public extent: MapViewExtentLike | undefined;
   public constraints: MapViewConstraintsLike | undefined;
   public padding: MapViewPaddingLike | undefined;
   public highlightOptions: MapViewHighlightOptionsLike | undefined;
@@ -800,17 +811,19 @@ export class MapViewCompat {
   private readonly layerViews: Map<unknown, MapViewLayerViewCompat>;
   private loadPromise: Promise<MapViewCompat> | undefined;
   private mapSurface: CompatMapSurface | undefined;
+  private painted: unknown[] = [];
+  private readonly watchedLayers = new Set<unknown>();
 
   public constructor(options: MapViewCompatOptions = {}) {
     this.map = options.map;
     this.container = options.container;
     this.loaded = false;
     this.loadStatus = "not-loaded";
-    this.center = options.center;
-    this.zoom = options.zoom;
+    this.centerValue = options.center;
+    this.zoomValue = options.zoom;
     this.scale = options.scale;
     this.rotation = options.rotation;
-    this.extent = options.extent;
+    this.extentValue = options.extent;
     this.constraints = options.constraints;
     this.padding = options.padding;
     this.highlightOptions = options.highlightOptions;
@@ -842,16 +855,60 @@ export class MapViewCompat {
     }, extractPopupOptions(options.popup));
     this.ui = new MapViewUiCompat(this.eventBus, (components) => {
       this.notifyWatchers("ui.components", components);
+      this.placeUi(components);
     });
     this.graphics = new GraphicsLayerCompat({ id: "view-graphics", title: "Graphics", eventBus: this.eventBus });
     this.graphics.eventBus.onAny((event) => {
       if (event.type.startsWith("graphics-layer.")) {
-        this.mapSurface?.setGraphics(this.graphics.graphics);
+        void this.refreshOverlays();
       }
     });
     this.eventListeners = new Map();
     this.watchListeners = new Map();
     this.layerViews = new Map();
+    const mapBus = (options.map as { eventBus?: CompatEventBus } | undefined)?.eventBus;
+    mapBus?.on("map.layer-added", (event) => {
+      this.watchLayerPaint((event as { payload?: { layer?: unknown } }).payload?.layer);
+      void this.refreshOverlays();
+    });
+    mapBus?.on("map.layers-added", (event) => {
+      const layers = (event as { payload?: { layers?: readonly unknown[] } }).payload?.layers ?? [];
+      for (const layer of layers) {
+        this.watchLayerPaint(layer);
+      }
+      void this.refreshOverlays();
+    });
+    queueMicrotask(() => {
+      if (this.mountRenderer && this.loadStatus === "not-loaded") {
+        void this.load();
+      }
+    });
+  }
+
+  public get center(): MapViewCenterLike | undefined {
+    return this.centerValue;
+  }
+
+  public set center(value: MapViewCenterLike | undefined) {
+    this.setCenter(value);
+  }
+
+  public get zoom(): number | undefined {
+    return this.zoomValue;
+  }
+
+  public set zoom(value: number | undefined) {
+    this.setZoom(value);
+  }
+
+  public get extent(): MapViewExtentLike | undefined {
+    return this.extentValue;
+  }
+
+  public set extent(value: MapViewExtentLike | undefined) {
+    if (value) {
+      this.setExtent(value);
+    }
   }
 
   /** Esri `view.ready`. True once {@link load} has finished. */
@@ -874,18 +931,31 @@ export class MapViewCompat {
     this.loadStatus = "loading";
     this.notifyWatchers("loadStatus", this.loadStatus);
     this.eventBus.emit("view.loading", undefined, this);
-    const mapWithLoad = this.map as { load?: () => Promise<unknown> } | undefined;
-    if (mapWithLoad && typeof mapWithLoad.load === "function") {
-      await mapWithLoad.load();
+    try {
+      const mapWithLoad = this.map as { load?: () => Promise<unknown> } | undefined;
+      if (mapWithLoad && typeof mapWithLoad.load === "function") {
+        await mapWithLoad.load();
+      }
+      this.applyWebMapViewpoint();
+      await this.mountSurface();
+      await this.ensureLayerViews();
+      await this.refreshOverlays();
+      this.placeUi(this.ui.components);
+      this.loaded = true;
+      this.notifyWatchers("loaded", this.loaded);
+      this.loadStatus = "loaded";
+      this.notifyWatchers("loadStatus", this.loadStatus);
+      this.eventBus.emit("view.loaded", undefined, this);
+      this.emit("arcgisViewReadyChange", { target: this });
+      return this;
+    } catch (error) {
+      this.loaded = false;
+      this.loadStatus = "failed";
+      this.notifyWatchers("loadStatus", this.loadStatus);
+      this.loadPromise = undefined;
+      this.eventBus.emit("view.load-error", { error }, this);
+      throw error;
     }
-    await this.mountSurface();
-    this.loaded = true;
-    this.notifyWatchers("loaded", this.loaded);
-    this.loadStatus = "loaded";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("view.loaded", undefined, this);
-    this.emit("arcgisViewReadyChange", { target: this });
-    return this;
   }
 
   public addEventListener(
@@ -902,16 +972,218 @@ export class MapViewCompat {
   }
 
   private async mountSurface(): Promise<void> {
+    if (!this.mountRenderer) {
+      return;
+    }
     const container = resolveViewContainer(this.container);
     if (!container) {
       return;
     }
-    const surface = await mountCompatMap(container, lonLatFromUnknown(this.center), this.zoom);
+    const basemap = (this.map as { basemap?: unknown } | undefined)?.basemap;
+    const surface = await mountCompatMap(container, lonLatFromUnknown(this.centerValue), this.zoomValue, basemap);
     if (!surface) {
-      return;
+      throw new Error("The map renderer did not start. Install maplibre-gl in a browser view container.");
     }
     this.mapSurface = surface;
-    surface.setGraphics(this.graphics.graphics);
+    surface.onClick((event) => {
+      void this.handleMapClick(event);
+    });
+    if (this.extentValue && this.centerValue === undefined) {
+      surface.fitExtent(this.extentValue);
+    }
+  }
+
+  private applyWebMapViewpoint(): void {
+    if (this.centerValue !== undefined || this.extentValue !== undefined) {
+      return;
+    }
+    const initialExtent = (this.map as { initialExtent?: MapViewExtentLike } | undefined)?.initialExtent;
+    if (initialExtent) {
+      this.extentValue = initialExtent;
+    }
+  }
+
+  private async ensureLayerViews(): Promise<void> {
+    const layers = (this.map as { layers?: readonly unknown[] } | undefined)?.layers ?? [];
+    for (const layer of layers) {
+      this.watchLayerPaint(layer);
+      await this.whenLayerView(layer);
+    }
+  }
+
+  private watchLayerPaint(layer: unknown): void {
+    if (!layer || typeof layer !== "object" || this.watchedLayers.has(layer)) {
+      return;
+    }
+    this.watchedLayers.add(layer);
+    const bus = (layer as { eventBus?: { on?: (type: string, listener: () => void) => void } }).eventBus;
+    if (!bus || typeof bus.on !== "function") {
+      return;
+    }
+    for (const type of [
+      "graphics-layer.graphic-added",
+      "graphics-layer.graphics-added",
+      "graphics-layer.graphic-removed",
+      "graphics-layer.graphics-cleared",
+      "feature-layer.edits",
+    ]) {
+      bus.on(type, () => {
+        void this.refreshOverlays();
+      });
+    }
+  }
+
+  private async refreshOverlays(): Promise<void> {
+    if (!this.mapSurface) {
+      return;
+    }
+    const drawn: unknown[] = [...this.graphics.graphics];
+    const layers = (this.map as { layers?: readonly unknown[] } | undefined)?.layers ?? [];
+    for (const layer of layers) {
+      if (!layer || typeof layer !== "object") {
+        continue;
+      }
+      const record = layer as {
+        visible?: boolean;
+        type?: string;
+        graphics?: readonly unknown[];
+        definitionExpression?: string;
+        queryFeatures?: (options: unknown) => Promise<{ features?: unknown[] }> | { features?: unknown[] };
+      };
+      if (record.visible === false) {
+        continue;
+      }
+      if (Array.isArray(record.graphics)) {
+        drawn.push(...record.graphics);
+        if (
+          record.type === "graphics" ||
+          record.type === "graphics-layer" ||
+          typeof record.queryFeatures !== "function"
+        ) {
+          continue;
+        }
+      }
+      if (typeof record.queryFeatures !== "function") {
+        continue;
+      }
+      try {
+        const result = await record.queryFeatures({
+          where: record.definitionExpression ?? "1=1",
+          outFields: ["*"],
+          returnGeometry: true,
+          extraParams: { resultRecordCount: 2000 },
+        });
+        drawn.push(...(result?.features ?? []));
+      } catch {
+        // An unsupported where or a service error leaves that layer off the canvas.
+      }
+    }
+    this.painted = drawn;
+    this.mapSurface.setOverlays(drawn);
+  }
+
+  private async handleMapClick(event: { x: number; y: number; longitude: number; latitude: number }): Promise<void> {
+    const mapPoint = {
+      x: event.longitude,
+      y: event.latitude,
+      longitude: event.longitude,
+      latitude: event.latitude,
+      spatialReference: { wkid: 4326 },
+    };
+    this.emit("click", { ...event, mapPoint });
+    const hit = await this.hitTest({ x: event.x, y: event.y, mapPoint });
+    const graphic = hit.results[0]?.graphic;
+    if (!graphic || typeof graphic !== "object") {
+      return;
+    }
+    const record = graphic as { attributes?: Record<string, unknown>; popupTemplate?: { title?: string } };
+    const title =
+      record.popupTemplate?.title ??
+      (typeof record.attributes?.name === "string" ? record.attributes.name : undefined) ??
+      "Feature";
+    this.openPopup({ location: mapPoint, features: [graphic as Record<string, unknown>], title });
+    this.renderPopup(event.x, event.y, title, record.attributes);
+  }
+
+  private renderPopup(x: number, y: number, title: string, attributes: Record<string, unknown> | undefined): void {
+    const container = resolveViewContainer(this.container);
+    if (!container || typeof document === "undefined") {
+      return;
+    }
+    container.querySelector(":scope > .honua-popup")?.remove();
+    const popup = document.createElement("div");
+    popup.className = "honua-popup";
+    popup.style.position = "absolute";
+    popup.style.left = `${x}px`;
+    popup.style.top = `${y}px`;
+    popup.style.transform = "translate(-50%, -100%)";
+    popup.style.background = "#fff";
+    popup.style.padding = "8px";
+    popup.style.maxWidth = "240px";
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+    popup.append(heading);
+    if (attributes) {
+      const list = document.createElement("ul");
+      for (const [key, value] of Object.entries(attributes)) {
+        if (key === "color" || key === "radius" || key === "width") {
+          continue;
+        }
+        const item = document.createElement("li");
+        item.textContent = `${key}: ${String(value)}`;
+        list.append(item);
+      }
+      popup.append(list);
+    }
+    container.append(popup);
+  }
+
+  private placeUi(components: readonly { component: unknown; position: string }[]): void {
+    const container = resolveViewContainer(this.container);
+    if (!container || typeof document === "undefined") {
+      return;
+    }
+    const existing = container.querySelector(":scope > .honua-view-ui");
+    const host =
+      typeof HTMLElement !== "undefined" && existing instanceof HTMLElement ? existing : document.createElement("div");
+    if (host.parentElement !== container) {
+      host.className = "honua-view-ui";
+      host.style.position = "absolute";
+      host.style.inset = "0";
+      host.style.pointerEvents = "none";
+      container.append(host);
+    }
+    host.replaceChildren();
+    for (const record of components) {
+      const slot = document.createElement("div");
+      slot.style.position = "absolute";
+      slot.style.pointerEvents = "auto";
+      const position = record.position;
+      if (position.includes("bottom")) {
+        slot.style.bottom = "12px";
+      } else {
+        slot.style.top = "12px";
+      }
+      if (position.includes("right")) {
+        slot.style.right = "12px";
+      } else if (!position.includes("bottom") || position.includes("left") || position === "manual") {
+        slot.style.left = "12px";
+      }
+      const widget = record.component;
+      if (widget && typeof widget === "object" && "attachContainer" in widget) {
+        const attach = (widget as { attachContainer?: (element: HTMLElement) => void }).attachContainer;
+        if (typeof attach === "function") {
+          attach.call(widget, slot);
+        }
+      } else if (typeof HTMLElement !== "undefined" && widget instanceof HTMLElement) {
+        slot.append(widget);
+      }
+      const load = (widget as { load?: () => Promise<unknown> } | undefined)?.load;
+      if (typeof load === "function") {
+        void load.call(widget);
+      }
+      host.append(slot);
+    }
   }
 
   public async when(callback?: (view: MapViewCompat) => void): Promise<MapViewCompat> {
@@ -924,6 +1196,16 @@ export class MapViewCompat {
   }
 
   public toMap(screenPoint: MapViewScreenPoint): MapViewMapPoint {
+    const geographic = this.mapSurface?.unproject(screenPoint.x, screenPoint.y);
+    if (geographic) {
+      return {
+        x: geographic.longitude,
+        y: geographic.latitude,
+        longitude: geographic.longitude,
+        latitude: geographic.latitude,
+        spatialReference: { wkid: 4326 },
+      };
+    }
     const mapPoint: MapViewMapPoint = {
       x: screenPoint.x,
       y: screenPoint.y,
@@ -935,6 +1217,15 @@ export class MapViewCompat {
   }
 
   public toScreen(mapPoint: MapViewMapPoint): MapViewScreenPoint {
+    const longitude = mapPoint.longitude ?? mapPoint.x;
+    const latitude = mapPoint.latitude ?? mapPoint.y;
+    const projected =
+      typeof longitude === "number" && typeof latitude === "number"
+        ? this.mapSurface?.project(longitude, latitude)
+        : undefined;
+    if (projected) {
+      return projected;
+    }
     return {
       x: mapPoint.x,
       y: mapPoint.y,
@@ -945,15 +1236,58 @@ export class MapViewCompat {
     const mapPoint =
       event.mapPoint ??
       (typeof event.x === "number" && typeof event.y === "number" ? this.toMap({ x: event.x, y: event.y }) : undefined);
+    const graphicHits = this.graphicsNear(mapPoint, event);
+    if (graphicHits.length > 0) {
+      return { results: graphicHits };
+    }
 
     return {
       results: this.popup.features.map((feature) => ({
-        type: "graphic",
+        type: "graphic" as const,
         graphic: feature,
         layer: extractGraphicLayer(feature),
         mapPoint,
       })),
     };
+  }
+
+  private graphicsNear(
+    mapPoint: MapViewMapPoint | undefined,
+    event: MapViewHitTestEvent,
+  ): MapViewHitTestResult["results"] {
+    if (!mapPoint) {
+      return [];
+    }
+    const target = lonLatFromUnknown(mapPoint);
+    if (!target) {
+      return [];
+    }
+    const candidates: unknown[] = [...this.painted, ...this.graphics.graphics];
+    for (const layer of (this.map as { layers?: readonly unknown[] } | undefined)?.layers ?? []) {
+      const record = layer as { graphics?: readonly unknown[]; source?: readonly unknown[] } | undefined;
+      if (Array.isArray(record?.graphics)) {
+        candidates.push(...record.graphics);
+      }
+      if (Array.isArray(record?.source)) {
+        candidates.push(...record.source);
+      }
+    }
+    const hits: MapViewHitTestResult["results"] = [];
+    for (const graphic of candidates) {
+      if (!graphic || typeof graphic !== "object") {
+        continue;
+      }
+      if (!graphicHitsTarget(graphic, target, event, this.mapSurface)) {
+        continue;
+      }
+      hits.push({
+        type: "graphic",
+        graphic: graphic as Record<string, unknown>,
+        layer: extractGraphicLayer(graphic as Record<string, unknown>),
+        mapPoint,
+      });
+    }
+    return hits;
   }
 
   public async goTo(target: MapViewGoToInput, options: MapViewGoToOptions = {}): Promise<MapViewCompat> {
@@ -1013,18 +1347,20 @@ export class MapViewCompat {
     this.popup.close();
   }
 
-  public setCenter(center: MapViewCenterLike): void {
-    this.center = center;
-    this.notifyWatchers("center", this.center);
+  public setCenter(center: MapViewCenterLike | undefined): void {
+    this.centerValue = center;
+    this.notifyWatchers("center", this.centerValue);
     this.eventBus.emit("view.center-changed", { center }, this);
-    this.mapSurface?.setView(lonLatFromUnknown(center), this.zoom);
+    if (center) {
+      this.mapSurface?.setView(lonLatFromUnknown(center), this.zoomValue);
+    }
   }
 
   public setZoom(zoom: number | undefined): void {
-    this.zoom = zoom;
-    this.notifyWatchers("zoom", this.zoom);
+    this.zoomValue = zoom;
+    this.notifyWatchers("zoom", this.zoomValue);
     this.eventBus.emit("view.zoom-changed", { zoom }, this);
-    this.mapSurface?.setView(lonLatFromUnknown(this.center), zoom);
+    this.mapSurface?.setView(lonLatFromUnknown(this.centerValue), zoom);
   }
 
   public setScale(scale: number | undefined): void {
@@ -1040,9 +1376,10 @@ export class MapViewCompat {
   }
 
   public setExtent(extent: MapViewExtentLike): void {
-    this.extent = extent;
-    this.notifyWatchers("extent", this.extent);
+    this.extentValue = extent;
+    this.notifyWatchers("extent", this.extentValue);
     this.eventBus.emit("view.extent-changed", { extent }, this);
+    this.mapSurface?.fitExtent(extent as CompatMapExtent);
   }
 
   public setPadding(padding: MapViewPaddingLike): void {
@@ -1184,16 +1521,16 @@ export class MapViewCompat {
     this.notifyWatchers("map", this.map);
     this.container = undefined;
     this.notifyWatchers("container", this.container);
-    this.center = undefined;
-    this.notifyWatchers("center", this.center);
-    this.zoom = undefined;
-    this.notifyWatchers("zoom", this.zoom);
+    this.centerValue = undefined;
+    this.notifyWatchers("center", this.centerValue);
+    this.zoomValue = undefined;
+    this.notifyWatchers("zoom", this.zoomValue);
     this.scale = undefined;
     this.notifyWatchers("scale", this.scale);
     this.rotation = undefined;
     this.notifyWatchers("rotation", this.rotation);
-    this.extent = undefined;
-    this.notifyWatchers("extent", this.extent);
+    this.extentValue = undefined;
+    this.notifyWatchers("extent", this.extentValue);
     this.constraints = undefined;
     this.notifyWatchers("constraints", this.constraints);
     this.padding = undefined;
@@ -1710,6 +2047,97 @@ function extractObjectId(feature: unknown): number | undefined {
 
 function normalizeCount(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function graphicHitsTarget(
+  graphic: object,
+  target: [number, number],
+  event: MapViewHitTestEvent,
+  surface: CompatMapSurface | undefined,
+): boolean {
+  const geometry = (graphic as { geometry?: unknown }).geometry;
+  if (!geometry || typeof geometry !== "object") {
+    return false;
+  }
+  const record = geometry as {
+    rings?: unknown;
+    paths?: unknown;
+    spatialReference?: { wkid?: number };
+  };
+  const point = record.rings === undefined && record.paths === undefined ? lonLatFromUnknown(geometry) : undefined;
+  if (point && nearLonLat(point, target, event, surface)) {
+    return true;
+  }
+  const wkid = record.spatialReference?.wkid;
+  if (Array.isArray(record.rings)) {
+    return record.rings.some((ring) => Array.isArray(ring) && pointInRing(target, ring as unknown[], wkid));
+  }
+  if (Array.isArray(record.paths)) {
+    for (const path of record.paths) {
+      if (!Array.isArray(path)) {
+        continue;
+      }
+      for (const pair of path) {
+        if (!Array.isArray(pair)) {
+          continue;
+        }
+        const vertex = coordinateToLonLat(pair, wkid);
+        if (vertex && nearLonLat(vertex, target, event, surface)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function nearLonLat(
+  point: [number, number],
+  target: [number, number],
+  event: MapViewHitTestEvent,
+  surface: CompatMapSurface | undefined,
+): boolean {
+  const geographicNear = Math.abs(point[0] - target[0]) <= 0.0005 && Math.abs(point[1] - target[1]) <= 0.0005;
+  const projected = surface?.project(point[0], point[1]);
+  const pixelNear =
+    projected !== undefined &&
+    typeof event.x === "number" &&
+    typeof event.y === "number" &&
+    Math.hypot(projected.x - event.x, projected.y - event.y) <= 12;
+  return geographicNear || pixelNear;
+}
+
+function pointInRing(target: [number, number], ring: readonly unknown[], wkid: number | undefined): boolean {
+  const polygon: [number, number][] = [];
+  for (const pair of ring) {
+    if (!Array.isArray(pair)) {
+      continue;
+    }
+    const lonLat = coordinateToLonLat(pair, wkid);
+    if (lonLat) {
+      polygon.push(lonLat);
+    }
+  }
+  if (polygon.length < 3) {
+    return false;
+  }
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const current = polygon[index];
+    const earlier = polygon[previous];
+    if (!current || !earlier) {
+      continue;
+    }
+    const crosses =
+      current[1] > target[1] !== earlier[1] > target[1] &&
+      target[0] <
+        ((earlier[0] - current[0]) * (target[1] - current[1])) / (earlier[1] - current[1] + Number.EPSILON) +
+          current[0];
+    if (crosses) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
 
 function extractGraphicLayer(value: Record<string, unknown>): Record<string, unknown> | undefined {

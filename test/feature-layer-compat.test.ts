@@ -1262,7 +1262,10 @@ describe("FeatureLayerCompat", () => {
     const extent = await layer.queryExtent({ where: "name='Park'" });
     expect(extent).toEqual({ extent: { xmin: 3, ymin: 4, xmax: 3, ymax: 4 }, count: 1 });
 
-    await layer.applyEdits({ deleteFeatures: [{ objectId: 1 }] });
+    const park = (await layer.queryFeatures({ where: "name='Park'" })).features?.[0];
+    await layer.applyEdits({ deleteFeatures: [park] });
     expect(await layer.queryFeatureCount()).toBe(1);
+    await layer.applyEdits({ deleteFeatures: [{ objectId: 1 }] });
+    expect(await layer.queryFeatureCount()).toBe(0);
   });
 });

@@ -86,7 +86,7 @@ const DEFAULT_SEARCH_SOURCE_MAX_SUGGESTIONS = 5;
 
 export class SearchCompat {
   public readonly view: unknown;
-  public readonly container: HTMLElement | string | null;
+  public container: HTMLElement | string | null;
   public readonly eventBus: CompatEventBus;
   public readonly autoNavigate: boolean;
   public includeDefaultSources: boolean;
@@ -151,6 +151,12 @@ export class SearchCompat {
     this.watchListeners = new Map();
     this.refreshSourceSubscriptions();
     this.rebuildSources(false);
+    mountSearchBox(this);
+  }
+
+  public attachContainer(element: HTMLElement): void {
+    this.container = element;
+    mountSearchBox(this);
   }
 
   public async load(): Promise<SearchCompat> {
@@ -541,10 +547,22 @@ function resolveViewSearchSources(view: unknown, limits: SearchSourceLimits): Se
             response = await layer.queryFeatures(optimizedQueryOptions);
           } catch {
             fieldSearchUnsupported = true;
-            response = await layer.queryFeatures(fallbackQueryOptions);
+            try {
+              response = await layer.queryFeatures(fallbackQueryOptions);
+            } catch {
+              response = await layer.queryFeatures(
+                createLocalSearchQueryOptions(fieldSearchConfig.searchableFields, normalizedTerm),
+              );
+            }
           }
         } else {
-          response = await layer.queryFeatures(fallbackQueryOptions);
+          try {
+            response = await layer.queryFeatures(fallbackQueryOptions);
+          } catch {
+            response = await layer.queryFeatures(
+              createLocalSearchQueryOptions(fieldSearchConfig.searchableFields, normalizedTerm),
+            );
+          }
         }
 
         return extractFeatures(response);
@@ -652,6 +670,34 @@ const COMMON_SEARCH_FIELD_NAMES = [
 const MAX_SERVER_SEARCH_FIELDS = 6;
 const MAX_SERVER_OUT_FIELDS = 16;
 
+function mountSearchBox(search: SearchCompat): void {
+  const container = search.container;
+  const element =
+    typeof HTMLElement !== "undefined" && container instanceof HTMLElement
+      ? container
+      : typeof container === "string" && typeof document !== "undefined"
+        ? document.getElementById(container)
+        : undefined;
+  if (typeof HTMLElement === "undefined" || typeof document === "undefined" || !(element instanceof HTMLElement)) {
+    return;
+  }
+  element.querySelector(":scope > .honua-search")?.remove();
+  const form = document.createElement("form");
+  form.className = "honua-search";
+  const input = document.createElement("input");
+  input.type = "search";
+  input.placeholder = search.allPlaceholder || "Search";
+  const button = document.createElement("button");
+  button.type = "submit";
+  button.textContent = "Search";
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void search.search(input.value);
+  });
+  form.append(input, button);
+  element.append(form);
+}
+
 function createFallbackLayerSearchQueryOptions(
   maxFeatureCandidates: number,
   normalizedTerm: string,
@@ -682,6 +728,19 @@ function createOptimizedLayerSearchQueryOptions(
       resultOffset: 0,
       resultRecordCount: maxFeatureCandidates,
     },
+  };
+}
+
+function createLocalSearchQueryOptions(
+  searchableFields: readonly string[],
+  normalizedTerm: string,
+): Record<string, unknown> {
+  const field = searchableFields[0] ?? "name";
+  const escaped = normalizedTerm.replace(/'/g, "''");
+  return {
+    where: `${field} LIKE '%${escaped}%'`,
+    returnGeometry: true,
+    outFields: ["*"],
   };
 }
 

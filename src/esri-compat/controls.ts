@@ -4,6 +4,7 @@ import {
   resolveCompatEventBus,
   safeInvokeCompatListener,
 } from "./event-bus.js";
+import { GraphicCompat } from "./graphic.js";
 
 /** Structural type for viewpoint-like objects used by controls. */
 export interface ControlViewpointLike {
@@ -42,7 +43,7 @@ interface BaseControlCompatOptions {
 
 export class BaseControlCompat {
   public readonly view: unknown;
-  public readonly container: HTMLElement | string | null;
+  public container: HTMLElement | string | null;
   public readonly eventBus: CompatEventBus;
   public loaded: boolean;
   public loadStatus: ControlLoadStatusCompat;
@@ -325,6 +326,8 @@ export class LocateCompat extends BaseControlCompat {
   public lastPosition: LocatePositionCompat | undefined;
   /** Mirrors the Esri Locate view model state watched by `watchUtils.init`. */
   public readonly viewModel: { state: "ready" | "disabled" };
+  /** The latest locate result, so a directions stop can clone it. */
+  public graphic: GraphicCompat | undefined;
 
   private readonly locateProvider: () => Promise<LocatePositionCompat>;
 
@@ -336,8 +339,15 @@ export class LocateCompat extends BaseControlCompat {
     super(options);
     this.zoom = options.zoom;
     this.lastPosition = undefined;
+    this.graphic = undefined;
     this.viewModel = { state: "ready" };
     this.locateProvider = options.locateProvider ?? getDefaultLocateProvider();
+    mountLocateButton(this);
+  }
+
+  public attachContainer(element: HTMLElement): void {
+    this.container = element;
+    mountLocateButton(this);
   }
 
   public async locate(): Promise<LocatePositionCompat> {
@@ -347,7 +357,11 @@ export class LocateCompat extends BaseControlCompat {
     try {
       const position = await this.locateProvider();
       this.lastPosition = position;
+      this.graphic = new GraphicCompat({
+        geometry: { x: position.coords.longitude, y: position.coords.latitude },
+      });
       this.notifyWatchers("lastPosition", this.lastPosition);
+      this.notifyWatchers("graphic", this.graphic);
       const center: [number, number] = [position.coords.longitude, position.coords.latitude];
       const target = {
         center,
@@ -445,6 +459,11 @@ export class ZoomCompat extends BaseControlCompat {
     mountZoomButtons(this);
   }
 
+  public attachContainer(element: HTMLElement): void {
+    this.container = element;
+    mountZoomButtons(this);
+  }
+
   public zoomIn(step = 1): number | undefined {
     return this.adjustZoom(Math.abs(step));
   }
@@ -481,7 +500,9 @@ function mountZoomButtons(zoom: ZoomCompat): void {
   if (!element) {
     return;
   }
+  element.querySelector(":scope > .honua-zoom")?.remove();
   const bar = document.createElement("div");
+  bar.className = "honua-zoom";
   bar.style.display = "flex";
   bar.style.flexDirection = zoom.layout === "horizontal" ? "row" : "column";
   bar.style.gap = "4px";
@@ -502,6 +523,28 @@ function mountZoomButtons(zoom: ZoomCompat): void {
     bar.append(button);
   }
   element.append(bar);
+}
+
+function mountLocateButton(locate: LocateCompat): void {
+  const container = locate.container;
+  const element =
+    typeof HTMLElement !== "undefined" && container instanceof HTMLElement
+      ? container
+      : typeof container === "string" && typeof document !== "undefined"
+        ? document.getElementById(container)
+        : null;
+  if (!element) {
+    return;
+  }
+  element.querySelector(":scope > .honua-locate")?.remove();
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "honua-locate";
+  button.textContent = "Locate";
+  button.addEventListener("click", () => {
+    void locate.locate();
+  });
+  element.append(button);
 }
 
 // ---------------------------------------------------------------------------

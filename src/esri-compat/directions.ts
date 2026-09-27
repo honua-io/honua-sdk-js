@@ -1,3 +1,4 @@
+import { esriConfig } from "./esri-config.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { identityManager } from "./identity-manager.js";
 import {
@@ -7,7 +8,7 @@ import {
   type RouteStopCompat,
   routeStopFromUnknown,
 } from "./route-layer.js";
-import { RouteTaskCompat, type RouteTaskSolveResultCompat } from "./route-task.js";
+import { RouteTaskCompat, type RouteTaskSolveResultCompat, arcGisRouteServiceProvider } from "./route-task.js";
 
 /** Default `routeServiceUrl` on Esri `DirectionsViewModel` for the 4.x widget apps. */
 const DEFAULT_ROUTE_SERVICE_URL = "https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
@@ -18,6 +19,8 @@ export interface DirectionsCompatOptions {
   layer?: RouteLayerCompat;
   eventBus?: CompatEventBus;
   routeProvider?: RouteLayerCompatOptions["routeProvider"];
+  routeServiceUrl?: string;
+  apiKey?: string;
   stops?: readonly RouteStopCompat[];
   useDefaultRouteLayer?: boolean;
   showSaveAsButton?: boolean;
@@ -55,13 +58,16 @@ export class DirectionsCompat {
     this.loadStatus = "not-loaded";
     this.useDefaultRouteLayer = options.useDefaultRouteLayer ?? true;
     this.showSaveAsButton = options.showSaveAsButton ?? false;
+    const routeServiceUrl = options.routeServiceUrl ?? DEFAULT_ROUTE_SERVICE_URL;
     this.layer =
       options.layer ??
       new RouteLayerCompat({
+        url: routeServiceUrl,
         stops: options.stops,
-        routeProvider: options.routeProvider,
+        routeProvider: options.routeProvider ?? arcGisRouteServiceProvider(routeServiceUrl, options.apiKey),
         eventBus: this.eventBus,
       });
+    mountDirectionsPanel(this.container);
     this.route = undefined;
     this.watchListeners = new Map();
   }
@@ -274,9 +280,34 @@ async function readTravelModes(url: string, token: string | undefined): Promise<
   return (json.supportedTravelModes ?? []).filter((mode) => mode && typeof mode === "object");
 }
 
+function mountDirectionsPanel(container: unknown): void {
+  const element = resolveWidgetElement(container);
+  if (!element || typeof document === "undefined") {
+    return;
+  }
+  const panel = document.createElement("div");
+  panel.className = "honua-directions";
+  panel.textContent = "Directions";
+  element.append(panel);
+}
+
+function resolveWidgetElement(container: unknown): HTMLElement | undefined {
+  if (typeof HTMLElement !== "undefined" && container instanceof HTMLElement) {
+    return container;
+  }
+  if (typeof container === "string" && typeof document !== "undefined") {
+    const element = document.getElementById(container);
+    return typeof HTMLElement !== "undefined" && element instanceof HTMLElement ? element : undefined;
+  }
+  return undefined;
+}
+
 function tokenForRouteService(url: string, apiKey: string | undefined): string | undefined {
   if (apiKey) {
     return apiKey;
+  }
+  if (esriConfig.apiKey) {
+    return esriConfig.apiKey;
   }
   const direct = identityManager.findCredential(url);
   if (direct?.token) {

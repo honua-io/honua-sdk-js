@@ -1,8 +1,39 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CompatEventBus, DirectionsCompat, DirectionsViewModelCompat } from "../src/esri-compat-entry.js";
 
 describe("DirectionsCompat", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          routes: {
+            features: [
+              {
+                geometry: {
+                  paths: [
+                    [
+                      [-157, 21.3],
+                      [-157.01, 21.31],
+                    ],
+                  ],
+                  spatialReference: { wkid: 4326 },
+                },
+                attributes: { Total_Kilometers: 1.2, Total_TravelTime: 4 },
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      )) as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
   it("supports when() and watch() lifecycle plus route updates", async () => {
     const eventBus = new CompatEventBus();
     const seenTypes: string[] = [];

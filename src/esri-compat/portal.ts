@@ -388,8 +388,9 @@ export class PortalCompat {
         query.set(key, String(value));
       }
     }
-    if (token) {
-      query.set("token", token);
+    const authToken = token ?? this.apiKey ?? identityManager.findCredential(this.sharingRestBase)?.token;
+    if (authToken) {
+      query.set("token", authToken);
     }
     const response = await this.fetchFn(`${this.sharingRestBase}${path}?${query.toString()}`);
     const json = (await response.json()) as T & EsriErrorEnvelope;

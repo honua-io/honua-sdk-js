@@ -1,4 +1,7 @@
+import { esriConfig } from "./esri-config.js";
 import { CompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { identityManager } from "./identity-manager.js";
+import { coordinateToLonLat } from "./map-view-mount.js";
 import {
   RouteLayerCompat,
   type RouteLayerCompatOptions,
@@ -252,7 +255,7 @@ export function buildRouteTaskSolveResult(
   return buildSolveResult(route, stops, includeDirections);
 }
 
-function arcGisRouteServiceProvider(
+export function arcGisRouteServiceProvider(
   url: string,
   apiKey: string | undefined,
   travelMode?: unknown,
@@ -260,6 +263,7 @@ function arcGisRouteServiceProvider(
   return async (stops) => {
     const solveUrl = new URL(`${url.replace(/\/$/, "")}/solve`);
     solveUrl.searchParams.set("f", "json");
+    solveUrl.searchParams.set("outSR", "4326");
     solveUrl.searchParams.set("returnDirections", "true");
     solveUrl.searchParams.set("directionsLengthUnits", "esriNAUKilometers");
     solveUrl.searchParams.set(
@@ -274,15 +278,16 @@ function arcGisRouteServiceProvider(
     if (travelMode !== undefined && travelMode !== null) {
       solveUrl.searchParams.set("travelMode", typeof travelMode === "string" ? travelMode : JSON.stringify(travelMode));
     }
-    if (apiKey) {
-      solveUrl.searchParams.set("token", apiKey);
+    const token = apiKey ?? esriConfig.apiKey ?? identityManager.findCredential(url)?.token;
+    if (token) {
+      solveUrl.searchParams.set("token", token);
     }
     const response = await fetch(solveUrl);
     const json = (await response.json()) as {
       error?: { message?: string };
       routes?: {
         features?: Array<{
-          geometry?: { paths?: number[][][] };
+          geometry?: { paths?: number[][][]; spatialReference?: { wkid?: number } };
           attributes?: Record<string, unknown>;
         }>;
       };
@@ -294,8 +299,12 @@ function arcGisRouteServiceProvider(
       throw new Error(json.error?.message ?? `Route solve failed (${response.status}).`);
     }
     const feature = json.routes?.features?.[0];
+    const pathWkid = feature?.geometry?.spatialReference?.wkid;
     const path = (feature?.geometry?.paths ?? []).flatMap((ring) =>
-      ring.filter((point) => point.length >= 2).map((point) => [point[0] ?? 0, point[1] ?? 0] as [number, number]),
+      ring
+        .filter((point) => point.length >= 2)
+        .map((point) => coordinateToLonLat([point[0] ?? 0, point[1] ?? 0], pathWkid))
+        .filter((point): point is [number, number] => point !== undefined),
     );
     const kilometers = numberAttribute(feature?.attributes, "Total_Kilometers");
     const minutes = numberAttribute(feature?.attributes, "Total_TravelTime");

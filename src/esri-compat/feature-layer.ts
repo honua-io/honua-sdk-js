@@ -73,7 +73,7 @@ export interface FeatureLayerEditsOptions {
   updateFeatures?: unknown[];
   deletes?: number[] | string | readonly { objectId?: number }[];
   /** Esri `FeatureLayer.applyEdits` name for {@link deletes}. */
-  deleteFeatures?: readonly (number | { objectId?: number })[];
+  deleteFeatures?: readonly unknown[];
   rollbackOnFailure?: boolean;
 }
 
@@ -711,20 +711,24 @@ export class FeatureLayerCompat {
   public async applyEdits(options: FeatureLayerEditsOptions): Promise<HonuaApplyEditsResponse> {
     const adds = options.adds ?? options.addFeatures;
     const updates = options.updates ?? options.updateFeatures;
-    const deletes = normalizeEditDeletes(options.deletes ?? options.deleteFeatures);
+    const deletes = normalizeEditDeletes(options.deletes ?? options.deleteFeatures, this.objectIdField);
     if (this.isInMemory) {
-      const result = applyMemoryEdits(this.source as unknown[], this.objectIdField, adds, updates, deletes);
+      const result = withEsriEditNames(
+        applyMemoryEdits(this.source as unknown[], this.objectIdField, adds, updates, deletes),
+      );
       this.eventBus.emit("feature-layer.edits", { result, layerId: this.id }, this);
       return result;
     }
-    const result = await this.client.applyEdits({
-      serviceId: this.serviceId,
-      layerId: this.layerId,
-      adds: adds as ApplyEditsRequest["adds"],
-      updates: updates as ApplyEditsRequest["updates"],
-      deletes,
-      rollbackOnFailure: options.rollbackOnFailure,
-    });
+    const result = withEsriEditNames(
+      await this.client.applyEdits({
+        serviceId: this.serviceId,
+        layerId: this.layerId,
+        adds: adds as ApplyEditsRequest["adds"],
+        updates: updates as ApplyEditsRequest["updates"],
+        deletes,
+        rollbackOnFailure: options.rollbackOnFailure,
+      }),
+    );
     this.eventBus.emit("feature-layer.edits", { result, layerId: this.id }, this);
     return result;
   }
@@ -1191,6 +1195,7 @@ function unquoteWhereLiteral(value: string): string {
 
 function normalizeEditDeletes(
   deletes: FeatureLayerEditsOptions["deletes"] | FeatureLayerEditsOptions["deleteFeatures"],
+  objectIdField: string | undefined,
 ): number[] | string | undefined {
   if (deletes === undefined) {
     return undefined;
@@ -1199,8 +1204,37 @@ function normalizeEditDeletes(
     return deletes;
   }
   return deletes
-    .map((entry) => (typeof entry === "number" ? entry : entry.objectId))
-    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    .map((entry) => objectIdFromEditEntry(entry, objectIdField))
+    .filter((value): value is number => value !== undefined);
+}
+
+function objectIdFromEditEntry(entry: unknown, objectIdField: string | undefined): number | undefined {
+  if (typeof entry === "number" && Number.isFinite(entry)) {
+    return entry;
+  }
+  if (!entry || typeof entry !== "object") {
+    return undefined;
+  }
+  const record = entry as { objectId?: unknown; attributes?: Record<string, unknown> };
+  if (typeof record.objectId === "number" && Number.isFinite(record.objectId)) {
+    return record.objectId;
+  }
+  const attributes = record.attributes;
+  if (!attributes) {
+    return undefined;
+  }
+  const raw = attributes[objectIdField ?? "OBJECTID"] ?? attributes.OBJECTID ?? attributes.objectId;
+  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function withEsriEditNames(result: HonuaApplyEditsResponse): HonuaApplyEditsResponse {
+  return {
+    ...result,
+    addFeatureResults: result.addResults,
+    updateFeatureResults: result.updateResults,
+    deleteFeatureResults: result.deleteResults,
+  };
 }
 
 function applyMemoryEdits(
