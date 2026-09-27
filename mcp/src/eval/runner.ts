@@ -11,6 +11,7 @@ import { resolveDrivers } from "./drivers/index.js";
 import { grade } from "./grade.js";
 import { type AuthMode, type EvalReport, assembleReport } from "./report.js";
 import type { ModelDriver, Scenario, ToolCallResult, WorkflowContext } from "./types.js";
+import { annotateTranscript, blockedTranscript, redactTranscript, unavailableProfiles } from "./workflow-corpus.js";
 
 /**
  * Cross-model eval runner (honua-server #1956).
@@ -168,10 +169,27 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
     }));
     const ctx = buildContext(surface.client, tools);
 
+    const profilesConfigured = env.HONUA_SERVER_PROFILES !== undefined;
+    const activeProfiles = (env.HONUA_SERVER_PROFILES ?? "")
+      .split(",")
+      .map((profile) => profile.trim())
+      .filter((profile) => profile.length > 0);
+    const advertised = new Set(tools.map((tool) => tool.name));
     const graded: Parameters<typeof assembleReport>[0]["graded"] = [];
     for (const driver of drivers) {
       for (const scenario of corpus) {
-        const transcript = await driver.runWorkflow(scenario, ctx);
+        const missingProfiles = profilesConfigured ? unavailableProfiles(scenario, activeProfiles) : [];
+        const toolsPresent = scenario.criteria.requiredTools.every((tool) => advertised.has(tool));
+        // An unset HONUA_SERVER_PROFILES is unknown, not proof the profiles are off.
+        // Advertised tools are stronger evidence than a partial profile list.
+        const missing = toolsPresent ? [] : missingProfiles;
+        const raw =
+          missing.length > 0
+            ? blockedTranscript(driver.id, scenario, missing)
+            : await driver.runWorkflow(scenario, ctx);
+        const transcript = redactTranscript(
+          annotateTranscript(raw, scenario, driver.vendor === "deterministic" ? "HARNESS_DRIVEN" : "MODEL_SELECTED"),
+        );
         graded.push({ grade: grade(scenario, transcript), transcript });
       }
     }
