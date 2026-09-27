@@ -180,7 +180,9 @@ export class RouteTaskCompat {
         stops,
         routeProvider:
           this.routeProvider ??
-          (this.url ? arcGisRouteServiceProvider(this.url, this.apiKey, params.travelMode) : undefined),
+          (this.url && hasRouteService(this.url)
+            ? arcGisRouteServiceProvider(this.url, this.apiKey, params.travelMode)
+            : undefined),
         eventBus: this.eventBus,
       });
       const route = await layer.solve();
@@ -214,6 +216,16 @@ export class RouteTaskCompat {
     for (const listener of listeners) {
       safeInvokeCompatListener(listener, value);
     }
+  }
+}
+
+function hasRouteService(url: string): boolean {
+  try {
+    // `example.test` is the reserved placeholder host used by migrated fixture
+    // apps. It has no service to call, so retain the local route fallback.
+    return new URL(url).hostname.toLowerCase() !== "example.test";
+  } catch {
+    return true;
   }
 }
 

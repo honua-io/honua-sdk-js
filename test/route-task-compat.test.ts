@@ -53,11 +53,11 @@ describe("RouteTaskCompat", () => {
 
   it("solves route parameters and returns routeResults payload", async () => {
     const task = new RouteTaskCompat({
-      url: "https://example.test/rest/services/network/RouteServer",
+      url: "https://routing.example.com/rest/services/network/RouteServer",
     });
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async (input: RequestInfo | URL) => {
-      expect(String(input)).toContain("https://example.test/rest/services/network/RouteServer/solve");
+      expect(String(input)).toContain("https://routing.example.com/rest/services/network/RouteServer/solve");
       return new Response(
         JSON.stringify({
           routes: {
