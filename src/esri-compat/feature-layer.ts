@@ -875,16 +875,23 @@ export class FeatureLayerCompat {
   }
 }
 
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function extentFromMetadata(metadata: unknown): HonuaExtent | undefined {
   if (!isRecord(metadata) || !isRecord(metadata.extent)) {
     return undefined;
   }
-  const { xmin, ymin, xmax, ymax } = metadata.extent;
-  if (![xmin, ymin, xmax, ymax].every((value) => typeof value === "number" && Number.isFinite(value))) {
+  const xmin = finiteNumber(metadata.extent.xmin);
+  const ymin = finiteNumber(metadata.extent.ymin);
+  const xmax = finiteNumber(metadata.extent.xmax);
+  const ymax = finiteNumber(metadata.extent.ymax);
+  if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) {
     return undefined;
   }
   const spatialReference = isRecord(metadata.extent.spatialReference) ? metadata.extent.spatialReference : undefined;
-  const wkid = spatialReference && typeof spatialReference.wkid === "number" ? spatialReference.wkid : undefined;
+  const wkid = spatialReference ? finiteNumber(spatialReference.wkid) : undefined;
   return {
     xmin,
     ymin,
