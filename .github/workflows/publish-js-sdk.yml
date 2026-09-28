@@ -254,7 +254,38 @@ jobs:
           # Tags must satisfy the same source-tree executable policy as PRs;
           # do not rely only on the scheduled external Scorecard scan.
           npm run security:binary-artifacts
+          # Run before generating split/browser artifacts: this verifier forces
+          # a build that cleans dist/. The surface checks below must inspect
+          # the final artifacts that will be packed and published.
+          # verify:packed-sdk installs with --legacy-peer-deps (the SDK's own
+          # dependency tree needs it), so it cannot see a peer range that
+          # excludes the artifact beside it. Install the pinned client pair --
+          # this tarball plus the @honua/mcp-server pin the generated .mcp.json
+          # names -- under DEFAULT peer resolution, the way a customer does.
+          # A cut whose pair only installs with --legacy-peer-deps stops here
+          # rather than reaching the registry (#1529).
+          npm run verify:client-pair
           npm run build:split-packages:prepared --silent
+          # Pack immediately. Later checks pack the root package and remove
+          # these directories before the publish calls below.
+          declare -A split_tarball_for=()
+          declare -A split_name_for=()
+          declare -A split_version_for=()
+          split_pack_dir="${RUNNER_TEMP}/split-tarballs"
+          rm -rf "$split_pack_dir"
+          mkdir -p "$split_pack_dir"
+          for package_dir in \
+            "./dist/packages/honua-sdk" \
+            "./dist/packages/honua-sdk-esri-compat" \
+            "./dist/packages/honua-react" \
+            "./dist/packages/honua-geometry" \
+            "./dist/packages/honua-app-platform"
+          do
+            filename="$(node "${PINNED_NPM}" pack "$package_dir" --pack-destination "$split_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
+            split_tarball_for["$package_dir"]="${split_pack_dir}/${filename}"
+            split_name_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+            split_version_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+          done
           # build:split-packages cleans dist/, so (re)build the browser bundle
           # afterwards. Without this the root package publishes without
           # dist/browser/*, breaking the ./browser export and every CDN path.
@@ -269,14 +300,6 @@ jobs:
           # Exercise the exact root tarball through an offline installation,
           # Node/TypeScript package resolution, and its packaged CLI shim.
           npm run verify:packed-sdk
-          # verify:packed-sdk installs with --legacy-peer-deps (the SDK's own
-          # dependency tree needs it), so it cannot see a peer range that
-          # excludes the artifact beside it. Install the pinned client pair --
-          # this tarball plus the @honua/mcp-server pin the generated .mcp.json
-          # names -- under DEFAULT peer resolution, the way a customer does.
-          # A cut whose pair only installs with --legacy-peer-deps stops here
-          # rather than reaching the registry (#1529).
-          npm run verify:client-pair
 
           flags=""
           if [[ "${DRY_RUN}" == "true" ]]; then
@@ -308,8 +331,14 @@ jobs:
             local package_name
             local package_version
             local dist_tag
-            package_name="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
-            package_version="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+            local publish_target="${split_tarball_for[$package_dir]:-$package_dir}"
+            if [[ -n "${split_name_for[$package_dir]:-}" ]]; then
+              package_name="${split_name_for[$package_dir]}"
+              package_version="${split_version_for[$package_dir]}"
+            else
+              package_name="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+              package_version="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+            fi
             dist_tag="$(resolve_dist_tag "$package_version")"
 
             if [[ "${DRY_RUN}" != "true" ]] && node "${PINNED_NPM}" view "${package_name}@${package_version}" version >/dev/null 2>&1; then
@@ -324,9 +353,10 @@ jobs:
 
             # The hash-verified CLI from the step above, not whatever `npm` the
             # PATH resolves to at this point.
-            node "${PINNED_NPM}" publish "$package_dir" --access public --tag "$dist_tag" $flags
+            node "${PINNED_NPM}" publish "$publish_target" --access public --tag "$dist_tag" $flags
           }
 
+          # Split tarballs were packed immediately after they were built.
           publish_package "."
           publish_package "./dist/packages/honua-sdk"
           publish_package "./dist/packages/honua-sdk-esri-compat"
@@ -337,8 +367,8 @@ jobs:
       - name: Publish summary
         if: ${{ env.DRY_RUN == 'true' }}
         run: |
-          echo "Dry run complete. Split packages verified:"
-          ls -la ./dist/packages/
+          echo "Dry run complete. Split package tarballs verified:"
+          ls -la "${RUNNER_TEMP}/split-tarballs/"
 
   # Post-publish registry verification (#1337, AC6). A green publish step has
   # never been evidence that the release reached consumers: 0.0.19 published
