@@ -45,6 +45,17 @@ describe("parseFeatureLayerUrl", () => {
 });
 
 describe("FeatureLayerCompat", () => {
+  it("accepts leftover Esri constructor options and exposes fullExtent", () => {
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      fieldConfigurations: [{ name: "C_Storage" }],
+      orderBy: [{ field: "C_Storage" }],
+    });
+
+    expect(layer.url).toContain("FeatureServer/0");
+    expect(layer.fullExtent).toBeUndefined();
+  });
+
   it("maps ArcGIS-style query to Honua query endpoint", async () => {
     let requestedUrl: string | undefined;
     const layer = new FeatureLayerCompat({

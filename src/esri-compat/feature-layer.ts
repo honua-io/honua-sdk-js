@@ -47,6 +47,8 @@ export interface FeatureLayerCompatOptions {
   maxAttachmentBytes?: number;
   client?: HonuaClient;
   eventBus?: CompatEventBus;
+  /** Esri options the codemod leaves on the constructor, such as fieldConfigurations. */
+  [extra: string]: unknown;
 }
 
 export interface FeatureLayerQueryOptions {
@@ -169,6 +171,10 @@ export class FeatureLayerCompat {
   public maxScale: number;
   public legendEnabled: boolean;
   public listMode: string;
+  /** Populated when the service reports an extent. Absent until then. */
+  public fullExtent:
+    | { xmin: number; ymin: number; xmax: number; ymax: number; spatialReference?: { wkid?: number } }
+    | undefined;
   public loaded: boolean;
   public loadStatus: FeatureLayerLoadStatusCompat;
   public metadata: unknown;
@@ -212,6 +218,7 @@ export class FeatureLayerCompat {
     this.minScale = normalizeScale(options.minScale);
     this.maxScale = normalizeScale(options.maxScale);
     this.legendEnabled = options.legendEnabled ?? true;
+    this.fullExtent = undefined;
     this.listMode = options.listMode ?? "show";
     this.loaded = false;
     this.loadStatus = "not-loaded";
