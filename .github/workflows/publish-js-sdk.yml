@@ -266,6 +266,26 @@ jobs:
           # rather than reaching the registry (#1529).
           npm run verify:client-pair
           npm run build:split-packages:prepared --silent
+          # Pack immediately. Later checks pack the root package and remove
+          # these directories before the publish calls below.
+          declare -A split_tarball_for=()
+          declare -A split_name_for=()
+          declare -A split_version_for=()
+          split_pack_dir="${RUNNER_TEMP}/split-tarballs"
+          rm -rf "$split_pack_dir"
+          mkdir -p "$split_pack_dir"
+          for package_dir in \
+            "./dist/packages/honua-sdk" \
+            "./dist/packages/honua-sdk-esri-compat" \
+            "./dist/packages/honua-react" \
+            "./dist/packages/honua-geometry" \
+            "./dist/packages/honua-app-platform"
+          do
+            filename="$(node "${PINNED_NPM}" pack "$package_dir" --pack-destination "$split_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
+            split_tarball_for["$package_dir"]="${split_pack_dir}/${filename}"
+            split_name_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+            split_version_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+          done
           # build:split-packages cleans dist/, so (re)build the browser bundle
           # afterwards. Without this the root package publishes without
           # dist/browser/*, breaking the ./browser export and every CDN path.
@@ -336,27 +356,7 @@ jobs:
             node "${PINNED_NPM}" publish "$publish_target" --access public --tag "$dist_tag" $flags
           }
 
-          # Publishing the root package drops nested package.json trees under
-          # dist/packages. Pack every split package first. The call sites stay
-          # explicit so the release manifest can see them.
-          declare -A split_tarball_for=()
-          declare -A split_name_for=()
-          declare -A split_version_for=()
-          split_pack_dir="${RUNNER_TEMP}/split-tarballs"
-          rm -rf "$split_pack_dir"
-          mkdir -p "$split_pack_dir"
-          for package_dir in \
-            "./dist/packages/honua-sdk" \
-            "./dist/packages/honua-sdk-esri-compat" \
-            "./dist/packages/honua-react" \
-            "./dist/packages/honua-geometry" \
-            "./dist/packages/honua-app-platform"
-          do
-            filename="$(node "${PINNED_NPM}" pack "$package_dir" --pack-destination "$split_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
-            split_tarball_for["$package_dir"]="${split_pack_dir}/${filename}"
-            split_name_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
-            split_version_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
-          done
+          # Split tarballs were packed immediately after they were built.
           publish_package "."
           publish_package "./dist/packages/honua-sdk"
           publish_package "./dist/packages/honua-sdk-esri-compat"
