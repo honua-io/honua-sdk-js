@@ -4802,7 +4802,7 @@ function readHistoricalVisualArtifactBlob(root, reference) {
   try {
     history = execFileSync(
       "git",
-      ["log", "--all", "--diff-filter=AM", "--max-count=257", "--format=%H", "--", reference.path],
+      ["log", "--all", "--diff-filter=AM", "--max-count=1025", "--format=%H", "--", reference.path],
       {
         cwd: root,
         encoding: "utf8",
@@ -4816,7 +4816,7 @@ function readHistoricalVisualArtifactBlob(root, reference) {
   }
   const revisions = [...new Set(history.split(/\r?\n/u).filter(Boolean))];
   invariant(
-    revisions.length <= 256 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
+    revisions.length <= 1024 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
     `legacy visual artifact capture history is invalid or excessive for ${reference.path}`,
   );
   for (const revision of revisions) {
