@@ -308,15 +308,15 @@ jobs:
             local package_name
             local package_version
             local dist_tag
-            local publish_target="$package_dir"
-            package_name="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
-            package_version="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
-            dist_tag="$(resolve_dist_tag "$package_version")"
-
-            if [[ "$package_dir" != "." ]]; then
-              publish_target="$(node "${PINNED_NPM}" pack "$package_dir" --pack-destination "$split_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
-              publish_target="${split_pack_dir}/${publish_target}"
+            local publish_target="${split_tarball_for[$package_dir]:-$package_dir}"
+            if [[ -n "${split_name_for[$package_dir]:-}" ]]; then
+              package_name="${split_name_for[$package_dir]}"
+              package_version="${split_version_for[$package_dir]}"
+            else
+              package_name="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+              package_version="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
             fi
+            dist_tag="$(resolve_dist_tag "$package_version")"
 
             if [[ "${DRY_RUN}" != "true" ]] && node "${PINNED_NPM}" view "${package_name}@${package_version}" version >/dev/null 2>&1; then
               echo "${package_name}@${package_version} is already published; skipping."
@@ -334,11 +334,26 @@ jobs:
           }
 
           # Publishing the root package drops nested package.json trees under
-          # dist/packages. The helper packs split packages before publishing
-          # them, while retaining explicit publish targets for the manifest gate.
+          # dist/packages. Pack every split package first. The call sites stay
+          # explicit so the release manifest can see them.
+          declare -A split_tarball_for=()
+          declare -A split_name_for=()
+          declare -A split_version_for=()
           split_pack_dir="${RUNNER_TEMP}/split-tarballs"
           rm -rf "$split_pack_dir"
           mkdir -p "$split_pack_dir"
+          for package_dir in \
+            "./dist/packages/honua-sdk" \
+            "./dist/packages/honua-sdk-esri-compat" \
+            "./dist/packages/honua-react" \
+            "./dist/packages/honua-geometry" \
+            "./dist/packages/honua-app-platform"
+          do
+            filename="$(node "${PINNED_NPM}" pack "$package_dir" --pack-destination "$split_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
+            split_tarball_for["$package_dir"]="${split_pack_dir}/${filename}"
+            split_name_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+            split_version_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+          done
           publish_package "."
           publish_package "./dist/packages/honua-sdk"
           publish_package "./dist/packages/honua-sdk-esri-compat"
