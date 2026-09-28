@@ -45,6 +45,17 @@ describe("parseFeatureLayerUrl", () => {
 });
 
 describe("FeatureLayerCompat", () => {
+  it("accepts leftover Esri constructor options and exposes fullExtent", () => {
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      fieldConfigurations: [{ name: "C_Storage" }],
+      orderBy: [{ field: "C_Storage" }],
+    });
+
+    expect(layer.url).toContain("FeatureServer/0");
+    expect(layer.fullExtent).toBeUndefined();
+  });
+
   it("maps ArcGIS-style query to Honua query endpoint", async () => {
     let requestedUrl: string | undefined;
     const layer = new FeatureLayerCompat({
@@ -160,6 +171,7 @@ describe("FeatureLayerCompat", () => {
     expect(callbackLayer).toBe(layer);
     expect(resolved).toBe(layer);
     expect(layer.metadata).toEqual({ id: 1000, name: "Sample Layer" });
+    expect(layer.fullExtent).toBeUndefined();
     expect(metadataCalls).toBe(1);
 
     await layer.load();
@@ -171,6 +183,46 @@ describe("FeatureLayerCompat", () => {
 
     await layer.load();
     expect(metadataCalls).toBe(2);
+  });
+
+  it("copies fullExtent from loaded layer metadata", async () => {
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      client: new (class {
+        public getLayerMetadata(): Promise<unknown> {
+          return Promise.resolve({
+            extent: {
+              xmin: -82.5,
+              ymin: 35.5,
+              xmax: -82.4,
+              ymax: 35.7,
+              spatialReference: { wkid: 4326 },
+            },
+          });
+        }
+
+        public queryFeatures(): Promise<unknown> {
+          return Promise.resolve({ features: [] });
+        }
+
+        public applyEdits(): Promise<unknown> {
+          return Promise.resolve({});
+        }
+      })() as any,
+    });
+
+    await layer.load();
+
+    expect(layer.fullExtent).toEqual({
+      xmin: -82.5,
+      ymin: 35.5,
+      xmax: -82.4,
+      ymax: 35.7,
+      spatialReference: { wkid: 4326 },
+    });
+
+    layer.refresh();
+    expect(layer.fullExtent).toBeUndefined();
   });
 
   it("sets failed loadStatus when metadata loading fails", async () => {
