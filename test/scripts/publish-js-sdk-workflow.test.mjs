@@ -92,28 +92,33 @@ it("stops before publishing when client-pair verification fails", (t) => {
 });
 
 function fixture(t, dryRun, failClientPair = false) {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "publish-sdk-workflow-"));
-  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
-  fs.mkdirSync(path.join(cwd, "bin"));
-  fs.mkdirSync(path.join(cwd, "scripts"));
-  fs.writeFileSync(path.join(cwd, "scripts/sample-contract.mjs"), "");
-  fs.writeFileSync(path.join(cwd, "package.json"), JSON.stringify({ name: "@honua/sdk-js", version: "0.1.0-beta.0" }));
-  const npm = path.join(cwd, "bin/npm");
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "publish-sdk-workflow-"));
+  t.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(fixtureRoot, "bin"));
+  fs.mkdirSync(path.join(fixtureRoot, "scripts"));
+  fs.writeFileSync(path.join(fixtureRoot, "scripts/sample-contract.mjs"), "");
+  fs.writeFileSync(path.join(fixtureRoot, "package.json"), JSON.stringify({ name: "@honua/sdk-js", version: "0.1.0-beta.0" }));
+  const npm = path.join(fixtureRoot, "bin/npm");
+  const scriptPath = path.join(fixtureRoot, "workflow.sh");
+  fs.writeFileSync(scriptPath, "", { mode: 0o755 });
   fs.writeFileSync(npm, `#!/usr/bin/env node\n${npmDouble}`, { mode: 0o755 });
   return {
-    run: (script) => spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script], {
-      cwd,
+    run: (script) => {
+      fs.writeFileSync(scriptPath, script, { mode: 0o755 });
+      return spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", scriptPath], {
+      cwd: fixtureRoot,
       encoding: "utf8",
       env: {
         ...process.env,
-        PATH: `${path.join(cwd, "bin")}${path.delimiter}${process.env.PATH}`,
+        PATH: `${path.join(fixtureRoot, "bin")}${path.delimiter}${process.env.PATH}`,
         PINNED_NPM: npm,
-        RUNNER_TEMP: path.join(cwd, "runner temp"),
+        RUNNER_TEMP: path.join(fixtureRoot, "runner temp"),
         DRY_RUN: String(dryRun),
         FAIL_CLIENT_PAIR: String(failClientPair),
         ACTIONS_ID_TOKEN_REQUEST_URL: "offline-fixture",
       },
-    }),
-    calls: () => fs.readFileSync(path.join(cwd, "calls.jsonl"), "utf8").trim().split("\n").map(JSON.parse),
+      });
+    },
+    calls: () => fs.readFileSync(path.join(fixtureRoot, "calls.jsonl"), "utf8").trim().split("\n").map(JSON.parse),
   };
 }
