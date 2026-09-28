@@ -1,0 +1,274 @@
+{
+  "format": "honua.sdk.sample-packed-build-gate.v1",
+  "sampleId": "migration-workbench",
+  "sourceRevision": "1fcf6217901200daa3cfcc85a029b61a66c22f2f",
+  "command": [
+    "npm",
+    "run",
+    "demo:migration-workbench:build"
+  ],
+  "sdkMode": "packed",
+  "packageTarballSha256": "618f4fdab9655f9fd7a99f2500533628834a276be340aea381dbe6bf260d3d82",
+  "packageTarball": "samples/evidence/migration-workbench/runs/66e8cca0-9254-4909-bd2f-b42bd31c4a23/artifacts/honua-sdk-js-0.1.10-beta.0.tgz",
+  "packageTarballBytes": 10390137,
+  "sampleDistRoot": "samples/evidence/migration-workbench/runs/66e8cca0-9254-4909-bd2f-b42bd31c4a23/artifacts/packed-sample-dist",
+  "resolution": {
+    "format": "honua.sdk.sample-resolution.v1",
+    "schemaVersion": 1,
+    "mode": "packed",
+    "package": {
+      "name": "@honua/sdk-js",
+      "version": "0.1.10-beta.0"
+    },
+    "entrypoints": [
+      {
+        "specifier": "@honua/sdk-js/esri-compat",
+        "exportTarget": "./dist/src/esri-compat-entry.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "0f68aa8f0e278a39d983d5b691439050c5e342fb9c67c101dea92e00ab470c8a"
+      }
+    ],
+    "bundle": [
+      {
+        "fileName": "assets/index-D1MT5S-s.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 33304,
+        "sha256": "2618d40dfbacd828866a8b310b3b0d92f046db750963aa6051bf99dc9ee101cc"
+      },
+      {
+        "fileName": "assets/esm-C_eIEYjf.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 215447,
+        "sha256": "f22477d7c7640608ffc518a6dce7e2b556f6f2738cc07d787a0b8819b23a0b2a"
+      },
+      {
+        "fileName": "assets/esm-DxHW68iz.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 18857,
+        "sha256": "a89c7c83231269a81d73e16ac0c0e115fb7dcaec16e9356ca24ac0887716a0fe"
+      },
+      {
+        "fileName": "assets/esm-YsLoa0G8.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 691,
+        "sha256": "a078c66521cc4727e33d48a021528a54bf129a7380e0cbf75a1132f4c5b0a618"
+      },
+      {
+        "fileName": "assets/feature_service_pb-BH6Uo8wM.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 44136,
+        "sha256": "2ce8fe6599fa0ede5d55cca8d5a8a3f55ac68eb634df6a356503154d638b19c2"
+      },
+      {
+        "fileName": "assets/feature_service_pb-CQ-ht3Pq.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 496,
+        "sha256": "85bc35d02889cc4a9eb383973f1b262a9727949e81a722465ccf9350443e32b6"
+      },
+      {
+        "fileName": "assets/file-Desv2rc0.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 153848,
+        "sha256": "c0de86613c104f964f620d92c5f2578c1005f46aeabc0f12bb790fa3844cbc99"
+      },
+      {
+        "fileName": "assets/geometry-input-sr-BBqDkAUS.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 43482,
+        "sha256": "830085371f979947ac3ccc1a5b6270706e44c26a0a5aa7df85c11f554c76d5e2"
+      },
+      {
+        "fileName": "assets/grpc-adapter-VE8n59bv.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 22567,
+        "sha256": "0aab19799734cd9b2734fe30d89de6bc1be0cf5fecaa65ff4a5f80e1c6063651"
+      },
+      {
+        "fileName": "assets/maplibre-gl-qDT5jlyj.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1304792,
+        "sha256": "d72db946d13b5cf2f92db3e703d2cb94a4ea8bc8b234471bfeae61b545b0645c"
+      },
+      {
+        "fileName": "assets/migrated-main-CxvXjZ-g.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 599276,
+        "sha256": "8b5976415d9543511a87fe05d4d7b6c58fe3ee40772edc280df2e5d2b2ff71f1"
+      },
+      {
+        "fileName": "assets/preload-helper-KokfPtoz.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 2247,
+        "sha256": "7fedcab5078ff0ea7ee1ee3425b7e4496805009b9ea5d32c28b0c44f113b70b6"
+      },
+      {
+        "fileName": "artifacts/v1/migrated-main.js",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 5159,
+        "sha256": "ea75ce5a0c267391b846f8825ad54e941a5b6ec31c9fa8cf05f3469712a636a4"
+      },
+      {
+        "fileName": "assets/index-BaXHBYR1.css",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 56424,
+        "sha256": "5140cf483219f32642f91e950844d5c36e56c5f8f24d67a61a7390c554536a19"
+      },
+      {
+        "fileName": "artifacts/v1/manifest.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 6129,
+        "sha256": "a20610711af18ec36eea9e63d1518b5bab2be6f9a28d252ae9c351ee706a9335"
+      },
+      {
+        "fileName": "artifacts/v1/maplibre-assessment.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 51533,
+        "sha256": "b7182935db324629d72734ed245a3a8e72faf83f38317be8e8a12062589e17e4"
+      },
+      {
+        "fileName": "artifacts/v1/migration-report.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 62505,
+        "sha256": "5c377dcbcc67c419a4913fb88a6f1eaa18faa9f3a6c9b661bee01d2a67cb6668"
+      },
+      {
+        "fileName": "artifacts/v1/migration.v1.patch",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 3864,
+        "sha256": "5af0f80709512a3bd9f600716a14ab4b9194dc103369294c3db0c944c04e3a9b"
+      },
+      {
+        "fileName": "artifacts/v1/widget-readiness.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 5612,
+        "sha256": "8fcb1f910ca28e69f9ac58f0b6a47c6fb54a80e67d508cbfcb7d557476bccd9b"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "artifacts/v1/manifest.v1.json",
+      "bytes": 6129,
+      "sha256": "a20610711af18ec36eea9e63d1518b5bab2be6f9a28d252ae9c351ee706a9335"
+    },
+    {
+      "path": "artifacts/v1/maplibre-assessment.v1.json",
+      "bytes": 51533,
+      "sha256": "b7182935db324629d72734ed245a3a8e72faf83f38317be8e8a12062589e17e4"
+    },
+    {
+      "path": "artifacts/v1/migrated-main.js",
+      "bytes": 5159,
+      "sha256": "ea75ce5a0c267391b846f8825ad54e941a5b6ec31c9fa8cf05f3469712a636a4"
+    },
+    {
+      "path": "artifacts/v1/migration-report.v1.json",
+      "bytes": 62505,
+      "sha256": "5c377dcbcc67c419a4913fb88a6f1eaa18faa9f3a6c9b661bee01d2a67cb6668"
+    },
+    {
+      "path": "artifacts/v1/migration.v1.patch",
+      "bytes": 3864,
+      "sha256": "5af0f80709512a3bd9f600716a14ab4b9194dc103369294c3db0c944c04e3a9b"
+    },
+    {
+      "path": "artifacts/v1/widget-readiness.v1.json",
+      "bytes": 5612,
+      "sha256": "8fcb1f910ca28e69f9ac58f0b6a47c6fb54a80e67d508cbfcb7d557476bccd9b"
+    },
+    {
+      "path": "assets/esm-C_eIEYjf.js",
+      "bytes": 215447,
+      "sha256": "f22477d7c7640608ffc518a6dce7e2b556f6f2738cc07d787a0b8819b23a0b2a"
+    },
+    {
+      "path": "assets/esm-DxHW68iz.js",
+      "bytes": 18857,
+      "sha256": "a89c7c83231269a81d73e16ac0c0e115fb7dcaec16e9356ca24ac0887716a0fe"
+    },
+    {
+      "path": "assets/esm-YsLoa0G8.js",
+      "bytes": 691,
+      "sha256": "a078c66521cc4727e33d48a021528a54bf129a7380e0cbf75a1132f4c5b0a618"
+    },
+    {
+      "path": "assets/feature_service_pb-BH6Uo8wM.js",
+      "bytes": 44136,
+      "sha256": "2ce8fe6599fa0ede5d55cca8d5a8a3f55ac68eb634df6a356503154d638b19c2"
+    },
+    {
+      "path": "assets/feature_service_pb-CQ-ht3Pq.js",
+      "bytes": 496,
+      "sha256": "85bc35d02889cc4a9eb383973f1b262a9727949e81a722465ccf9350443e32b6"
+    },
+    {
+      "path": "assets/file-Desv2rc0.js",
+      "bytes": 153848,
+      "sha256": "c0de86613c104f964f620d92c5f2578c1005f46aeabc0f12bb790fa3844cbc99"
+    },
+    {
+      "path": "assets/geometry-input-sr-BBqDkAUS.js",
+      "bytes": 43482,
+      "sha256": "830085371f979947ac3ccc1a5b6270706e44c26a0a5aa7df85c11f554c76d5e2"
+    },
+    {
+      "path": "assets/grpc-adapter-VE8n59bv.js",
+      "bytes": 22567,
+      "sha256": "0aab19799734cd9b2734fe30d89de6bc1be0cf5fecaa65ff4a5f80e1c6063651"
+    },
+    {
+      "path": "assets/index-BaXHBYR1.css",
+      "bytes": 56424,
+      "sha256": "5140cf483219f32642f91e950844d5c36e56c5f8f24d67a61a7390c554536a19"
+    },
+    {
+      "path": "assets/index-D1MT5S-s.js",
+      "bytes": 33304,
+      "sha256": "2618d40dfbacd828866a8b310b3b0d92f046db750963aa6051bf99dc9ee101cc"
+    },
+    {
+      "path": "assets/maplibre-gl-qDT5jlyj.js",
+      "bytes": 1304792,
+      "sha256": "d72db946d13b5cf2f92db3e703d2cb94a4ea8bc8b234471bfeae61b545b0645c"
+    },
+    {
+      "path": "assets/migrated-main-CxvXjZ-g.js",
+      "bytes": 599276,
+      "sha256": "8b5976415d9543511a87fe05d4d7b6c58fe3ee40772edc280df2e5d2b2ff71f1"
+    },
+    {
+      "path": "assets/preload-helper-KokfPtoz.js",
+      "bytes": 2247,
+      "sha256": "7fedcab5078ff0ea7ee1ee3425b7e4496805009b9ea5d32c28b0c44f113b70b6"
+    },
+    {
+      "path": "honua-sample-sdk-resolution.json",
+      "bytes": 5095,
+      "sha256": "782fccdb49f8184323b48c06c74db7139d35d114ad376c2d567aee84fe470717"
+    },
+    {
+      "path": "index.html",
+      "bytes": 10934,
+      "sha256": "4e5e44c093a8101cd3a69be30eda338a30c575b77d51e3f01624edc0f5881167"
+    }
+  ]
+}
