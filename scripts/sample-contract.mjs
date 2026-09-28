@@ -4802,7 +4802,7 @@ function readHistoricalVisualArtifactBlob(root, reference) {
   try {
     history = execFileSync(
       "git",
-      ["log", "--all", "--diff-filter=AM", "--max-count=1024", "--format=%H", "--", reference.path],
+      ["log", "--all", "--diff-filter=AM", "--max-count=1025", "--format=%H", "--", reference.path],
       {
         cwd: root,
         encoding: "utf8",
