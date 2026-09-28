@@ -327,12 +327,39 @@ jobs:
             node "${PINNED_NPM}" publish "$package_dir" --access public --tag "$dist_tag" $flags
           }
 
+          # Publishing the root package drops nested package.json trees under
+          # dist/packages. Pack the split packages first and publish the tarballs.
+          split_pack_dir="${RUNNER_TEMP}/split-tarballs"
+          rm -rf "$split_pack_dir"
+          mkdir -p "$split_pack_dir"
+          split_manifest="${RUNNER_TEMP}/split-tarballs.tsv"
+          : >"$split_manifest"
+          for package_dir in \
+            "./dist/packages/honua-sdk" \
+            "./dist/packages/honua-sdk-esri-compat" \
+            "./dist/packages/honua-react" \
+            "./dist/packages/honua-geometry" \
+            "./dist/packages/honua-app-platform"
+          do
+            package_name="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+            package_version="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+            filename="$(node "${PINNED_NPM}" pack "$package_dir" --pack-destination "$split_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
+            printf '%s\t%s\t%s\n' "$package_name" "$package_version" "${split_pack_dir}/${filename}" >>"$split_manifest"
+          done
+
           publish_package "."
-          publish_package "./dist/packages/honua-sdk"
-          publish_package "./dist/packages/honua-sdk-esri-compat"
-          publish_package "./dist/packages/honua-react"
-          publish_package "./dist/packages/honua-geometry"
-          publish_package "./dist/packages/honua-app-platform"
+          while IFS=$'\t' read -r package_name package_version tarball; do
+            dist_tag="$(resolve_dist_tag "$package_version")"
+            if [[ "${DRY_RUN}" != "true" ]] && node "${PINNED_NPM}" view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+              echo "${package_name}@${package_version} is already published; skipping."
+              continue
+            fi
+            if [[ "${DRY_RUN}" != "true" && -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+              echo "Actions OIDC token unavailable (id-token: write missing?); trusted publishing cannot mint credentials for ${package_name}@${package_version}."
+              exit 1
+            fi
+            node "${PINNED_NPM}" publish "$tarball" --access public --tag "$dist_tag" $flags
+          done <"$split_manifest"
 
       - name: Publish summary
         if: ${{ env.DRY_RUN == 'true' }}
