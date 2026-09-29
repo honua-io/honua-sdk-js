@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.11-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.10-beta.0...mcp-server-v0.1.11-beta.0) (2026-09-29)
+
+
+### Features
+
+* **cli:** qualify bounded local setup and style/render ([#1786](https://github.com/honua-io/honua-sdk-js/issues/1786)) ([0a2a459](https://github.com/honua-io/honua-sdk-js/commit/0a2a459c7c11f518cd796cee2251d7c69768b377))
+* **eval:** grade the full workflow and make local install ready ([#1784](https://github.com/honua-io/honua-sdk-js/issues/1784)) ([e6218d5](https://github.com/honua-io/honua-sdk-js/commit/e6218d52e1ab92c8c07ed19bf0310b91a1a975a2))
+* **mcp:** retarget zero-to-map to the operator roster ([#1780](https://github.com/honua-io/honua-sdk-js/issues/1780)) ([d10ee0c](https://github.com/honua-io/honua-sdk-js/commit/d10ee0c124b6da69273462f4facfa7ff3f9a230b))
+
+
+### Bug Fixes
+
+* **control-plane:** propagate command correlation identity ([0ea481a](https://github.com/honua-io/honua-sdk-js/commit/0ea481a168d9be4557ac02b97bc78518980c9561))
+* **control-plane:** propagate command correlation identity ([3651c1d](https://github.com/honua-io/honua-sdk-js/commit/3651c1dcc314ade61af953ac139747c1c2d85f1e))
+* **esri-compat:** keep leftover FeatureLayer constructor options ([#1805](https://github.com/honua-io/honua-sdk-js/issues/1805)) ([9fb77e6](https://github.com/honua-io/honua-sdk-js/commit/9fb77e625b7873084ea646c6468b8ac25211a6c8))
+* **mcp:** move ip-address past GHSA-rpw4-54j3-4h4q and GHSA-2vr4-cq9g-pvrc ([#1821](https://github.com/honua-io/honua-sdk-js/issues/1821)) ([5ccaa07](https://github.com/honua-io/honua-sdk-js/commit/5ccaa07ccf8fad216d89da38949ee91300ed5a1e))
+* **mcp:** preserve and qualify bounded setup views ([7ae5927](https://github.com/honua-io/honua-sdk-js/commit/7ae59277c6c00ae43bcc425138e62ac0f143c17a))
+* **mcp:** preserve workflow view across stdio proxy requests ([89494fe](https://github.com/honua-io/honua-sdk-js/commit/89494fefea654b388304053b4b0d715e5d88d53f))
+* **mcp:** qualify bounded setup catalogs against pinned descriptors ([e18f905](https://github.com/honua-io/honua-sdk-js/commit/e18f905f37daa093de5912e3f669fda17c44d69b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.11-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.10-beta.0 to ^0.1.11-beta.0
+
 ## [0.1.10-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.9-beta.0...mcp-server-v0.1.10-beta.0) (2026-09-22)
 
 
