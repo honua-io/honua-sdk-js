@@ -332,21 +332,23 @@ describe("pinned client pair co-installability (#1529)", () => {
   });
 
   it("co-installs an SDK patch beside the stable MCP release it already pairs with", () => {
-    // The point of stable 0.x versions: sdk-js 0.2.1 ships without a
-    // coordinated mcp-server republish, because ^0.2.0 admits 0.2.1 under
+    // The point of stable 0.x versions: sdk-js 0.1.13 ships without a
+    // coordinated mcp-server republish, because ^0.1.12 admits 0.1.13 under
     // npm's default resolution (a prerelease pair could never do this).
     expect(() =>
       verifyClientPairCoInstallable({
         sdkName: "@honua/sdk-js",
-        sdkVersion: "0.2.1",
+        sdkVersion: "0.1.13",
         mcpName: "@honua/mcp-server",
-        mcpVersion: "0.2.0",
-        peerRange: "^0.2.0",
+        mcpVersion: "0.1.12",
+        peerRange: "^0.1.12",
       }),
     ).not.toThrow();
-    expect(satisfiesUnderNpmDefaults("0.2.1", "^0.2.0")).toBe(true);
+    expect(satisfiesUnderNpmDefaults("0.1.13", "^0.1.12")).toBe(true);
+    // The first stable cut still pairs with the last prerelease MCP pin.
+    expect(satisfiesUnderNpmDefaults("0.1.12", "^0.1.11-beta.0")).toBe(true);
     // A 0.x caret still stops at the next minor.
-    expect(satisfiesUnderNpmDefaults("0.3.0", "^0.2.0")).toBe(false);
+    expect(satisfiesUnderNpmDefaults("0.2.0", "^0.1.12")).toBe(false);
   });
 
   it("rejects an MCP artifact that declares no peer range at all", () => {
