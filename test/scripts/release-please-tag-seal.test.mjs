@@ -77,7 +77,7 @@ function runReleaseStep({
   jsSdkReleaseCreated = "false",
   // Releases the stubbed `gh` lists, so the resolve-by-tag jq is executed.
   releases = [{ id: Number(RELEASE_ID), tag_name: TAG, draft: true }],
-  // Whether `git/ref/tags/<tag>` resolves, i.e. the tag already exists.
+  // Whether the stranded tag exists (answered through git/matching-refs).
   strandedTagExists = false,
   // package.json version at trunk, for the recovery version anchor. The default
   // matches TAG so recovery proceeds.
@@ -154,13 +154,17 @@ case "$ARGS" in
   "run watch"*) ;;
   *"git/ref/heads/trunk"*) echo "${RESEALED_COMMIT}" ;;
   *"git/ref/tags/"*)
+    # The exact-ref lookup 404s for an absent tag, and real gh api prints
+    # that error body on stdout. The workflow must not use it.
+    echo '{"message":"Not Found","documentation_url":"https://docs.github.com/rest/git/refs#get-a-reference","status":"404"}'
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+    ;;
+  *"git/matching-refs/tags/"*)
+    # Answers the workflow's --jq selection: the sha when the tag exists,
+    # nothing (an empty list) when it does not.
     if [[ "${strandedTagExists ? "1" : "0"}" == "1" ]]; then
       echo "${SEALED_TAG_COMMIT}"
-    else
-      # Real gh api prints the error response body on stdout for a 404.
-      echo '{"message":"Not Found","documentation_url":"https://docs.github.com/rest/git/refs#get-a-reference","status":"404"}'
-      echo "gh: Not Found (HTTP 404)" >&2
-      exit 1
     fi
     ;;
   *"contents/package.json"*) echo "${trunkVersion}" ;;
