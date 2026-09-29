@@ -66,7 +66,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-09-29 at commit `15abfcd8f`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-09-29 at commit `283fdae49`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -76,7 +76,7 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Importing only `HonuaClient` (tree-shake guard) | 260.6 KiB | 69.9 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 46.0 KiB | 13.8 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 373.7 KiB | 100.8 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 1095.0 KiB | 277.4 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 1095.1 KiB | 277.4 KiB |
 | Geocoding client | 32.7 KiB | 9.2 KiB |
 | Routing client | 26.1 KiB | 7.8 KiB |
 
