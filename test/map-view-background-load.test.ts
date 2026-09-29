@@ -39,4 +39,33 @@ describe("MapViewCompat background load", () => {
       process.off("unhandledRejection", onUnhandled);
     }
   });
+
+  it("does not surface a placed widget's failed load as an unhandled rejection", async () => {
+    const reasons: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      reasons.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const container = document.createElement("div");
+      const view = new MapViewCompat({ container });
+      let loadCalls = 0;
+      const widget = {
+        load: () => {
+          loadCalls += 1;
+          return Promise.reject(new Error("Failed to fetch"));
+        },
+      };
+      view.ui.add(widget, "top-right");
+
+      await vi.waitFor(() => {
+        expect(loadCalls).toBeGreaterThan(0);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(reasons).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
 });
