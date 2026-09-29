@@ -548,8 +548,13 @@ jobs:
             # is forbidden -- so resume at publication. This is exactly the
             # recovery the PATCH failure message above tells operators to
             # perform by hand.
+            # Ask matching-refs, which answers an absent tag with an empty list
+            # rather than a 404. gh api writes a 404's error body to stdout, and
+            # a nonzero status cannot tell absence from a transient or auth
+            # failure, so neither may be read as "no tag". Any failure here
+            # stops the step through the ERR trap instead.
             local existing_tag_sha=""
-            existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq .object.sha 2>/dev/null || true)"
+            existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${tag}" --jq ".[] | select(.ref == \"refs/tags/${tag}\") | .object.sha")"
             if [[ -n "${existing_tag_sha}" ]]; then
               local trunk_head
               trunk_head="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
