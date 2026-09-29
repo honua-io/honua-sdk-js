@@ -388,15 +388,16 @@ describe("pinned client pair co-installability (#1529)", () => {
       mcpVersion: LOCAL_INSTALL_MCP_PACKAGE_VERSION,
       peerRange: `^${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`,
     };
-    if (LOCAL_INSTALL_MCP_PACKAGE_VERSION === sdk.version) {
+    // A pin that differs from the SDK version is not by itself uninstallable:
+    // with stable 0.x releases a caret range admits later patches, so sdk-js
+    // 0.1.12 co-installs beside a pinned mcp-server 0.1.11-beta.0
+    // (^0.1.11-beta.0). A pin whose range does not admit the SDK -- the
+    // prerelease case between a bump and the coordinated MCP publish -- still
+    // must not ship, so assert the gate fires exactly when npm would refuse.
+    if (satisfiesUnderNpmDefaults(sdk.version, pinned.peerRange)) {
       expect(() => verifyClientPairCoInstallable(pinned)).not.toThrow();
       return;
     }
-    // Between a release-please bump and the coordinated MCP publish the pin
-    // legitimately lags, and no edit can fix it until the MCP half reaches the
-    // registry -- asserting green here would redden every release PR with
-    // nothing a contributor could do about it. The state is still not allowed
-    // to ship, so assert the gate that stops it actually fires.
     expect(() => verifyClientPairCoInstallable(pinned)).toThrow(/does NOT consider satisfied/);
   });
 
