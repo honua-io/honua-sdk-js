@@ -47,6 +47,8 @@ export interface FeatureLayerCompatOptions {
   maxAttachmentBytes?: number;
   client?: HonuaClient;
   eventBus?: CompatEventBus;
+  /** Esri options the codemod leaves on the constructor, such as fieldConfigurations. */
+  [extra: string]: unknown;
 }
 
 export interface FeatureLayerQueryOptions {
@@ -169,6 +171,8 @@ export class FeatureLayerCompat {
   public maxScale: number;
   public legendEnabled: boolean;
   public listMode: string;
+  /** Populated from layer metadata `extent` when {@link load} succeeds. */
+  public fullExtent: HonuaExtent | undefined;
   public loaded: boolean;
   public loadStatus: FeatureLayerLoadStatusCompat;
   public metadata: unknown;
@@ -212,6 +216,7 @@ export class FeatureLayerCompat {
     this.minScale = normalizeScale(options.minScale);
     this.maxScale = normalizeScale(options.maxScale);
     this.legendEnabled = options.legendEnabled ?? true;
+    this.fullExtent = undefined;
     this.listMode = options.listMode ?? "show";
     this.loaded = false;
     this.loadStatus = "not-loaded";
@@ -238,6 +243,8 @@ export class FeatureLayerCompat {
           ? { fields: this.fields ?? [] }
           : await this.client.getLayerMetadata(this.serviceId, this.layerId);
         this.notifyWatchers("metadata", this.metadata);
+        this.fullExtent = extentFromMetadata(this.metadata);
+        this.notifyWatchers("fullExtent", this.fullExtent);
         this.loaded = true;
         this.notifyWatchers("loaded", this.loaded);
         this.loadStatus = "loaded";
@@ -250,6 +257,8 @@ export class FeatureLayerCompat {
       } catch (error) {
         this.metadata = undefined;
         this.notifyWatchers("metadata", this.metadata);
+        this.fullExtent = undefined;
+        this.notifyWatchers("fullExtent", this.fullExtent);
         this.loaded = false;
         this.notifyWatchers("loaded", this.loaded);
         this.loadStatus = "failed";
@@ -281,6 +290,8 @@ export class FeatureLayerCompat {
     this.notifyWatchers("loadStatus", this.loadStatus);
     this.metadata = undefined;
     this.notifyWatchers("metadata", this.metadata);
+    this.fullExtent = undefined;
+    this.notifyWatchers("fullExtent", this.fullExtent);
     this.eventBus.emit(
       "feature-layer.refreshed",
       { serviceId: this.serviceId, layerId: this.layerId, id: this.id },
@@ -862,6 +873,32 @@ export class FeatureLayerCompat {
       safeInvokeCompatListener(listener, value);
     }
   }
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function extentFromMetadata(metadata: unknown): HonuaExtent | undefined {
+  if (!isRecord(metadata) || !isRecord(metadata.extent)) {
+    return undefined;
+  }
+  const xmin = finiteNumber(metadata.extent.xmin);
+  const ymin = finiteNumber(metadata.extent.ymin);
+  const xmax = finiteNumber(metadata.extent.xmax);
+  const ymax = finiteNumber(metadata.extent.ymax);
+  if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) {
+    return undefined;
+  }
+  const spatialReference = isRecord(metadata.extent.spatialReference) ? metadata.extent.spatialReference : undefined;
+  const wkid = spatialReference ? finiteNumber(spatialReference.wkid) : undefined;
+  return {
+    xmin,
+    ymin,
+    xmax,
+    ymax,
+    ...(wkid === undefined ? {} : { spatialReference: { wkid } }),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

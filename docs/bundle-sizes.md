@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-09-27 at commit `d648135cb`._
+_Generated 2026-09-28 at commit `568014020`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -29,7 +29,7 @@ _Generated 2026-09-27 at commit `d648135cb`._
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 767.4 KiB | 778.7 KiB | 173.9 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 170.2 KiB | 183.6 KiB | 51.5 KiB | 55.8 KiB |
-| `/esri-compat` | 1085.5 KiB | 1139.7 KiB | 276.7 KiB | 280.9 KiB |
+| `/esri-compat` | 1086.2 KiB | 1139.7 KiB | 276.8 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
 | `/geocoding` | 32.7 KiB | 35.9 KiB | 9.2 KiB | 10.1 KiB |
@@ -56,7 +56,7 @@ _Generated 2026-09-27 at commit `d648135cb`._
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 16.6 KiB | 17.1 KiB | 4.4 KiB | 4.5 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.1 KiB | 18.5 KiB | 3.6 KiB | 3.9 KiB |
 | tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 739.9 KiB | 791.3 KiB | 201.0 KiB | 210.6 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 280.9 KiB | 296.3 KiB | 74.7 KiB | 77.7 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 281.6 KiB | 296.3 KiB | 74.8 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 46.0 KiB | 49.4 KiB | 13.8 KiB | 14.0 KiB |
 | tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 35.0 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
