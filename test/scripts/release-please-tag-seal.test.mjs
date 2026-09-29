@@ -157,6 +157,8 @@ case "$ARGS" in
     if [[ "${strandedTagExists ? "1" : "0"}" == "1" ]]; then
       echo "${SEALED_TAG_COMMIT}"
     else
+      # Real gh api prints the error response body on stdout for a 404.
+      echo '{"message":"Not Found","documentation_url":"https://docs.github.com/rest/git/refs#get-a-reference","status":"404"}'
       echo "gh: Not Found (HTTP 404)" >&2
       exit 1
     fi

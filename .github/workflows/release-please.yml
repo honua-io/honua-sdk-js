@@ -548,8 +548,13 @@ jobs:
             # is forbidden -- so resume at publication. This is exactly the
             # recovery the PATCH failure message above tells operators to
             # perform by hand.
+            # gh api writes the error response body to stdout on a 404, so an
+            # absent tag must be detected by the exit status, never by whether
+            # the command printed anything.
             local existing_tag_sha=""
-            existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq .object.sha 2>/dev/null || true)"
+            if ! existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq .object.sha 2>/dev/null)"; then
+              existing_tag_sha=""
+            fi
             if [[ -n "${existing_tag_sha}" ]]; then
               local trunk_head
               trunk_head="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
