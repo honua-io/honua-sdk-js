@@ -71,8 +71,8 @@ function sameTuple(left, right) {
  *
  * A release qualifies when its `@honua/sdk-js` peer range admits the SDK under
  * npm's default resolution. On stable `0.x` releases a caret range such as
- * `^0.2.0` admits every later `0.2.x`, so an SDK patch (0.2.1) pairs with the
- * MCP release it already co-installs with (0.2.0) and no coordinated MCP
+ * `^0.1.12` admits every later `0.1.x` patch, so an SDK patch (0.1.13) pairs with
+ * the MCP release it already co-installs with (0.1.12) and no coordinated MCP
  * republish is needed. Under the earlier prerelease scheme only a release on
  * the SDK's own `major.minor.patch` tuple satisfied the range, which is the
  * same rule falling out of npm's prerelease semantics.

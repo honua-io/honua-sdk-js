@@ -63,31 +63,35 @@ test("refuses to invent a pin when the coordinated half is not published", () =>
 const stablePackument = {
   versions: {
     "0.1.11-beta.0": { peerDependencies: { "@honua/sdk-js": "^0.1.11-beta.0" } },
+    "0.1.12": { peerDependencies: { "@honua/sdk-js": "^0.1.12" } },
+    "0.1.13": { peerDependencies: { "@honua/sdk-js": "^0.1.13" } },
     "0.2.0": { peerDependencies: { "@honua/sdk-js": "^0.2.0" } },
-    "0.2.1": { peerDependencies: { "@honua/sdk-js": "^0.2.1" } },
-    "0.3.0": { peerDependencies: { "@honua/sdk-js": "^0.3.0" } },
   },
 };
 
 test("an SDK patch pairs with the MCP release it already co-installs with", () => {
   // The regression this guards: under the prerelease scheme an SDK-only patch
   // could not ship until an MCP release on its exact tuple was republished.
-  // With stable 0.x versions, sdk-js 0.2.2 co-installs with mcp-server 0.2.1.
-  assert.equal(selectCoordinatedRelease(stablePackument, "0.2.2", "@honua/mcp-server"), "0.2.1");
-  assert.equal(selectCoordinatedRelease({ versions: { "0.2.0": stablePackument.versions["0.2.0"] } }, "0.2.1", "@honua/mcp-server"), "0.2.0");
+  // With stable 0.x versions, sdk-js 0.1.14 co-installs with mcp-server 0.1.13,
+  // and sdk-js 0.1.13 with mcp-server 0.1.12.
+  assert.equal(selectCoordinatedRelease(stablePackument, "0.1.14", "@honua/mcp-server"), "0.1.13");
+  assert.equal(selectCoordinatedRelease({ versions: { "0.1.12": stablePackument.versions["0.1.12"] } }, "0.1.13", "@honua/mcp-server"), "0.1.12");
 });
 
 test("prefers the SDK's own version when that MCP release qualifies", () => {
-  assert.equal(selectCoordinatedRelease(stablePackument, "0.2.1", "@honua/mcp-server"), "0.2.1");
-  assert.equal(selectCoordinatedRelease(stablePackument, "0.2.0", "@honua/mcp-server"), "0.2.0");
+  assert.equal(selectCoordinatedRelease(stablePackument, "0.1.13", "@honua/mcp-server"), "0.1.13");
+  assert.equal(selectCoordinatedRelease(stablePackument, "0.1.12", "@honua/mcp-server"), "0.1.12");
 });
 
 test("never selects an MCP release whose peer range excludes the SDK", () => {
-  // mcp-server 0.2.1 requires ^0.2.1 and 0.3.0 requires ^0.3.0, so neither can
-  // sit beside sdk-js 0.2.0; the prerelease 0.1.11-beta.0 cannot either.
-  assert.equal(selectCoordinatedRelease(stablePackument, "0.2.0", "@honua/mcp-server"), "0.2.0");
+  // mcp-server 0.1.13 requires ^0.1.13 and 0.2.0 requires ^0.2.0, so neither can
+  // sit beside sdk-js 0.1.12. mcp-server 0.1.11-beta.0 (^0.1.11-beta.0) can.
+  assert.equal(selectCoordinatedRelease(stablePackument, "0.1.12", "@honua/mcp-server"), "0.1.12");
+  const withoutOwn = { versions: { ...stablePackument.versions } };
+  delete withoutOwn.versions["0.1.12"];
+  assert.equal(selectCoordinatedRelease(withoutOwn, "0.1.12", "@honua/mcp-server"), "0.1.11-beta.0");
   assert.throws(
-    () => selectCoordinatedRelease({ versions: { "0.3.0": stablePackument.versions["0.3.0"] } }, "0.2.5", "@honua/mcp-server"),
+    () => selectCoordinatedRelease({ versions: { "0.2.0": stablePackument.versions["0.2.0"] } }, "0.1.15", "@honua/mcp-server"),
     /coordinated cut has not published its MCP half yet/,
   );
 });
