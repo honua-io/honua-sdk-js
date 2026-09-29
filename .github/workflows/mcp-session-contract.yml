@@ -52,7 +52,7 @@ jobs:
           npm pack ./mcp --ignore-scripts --pack-destination "$package_dir" --json > "$RUNNER_TEMP/mcp-pack.json"
           sdk_file=$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP+'/sdk-pack.json'))[0].filename")
           mcp_file=$(node -p "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP+'/mcp-pack.json'))[0].filename")
-          npm install --prefix "$install_dir" --ignore-scripts --no-audit --no-fund "$package_dir/$sdk_file" "$package_dir/$mcp_file"
+          npm install --offline --prefix "$install_dir" --ignore-scripts --no-audit --no-fund "$package_dir/$sdk_file" "$package_dir/$mcp_file"
           echo "HONUA_MCP_INSTALLED_PROXY=$install_dir/node_modules/.bin/honua-mcp-proxy" >> "$GITHUB_ENV"
           sha256sum "$package_dir/$sdk_file" "$package_dir/$mcp_file" > mcp/session-package-sha256.txt
       - name: Real HTTP through npm-installed executable
