@@ -1,0 +1,20 @@
+{
+  "$schema": "schemas/sample-release-matrix-lanes.schema.json",
+  "format": "honua.sdk.sample-release-matrix-lanes.v1",
+  "schemaVersion": 1,
+  "lanes": [
+    {
+      "sampleId": "maplibre-quickstart",
+      "lane": "release-matrix-browser",
+      "receiptPath": "samples/evidence/maplibre-quickstart/release-matrix.v1.json",
+      "establishedAt": "2026-09-29T23:40:06.521Z",
+      "establishedBy": {
+        "repository": "honua-io/honua-sdk-js",
+        "workflow": "First Map Release Smoke",
+        "runId": "36646113033",
+        "runAttempt": 1,
+        "commit": "1102d2d55916340edca13cb28411df8da8206f92"
+      }
+    }
+  ]
+}
