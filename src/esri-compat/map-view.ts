@@ -1185,7 +1185,11 @@ export class MapViewCompat {
       }
       const load = (widget as { load?: () => Promise<unknown> } | undefined)?.load;
       if (typeof load === "function") {
-        void load.call(widget);
+        // Placing a widget starts its load but nothing awaits it. A widget
+        // records its own failure (a FeatureTable whose query fails moves to
+        // loadStatus "failed" and emits feature-table.failed), so the
+        // discarded promise must not also surface as an unhandled rejection.
+        void Promise.resolve(load.call(widget)).catch(() => undefined);
       }
       host.append(slot);
     }
