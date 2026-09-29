@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.1.12](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.11-beta.0...mcp-server-v0.1.12) (2026-09-29)
+
+
+### Features
+
+* **release:** release the JS packages as stable 0.x from 0.2.0 ([#1841](https://github.com/honua-io/honua-sdk-js/issues/1841)) ([e588f33](https://github.com/honua-io/honua-sdk-js/commit/e588f338d1779d038f85d577a1187a8792a7eb87))
+
+
+### Bug Fixes
+
+* **control-plane:** refresh and verify the release Admin contract pin ([#1843](https://github.com/honua-io/honua-sdk-js/issues/1843)) ([24a15cf](https://github.com/honua-io/honua-sdk-js/commit/24a15cf2f1759a0be6bb9686fbd0e2db9b73069f))
+
+
+### Miscellaneous
+
+* **release:** cut the first stable release as 0.1.12, not 0.2.0 ([#1845](https://github.com/honua-io/honua-sdk-js/issues/1845)) ([b831ad8](https://github.com/honua-io/honua-sdk-js/commit/b831ad832ca8d764968a6d91af5f699dbfdecdd9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.12
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.11-beta.0 to ^0.1.12
+
 ## [0.1.11-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.10-beta.0...mcp-server-v0.1.11-beta.0) (2026-09-29)
 
 
