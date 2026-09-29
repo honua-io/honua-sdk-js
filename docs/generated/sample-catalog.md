@@ -18,6 +18,14 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | `cloud-native-analysis` | planned | [`spatial-analytics-workbench`](#spatial-analytics-workbench) |
 | `arcgis-migration` | qualified | [`migration-workbench`](#migration-workbench) |
 
+## Release-matrix browser evidence
+
+Per-gate `browser` receipts prove the default Chromium-only Playwright lane. These samples additionally bind their golden qualification to the release-only three-engine smoke (Chromium, headed Firefox, WebKit); a failing or lapsed lane makes the qualification stale. Establishment is recorded in [`samples/contract/v2/release-matrix-lanes.v1.json`](../../samples/contract/v2/release-matrix-lanes.v1.json).
+
+| Sample | Last sealed run | Engines | Observed | Expires | Receipt |
+| --- | --- | --- | --- | --- | --- |
+| [`maplibre-quickstart`](#maplibre-quickstart) | failed | chromium: passed<br>firefox: failed<br>webkit: passed | 2026-09-29T23:40:06.521Z | 2026-10-06T23:40:06.521Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
+
 ## Executable samples
 
 | Sample | Track | Journey candidate | Support | Lifecycle | Quality profile | Data | Configuration | Demonstration |
