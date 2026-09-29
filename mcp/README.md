@@ -8,6 +8,9 @@ bound to their own platform; this one is bound to none.
 
 **Release status: beta.** Tool contracts are certified against live and fixture
 targets on every release; remaining pre-1.0 work is hardening, not surface change.
+"Beta" is a maturity label, not part of the version: releases are stable `0.x`
+versions, and the `@honua/sdk-js` peer is a caret range (for example `^0.2.0`),
+so a later `@honua/sdk-js` patch installs beside this package without a republish.
 
 **Scores are published, not claimed.** How well different client models actually
 drive this surface — and where they fail — is in the

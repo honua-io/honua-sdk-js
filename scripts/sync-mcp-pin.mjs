@@ -37,13 +37,15 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   CREATE_APP_PIN_SITES,
   ZERO_TO_MAP_CONFIGS,
+  compareVersions,
   parseSemver,
   readCreateAppSdkPin,
+  satisfiesUnderNpmDefaults,
   verifyClientPairCoInstallable,
   verifyCreateAppPins,
   verifyZeroToMapConfigPins,
@@ -65,29 +67,44 @@ function sameTuple(left, right) {
 }
 
 /**
- * The published `@honua/mcp-server` release on the SDK's own tuple.
+ * The published `@honua/mcp-server` release the SDK should be pinned beside.
  *
- * Deliberately not "the newest published version": pinning ahead of the SDK
- * would be just as uninstallable as lagging behind it, in the other direction.
+ * A release qualifies when its `@honua/sdk-js` peer range admits the SDK under
+ * npm's default resolution. On stable `0.x` releases a caret range such as
+ * `^0.2.0` admits every later `0.2.x`, so an SDK patch (0.2.1) pairs with the
+ * MCP release it already co-installs with (0.2.0) and no coordinated MCP
+ * republish is needed. Under the earlier prerelease scheme only a release on
+ * the SDK's own `major.minor.patch` tuple satisfied the range, which is the
+ * same rule falling out of npm's prerelease semantics.
+ *
+ * A packument entry that does not declare the peer falls back to the tuple
+ * rule, so an unknown release is never treated as compatible.
+ *
+ * The SDK's exact version is preferred when that release qualifies. Otherwise
+ * the newest qualifying release wins. A release whose range excludes the SDK
+ * (for example a later MCP cut that requires a newer SDK) is never chosen, so
+ * the pin cannot run ahead into an uninstallable pair.
  */
-export function selectCoordinatedRelease(packument, sdkVersion, mcpName) {
+export function selectCoordinatedRelease(packument, sdkVersion, mcpName, sdkName = "@honua/sdk-js") {
   const target = parseSemver(sdkVersion);
-  const candidates = Object.keys(packument?.versions ?? {}).filter((version) => {
-    try {
-      return sameTuple(parseSemver(version), target);
-    } catch {
-      return false;
-    }
-  });
+  const candidates = Object.entries(packument?.versions ?? {})
+    .filter(([version, manifest]) => {
+      try {
+        const peerRange = manifest?.peerDependencies?.[sdkName];
+        if (typeof peerRange === "string") return satisfiesUnderNpmDefaults(sdkVersion, peerRange);
+        return sameTuple(parseSemver(version), target);
+      } catch {
+        return false;
+      }
+    })
+    .map(([version]) => version)
+    .sort(compareVersions);
   invariant(
     candidates.length > 0,
-    `no published ${mcpName} sits on ${sdkVersion}'s ${target.major}.${target.minor}.${target.patch} tuple. The ` +
+    `no published ${mcpName} declares a ${sdkName} peer range that admits ${sdkVersion}. The ` +
       "coordinated cut has not published its MCP half yet; publish it, then re-run this command. Do not hand-edit " +
       "the pin to a version the registry does not serve.",
   );
-  // One tuple can carry several prereleases (0.1.9-beta.0, 0.1.9-beta.1);
-  // the SDK's own prerelease identifier picks the coordinated one when it is
-  // present, otherwise the lexically last candidate on the tuple.
   const exact = candidates.find((version) => version === sdkVersion);
   return exact ?? candidates[candidates.length - 1];
 }
@@ -262,10 +279,10 @@ async function main(argv) {
   const sdk = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
   const source = fs.readFileSync(PIN_SOURCE, "utf8");
   const current = readPin(source);
-  const { LOCAL_INSTALL_MCP_PACKAGE_NAME } = await import(path.join(PROJECT_ROOT, "dist/src/local-install.js"));
+  const { LOCAL_INSTALL_MCP_PACKAGE_NAME } = await import(pathToFileURL(path.join(PROJECT_ROOT, "dist/src/local-install.js")).href);
 
   const packument = await fetchPackument(LOCAL_INSTALL_MCP_PACKAGE_NAME, fetch);
-  const version = selectCoordinatedRelease(packument, sdk.version, LOCAL_INSTALL_MCP_PACKAGE_NAME);
+  const version = selectCoordinatedRelease(packument, sdk.version, LOCAL_INSTALL_MCP_PACKAGE_NAME, sdk.name);
   const manifest = packument.versions[version];
   const integrity = manifest?.dist?.integrity;
   invariant(typeof integrity === "string", `registry served no tarball integrity for ${version}`);

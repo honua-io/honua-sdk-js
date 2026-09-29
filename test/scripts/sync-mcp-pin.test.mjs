@@ -59,6 +59,39 @@ test("refuses to invent a pin when the coordinated half is not published", () =>
   );
 });
 
+// Stable 0.x releases: the caret peer range floats across patches.
+const stablePackument = {
+  versions: {
+    "0.1.11-beta.0": { peerDependencies: { "@honua/sdk-js": "^0.1.11-beta.0" } },
+    "0.2.0": { peerDependencies: { "@honua/sdk-js": "^0.2.0" } },
+    "0.2.1": { peerDependencies: { "@honua/sdk-js": "^0.2.1" } },
+    "0.3.0": { peerDependencies: { "@honua/sdk-js": "^0.3.0" } },
+  },
+};
+
+test("an SDK patch pairs with the MCP release it already co-installs with", () => {
+  // The regression this guards: under the prerelease scheme an SDK-only patch
+  // could not ship until an MCP release on its exact tuple was republished.
+  // With stable 0.x versions, sdk-js 0.2.2 co-installs with mcp-server 0.2.1.
+  assert.equal(selectCoordinatedRelease(stablePackument, "0.2.2", "@honua/mcp-server"), "0.2.1");
+  assert.equal(selectCoordinatedRelease({ versions: { "0.2.0": stablePackument.versions["0.2.0"] } }, "0.2.1", "@honua/mcp-server"), "0.2.0");
+});
+
+test("prefers the SDK's own version when that MCP release qualifies", () => {
+  assert.equal(selectCoordinatedRelease(stablePackument, "0.2.1", "@honua/mcp-server"), "0.2.1");
+  assert.equal(selectCoordinatedRelease(stablePackument, "0.2.0", "@honua/mcp-server"), "0.2.0");
+});
+
+test("never selects an MCP release whose peer range excludes the SDK", () => {
+  // mcp-server 0.2.1 requires ^0.2.1 and 0.3.0 requires ^0.3.0, so neither can
+  // sit beside sdk-js 0.2.0; the prerelease 0.1.11-beta.0 cannot either.
+  assert.equal(selectCoordinatedRelease(stablePackument, "0.2.0", "@honua/mcp-server"), "0.2.0");
+  assert.throws(
+    () => selectCoordinatedRelease({ versions: { "0.3.0": stablePackument.versions["0.3.0"] } }, "0.2.5", "@honua/mcp-server"),
+    /coordinated cut has not published its MCP half yet/,
+  );
+});
+
 test("rewrites both pin constants together in the real source file", () => {
   // The version and its recorded tarball integrity must move as a unit; a
   // half-applied edit would leave the live lane comparing a digest that
