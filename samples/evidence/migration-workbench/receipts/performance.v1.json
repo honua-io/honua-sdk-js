@@ -6,9 +6,9 @@
   "gate": "performance",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "c875d4dd47161ed02e3cbfa0ef6ba5eba8f08e8e",
-  "sourceDigest": "d80686d96e5cce5e5c9a88aeb8c7485eb3eda219733fcfe60c57e7afca7b2c01",
-  "runRoot": "samples/evidence/migration-workbench/runs/797484fb-4da6-4bfc-b2fa-99d91fd0af6d",
+  "sourceRevision": "6386e9cb9c8539ab23f6b9de9675dbb34763d4ea",
+  "sourceDigest": "e86c2d09e4f7f312a200a4a7a57bd5c000296d6fa6e7795317dfa45d0254c4a1",
+  "runRoot": "samples/evidence/migration-workbench/runs/75e8e8ba-b4ea-4aa4-a8d3-9be56963ca25",
   "command": {
     "argv": [
       "npm",
@@ -24,15 +24,15 @@
     "path": "scripts/sample-runner.mjs",
     "sha256": "d051efbc4743c0fbc0a51de15c4c92bcce537f63446b8118f628ba151c552e6f"
   },
-  "observedAt": "2026-09-29T16:42:01.698Z",
-  "expiresAt": "2026-10-06T16:42:01.698Z",
-  "durationMs": 8734.039525,
+  "observedAt": "2026-09-29T19:22:59.986Z",
+  "expiresAt": "2026-10-06T19:22:59.986Z",
+  "durationMs": 7356.346557999999,
   "artifacts": [
     {
       "kind": "performance-report",
-      "path": "samples/evidence/migration-workbench/runs/797484fb-4da6-4bfc-b2fa-99d91fd0af6d/artifacts/performance.json",
-      "bytes": 1109,
-      "sha256": "6553057dd28cc9d23b79b18bf7f8c4548a61ed5785d523b106ab8e82cfc5cb2a"
+      "path": "samples/evidence/migration-workbench/runs/75e8e8ba-b4ea-4aa4-a8d3-9be56963ca25/artifacts/performance.json",
+      "bytes": 1104,
+      "sha256": "385bf5c6ca9c32e7307208f61fa4de2ca0ca5b5a5b3654bb3c0232a488c79c74"
     }
   ]
 }
