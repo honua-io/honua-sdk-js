@@ -19,8 +19,9 @@
     "status": "review-head-validated-awaiting-merged-trunk-pin"
   },
   "adminBasePath": "/api/v1/admin",
-  "serverImage": "ghcr.io/honua-io/honua-server:nightly-aot-4ca8326@sha256:571395718765a499d8e25e069ded7bb8d990dd784e9f1e6bef4fd2b8322f2508",
+  "serverImage": "ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
   "releaseManifestStatus": "compatible",
-  "releaseManifestServerSha": "4ca8326f37b3225315033ee58e1a652e231992df",
-  "releaseManifestOperationCount": 396
+  "releaseManifestServerSha": "87966c3f7b6c840ffc4d4da0b451714ab717b18a",
+  "releaseManifestOperationCount": 401,
+  "releaseManifestSpecSha256": "1c45f31dca67df897b3656aed0bedf3ba50b03663105df3d15ea511ec42dbaaa"
 }

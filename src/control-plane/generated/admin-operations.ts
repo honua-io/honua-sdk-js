@@ -16,9 +16,9 @@ export const ADMIN_MCP_CONTRACT_REVIEW_SERVER_SHA = "c810ef3df29269527d4eceb2615
 export const ADMIN_MCP_CONTRACT_STATUS = "review-head-validated-awaiting-merged-trunk-pin" as const;
 export const MCP_DEFAULT_STATIC_TOOL_COUNT = 47 as const;
 export const MCP_DEFAULT_TOTAL_TOOL_COUNT = 432 as const;
-export const ADMIN_LOCAL_SERVER_IMAGE = "ghcr.io/honua-io/honua-server:nightly-aot-4ca8326@sha256:571395718765a499d8e25e069ded7bb8d990dd784e9f1e6bef4fd2b8322f2508" as const;
-export const ADMIN_RELEASE_SERVER_SHA = "4ca8326f37b3225315033ee58e1a652e231992df" as const;
-export const ADMIN_RELEASE_OPERATION_COUNT = 396 as const;
+export const ADMIN_LOCAL_SERVER_IMAGE = "ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a" as const;
+export const ADMIN_RELEASE_SERVER_SHA = "87966c3f7b6c840ffc4d4da0b451714ab717b18a" as const;
+export const ADMIN_RELEASE_OPERATION_COUNT = 401 as const;
 export const ADMIN_RELEASE_CONTRACT_STATUS = "compatible" as const;
 export const ADMIN_RELEASE_CONTRACT_COMPATIBLE = true as const;
 
