@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import openapiTS, { astToString } from "openapi-typescript";
+import { assertReleaseAdminContract } from "./lib/admin-release-contract.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceManifestPath = path.join(root, "config", "admin-client.v1.json");
@@ -60,6 +61,16 @@ if (source.operationCount < 396) {
   throw new Error(`The 2026.1 generated client requires all 396 operations; the candidate exposes ${source.operationCount}.`);
 }
 assertCoverageContract(source, coverage, operations);
+
+const releaseUrl =
+  `https://raw.githubusercontent.com/${source.serverRepository}/${source.releaseManifestServerSha}/${source.specPath}`;
+const releaseResponse = await fetch(releaseUrl, {
+  headers: { Accept: "application/json", "User-Agent": "honua-sdk-js-admin-client-generator" },
+});
+if (!releaseResponse.ok) {
+  throw new Error(`Unable to fetch release Admin OpenAPI (${releaseResponse.status}) from ${releaseUrl}`);
+}
+assertReleaseAdminContract(source, document, normalizeLf(await releaseResponse.text()));
 
 const generated = astToString(
   await openapiTS(document, {
@@ -131,12 +142,6 @@ function assertSourceManifest(value) {
     throw new Error(
       `Default MCP roster equation failed: ${contract.defaultStaticToolCount} static + ` +
         `${contract.publishedOperationCount} admin != ${contract.defaultTotalToolCount} total tools.`,
-    );
-  }
-  if (value.releaseManifestOperationCount < value.operationCount) {
-    process.stderr.write(
-      `warning: release manifest server pin exposes ${value.releaseManifestOperationCount} admin operations; ` +
-        `${value.operationCount} are required. Candidate certification remains blocked until honua-release advances.\n`,
     );
   }
 }
