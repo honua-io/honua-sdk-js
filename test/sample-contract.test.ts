@@ -1044,6 +1044,10 @@ describe("sample publication contract", () => {
       await expect(validateSiteProjection(future)).rejects.toThrow(/unsupported site projection/u);
     });
 
+    // generatedOutputs() reads real qualification evidence for all four golden
+    // journeys, like the tests below that carry their own budget; on a loaded
+    // runner it has exceeded the file's 40s default, so give it the same
+    // single-generation headroom rather than inflating every test in the file.
     it("is emitted as a generated artifact and sealed to the release version", async () => {
       const catalog = await readJson("samples/catalog.v2.json");
       const packageJson = await readJson("package.json");
@@ -1056,7 +1060,7 @@ describe("sample publication contract", () => {
       // a release strands a stale pointer, so the seal must cover v4 too.
       expect(SEALED_VERSION_STAMPS.map((stamp) => stamp.path)).toContain("samples/dist/honua-site-samples.v4.json");
       expect(JSON.parse(emitted!).catalog.version).toBe(packageJson.version);
-    });
+    }, 80_000);
   });
 
   // Reads real qualification evidence for all four golden journeys
