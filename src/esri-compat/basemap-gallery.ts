@@ -4,6 +4,7 @@ import {
   resolveCompatEventBus,
   safeInvokeCompatListener,
 } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export interface BasemapGalleryCompatOptions {
   view?: unknown;
@@ -33,6 +34,7 @@ export class BasemapGalleryCompat {
 
   private readonly subscriptions: CompatEventSubscription[];
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: BasemapGalleryCompatOptions = {}) {
     this.view = options.view;
@@ -46,6 +48,8 @@ export class BasemapGalleryCompat {
     this.activeBasemap = extractMapBasemap(this.map);
     this.subscriptions = [];
     this.watchListeners = new Map();
+    this.widgetHost = bindHonuaWidgetHost("honua-basemap-control", this.container, this.eventBus);
+    this.pushWidgetHost();
 
     if (this.autoRefresh) {
       this.subscriptions.push(
@@ -106,6 +110,7 @@ export class BasemapGalleryCompat {
     this.source = [...basemaps];
     this.notifyWatchers("source", this.source);
     this.eventBus.emit("basemap-gallery.updated", { basemapCount: this.source.length }, this);
+    this.pushWidgetHost();
   }
 
   public select(basemapOrId: unknown): unknown {
@@ -151,6 +156,14 @@ export class BasemapGalleryCompat {
     }
 
     return undefined;
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      mode: "gallery",
+      basemaps: this.source,
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {

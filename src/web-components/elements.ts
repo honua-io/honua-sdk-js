@@ -37,8 +37,29 @@ import {
   legacyFeatureTableViewModel,
 } from "./feature-table-view.js";
 import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
+import {
+  HonuaAttributionElement,
+  HonuaCompassElement,
+  HonuaFullscreenElement,
+  HonuaHomeElement,
+  HonuaScaleBarElement,
+  HonuaZoomElement,
+} from "./map-chrome.js";
 import { HonuaMeasurementElement } from "./measurement.js";
 import { HonuaTimeSliderElement } from "./time-slider.js";
+import {
+  HonuaAttachmentsElement,
+  HonuaDirectionsElement,
+  HonuaFeaturePagerElement,
+  HonuaScaleRangeElement,
+} from "./widget-shell.js";
+import {
+  histogramBins,
+  histogramRangeFilter,
+  snapVertex,
+  type HistogramStats,
+  type SnapPoint,
+} from "../widget-capabilities.js";
 import type {
   CreateHonuaWebComponentControllerOptions,
   HonuaActionDetail,
@@ -1889,6 +1910,42 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
     this.render();
   }
 
+  #histogramBins: ReturnType<typeof histogramBins> | undefined;
+  #rangeLayer: { definitionExpression?: string; setDefinitionExpression?: (expression: string) => void } | undefined;
+
+  /** Draws equal-interval or quantile bins. No color ramp and no predominance. */
+  public showHistogram(
+    values: readonly number[],
+    stats: HistogramStats,
+    classes: number,
+    method: "equal-interval" | "quantile",
+  ): ReturnType<typeof histogramBins> {
+    const bins = histogramBins(values, stats, classes, method);
+    this.#histogramBins = bins;
+    this.chartModel = {
+      id: "histogram",
+      title: this.getAttribute("label") ?? "Histogram",
+      kind: "bar",
+      status: "ready",
+      data: bins.map((bin) => ({ label: bin.label, value: bin.value })),
+    };
+    return bins;
+  }
+
+  public set rangeLayer(
+    layer: { definitionExpression?: string; setDefinitionExpression?: (expression: string) => void } | undefined,
+  ) {
+    this.#rangeLayer = layer;
+  }
+
+  /** Writes the chosen histogram range back as a layer filter. */
+  public applyHistogramRange(min: number, max: number): string {
+    const expression = histogramRangeFilter(min, max);
+    if (this.#rangeLayer?.setDefinitionExpression) this.#rangeLayer.setDefinitionExpression(expression);
+    else if (this.#rangeLayer) this.#rangeLayer.definitionExpression = expression;
+    return expression;
+  }
+
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
@@ -1925,8 +1982,21 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
               : `<p class="empty">${escapeHtml(this.#messages.noData ?? model.message ?? "No chart data")}</p>`
           }
         </div>
+        ${
+          this.#histogramBins
+            ? `<label>Range <input data-range-min type="number" value="${this.#histogramBins[0]?.min ?? 0}" /><input data-range-max type="number" value="${this.#histogramBins.at(-1)?.max ?? 0}" /></label>`
+            : ""
+        }
       </section>
     `);
+    if (!this.#histogramBins) return;
+    const commit = () => {
+      const min = Number(this.shadowRoot?.querySelector<HTMLInputElement>("[data-range-min]")?.value);
+      const max = Number(this.shadowRoot?.querySelector<HTMLInputElement>("[data-range-max]")?.value);
+      if (Number.isFinite(min) && Number.isFinite(max)) this.applyHistogramRange(min, max);
+    };
+    this.shadowRoot?.querySelector("[data-range-min]")?.addEventListener("change", commit);
+    this.shadowRoot?.querySelector("[data-range-max]")?.addEventListener("change", commit);
   }
 }
 
@@ -1937,6 +2007,17 @@ export class HonuaBasemapControlElement<T = Record<string, unknown>> extends Hon
 
   #activeBasemapId: string | undefined;
   #messages: HonuaBasemapControlMessages = {};
+  #mode: "gallery" | "toggle" = "gallery";
+
+  /** Gallery lists basemaps. Toggle offers the shim's next basemap. */
+  public get mode(): "gallery" | "toggle" {
+    return this.#mode;
+  }
+
+  public set mode(mode: "gallery" | "toggle") {
+    this.#mode = mode === "toggle" ? "toggle" : "gallery";
+    this.render();
+  }
 
   public get messages(): HonuaBasemapControlMessages {
     return this.#messages;
@@ -2307,6 +2388,30 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
 
   #mode: HonuaSketchMode = "off";
   #messages: HonuaSketchControlMessages = {};
+  #vertices: SnapPoint[] = [];
+  #snapEnabled = false;
+  #snapTolerance = 1;
+  #snappingOptions: { enabled?: boolean; distance?: number; tolerance?: number } | undefined;
+
+  public get snappingOptions(): { enabled?: boolean; distance?: number; tolerance?: number } | undefined {
+    return this.#snappingOptions;
+  }
+
+  public set snappingOptions(
+    options: { enabled?: boolean; distance?: number; tolerance?: number } | undefined,
+  ) {
+    this.#snappingOptions = options;
+    this.#snapEnabled = options?.enabled === true;
+    const tolerance = options?.tolerance ?? options?.distance;
+    if (typeof tolerance === "number" && Number.isFinite(tolerance)) this.#snapTolerance = tolerance;
+  }
+
+  /** Places a vertex, snapping to an existing one when snapping is on and the pointer is inside the tolerance. */
+  public addVertex(pointer: SnapPoint): SnapPoint {
+    const snapped = snapVertex(pointer, this.#vertices, this.#snapEnabled, this.#snapTolerance);
+    this.#vertices.push({ x: snapped.x, y: snapped.y });
+    return snapped;
+  }
 
   /** Caller-supplied localized status, action, and empty-state messages. */
   public get messages(): HonuaSketchControlMessages {
@@ -2801,6 +2906,16 @@ const WEB_COMPONENT_ELEMENTS: ReadonlyMap<string, CustomElementConstructor> = ne
     ["honua-print-export", HonuaPrintExportElement],
     ["honua-map-status", HonuaMapStatusElement],
     ["honua-action-panel", HonuaActionPanelElement],
+    ["honua-zoom", HonuaZoomElement],
+    ["honua-home", HonuaHomeElement],
+    ["honua-scale-bar", HonuaScaleBarElement],
+    ["honua-compass", HonuaCompassElement],
+    ["honua-fullscreen", HonuaFullscreenElement],
+    ["honua-attribution", HonuaAttributionElement],
+    ["honua-feature-pager", HonuaFeaturePagerElement],
+    ["honua-attachments", HonuaAttachmentsElement],
+    ["honua-scale-range", HonuaScaleRangeElement],
+    ["honua-directions", HonuaDirectionsElement],
   ],
 );
 
@@ -3736,6 +3851,16 @@ declare global {
     "honua-print-export": HonuaPrintExportElement;
     "honua-map-status": HonuaMapStatusElement;
     "honua-action-panel": HonuaActionPanelElement;
+    "honua-zoom": HonuaZoomElement;
+    "honua-home": HonuaHomeElement;
+    "honua-scale-bar": HonuaScaleBarElement;
+    "honua-compass": HonuaCompassElement;
+    "honua-fullscreen": HonuaFullscreenElement;
+    "honua-attribution": HonuaAttributionElement;
+    "honua-feature-pager": HonuaFeaturePagerElement;
+    "honua-attachments": HonuaAttachmentsElement;
+    "honua-scale-range": HonuaScaleRangeElement;
+    "honua-directions": HonuaDirectionsElement;
   }
 
   interface HTMLElementEventMap {

@@ -1,5 +1,6 @@
 import { esriConfig } from "./esri-config.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 import { identityManager } from "./identity-manager.js";
 import {
   RouteLayerCompat,
@@ -49,6 +50,7 @@ export class DirectionsCompat {
   public readonly layer: RouteLayerCompat;
   public route: RouteSolveResultCompat | undefined;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: DirectionsCompatOptions = {}) {
     this.view = options.view;
@@ -67,9 +69,10 @@ export class DirectionsCompat {
         routeProvider: options.routeProvider ?? arcGisRouteServiceProvider(routeServiceUrl, options.apiKey),
         eventBus: this.eventBus,
       });
-    mountDirectionsPanel(this.container);
     this.route = undefined;
     this.watchListeners = new Map();
+    this.widgetHost = bindHonuaWidgetHost("honua-directions", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public async load(): Promise<DirectionsCompat> {
@@ -130,6 +133,7 @@ export class DirectionsCompat {
     this.notifyWatchers("stops", this.layer.stops);
     this.route = undefined;
     this.notifyWatchers("route", this.route);
+    this.pushWidgetHost();
     this.eventBus.emit("directions.stops-cleared", undefined, this);
   }
 
@@ -139,14 +143,30 @@ export class DirectionsCompat {
       const route = await this.layer.solve();
       this.route = route;
       this.notifyWatchers("route", this.route);
+      this.pushWidgetHost();
       this.eventBus.emit("directions.solve-completed", { route }, this);
       return route;
     } catch (error) {
       this.route = undefined;
       this.notifyWatchers("route", this.route);
+      this.pushWidgetHost();
       this.eventBus.emit("directions.solve-error", { error }, this);
       throw error;
     }
+  }
+
+  /** Shows a route result that already exists. Does not invent maneuvers from a polyline. */
+  public setRoute(route: RouteSolveResultCompat | undefined): void {
+    this.route = route;
+    this.notifyWatchers("route", this.route);
+    this.pushWidgetHost();
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      route: directionRoute(this.route),
+    });
   }
 
   public getSummary(): DirectionsSolveSummaryCompat | undefined {
@@ -287,26 +307,25 @@ async function readTravelModes(url: string, token: string | undefined): Promise<
   return (json.supportedTravelModes ?? []).filter((mode) => mode && typeof mode === "object");
 }
 
-function mountDirectionsPanel(container: unknown): void {
-  const element = resolveWidgetElement(container);
-  if (!element || typeof document === "undefined") {
-    return;
-  }
-  const panel = document.createElement("div");
-  panel.className = "honua-directions";
-  panel.textContent = "Directions";
-  element.append(panel);
-}
-
-function resolveWidgetElement(container: unknown): HTMLElement | undefined {
-  if (typeof HTMLElement !== "undefined" && container instanceof HTMLElement) {
-    return container;
-  }
-  if (typeof container === "string" && typeof document !== "undefined") {
-    const element = document.getElementById(container);
-    return typeof HTMLElement !== "undefined" && element instanceof HTMLElement ? element : undefined;
-  }
-  return undefined;
+function directionRoute(route: RouteSolveResultCompat | undefined): {
+  summary: string;
+  steps?: { text?: string; maneuver?: string }[];
+  polyline?: unknown;
+} | undefined {
+  if (!route) return undefined;
+  const withSteps = route as RouteSolveResultCompat & {
+    summary?: string;
+    steps?: { text?: string; maneuver?: string }[];
+    polyline?: unknown;
+  };
+  const steps =
+    withSteps.directionFeatures?.map((step) => ({ text: step.text, maneuver: step.text })) ?? withSteps.steps;
+  const summary = withSteps.summary ?? `${withSteps.totalLengthMeters} m`;
+  return {
+    summary,
+    steps,
+    polyline: withSteps.polyline ?? withSteps.path,
+  };
 }
 
 function tokenForRouteService(url: string, apiKey: string | undefined): string | undefined {

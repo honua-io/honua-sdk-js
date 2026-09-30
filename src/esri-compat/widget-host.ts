@@ -5,15 +5,10 @@
  * renders through the shared component set instead of shim-only markup
  * (issue #493, REQ-004).
  *
- * Only three shims delegate through this host today — `LegendCompat`
- * (`honua-legend`), `LayerListCompat` (`honua-layer-list`), and
- * `TimeSliderCompat` (`honua-time-slider`, issue #959). The other ~22 shims
- * that accept a `container` option are state-model-only regardless of
- * registration: they never construct a host, never mount a component, and
- * never emit the missing-kit diagnostic below. {@link expectedKitConstructor}
- * additionally knows `honua-search` / `honua-measurement`, ready for the day
- * `SearchCompat` / `MeasurementCompat` adopt the host; until then, do not
- * describe the registration as something that makes "the widgets" render.
+ * Shims that construct this host delegate their container to a kit element.
+ * A shim that does not construct a host stays state-model-only. The host
+ * never imports the kit; {@link expectedKitConstructor} names the class that
+ * must own each tag.
  *
  * The host **never imports the web-component kit** — not even dynamically:
  * the `/esri-compat` entrypoint is bundle-budgeted, and any intra-package
@@ -84,6 +79,26 @@ export interface HonuaWidgetKitLike {
   HonuaSearchElement?: CustomElementConstructor;
   HonuaMeasurementElement?: CustomElementConstructor;
   HonuaTimeSliderElement?: CustomElementConstructor;
+  HonuaEditorElement?: CustomElementConstructor;
+  HonuaFeatureEditorElement?: CustomElementConstructor;
+  HonuaFeatureTableElement?: CustomElementConstructor;
+  HonuaBookmarksElement?: CustomElementConstructor;
+  HonuaBasemapControlElement?: CustomElementConstructor;
+  HonuaLocateControlElement?: CustomElementConstructor;
+  HonuaSketchControlElement?: CustomElementConstructor;
+  HonuaPrintExportElement?: CustomElementConstructor;
+  HonuaFeatureInspectionElement?: CustomElementConstructor;
+  HonuaZoomElement?: CustomElementConstructor;
+  HonuaHomeElement?: CustomElementConstructor;
+  HonuaScaleBarElement?: CustomElementConstructor;
+  HonuaCompassElement?: CustomElementConstructor;
+  HonuaFullscreenElement?: CustomElementConstructor;
+  HonuaAttributionElement?: CustomElementConstructor;
+  HonuaFeaturePagerElement?: CustomElementConstructor;
+  HonuaAttachmentsElement?: CustomElementConstructor;
+  HonuaScaleRangeElement?: CustomElementConstructor;
+  HonuaDirectionsElement?: CustomElementConstructor;
+  HonuaChartElement?: CustomElementConstructor;
   defineHonuaWebComponents?: (registry?: CustomElementRegistry) => void;
 }
 
@@ -124,8 +139,8 @@ function missingWidgetKitMessage(tagName: string): string {
     `[honua/esri-compat] <${tagName}> was not mounted because no Honua widget kit is registered,`,
     "so this widget stays state-model-only and its container renders nothing.",
     'Call registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components")) once during application',
-    "startup, before constructing compat widgets. This affects the shims that delegate to the widget",
-    `kit — LegendCompat, LayerListCompat, and TimeSliderCompat. See ${WIDGET_KIT_DOCS_URL}`,
+    "startup, before constructing compat widgets. This affects the shims that construct a widget host.",
+    `See ${WIDGET_KIT_DOCS_URL}`,
   ].join(" ");
 }
 
@@ -261,6 +276,30 @@ export class HonuaWidgetHost {
   }
 }
 
+/**
+ * Constructs a host when `container` is set and a DOM can resolve it.
+ * Headless construction returns `undefined` and does not touch a document.
+ */
+export function bindHonuaWidgetHost(
+  tagName: string,
+  container: unknown,
+  eventBus?: CompatEventBus,
+): HonuaWidgetHost | undefined {
+  if (container == null) return undefined;
+  const host = new HonuaWidgetHost(tagName, container, eventBus);
+  return host.available ? host : undefined;
+}
+
+/** Copies shim state onto the mounted element. Missing kit leaves the container empty. */
+export function pushWidgetHostState(host: HonuaWidgetHost | undefined, state: Readonly<Record<string, unknown>>): void {
+  if (!host) return;
+  void host.update((element) => {
+    for (const [key, value] of Object.entries(state)) {
+      element[key] = value;
+    }
+  });
+}
+
 /** Resolves the web-components kit class that must own `tagName` for delegation. */
 function expectedKitConstructor(kit: HonuaWidgetKitLike, tagName: string): CustomElementConstructor | undefined {
   switch (tagName) {
@@ -274,6 +313,46 @@ function expectedKitConstructor(kit: HonuaWidgetKitLike, tagName: string): Custo
       return kit.HonuaMeasurementElement;
     case "honua-time-slider":
       return kit.HonuaTimeSliderElement;
+    case "honua-editor":
+      return kit.HonuaEditorElement;
+    case "honua-feature-editor":
+      return kit.HonuaFeatureEditorElement;
+    case "honua-feature-table":
+      return kit.HonuaFeatureTableElement;
+    case "honua-bookmarks":
+      return kit.HonuaBookmarksElement;
+    case "honua-basemap-control":
+      return kit.HonuaBasemapControlElement;
+    case "honua-locate-control":
+      return kit.HonuaLocateControlElement;
+    case "honua-sketch-control":
+      return kit.HonuaSketchControlElement;
+    case "honua-print-export":
+      return kit.HonuaPrintExportElement;
+    case "honua-feature-inspection":
+      return kit.HonuaFeatureInspectionElement;
+    case "honua-zoom":
+      return kit.HonuaZoomElement;
+    case "honua-home":
+      return kit.HonuaHomeElement;
+    case "honua-scale-bar":
+      return kit.HonuaScaleBarElement;
+    case "honua-compass":
+      return kit.HonuaCompassElement;
+    case "honua-fullscreen":
+      return kit.HonuaFullscreenElement;
+    case "honua-attribution":
+      return kit.HonuaAttributionElement;
+    case "honua-feature-pager":
+      return kit.HonuaFeaturePagerElement;
+    case "honua-attachments":
+      return kit.HonuaAttachmentsElement;
+    case "honua-scale-range":
+      return kit.HonuaScaleRangeElement;
+    case "honua-directions":
+      return kit.HonuaDirectionsElement;
+    case "honua-chart":
+      return kit.HonuaChartElement;
     default:
       return undefined;
   }

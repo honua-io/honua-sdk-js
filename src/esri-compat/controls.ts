@@ -5,6 +5,7 @@ import {
   safeInvokeCompatListener,
 } from "./event-bus.js";
 import { GraphicCompat } from "./graphic.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 /** Structural type for viewpoint-like objects used by controls. */
 export interface ControlViewpointLike {
@@ -145,6 +146,7 @@ export class BaseControlCompat {
 
 export class HomeCompat extends BaseControlCompat {
   public viewpoint: HomeViewpointCompat;
+  private widgetHost: HonuaWidgetHost | undefined;
 
   protected override get controlName(): string {
     return "home";
@@ -156,6 +158,8 @@ export class HomeCompat extends BaseControlCompat {
       center: extractViewCenter(options.view),
       zoom: extractViewZoom(options.view),
     };
+    this.widgetHost = bindHonuaWidgetHost("honua-home", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public async go(): Promise<void> {
@@ -180,6 +184,14 @@ export class HomeCompat extends BaseControlCompat {
     };
     this.notifyWatchers("viewpoint", this.viewpoint);
     this.eventBus.emit("home.reset", this.viewpoint, this);
+    this.pushWidgetHost();
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      viewpoint: this.viewpoint,
+    });
   }
 }
 
@@ -199,6 +211,7 @@ export class BasemapToggleCompat extends BaseControlCompat {
   public readonly map: unknown;
   public activeBasemap: unknown;
   public nextBasemap: unknown;
+  private widgetHost: HonuaWidgetHost | undefined;
 
   protected override get controlName(): string {
     return "basemap-toggle";
@@ -210,6 +223,8 @@ export class BasemapToggleCompat extends BaseControlCompat {
     this.map = map;
     this.activeBasemap = extractMapBasemap(this.map);
     this.nextBasemap = options.nextBasemap;
+    this.widgetHost = bindHonuaWidgetHost("honua-basemap-control", this.container, this.eventBus);
+    this.pushWidgetHost();
     this.subscriptions.push(
       this.eventBus.on("map.basemap-changed", (event) => {
         this.activeBasemap = extractPayloadBasemap(event.payload);
@@ -238,7 +253,16 @@ export class BasemapToggleCompat extends BaseControlCompat {
       },
       this,
     );
+    this.pushWidgetHost();
     return this.activeBasemap;
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      mode: "toggle",
+      nextBasemap: this.nextBasemap,
+    });
   }
 }
 
@@ -259,6 +283,7 @@ export class ScaleBarCompat extends BaseControlCompat {
   public unit: ScaleBarUnitCompat;
   public scale: number | undefined;
   public text: string;
+  private widgetHost: HonuaWidgetHost | undefined;
 
   protected override get controlName(): string {
     return "scalebar";
@@ -269,6 +294,7 @@ export class ScaleBarCompat extends BaseControlCompat {
     this.unit = options.unit ?? "metric";
     this.scale = undefined;
     this.text = "";
+    this.widgetHost = bindHonuaWidgetHost("honua-scale-bar", this.container, this.eventBus);
     this.subscriptions.push(
       this.eventBus.on("view.go-to", () => {
         this.refresh();
@@ -288,6 +314,7 @@ export class ScaleBarCompat extends BaseControlCompat {
       this.notifyWatchers("scale", this.scale);
       this.text = "";
       this.notifyWatchers("text", this.text);
+      this.pushWidgetHost();
       return this.text;
     }
 
@@ -297,7 +324,16 @@ export class ScaleBarCompat extends BaseControlCompat {
     this.text = buildScaleBarText(mapScale, this.unit);
     this.notifyWatchers("text", this.text);
     this.eventBus.emit("scalebar.updated", { scale: mapScale, text: this.text, unit: this.unit }, this);
+    this.pushWidgetHost();
     return this.text;
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      map: this.view,
+      unit: this.unit,
+    });
   }
 }
 
@@ -330,6 +366,7 @@ export class LocateCompat extends BaseControlCompat {
   public graphic: GraphicCompat | undefined;
 
   private readonly locateProvider: () => Promise<LocatePositionCompat>;
+  private widgetHost: HonuaWidgetHost | undefined;
 
   protected override get controlName(): string {
     return "locate";
@@ -342,16 +379,19 @@ export class LocateCompat extends BaseControlCompat {
     this.graphic = undefined;
     this.viewModel = { state: "ready" };
     this.locateProvider = options.locateProvider ?? getDefaultLocateProvider();
-    mountLocateButton(this);
+    this.widgetHost = bindHonuaWidgetHost("honua-locate-control", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public attachContainer(element: HTMLElement): void {
     this.container = element;
-    mountLocateButton(this);
+    this.widgetHost ??= bindHonuaWidgetHost("honua-locate-control", element, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public async locate(): Promise<LocatePositionCompat> {
     this.viewModel.state = "disabled";
+    this.pushWidgetHost();
     this.eventBus.emit("locate.start", undefined, this);
 
     try {
@@ -382,12 +422,21 @@ export class LocateCompat extends BaseControlCompat {
         this,
       );
       this.viewModel.state = "ready";
+      this.pushWidgetHost();
       return position;
     } catch (error) {
       this.viewModel.state = "ready";
+      this.pushWidgetHost();
       this.eventBus.emit("locate.error", { error }, this);
       throw error;
     }
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      locateState: this.viewModel.state,
+    });
   }
 }
 
@@ -403,6 +452,7 @@ export interface CompassCompatOptions {
 
 export class CompassCompat extends BaseControlCompat {
   public orientation: number;
+  private widgetHost: HonuaWidgetHost | undefined;
 
   protected override get controlName(): string {
     return "compass";
@@ -411,6 +461,8 @@ export class CompassCompat extends BaseControlCompat {
   public constructor(options: CompassCompatOptions = {}) {
     super(options);
     this.orientation = extractViewRotation(options.view) ?? 0;
+    this.widgetHost = bindHonuaWidgetHost("honua-compass", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public rotateTo(rotation: number): number {
@@ -421,7 +473,12 @@ export class CompassCompat extends BaseControlCompat {
       this.view.rotation = next;
     }
     this.eventBus.emit("compass.rotated", { rotation: next }, this);
+    this.pushWidgetHost();
     return this.orientation;
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, { view: this.view });
   }
 
   public reset(): number {
@@ -448,6 +505,7 @@ export interface ZoomCompatOptions {
 
 export class ZoomCompat extends BaseControlCompat {
   public readonly layout: "vertical" | "horizontal";
+  private widgetHost: HonuaWidgetHost | undefined;
 
   protected override get controlName(): string {
     return "zoom";
@@ -456,12 +514,14 @@ export class ZoomCompat extends BaseControlCompat {
   public constructor(options: ZoomCompatOptions = {}) {
     super(options);
     this.layout = options.layout ?? "vertical";
-    mountZoomButtons(this);
+    this.widgetHost = bindHonuaWidgetHost("honua-zoom", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public attachContainer(element: HTMLElement): void {
     this.container = element;
-    mountZoomButtons(this);
+    this.widgetHost ??= bindHonuaWidgetHost("honua-zoom", element, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public zoomIn(step = 1): number | undefined {
@@ -487,64 +547,14 @@ export class ZoomCompat extends BaseControlCompat {
     this.eventBus.emit("zoom.changed", { zoom: next, delta }, this);
     return next;
   }
-}
 
-function mountZoomButtons(zoom: ZoomCompat): void {
-  const container = zoom.container;
-  const element =
-    typeof HTMLElement !== "undefined" && container instanceof HTMLElement
-      ? container
-      : typeof container === "string" && typeof document !== "undefined"
-        ? document.getElementById(container)
-        : null;
-  if (!element) {
-    return;
-  }
-  element.querySelector(":scope > .honua-zoom")?.remove();
-  const bar = document.createElement("div");
-  bar.className = "honua-zoom";
-  bar.style.display = "flex";
-  bar.style.flexDirection = zoom.layout === "horizontal" ? "row" : "column";
-  bar.style.gap = "4px";
-  for (const [label, step] of [
-    ["+", 1],
-    ["−", -1],
-  ] as const) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = label;
-    button.addEventListener("click", () => {
-      if (step > 0) {
-        zoom.zoomIn();
-      } else {
-        zoom.zoomOut();
-      }
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      map: this.view,
+      layout: this.layout,
     });
-    bar.append(button);
   }
-  element.append(bar);
-}
-
-function mountLocateButton(locate: LocateCompat): void {
-  const container = locate.container;
-  const element =
-    typeof HTMLElement !== "undefined" && container instanceof HTMLElement
-      ? container
-      : typeof container === "string" && typeof document !== "undefined"
-        ? document.getElementById(container)
-        : null;
-  if (!element) {
-    return;
-  }
-  element.querySelector(":scope > .honua-locate")?.remove();
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "honua-locate";
-  button.textContent = "Locate";
-  button.addEventListener("click", () => {
-    void locate.locate();
-  });
-  element.append(button);
 }
 
 // ---------------------------------------------------------------------------
@@ -561,6 +571,7 @@ export interface FullscreenCompatOptions {
 export class FullscreenCompat extends BaseControlCompat {
   public readonly element: HTMLElement | null;
   public active: boolean;
+  private widgetHost: HonuaWidgetHost | undefined;
 
   protected override get controlName(): string {
     return "fullscreen";
@@ -570,6 +581,8 @@ export class FullscreenCompat extends BaseControlCompat {
     super(options);
     this.element = options.element ?? null;
     this.active = false;
+    this.widgetHost = bindHonuaWidgetHost("honua-fullscreen", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public enter(): void {
@@ -579,6 +592,7 @@ export class FullscreenCompat extends BaseControlCompat {
     this.active = true;
     this.notifyWatchers("active", this.active);
     this.eventBus.emit("fullscreen.changed", { active: true }, this);
+    this.pushWidgetHost();
   }
 
   public exit(): void {
@@ -588,6 +602,15 @@ export class FullscreenCompat extends BaseControlCompat {
     this.active = false;
     this.notifyWatchers("active", this.active);
     this.eventBus.emit("fullscreen.changed", { active: false }, this);
+    this.pushWidgetHost();
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      map: this.view,
+      active: this.active,
+    });
   }
 
   public toggle(force?: boolean): boolean {
@@ -618,6 +641,7 @@ export class AttributionCompat extends BaseControlCompat {
   public readonly map: unknown;
   public itemDelimiter: string;
   public attributions: string[];
+  private widgetHost: HonuaWidgetHost | undefined;
 
   protected override get controlName(): string {
     return "attribution";
@@ -628,6 +652,8 @@ export class AttributionCompat extends BaseControlCompat {
     this.map = options.map ?? extractViewMap(options.view);
     this.itemDelimiter = options.itemDelimiter ?? " | ";
     this.attributions = options.attributions ? [...options.attributions] : [];
+    this.widgetHost = bindHonuaWidgetHost("honua-attribution", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public addAttribution(value: string): void {
@@ -638,6 +664,7 @@ export class AttributionCompat extends BaseControlCompat {
     this.notifyWatchers("attributions", this.attributions);
     this.notifyWatchers("text", this.getText());
     this.eventBus.emit("attribution.updated", { count: this.attributions.length }, this);
+    this.pushWidgetHost();
   }
 
   public removeAttribution(value: string): boolean {
@@ -649,7 +676,16 @@ export class AttributionCompat extends BaseControlCompat {
     this.notifyWatchers("attributions", this.attributions);
     this.notifyWatchers("text", this.getText());
     this.eventBus.emit("attribution.updated", { count: this.attributions.length }, this);
+    this.pushWidgetHost();
     return true;
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      map: this.map,
+      attributions: this.attributions,
+    });
   }
 
   public getText(): string {

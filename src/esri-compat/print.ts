@@ -1,4 +1,5 @@
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export interface PrintTemplateOptionsCompat {
   title?: string;
@@ -41,6 +42,7 @@ export class PrintCompat {
   public templateOptions: PrintTemplateOptionsCompat;
   public lastResult: PrintResultCompat | undefined;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: PrintCompatOptions = {}) {
     this.view = options.view;
@@ -52,6 +54,14 @@ export class PrintCompat {
     this.templateOptions = { ...(options.templateOptions ?? {}) };
     this.lastResult = undefined;
     this.watchListeners = new Map();
+    this.widgetHost = bindHonuaWidgetHost("honua-print-export", this.container, this.eventBus);
+    this.pushWidgetHost();
+  }
+
+  public setFormat(format: PrintTemplateOptionsCompat["format"]): void {
+    this.templateOptions = { ...this.templateOptions, format };
+    this.notifyWatchers("templateOptions", this.templateOptions);
+    this.pushWidgetHost();
   }
 
   public async load(): Promise<PrintCompat> {
@@ -134,6 +144,13 @@ export class PrintCompat {
 
   public destroy(): void {
     this.watchListeners.clear();
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      format: this.templateOptions.format,
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {
