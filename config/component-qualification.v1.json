@@ -130,13 +130,13 @@
     }
   ],
   "summary": {
-    "components": 23,
+    "components": 33,
     "gates": 18,
-    "cells": 414,
-    "passing": 343,
-    "failing": 0,
-    "pending": 21,
-    "notApplicable": 50,
+    "cells": 594,
+    "passing": 393,
+    "failing": 40,
+    "pending": 91,
+    "notApplicable": 70,
     "productionQualifiedComponents": 2,
     "productionTierComponents": 2
   },
@@ -4111,6 +4111,1526 @@
             "test/web-components-lifecycle-gates.test.ts"
           ],
           "note": "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.zoom",
+      "tag": "honua-zoom",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.home",
+      "tag": "honua-home",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.scale-bar",
+      "tag": "honua-scale-bar",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.compass",
+      "tag": "honua-compass",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.fullscreen",
+      "tag": "honua-fullscreen",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.attribution",
+      "tag": "honua-attribution",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.feature-pager",
+      "tag": "honua-feature-pager",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.attachments",
+      "tag": "honua-attachments",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.scale-range",
+      "tag": "honua-scale-range",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.directions",
+      "tag": "honua-directions",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 7,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
         },
         {
           "gate": "memory-leak",

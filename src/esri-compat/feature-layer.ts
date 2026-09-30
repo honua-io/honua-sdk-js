@@ -17,6 +17,7 @@ import type {
   QueryMethod,
 } from "../core/types.js";
 import { responseExceededTransferLimit } from "../core/wire-shared.js";
+import { applyToFeatures as applyFeatureEdits } from "../widget-capabilities.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { parseFeatureLayerUrl } from "./url.js";
 
@@ -742,6 +743,21 @@ export class FeatureLayerCompat {
     );
     this.eventBus.emit("feature-layer.edits", { result, layerId: this.id }, this);
     return result;
+  }
+
+  /** Applies one attribute change to each feature through {@link applyEdits}. A named edit error rejects that feature only. */
+  public applyToFeatures(
+    features: readonly { attributes?: Record<string, unknown> }[],
+    change: Record<string, unknown>,
+  ): ReturnType<typeof applyFeatureEdits> {
+    return applyFeatureEdits(features, change, async (edit) => {
+      const result = await this.applyEdits({ updates: [edit.update] });
+      const updates = result.updateFeatureResults ?? result.updateResults ?? [];
+      const failed = updates.find((item) => item.success === false || item.error);
+      if (!failed) return {};
+      const reason = failed.error?.description ?? "rejected";
+      return { error: reason, reason };
+    });
   }
 
   public queryRelatedFeatures(options: FeatureLayerQueryRelatedFeaturesOptions): Promise<HonuaRelatedRecordsResponse> {
