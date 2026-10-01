@@ -1012,6 +1012,14 @@ export class MapViewCompat {
     if (this.extentValue && this.centerValue === undefined) {
       surface.fitExtent(this.extentValue);
     }
+    // A portal item has no tiles until load(). String basemaps already painted
+    // in mountCompatMap, so only object basemaps take this second pass.
+    if (basemap && typeof basemap === "object") {
+      await this.applyBasemap(basemap);
+    }
+    // MapLibre replaces the container's children when the map is constructed,
+    // which removes default ui placed during the MapView constructor.
+    this.placeUi(this.ui.components);
   }
 
   private applyWebMapViewpoint(): void {
@@ -1200,13 +1208,14 @@ export class MapViewCompat {
     const existing = container.querySelector(":scope > .honua-view-ui");
     const host =
       typeof HTMLElement !== "undefined" && existing instanceof HTMLElement ? existing : document.createElement("div");
-    if (host.parentElement !== container) {
-      host.className = "honua-view-ui";
-      host.style.position = "absolute";
-      host.style.inset = "0";
-      host.style.pointerEvents = "none";
-      container.append(host);
-    }
+    host.className = "honua-view-ui";
+    host.style.position = "absolute";
+    host.style.inset = "0";
+    host.style.pointerEvents = "none";
+    host.style.zIndex = "2";
+    // MapLibre appends its canvas after widgets placed in the constructor.
+    // Appending again puts the overlay above that canvas.
+    container.append(host);
     host.replaceChildren();
     for (const record of components) {
       const slot = document.createElement("div");

@@ -7,6 +7,17 @@ import {
 import { GraphicCompat } from "./graphic.js";
 import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
+/** Map construction replaces the view's children, so a later slot is a new container. */
+function retargetWidgetHost(
+  current: HonuaWidgetHost | undefined,
+  tagName: string,
+  element: HTMLElement,
+  eventBus: CompatEventBus,
+): HonuaWidgetHost | undefined {
+  current?.destroy();
+  return bindHonuaWidgetHost(tagName, element, eventBus);
+}
+
 /** Structural type for viewpoint-like objects used by controls. */
 export interface ControlViewpointLike {
   targetGeometry?: Record<string, unknown>;
@@ -385,8 +396,12 @@ export class LocateCompat extends BaseControlCompat {
   }
 
   public attachContainer(element: HTMLElement): void {
+    if (this.container === element && this.widgetHost) {
+      this.pushWidgetHost();
+      return;
+    }
     this.container = element;
-    this.widgetHost ??= bindHonuaWidgetHost("honua-locate-control", element, this.eventBus);
+    this.widgetHost = retargetWidgetHost(this.widgetHost, "honua-locate-control", element, this.eventBus);
     this.pushWidgetHost();
   }
 
@@ -466,6 +481,16 @@ export class CompassCompat extends BaseControlCompat {
     this.pushWidgetHost();
   }
 
+  public attachContainer(element: HTMLElement): void {
+    if (this.container === element && this.widgetHost) {
+      this.pushWidgetHost();
+      return;
+    }
+    this.container = element;
+    this.widgetHost = retargetWidgetHost(this.widgetHost, "honua-compass", element, this.eventBus);
+    this.pushWidgetHost();
+  }
+
   public rotateTo(rotation: number): number {
     const next = Number.isFinite(rotation) ? rotation : this.orientation;
     this.orientation = next;
@@ -520,8 +545,12 @@ export class ZoomCompat extends BaseControlCompat {
   }
 
   public attachContainer(element: HTMLElement): void {
+    if (this.container === element && this.widgetHost) {
+      this.pushWidgetHost();
+      return;
+    }
     this.container = element;
-    this.widgetHost ??= bindHonuaWidgetHost("honua-zoom", element, this.eventBus);
+    this.widgetHost = retargetWidgetHost(this.widgetHost, "honua-zoom", element, this.eventBus);
     this.pushWidgetHost();
   }
 
@@ -654,6 +683,16 @@ export class AttributionCompat extends BaseControlCompat {
     this.itemDelimiter = options.itemDelimiter ?? " | ";
     this.attributions = options.attributions ? [...options.attributions] : [];
     this.widgetHost = bindHonuaWidgetHost("honua-attribution", this.container, this.eventBus);
+    this.pushWidgetHost();
+  }
+
+  public attachContainer(element: HTMLElement): void {
+    if (this.container === element && this.widgetHost) {
+      this.pushWidgetHost();
+      return;
+    }
+    this.container = element;
+    this.widgetHost = retargetWidgetHost(this.widgetHost, "honua-attribution", element, this.eventBus);
     this.pushWidgetHost();
   }
 
