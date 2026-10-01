@@ -4,8 +4,23 @@
  * modes, or invent route maneuvers.
  */
 
+import { type Source, type SourceId, capabilities } from "../contract/types.js";
+import { sourceFeatureSelectionTarget } from "../exploration/selection.js";
+import {
+  type HonuaFeatureInspectionController,
+  type HonuaFeatureInspectionElement,
+  createHonuaFeatureInspection,
+} from "./feature-inspection.js";
+
 const HTMLElementBase: typeof HTMLElement =
   (globalThis as { HTMLElement?: typeof HTMLElement }).HTMLElement ?? (class {} as unknown as typeof HTMLElement);
+
+const PAGER_SOURCE_ID = "honua-widget-shell-features" as SourceId;
+
+interface PagerFeature {
+  title?: string;
+  attributes?: Record<string, unknown>;
+}
 
 function escapeText(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -23,14 +38,15 @@ export class HonuaFeaturePagerElement extends HTMLElementBase {
     return ["label"];
   }
 
-  #features: readonly { title?: string; attributes?: Record<string, unknown> }[] = [];
+  #features: readonly PagerFeature[] = [];
   #index = 0;
+  #controllers: HonuaFeatureInspectionController[] = [];
 
-  public get features(): readonly { title?: string; attributes?: Record<string, unknown> }[] {
+  public get features(): readonly PagerFeature[] {
     return this.#features;
   }
 
-  public set features(features: readonly { title?: string; attributes?: Record<string, unknown> }[] | undefined) {
+  public set features(features: readonly PagerFeature[] | undefined) {
     this.#features = features ?? [];
     this.#index = 0;
     this.render();
@@ -44,6 +60,10 @@ export class HonuaFeaturePagerElement extends HTMLElementBase {
     this.render();
   }
 
+  public disconnectedCallback(): void {
+    this.#releaseControllers();
+  }
+
   public attributeChangedCallback(): void {
     this.render();
   }
@@ -54,24 +74,80 @@ export class HonuaFeaturePagerElement extends HTMLElementBase {
     this.render();
   }
 
+  #releaseControllers(): void {
+    const controllers = this.#controllers;
+    this.#controllers = [];
+    for (const controller of controllers) controller.dispose();
+  }
+
   private render(): void {
+    this.#releaseControllers();
     const label = this.getAttribute("label") ?? "Features";
     const pages = this.#features
-      .map((feature, index) => {
+      .map((_, index) => {
         const hidden = index === this.#index ? "" : " hidden";
-        const title = feature.title ?? String(feature.attributes?.name ?? `Feature ${index + 1}`);
-        return `<honua-feature-inspection data-page="${index}"${hidden}></honua-feature-inspection><p data-feature-title="${escapeText(title)}">${escapeText(title)}</p>`;
+        return `<div data-feature-page="${index}"${hidden}><honua-feature-inspection data-page="${index}"></honua-feature-inspection></div>`;
       })
       .join("");
-    section(this, label, `<p>${this.#features.length === 0 ? "0" : this.#index + 1} / ${this.#features.length}</p>${pages}<button type="button" data-next>Next</button>`);
+    section(
+      this,
+      label,
+      `<p>${this.#features.length === 0 ? "0" : this.#index + 1} / ${this.#features.length}</p>${pages}<button type="button" data-next>Next</button>`,
+    );
     this.#features.forEach((feature, index) => {
-      const inspection = this.shadowRoot?.querySelector<HTMLElement & { selectedFeature?: unknown }>(
+      const inspection = this.shadowRoot?.querySelector<HonuaFeatureInspectionElement>(
         `honua-feature-inspection[data-page="${index}"]`,
       );
-      if (inspection) inspection.selectedFeature = feature;
+      if (!inspection || !("inspection" in inspection)) return;
+      const attributes = inspectionAttributes(feature, index);
+      const source = pagerSource(attributes);
+      const controller = createHonuaFeatureInspection({
+        resolveSource: (sourceId) => (sourceId === PAGER_SOURCE_ID ? source : undefined),
+        presentation: { titleField: "name", fields: Object.keys(attributes) },
+        loadAttachmentPage: async () => ({ items: [], total: 0 }),
+      });
+      this.#controllers.push(controller);
+      inspection.inspection = controller;
+      const id = featureId(attributes, index);
+      void controller.open({
+        target: sourceFeatureSelectionTarget(PAGER_SOURCE_ID, id),
+        feature: { attributes },
+        authoritative: true,
+      });
     });
     this.shadowRoot?.querySelector("[data-next]")?.addEventListener("click", () => this.next());
   }
+}
+
+function inspectionAttributes(feature: PagerFeature, index: number): Record<string, unknown> {
+  const attributes = { ...(feature.attributes ?? {}) };
+  const named = typeof attributes.name === "string" && attributes.name.trim() ? attributes.name : undefined;
+  const titled = typeof attributes.title === "string" && attributes.title.trim() ? attributes.title : undefined;
+  const title = feature.title?.trim() || named || titled || `Feature ${index + 1}`;
+  attributes.name = title;
+  if (!("OBJECTID" in attributes)) attributes.OBJECTID = index + 1;
+  return attributes;
+}
+
+function featureId(attributes: Record<string, unknown>, index: number): string | number {
+  const objectId = attributes.OBJECTID;
+  if (typeof objectId === "string" || typeof objectId === "number") return objectId;
+  return index + 1;
+}
+
+function pagerSource(attributes: Record<string, unknown>): Source<Record<string, unknown>> {
+  const fields = Object.keys(attributes).map((name) => ({ name, alias: name, type: "esriFieldTypeString" }));
+  const advertised = capabilities(["query", "attachments"]);
+  return {
+    descriptor: {
+      id: PAGER_SOURCE_ID,
+      protocol: "geoservices-feature-service",
+      locator: { url: "https://widgets.honua.invalid/features" },
+      capabilities: advertised,
+      schema: { primaryKey: "OBJECTID", fields },
+    },
+    capabilities: advertised,
+  } as unknown as Source<Record<string, unknown>>;
 }
 
 export class HonuaAttachmentsElement extends HTMLElementBase {

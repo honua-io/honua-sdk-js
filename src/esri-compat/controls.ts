@@ -333,6 +333,7 @@ export class ScaleBarCompat extends BaseControlCompat {
       view: this.view,
       map: this.view,
       unit: this.unit,
+      text: this.text,
     });
   }
 }
