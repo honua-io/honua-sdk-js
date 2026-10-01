@@ -222,11 +222,14 @@ async function waitForCounter(counterPath: string, expected: number): Promise<vo
   throw new Error(`UDP counter did not reach ${expected}.`);
 }
 
+// Vitest's default 10s hook timeout is shorter than deleting these trees.
+// On b9fe936 the hook timed out after all 28 tests passed, and the later
+// browser step in the same JS SDK job was skipped.
 afterAll(() => {
   for (const temporaryRoot of [...tempDirs].reverse()) {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }
-});
+}, 60_000);
 
 describe("migration workbench artifact hardening", () => {
   it("selects the supported Node permission-model flag and fails closed", () => {
