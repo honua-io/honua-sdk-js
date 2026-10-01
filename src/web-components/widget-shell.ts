@@ -190,11 +190,15 @@ export class HonuaScaleRangeElement extends HTMLElementBase {
   #min = 0;
   #max = 0;
 
-  public get layer(): { minScale?: number; maxScale?: number; setScaleRange?: (min: number, max: number) => void } | undefined {
+  public get layer():
+    | { minScale?: number; maxScale?: number; setScaleRange?: (min: number, max: number) => void }
+    | undefined {
     return this.#layer;
   }
 
-  public set layer(layer: { minScale?: number; maxScale?: number; setScaleRange?: (min: number, max: number) => void } | undefined) {
+  public set layer(layer:
+    | { minScale?: number; maxScale?: number; setScaleRange?: (min: number, max: number) => void }
+    | undefined) {
     this.#layer = layer;
     this.#min = layer?.minScale ?? 0;
     this.#max = layer?.maxScale ?? 0;
@@ -269,7 +273,9 @@ export class HonuaDirectionsElement extends HTMLElementBase {
 
   private render(): void {
     const label = this.getAttribute("label") ?? "Directions";
-    const steps = (this.#route?.steps ?? []).map((step) => step.text ?? step.maneuver).filter((text): text is string => Boolean(text));
+    const steps = (this.#route?.steps ?? [])
+      .map((step) => step.text ?? step.maneuver)
+      .filter((text): text is string => Boolean(text));
     const summary = this.#route?.summary ?? "";
     const body =
       steps.length > 0
