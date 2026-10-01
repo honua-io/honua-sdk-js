@@ -4,6 +4,8 @@ export interface PointCompatOptions {
   y?: number;
   z?: number;
   m?: number;
+  longitude?: number;
+  latitude?: number;
   spatialReference?: unknown;
 }
 
@@ -23,14 +25,27 @@ export class PointCompat {
   public spatialReference: unknown;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
 
+  /** Geographic longitude. Present when the spatial reference is geographic. */
+  public get longitude(): number | undefined {
+    return this.isGeographic() ? this.x : undefined;
+  }
+
+  /** Geographic latitude. Present when the spatial reference is geographic. */
+  public get latitude(): number | undefined {
+    return this.isGeographic() ? this.y : undefined;
+  }
+
   public constructor(options: PointCompatOptions = {}) {
     this.loaded = false;
     this.loadStatus = "not-loaded";
-    this.x = normalizeFiniteNumber(options.x);
-    this.y = normalizeFiniteNumber(options.y);
+    const longitude = normalizeFiniteNumber(options.longitude);
+    const latitude = normalizeFiniteNumber(options.latitude);
+    this.x = normalizeFiniteNumber(options.x) ?? longitude;
+    this.y = normalizeFiniteNumber(options.y) ?? latitude;
     this.z = normalizeFiniteNumber(options.z);
     this.m = normalizeFiniteNumber(options.m);
-    this.spatialReference = options.spatialReference;
+    this.spatialReference =
+      options.spatialReference ?? (longitude !== undefined || latitude !== undefined ? { wkid: 4326 } : undefined);
     this.watchListeners = new Map();
   }
 
@@ -88,8 +103,21 @@ export class PointCompat {
       this.m = normalizeFiniteNumber(options.m);
       this.notifyWatchers("m", this.m);
     }
+    if (options.longitude !== undefined && options.x === undefined) {
+      this.x = normalizeFiniteNumber(options.longitude);
+      this.notifyWatchers("x", this.x);
+      this.notifyWatchers("longitude", this.longitude);
+    }
+    if (options.latitude !== undefined && options.y === undefined) {
+      this.y = normalizeFiniteNumber(options.latitude);
+      this.notifyWatchers("y", this.y);
+      this.notifyWatchers("latitude", this.latitude);
+    }
     if (options.spatialReference !== undefined) {
       this.spatialReference = options.spatialReference;
+      this.notifyWatchers("spatialReference", this.spatialReference);
+    } else if ((options.longitude !== undefined || options.latitude !== undefined) && !this.isGeographic()) {
+      this.spatialReference = { wkid: 4326 };
       this.notifyWatchers("spatialReference", this.spatialReference);
     }
   }
@@ -110,6 +138,12 @@ export class PointCompat {
 
   public destroy(): void {
     this.watchListeners.clear();
+  }
+
+  private isGeographic(): boolean {
+    const reference = this.spatialReference as { wkid?: unknown; latestWkid?: unknown } | undefined;
+    const wkid = reference?.latestWkid ?? reference?.wkid;
+    return wkid === 4326 || wkid === 4269;
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {

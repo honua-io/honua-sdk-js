@@ -342,8 +342,12 @@ test("intro-featurelayer paints a feature, hits it, zooms, and mounts the legend
   const sample = await openSample(page, [OAK], false);
   try {
     await paintedCanvas(page);
-    await expect(page.locator("#legend honua-legend")).toBeVisible();
-    await expect(page.locator("#legend honua-legend").getByRole("heading", { name: "Legend" })).toBeVisible();
+    const legend = page.locator("#legend honua-legend");
+    await expect(legend).toBeVisible();
+    await expect(legend.getByRole("heading", { name: "Legend" })).toBeVisible();
+    await expect(legend.getByRole("listitem").filter({ hasText: "Trees" })).toBeVisible();
+    await expect(legend.locator(".swatch").first()).toBeVisible();
+    await expect(legend.getByText("No legend")).toHaveCount(0);
 
     const hit = await page.evaluate(async () => {
       const view = window.__sample.view;

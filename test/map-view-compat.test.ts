@@ -186,6 +186,45 @@ describe("MapCompat", () => {
 });
 
 describe("MapViewCompat", () => {
+  it("mounts the named default widgets and leaves the popup closed when popupEnabled is false", async () => {
+    const withZoom = new MapViewCompat({ ui: { components: ["zoom"] } });
+    const withoutDefaults = new MapViewCompat({ ui: { components: [] } });
+    const untouched = new MapViewCompat();
+    expect(withZoom.ui.components).toHaveLength(1);
+    expect(withZoom.ui.components[0]?.position).toBe("top-left");
+    expect(withoutDefaults.ui.components).toHaveLength(0);
+    expect(untouched.ui.components).toHaveLength(0);
+
+    const view = new MapViewCompat({ popupEnabled: false });
+    view.graphics.add({
+      geometry: { longitude: -82.44, latitude: 35.61 },
+      attributes: { name: "Oak" },
+    });
+    const opened: string[] = [];
+    view.on("click", () => opened.push("click"));
+    view.on("popup-open", () => opened.push("popup"));
+    await (
+      view as unknown as {
+        handleMapClick(event: { x: number; y: number; longitude: number; latitude: number }): Promise<void>;
+      }
+    ).handleMapClick({ x: 10, y: 10, longitude: -82.44, latitude: 35.61 });
+    expect(opened).toEqual(["click"]);
+    expect(view.popup.visible).not.toBe(true);
+
+    const openView = new MapViewCompat();
+    openView.graphics.add({
+      geometry: { longitude: -82.44, latitude: 35.61 },
+      attributes: { name: "Oak" },
+    });
+    await (
+      openView as unknown as {
+        handleMapClick(event: { x: number; y: number; longitude: number; latitude: number }): Promise<void>;
+      }
+    ).handleMapClick({ x: 10, y: 10, longitude: -82.44, latitude: 35.61 });
+    expect(openView.popup.visible).toBe(true);
+    expect(openView.popup.title).toBe("Oak");
+  });
+
   it("supports load/when lifecycle state and watch handles", async () => {
     const eventBus = new CompatEventBus();
     const eventTypes: string[] = [];
