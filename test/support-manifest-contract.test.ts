@@ -126,6 +126,7 @@ describe("support manifest contract parity", () => {
       "third-party-image-server",
       "ogc-api-coverages",
       "wcs-2.0.1",
+      "direct-zarr",
       "zarr",
       "netcdf",
     ]);

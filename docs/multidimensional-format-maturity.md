@@ -17,7 +17,7 @@ Zarr evidence is reconciled against current merged server commit
 
 | Format | Client | Server | End to end | Meaning |
 | --- | --- | --- | --- | --- |
-| Zarr v2/v3 | `experimental` | `experimental` | `unavailable` | The SDK now covers versioned registration/metadata and a bounded server tile handoff; direct chunk/slice reads, a public canary, and end-to-end evidence remain. |
+| Zarr v2/v3 | `experimental` | `experimental` | `unavailable` | The SDK covers versioned registration and metadata, a bounded server tile handoff, and an experimental direct reader for reviewed chunks. A public canary and end-to-end evidence remain. |
 | NetCDF-4 | `unavailable` | `metadata-only` | `unavailable` | Registration and build-optional metadata/conversion exist without a stable variable or subset read contract. |
 | Geospatial HDF5 | `unavailable` | `metadata-only` | `unavailable` | Registration and conversion architecture exist, but explicit driver and bounded-read proof are missing. |
 
@@ -117,12 +117,14 @@ Zarr adds format-specific gates without implying public support:
 - `zarr-bounded-sdk-client`
 - `zarr-sample-publication`
 
-The experimental `@honua/sdk-js/zarr` export covers only versioned registration,
-metadata responses, maturity assessment, and a byte-bounded server tile handoff.
-There is no runnable sample while public fixture and live-service gates remain.
-Until every remaining applicable blocker is evidenced, there is no support or
-coverage claim, runnable example, Studio action, CLI command, direct object-store
-read, or implicit browser full-file download.
+The experimental `@honua/sdk-js/zarr` export covers versioned registration,
+metadata responses, maturity assessment, a byte-bounded server tile handoff, and
+a separate direct reader for reviewed static or object-store chunks. The server
+client's `directObjectStoreRead` assessment remains unavailable. There is no runnable sample
+while public fixture and live-service gates remain. Until every
+remaining applicable blocker is evidenced, there is no support or coverage
+claim, runnable example, Studio action, CLI command, or implicit browser
+full-file download.
 
 ## Client-slice architecture guidance
 

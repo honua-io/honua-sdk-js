@@ -64,6 +64,17 @@
       "note": "Uses the bounded WCS client at an explicitly advertised KVP endpoint."
     },
     {
+      "id": "direct-zarr",
+      "sessionKind": "zarr",
+      "identity": "client-only-asset",
+      "client": "experimental",
+      "server": "not-applicable",
+      "endToEnd": "experimental",
+      "operations": ["inspect", "read-window", "statistics", "histogram", "inspect-value", "render"],
+      "discoveryOperations": [],
+      "note": "Bounded direct reads of reviewed Zarr metadata keys and intersecting chunks from static or object storage. No Honua Server is required. Unsupported codecs and layouts fail before chunk transfer."
+    },
+    {
       "id": "zarr",
       "discoveryKind": "zarr",
       "identity": "server-backed-asset",
