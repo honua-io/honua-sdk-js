@@ -13,13 +13,12 @@ import {
 import { DirectionsCompat } from "../src/esri-compat/directions.js";
 import { FeatureFormCompat } from "../src/esri-compat/feature-form.js";
 import { FeatureLayerCompat } from "../src/esri-compat/feature-layer.js";
-import { AttachmentsCompat, FeaturesCompat, ScaleRangeCompat } from "../src/esri-compat/widget-shell-hosts.js";
 import { registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
-import { sampleElevations } from "../src/widget-capabilities.js";
+import { AttachmentsCompat, FeaturesCompat, ScaleRangeCompat } from "../src/esri-compat/widget-shell-hosts.js";
 import {
   HonuaAttachmentsElement,
   HonuaAttributionElement,
-  HonuaChartElement,
+  type HonuaChartElement,
   HonuaCompassElement,
   HonuaDirectionsElement,
   HonuaFeaturePagerElement,
@@ -31,6 +30,7 @@ import {
   HonuaZoomElement,
 } from "../src/web-components/index.js";
 import * as widgetKit from "../src/web-components/index.js";
+import { sampleElevations } from "../src/widget-capabilities.js";
 
 async function until(predicate: () => boolean, timeoutMs = 3000, label = "condition"): Promise<void> {
   const start = Date.now();
@@ -137,9 +137,9 @@ describe("widget chrome, lists, and capabilities", () => {
     compassElement.shadowRoot?.querySelector<HTMLButtonElement>(".maplibregl-ctrl-compass")?.click();
     expect(compassView.rotation).toBe(0);
 
-    const zoomButton = zoom.querySelector("honua-zoom")?.shadowRoot?.querySelector<HTMLButtonElement>(
-      ".maplibregl-ctrl-zoom-in",
-    );
+    const zoomButton = zoom
+      .querySelector("honua-zoom")
+      ?.shadowRoot?.querySelector<HTMLButtonElement>(".maplibregl-ctrl-zoom-in");
     expect(zoomButton).toBeTruthy();
     zoomButton?.click();
     expect(zoomView.zoom).toBe(3);
@@ -152,11 +152,7 @@ describe("widget chrome, lists, and capabilities", () => {
       fullscreen.querySelector("honua-fullscreen")?.shadowRoot?.querySelector(".maplibregl-ctrl-fullscreen"),
     ).toBeTruthy();
     const attributionElement = attribution.querySelector("honua-attribution") as HonuaAttributionElement;
-    await until(
-      () => attributionElement.shadowRoot?.textContent?.includes("Honua") === true,
-      3000,
-      "attribution text",
-    );
+    await until(() => attributionElement.shadowRoot?.textContent?.includes("Honua") === true, 3000, "attribution text");
     expect(attributionElement.shadowRoot?.textContent).not.toContain("travel mode");
   }, 60_000);
 
@@ -178,10 +174,7 @@ describe("widget chrome, lists, and capabilities", () => {
           attachmentGroups: [
             {
               parentObjectId: 1,
-              attachmentInfos: [
-                { name: "site.jpg" },
-                { name: "plan.pdf" },
-              ],
+              attachmentInfos: [{ name: "site.jpg" }, { name: "plan.pdf" }],
             },
           ],
         };
@@ -257,7 +250,11 @@ describe("widget chrome, lists, and capabilities", () => {
       "honua-attachments",
     );
     const attachmentElement = attachments.querySelector("honua-attachments") as HonuaAttachmentsElement;
-    await until(() => attachmentElement.shadowRoot?.textContent?.includes("site.jpg") === true, 3000, "attachment names");
+    await until(
+      () => attachmentElement.shadowRoot?.textContent?.includes("site.jpg") === true,
+      3000,
+      "attachment names",
+    );
     expect(attachmentElement.shadowRoot?.textContent).toContain("plan.pdf");
     expect(attachmentElement.shadowRoot?.querySelector('input[type="file"]')).toBeNull();
     expect(attachmentElement.shadowRoot?.querySelector("button")).toBeNull();
