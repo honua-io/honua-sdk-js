@@ -1,24 +1,32 @@
 /**
  * HTTP scene discovery for the 3D scene workspace.
  *
- * Honua publishes 3D scenes over the `geospatial.v1` `SceneService`
- * (`ListScenes` / `GetScene`) and mirrors that catalog over plain HTTP scene
- * discovery (`GET /api/scenes`, `GET /api/scenes/{id}`) alongside the static
- * 3D-Tiles entry point (`GET /scenes/{id}/tileset.json`). This module gives the
- * SDK a typed read model over that discovery surface and maps a discovered
- * {@link HonuaScene} onto the renderer-neutral {@link SceneRuntimePrimitive}s the
- * Cesium adapter renders.
+ * Honua Server publishes three public JSON contracts, and this module
+ * normalizes those rather than the proto `sceneId` / `title` / `extent` shape:
+ *
+ * - `GET /api/scenes` — list items use `id`, `name`, `tilesetUrl`, `bounds`, `auth`
+ * - `GET /api/scenes/{sceneId}` — metadata uses `id`, `name`, `tileset`, `center`, `bounds`, `auth`
+ * - `GET /api/scenes/{sceneId}/resolve` — resolution uses `sceneId`, `endpoints`, `auth`
+ *
+ * `bounds` is `{west,south,east,north}` and is remapped onto {@link SceneExtent3D}.
+ * `center` is `{latitude,longitude,height}` and becomes the initial camera.
+ * A nested metadata `tileset` object supplies the tileset URL. The flat proto
+ * names (`sceneId`, `scene_id`, `title`, `tileset_url`, `extent`) are still
+ * accepted so older payloads do not throw; callers that need the server
+ * contract should pass the three routes above.
+ *
+ * The runtime tileset URL comes from {@link resolveScene}. Nothing in this
+ * module synthesizes `/scenes/{id}/tileset.json`. An empty id fails closed
+ * before a request is sent, and a tileset URL whose path contains `/scenes//`
+ * is rejected so a missing id cannot be requested.
+ *
+ * Auth requirements are retained on the normalized scene. This module does not
+ * refresh protected-asset credentials; that is a separate ticket.
  *
  * Discovery calls go through a caller-supplied {@link SceneDiscoveryRequestExecutor}
  * — typically `(...args) => client.pipelineRequestJson(...args)` against a
  * `HonuaClient` — so they reuse the SDK's shared auth / retry / timeout /
- * interceptor pipeline rather than issuing ad-hoc `fetch` calls. Modelling the
- * transport as a function keeps this module free of a hard `core/client` import
- * (and equally usable from a Node backend, a worker, or a unit test with a mock).
- *
- * The mapping helpers ({@link sceneToRuntimePrimitives},
- * {@link sceneCameraPrimitive}, {@link sceneViewpointBookmarks}) are pure (no
- * Cesium, no transport) and unit-testable on their own.
+ * interceptor pipeline rather than issuing ad-hoc `fetch` calls.
  *
  * @experimental Held back from the beta `@honua/app-platform/scene-workspace`
  *   tier: Honua Server scene discovery is server-attached, so it sits outside
@@ -28,7 +36,6 @@
  * @module
  */
 
-import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { QueryMethod } from "../core/types.js";
 import type { SceneCameraPrimitive, SceneElevationSourcePrimitive, SceneModelLayerPrimitive } from "./primitives.js";
 import type { SceneBookmark, SceneCameraState, SceneLayerState } from "./types.js";
@@ -50,7 +57,7 @@ export type SceneDiscoveryRequestExecutor = <T = unknown>(
   signal?: AbortSignal,
 ) => Promise<T>;
 
-/** A 3D bounding volume mirroring the server's `Extent3D` (horizontal envelope + height range). */
+/** A 3D bounding volume (horizontal envelope + optional height range). */
 export interface SceneExtent3D {
   readonly xmin: number;
   readonly ymin: number;
@@ -61,7 +68,7 @@ export interface SceneExtent3D {
   readonly spatialReference?: number;
 }
 
-/** A named camera position (bookmark / initial view) mirroring the server's `Viewpoint`. */
+/** A named camera position (bookmark / initial view). */
 export interface SceneViewpoint {
   readonly id: string;
   readonly title: string;
@@ -69,13 +76,54 @@ export interface SceneViewpoint {
 }
 
 /**
- * A discovered Honua 3D scene, normalized from the server's `SceneMetadata`
- * (`geospatial.v1.SceneService`). Field names follow the SDK's camelCase
- * convention; both `tilesetUrl` (camelCase) and `tileset_url` (proto JSON) are
- * accepted on the wire and normalized here.
+ * Auth requirements advertised by the public scene list, metadata, and resolve
+ * routes. Preserved for the caller; credential refresh is not performed here.
+ */
+export interface HonuaSceneAuth {
+  readonly requiresAuthentication: boolean;
+  readonly schemes: readonly string[];
+  readonly policy?: string;
+}
+
+/** One render endpoint from the resolve route (`kind` + absolute `url`). */
+export interface HonuaSceneEndpoint {
+  readonly kind: string;
+  readonly url: string;
+  readonly mediaType?: string;
+  readonly format?: string;
+  readonly requiresAuthentication: boolean;
+}
+
+/** A link relation on scene metadata (`self`, `resolve`, …). */
+export interface HonuaSceneLink {
+  readonly rel: string;
+  readonly href: string;
+  readonly type?: string;
+  readonly title?: string;
+}
+
+/**
+ * The resolve route's runtime contract. `tilesetUrl` is the absolute 3D Tiles
+ * entry point chosen from the response's `tilesetUrl` or its `3d-tiles`
+ * endpoint. It is never invented from the scene id.
+ */
+export interface HonuaSceneResolution {
+  readonly sceneId: string;
+  readonly tilesetUrl?: string;
+  readonly endpoints: readonly HonuaSceneEndpoint[];
+  readonly capabilities: readonly string[];
+  readonly auth: HonuaSceneAuth;
+}
+
+/**
+ * A discovered Honua 3D scene. `title` is the display name (`name` on the
+ * server, `title` on older proto payloads). `extent` is the server `bounds`
+ * object remapped onto xmin/ymin/xmax/ymax.
  */
 export interface HonuaScene {
   readonly sceneId: string;
+  /** Server catalog name, when the payload used `name`. */
+  readonly name?: string;
   readonly title?: string;
   readonly description?: string;
   /** URL of the root 3D-Tiles tileset (`tileset.json`). */
@@ -94,168 +142,378 @@ export interface HonuaScene {
   readonly edition?: string;
   /** Capability flags advertised for the scene (e.g. `terrain`, `point-cloud`, `styling`). */
   readonly capabilities: readonly string[];
+  /** Auth requirements from the server payload, when present. */
+  readonly auth?: HonuaSceneAuth;
+  readonly attribution?: readonly string[];
+  readonly updatedAt?: string;
+  readonly links?: readonly HonuaSceneLink[];
 }
 
 const SCENES_BASE_PATH = "/api/scenes";
+const EMPTY_TILESET_PATH = "/scenes//";
 
-/** Raw camera shape accepted from the server (proto3 JSON). */
-interface RawCamera {
-  longitude?: number;
-  latitude?: number;
-  height?: number;
-  heading?: number;
-  pitch?: number;
-  roll?: number;
-}
-
-/** Raw scene shape accepted from the server. Tolerates both camelCase and proto snake_case. */
-interface RawScene {
-  sceneId?: string;
-  scene_id?: string;
-  title?: string;
-  description?: string;
-  tilesetUrl?: string;
-  tileset_url?: string;
-  terrainUrl?: string;
-  terrain_url?: string;
-  extent?: {
-    extent?: { xmin?: number; ymin?: number; xmax?: number; ymax?: number; spatialReference?: number };
-    xmin?: number;
-    ymin?: number;
-    xmax?: number;
-    ymax?: number;
-    minHeight?: number;
-    min_height?: number;
-    maxHeight?: number;
-    max_height?: number;
-    spatialReference?: number;
-  };
-  initialCamera?: RawCamera;
-  initial_camera?: RawCamera;
-  viewpoints?: Array<{ id?: string; title?: string; camera?: RawCamera }>;
-  style?: { expression?: string };
-  styleExpression?: string;
-  edition?: string;
-  capabilities?: string[];
-}
-
-interface RawListScenesResponse {
-  scenes?: RawScene[];
-}
-
-interface RawGetSceneResponse {
-  scene?: RawScene;
-}
-
-function normalizeCamera(raw: RawCamera | undefined): SceneCameraState | undefined {
-  if (!raw || raw.longitude === undefined || raw.latitude === undefined) return undefined;
-  return {
-    longitude: raw.longitude,
-    latitude: raw.latitude,
-    height: raw.height ?? 0,
-    ...(raw.heading !== undefined ? { heading: raw.heading } : {}),
-    ...(raw.pitch !== undefined ? { pitch: raw.pitch } : {}),
-    ...(raw.roll !== undefined ? { roll: raw.roll } : {}),
-  };
-}
-
-function normalizeExtent(raw: RawScene["extent"]): SceneExtent3D | undefined {
-  if (!raw) return undefined;
-  const envelope = raw.extent ?? raw;
-  if (
-    envelope.xmin === undefined ||
-    envelope.ymin === undefined ||
-    envelope.xmax === undefined ||
-    envelope.ymax === undefined
-  ) {
-    return undefined;
+function asRecord(raw: unknown, message: string): Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(message);
   }
-  const minHeight = raw.minHeight ?? raw.min_height;
-  const maxHeight = raw.maxHeight ?? raw.max_height;
+  return raw as Record<string, unknown>;
+}
+
+function readText(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+function readId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+function requireSceneId(record: Record<string, unknown>, message: string): string {
+  // `id` is the list/metadata contract. `sceneId` / `scene_id` remain only so
+  // proto-shaped payloads still normalize; an empty value is never substituted.
+  const sceneId = readId(record.id) ?? readId(record.sceneId) ?? readId(record.scene_id);
+  if (!sceneId) throw new Error(message);
+  return sceneId;
+}
+
+function readFinite(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** Reject a blank URL and the empty-id `/scenes//` path. */
+function isUsableSceneResourceUrl(url: string | undefined): url is string {
+  if (!url) return false;
+  const trimmed = url.trim();
+  return trimmed !== "" && !trimmed.includes(EMPTY_TILESET_PATH);
+}
+
+function readStringList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function readAuth(value: unknown): HonuaSceneAuth | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const schemes = readStringList(record.schemes) ?? [];
+  const policy = readText(record.policy);
   return {
-    xmin: envelope.xmin,
-    ymin: envelope.ymin,
-    xmax: envelope.xmax,
-    ymax: envelope.ymax,
+    requiresAuthentication: record.requiresAuthentication === true,
+    schemes,
+    ...(policy !== undefined ? { policy } : {}),
+  };
+}
+
+function readEndpoint(value: unknown): HonuaSceneEndpoint | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  const url = readText(record.url) ?? readText(record.href);
+  const kind = readText(record.kind) ?? readText(record.type) ?? readText(record.format);
+  if (!isUsableSceneResourceUrl(url) || !kind) return undefined;
+  const mediaType = readText(record.mediaType);
+  const format = readText(record.format);
+  return {
+    kind,
+    url: url.trim(),
+    ...(mediaType !== undefined ? { mediaType } : {}),
+    ...(format !== undefined ? { format } : {}),
+    requiresAuthentication: record.requiresAuthentication === true,
+  };
+}
+
+function readEndpoints(value: unknown): HonuaSceneEndpoint[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const endpoint = readEndpoint(item);
+    return endpoint ? [endpoint] : [];
+  });
+}
+
+function readLinks(value: unknown): HonuaSceneLink[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const links: HonuaSceneLink[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const rel = readText(record.rel);
+    const href = readText(record.href);
+    if (!rel || !href) continue;
+    const type = readText(record.type);
+    const title = readText(record.title);
+    links.push({
+      rel,
+      href,
+      ...(type !== undefined ? { type } : {}),
+      ...(title !== undefined ? { title } : {}),
+    });
+  }
+  return links;
+}
+
+function readTilesetUrl(record: Record<string, unknown>): string | undefined {
+  const flat = readText(record.tilesetUrl) ?? readText(record.tileset_url);
+  if (isUsableSceneResourceUrl(flat)) return flat.trim();
+  const tileset = record.tileset;
+  if (!tileset || typeof tileset !== "object" || Array.isArray(tileset)) return undefined;
+  const nested = tileset as Record<string, unknown>;
+  const url = readText(nested.url) ?? readText(nested.href);
+  return isUsableSceneResourceUrl(url) ? url.trim() : undefined;
+}
+
+function normalizeCamera(raw: unknown): SceneCameraState | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const camera = raw as Record<string, unknown>;
+  const longitude = readFinite(camera.longitude);
+  const latitude = readFinite(camera.latitude);
+  if (longitude === undefined || latitude === undefined) return undefined;
+  const height = readFinite(camera.height) ?? 0;
+  const heading = readFinite(camera.heading);
+  const pitch = readFinite(camera.pitch);
+  const roll = readFinite(camera.roll);
+  return {
+    longitude,
+    latitude,
+    height,
+    ...(heading !== undefined ? { heading } : {}),
+    ...(pitch !== undefined ? { pitch } : {}),
+    ...(roll !== undefined ? { roll } : {}),
+  };
+}
+
+/** Server `bounds` (`west`/`south`/`east`/`north`) onto the SDK extent axes. */
+function readBounds(raw: unknown): SceneExtent3D | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const bounds = raw as Record<string, unknown>;
+  const xmin = readFinite(bounds.west);
+  const ymin = readFinite(bounds.south);
+  const xmax = readFinite(bounds.east);
+  const ymax = readFinite(bounds.north);
+  if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) return undefined;
+  return { xmin, ymin, xmax, ymax };
+}
+
+/** Proto `extent` tolerance: a flat or nested `{xmin,ymin,xmax,ymax}` envelope. */
+function readProtoExtent(raw: unknown): SceneExtent3D | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  const nested = record.extent;
+  const envelope =
+    nested && typeof nested === "object" && !Array.isArray(nested) ? (nested as Record<string, unknown>) : record;
+  const xmin = readFinite(envelope.xmin);
+  const ymin = readFinite(envelope.ymin);
+  const xmax = readFinite(envelope.xmax);
+  const ymax = readFinite(envelope.ymax);
+  if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) return undefined;
+  const minHeight = readFinite(record.minHeight) ?? readFinite(record.min_height);
+  const maxHeight = readFinite(record.maxHeight) ?? readFinite(record.max_height);
+  const spatialReference = readFinite(envelope.spatialReference);
+  return {
+    xmin,
+    ymin,
+    xmax,
+    ymax,
     ...(minHeight !== undefined ? { minHeight } : {}),
     ...(maxHeight !== undefined ? { maxHeight } : {}),
-    ...(envelope.spatialReference !== undefined ? { spatialReference: envelope.spatialReference } : {}),
+    ...(spatialReference !== undefined ? { spatialReference } : {}),
   };
 }
 
-/**
- * Normalize a raw scene payload (camelCase or proto3-JSON snake_case) into a
- * {@link HonuaScene}. Exported so the normalization is unit-testable against
- * either wire shape without a transport.
- */
-export function normalizeScene(raw: RawScene): HonuaScene {
-  const sceneId = raw.sceneId ?? raw.scene_id ?? "";
-  const tilesetUrl = raw.tilesetUrl ?? raw.tileset_url;
-  const terrainUrl = raw.terrainUrl ?? raw.terrain_url;
-  const initialCamera = normalizeCamera(raw.initialCamera ?? raw.initial_camera);
-  const viewpoints: SceneViewpoint[] = (raw.viewpoints ?? [])
-    .map((viewpoint) => {
-      const camera = normalizeCamera(viewpoint.camera);
-      if (!camera || !viewpoint.id) return undefined;
-      return { id: viewpoint.id, title: viewpoint.title ?? viewpoint.id, camera };
-    })
-    .filter((viewpoint): viewpoint is SceneViewpoint => viewpoint !== undefined);
-  const styleExpression = raw.styleExpression ?? raw.style?.expression;
+function readExtent(record: Record<string, unknown>): SceneExtent3D | undefined {
+  return readBounds(record.bounds) ?? readProtoExtent(record.extent);
+}
+
+function readInitialCamera(record: Record<string, unknown>): SceneCameraState | undefined {
+  const explicit = normalizeCamera(record.initialCamera) ?? normalizeCamera(record.initial_camera);
+  if (explicit) return explicit;
+  return normalizeCamera(record.center);
+}
+
+function readViewpoints(value: unknown): SceneViewpoint[] {
+  if (!Array.isArray(value)) return [];
+  const viewpoints: SceneViewpoint[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const id = readId(record.id);
+    const camera = normalizeCamera(record.camera);
+    if (!id || !camera) continue;
+    const title = readText(record.title) ?? id;
+    viewpoints.push({ id, title, camera });
+  }
+  return viewpoints;
+}
+
+function readStyleExpression(record: Record<string, unknown>): string | undefined {
+  const direct = readText(record.styleExpression);
+  if (direct) return direct;
+  const style = record.style;
+  if (!style || typeof style !== "object" || Array.isArray(style)) return undefined;
+  return readText((style as Record<string, unknown>).expression);
+}
+
+function readScene(record: Record<string, unknown>, missingIdMessage: string): HonuaScene {
+  const sceneId = requireSceneId(record, missingIdMessage);
+  const name = readText(record.name);
+  const title = name ?? readText(record.title);
+  const description = readText(record.description);
+  const tilesetUrl = readTilesetUrl(record);
+  const terrainUrl = readText(record.terrainUrl) ?? readText(record.terrain_url);
+  const extent = readExtent(record);
+  const initialCamera = readInitialCamera(record);
+  const styleExpression = readStyleExpression(record);
+  const edition = readText(record.edition);
+  const auth = readAuth(record.auth);
+  const attribution = readStringList(record.attribution);
+  const updatedAt = readText(record.updatedAt);
+  const links = readLinks(record.links);
+  const usableTerrain = isUsableSceneResourceUrl(terrainUrl) ? terrainUrl.trim() : undefined;
   return {
     sceneId,
-    ...(raw.title !== undefined ? { title: raw.title } : {}),
-    ...(raw.description !== undefined ? { description: raw.description } : {}),
+    ...(name !== undefined ? { name } : {}),
+    ...(title !== undefined ? { title } : {}),
+    ...(description !== undefined ? { description } : {}),
     ...(tilesetUrl !== undefined ? { tilesetUrl } : {}),
-    ...(terrainUrl !== undefined ? { terrainUrl } : {}),
-    ...(normalizeExtent(raw.extent) ? { extent: normalizeExtent(raw.extent) } : {}),
+    ...(usableTerrain !== undefined ? { terrainUrl: usableTerrain } : {}),
+    ...(extent ? { extent } : {}),
     ...(initialCamera ? { initialCamera } : {}),
-    viewpoints,
+    viewpoints: readViewpoints(record.viewpoints),
     ...(styleExpression !== undefined ? { styleExpression } : {}),
-    ...(raw.edition !== undefined ? { edition: raw.edition } : {}),
-    capabilities: raw.capabilities ?? [],
+    ...(edition !== undefined ? { edition } : {}),
+    capabilities: readStringList(record.capabilities) ?? [],
+    ...(auth ? { auth } : {}),
+    ...(attribution ? { attribution } : {}),
+    ...(updatedAt !== undefined ? { updatedAt } : {}),
+    ...(links ? { links } : {}),
+  };
+}
+
+function unwrapSceneEnvelope(raw: unknown): Record<string, unknown> {
+  const record = asRecord(raw, "Scene response must be a JSON object.");
+  const nested = record.scene;
+  const hasOwnId = readId(record.id) ?? readId(record.sceneId) ?? readId(record.scene_id);
+  if (!hasOwnId && nested && typeof nested === "object" && !Array.isArray(nested)) {
+    return nested as Record<string, unknown>;
+  }
+  return record;
+}
+
+/**
+ * Normalize one list item from `GET /api/scenes`.
+ * Reads `id`, `name`, `tilesetUrl`, `bounds`, and `auth`.
+ */
+export function normalizeSceneSummary(raw: unknown): HonuaScene {
+  return readScene(asRecord(raw, "Scene list item must be a JSON object."), "Scene list item is missing an id.");
+}
+
+/**
+ * Normalize `GET /api/scenes/{sceneId}`.
+ * Reads `id`, `name`, `tileset`, `center`, `bounds`, and `auth`.
+ * A `{ scene }` envelope is accepted only when the root has no id of its own
+ * (proto-shaped responses). The server returns the metadata object itself.
+ */
+export function normalizeSceneMetadata(raw: unknown): HonuaScene {
+  return readScene(unwrapSceneEnvelope(raw), "Scene metadata is missing an id.");
+}
+
+/**
+ * Normalize a scene payload. Prefer {@link normalizeSceneSummary} or
+ * {@link normalizeSceneMetadata} at the route boundary. This entry point
+ * accepts either of those contracts and the documented proto field names.
+ */
+export function normalizeScene(raw: unknown): HonuaScene {
+  return readScene(unwrapSceneEnvelope(raw), "Scene response is missing an id.");
+}
+
+function tilesetEndpointUrl(endpoints: readonly HonuaSceneEndpoint[]): string | undefined {
+  const match = endpoints.find((endpoint) => endpoint.kind === "3d-tiles" || endpoint.format === "3d-tiles");
+  return match && isUsableSceneResourceUrl(match.url) ? match.url.trim() : undefined;
+}
+
+/**
+ * Normalize `GET /api/scenes/{sceneId}/resolve`.
+ * Reads `sceneId`, `endpoints`, and `auth`. The runtime tileset URL is the
+ * response `tilesetUrl` when usable, otherwise the `3d-tiles` endpoint.
+ */
+export function normalizeSceneResolution(raw: unknown): HonuaSceneResolution {
+  const record = asRecord(raw, "Scene resolution must be a JSON object.");
+  const sceneId = requireSceneId(record, "Scene resolution is missing a sceneId.");
+  const endpoints = readEndpoints(record.endpoints);
+  const flat = readText(record.tilesetUrl) ?? readText(record.tileset_url);
+  const tilesetUrl = (isUsableSceneResourceUrl(flat) ? flat.trim() : undefined) ?? tilesetEndpointUrl(endpoints);
+  const auth = readAuth(record.auth) ?? { requiresAuthentication: false, schemes: [] };
+  return {
+    sceneId,
+    ...(tilesetUrl !== undefined ? { tilesetUrl } : {}),
+    endpoints,
+    capabilities: readStringList(record.capabilities) ?? [],
+    auth,
   };
 }
 
 /**
- * List the catalog of available 3D scenes from `GET /api/scenes`
- * (`SceneService.ListScenes`). Returns the normalized {@link HonuaScene}s.
+ * List the catalog of available 3D scenes from `GET /api/scenes`.
+ * Returns the normalized {@link HonuaScene}s. A list item with no id throws;
+ * it is not returned with an empty id.
  */
 export async function listScenes(execute: SceneDiscoveryRequestExecutor, signal?: AbortSignal): Promise<HonuaScene[]> {
-  const raw = await execute<RawListScenesResponse>("GET", SCENES_BASE_PATH, undefined, signal);
-  return (raw.scenes ?? []).map(normalizeScene);
+  const raw = await execute<unknown>("GET", SCENES_BASE_PATH, undefined, signal);
+  const record = asRecord(raw, "Scene list response must be a JSON object.");
+  if (!Array.isArray(record.scenes)) {
+    throw new Error("Scene list response must contain a scenes array.");
+  }
+  return record.scenes.map((item) => normalizeSceneSummary(item));
 }
 
 /**
- * Fetch a single scene's metadata from `GET /api/scenes/{sceneId}`
- * (`SceneService.GetScene`). The response is tolerated as either the bare scene
- * object or a `{ scene }` envelope.
+ * Fetch a single scene's metadata from `GET /api/scenes/{sceneId}`.
+ * Fails closed before the request when `sceneId` is empty.
  */
 export async function getScene(
   execute: SceneDiscoveryRequestExecutor,
   sceneId: string,
   signal?: AbortSignal,
 ): Promise<HonuaScene> {
-  if (!sceneId) throw new Error("getScene requires a non-empty sceneId.");
-  const raw = await execute<RawGetSceneResponse & RawScene>(
+  if (typeof sceneId !== "string" || sceneId.trim() === "") {
+    throw new Error("getScene requires a non-empty sceneId.");
+  }
+  const raw = await execute<unknown>(
     "GET",
-    `${SCENES_BASE_PATH}/${encodeURIComponent(sceneId)}`,
+    `${SCENES_BASE_PATH}/${encodeURIComponent(sceneId.trim())}`,
     undefined,
     signal,
   );
-  return normalizeScene(raw.scene ?? raw);
+  return normalizeSceneMetadata(raw);
 }
 
 /**
- * Resolve the static 3D-Tiles entry-point URL for a scene
- * (`/scenes/{sceneId}/tileset.json`). Prefers the scene's advertised
- * `tilesetUrl`; falls back to the conventional discovery path under `baseUrl`
- * when the scene omits one. Returns `undefined` when neither is available.
+ * Resolve a scene's runtime endpoints from `GET /api/scenes/{sceneId}/resolve`.
+ * Fails closed before the request when `sceneId` is empty. The returned
+ * `tilesetUrl` is taken from the server payload only.
  */
-export function resolveSceneTilesetUrl(scene: HonuaScene, baseUrl?: string): string | undefined {
-  if (scene.tilesetUrl && scene.tilesetUrl.trim() !== "") return scene.tilesetUrl;
-  if (!baseUrl) return undefined;
-  const trimmed = trimTrailingSlashes(baseUrl);
-  return `${trimmed}/scenes/${encodeURIComponent(scene.sceneId)}/tileset.json`;
+export async function resolveScene(
+  execute: SceneDiscoveryRequestExecutor,
+  sceneId: string,
+  signal?: AbortSignal,
+): Promise<HonuaSceneResolution> {
+  if (typeof sceneId !== "string" || sceneId.trim() === "") {
+    throw new Error("resolveScene requires a non-empty sceneId.");
+  }
+  const raw = await execute<unknown>(
+    "GET",
+    `${SCENES_BASE_PATH}/${encodeURIComponent(sceneId.trim())}/resolve`,
+    undefined,
+    signal,
+  );
+  return normalizeSceneResolution(raw);
+}
+
+/**
+ * The scene's advertised 3D-Tiles entry-point URL, or `undefined` when the
+ * scene has none. Does not synthesize a `/scenes/{id}/tileset.json` path.
+ */
+export function resolveSceneTilesetUrl(scene: HonuaScene): string | undefined {
+  return isUsableSceneResourceUrl(scene.tilesetUrl) ? scene.tilesetUrl.trim() : undefined;
 }
 
 /**
@@ -276,8 +534,8 @@ export function sceneCameraPrimitive(scene: HonuaScene): SceneCameraPrimitive | 
  * Build the 3D-Tiles model-layer primitive for a scene's root tileset, or
  * `undefined` when the scene has no resolvable tileset URL. Pure.
  */
-export function sceneTilesetPrimitive(scene: HonuaScene, baseUrl?: string): SceneModelLayerPrimitive | undefined {
-  const uri = resolveSceneTilesetUrl(scene, baseUrl);
+export function sceneTilesetPrimitive(scene: HonuaScene): SceneModelLayerPrimitive | undefined {
+  const uri = resolveSceneTilesetUrl(scene);
   if (!uri) return undefined;
   return {
     kind: "model-layer",
@@ -294,32 +552,31 @@ export function sceneTilesetPrimitive(scene: HonuaScene, baseUrl?: string): Scen
  * treated as a quantized-mesh endpoint (Cesium's `CesiumTerrainProvider`).
  */
 export function sceneTerrainPrimitive(scene: HonuaScene): SceneElevationSourcePrimitive | undefined {
-  if (!scene.terrainUrl || scene.terrainUrl.trim() === "") return undefined;
+  if (!isUsableSceneResourceUrl(scene.terrainUrl)) return undefined;
   return {
     kind: "elevation-source",
     id: `${scene.sceneId}:terrain`,
     sourceId: `${scene.sceneId}:terrain`,
     protocol: "quantized-mesh",
-    url: scene.terrainUrl,
+    url: scene.terrainUrl.trim(),
   };
 }
 
 /**
  * Map a discovered scene onto the renderer-neutral primitives the Cesium
  * adapter renders: an initial-camera primitive, the terrain elevation source
- * (when present), and the 3D-Tiles tileset (when resolvable). Pure; the result
- * feeds straight into `applyCesiumScenePrimitives` / a `SceneView`.
+ * (when present), and the 3D-Tiles tileset (when the scene advertises a URL).
+ * Pure; the result feeds straight into `applyCesiumScenePrimitives` / a `SceneView`.
  */
 export function sceneToRuntimePrimitives(
   scene: HonuaScene,
-  baseUrl?: string,
 ): Array<SceneCameraPrimitive | SceneElevationSourcePrimitive | SceneModelLayerPrimitive> {
   const primitives: Array<SceneCameraPrimitive | SceneElevationSourcePrimitive | SceneModelLayerPrimitive> = [];
   const camera = sceneCameraPrimitive(scene);
   if (camera) primitives.push(camera);
   const terrain = sceneTerrainPrimitive(scene);
   if (terrain) primitives.push(terrain);
-  const tileset = sceneTilesetPrimitive(scene, baseUrl);
+  const tileset = sceneTilesetPrimitive(scene);
   if (tileset) primitives.push(tileset);
   return primitives;
 }
@@ -329,9 +586,9 @@ export function sceneToRuntimePrimitives(
  * primitive), so a {@link module:scene-workspace/workspace.SceneWorkspace} can
  * seed its layer list from the scene. Pure.
  */
-export function sceneLayerStates(scene: HonuaScene, baseUrl?: string): SceneLayerState[] {
+export function sceneLayerStates(scene: HonuaScene): SceneLayerState[] {
   const layers: SceneLayerState[] = [];
-  if (sceneTilesetPrimitive(scene, baseUrl)) {
+  if (sceneTilesetPrimitive(scene)) {
     layers.push({
       id: `${scene.sceneId}:tileset`,
       title: scene.title ?? scene.sceneId,

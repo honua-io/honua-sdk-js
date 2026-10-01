@@ -509,15 +509,17 @@
             "reason": "Honua Server scene discovery, the `SceneView` container, and the elevation/analysis widgets execute against a Honua facade, so they sit outside the open-endpoint evidence behind the beta promotion.",
             "exports": [
               "CesiumEntityCollectionLike", "ElevationProfileRequest", "ElevationProfileResult", "ElevationProfileSample",
-              "HonuaScene", "LineOfSightRequest", "LineOfSightResult", "SceneAnalysisCesiumModule", "SceneAnalysisOverlay",
+              "HonuaScene", "HonuaSceneAuth", "HonuaSceneEndpoint", "HonuaSceneLink", "HonuaSceneResolution",
+              "LineOfSightRequest", "LineOfSightResult", "SceneAnalysisCesiumModule", "SceneAnalysisOverlay",
               "SceneAnalysisPosition", "SceneAnalysisRequestExecutor", "SceneDiscoveryRequestExecutor", "SceneExtent3D",
               "SceneMeasurement", "SceneView", "SceneViewEvent", "SceneViewEventListener", "SceneViewOptions",
               "SceneViewRequestExecutor", "SceneViewpoint", "ViewshedRequest", "ViewshedResult", "ViewshedSample",
               "buildElevationProfilePath", "buildLineOfSightBody", "buildViewshedBody", "formatMeasurementLabel",
-              "getScene", "haversineMeters", "listScenes", "measureScenePositions", "normalizeScene", "pathLengthMeters",
+              "getScene", "haversineMeters", "listScenes", "measureScenePositions", "normalizeScene",
+              "normalizeSceneMetadata", "normalizeSceneResolution", "normalizeSceneSummary", "pathLengthMeters",
               "positionsToWktLineString", "renderElevationProfilePolyline", "renderLineOfSight", "renderMeasurement",
               "renderViewshed", "requestElevationProfile", "requestLineOfSight", "requestViewshed",
-              "resolveSceneTilesetUrl", "sceneCameraPrimitive", "sceneLayerStates", "sceneTerrainPrimitive",
+              "resolveScene", "resolveSceneTilesetUrl", "sceneCameraPrimitive", "sceneLayerStates", "sceneTerrainPrimitive",
               "sceneTilesetPrimitive", "sceneToRuntimePrimitives", "sceneViewpointBookmarks", "slantDistanceMeters",
               "sphericalPolygonAreaSquareMeters"
             ]
