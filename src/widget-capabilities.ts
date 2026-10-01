@@ -8,7 +8,12 @@ export interface SnapPoint {
   y: number;
 }
 
-export function snapVertex(pointer: SnapPoint, vertices: readonly SnapPoint[], enabled: boolean, tolerance = 1): SnapPoint {
+export function snapVertex(
+  pointer: SnapPoint,
+  vertices: readonly SnapPoint[],
+  enabled: boolean,
+  tolerance = 1,
+): SnapPoint {
   if (!enabled || vertices.length === 0) return { ...pointer };
   let nearest = vertices[0];
   let nearestDistance = distance(pointer, nearest);
@@ -49,7 +54,8 @@ export function histogramBins(
 ): HistogramBin[] {
   if (classes < 1) throw new Error("histogram classes must be at least 1");
   assertStats(values, stats);
-  const breaks = method === "quantile" ? quantileEdges(values, classes) : equalIntervalEdges(stats.min, stats.max, classes);
+  const breaks =
+    method === "quantile" ? quantileEdges(values, classes) : equalIntervalEdges(stats.min, stats.max, classes);
   const bins: HistogramBin[] = [];
   for (let index = 0; index < breaks.length - 1; index += 1) {
     const min = breaks[index] ?? stats.min;
@@ -71,7 +77,13 @@ function assertStats(values: readonly number[], stats: HistogramStats): void {
   const min = values.length === 0 ? Number.NaN : Math.min(...values);
   const max = values.length === 0 ? Number.NaN : Math.max(...values);
   const average = count === 0 ? Number.NaN : sum / count;
-  if (stats.count !== count || stats.sum !== sum || stats.min !== min || stats.max !== max || stats.average !== average) {
+  if (
+    stats.count !== count ||
+    stats.sum !== sum ||
+    stats.min !== min ||
+    stats.max !== max ||
+    stats.average !== average
+  ) {
     throw new Error("histogram statistics do not match the feature values");
   }
 }
@@ -124,7 +136,10 @@ export function evaluateFormExpressions(
     }
     if (field.valueExpression) {
       const value = evaluateExpression(field.valueExpression, feature.attributes ?? {}, field.name, errors);
-      if (value !== undefined && !errors.some((error) => error.field === field.name && error.message.includes(field.valueExpression ?? ""))) {
+      if (
+        value !== undefined &&
+        !errors.some((error) => error.field === field.name && error.message.includes(field.valueExpression ?? ""))
+      ) {
         values[field.name] = value;
       }
     }

@@ -1,6 +1,13 @@
 import type { HonuaClient } from "../core/client.js";
 import type { FilterClause } from "../filter-registry/index.js";
 import type { MapPackageLocator } from "../runtime/index.js";
+import {
+  type HistogramStats,
+  type SnapPoint,
+  histogramBins,
+  histogramRangeFilter,
+  snapVertex,
+} from "../widget-capabilities.js";
 import type { HonuaApplicationContext, HonuaApplicationContextChangeEvent } from "./application-context.js";
 import { createHonuaWebComponentController } from "./controller.js";
 import { renderCspSafeShadowHtml } from "./csp-styles.js";
@@ -36,7 +43,6 @@ import {
   featureTableViewModel,
   legacyFeatureTableViewModel,
 } from "./feature-table-view.js";
-import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
 import {
   HonuaAttributionElement,
   HonuaCompassElement,
@@ -45,21 +51,9 @@ import {
   HonuaScaleBarElement,
   HonuaZoomElement,
 } from "./map-chrome.js";
+import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
 import { HonuaMeasurementElement } from "./measurement.js";
 import { HonuaTimeSliderElement } from "./time-slider.js";
-import {
-  HonuaAttachmentsElement,
-  HonuaDirectionsElement,
-  HonuaFeaturePagerElement,
-  HonuaScaleRangeElement,
-} from "./widget-shell.js";
-import {
-  histogramBins,
-  histogramRangeFilter,
-  snapVertex,
-  type HistogramStats,
-  type SnapPoint,
-} from "../widget-capabilities.js";
 import type {
   CreateHonuaWebComponentControllerOptions,
   HonuaActionDetail,
@@ -118,6 +112,12 @@ import type {
   HonuaWebComponentController,
   HonuaWebComponentState,
 } from "./types.js";
+import {
+  HonuaAttachmentsElement,
+  HonuaDirectionsElement,
+  HonuaFeaturePagerElement,
+  HonuaScaleRangeElement,
+} from "./widget-shell.js";
 
 const globalDom = globalThis as typeof globalThis & {
   HTMLElement?: typeof HTMLElement;
@@ -1885,6 +1885,11 @@ export class HonuaEditorElement<T = Record<string, unknown>> extends HonuaElemen
   }
 }
 
+type HonuaHistogramRangeLayer = {
+  definitionExpression?: string;
+  setDefinitionExpression?: (expression: string) => void;
+};
+
 export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
     return ["for", "label"];
@@ -1911,7 +1916,7 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
   }
 
   #histogramBins: ReturnType<typeof histogramBins> | undefined;
-  #rangeLayer: { definitionExpression?: string; setDefinitionExpression?: (expression: string) => void } | undefined;
+  #rangeLayer: HonuaHistogramRangeLayer | undefined;
 
   /** Draws equal-interval or quantile bins. No color ramp and no predominance. */
   public showHistogram(
@@ -1932,9 +1937,7 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
     return bins;
   }
 
-  public set rangeLayer(
-    layer: { definitionExpression?: string; setDefinitionExpression?: (expression: string) => void } | undefined,
-  ) {
+  public set rangeLayer(layer: HonuaHistogramRangeLayer | undefined) {
     this.#rangeLayer = layer;
   }
 
@@ -2381,6 +2384,12 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
  * {@link CreateHonuaWebComponentControllerOptions}). Without one the modes
  * render disabled with a "configure a provider" affordance.
  */
+type HonuaSketchSnappingOptions = {
+  enabled?: boolean;
+  distance?: number;
+  tolerance?: number;
+};
+
 export class HonuaSketchControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
     return ["for", "label"];
@@ -2391,15 +2400,13 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
   #vertices: SnapPoint[] = [];
   #snapEnabled = false;
   #snapTolerance = 1;
-  #snappingOptions: { enabled?: boolean; distance?: number; tolerance?: number } | undefined;
+  #snappingOptions: HonuaSketchSnappingOptions | undefined;
 
-  public get snappingOptions(): { enabled?: boolean; distance?: number; tolerance?: number } | undefined {
+  public get snappingOptions(): HonuaSketchSnappingOptions | undefined {
     return this.#snappingOptions;
   }
 
-  public set snappingOptions(
-    options: { enabled?: boolean; distance?: number; tolerance?: number } | undefined,
-  ) {
+  public set snappingOptions(options: HonuaSketchSnappingOptions | undefined) {
     this.#snappingOptions = options;
     this.#snapEnabled = options?.enabled === true;
     const tolerance = options?.tolerance ?? options?.distance;

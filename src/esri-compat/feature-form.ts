@@ -1,7 +1,7 @@
 import {
-  evaluateFormExpressions,
   type FormExpressionField,
   type FormExpressionResult,
+  evaluateFormExpressions,
 } from "../widget-capabilities.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
@@ -230,7 +230,12 @@ function formFields(formTemplate: unknown): FormExpressionField[] {
   return fields.flatMap((field) => {
     if (!field || typeof field !== "object") return [];
     const record = field as Record<string, unknown>;
-    const name = typeof record.name === "string" ? record.name : typeof record.fieldName === "string" ? record.fieldName : undefined;
+    const name =
+      typeof record.name === "string"
+        ? record.name
+        : typeof record.fieldName === "string"
+          ? record.fieldName
+          : undefined;
     if (!name) return [];
     return [
       {
