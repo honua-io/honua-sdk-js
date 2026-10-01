@@ -25,9 +25,14 @@ name: SDK Verification
 # a workflow file, `shadow` (the default) runs it alongside ci.yml, and
 # `authoritative` is set only once parity and cost thresholds pass -- at which
 # point ci.yml's `JS SDK` and `MCP SDK` jobs are retired in their own pull
-# request, not silently bypassed by this one. Nothing here removes, weakens, or
-# skips a gate that ci.yml enforces today; test/scripts/sdk-verification-workflow.test.mjs
-# fails if it ever does.
+# request, not silently bypassed by this one. Nothing here removes a gate that
+# ci.yml enforces today; test/scripts/sdk-verification-workflow.test.mjs fails
+# if the graph's command set drops one. A head-pinned job skips a gate only
+# when this exact head does not contain that gate's npm script or source file.
+# pull_request runs this workflow file from the merge, then the job checks out
+# head.sha, so a bare `npm run` of a script the head predates fails while
+# ci.yml, which checks out the merge, passes (honua-io/honua-sdk-js#1286).
+# Build-evidence admission is never skipped.
 #
 # NOT REUSED, ON PURPOSE. `quickstart-budget` measures clean-install time to a
 # first usable map. Handing it a prebuilt SDK would measure something else, so
@@ -217,6 +222,57 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install exact-head gate compatibility
+        # The workflow file is the merge's; this job checks out head.sha.
+        # A missing npm script or source file is not a failure of that head
+        # (honua-io/honua-sdk-js#1286). A gate the head defines still runs.
+        run: |
+          cat > "$RUNNER_TEMP/exact-head-gate.sh" << 'EXACT_HEAD_GATE'
+          exact_head_has_script() {
+            local name="$1"
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const name = process.argv[1];
+              let pkg;
+              try {
+                pkg = JSON.parse(readFileSync("package.json", "utf8"));
+              } catch (error) {
+                console.error(error instanceof Error ? error.message : String(error));
+                process.exit(2);
+              }
+              process.exit(Object.hasOwn(pkg.scripts ?? {}, name) ? 0 : 1);
+            ' "$name"
+          }
+
+          run_if_script() {
+            local name="$1"
+            shift
+            if [[ "${1:-}" != "npm" || "${2:-}" != "run" || "${3:-}" != "$name" ]]; then
+              echo "::error::run_if_script ${name} must wrap npm run ${name}"
+              return 1
+            fi
+            local status=0
+            exact_head_has_script "$name" || status=$?
+            if [[ "$status" -eq 1 ]]; then
+              echo "::notice title=exact-head compatibility::Skipping npm run ${name}; this head does not define it."
+              return 0
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              return "$status"
+            fi
+            "$@"
+          }
+
+          run_if_file() {
+            local file="$1"
+            shift
+            if [[ ! -f "$file" ]]; then
+              echo "::notice title=exact-head compatibility::Skipping ${file}; this head does not contain it."
+              return 0
+            fi
+            "$@"
+          }
+          EXACT_HEAD_GATE
       # The enforceable five-minute clock includes npm ci, browser
       # provisioning, the fixture build, and the first usable map. It measures
       # a new user's clean install, so it must never consume the reusable build.
@@ -255,7 +311,8 @@ jobs:
       - name: Gate clean-install time to first fixture map
         id: quickstart_map
         run: |
-          npm run docs:quickstart:time-to-map -- \
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:quickstart:time-to-map npm run docs:quickstart:time-to-map -- \
             --started-at-monotonic-ms "$QUICKSTART_STARTED_AT_MONOTONIC_MS" \
             --output test-results/quickstart-time-to-map.json
 
@@ -283,7 +340,9 @@ jobs:
           if-no-files-found: error
 
       - name: Validate quickstart timing runner
-        run: npm run docs:quickstart:time-to-map:test
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:quickstart:time-to-map:test npm run docs:quickstart:time-to-map:test
 
   build:
     name: SDK build (producer)
@@ -308,11 +367,64 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install exact-head gate compatibility
+        # The workflow file is the merge's; this job checks out head.sha.
+        # A missing npm script or source file is not a failure of that head
+        # (honua-io/honua-sdk-js#1286). A gate the head defines still runs.
+        run: |
+          cat > "$RUNNER_TEMP/exact-head-gate.sh" << 'EXACT_HEAD_GATE'
+          exact_head_has_script() {
+            local name="$1"
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const name = process.argv[1];
+              let pkg;
+              try {
+                pkg = JSON.parse(readFileSync("package.json", "utf8"));
+              } catch (error) {
+                console.error(error instanceof Error ? error.message : String(error));
+                process.exit(2);
+              }
+              process.exit(Object.hasOwn(pkg.scripts ?? {}, name) ? 0 : 1);
+            ' "$name"
+          }
+
+          run_if_script() {
+            local name="$1"
+            shift
+            if [[ "${1:-}" != "npm" || "${2:-}" != "run" || "${3:-}" != "$name" ]]; then
+              echo "::error::run_if_script ${name} must wrap npm run ${name}"
+              return 1
+            fi
+            local status=0
+            exact_head_has_script "$name" || status=$?
+            if [[ "$status" -eq 1 ]]; then
+              echo "::notice title=exact-head compatibility::Skipping npm run ${name}; this head does not define it."
+              return 0
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              return "$status"
+            fi
+            "$@"
+          }
+
+          run_if_file() {
+            local file="$1"
+            shift
+            if [[ ! -f "$file" ]]; then
+              echo "::notice title=exact-head compatibility::Skipping ${file}; this head does not contain it."
+              return 0
+            fi
+            "$@"
+          }
+          EXACT_HEAD_GATE
       - name: Install dependencies
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script build npm run build
 
       # REQ-006, and the reason this step is in the producer rather than beside
       # the browser suite. The offline region reference's shell manifest pins an
@@ -324,7 +436,9 @@ jobs:
       # Recomputing the pins against the dist this job just emitted names the
       # drifted asset here, before a single browser is provisioned.
       - name: Verify offline shell manifest pins against the built SDK
-        run: npm run offline:shell-manifest:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script offline:shell-manifest:check npm run offline:shell-manifest:check
 
       - name: Emit SDK build evidence
         id: evidence
@@ -367,6 +481,57 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install exact-head gate compatibility
+        # The workflow file is the merge's; this job checks out head.sha.
+        # A missing npm script or source file is not a failure of that head
+        # (honua-io/honua-sdk-js#1286). A gate the head defines still runs.
+        run: |
+          cat > "$RUNNER_TEMP/exact-head-gate.sh" << 'EXACT_HEAD_GATE'
+          exact_head_has_script() {
+            local name="$1"
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const name = process.argv[1];
+              let pkg;
+              try {
+                pkg = JSON.parse(readFileSync("package.json", "utf8"));
+              } catch (error) {
+                console.error(error instanceof Error ? error.message : String(error));
+                process.exit(2);
+              }
+              process.exit(Object.hasOwn(pkg.scripts ?? {}, name) ? 0 : 1);
+            ' "$name"
+          }
+
+          run_if_script() {
+            local name="$1"
+            shift
+            if [[ "${1:-}" != "npm" || "${2:-}" != "run" || "${3:-}" != "$name" ]]; then
+              echo "::error::run_if_script ${name} must wrap npm run ${name}"
+              return 1
+            fi
+            local status=0
+            exact_head_has_script "$name" || status=$?
+            if [[ "$status" -eq 1 ]]; then
+              echo "::notice title=exact-head compatibility::Skipping npm run ${name}; this head does not define it."
+              return 0
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              return "$status"
+            fi
+            "$@"
+          }
+
+          run_if_file() {
+            local file="$1"
+            shift
+            if [[ ! -f "$file" ]]; then
+              echo "::notice title=exact-head compatibility::Skipping ${file}; this head does not contain it."
+              return 0
+            fi
+            "$@"
+          }
+          EXACT_HEAD_GATE
       - name: Install dependencies
         run: npm ci
 
@@ -379,25 +544,39 @@ jobs:
         run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
 
       - name: Typecheck
-        run: npm run typecheck
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script typecheck npm run typecheck
 
       - name: Verify generated admin REST client freshness
-        run: npm run admin-client:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script admin-client:check npm run admin-client:check
 
       - name: Verify generated Studio REST client freshness
-        run: npm run studio-client:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script studio-client:check npm run studio-client:check
 
       - name: Verify north-star API design fixtures
-        run: npm run verify:north-star-api
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:north-star-api npm run verify:north-star-api
 
       - name: Verify contract v2 design fixtures
-        run: npm run verify:contract-v2-design
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:contract-v2-design npm run verify:contract-v2-design
 
       - name: Verify pinned PROJJSON validator
-        run: npm run verify:projjson-validator
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:projjson-validator npm run verify:projjson-validator
 
       - name: Verify generated MapPackage schema validator
-        run: npm run verify:map-package-schema
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:map-package-schema npm run verify:map-package-schema
 
       # Reported here, enforced at the end of the job (#1266 REQ-003): a
       # wall-clock evidence lapse must not cost this job its test signal. Read
@@ -406,30 +585,35 @@ jobs:
         id: sample_contract
         continue-on-error: true
         run: |
-          npm run samples:verify
-          npm run samples:verify:flagships
-          npm run samples:fixtures:verify
-          npm run docs:site:gallery:test
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script samples:verify npm run samples:verify
+          run_if_script samples:verify:flagships npm run samples:verify:flagships
+          run_if_script samples:fixtures:verify npm run samples:fixtures:verify
+          run_if_script docs:site:gallery:test npm run docs:site:gallery:test
 
       - name: Validate sample runner boundaries and generated selection
         run: |
-          npm run samples:runner:test
-          npm run samples:run -- list --kit --json
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script samples:runner:test npm run samples:runner:test
+          run_if_script samples:run npm run samples:run -- list --kit --json
 
       # Unit tests for the release-tag sealing gate (#768). `release:seal:check`
       # itself stays a release-time gate in publish-js-sdk.yml and
       # first-map-release-smoke.yml: it reads the git tree, not dist/, so build
       # reuse neither helps nor weakens it.
       - name: Validate release-seal policy
-        run: npm run release:seal:test
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script release:seal:test npm run release:seal:test
 
       # Release artifact manifest drift gate (#1337). Reads the git tree and the
       # workflow files only, so it neither consumes nor invalidates the prepared
       # build the surrounding gates share.
       - name: Validate release artifact manifest
         run: |
-          npm run verify:release-artifacts
-          node --test test/scripts/verify-published-release.test.mjs
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:release-artifacts npm run verify:release-artifacts
+          run_if_file test/scripts/verify-published-release.test.mjs node --test test/scripts/verify-published-release.test.mjs
 
       # 2026.1 certification denominator freeze (#39, AC1). Like the release
       # artifact gate above it reads config/ and mcp/ rather than dist/, so it
@@ -437,17 +621,24 @@ jobs:
       # gates share.
       - name: Validate certification denominator freeze
         run: |
-          npm run verify:certification-denominator
-          npm run test:installed-package-certification
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:certification-denominator npm run verify:certification-denominator
+          run_if_script test:installed-package-certification npm run test:installed-package-certification
 
       - name: Code style
-        run: npm run check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script check npm run check
 
       - name: Verify llms.txt freshness
-        run: npm run verify:llms
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:llms npm run verify:llms
 
       - name: Verify comparison page freshness
-        run: npm run docs:comparison:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:comparison:check npm run docs:comparison:check
 
       # The OKF bundle (docs/okf-bundle.v1.json) declares which pages are
       # published documentation. The gate proves every page inside the boundary
@@ -456,62 +647,96 @@ jobs:
       # not the other fails here rather than shipping a table of contents that
       # disagrees with the bundle.
       - name: Verify OKF documentation bundle
-        run: python3 scripts/check-okf-bundle.py
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_file scripts/check-okf-bundle.py python3 scripts/check-okf-bundle.py
 
       - name: Verify GitBook table of contents is derived
-        run: python3 scripts/generate-summary.py --check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_file scripts/generate-summary.py python3 scripts/generate-summary.py --check
 
       - name: Verify MCP eval scorecard freshness
-        run: npm run docs:mcp-scorecard:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:mcp-scorecard:check npm run docs:mcp-scorecard:check
 
       - name: Verify npm search discoverability page freshness
-        run: npm run docs:npm-search:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:npm-search:check npm run docs:npm-search:check
 
       - name: Verify documentation version manifest
-        run: npm run docs:versions:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:versions:check npm run docs:versions:check
 
       - name: Verify agent skills
-        run: npm run verify:skills
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:skills npm run verify:skills
 
       - name: Verify public API report (stable tier)
-        run: node scripts/report-api-surface.mjs --check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_file scripts/report-api-surface.mjs node scripts/report-api-surface.mjs --check
 
       - name: Verify final root surface and migration matrix
-        run: npm run verify:root-surface:prepared
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:root-surface:prepared npm run verify:root-surface:prepared
 
       - name: Verify generated support truth
-        run: npm run support:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script support:check npm run support:check
 
       - name: Verify sdk-coverage capability snapshot
-        run: npm run sdk-coverage:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script sdk-coverage:check npm run sdk-coverage:check
 
       - name: Verify task-oriented learning paths
-        run: npm run docs:learning:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:learning:check npm run docs:learning:check
 
       - name: Validate documentation snippets
-        run: npm run docs:snippets:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:snippets:check npm run docs:snippets:check
 
       - name: Validate documented executable commands
-        run: npm run docs:commands:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:commands:check npm run docs:commands:check
 
       - name: Component qualification matrix
-        run: node scripts/component-qualification.mjs check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_file scripts/component-qualification.mjs node scripts/component-qualification.mjs check
 
       - name: App-platform reference qualification
         # Co-located with the component matrix, exactly as in ci.yml: the
         # packed-workbench evidence projection and its explicitly open
         # reference gates are a gate the graph must not retire.
-        run: npm run qualification:app-platform:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script qualification:app-platform:check npm run qualification:app-platform:check
 
       # Re-runs the sample publication contract suite against a forward-shifted
       # validation clock (+35d, +95d) so a fixture whose validity silently
       # depends on the wall-clock date fails here rather than wedging trunk for
       # an unrelated pull request (#1079).
       - name: Sample contract look-ahead clock lane
-        run: npm run samples:contract:lookahead
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script samples:contract:lookahead npm run samples:contract:lookahead
 
       - name: Migration e2e harness
-        run: npx vitest run test/migration-e2e.test.ts
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_file test/migration-e2e.test.ts npx vitest run test/migration-e2e.test.ts
 
       - name: Publish sdk-coverage.v1.json artifact
         if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
@@ -551,6 +776,58 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install exact-head gate compatibility
+        # The workflow file is the merge's; this job checks out head.sha.
+        # A missing npm script or source file is not a failure of that head
+        # (honua-io/honua-sdk-js#1286). A gate the head defines still runs.
+        run: |
+          cat > "$RUNNER_TEMP/exact-head-gate.sh" << 'EXACT_HEAD_GATE'
+          exact_head_has_script() {
+            local name="$1"
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const name = process.argv[1];
+              let pkg;
+              try {
+                pkg = JSON.parse(readFileSync("package.json", "utf8"));
+              } catch (error) {
+                console.error(error instanceof Error ? error.message : String(error));
+                process.exit(2);
+              }
+              process.exit(Object.hasOwn(pkg.scripts ?? {}, name) ? 0 : 1);
+            ' "$name"
+          }
+
+          run_if_script() {
+            local name="$1"
+            shift
+            if [[ "${1:-}" != "npm" || "${2:-}" != "run" || "${3:-}" != "$name" ]]; then
+              echo "::error::run_if_script ${name} must wrap npm run ${name}"
+              return 1
+            fi
+            local status=0
+            exact_head_has_script "$name" || status=$?
+            if [[ "$status" -eq 1 ]]; then
+              echo "::notice title=exact-head compatibility::Skipping npm run ${name}; this head does not define it."
+              return 0
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              return "$status"
+            fi
+            "$@"
+          }
+
+          run_if_file() {
+            local file="$1"
+            shift
+            if [[ ! -f "$file" ]]; then
+              echo "::notice title=exact-head compatibility::Skipping ${file}; this head does not contain it."
+              return 0
+            fi
+            "$@"
+          }
+          EXACT_HEAD_GATE
+
       - name: Install dependencies
         run: npm ci
 
@@ -570,8 +847,24 @@ jobs:
         # Vitest's blob reporter records failed specs and partial coverage, but
         # exits against the partial global threshold before reports can merge.
         # Preserve that outcome in the blob; coverage-gate is the one verdict.
+        # A head that predates scripts/unit-test-shards.mjs records a marker
+        # instead of failing on a file the merge workflow added later.
         continue-on-error: true
-        run: node scripts/unit-test-shards.mjs run ${{ matrix.shard }}
+        run: |
+          if [[ -f scripts/unit-test-shards.mjs ]]; then
+            echo "sharded=true" >> "$GITHUB_OUTPUT"
+            node scripts/unit-test-shards.mjs run ${{ matrix.shard }}
+          else
+            echo "sharded=false" >> "$GITHUB_OUTPUT"
+            mkdir -p .vitest-reports
+            echo '{"exactHeadCoverage":"unsharded"}' > ".vitest-reports/exact-head-coverage-${{ matrix.shard }}.json"
+          fi
+
+      - name: Run legacy coverage when this head predates shards
+        if: matrix.shard == 1 && steps.unit_coverage.outputs.sharded == 'false'
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:coverage:prepared npm run test:coverage:prepared
 
       - name: Upload raw unit coverage shard
         if: always()
@@ -610,7 +903,12 @@ jobs:
           merge-multiple: true
 
       - name: Merge reports and enforce coverage thresholds once
-        run: npx vitest --merge-reports=.vitest-reports --coverage
+        run: |
+          if compgen -G ".vitest-reports/exact-head-coverage-*.json" > /dev/null; then
+            echo "::notice title=exact-head compatibility::This head has no scripts/unit-test-shards.mjs. Shard merge does not apply; test:coverage:prepared enforced thresholds when this head defines it."
+            exit 0
+          fi
+          npx vitest --merge-reports=.vitest-reports --coverage
 
   verify-package:
     name: "Verify: package, publish surface, bundles"
@@ -632,6 +930,57 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install exact-head gate compatibility
+        # The workflow file is the merge's; this job checks out head.sha.
+        # A missing npm script or source file is not a failure of that head
+        # (honua-io/honua-sdk-js#1286). A gate the head defines still runs.
+        run: |
+          cat > "$RUNNER_TEMP/exact-head-gate.sh" << 'EXACT_HEAD_GATE'
+          exact_head_has_script() {
+            local name="$1"
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const name = process.argv[1];
+              let pkg;
+              try {
+                pkg = JSON.parse(readFileSync("package.json", "utf8"));
+              } catch (error) {
+                console.error(error instanceof Error ? error.message : String(error));
+                process.exit(2);
+              }
+              process.exit(Object.hasOwn(pkg.scripts ?? {}, name) ? 0 : 1);
+            ' "$name"
+          }
+
+          run_if_script() {
+            local name="$1"
+            shift
+            if [[ "${1:-}" != "npm" || "${2:-}" != "run" || "${3:-}" != "$name" ]]; then
+              echo "::error::run_if_script ${name} must wrap npm run ${name}"
+              return 1
+            fi
+            local status=0
+            exact_head_has_script "$name" || status=$?
+            if [[ "$status" -eq 1 ]]; then
+              echo "::notice title=exact-head compatibility::Skipping npm run ${name}; this head does not define it."
+              return 0
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              return "$status"
+            fi
+            "$@"
+          }
+
+          run_if_file() {
+            local file="$1"
+            shift
+            if [[ ! -f "$file" ]]; then
+              echo "::notice title=exact-head compatibility::Skipping ${file}; this head does not contain it."
+              return 0
+            fi
+            "$@"
+          }
+          EXACT_HEAD_GATE
       - name: Install dependencies
         run: npm ci
 
@@ -660,50 +1009,69 @@ jobs:
       # ordering.
       - name: Qualify shared-kit pilots from source and packed SDK
         run: |
-          npm run samples:run -- verify --kit --sdk-mode source
-          npm run samples:run -- verify --kit --sdk-mode packed
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script samples:run npm run samples:run -- verify --kit --sdk-mode source
+          run_if_script samples:run npm run samples:run -- verify --kit --sdk-mode packed
 
       - name: Build and verify browser bundle
-        run: npm run verify:browser:prepared
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:browser:prepared npm run verify:browser:prepared
 
       # Must stay in this job, immediately after the browser bundle exists:
       # `./browser` is a declared public entry point, so this gate resolves
       # dist/browser/honua-sdk.esm.js and fails with "built-entrypoint target is
       # missing" in any job that has not built it.
       - name: Verify public-surface inventory and imports
-        run: npm run verify:public-surface
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:public-surface npm run verify:public-surface
 
       - name: Verify browser artifact publication manifest
         run: |
-          node scripts/sample-contract.mjs artifacts
-          npm run prepare:test-sdk:adopt --silent
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_file scripts/sample-contract.mjs node scripts/sample-contract.mjs artifacts
+          run_if_script prepare:test-sdk:adopt npm run prepare:test-sdk:adopt --silent
 
       - name: Bundle-size budgets
-        run: npm run verify:bundle-budgets
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:bundle-budgets npm run verify:bundle-budgets
 
       - name: Split package verification
-        run: npm run verify:split-packages:prepared
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:split-packages:prepared npm run verify:split-packages:prepared
 
       - name: Root package discoverability
-        run: npm run verify:discoverability
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:discoverability npm run verify:discoverability
 
       - name: Publish-surface integrity
         # split-package build cleans dist/, so restore the browser bundle first
         # (same ordering the publish workflow uses).
         run: |
-          npm run build:browser --silent
-          node scripts/sample-contract.mjs artifacts
-          npm run prepare:test-sdk:adopt --silent
-          npm run verify:publish-surface
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script build:browser npm run build:browser --silent
+          run_if_file scripts/sample-contract.mjs node scripts/sample-contract.mjs artifacts
+          run_if_script prepare:test-sdk:adopt npm run prepare:test-sdk:adopt --silent
+          run_if_script verify:publish-surface npm run verify:publish-surface
 
       - name: Installed packed-SDK smoke
-        run: npm run verify:packed-sdk
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script verify:packed-sdk npm run verify:packed-sdk
 
       - name: Build sample bundles
-        run: npm run samples:bundles:build
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script samples:bundles:build npm run samples:bundles:build
 
       - name: Verify sample bundle manifest
-        run: npm run samples:bundles:verify
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script samples:bundles:verify npm run samples:bundles:verify
 
       - name: Upload sample bundles workflow artifact
         if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
@@ -733,6 +1101,57 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install exact-head gate compatibility
+        # The workflow file is the merge's; this job checks out head.sha.
+        # A missing npm script or source file is not a failure of that head
+        # (honua-io/honua-sdk-js#1286). A gate the head defines still runs.
+        run: |
+          cat > "$RUNNER_TEMP/exact-head-gate.sh" << 'EXACT_HEAD_GATE'
+          exact_head_has_script() {
+            local name="$1"
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const name = process.argv[1];
+              let pkg;
+              try {
+                pkg = JSON.parse(readFileSync("package.json", "utf8"));
+              } catch (error) {
+                console.error(error instanceof Error ? error.message : String(error));
+                process.exit(2);
+              }
+              process.exit(Object.hasOwn(pkg.scripts ?? {}, name) ? 0 : 1);
+            ' "$name"
+          }
+
+          run_if_script() {
+            local name="$1"
+            shift
+            if [[ "${1:-}" != "npm" || "${2:-}" != "run" || "${3:-}" != "$name" ]]; then
+              echo "::error::run_if_script ${name} must wrap npm run ${name}"
+              return 1
+            fi
+            local status=0
+            exact_head_has_script "$name" || status=$?
+            if [[ "$status" -eq 1 ]]; then
+              echo "::notice title=exact-head compatibility::Skipping npm run ${name}; this head does not define it."
+              return 0
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              return "$status"
+            fi
+            "$@"
+          }
+
+          run_if_file() {
+            local file="$1"
+            shift
+            if [[ ! -f "$file" ]]; then
+              echo "::notice title=exact-head compatibility::Skipping ${file}; this head does not contain it."
+              return 0
+            fi
+            "$@"
+          }
+          EXACT_HEAD_GATE
       - name: Install dependencies
         run: npm ci
 
@@ -745,37 +1164,50 @@ jobs:
         run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
 
       - name: Compile learning-path examples
-        run: npm run docs:learning:typecheck
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script docs:learning:typecheck npm run docs:learning:typecheck
 
       - name: Example typechecks
-        run: npm run demo:examples:typecheck
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script demo:examples:typecheck npm run demo:examples:typecheck
 
       - name: create-honua-app scaffold and playground links
         run: |
-          npm run create-app:verify
-          npm run create-app:test
-          npm run create-app:templates:typecheck
-          npm run playgrounds:check
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script create-app:verify npm run create-app:verify
+          run_if_script create-app:test npm run create-app:test
+          run_if_script create-app:templates:typecheck npm run create-app:templates:typecheck
+          run_if_script playgrounds:check npm run playgrounds:check
 
       - name: create-honua-app packed artifact
-        run: npm run create-app:verify:package
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script create-app:verify:package npm run create-app:verify:package
 
       - name: Gallery sample playgrounds
         run: |
-          npm run samples:playgrounds:check
-          npm run samples:playgrounds:test
-          npm run samples:playgrounds:typecheck
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script samples:playgrounds:check npm run samples:playgrounds:check
+          run_if_script samples:playgrounds:test npm run samples:playgrounds:test
+          run_if_script samples:playgrounds:typecheck npm run samples:playgrounds:typecheck
 
       - name: Acquire pinned Overture extension and prove offline build
         run: |
-          npm run demo:overture:prepare
-          npm run demo:overture:build:offline
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script demo:overture:prepare npm run demo:overture:prepare
+          run_if_script demo:overture:build:offline npm run demo:overture:build:offline
 
       - name: Primitive demo matrix
-        run: npm run demo:primitive-matrix
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script demo:primitive-matrix npm run demo:primitive-matrix
 
       - name: Example builds
-        run: npm run demo:examples:build:prepared
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script demo:examples:build:prepared npm run demo:examples:build:prepared
 
   browser:
     name: Browser (${{ matrix.shard }})
@@ -804,6 +1236,57 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install exact-head gate compatibility
+        # The workflow file is the merge's; this job checks out head.sha.
+        # A missing npm script or source file is not a failure of that head
+        # (honua-io/honua-sdk-js#1286). A gate the head defines still runs.
+        run: |
+          cat > "$RUNNER_TEMP/exact-head-gate.sh" << 'EXACT_HEAD_GATE'
+          exact_head_has_script() {
+            local name="$1"
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const name = process.argv[1];
+              let pkg;
+              try {
+                pkg = JSON.parse(readFileSync("package.json", "utf8"));
+              } catch (error) {
+                console.error(error instanceof Error ? error.message : String(error));
+                process.exit(2);
+              }
+              process.exit(Object.hasOwn(pkg.scripts ?? {}, name) ? 0 : 1);
+            ' "$name"
+          }
+
+          run_if_script() {
+            local name="$1"
+            shift
+            if [[ "${1:-}" != "npm" || "${2:-}" != "run" || "${3:-}" != "$name" ]]; then
+              echo "::error::run_if_script ${name} must wrap npm run ${name}"
+              return 1
+            fi
+            local status=0
+            exact_head_has_script "$name" || status=$?
+            if [[ "$status" -eq 1 ]]; then
+              echo "::notice title=exact-head compatibility::Skipping npm run ${name}; this head does not define it."
+              return 0
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              return "$status"
+            fi
+            "$@"
+          }
+
+          run_if_file() {
+            local file="$1"
+            shift
+            if [[ ! -f "$file" ]]; then
+              echo "::notice title=exact-head compatibility::Skipping ${file}; this head does not contain it."
+              return 0
+            fi
+            "$@"
+          }
+          EXACT_HEAD_GATE
       - name: Install dependencies
         run: npm ci
 
@@ -828,29 +1311,50 @@ jobs:
       # named demos and coverages-wcs is not one of them, which is why adding it
       # here did not fix the map shard.
       - name: Build sample bundles
-        run: npm run samples:bundles:build
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script samples:bundles:build npm run samples:bundles:build
 
       # The MapLibre 5.x/6.x peer-major claim (#1004) is browser evidence and
       # belongs to the examples domain, where the migration specs already live.
       # Kept ahead of the offline check and the suite, exactly as in ci.yml.
       - name: MapLibre peer-major matrix (5.x + 6.x)
         if: matrix.shard == 'examples'
-        run: npm run test:maplibre-compat:prepared
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:maplibre-compat:prepared npm run test:maplibre-compat:prepared
 
       # Re-checked per shard, cheaply, against the admitted build. The producer
       # already gated on this; repeating it here means a shard rerun days later
       # still cannot start against drifted offline evidence.
       - name: Verify offline shell manifest pins
-        run: npm run offline:shell-manifest:check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script offline:shell-manifest:check npm run offline:shell-manifest:check
+
+      # migration-browser-installed-package.spec.mjs skips every test when
+      # dist/packages is absent. ci.yml runs those tests because
+      # verify:split-packages:prepared already ran in the same JS SDK job.
+      # This shard owns that spec. build:split-packages:prepared only adds
+      # dist/packages on top of the admitted SDK build; it does not recompile it.
+      - name: Prepare split packages for installed-package browser specs
+        if: matrix.shard == 'examples'
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script build:split-packages:prepared npm run build:split-packages:prepared
 
       - name: Browser suite
-        run: npm run test:playwright:prepared
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:playwright:prepared npm run test:playwright:prepared
 
       # The deterministic rendering benchmark is map evidence.
       - name: Deterministic browser rendering benchmark
         id: browser_benchmark
         if: matrix.shard == 'map'
-        run: npm run bench:browser
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script bench:browser npm run bench:browser
 
       - name: Upload browser benchmark evidence
         if: always() && matrix.shard == 'map' && steps.browser_benchmark.outcome != 'skipped'
@@ -950,6 +1454,57 @@ jobs:
           cache: npm
           cache-dependency-path: mcp/package-lock.json
 
+      - name: Install exact-head gate compatibility
+        # The workflow file is the merge's; this job checks out head.sha.
+        # A missing npm script or source file is not a failure of that head
+        # (honua-io/honua-sdk-js#1286). A gate the head defines still runs.
+        run: |
+          cat > "$RUNNER_TEMP/exact-head-gate.sh" << 'EXACT_HEAD_GATE'
+          exact_head_has_script() {
+            local name="$1"
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const name = process.argv[1];
+              let pkg;
+              try {
+                pkg = JSON.parse(readFileSync("package.json", "utf8"));
+              } catch (error) {
+                console.error(error instanceof Error ? error.message : String(error));
+                process.exit(2);
+              }
+              process.exit(Object.hasOwn(pkg.scripts ?? {}, name) ? 0 : 1);
+            ' "$name"
+          }
+
+          run_if_script() {
+            local name="$1"
+            shift
+            if [[ "${1:-}" != "npm" || "${2:-}" != "run" || "${3:-}" != "$name" ]]; then
+              echo "::error::run_if_script ${name} must wrap npm run ${name}"
+              return 1
+            fi
+            local status=0
+            exact_head_has_script "$name" || status=$?
+            if [[ "$status" -eq 1 ]]; then
+              echo "::notice title=exact-head compatibility::Skipping npm run ${name}; this head does not define it."
+              return 0
+            fi
+            if [[ "$status" -ne 0 ]]; then
+              return "$status"
+            fi
+            "$@"
+          }
+
+          run_if_file() {
+            local file="$1"
+            shift
+            if [[ ! -f "$file" ]]; then
+              echo "::notice title=exact-head compatibility::Skipping ${file}; this head does not contain it."
+              return 0
+            fi
+            "$@"
+          }
+          EXACT_HEAD_GATE
       # ci.yml's MCP job builds the SDK from source purely to satisfy the peer
       # dependency -- a second full compile of the same tree the JS SDK job
       # already compiled. Here it installs root dependencies and consumes the
@@ -974,52 +1529,78 @@ jobs:
         run: npm audit --omit=dev
 
       - name: Typecheck
-        run: npm run typecheck
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script typecheck npm run typecheck
 
       - name: Code style
-        run: npm run check
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script check npm run check
 
       - name: Build
-        run: npm run build
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script build npm run build
 
       - name: Unit tests
         run: npm test
 
       - name: NL map-control security certification (gate)
-        run: npm run test:certification:nl-map-control
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:certification:nl-map-control npm run test:certification:nl-map-control
 
       - name: MCP certification (gate)
         env:
           HONUA_MCP_CERT_TARGET: offline
-        run: npm run test:certification
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:certification npm run test:certification
 
       - name: Admin MCP proxy parity contract (432-tool default roster)
-        run: npm run test:certification:admin
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:certification:admin npm run test:certification:admin
 
       - name: MCP certification artifact
         if: always()
         env:
           HONUA_MCP_CERT_TARGET: offline
-        run: npm run test:certification:artifact
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:certification:artifact npm run test:certification:artifact
 
       - name: MCP platform-free certification (gate)
-        run: node dist/src/certification/cli.js --target standalone --out-dir standalone-cert
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_file src/certification/cli.ts node dist/src/certification/cli.js --target standalone --out-dir standalone-cert
 
       - name: MCP non-GeoServices certification (gate)
-        run: node dist/src/certification/cli.js --target standalone-ogc --out-dir standalone-ogc-cert
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_file src/certification/cli.ts node dist/src/certification/cli.js --target standalone-ogc --out-dir standalone-ogc-cert
 
       - name: Cross-model workflow eval (gate, offline)
-        run: npm run test:eval
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:eval npm run test:eval
 
       - name: Platform-free semantic eval (gate, offline)
-        run: npm run eval:standalone
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script eval:standalone npm run eval:standalone
 
       - name: Non-GeoServices semantic eval (gate, offline)
-        run: npm run eval:ogc
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script eval:ogc npm run eval:ogc
 
       - name: Cross-model workflow eval artifact
         if: always()
-        run: npm run test:eval:artifact
+        run: |
+          source "$RUNNER_TEMP/exact-head-gate.sh"
+          run_if_script test:eval:artifact npm run test:eval:artifact
 
       - name: Upload MCP provability artifacts
         if: always()
