@@ -47,6 +47,17 @@ describe("split package manifests", () => {
     expect(verifier).toContain("geospatial.v1.FeatureService/QueryFeatures");
     expect(verifier).toContain("packed-grpc-smoke");
     expect(verifier).toContain("splitPackageGrpcSmoke=ok");
+    expect(verifier).toContain("verify-rest-clean-install.mjs");
+    const compatFactory = prepareScript.slice(
+      prepareScript.indexOf("function createCompatPackage()"),
+      prepareScript.indexOf("function createGeometryPackage()"),
+    );
+    expect(compatFactory).toContain("...optionalGrpcRuntimePeerDependencies()");
+    expect(compatFactory).toContain('"maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"]');
+    expect(compatFactory).not.toContain('rootPackageJson.dependencies["@bufbuild/protobuf"]');
+    const restProof = fs.readFileSync(path.join(process.cwd(), "scripts/verify-rest-clean-install.mjs"), "utf8");
+    expect(restProof).toContain("installed-quickstart-budget.json");
+    expect(restProof).toContain("temporary sample workaround");
   });
 
   it("verifies discoverability metadata for every generated package", () => {

@@ -395,20 +395,24 @@ function createCompatPackage() {
     keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "compatibility"]),
     main: "./index.js",
     types: "./index.d.ts",
+    sideEffects: false,
     exports: {
       ".": {
         types: "./index.d.ts",
         default: "./index.js",
       },
     },
-    dependencies: {
-      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
-      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
-      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
-      ...geometryRuntimeDependencies(),
-    },
+    dependencies: geometryRuntimeDependencies(),
     peerDependencies: {
       "@honua/sdk": version,
+      ...optionalGrpcRuntimePeerDependencies(),
+      // MapView's loader is a literal dynamic import. Declaring the renderer
+      // optional lets a REST Vite build omit it; installing it still bundles it.
+      "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
+    },
+    peerDependenciesMeta: {
+      ...optionalGrpcRuntimePeerDependenciesMeta(),
+      "maplibre-gl": { optional: true },
     },
   });
 
@@ -418,6 +422,8 @@ function createCompatPackage() {
       "# @honua/sdk-esri-compat",
       "",
       "Compatibility bridge APIs for migrating ArcGIS JavaScript apps to Honua.",
+      "",
+      "`maplibre-gl` is an optional peer used when a compat map view is mounted.",
       "",
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),
@@ -519,19 +525,18 @@ function createReactPackage() {
       },
     },
     dependencies: {
-      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
-      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
-      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
       "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
     },
     peerDependencies: {
       "@honua/sdk": version,
+      ...optionalGrpcRuntimePeerDependencies(),
       react: rootPackageJson.peerDependencies.react,
       "react-dom": rootPackageJson.peerDependencies["react-dom"],
       "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
     },
     peerDependenciesMeta: {
+      ...optionalGrpcRuntimePeerDependenciesMeta(),
       react: { optional: true },
       "react-dom": { optional: true },
       "maplibre-gl": { optional: true },
@@ -634,19 +639,18 @@ function createAppPlatformPackage() {
       "./custom-elements.json": "./custom-elements.json",
     },
     dependencies: {
-      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
-      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
-      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
       "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
       ...geometryRuntimeDependencies(),
     },
     peerDependencies: {
       "@honua/sdk": version,
+      ...optionalGrpcRuntimePeerDependencies(),
       "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
       cesium: rootPackageJson.peerDependencies.cesium,
     },
     peerDependenciesMeta: {
+      ...optionalGrpcRuntimePeerDependenciesMeta(),
       "maplibre-gl": { optional: true },
       cesium: { optional: true },
     },
