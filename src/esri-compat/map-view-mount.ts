@@ -33,6 +33,7 @@ interface MapLibreMapLike {
   getSource?(id: string): { setData?(data: unknown): void } | undefined;
   addSource?(id: string, source: unknown): void;
   addLayer?(layer: unknown): void;
+  setStyle?(style: unknown): void;
   project?(point: [number, number]): { x: number; y: number };
   unproject?(point: [number, number]): { lng: number; lat: number };
   on?(
@@ -71,6 +72,7 @@ export interface CompatMapSurface {
   project(longitude: number, latitude: number): { x: number; y: number } | undefined;
   unproject(x: number, y: number): { longitude: number; latitude: number } | undefined;
   onClick(handler: (event: CompatMapClick) => void): void;
+  setBasemap(basemap: unknown): void;
   destroy(): void;
 }
 
@@ -86,15 +88,17 @@ export function resolveViewContainer(container: unknown): HTMLElement | undefine
 }
 
 export function rasterStyleForBasemap(basemap: unknown): Record<string, unknown> {
-  const tiles = tileTemplateForBasemap(basemap) ?? OSM_TILES;
-  const attribution = tiles === OSM_TILES ? "© OpenStreetMap contributors" : "Esri, Maxar, Earthstar Geographics";
-  return {
-    version: 8,
-    sources: {
-      "honua-basemap": { type: "raster", tiles: [tiles], tileSize: 256, attribution },
-    },
-    layers: [{ id: "honua-basemap", type: "raster", source: "honua-basemap" }],
-  };
+  const templates = tileTemplatesForBasemap(basemap);
+  const tiles = templates.length > 0 ? templates : [OSM_TILES];
+  const sources: Record<string, unknown> = {};
+  const layers: Record<string, unknown>[] = [];
+  for (const [index, template] of tiles.entries()) {
+    const id = index === 0 ? "honua-basemap" : `honua-basemap-${index}`;
+    const attribution = template === OSM_TILES ? "© OpenStreetMap contributors" : "Esri, Maxar, Earthstar Geographics";
+    sources[id] = { type: "raster", tiles: [template], tileSize: 256, attribution };
+    layers.push({ id, type: "raster", source: id });
+  }
+  return { version: 8, sources, layers };
 }
 
 export async function mountCompatMap(
@@ -227,6 +231,10 @@ export async function mountCompatMap(
       }
       return { longitude: lngLat.lng, latitude: lngLat.lat };
     },
+    setBasemap(basemap) {
+      map.setStyle?.(rasterStyleForBasemap(basemap));
+      map.once?.("style.load", () => paint());
+    },
     onClick(handler) {
       map.on?.("click", (event) => {
         const x = event.point?.x;
@@ -314,38 +322,55 @@ export function coordinateToLonLat(pair: readonly number[], wkid?: number): [num
   return [x, y];
 }
 
-function tileTemplateForBasemap(basemap: unknown): string | undefined {
+function tileTemplatesForBasemap(basemap: unknown): string[] {
   if (typeof basemap === "string") {
-    return ESRI_BASEMAP_TILES[basemap];
+    const known = ESRI_BASEMAP_TILES[basemap];
+    return known ? [known] : [];
   }
   if (!basemap || typeof basemap !== "object") {
-    return undefined;
+    return [];
   }
   const record = basemap as {
     id?: unknown;
     title?: unknown;
+    portalItem?: unknown;
     baseMapLayers?: unknown;
     baseLayers?: unknown;
+    referenceLayers?: unknown;
   };
+  const fromLayers = tileTemplatesFromLayerLists(record.baseLayers, record.baseMapLayers, record.referenceLayers);
+  if (fromLayers.length > 0) {
+    return fromLayers;
+  }
+  // A portal item owns its tiles. The app id (WFRC uses "hybrid" as a URL key)
+  // must not select the well-known imagery template before that item loads.
+  if (record.portalItem !== undefined && record.portalItem !== null) {
+    return [];
+  }
   const id = typeof record.id === "string" ? record.id : typeof record.title === "string" ? record.title : undefined;
   if (id && ESRI_BASEMAP_TILES[id]) {
-    return ESRI_BASEMAP_TILES[id];
+    return [ESRI_BASEMAP_TILES[id]];
   }
-  const layers = Array.isArray(record.baseMapLayers)
-    ? record.baseMapLayers
-    : Array.isArray(record.baseLayers)
-      ? record.baseLayers
-      : [];
-  for (const layer of layers) {
-    if (!layer || typeof layer !== "object") {
+  return [];
+}
+
+function tileTemplatesFromLayerLists(...lists: unknown[]): string[] {
+  const templates: string[] = [];
+  for (const list of lists) {
+    if (!Array.isArray(list)) {
       continue;
     }
-    const url = (layer as { url?: unknown }).url;
-    if (typeof url === "string" && /MapServer/i.test(url)) {
-      return `${url.replace(/\/$/, "")}/tile/{z}/{y}/{x}`;
+    for (const layer of list) {
+      if (!layer || typeof layer !== "object") {
+        continue;
+      }
+      const url = (layer as { url?: unknown }).url;
+      if (typeof url === "string" && /MapServer/i.test(url)) {
+        templates.push(`${url.replace(/\/$/, "")}/tile/{z}/{y}/{x}`);
+      }
     }
   }
-  return undefined;
+  return templates;
 }
 
 function geoJsonGeometry(geometry: unknown): { type: string; coordinates: unknown } | undefined {

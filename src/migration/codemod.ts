@@ -203,6 +203,7 @@ const ESRI_LEAFLET_COMPAT_FALLBACK_KINDS = new Set<CodemodConstructorKind>([
   "esri-config",
   "reactive-utils",
   "feature-filter",
+  "feature-effect",
   "vector-tile-layer",
   "geojson-layer",
   "wms-layer",
@@ -285,6 +286,7 @@ export type CodemodConstructorKind =
   | "esri-config"
   | "reactive-utils"
   | "feature-filter"
+  | "feature-effect"
   | "vector-tile-layer"
   | "geojson-layer"
   | "wms-layer"
@@ -682,6 +684,14 @@ const REWRITE_SPECS: readonly ConstructorRewriteSpec[] = [
     arcGisModules: new Set([
       "@arcgis/core/layers/support/FeatureFilter",
       "@arcgis/core/layers/support/FeatureFilter.js",
+    ]),
+  },
+  {
+    kind: "feature-effect",
+    compatSymbol: "FeatureEffectCompat",
+    arcGisModules: new Set([
+      "@arcgis/core/layers/support/FeatureEffect",
+      "@arcgis/core/layers/support/FeatureEffect.js",
     ]),
   },
   {
@@ -3051,6 +3061,7 @@ function createEmptyByKindMetrics(): CodemodMetricsByKind {
     "esri-config": { total: 0, autoMigrated: 0, manual: 0 },
     "reactive-utils": { total: 0, autoMigrated: 0, manual: 0 },
     "feature-filter": { total: 0, autoMigrated: 0, manual: 0 },
+    "feature-effect": { total: 0, autoMigrated: 0, manual: 0 },
     "vector-tile-layer": { total: 0, autoMigrated: 0, manual: 0 },
     "geojson-layer": { total: 0, autoMigrated: 0, manual: 0 },
     "wms-layer": { total: 0, autoMigrated: 0, manual: 0 },
@@ -5168,6 +5179,8 @@ function isSafeConstructorCall(
       return isSafeAllowedPropertiesCall(node, "LocatorSearchSource", LOCATOR_SEARCH_SOURCE_ALLOWED_PROPS);
     case "feature-filter":
       return isSafeAllowedPropertiesCall(node, "FeatureFilter", FEATURE_FILTER_ALLOWED_PROPS);
+    case "feature-effect":
+      return isSafeAllowedPropertiesCall(node, "FeatureEffect", FEATURE_EFFECT_ALLOWED_PROPS);
     case "vector-tile-layer":
       return isSafeAllowedPropertiesCall(node, "VectorTileLayer", VECTOR_TILE_LAYER_ALLOWED_PROPS);
     case "geojson-layer":
@@ -5209,6 +5222,7 @@ const FEATURE_FILTER_ALLOWED_PROPS = new Set([
   "units",
   "timeExtent",
 ]);
+const FEATURE_EFFECT_ALLOWED_PROPS = new Set(["filter", "includedEffect", "excludedEffect", "excludedLabelsVisible"]);
 const VECTOR_TILE_LAYER_ALLOWED_PROPS = new Set([
   "url",
   "style",
@@ -5429,7 +5443,7 @@ function isSafeBasemapCompatCall(node: ts.NewExpression): { ok: true } | { ok: f
     };
   }
 
-  const allowed = new Set(["id", "title", "baseLayers", "referenceLayers"]);
+  const allowed = new Set(["id", "title", "baseLayers", "referenceLayers", "portalItem"]);
   for (const property of arg.properties) {
     if (!isAssignableObjectProperty(property)) {
       return {
@@ -5471,6 +5485,7 @@ function isSafeFeatureLayerCompatCall(
   }
 
   let hasUrlOption = false;
+  let hasSourceOption = false;
   const allowed =
     target === "honua-compat"
       ? new Set([
@@ -5491,6 +5506,10 @@ function isSafeFeatureLayerCompatCall(
           "listMode",
           "client",
           "maxAttachmentBytes",
+          "source",
+          "objectIdField",
+          "fields",
+          "geometryType",
         ])
       : target === "honua-maplibre"
         ? new Set([
@@ -5524,6 +5543,9 @@ function isSafeFeatureLayerCompatCall(
     if (name === "url") {
       hasUrlOption = true;
     }
+    if (name === "source") {
+      hasSourceOption = true;
+    }
   }
 
   const unsupported = collectUnsupportedPropertyNames(arg, allowed);
@@ -5534,10 +5556,10 @@ function isSafeFeatureLayerCompatCall(
     };
   }
 
-  if (!hasUrlOption) {
+  if (!hasUrlOption && !hasSourceOption) {
     return {
       ok: false,
-      reason: "FeatureLayer options missing required url property; requires manual migration.",
+      reason: "FeatureLayer options missing required url or source property; requires manual migration.",
     };
   }
 
@@ -5708,7 +5730,7 @@ function isSafePointGeometryCompatCall(node: ts.NewExpression): { ok: true } | {
     };
   }
 
-  const allowed = new Set(["x", "y", "z", "m", "spatialReference"]);
+  const allowed = new Set(["x", "y", "z", "m", "longitude", "latitude", "spatialReference"]);
   for (const property of arg.properties) {
     if (!isAssignableObjectProperty(property)) {
       return {
@@ -6625,6 +6647,8 @@ function isSafeMapViewCompatCall(
           "highlightOptions",
           "spatialReference",
           "popup",
+          "popupEnabled",
+          "ui",
         ]);
   for (const property of arg.properties) {
     if (!isAssignableObjectProperty(property)) {
@@ -6643,7 +6667,51 @@ function isSafeMapViewCompatCall(
     };
   }
 
+  const uiIssue = collectMapViewUiIssue(arg);
+  if (uiIssue) {
+    return { ok: false, reason: uiIssue };
+  }
+
   return { ok: true };
+}
+
+const DEFAULT_MAP_VIEW_UI = new Set(["zoom", "attribution", "compass"]);
+
+function collectMapViewUiIssue(arg: ts.ObjectLiteralExpression): string | undefined {
+  for (const property of arg.properties) {
+    if (!ts.isPropertyAssignment(property) || getObjectPropertyName(property) !== "ui") {
+      continue;
+    }
+    const ui = property.initializer;
+    if (!ts.isObjectLiteralExpression(ui)) {
+      return "MapView ui option is not an object literal; requires manual migration.";
+    }
+    for (const uiProperty of ui.properties) {
+      if (!isAssignableObjectProperty(uiProperty)) {
+        return "MapView ui options contain spread/method/computed property syntax; requires manual migration.";
+      }
+      if (getObjectPropertyName(uiProperty) !== "components") {
+        return `MapView ui options include unsupported properties: ${getObjectPropertyName(uiProperty)}; requires manual migration.`;
+      }
+      if (!ts.isPropertyAssignment(uiProperty) || !isKnownDefaultUiComponents(uiProperty.initializer)) {
+        return "MapView ui.components is not a list of zoom, attribution, or compass; requires manual migration.";
+      }
+    }
+  }
+  return undefined;
+}
+
+function isKnownDefaultUiComponents(expression: ts.Expression): boolean {
+  const value = ts.isParenthesizedExpression(expression) ? expression.expression : expression;
+  if (ts.isArrayLiteralExpression(value)) {
+    return value.elements.every(
+      (element) => element !== undefined && ts.isStringLiteral(element) && DEFAULT_MAP_VIEW_UI.has(element.text),
+    );
+  }
+  if (ts.isConditionalExpression(value)) {
+    return isKnownDefaultUiComponents(value.whenTrue) && isKnownDefaultUiComponents(value.whenFalse);
+  }
+  return false;
 }
 
 function isSafeWebMapCompatCall(node: ts.NewExpression): { ok: true } | { ok: false; reason: string } {

@@ -6,6 +6,30 @@ import { FeatureLayerCompat } from "../src/esri-compat/feature-layer.js";
 const source = [1, 2, 3, 4].map((id) => ({ attributes: { id, name: `item ${id}` }, geometry: { x: id, y: -id } }));
 
 describe("in-memory FeatureLayer queries", () => {
+  it("treats a non-iterable source as an empty client collection", async () => {
+    const layer = new FeatureLayerCompat({ source: {} } as ConstructorParameters<typeof FeatureLayerCompat>[0]);
+    expect(layer.source).toEqual([]);
+    expect(layer.url).toBeUndefined();
+    expect((await layer.queryFeatures()).features).toEqual([]);
+  });
+
+  it("paints the renderer symbol and grays out features excluded by a feature effect", () => {
+    const oak = { attributes: { name: "Oak" }, geometry: { x: 1, y: 2 } };
+    const pine = { attributes: { name: "Pine" }, geometry: { x: 3, y: 4 } };
+    const layer = new FeatureLayerCompat({
+      source: [oak, pine],
+      renderer: { type: "simple", symbol: { type: "simple-marker", color: "#102A44", size: 12 } },
+    });
+    expect(layer.symbolForFeature(oak)).toMatchObject({ color: "#102A44" });
+    layer.featureEffect = {
+      filter: { where: "name = 'Oak'" },
+      includedEffect: "bloom(0.9 0.6pt 0)",
+      excludedEffect: "grayscale(100%) opacity(30%)",
+    };
+    expect(layer.symbolForFeature(oak)).toMatchObject({ color: "#102A44" });
+    expect(layer.symbolForFeature(pine)).toMatchObject({ color: [158, 158, 158, 77] });
+  });
+
   it("projects fields and geometry and paginates without duplicating features", async () => {
     const layer = new FeatureLayerCompat({ source, objectIdField: "id", outFields: ["name"] });
     expect((await layer.queryFeatures({ returnGeometry: false })).features).toEqual(

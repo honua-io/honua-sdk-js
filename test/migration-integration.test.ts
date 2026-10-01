@@ -174,6 +174,7 @@ describe("arcgis migration integration", () => {
       "esri-config": 0,
       "reactive-utils": 0,
       "feature-filter": 0,
+      "feature-effect": 0,
       "vector-tile-layer": 0,
       "geojson-layer": 0,
       "wms-layer": 0,

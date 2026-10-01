@@ -3,6 +3,27 @@ import { describe, expect, it } from "vitest";
 import { CompatEventBus, LegendCompat } from "../src/esri-compat-entry.js";
 
 describe("LegendCompat", () => {
+  it("builds a swatch from an in-memory simple renderer", async () => {
+    const legend = new LegendCompat({
+      layers: [
+        {
+          id: "trees",
+          title: "Trees",
+          renderer: {
+            type: "simple",
+            symbol: { type: "simple-marker", color: "#c62828", size: 12 },
+          },
+        },
+      ],
+      autoRefresh: false,
+    });
+
+    const items = await legend.refresh();
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.entries).toEqual([expect.objectContaining({ label: "Trees", color: "#c62828" })]);
+  });
+
   it("supports when() and watch() for load and item updates", async () => {
     const eventBus = new CompatEventBus();
     const seenTypes: string[] = [];

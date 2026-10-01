@@ -1,3 +1,4 @@
+import { AttributionCompat, CompassCompat, ZoomCompat } from "./controls.js";
 import { CompatEventBus, resolveCompatEventBus } from "./event-bus.js";
 import { FeatureFilterCompat, type FeatureFilterCompatOptions } from "./feature-filter.js";
 import { GraphicsLayerCompat } from "./graphics-layer.js";
@@ -75,6 +76,14 @@ export interface MapViewCompatOptions {
   highlightOptions?: MapViewHighlightOptionsLike;
   spatialReference?: MapViewSpatialReferenceLike;
   popup?: unknown;
+  /** When false, a map click still emits `click` and does not open the popup. */
+  popupEnabled?: boolean;
+  /**
+   * Default UI widgets. Absent leaves the view chrome empty, because this
+   * compat view does not insert ArcGIS's built-in zoom until asked.
+   * `components` accepts `zoom`, `attribution`, and `compass`.
+   */
+  ui?: { components?: readonly string[] };
   eventBus?: CompatEventBus;
 }
 
@@ -802,6 +811,7 @@ export class MapViewCompat {
   public spatialReference: MapViewSpatialReferenceLike | undefined;
   public readonly eventBus: CompatEventBus;
   public readonly popup: MapViewPopupCompat;
+  public popupEnabled: boolean;
   public readonly ui: MapViewUiCompat;
   /** Esri `MapView.graphics`, the overlay collection `view.graphics.add` writes. */
   public readonly graphics: GraphicsLayerCompat;
@@ -853,6 +863,7 @@ export class MapViewCompat {
         this.emit("popup-selection-change", selection);
       }
     }, extractPopupOptions(options.popup));
+    this.popupEnabled = options.popupEnabled ?? true;
     this.ui = new MapViewUiCompat(this.eventBus, (components) => {
       this.notifyWatchers("ui.components", components);
       this.placeUi(components);
@@ -878,6 +889,11 @@ export class MapViewCompat {
       }
       void this.refreshOverlays();
     });
+    mapBus?.on("map.basemap-changed", (event) => {
+      const basemap = (event as { payload?: { basemap?: unknown } }).payload?.basemap;
+      void this.applyBasemap(basemap);
+    });
+    this.installDefaultUi(options.ui);
     queueMicrotask(() => {
       if (this.mountRenderer && this.loadStatus === "not-loaded") {
         void this.load();
@@ -1031,6 +1047,7 @@ export class MapViewCompat {
       "graphics-layer.graphic-removed",
       "graphics-layer.graphics-cleared",
       "feature-layer.edits",
+      "feature-layer.feature-effect-changed",
     ]) {
       bus.on(type, () => {
         void this.refreshOverlays();
@@ -1078,13 +1095,42 @@ export class MapViewCompat {
           returnGeometry: true,
           extraParams: { resultRecordCount: 2000 },
         });
-        drawn.push(...(result?.features ?? []));
+        drawn.push(...(result?.features ?? []).map((feature) => featureWithLayerSymbol(layer, feature)));
       } catch {
         // An unsupported where or a service error leaves that layer off the canvas.
       }
     }
     this.painted = drawn;
     this.mapSurface.setOverlays(drawn);
+  }
+
+  private installDefaultUi(ui: MapViewCompatOptions["ui"]): void {
+    const names = ui?.components;
+    if (!names) {
+      return;
+    }
+    for (const name of names) {
+      const widget = createDefaultUiWidget(name, this);
+      if (!widget) {
+        continue;
+      }
+      // ui.add's public parameter is a property bag. These constructors are class instances.
+      this.ui.add(widget as unknown as Record<string, unknown>, defaultUiPosition(name));
+    }
+  }
+
+  private async applyBasemap(basemap: unknown): Promise<void> {
+    if (basemap && typeof basemap === "object" && typeof (basemap as { load?: unknown }).load === "function") {
+      try {
+        await (basemap as { load: () => Promise<unknown> }).load();
+      } catch {
+        // load records the failure; still apply whatever layers are present
+      }
+    }
+    if ((this.map as { basemap?: unknown } | undefined)?.basemap !== basemap) {
+      return;
+    }
+    this.mapSurface?.setBasemap(basemap);
   }
 
   private async handleMapClick(event: { x: number; y: number; longitude: number; latitude: number }): Promise<void> {
@@ -1096,6 +1142,9 @@ export class MapViewCompat {
       spatialReference: { wkid: 4326 },
     };
     this.emit("click", { ...event, mapPoint });
+    if (this.popupEnabled === false) {
+      return;
+    }
     const hit = await this.hitTest({ x: event.x, y: event.y, mapPoint });
     const graphic = hit.results[0]?.graphic;
     if (!graphic || typeof graphic !== "object") {
@@ -2179,6 +2228,50 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     return undefined;
   }
   return value;
+}
+
+const DEFAULT_UI_POSITIONS: Record<string, MapViewUiPosition> = {
+  zoom: "top-left",
+  compass: "top-left",
+  attribution: "bottom-right",
+};
+
+function createDefaultUiWidget(
+  name: string,
+  view: MapViewCompat,
+): ZoomCompat | CompassCompat | AttributionCompat | undefined {
+  switch (name) {
+    case "zoom":
+      return new ZoomCompat({ view });
+    case "compass":
+      return new CompassCompat({ view });
+    case "attribution":
+      return new AttributionCompat({ view });
+    default:
+      return undefined;
+  }
+}
+
+function defaultUiPosition(name: string): MapViewUiPosition {
+  return DEFAULT_UI_POSITIONS[name] ?? "manual";
+}
+
+function featureWithLayerSymbol(layer: unknown, feature: unknown): unknown {
+  if (!feature || typeof feature !== "object") {
+    return feature;
+  }
+  if ((feature as { symbol?: unknown }).symbol) {
+    return feature;
+  }
+  const provider = layer as { symbolForFeature?: (candidate: unknown) => unknown };
+  if (typeof provider.symbolForFeature !== "function") {
+    return feature;
+  }
+  const symbol = provider.symbolForFeature(feature);
+  if (!symbol) {
+    return feature;
+  }
+  return { ...(feature as Record<string, unknown>), symbol };
 }
 
 function extractPopupOptions(popup: Record<string, unknown> | unknown): MapViewPopupCompatOptions {

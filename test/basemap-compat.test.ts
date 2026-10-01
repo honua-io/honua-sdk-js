@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BasemapCompat, CompatEventBus } from "../src/esri-compat-entry.js";
+import { rasterStyleForBasemap } from "../src/esri-compat/map-view-mount.js";
 
 describe("BasemapCompat", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("supports watch handles for load and layer updates", async () => {
     const basemap = new BasemapCompat({
       id: "streets",
@@ -95,6 +100,41 @@ describe("BasemapCompat", () => {
     expect(basemap.referenceLayers).toHaveLength(1);
     expect(seenTypes).toContain("basemap.base-layers-changed");
     expect(seenTypes).toContain("basemap.reference-layers-changed");
+  });
+
+  it("loads tiled layers from a portal item", async () => {
+    const fetchFn = vi.fn(async (url: string) => {
+      expect(url).toContain("/content/items/hybrid-1/data");
+      return {
+        json: async () => ({
+          baseMap: {
+            title: "Imagery Hybrid",
+            baseMapLayers: [
+              {
+                url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
+              },
+            ],
+            referenceLayers: [
+              {
+                url: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer",
+              },
+            ],
+          },
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    const basemap = new BasemapCompat({ id: "hybrid", portalItem: { id: "hybrid-1" } });
+    await basemap.load();
+
+    expect(basemap.title).toBe("Imagery Hybrid");
+    expect(basemap.baseLayers).toHaveLength(1);
+    expect(basemap.referenceLayers).toHaveLength(1);
+    const style = rasterStyleForBasemap(basemap);
+    const sources = style.sources as Record<string, { tiles: string[] }>;
+    expect(sources["honua-basemap"]?.tiles[0]).toContain("World_Imagery/MapServer/tile/");
+    expect(sources["honua-basemap-1"]?.tiles[0]).toContain("World_Boundaries_and_Places/MapServer/tile/");
   });
 
   it("creates basemaps from id", () => {
