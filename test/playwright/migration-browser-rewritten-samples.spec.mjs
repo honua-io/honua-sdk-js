@@ -136,7 +136,25 @@ function decodePng(bytes) {
     if (r > 140 && r > g + 40 && r > b + 40) red += 1;
     else if (b > 80 && b > r + 30) blue += 1;
   }
-  return { width, height, red, blue };
+  return {
+    width,
+    height,
+    red,
+    blue,
+    at(x, y) {
+      const px = Math.round(x);
+      const py = Math.round(y);
+      if (px < 0 || py < 0 || px >= width || py >= height) {
+        return null;
+      }
+      const pixel = (py * width + px) * channels;
+      return { r: rows[pixel], g: rows[pixel + 1], b: rows[pixel + 2] };
+    },
+  };
+}
+
+function isRedPixel(pixel) {
+  return Boolean(pixel && pixel.r > 140 && pixel.r > pixel.g + 40 && pixel.r > pixel.b + 40);
 }
 
 function sampleSource(features, withPopup) {
@@ -269,15 +287,16 @@ function startServer(root, mainSource, vendors) {
   });
 }
 
-async function openSample(page, features, withPopup) {
+async function openMain(page, mainSource) {
   const root = projectRoot();
   const vendorDir = fs.mkdtempSync(path.join(os.tmpdir(), "honua-rewritten-sample-"));
   const vendors = await buildGeometryPeerVendors(root, vendorDir);
-  const server = await startServer(root, sampleSource(features, withPopup), vendors);
+  const server = await startServer(root, mainSource, vendors);
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Failed to bind the rewritten-sample server.");
   const origin = `http://127.0.0.1:${address.port}`;
   const blocked = [];
+  const requests = [];
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.route("**/*", async (route) => {
@@ -286,7 +305,22 @@ async function openSample(page, features, withPopup) {
       await route.continue();
       return;
     }
-    if (/arcgisonline\.com|openstreetmap\.org/i.test(url)) {
+    requests.push(url);
+    if (/\/content\/items\/[^/]+\/data/i.test(url)) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify({
+          baseMap: {
+            title: "Custom Hybrid",
+            baseMapLayers: [{ url: "https://tiles.example.test/arcgis/rest/services/Custom/MapServer" }],
+          },
+        }),
+      });
+      return;
+    }
+    if (/tiles\.example\.test|arcgisonline\.com|openstreetmap\.org/i.test(url)) {
       await route.fulfill({
         status: 200,
         contentType: "image/png",
@@ -306,12 +340,164 @@ async function openSample(page, features, withPopup) {
     expect(sampleError, sampleError ?? "").toBeNull();
     expect(pageErrors).toEqual([]);
     expect(blocked).toEqual([]);
-    return { server, vendorDir };
+    return { server, vendorDir, requests };
   } catch (error) {
     await new Promise((resolve) => server.close(() => resolve(undefined)));
     fs.rmSync(vendorDir, { recursive: true, force: true });
     throw error;
   }
+}
+
+async function openSample(page, features, withPopup) {
+  return openMain(page, sampleSource(features, withPopup));
+}
+
+function effectSource(features) {
+  return `
+import {
+  FeatureEffectCompat,
+  FeatureLayerCompat,
+  MapCompat,
+  MapViewCompat,
+  registerHonuaWidgetKit,
+} from "/esri-compat-entry.js";
+
+registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+
+const layer = new FeatureLayerCompat({
+  title: "Trees",
+  objectIdField: "OBJECTID",
+  geometryType: "point",
+  source: ${JSON.stringify(features)},
+  renderer: { type: "simple", symbol: { type: "simple-marker", color: "#c62828", size: 28 } },
+  featureEffect: new FeatureEffectCompat({
+    filter: { where: "name = 'Oak'" },
+    includedEffect: "bloom(0.9 0.6pt 0)",
+    excludedEffect: "grayscale(100%) opacity(30%)",
+  }),
+});
+const map = new MapCompat({ basemap: "hybrid", layers: [layer] });
+const view = new MapViewCompat({
+  container: "view",
+  map,
+  center: [-82.44, 35.61],
+  zoom: 11,
+});
+view.when()
+  .then(() => {
+    window.__sample = { view, layer };
+    window.__sampleReady = true;
+  })
+  .catch((error) => {
+    window.__sampleError = String(error && error.stack ? error.stack : error);
+    window.__sampleReady = true;
+  });
+`;
+}
+
+function popupDisabledSource(features) {
+  return `
+import {
+  FeatureLayerCompat,
+  MapCompat,
+  MapViewCompat,
+  registerHonuaWidgetKit,
+} from "/esri-compat-entry.js";
+
+registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+
+const layer = new FeatureLayerCompat({
+  title: "Trees",
+  objectIdField: "OBJECTID",
+  geometryType: "point",
+  source: ${JSON.stringify(features)},
+  renderer: { type: "simple", symbol: { type: "simple-marker", color: "#c62828", size: 12 } },
+});
+const map = new MapCompat({ basemap: "hybrid", layers: [layer] });
+const view = new MapViewCompat({
+  container: "view",
+  map,
+  center: [-82.44, 35.61],
+  zoom: 11,
+  popupEnabled: false,
+});
+view.on("click", () => {
+  window.__clicked = true;
+});
+view.when()
+  .then(() => {
+    window.__sample = { view, layer };
+    window.__sampleReady = true;
+  })
+  .catch((error) => {
+    window.__sampleError = String(error && error.stack ? error.stack : error);
+    window.__sampleReady = true;
+  });
+`;
+}
+
+function defaultZoomSource() {
+  return `
+import {
+  MapCompat,
+  MapViewCompat,
+  registerHonuaWidgetKit,
+} from "/esri-compat-entry.js";
+
+registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+
+const map = new MapCompat({ basemap: "hybrid" });
+const view = new MapViewCompat({
+  container: "view",
+  map,
+  center: [-82.44, 35.61],
+  zoom: 11,
+  ui: { components: ["zoom"] },
+});
+view.when()
+  .then(() => {
+    window.__sample = { view };
+    window.__sampleReady = true;
+  })
+  .catch((error) => {
+    window.__sampleError = String(error && error.stack ? error.stack : error);
+    window.__sampleReady = true;
+  });
+`;
+}
+
+function portalBasemapSource() {
+  return `
+import {
+  BasemapCompat,
+  MapCompat,
+  MapViewCompat,
+  registerHonuaWidgetKit,
+} from "/esri-compat-entry.js";
+
+registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+
+const basemap = new BasemapCompat({
+  id: "hybrid",
+  portalItem: { id: "portal-hybrid" },
+});
+const map = new MapCompat({ basemap });
+const view = new MapViewCompat({
+  container: "view",
+  map,
+  center: [-82.44, 35.61],
+  zoom: 11,
+});
+view.when()
+  .then(() => {
+    window.__sample = { view, basemap };
+    window.__sampleReady = true;
+  })
+  .catch((error) => {
+    window.__sampleError = String(error && error.stack ? error.stack : error);
+    window.__sampleReady = true;
+  });
+`;
 }
 
 async function closeSample(sample) {
@@ -407,6 +593,96 @@ test("popup-actions opens the clicked feature and mounts the popup host", async 
     }));
     expect(popup.visible).toBe(true);
     expect(popup.title).toBe("Oak");
+  } finally {
+    await closeSample(sample);
+  }
+});
+
+test("feature effect keeps the included feature red and paints the excluded feature gray", async ({ page }) => {
+  const pine = {
+    attributes: { OBJECTID: 2, name: "Pine" },
+    geometry: { type: "point", longitude: -82.36, latitude: 35.61 },
+  };
+  const sample = await openMain(page, effectSource([OAK, pine]));
+  try {
+    await paintedCanvas(page);
+    const colors = await page.evaluate(() => {
+      const layer = window.__sample.layer;
+      const colorOf = (name) => {
+        const feature = { attributes: { name } };
+        const symbol = layer.symbolForFeature(feature);
+        return symbol && symbol.color ? symbol.color : null;
+      };
+      const view = window.__sample.view;
+      const canvas = document.querySelector("#view canvas");
+      const scale = canvas.width / canvas.clientWidth;
+      const screen = (longitude, latitude) => {
+        const point = view.toScreen({ longitude, latitude });
+        return { x: point.x * scale, y: point.y * scale };
+      };
+      return {
+        oak: colorOf("Oak"),
+        pine: colorOf("Pine"),
+        oakScreen: screen(-82.44, 35.61),
+        pineScreen: screen(-82.36, 35.61),
+      };
+    });
+    expect(colors.oak).toBe("#c62828");
+    expect(colors.pine).toEqual([158, 158, 158, 77]);
+
+    const stats = decodePng(await page.locator("#view canvas").first().screenshot());
+    const oakPixel = stats.at(colors.oakScreen.x, colors.oakScreen.y);
+    const pinePixel = stats.at(colors.pineScreen.x, colors.pineScreen.y);
+    expect(isRedPixel(oakPixel), `oak pixel ${JSON.stringify(oakPixel)}`).toBe(true);
+    expect(pinePixel, "pine pixel").not.toBeNull();
+    // rgba(158,158,158,77/255) over the fixture tile #1a3a8c.
+    expect(Math.abs(pinePixel.r - 66), `pine pixel ${JSON.stringify(pinePixel)}`).toBeLessThanOrEqual(8);
+    expect(Math.abs(pinePixel.g - 88), `pine pixel ${JSON.stringify(pinePixel)}`).toBeLessThanOrEqual(8);
+    expect(Math.abs(pinePixel.b - 145), `pine pixel ${JSON.stringify(pinePixel)}`).toBeLessThanOrEqual(8);
+  } finally {
+    await closeSample(sample);
+  }
+});
+
+test("popupEnabled false still emits the click and leaves the popup closed", async ({ page }) => {
+  const sample = await openMain(page, popupDisabledSource([OAK]));
+  try {
+    await paintedCanvas(page);
+    await page.locator("#view canvas").click();
+    await expect.poll(() => page.evaluate(() => window.__clicked === true)).toBe(true);
+    await expect(page.locator("#view .honua-popup")).toHaveCount(0);
+    const popup = await page.evaluate(() => ({
+      visible: window.__sample.view.popup.visible,
+    }));
+    expect(popup.visible).toBe(false);
+  } finally {
+    await closeSample(sample);
+  }
+});
+
+test("default ui zoom component mounts a zoom-in control", async ({ page }) => {
+  const sample = await openMain(page, defaultZoomSource());
+  try {
+    const zoom = page.locator("#view honua-zoom");
+    await expect(zoom.getByRole("button", { name: "Zoom in" })).toBeVisible();
+    const zoomBefore = await page.evaluate(() => window.__sample.view.zoom);
+    await zoom.getByRole("button", { name: "Zoom in" }).click();
+    await expect.poll(() => page.evaluate(() => window.__sample.view.zoom)).toBe(zoomBefore + 1);
+  } finally {
+    await closeSample(sample);
+  }
+});
+
+test("portal basemap loads item tiles instead of the well-known hybrid imagery", async ({ page }) => {
+  const sample = await openMain(page, portalBasemapSource());
+  try {
+    await expect
+      .poll(() => sample.requests.some((url) => url.includes("tiles.example.test") && url.includes("/tile/")), {
+        timeout: 15_000,
+      })
+      .toBe(true);
+    expect(sample.requests.some((url) => url.includes("/content/items/portal-hybrid/data"))).toBe(true);
+    expect(sample.requests.some((url) => url.includes("World_Imagery"))).toBe(false);
   } finally {
     await closeSample(sample);
   }
