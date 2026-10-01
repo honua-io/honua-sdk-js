@@ -6,6 +6,8 @@
  * structurally identified a Cloud Optimized GeoTIFF. A filename suffix is
  * never treated as conformance evidence. Coverage/WCS execution reuses the
  * bounded protocol clients and exact service paths from `@honua/sdk-js/coverages`.
+ * Direct Zarr sessions read reviewed metadata keys and intersecting chunks
+ * from static or object storage without a Honua Server.
  *
  * @experimental
  * @packageDocumentation
@@ -14,6 +16,7 @@
 import { type StacCogAssetSession, mountStacCogAssetToMapLibre, openStacCogAsset } from "../cog/index.js";
 import type {
   CogBand,
+  CogDataType,
   CogDecoderFactory,
   CogInspection,
   CogMapLibreCoordinates,
@@ -38,6 +41,15 @@ import type {
 import { coverageToMapLibreImage, createCoverageClient, createWcsClient } from "../coverages/index.js";
 import type { CoverageMapLibreImage, CoverageResult } from "../coverages/index.js";
 import type { DynamicStacAssetDescriptor } from "../stac/index.js";
+import { type DirectZarrSession, openDirectZarrStore, zarrCogDataType } from "../zarr/direct-session.js";
+import type {
+  ZarrChunkCodec,
+  ZarrDirectLimitOptions,
+  ZarrFidelity,
+  ZarrProvenance,
+  ZarrTransferLedger,
+} from "../zarr/direct-types.js";
+import { HonuaZarrError } from "../zarr/errors.js";
 import { rasterDiscoveryRegistryEntry, rasterSessionRegistryEntry } from "./source-registry.js";
 import type { RasterRegistryMaturity, RasterRegistryServerStatus, RasterSourceIdentity } from "./source-registry.js";
 
@@ -56,7 +68,7 @@ export type {
   RasterSourceRegistryEntry,
 } from "./source-registry.js";
 
-export type RasterSourceKind = "cog" | "image-server" | "ogc-coverage" | "wcs";
+export type RasterSourceKind = "cog" | "image-server" | "ogc-coverage" | "wcs" | "zarr";
 export type RasterMaturity = RasterRegistryMaturity;
 export type RasterOperation = "inspect" | "read-window" | "statistics" | "histogram" | "inspect-value" | "render";
 export type RasterExecutionMode = "browser-range" | "worker-decode" | "server-operation" | "unavailable";
@@ -95,6 +107,7 @@ export const UNIFIED_RASTER_CAPABILITY_MATRIX: Readonly<Record<RasterSourceKind,
     "image-server": capabilityRecord("image-server", "honua"),
     "ogc-coverage": capabilityRecord("ogc-coverage"),
     wcs: capabilityRecord("wcs"),
+    zarr: capabilityRecord("zarr"),
   });
 
 /** Vocabulary reserved for later cloud-native discovery; these rows are not executable here. */
@@ -151,7 +164,19 @@ export interface WcsRasterSource {
 }
 
 export type CoverageRasterSource = OgcCoverageRasterSource | WcsRasterSource;
-export type RasterSourceDescriptor = DirectCogRasterSource | ImageServerRasterSource | CoverageRasterSource;
+
+export interface DirectZarrRasterSource {
+  readonly kind: "zarr";
+  readonly id: string;
+  readonly url: string;
+  readonly variable?: string;
+}
+
+export type RasterSourceDescriptor =
+  | DirectCogRasterSource
+  | ImageServerRasterSource
+  | CoverageRasterSource
+  | DirectZarrRasterSource;
 
 export interface RasterCachePolicy {
   readonly mode?: "default" | "reload" | "no-store" | "force-cache";
@@ -269,6 +294,12 @@ export interface RasterDecodedWindowResult {
   readonly height: number;
   readonly bands: readonly { readonly band: number; readonly values: CogSampleArray }[];
   readonly transfer: CogTransferLedger;
+  readonly fidelity?: ZarrFidelity;
+  readonly provenance?: ZarrProvenance;
+  readonly presentation?: {
+    readonly url: string;
+    readonly coordinates: CogMapLibreCoordinates;
+  };
 }
 
 export interface RasterServerImageResult {
@@ -335,6 +366,8 @@ export interface RasterMapLibreImageSource {
   readonly type: "image";
   readonly url: string;
   readonly coordinates: CogMapLibreCoordinates;
+  readonly fidelity?: ZarrFidelity;
+  readonly provenance?: ZarrProvenance;
 }
 
 export interface RasterDeckGlBitmapDescriptor {
@@ -354,6 +387,10 @@ export interface OpenRasterSessionOptions {
   readonly clientOptions?: RasterClientOptions;
   readonly onProgress?: (event: RasterProgressEvent) => void;
   readonly signal?: AbortSignal;
+  /** Direct Zarr budgets. Ignored by COG, ImageServer, and coverage sessions. */
+  readonly zarrLimits?: ZarrDirectLimitOptions;
+  /** Codecs injected into a direct Zarr session. Built-in codecs stay preferred. */
+  readonly codecs?: readonly ZarrChunkCodec[];
 }
 
 const DEFAULT_CACHE_POLICY: RasterCachePolicy = { mode: "default" };
@@ -371,6 +408,20 @@ export function directCogSource(input: {
   return { kind: "cog", id: input.id ?? input.url, url: input.url, mediaType: input.mediaType };
 }
 
+/** Build a direct Zarr descriptor. The URL is fetched with credentials omitted. */
+export function directZarrSource(input: {
+  readonly id?: string;
+  readonly url: string;
+  readonly variable?: string;
+}): DirectZarrRasterSource {
+  return {
+    kind: "zarr",
+    id: input.id ?? input.url,
+    url: input.url,
+    ...(input.variable ? { variable: input.variable } : {}),
+  };
+}
+
 /** Produce a serializable plan without starting decoder or network work. */
 export function planRasterOperation(
   source: RasterSourceDescriptor,
@@ -382,6 +433,22 @@ export function planRasterOperation(
     source.kind === "image-server"
       ? capabilityRecord(source.kind, source.deployment)
       : UNIFIED_RASTER_CAPABILITY_MATRIX[source.kind];
+  if (source.kind === "zarr") {
+    const supported = capability.operations.includes(operation);
+    return {
+      sourceId: source.id,
+      sourceKind: source.kind,
+      operation,
+      mode: supported ? "browser-range" : "unavailable",
+      bounded: true,
+      decoder: supported ? "main-thread" : "none",
+      cache,
+      capability,
+      reason: supported
+        ? "Direct Zarr reads fetch reviewed metadata keys and the chunks intersecting the requested window."
+        : "The direct Zarr session does not implement this operation.",
+    };
+  }
   if (source.kind === "cog") {
     const supported = capability.operations.includes(operation);
     return {
@@ -435,6 +502,7 @@ export class UnifiedRasterSession {
   private readonly options: OpenRasterSessionOptions;
   private readonly client: HonuaClient;
   private readonly cog?: StacCogAssetSession;
+  private readonly zarr?: DirectZarrSession;
   private readonly coverageClient?: ReturnType<typeof createCoverageClient>;
   private readonly wcsClient?: ReturnType<typeof createWcsClient>;
   private readonly coverageImages = new Set<CoverageMapLibreImage>();
@@ -444,6 +512,20 @@ export class UnifiedRasterSession {
   public constructor(source: RasterSourceDescriptor, options: OpenRasterSessionOptions) {
     this.source = source;
     this.options = options;
+    if (source.kind === "zarr") {
+      this.zarr = openDirectZarrStore({
+        url: source.url,
+        fetchFn: options.clientOptions?.fetchFn ?? globalThis.fetch.bind(globalThis),
+        ...(source.variable ? { variable: source.variable } : {}),
+        ...(options.zarrLimits ? { limits: options.zarrLimits } : {}),
+        ...(options.codecs ? { codecs: options.codecs } : {}),
+        ...(options.cache?.key ? { cacheKey: options.cache.key } : {}),
+        ...(options.signal ? { signal: options.signal } : {}),
+      });
+      this.client =
+        options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: new URL(source.url).origin });
+      return;
+    }
     const endpoint =
       source.kind === "image-server" ? source.baseUrl : source.kind === "cog" ? cogUrl(source) : source.endpoint;
     const clientBaseUrl = source.kind === "image-server" ? source.baseUrl : new URL(endpoint).origin;
@@ -493,6 +575,32 @@ export class UnifiedRasterSession {
         crs: inspection.crs,
         structurallyValidated: true,
         transfer: inspection.transfer,
+      };
+    }
+    if (this.source.kind === "zarr") {
+      const inspection = await this.requireZarr().inspect(options);
+      const transfer = zarrLedgerToCog(inspection.transfer);
+      this.progress("inspect", "completed", transfer);
+      return {
+        source: this.source,
+        width: inspection.dimensions.find((dimension) => dimension.role === "x")?.size,
+        height: inspection.dimensions.find((dimension) => dimension.role === "y")?.size,
+        bands: inspection.bands.map((band) => ({
+          index: band.index,
+          dataType: requireZarrCogType(band.dtype, band.variable),
+          name: band.name,
+          ...(band.nodata === null ? {} : { nodata: band.nodata }),
+        })),
+        ...(inspection.crs
+          ? { crs: { kind: "known" as const, authority: inspection.crs.authority, code: inspection.crs.code } }
+          : {}),
+        structurallyValidated: true,
+        transfer,
+        metadata: {
+          cacheIdentity: inspection.cacheIdentity,
+          capability: inspection.capability,
+          format: inspection.format,
+        },
       };
     }
     if (this.source.kind === "image-server") {
@@ -566,6 +674,57 @@ export class UnifiedRasterSession {
         transfer: result.transfer,
       };
     }
+    if (this.source.kind === "zarr") {
+      if (request.rangeFields !== undefined) {
+        throw new HonuaCapabilityNotSupportedError("named-range-fields", "zarr", this.source.id);
+      }
+      if (request.style !== undefined) {
+        throw new HonuaCapabilityNotSupportedError("styled-window", "zarr", this.source.id);
+      }
+      if (request.resampling !== undefined && request.resampling !== "nearest") {
+        throw new HonuaCapabilityNotSupportedError("resampled-window", "zarr", this.source.id);
+      }
+      if (request.space === "pixel" && (request.outputSize !== undefined || request.overviewDecimation !== undefined)) {
+        throw new HonuaCapabilityNotSupportedError("native-window", "zarr", this.source.id);
+      }
+      const decoded = await this.requireZarr().readWindow(
+        {
+          ...(this.source.variable ? { variable: this.source.variable } : {}),
+          ...(request.bands ? { bands: request.bands } : {}),
+          ...(request.space === "pixel"
+            ? { pixel: { x: request.x, y: request.y, width: request.width, height: request.height } }
+            : { bbox: request.bbox }),
+        },
+        options,
+      );
+      const transfer = zarrLedgerToCog(decoded.transfer);
+      let presentation: RasterDecodedWindowResult["presentation"];
+      try {
+        const handoff = await this.requireZarr().toMapLibreHandoff(decoded);
+        presentation = { url: handoff.url, coordinates: handoff.coordinates };
+      } catch (error) {
+        if (
+          error instanceof HonuaZarrError &&
+          (error.code === "missing-spatial-extent" || error.code === "missing-spatial-reference")
+        ) {
+          presentation = undefined;
+        } else {
+          throw error;
+        }
+      }
+      this.progress("read-window", "completed", transfer);
+      return {
+        kind: "decoded-window",
+        request,
+        width: decoded.width,
+        height: decoded.height,
+        bands: decoded.bands,
+        transfer,
+        fidelity: decoded.fidelity,
+        provenance: decoded.provenance,
+        ...(presentation ? { presentation } : {}),
+      };
+    }
     if (this.source.kind === "image-server") {
       if (request.rangeFields !== undefined) {
         throw new HonuaCapabilityNotSupportedError("named-range-fields", "image-server", this.source.id);
@@ -635,6 +794,26 @@ export class UnifiedRasterSession {
     request: RasterWindowRequest,
     options: CogOperationOptions & { readonly bins?: number } = {},
   ): Promise<RasterStatisticsResult> {
+    if (this.source.kind === "zarr") {
+      this.progress("statistics", "started");
+      const result = await this.readWindow(request, options);
+      if (result.kind !== "decoded-window") {
+        throw new HonuaCapabilityNotSupportedError("client-statistics", this.source.kind, this.source.id);
+      }
+      const inspection = await this.inspect(options);
+      const bins = normalizeHistogramBins(options.bins);
+      const statistics = result.bands.map((band) => {
+        const metadata = inspection.bands?.find((candidate) => candidate.index === band.band);
+        return statisticsForBand(
+          band.band,
+          band.values,
+          request.noData ?? numericNoData(metadata, this.source.id),
+          bins,
+        );
+      });
+      this.progress("statistics", "completed", result.transfer);
+      return { window: request, bands: statistics, transfer: result.transfer };
+    }
     if (this.source.kind !== "cog") {
       throw new HonuaCapabilityNotSupportedError("bounded-statistics", this.source.kind, this.source.id);
     }
@@ -692,6 +871,31 @@ export class UnifiedRasterSession {
         values: window.bands.map((band) => ({ band: band.band, value: Number(band.values[0]) })),
       };
     }
+    if (this.source.kind === "zarr") {
+      if (request.space !== "pixel") {
+        throw new HonuaCapabilityNotSupportedError("pixel-coordinate", "zarr", this.source.id);
+      }
+      const window = await this.readWindow(
+        {
+          space: "pixel",
+          x: request.x,
+          y: request.y,
+          width: 1,
+          height: 1,
+          bands: request.bands,
+          style: request.style,
+        },
+        options,
+      );
+      if (window.kind !== "decoded-window") {
+        throw new HonuaCapabilityNotSupportedError("decoded-value", "zarr", this.source.id);
+      }
+      this.progress("inspect-value", "completed", window.transfer);
+      return {
+        kind: "decoded-value",
+        values: window.bands.map((band) => ({ band: band.band, value: Number(band.values[0]) })),
+      };
+    }
     if (this.source.kind === "image-server") {
       if (request.space !== "coordinate") {
         throw new HonuaCapabilityNotSupportedError("map-coordinate", "image-server", this.source.id);
@@ -723,6 +927,21 @@ export class UnifiedRasterSession {
   }
 
   toMapLibreImageSource(result: RasterWindowResult, coordinates?: CogMapLibreCoordinates): RasterMapLibreImageSource {
+    if (result.kind === "decoded-window") {
+      if (!result.presentation || !result.fidelity || !result.provenance) {
+        throw new HonuaCapabilityNotSupportedError("encoded-image", this.source.kind, this.source.id);
+      }
+      if (coordinates !== undefined) {
+        throw new HonuaCapabilityNotSupportedError("custom-zarr-coordinates", this.source.kind, this.source.id);
+      }
+      return {
+        type: "image",
+        url: result.presentation.url,
+        coordinates: result.presentation.coordinates,
+        fidelity: result.fidelity,
+        provenance: result.provenance,
+      };
+    }
     if (result.kind === "coverage-image") {
       if (coordinates !== undefined) {
         throw new HonuaCapabilityNotSupportedError("custom-coverage-coordinates", this.source.kind, this.source.id);
@@ -765,6 +984,7 @@ export class UnifiedRasterSession {
   }
 
   transfer(): CogTransferLedger | undefined {
+    if (this.zarr) return zarrLedgerToCog(this.zarr.transfer());
     return this.cog?.transfer();
   }
 
@@ -773,12 +993,18 @@ export class UnifiedRasterSession {
     this.disposed = true;
     for (const image of this.coverageImages) image.dispose();
     this.coverageImages.clear();
+    this.zarr?.dispose();
     await this.cog?.dispose();
   }
 
   private requireCog(): StacCogAssetSession {
     if (!this.cog) throw new HonuaCapabilityNotSupportedError("direct-cog", this.source.kind, this.source.id);
     return this.cog;
+  }
+
+  private requireZarr(): DirectZarrSession {
+    if (!this.zarr) throw new HonuaCapabilityNotSupportedError("direct-zarr", this.source.kind, this.source.id);
+    return this.zarr;
   }
 
   private requireCoverageClient(): ReturnType<typeof createCoverageClient> {
@@ -824,6 +1050,38 @@ export class UnifiedRasterSession {
   }
 }
 
+function requireZarrCogType(dtype: string, variable: string): CogDataType {
+  const mapped = zarrCogDataType(dtype);
+  if (!mapped) {
+    throw new HonuaZarrError("unsupported-dtype", `Zarr variable "${variable}" cannot be returned as a raster band.`, {
+      refusal: "unsupported-dtype",
+      dtype,
+      variable,
+    });
+  }
+  return mapped;
+}
+
+function zarrLedgerToCog(ledger: ZarrTransferLedger): CogTransferLedger {
+  return {
+    requests: ledger.requests,
+    bytesFetched: ledger.bytesFetched,
+    metadataRequests: ledger.metadataRequests,
+    metadataBytes: ledger.metadataBytes,
+    windowRequests: ledger.chunkRequests,
+    windowBytes: ledger.chunkBytes,
+    ranges: ledger.ranges.map((range) => ({
+      sequence: range.sequence,
+      purpose: range.purpose === "chunk" ? "window" : "metadata",
+      offset: 0,
+      length: range.bytesReceived,
+      bytesReceived: range.bytesReceived,
+      outcome: range.outcome === "missing" || range.outcome === "success" ? "success" : range.outcome,
+      ...(range.status === undefined ? {} : { status: range.status }),
+    })),
+  };
+}
+
 function imageServerInterpolation(resampling: RasterWindowRequest["resampling"]): string | undefined {
   if (resampling === "nearest") return "RSP_NearestNeighbor";
   if (resampling === "bilinear") return "RSP_BilinearInterpolation";
@@ -836,7 +1094,7 @@ export async function openRasterSession(
   options: OpenRasterSessionOptions = {},
 ): Promise<UnifiedRasterSession> {
   const session = new UnifiedRasterSession(source, options);
-  if (source.kind === "cog") {
+  if (source.kind === "cog" || source.kind === "zarr") {
     try {
       await session.inspect({ signal: options.signal });
     } catch (error) {

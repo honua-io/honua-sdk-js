@@ -356,7 +356,7 @@
       "maturity": {
         "client": {
           "state": "experimental",
-          "summary": "The JavaScript SDK exposes a versioned registration and metadata client plus a byte-bounded server tile handoff; direct object-store and general slice reads remain unavailable."
+          "summary": "The JavaScript SDK exposes a versioned registration and metadata client, a byte-bounded server tile handoff, and an experimental direct reader for reviewed chunks. The server facade still reports direct object-store execution as unavailable, and unbudgeted slice reads stay unavailable."
         },
         "server": {
           "state": "experimental",

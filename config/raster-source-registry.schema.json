@@ -17,7 +17,7 @@
         "required": ["id", "identity", "client", "server", "endToEnd", "operations", "discoveryOperations", "note"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
-          "sessionKind": { "enum": ["cog", "image-server", "ogc-coverage", "wcs"] },
+          "sessionKind": { "enum": ["cog", "image-server", "ogc-coverage", "wcs", "zarr"] },
           "discoveryKind": { "enum": ["cog", "ogc-coverages", "wcs", "zarr", "netcdf"] },
           "deployment": { "enum": ["honua", "arcgis"] },
           "identity": { "enum": ["client-only-asset", "honua-service", "third-party-service", "server-backed-api", "server-backed-asset"] },

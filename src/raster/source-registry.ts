@@ -2,7 +2,7 @@ import registryJson from "../../config/raster-source-registry.v1.json" with { ty
 
 export type RasterRegistryMaturity = "supported" | "experimental" | "metadata-only" | "unavailable";
 export type RasterRegistryServerStatus = RasterRegistryMaturity | "not-applicable";
-export type RasterRegistrySessionKind = "cog" | "image-server" | "ogc-coverage" | "wcs";
+export type RasterRegistrySessionKind = "cog" | "image-server" | "ogc-coverage" | "wcs" | "zarr";
 export type RasterRegistryDiscoveryKind = "cog" | "ogc-coverages" | "wcs" | "zarr" | "netcdf";
 export type RasterSourceIdentity =
   | "client-only-asset"

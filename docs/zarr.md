@@ -86,8 +86,29 @@ const tile = await zarr.tile({
 - A positive storage SRID is required because the current tile handoff cannot
   reproject between the coverage and tile matrix set.
 
-This slice does not fetch chunks directly from S3, Azure Blob Storage, or the
-local filesystem. `directObjectStoreRead` therefore remains `"unavailable"`.
-Use the server tile operation or the existing OGC API Coverages/WCS client for
-bounded subsets. The API remains experimental until cross-deployment evidence
-is stable.
+`HonuaZarrClient` does not fetch chunks from S3, Azure Blob Storage, or the
+local filesystem. `assess().directObjectStoreRead` therefore remains
+`"unavailable"`. Server tile execution stays on the versioned Honua route.
+
+`openDirectZarrStore` is a separate reader for reviewed Zarr v2 and v3 layouts
+on static HTTP or object storage. It sends bounded `Range` requests for known
+metadata keys and the chunks that intersect an explicit window. Credentials are
+omitted, redirects are not followed, and an unsupported codec or layout fails
+after metadata discovery and before chunk transfer. The API remains
+experimental until cross-deployment evidence is stable.
+
+```ts doc-test=compile
+import { openDirectZarrStore } from "@honua/sdk-js/zarr";
+
+const store = openDirectZarrStore({
+  url: "https://data.example/temperature.zarr",
+  limits: { maxChunks: 64, maxPixels: 1_048_576 },
+});
+const inspection = await store.inspect();
+const samples = await store.readWindow({
+  pixel: { x: 0, y: 0, width: 64, height: 64 },
+  bands: [1],
+});
+void inspection;
+void samples;
+```
