@@ -314,7 +314,7 @@ async function queryProductionBuild() {
     log += chunk.toString();
   });
   const url = `http://127.0.0.1:${port}/`;
-  const ready = waitForPreview(preview, () => log.includes("Local:") || log.includes(url));
+  const ready = waitForPreview(preview, port, () => log);
   await ready;
   const playwrightEntry = pathToFileURL(path.join(appDir, "node_modules/@playwright/test/index.js")).href;
   const playwright = await import(playwrightEntry);
@@ -346,20 +346,33 @@ async function queryProductionBuild() {
   }
 }
 
-function waitForPreview(child, isReady) {
+function waitForPreview(child, port, getLog) {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("vite preview did not start")), 60_000);
-    const poll = setInterval(() => {
-      if (isReady()) {
-        clearInterval(poll);
-        clearTimeout(timeout);
-        resolve();
-      }
-    }, 100);
-    child.once("exit", (code) => {
+    let checking = false;
+    const finish = (callback) => {
       clearInterval(poll);
       clearTimeout(timeout);
-      reject(new Error(`vite preview exited early (${code})`));
+      callback();
+    };
+    const timeout = setTimeout(
+      () => finish(() => reject(new Error(`vite preview did not start\n${getLog()}`))),
+      60_000,
+    );
+    const poll = setInterval(() => {
+      if (checking) return;
+      checking = true;
+      const socket = net.createConnection({ host: "127.0.0.1", port });
+      socket.once("connect", () => {
+        socket.destroy();
+        finish(resolve);
+      });
+      socket.once("error", () => {
+        socket.destroy();
+        checking = false;
+      });
+    }, 100);
+    child.once("exit", (code) => {
+      finish(() => reject(new Error(`vite preview exited early (${code})\n${getLog()}`)));
     });
   });
 }
