@@ -600,7 +600,17 @@ jobs:
         run: npm run offline:shell-manifest:check
 
       - name: Browser smoke suite
+        id: browser_smoke
         run: npm run test:playwright:prepared
+
+      # A failed earlier step skips the suite above. Inside an already-red job
+      # that skip is easy to miss, so this step fails on its own and names the
+      # gap: this job did not re-prove the browser suite.
+      - name: Browser smoke suite not re-proven
+        if: always() && steps.browser_smoke.outcome == 'skipped'
+        run: |
+          echo "::error title=Browser smoke suite not re-proven::An earlier step in the JS SDK job failed, so the browser smoke suite did not run. The sdk-verification browser shards are a separate signal and were not re-proven by this job."
+          exit 1
 
       - name: Deterministic browser rendering benchmark
         id: browser_benchmark
