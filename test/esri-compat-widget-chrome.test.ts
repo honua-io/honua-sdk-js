@@ -40,6 +40,31 @@ async function until(predicate: () => boolean, timeoutMs = 3000, label = "condit
   }
 }
 
+function featurePages(pager: HonuaFeaturePagerElement): HTMLElement[] {
+  return [...(pager.shadowRoot?.querySelectorAll<HTMLElement>("[data-feature-page]") ?? [])];
+}
+
+function visiblePages(pager: HonuaFeaturePagerElement): HTMLElement[] {
+  return featurePages(pager).filter((page) => !page.hidden);
+}
+
+function hiddenPages(pager: HonuaFeaturePagerElement): HTMLElement[] {
+  return featurePages(pager).filter((page) => page.hidden);
+}
+
+function pageTitle(page: HTMLElement): string {
+  return page.querySelector("honua-feature-inspection")?.shadowRoot?.querySelector("h2")?.textContent ?? "";
+}
+
+function visiblePageTitle(pager: HonuaFeaturePagerElement): string {
+  const page = visiblePages(pager)[0];
+  return page ? pageTitle(page) : "";
+}
+
+function hiddenPageTitles(pager: HonuaFeaturePagerElement): string[] {
+  return hiddenPages(pager).map((page) => pageTitle(page));
+}
+
 function makeContainer(): HTMLElement {
   const container = document.createElement("div");
   document.body.append(container);
@@ -71,6 +96,8 @@ describe("widget chrome, lists, and capabilities", () => {
       },
     };
     const compassView = { rotation: 40, goTo() {} };
+    const zoomView = { zoom: 2 };
+    const scaleView = { zoom: 10 };
     const home = makeContainer();
     const compass = makeContainer();
     const zoom = makeContainer();
@@ -80,8 +107,8 @@ describe("widget chrome, lists, and capabilities", () => {
 
     new HomeCompat({ view: homeView, container: home, viewpoint: { center: [1, 2], zoom: 8 } });
     new CompassCompat({ view: compassView, container: compass });
-    new ZoomCompat({ view: {}, container: zoom });
-    new ScaleBarCompat({ view: {}, container: scale });
+    new ZoomCompat({ view: zoomView, container: zoom });
+    new ScaleBarCompat({ view: scaleView, container: scale });
     new FullscreenCompat({ view: {}, container: fullscreen });
     new AttributionCompat({ view: {}, container: attribution, attributions: ["Honua"] });
 
@@ -110,8 +137,17 @@ describe("widget chrome, lists, and capabilities", () => {
     compassElement.shadowRoot?.querySelector<HTMLButtonElement>(".maplibregl-ctrl-compass")?.click();
     expect(compassView.rotation).toBe(0);
 
-    expect(zoom.querySelector("honua-zoom")?.shadowRoot?.querySelector(".maplibregl-ctrl-zoom-in")).toBeTruthy();
-    expect(scale.querySelector("honua-scale-bar")?.shadowRoot?.querySelector(".maplibregl-ctrl-scale")).toBeTruthy();
+    const zoomButton = zoom.querySelector("honua-zoom")?.shadowRoot?.querySelector<HTMLButtonElement>(
+      ".maplibregl-ctrl-zoom-in",
+    );
+    expect(zoomButton).toBeTruthy();
+    zoomButton?.click();
+    expect(zoomView.zoom).toBe(3);
+
+    const scaleElement = scale.querySelector("honua-scale-bar");
+    const scaleText = scaleElement?.shadowRoot?.querySelector(".maplibregl-ctrl-scale")?.textContent ?? "";
+    expect(scaleText).toMatch(/\b(m|km)\b/);
+    expect(scaleText).not.toContain("ScaleControl");
     expect(
       fullscreen.querySelector("honua-fullscreen")?.shadowRoot?.querySelector(".maplibregl-ctrl-fullscreen"),
     ).toBeTruthy();
@@ -190,9 +226,29 @@ describe("widget chrome, lists, and capabilities", () => {
     );
     const pager = features.querySelector("honua-feature-pager") as HonuaFeaturePagerElement;
     await until(() => pager.shadowRoot?.querySelectorAll("honua-feature-inspection").length === 3, 3000, "three pages");
-    expect(pager.shadowRoot?.textContent).toContain("Hydrant");
-    expect(pager.shadowRoot?.textContent).toContain("Valve");
-    expect(pager.shadowRoot?.textContent).toContain("Meter");
+    await until(() => visiblePageTitle(pager) === "Hydrant", 3000, "current feature Hydrant");
+    expect(visiblePages(pager)).toHaveLength(1);
+    expect(hiddenPages(pager)).toHaveLength(2);
+    const visibleInspection = visiblePages(pager)[0]?.querySelector("honua-feature-inspection");
+    expect(visibleInspection?.shadowRoot?.textContent).toContain("Showing Hydrant");
+    expect(visibleInspection?.shadowRoot?.textContent).not.toContain("Connect an inspection controller");
+    expect(visibleInspection?.shadowRoot?.textContent).not.toContain("Valve");
+    expect(visibleInspection?.shadowRoot?.textContent).not.toContain("Meter");
+    for (const page of hiddenPages(pager)) expect(page.hidden).toBe(true);
+
+    pager.shadowRoot?.querySelector<HTMLButtonElement>("[data-next]")?.click();
+    await until(() => visiblePageTitle(pager) === "Valve", 3000, "current feature Valve");
+    expect(pager.shadowRoot?.textContent).toContain("2 / 3");
+    expect(visiblePages(pager)).toHaveLength(1);
+    expect(hiddenPages(pager)).toHaveLength(2);
+    expect(visiblePageTitle(pager)).toBe("Valve");
+    await until(
+      () => hiddenPageTitles(pager).includes("Hydrant") && hiddenPageTitles(pager).includes("Meter"),
+      3000,
+      "hidden features",
+    );
+    expect(hiddenPageTitles(pager)).not.toContain("Valve");
+    for (const page of hiddenPages(pager)) expect(page.hidden).toBe(true);
 
     await attachmentWidget.load();
     await until(
