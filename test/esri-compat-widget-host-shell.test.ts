@@ -9,6 +9,7 @@ import { BasemapGalleryCompat } from "../src/esri-compat/basemap-gallery.js";
 import { BookmarksCompat } from "../src/esri-compat/bookmarks.js";
 import { BasemapToggleCompat, LocateCompat } from "../src/esri-compat/controls.js";
 import { EditorCompat } from "../src/esri-compat/editor.js";
+import { CompatEventBus } from "../src/esri-compat/event-bus.js";
 import { FeatureFormCompat } from "../src/esri-compat/feature-form.js";
 import { FeatureTableCompat } from "../src/esri-compat/feature-table.js";
 import { MeasurementCompat } from "../src/esri-compat/measurement.js";
@@ -16,7 +17,6 @@ import { PopupCompat } from "../src/esri-compat/popup.js";
 import { PrintCompat } from "../src/esri-compat/print.js";
 import { SearchCompat } from "../src/esri-compat/search.js";
 import { SketchCompat } from "../src/esri-compat/sketch.js";
-import { CompatEventBus } from "../src/esri-compat/event-bus.js";
 import { registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
 
 /**
@@ -49,8 +49,16 @@ describe("hosted compat widgets", () => {
     const kit = await import("../src/web-components/index.js");
     const view = { id: "view" };
     const layer = { id: "layer" };
-    const source = { async search() { return []; } };
-    const otherSource = { async search() { return []; } };
+    const source = {
+      async search() {
+        return [];
+      },
+    };
+    const otherSource = {
+      async search() {
+        return [];
+      },
+    };
     const feature = { attributes: { name: "elm" } };
     const nextFeature = { attributes: { name: "oak" } };
     const template = { title: "{name}" };
@@ -90,7 +98,12 @@ describe("hosted compat widgets", () => {
     form.setFeature(nextFeature);
 
     const tableContainer = makeContainer();
-    const table = new FeatureTableCompat({ view, container: tableContainer, layer: layer as never, fieldConfigs: [{ name: "name" }] });
+    const table = new FeatureTableCompat({
+      view,
+      container: tableContainer,
+      layer: layer as never,
+      fieldConfigs: [{ name: "name" }],
+    });
     table.setVisibleFields(["name", "height"]);
 
     const bookmarksContainer = makeContainer();
@@ -131,58 +144,117 @@ describe("hosted compat widgets", () => {
     popup.open({ features: [feature], title: "Elm", content: template });
 
     const cases = [
-      { container: searchContainer, tag: "honua-search", ctor: kit.HonuaSearchElement, read: (element: HTMLElement) => {
-        expect((element as { view?: unknown }).view).toBe(view);
-        expect((element as { activeSource?: unknown }).activeSource).toBe(otherSource);
-      }},
-      { container: measurementContainer, tag: "honua-measurement", ctor: kit.HonuaMeasurementElement, read: (element: HTMLElement) => {
-        expect((element as { activeTool?: unknown }).activeTool).toBe("area");
-      }},
-      { container: editorContainer, tag: "honua-editor", ctor: kit.HonuaEditorElement, read: (element: HTMLElement) => {
-        expect((element as { layer?: unknown }).layer).toBe(layer);
-        expect((element as { snappingOptions?: { enabled?: boolean } }).snappingOptions?.enabled).toBe(false);
-      }},
-      { container: formContainer, tag: "honua-feature-editor", ctor: kit.HonuaFeatureEditorElement, read: (element: HTMLElement) => {
-        expect((element as { feature?: unknown }).feature).toBe(nextFeature);
-        expect((element as { formTemplate?: unknown }).formTemplate).toBe(template);
-      }},
-      { container: tableContainer, tag: "honua-feature-table", ctor: kit.HonuaFeatureTableElement, read: (element: HTMLElement) => {
-        expect((element as { visibleFields?: readonly string[] }).visibleFields).toEqual(["name", "height"]);
-      }},
-      { container: bookmarksContainer, tag: "honua-bookmarks", ctor: kit.HonuaBookmarksElement, read: (element: HTMLElement) => {
-        expect((element as { bookmarkList?: { name: string }[] }).bookmarkList?.map((item) => item.name)).toEqual(["Start", "Park"]);
-      }},
-      { container: galleryContainer, tag: "honua-basemap-control", ctor: kit.HonuaBasemapControlElement, read: (element: HTMLElement) => {
-        expect((element as { mode?: string }).mode).toBe("gallery");
-        expect((element as { basemaps?: { id: string }[] }).basemaps).toEqual([{ id: "streets" }, { id: "imagery" }]);
-      }},
-      { container: toggleContainer, tag: "honua-basemap-control", ctor: kit.HonuaBasemapControlElement, read: (element: HTMLElement) => {
-        expect((element as { mode?: string }).mode).toBe("toggle");
-        expect((element as { nextBasemap?: { id?: string } }).nextBasemap?.id).toBe("streets");
-      }},
-      { container: locateContainer, tag: "honua-locate-control", ctor: kit.HonuaLocateControlElement, read: (element: HTMLElement) => {
-        expect((element as { locateState?: string }).locateState).toBe("ready");
-        expect((element as { view?: unknown }).view).toBe(view);
-      }},
-      { container: sketchContainer, tag: "honua-sketch-control", ctor: kit.HonuaSketchControlElement, read: (element: HTMLElement) => {
-        expect((element as { layer?: unknown }).layer).toBe(layer);
-        expect((element as { snappingOptions?: { enabled?: boolean } }).snappingOptions?.enabled).toBe(false);
-      }},
-      { container: printContainer, tag: "honua-print-export", ctor: kit.HonuaPrintExportElement, read: (element: HTMLElement) => {
-        expect((element as { format?: string }).format).toBe("png32");
-      }},
-      { container: popupContainer, tag: "honua-feature-inspection", ctor: kit.HonuaFeatureInspectionElement, read: (element: HTMLElement) => {
-        expect((element as { selectedFeature?: unknown }).selectedFeature).toBe(feature);
-        expect((element as { template?: unknown }).template).toBe(template);
-      }},
+      {
+        container: searchContainer,
+        tag: "honua-search",
+        ctor: kit.HonuaSearchElement,
+        read: (element: HTMLElement) => {
+          expect((element as { view?: unknown }).view).toBe(view);
+          expect((element as { activeSource?: unknown }).activeSource).toBe(otherSource);
+        },
+      },
+      {
+        container: measurementContainer,
+        tag: "honua-measurement",
+        ctor: kit.HonuaMeasurementElement,
+        read: (element: HTMLElement) => {
+          expect((element as { activeTool?: unknown }).activeTool).toBe("area");
+        },
+      },
+      {
+        container: editorContainer,
+        tag: "honua-editor",
+        ctor: kit.HonuaEditorElement,
+        read: (element: HTMLElement) => {
+          expect((element as { layer?: unknown }).layer).toBe(layer);
+          expect((element as { snappingOptions?: { enabled?: boolean } }).snappingOptions?.enabled).toBe(false);
+        },
+      },
+      {
+        container: formContainer,
+        tag: "honua-feature-editor",
+        ctor: kit.HonuaFeatureEditorElement,
+        read: (element: HTMLElement) => {
+          expect((element as { feature?: unknown }).feature).toBe(nextFeature);
+          expect((element as { formTemplate?: unknown }).formTemplate).toBe(template);
+        },
+      },
+      {
+        container: tableContainer,
+        tag: "honua-feature-table",
+        ctor: kit.HonuaFeatureTableElement,
+        read: (element: HTMLElement) => {
+          expect((element as { visibleFields?: readonly string[] }).visibleFields).toEqual(["name", "height"]);
+        },
+      },
+      {
+        container: bookmarksContainer,
+        tag: "honua-bookmarks",
+        ctor: kit.HonuaBookmarksElement,
+        read: (element: HTMLElement) => {
+          expect((element as { bookmarkList?: { name: string }[] }).bookmarkList?.map((item) => item.name)).toEqual([
+            "Start",
+            "Park",
+          ]);
+        },
+      },
+      {
+        container: galleryContainer,
+        tag: "honua-basemap-control",
+        ctor: kit.HonuaBasemapControlElement,
+        read: (element: HTMLElement) => {
+          expect((element as { mode?: string }).mode).toBe("gallery");
+          expect((element as { basemaps?: { id: string }[] }).basemaps).toEqual([{ id: "streets" }, { id: "imagery" }]);
+        },
+      },
+      {
+        container: toggleContainer,
+        tag: "honua-basemap-control",
+        ctor: kit.HonuaBasemapControlElement,
+        read: (element: HTMLElement) => {
+          expect((element as { mode?: string }).mode).toBe("toggle");
+          expect((element as { nextBasemap?: { id?: string } }).nextBasemap?.id).toBe("streets");
+        },
+      },
+      {
+        container: locateContainer,
+        tag: "honua-locate-control",
+        ctor: kit.HonuaLocateControlElement,
+        read: (element: HTMLElement) => {
+          expect((element as { locateState?: string }).locateState).toBe("ready");
+          expect((element as { view?: unknown }).view).toBe(view);
+        },
+      },
+      {
+        container: sketchContainer,
+        tag: "honua-sketch-control",
+        ctor: kit.HonuaSketchControlElement,
+        read: (element: HTMLElement) => {
+          expect((element as { layer?: unknown }).layer).toBe(layer);
+          expect((element as { snappingOptions?: { enabled?: boolean } }).snappingOptions?.enabled).toBe(false);
+        },
+      },
+      {
+        container: printContainer,
+        tag: "honua-print-export",
+        ctor: kit.HonuaPrintExportElement,
+        read: (element: HTMLElement) => {
+          expect((element as { format?: string }).format).toBe("png32");
+        },
+      },
+      {
+        container: popupContainer,
+        tag: "honua-feature-inspection",
+        ctor: kit.HonuaFeatureInspectionElement,
+        read: (element: HTMLElement) => {
+          expect((element as { selectedFeature?: unknown }).selectedFeature).toBe(feature);
+          expect((element as { template?: unknown }).template).toBe(template);
+        },
+      },
     ];
 
     for (const entry of cases) {
-      await until(
-        () => entry.container.querySelector(entry.tag) instanceof entry.ctor,
-        3000,
-        entry.tag,
-      );
+      await until(() => entry.container.querySelector(entry.tag) instanceof entry.ctor, 3000, entry.tag);
       const element = entry.container.querySelector(entry.tag);
       expect(element, entry.tag).toBeInstanceOf(entry.ctor);
       entry.read(element as HTMLElement);
@@ -221,7 +293,12 @@ describe("hosted compat widgets", () => {
     const saved = globalThis.document;
     Object.defineProperty(globalThis, "document", { value: undefined, configurable: true });
     try {
-      const container = { appendChild() { throw new Error("touched the DOM"); }, children: [] };
+      const container = {
+        appendChild() {
+          throw new Error("touched the DOM");
+        },
+        children: [],
+      };
       const search = new SearchCompat({ container: container as never, view: {}, includeDefaultSources: false });
       expect(search.view).toEqual({});
       expect(container.children).toHaveLength(0);
@@ -238,9 +315,9 @@ describe("hosted compat widgets", () => {
       const code = source
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/^\s*\/\/.*$/gm, "")
-        .replace(/`(?:\\[\s\S]|[^`])*`/g, "''")
-        .replace(/'(?:\\.|[^'\n])*'/g, "''")
-        .replace(/"(?:\\.|[^"\n])*"/g, '""');
+        .replace(/`(?:\\[\s\S]|[^`\\])*`/g, "''")
+        .replace(/'(?:\\[^\n]|[^'\n\\])*'/g, "''")
+        .replace(/"(?:\\[^\n]|[^"\n\\])*"/g, '""');
       expect(code, name).not.toMatch(/from\s+["'][^"']*web-components/);
       expect(code, name).not.toMatch(/import\(\s*["'][^"']*web-components/);
     }

@@ -1,6 +1,5 @@
 import { esriConfig } from "./esri-config.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
-import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 import { identityManager } from "./identity-manager.js";
 import {
   RouteLayerCompat,
@@ -10,6 +9,7 @@ import {
   routeStopFromUnknown,
 } from "./route-layer.js";
 import { RouteTaskCompat, type RouteTaskSolveResultCompat, arcGisRouteServiceProvider } from "./route-task.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 /** Default `routeServiceUrl` on Esri `DirectionsViewModel` for the 4.x widget apps. */
 const DEFAULT_ROUTE_SERVICE_URL = "https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
@@ -307,11 +307,13 @@ async function readTravelModes(url: string, token: string | undefined): Promise<
   return (json.supportedTravelModes ?? []).filter((mode) => mode && typeof mode === "object");
 }
 
-function directionRoute(route: RouteSolveResultCompat | undefined): {
-  summary: string;
-  steps?: { text?: string; maneuver?: string }[];
-  polyline?: unknown;
-} | undefined {
+function directionRoute(route: RouteSolveResultCompat | undefined):
+  | {
+      summary: string;
+      steps?: { text?: string; maneuver?: string }[];
+      polyline?: unknown;
+    }
+  | undefined {
   if (!route) return undefined;
   const withSteps = route as RouteSolveResultCompat & {
     summary?: string;

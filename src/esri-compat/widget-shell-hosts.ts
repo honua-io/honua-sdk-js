@@ -12,12 +12,14 @@ export class FeaturesCompat {
   public features: readonly unknown[];
   private widgetHost: HonuaWidgetHost | undefined;
 
-  public constructor(options: {
-    view?: unknown;
-    container?: unknown;
-    features?: readonly unknown[];
-    eventBus?: CompatEventBus;
-  } = {}) {
+  public constructor(
+    options: {
+      view?: unknown;
+      container?: unknown;
+      features?: readonly unknown[];
+      eventBus?: CompatEventBus;
+    } = {},
+  ) {
     this.view = options.view;
     this.container = options.container;
     this.features = options.features ?? [];
