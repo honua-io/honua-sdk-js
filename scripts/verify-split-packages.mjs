@@ -111,12 +111,21 @@ for (const [name, directory] of Object.entries(packageDirs)) {
 }
 
 for (const fileName of ["widget-capabilities.js", "widget-capabilities.d.ts"]) {
-  const capabilityFile = path.join(packageDirs["@honua/sdk-esri-compat"], fileName);
-  if (!fs.existsSync(capabilityFile)) {
-    process.stderr.write(
-      `Split @honua/sdk-esri-compat is missing ${fileName}. esri-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.\n`,
-    );
-    process.exit(1);
+  for (const [name, reason] of [
+    [
+      "@honua/sdk-esri-compat",
+      "esri-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.",
+    ],
+    [
+      "@honua/app-platform",
+      "web-components/elements.js and esri-compat/feature-layer.js import ../widget-capabilities.js.",
+    ],
+  ]) {
+    const capabilityFile = path.join(packageDirs[name], fileName);
+    if (!fs.existsSync(capabilityFile)) {
+      process.stderr.write(`Split ${name} is missing ${fileName}. ${reason}\n`);
+      process.exit(1);
+    }
   }
 }
 

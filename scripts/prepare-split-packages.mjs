@@ -607,6 +607,10 @@ function createAppPlatformPackage() {
   // the app-platform package must carry this internal stable-tier dependency.
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.js"), path.join(packageRoot, "connect-url-safety.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.d.ts"), path.join(packageRoot, "connect-url-safety.d.ts"));
+  // web-components/elements.js and esri-compat/feature-layer.js import
+  // ../widget-capabilities.js, which lives beside those directories in dist/src.
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
   copySourceCapabilityContractSupport(packageRoot);
   // Custom Elements Manifest for the web components this package registers
   // (issue #1419), advertised through the conventional `customElements` key so
