@@ -1773,7 +1773,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-01 at commit `d5ce7d8a3`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-02 at commit `8a4d8d342`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -9842,7 +9842,7 @@ a tier from the directory it lives in.
 
 | Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
 | --- | --- | :-: | --- | --- | --- |
-| `@honua/app-platform/scene-workspace` | `beta` | 208 | 82 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
+| `@honua/app-platform/scene-workspace` | `beta` | 208 | 90 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
 
 ### `@honua/app-platform/scene-workspace`
 
@@ -9857,7 +9857,7 @@ What may still change inside the tier:
 
 Held back at `experimental` — Honua Server scene discovery, the `SceneView` container, and the elevation/analysis widgets execute against a Honua facade, so they sit outside the open-endpoint evidence behind the beta promotion.
 
-`CesiumEntityCollectionLike`, `ElevationProfileRequest`, `ElevationProfileResult`, `ElevationProfileSample`, `HonuaScene`, `LineOfSightRequest`, `LineOfSightResult`, `SceneAnalysisCesiumModule`, `SceneAnalysisOverlay`, `SceneAnalysisPosition`, `SceneAnalysisRequestExecutor`, `SceneDiscoveryRequestExecutor`, `SceneExtent3D`, `SceneMeasurement`, `SceneView`, `SceneViewEvent`, `SceneViewEventListener`, `SceneViewOptions`, `SceneViewRequestExecutor`, `SceneViewpoint`, `ViewshedRequest`, `ViewshedResult`, `ViewshedSample`, `buildElevationProfilePath`, `buildLineOfSightBody`, `buildViewshedBody`, `formatMeasurementLabel`, `getScene`, `haversineMeters`, `listScenes`, `measureScenePositions`, `normalizeScene`, `pathLengthMeters`, `positionsToWktLineString`, `renderElevationProfilePolyline`, `renderLineOfSight`, `renderMeasurement`, `renderViewshed`, `requestElevationProfile`, `requestLineOfSight`, `requestViewshed`, `resolveSceneTilesetUrl`, `sceneCameraPrimitive`, `sceneLayerStates`, `sceneTerrainPrimitive`, `sceneTilesetPrimitive`, `sceneToRuntimePrimitives`, `sceneViewpointBookmarks`, `slantDistanceMeters`, `sphericalPolygonAreaSquareMeters`
+`CesiumEntityCollectionLike`, `ElevationProfileRequest`, `ElevationProfileResult`, `ElevationProfileSample`, `HonuaScene`, `HonuaSceneAuth`, `HonuaSceneEndpoint`, `HonuaSceneLink`, `HonuaSceneResolution`, `LineOfSightRequest`, `LineOfSightResult`, `SceneAnalysisCesiumModule`, `SceneAnalysisOverlay`, `SceneAnalysisPosition`, `SceneAnalysisRequestExecutor`, `SceneDiscoveryRequestExecutor`, `SceneExtent3D`, `SceneMeasurement`, `SceneView`, `SceneViewEvent`, `SceneViewEventListener`, `SceneViewOptions`, `SceneViewRequestExecutor`, `SceneViewpoint`, `ViewshedRequest`, `ViewshedResult`, `ViewshedSample`, `buildElevationProfilePath`, `buildLineOfSightBody`, `buildViewshedBody`, `formatMeasurementLabel`, `getScene`, `haversineMeters`, `listScenes`, `measureScenePositions`, `normalizeScene`, `normalizeSceneMetadata`, `normalizeSceneResolution`, `normalizeSceneSummary`, `pathLengthMeters`, `positionsToWktLineString`, `renderElevationProfilePolyline`, `renderLineOfSight`, `renderMeasurement`, `renderViewshed`, `requestElevationProfile`, `requestLineOfSight`, `requestViewshed`, `resolveScene`, `resolveSceneTilesetUrl`, `sceneCameraPrimitive`, `sceneLayerStates`, `sceneTerrainPrimitive`, `sceneTilesetPrimitive`, `sceneToRuntimePrimitives`, `sceneViewpointBookmarks`, `slantDistanceMeters`, `sphericalPolygonAreaSquareMeters`
 
 Held back at `experimental` — The accepted-plan `Source` to Cesium entity lifecycle carries real-Cesium browser evidence since issue #1050 — entities materialize onto a live `Viewer` through the public path, Cesium's own availability decides what is drawn, the entity ceiling fails closed, and disposal returns the collection to baseline inside the primitive lane's measured budgets. Two of the three named promotion blockers are now cleared: `refresh()` is a real diff (identity is the projected entity id qualified by geometry kind, configuration is an order-independent fingerprint, unfingerprintable means changed), so a byte-identical feature keeps the *same* live `Entity` and a `viewer.selectedEntity` set on it survives — asserted by object identity on a live collection — and `mountCesiumScene` is the single owner that composes the entity mount with the primitive mount so one `dispose()` releases both in a measured order. The slice stays experimental for the life of 0.1.x for the remaining blocker: there is no symbology surface, and adding one means new required shapes rather than purely additive ones. See docs/cesium-entity-adapter.md#tier-decision-issue-1050.
 
@@ -11480,7 +11480,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-01 at commit `d5ce7d8a3`._
+_Generated 2026-10-02 at commit `8a4d8d342`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11500,7 +11500,7 @@ _Generated 2026-10-01 at commit `d5ce7d8a3`._
 | `/realtime` | 81.7 KiB | 86.2 KiB | 23.4 KiB | 25.0 KiB |
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 767.4 KiB | 778.7 KiB | 173.9 KiB | 182.9 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 170.2 KiB | 183.6 KiB | 51.5 KiB | 55.8 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.1 KiB | 183.6 KiB | 52.5 KiB | 55.8 KiB |
 | `/esri-compat` | 1095.1 KiB | 1139.7 KiB | 277.4 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
