@@ -163,6 +163,10 @@ try {
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
       "@honua/geometry": `file:${packageDirs["@honua/geometry"]}`,
       "@honua/app-platform": `file:${packageDirs["@honua/app-platform"]}`,
+      // The web-components entry statically imports maplibre-gl. It is an
+      // optional peer of @honua/app-platform, so a consumer that imports that
+      // entry has to install it. The smoke import does.
+      "maplibre-gl": ROOT_PACKAGE_JSON.peerDependencies["maplibre-gl"],
       ...Object.fromEntries(
         OPTIONAL_GRPC_RUNTIME_PEERS.map((name) => [name, ROOT_PACKAGE_JSON.peerDependencies[name]]),
       ),
