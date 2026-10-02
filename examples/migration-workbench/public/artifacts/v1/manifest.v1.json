@@ -20,10 +20,10 @@
     "transformationEngine": {
       "path": "dist/src/migration/cli.js",
       "preparedArtifactFormat": "honua.prepared-sdk-artifact.v1",
-      "buildInputsSha256": "5f2015aaa6b3a257ac4a6308cd8722be1f6c636d798d1edf375e9e7481549d81",
-      "buildInputFileCount": 2512,
-      "distSrcSha256": "bd7fa481e085116556d47fe1525408118eb7f12e61c23b45a92fdc86150d6a86",
-      "distSrcFileCount": 2085,
+      "buildInputsSha256": "92c3d5afa9383879873379bf1cf115b23e8253e52b7fc3b402578761ffdc29e4",
+      "buildInputFileCount": 2523,
+      "distSrcSha256": "c9f3a82c1d9be4473c0a3bf56b700c103cac1955f628be7aed790a87be9fea07",
+      "distSrcFileCount": 2103,
       "digestScope": "Complete prepared SDK build inputs plus verified canonical dist/src transformation entries; adopted outputs outside dist/src are excluded."
     },
     "generatedTargetExecution": {
@@ -116,14 +116,14 @@
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/maplibre-assessment.v1.json",
       "mediaType": "application/json",
-      "bytes": 51533,
-      "sha256": "b7182935db324629d72734ed245a3a8e72faf83f38317be8e8a12062589e17e4"
+      "bytes": 51856,
+      "sha256": "da7c8d462783da906aa2bb06f2a7e2028df7bd71cad04a834c7c383af15d8cc6"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration-report.v1.json",
       "mediaType": "application/json",
-      "bytes": 62505,
-      "sha256": "32d6b32bb8bb1b3418249a1c21bc8a8747443bbc14b1d0b8edfb7d01d8ffd6ba"
+      "bytes": 62840,
+      "sha256": "20f8783a98384e6eaabf1aabeb25ea8728c82a38e7e237fad352f0e7fae1eb79"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration.v1.patch",

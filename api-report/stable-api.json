@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 178,
-      "signatureSha256": "d1a552c91b7fcff920ed5ec395139d23dce5e228889a63f42d801516c8b3c5b2",
+      "signatureSha256": "72dc4ee2213a720aa2a7c3eef5808233fb5b53e964dc90fc18e2eae04715b8f9",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -191,7 +191,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 178,
-      "signatureSha256": "d1a552c91b7fcff920ed5ec395139d23dce5e228889a63f42d801516c8b3c5b2",
+      "signatureSha256": "72dc4ee2213a720aa2a7c3eef5808233fb5b53e964dc90fc18e2eae04715b8f9",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -377,7 +377,7 @@
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
       "exportCount": 1188,
-      "signatureSha256": "7e91dea4f86071aeb8d79c40ca2fb449b30bd68e24f574b292fa9a186a8375fc",
+      "signatureSha256": "8810d88c6058f163c25bee32956f2e49630fe033860c87ecda1ab84d9fb3bcb1",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -2085,8 +2085,8 @@
     {
       "subpath": "@honua/sdk-js/esri-compat",
       "types": "dist/src/esri-compat-entry.d.ts",
-      "exportCount": 524,
-      "signatureSha256": "60bc2d2483a2207812e2af8777cdc3120ef63c2c7d0eb400d6d0f0fc29123be7",
+      "exportCount": 526,
+      "signatureSha256": "2c3b6aa7ab287470109496e426c534ebcbd7ee3bd84651425476599909b02912",
       "exports": [
         "AddressToLocationsParamsCompat — interface",
         "AddressesToLocationsParamsCompat — interface",
@@ -2182,6 +2182,8 @@
         "ExtentLoadStatusCompat — type",
         "FeatureCompat — class",
         "FeatureCompatOptions — interface",
+        "FeatureEffectCompat — class",
+        "FeatureEffectCompatOptions — interface",
         "FeatureFilterCompat — class",
         "FeatureFilterCompatOptions — interface",
         "FeatureFilterEsriProperties — interface",
