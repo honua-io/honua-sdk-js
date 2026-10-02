@@ -5,8 +5,10 @@ public-facing claims stand:
 
 1. **"Parity with the ArcGIS JS SDK"** — the symbol surface app
    authors can `import` and call against.
-2. **"Automated app conversion"** — the `src/migration` codemod that
-   rewrites ArcGIS imports/constructors to Honua compat shims.
+2. **"Automated app conversion"** — the npm program is `@honua/honua-migrate`.
+   `@honua/sdk-js/migration` forwards to that package. `src/migration/codemod.ts`
+   is the in-repo suite, not the npm program. It rewrites ArcGIS
+   imports and constructors to Honua compat shims.
 
 It is intentionally written so a reader can tell what is shipped,
 what is *partial*, and what is *not started*. None of the entries
@@ -74,8 +76,10 @@ scope with the rest of the SceneView surface.
 
 ### Automated app conversion (`src/migration/codemod.ts`)
 
-The codemod is a real AST rewriter built on the TypeScript Compiler
-API (it does **not** use regex). It:
+`src/migration/codemod.ts` is the in-repo suite, not the npm program.
+`@honua/sdk-js/migration` forwards to `@honua/honua-migrate`. The suite is a
+real AST rewriter built on the TypeScript Compiler API (it does **not** use
+regex). It:
 
 - Detects `import { X } from "@arcgis/core/..."` and rewrites
   bindings to the matching `XCompat` symbol from `esri-compat`.
