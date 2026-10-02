@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The SceneView drives the Cesium adapter + analysis renderers, both of which
@@ -24,6 +27,7 @@ vi.mock("cesium", () => ({
   Cesium3DTileStyle: class {},
 }));
 
+import { HonuaClient } from "../src/core/client.js";
 import type { QueryMethod } from "../src/core/types.js";
 import {
   type CesiumEntityCollectionLike,
@@ -35,6 +39,12 @@ import {
 
 const DEG2RAD = Math.PI / 180;
 
+/**
+ * Proto-shaped renderer fixture (`sceneId` / `title` / flat `tilesetUrl`).
+ * Kept so camera, terrain, and bookmark wiring stay covered. The public server
+ * contract is the checked-in downtown-honolulu JSON exercised below through
+ * `HonuaClient`, not this object.
+ */
 const SCENE = {
   sceneId: "downtown",
   title: "Downtown",
@@ -43,6 +53,22 @@ const SCENE = {
   initialCamera: { longitude: -157.8, latitude: 21.3, height: 1200 },
   viewpoints: [{ id: "harbor", title: "Harbor", camera: { longitude: -157.85, latitude: 21.31, height: 300 } }],
   capabilities: ["terrain"],
+};
+
+const SCENE_RESOLUTION = {
+  sceneId: SCENE.sceneId,
+  tilesetUrl: SCENE.tilesetUrl,
+  endpoints: [
+    {
+      kind: "3d-tiles",
+      url: SCENE.tilesetUrl,
+      format: "3d-tiles",
+      mediaType: "application/json",
+      requiresAuthentication: false,
+    },
+  ],
+  capabilities: SCENE.capabilities,
+  auth: { requiresAuthentication: false, schemes: [] },
 };
 
 /** A pure-JS Cesium camera stand-in mirroring the getter contract the adapter reads. */
@@ -124,6 +150,7 @@ describe("SceneView construction", () => {
 describe("SceneView scene loading + rendering", () => {
   function makeExecutor() {
     return vi.fn(async (_method: QueryMethod, path: string) => {
+      if (path.endsWith("/resolve")) return SCENE_RESOLUTION;
       if (path.startsWith("/api/scenes/")) return { scene: SCENE };
       if (path === "/api/scenes") return { scenes: [SCENE] };
       return {};
@@ -199,6 +226,122 @@ describe("SceneView scene loading + rendering", () => {
     expect(await view.applyBookmark("nope")).toBeUndefined();
     const read = view.readCamera();
     expect(read?.longitude).toBeCloseTo(-157.85, 4);
+  });
+
+  it("does not invent a tileset url when resolve omits one", async () => {
+    const execute = vi.fn(async (_method: QueryMethod, path: string) => {
+      if (path.endsWith("/resolve")) {
+        return {
+          sceneId: "downtown",
+          endpoints: [],
+          capabilities: [],
+          auth: { requiresAuthentication: false, schemes: [] },
+        };
+      }
+      return { id: "downtown", name: "Downtown" };
+    });
+    const view = new SceneView({
+      execute: execute as unknown as SceneViewRequestExecutor,
+      target: { camera: createMockCamera(), scene: createMockScene() },
+    });
+    const loaded = await view.loadScene("downtown");
+    expect(loaded.tilesetUrl).toBeUndefined();
+    expect(tilesetFromUrl).not.toHaveBeenCalled();
+    expect(view.layers).toEqual([]);
+    const paths = execute.mock.calls.map((call) => String(call[1]));
+    expect(paths.some((path) => path.includes("/scenes//"))).toBe(false);
+  });
+
+  it("rejects an empty scene id before requesting", async () => {
+    const execute = vi.fn() as unknown as SceneViewRequestExecutor;
+    const view = new SceneView({ execute });
+    await expect(view.loadScene("")).rejects.toThrow(/non-empty sceneId/);
+    await expect(view.loadScene("  ")).rejects.toThrow(/non-empty sceneId/);
+    await expect(view.loadScene({ sceneId: "", viewpoints: [], capabilities: [] })).rejects.toThrow(
+      /non-empty sceneId/,
+    );
+    expect(execute).not.toHaveBeenCalled();
+  });
+});
+
+describe("public server fixture through SceneView", () => {
+  const TILESET_URL = "https://scenes.example.test/scenes/downtown-honolulu/tileset.json";
+
+  function fixtureBody(name: string): string {
+    return readFileSync(new URL(`./fixtures/scenes/public-discovery/${name}.json`, import.meta.url), "utf8");
+  }
+
+  async function startPublicSceneServer(): Promise<{
+    baseUrl: string;
+    requests: string[];
+    close: () => Promise<void>;
+  }> {
+    const bodies = new Map<string, string>([
+      ["/api/scenes", fixtureBody("list")],
+      ["/api/scenes/downtown-honolulu", fixtureBody("metadata")],
+      ["/api/scenes/downtown-honolulu/resolve", fixtureBody("resolve")],
+    ]);
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+      requests.push(pathname);
+      const body = bodies.get(pathname);
+      if (!body) {
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end("{}");
+        return;
+      }
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(body);
+    });
+    await new Promise<void>((resolveListen, rejectListen) => {
+      server.once("error", rejectListen);
+      server.listen(0, "127.0.0.1", () => resolveListen());
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("public scene fixture server failed to bind");
+    return {
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      requests,
+      close: () =>
+        new Promise((resolveClose, rejectClose) => {
+          server.close((error) => (error ? rejectClose(error) : resolveClose()));
+        }),
+    };
+  }
+
+  it("loads downtown-honolulu from the checked-in public routes", async () => {
+    const fixture = await startPublicSceneServer();
+    try {
+      const client = new HonuaClient({ baseUrl: fixture.baseUrl });
+      const target: CesiumSceneRuntimeTarget = { camera: createMockCamera(), scene: createMockScene() };
+      const view = new SceneView({ client, target });
+
+      const listed = await view.listScenes();
+      expect(listed.map((scene) => scene.sceneId)).toEqual(["downtown-honolulu"]);
+      expect(listed[0]?.tilesetUrl).toBe(TILESET_URL);
+      expect(listed[0]?.extent).toEqual({ xmin: -157.875, ymin: 21.29, xmax: -157.835, ymax: 21.325 });
+      expect(listed[0]?.auth).toEqual({ requiresAuthentication: false, schemes: [] });
+
+      const loaded = await view.loadScene("downtown-honolulu");
+      expect(loaded.sceneId).toBe("downtown-honolulu");
+      expect(loaded.name).toBe("Downtown Honolulu");
+      expect(loaded.tilesetUrl).toBe(TILESET_URL);
+      expect(loaded.initialCamera).toEqual({ longitude: -157.855, latitude: 21.3075, height: 1200 });
+      expect(loaded.auth).toEqual({ requiresAuthentication: false, schemes: [] });
+      expect(tilesetFromUrl).toHaveBeenCalledTimes(1);
+      expect(tilesetFromUrl).toHaveBeenCalledWith(TILESET_URL);
+      expect(terrainFromUrl).not.toHaveBeenCalled();
+      expect(view.layers.map((layer) => layer.id)).toEqual(["downtown-honolulu:tileset"]);
+      expect(fixture.requests).toEqual([
+        "/api/scenes",
+        "/api/scenes/downtown-honolulu",
+        "/api/scenes/downtown-honolulu/resolve",
+      ]);
+      expect(fixture.requests.some((path) => path.includes("/scenes//"))).toBe(false);
+    } finally {
+      await fixture.close();
+    }
   });
 });
 
@@ -279,9 +422,10 @@ describe("SceneView analysis + measurement widgets", () => {
 describe("SceneView lifecycle", () => {
   it("removes listeners and rendered layers on dispose", async () => {
     const scene = createMockScene();
-    const execute = vi.fn(async (_m: QueryMethod, path: string) =>
-      path === "/api/scenes" ? { scenes: [SCENE] } : { scene: SCENE },
-    ) as unknown as SceneViewRequestExecutor;
+    const execute = vi.fn(async (_m: QueryMethod, path: string) => {
+      if (path.endsWith("/resolve")) return SCENE_RESOLUTION;
+      return path === "/api/scenes" ? { scenes: [SCENE] } : { scene: SCENE };
+    }) as unknown as SceneViewRequestExecutor;
     const view = new SceneView({ execute, target: { camera: createMockCamera(), scene } });
     let count = 0;
     view.on(() => count++);

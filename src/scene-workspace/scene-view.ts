@@ -72,9 +72,11 @@ import {
 import type { ScenePrimitiveDiagnostic } from "./primitives.js";
 import {
   type HonuaScene,
+  type HonuaSceneResolution,
   type SceneDiscoveryRequestExecutor,
   getScene,
   listScenes,
+  resolveScene as requestSceneResolution,
   sceneLayerStates,
   sceneToRuntimePrimitives,
   sceneViewpointBookmarks,
@@ -110,11 +112,6 @@ export interface SceneViewOptions {
    * rendering). Omit to load + diagnose scenes headlessly without rendering.
    */
   readonly target?: CesiumSceneRuntimeTarget;
-  /**
-   * Base URL used to resolve a scene's static `tileset.json` entry point when
-   * the scene omits an explicit `tilesetUrl`. Defaults to `client.serverBaseUrl`.
-   */
-  readonly baseUrl?: string;
 }
 
 /** Events emitted by a {@link SceneView}. */
@@ -143,7 +140,6 @@ type AnalysisOverlayTarget = {
 export class SceneView {
   readonly #execute: SceneViewRequestExecutor;
   readonly #target: CesiumSceneRuntimeTarget | undefined;
-  readonly #baseUrl: string | undefined;
   readonly #listeners = new Set<SceneViewEventListener>();
   readonly #layerHandles = new Map<string, CesiumLayerHandle>();
 
@@ -159,7 +155,6 @@ export class SceneView {
     }
     this.#execute = execute;
     this.#target = options.target;
-    this.#baseUrl = options.baseUrl ?? options.client?.serverBaseUrl;
   }
 
   // ── Discovery ───────────────────────────────────────────────
@@ -174,6 +169,14 @@ export class SceneView {
     return getScene(this.#discoveryExecutor(), sceneId, signal);
   }
 
+  /**
+   * Resolve a scene's runtime endpoints (`GET /api/scenes/{id}/resolve`).
+   * The tileset URL in the result is the server's. This view does not invent one.
+   */
+  resolveScene(sceneId: string, signal?: AbortSignal): Promise<HonuaSceneResolution> {
+    return requestSceneResolution(this.#discoveryExecutor(), sceneId, signal);
+  }
+
   // ── Loading / rendering ─────────────────────────────────────
 
   /**
@@ -184,14 +187,24 @@ export class SceneView {
    * rendered.
    */
   async loadScene(scene: string | HonuaScene, signal?: AbortSignal): Promise<HonuaScene> {
-    const resolved = typeof scene === "string" ? await this.getScene(scene, signal) : scene;
+    const requestedId = typeof scene === "string" ? scene : scene.sceneId;
+    if (typeof requestedId !== "string" || requestedId.trim() === "") {
+      throw new Error("loadScene requires a non-empty sceneId.");
+    }
+    const sceneId = requestedId.trim();
+    const execute = this.#discoveryExecutor();
+    const metadata = typeof scene === "string" ? await getScene(execute, sceneId, signal) : scene;
+    // Resolve is the only source of the runtime tileset URL. Do not synthesize
+    // `/scenes/{id}/tileset.json` from the client origin when the payload omits one.
+    const resolution = await requestSceneResolution(execute, sceneId, signal);
+    const resolved = sceneWithResolvedRuntime(metadata, resolution);
     this.#teardownLayers();
     this.#scene = resolved;
     this.#bookmarks = sceneViewpointBookmarks(resolved);
-    this.#layers = sceneLayerStates(resolved, this.#baseUrl);
+    this.#layers = sceneLayerStates(resolved);
 
     if (this.#target) {
-      const primitives = sceneToRuntimePrimitives(resolved, this.#baseUrl);
+      const primitives = sceneToRuntimePrimitives(resolved);
       const result = await applyCesiumScenePrimitives(this.#target, primitives);
       this.#diagnostics = result.diagnostics;
       for (const [id, handle] of result.layers) this.#layerHandles.set(id, handle);
@@ -392,4 +405,16 @@ export class SceneView {
 function bindClientExecutor(client: HonuaClient | undefined): SceneViewRequestExecutor | undefined {
   if (!client) return undefined;
   return (method, path, init, signal) => client.pipelineRequestJson(method, path, init, signal);
+}
+
+/** Keep metadata for display, but take the runtime tileset URL only from resolve. */
+function sceneWithResolvedRuntime(scene: HonuaScene, resolution: HonuaSceneResolution): HonuaScene {
+  const { tilesetUrl: _metadataTilesetUrl, ...rest } = scene;
+  return {
+    ...rest,
+    sceneId: resolution.sceneId,
+    capabilities: resolution.capabilities,
+    auth: resolution.auth,
+    ...(resolution.tilesetUrl ? { tilesetUrl: resolution.tilesetUrl } : {}),
+  };
 }

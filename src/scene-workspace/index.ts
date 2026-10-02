@@ -285,6 +285,10 @@ export {
   getScene,
   listScenes,
   normalizeScene,
+  normalizeSceneMetadata,
+  normalizeSceneResolution,
+  normalizeSceneSummary,
+  resolveScene,
   resolveSceneTilesetUrl,
   sceneCameraPrimitive,
   sceneLayerStates,
@@ -295,6 +299,10 @@ export {
 } from "./scene-discovery.js";
 export type {
   HonuaScene,
+  HonuaSceneAuth,
+  HonuaSceneEndpoint,
+  HonuaSceneLink,
+  HonuaSceneResolution,
   SceneDiscoveryRequestExecutor,
   SceneExtent3D,
   SceneViewpoint,
