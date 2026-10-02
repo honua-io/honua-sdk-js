@@ -28,7 +28,7 @@ capability-profile recognition to that peer, so an immutable profile created by
 the core SDK remains valid across React, app-platform, geometry, and Esri-compat
 boundaries without exposing the profile-registration authority.
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and [@honua/honua-migrate](https://www.npmjs.com/package/@honua/honua-migrate). Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
 
 The migration package is no longer a generated SDK split. It is built from the
 [`honua-migrate`](https://github.com/honua-io/honua-migrate) repository, while
