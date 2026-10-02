@@ -26,6 +26,12 @@ const CAPABILITY_PROFILE_COMPANIONS = new Set([
   "@honua/geometry",
   "@honua/app-platform",
 ]);
+const GRPC_CLIENT_PACKAGES = new Set([
+  "@honua/sdk",
+  "@honua/sdk-esri-compat",
+  "@honua/react",
+  "@honua/app-platform",
+]);
 
 const packageDirs = {
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
@@ -72,25 +78,39 @@ for (const [name, directory] of Object.entries(packageDirs)) {
     process.exit(1);
   }
 
-  if (name === "@honua/sdk") {
-    for (const peerName of OPTIONAL_GRPC_RUNTIME_PEERS) {
-      const expectedRange = ROOT_PACKAGE_JSON.peerDependencies?.[peerName];
-      if (
-        typeof expectedRange !== "string" ||
-        packageJson.peerDependencies?.[peerName] !== expectedRange ||
-        packageJson.peerDependenciesMeta?.[peerName]?.optional !== true
-      ) {
-        process.stderr.write(
-          `Split @honua/sdk must preserve ${peerName}@${expectedRange ?? "<missing>"} as an optional runtime peer.\n`,
-        );
-        process.exit(1);
-      }
-      if (packageJson.dependencies?.[peerName] !== undefined) {
-        process.stderr.write(
-          `Split @honua/sdk must not install optional gRPC runtime peer ${peerName} for REST-only consumers.\n`,
-        );
-        process.exit(1);
-      }
+  if (name === "@honua/sdk-esri-compat") {
+    const maplibrePeer = "maplibre-gl";
+    const expectedMaplibre = ROOT_PACKAGE_JSON.peerDependencies?.[maplibrePeer];
+    if (
+      packageJson.dependencies?.[maplibrePeer] !== undefined ||
+      packageJson.peerDependencies?.[maplibrePeer] !== expectedMaplibre ||
+      packageJson.peerDependenciesMeta?.[maplibrePeer]?.optional !== true
+    ) {
+      process.stderr.write(
+        `Split @honua/sdk-esri-compat must keep ${maplibrePeer}@${expectedMaplibre ?? "<missing>"} as an optional peer.\n`,
+      );
+      process.exit(1);
+    }
+  }
+
+  for (const peerName of OPTIONAL_GRPC_RUNTIME_PEERS) {
+    if (packageJson.dependencies?.[peerName] !== undefined) {
+      process.stderr.write(
+        `Split ${name} must not install optional gRPC runtime peer ${peerName} for REST-only consumers.\n`,
+      );
+      process.exit(1);
+    }
+    if (!GRPC_CLIENT_PACKAGES.has(name)) continue;
+    const expectedRange = ROOT_PACKAGE_JSON.peerDependencies?.[peerName];
+    if (
+      typeof expectedRange !== "string" ||
+      packageJson.peerDependencies?.[peerName] !== expectedRange ||
+      packageJson.peerDependenciesMeta?.[peerName]?.optional !== true
+    ) {
+      process.stderr.write(
+        `Split ${name} must preserve ${peerName}@${expectedRange ?? "<missing>"} as an optional runtime peer.\n`,
+      );
+      process.exit(1);
     }
   }
 
@@ -1231,6 +1251,9 @@ export const acceptsSceneSpatialReference = (
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
+
+const restCleanInstall = runCommand(process.execPath, [path.join(SCRIPT_DIR, "verify-rest-clean-install.mjs")], PROJECT_ROOT);
+process.stdout.write(restCleanInstall.stdout);
 
 function runCommand(command, args, cwd, extra = {}) {
   const options = {

@@ -35,8 +35,29 @@ The migration package is no longer a generated SDK split. It is built from the
 
 ## Optional gRPC-Web runtime
 
-REST and open-protocol consumers do not install the Buf/Connect runtime. A
-consumer that selects `transport: "grpc-web"` must install the optional peers
+REST and open-protocol consumers do not install the Buf/Connect runtime, and a
+production bundle of `createHonua` or `HonuaClient` does not resolve it. The
+gRPC adapter is loaded only after `transport: "grpc-web"` is selected, through
+a non-literal dynamic import, so Vite can build a REST client when the peers
+are absent. Node resolves those peers when they are installed and
+`transport: "grpc-web"` is selected. A browser bundler does not add the same
+specifiers to the bundle, because they are not static literals. A missing peer
+throws `HonuaOptionalGrpcPeerError` from the gRPC call; Connect and RPC
+failures are not relabeled as a missing install. The connect facade's PMTiles
+reader uses the same non-literal import, so a REST production build does not
+resolve the optional `pmtiles` package either. Node still loads it when an
+archive is described. `@honua/sdk-esri-compat` declares `maplibre-gl` as an
+optional peer because compat map views load it by name. A REST Vite build can
+omit that renderer; installing it still includes it in the bundle.
+
+`config/installed-package-certification.v1.json` still lists
+`@bufbuild/protobuf`, `@connectrpc/connect`, and `@connectrpc/connect-web` in
+`consumerDependencies`. That pin is a temporary sample workaround for the
+published `0.1.9-beta.0` tarball. It is not the packaging contract, and the
+committed `test-results/installed-quickstart-budget.json` receipt that recorded
+those installs stays in place.
+
+A consumer that selects `transport: "grpc-web"` must install the optional peers
 alongside the split SDK:
 
 ```bash

@@ -10,11 +10,12 @@
  * `Source.protocol("pmtiles").describe()`.
  *
  * This module never statically imports the `pmtiles` package. The reader is
- * pulled in lazily (`await import("pmtiles")`) the first time an archive is
- * actually described, mirroring the Cesium adapter so consumers that never
- * touch PMTiles pay zero bundle cost. A minimal `pmtiles` module slice is
- * modelled here so the wiring stays unit-testable against an injected fake
- * without a network fetch.
+ * loaded through a non-literal dynamic import the first time an archive is
+ * described, so a REST Vite build does not resolve that optional peer.
+ * Node still resolves an installed `pmtiles` package. Pass
+ * {@link DescribePmtilesArchiveDeps.PMTiles} to inject the constructor. A
+ * minimal module slice keeps that injection unit-testable without a network
+ * fetch.
  *
  * @module
  */
@@ -135,14 +136,48 @@ export interface DescribePmtilesArchiveDeps {
   readonly preloadedDescription?: PmtilesArchiveDescription;
 }
 
+const PMTILES_SPECIFIER = "pmtiles";
+
 /**
- * Lazily import the `pmtiles` reader. Kept in its own function so the dynamic
- * `import("pmtiles")` is the only reference to the package in `src/`, which is
- * what keeps PMTiles out of every bundle that never inspects an archive.
+ * A literal `import("pmtiles")` is followed by Vite even when REST never
+ * describes an archive. The specifier stays a parameter so the production
+ * build does not resolve the optional peer. Node resolves it when installed.
  */
+function importPmtilesSpecifier(specifier: string): Promise<unknown> {
+  return import(/* @vite-ignore */ specifier);
+}
+
+function pmtilesPeerMissing(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code =
+    "code" in error && (typeof error.code === "string" || typeof error.code === "number") ? String(error.code) : "";
+  const message = `${code}\n${error.message}`;
+  return (
+    /ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED|Failed to resolve module specifier|Failed to fetch dynamically imported module|Cannot find package|Cannot find module/.test(
+      message,
+    ) && message.includes(PMTILES_SPECIFIER)
+  );
+}
+
 async function loadPmtilesCtor(): Promise<PmtilesModuleLike> {
-  const mod = (await import("pmtiles")) as unknown as { PMTiles: PmtilesModuleLike };
-  return mod.PMTiles;
+  let loaded: unknown;
+  try {
+    loaded = await importPmtilesSpecifier(PMTILES_SPECIFIER);
+  } catch (error) {
+    if (!pmtilesPeerMissing(error)) throw error;
+    throw new Error(
+      'PMTiles archive inspection could not load the optional peer "pmtiles". Install pmtiles to describe an archive. REST feature queries do not load it.',
+      error instanceof Error ? { cause: error } : undefined,
+    );
+  }
+  const ctor =
+    loaded !== null && typeof loaded === "object" && "PMTiles" in loaded
+      ? (loaded as { PMTiles?: unknown }).PMTiles
+      : undefined;
+  if (typeof ctor !== "function") {
+    throw new Error('The optional peer "pmtiles" loaded but did not export PMTiles.');
+  }
+  return ctor as PmtilesModuleLike;
 }
 
 /**

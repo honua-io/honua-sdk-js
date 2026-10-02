@@ -85,6 +85,7 @@ import {
   listOgcCollectionTilesets,
   listOgcTileMatrixSets,
 } from "./ogc-tiles.js";
+import { explainOptionalGrpcLoadFailure } from "./optional-grpc-peer.js";
 import { stripQuery, trimTrailingSlashes } from "./path-utils.js";
 import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
 import {
@@ -572,16 +573,12 @@ export class HonuaClient {
       return this.connectClient;
     }
 
-    // Keep optional Connect peers out of the module graph until the first
-    // gRPC operation is actually awaited. Caching the in-flight promise also
-    // prevents concurrent first calls from constructing competing clients.
+    // Keep optional Connect peers out of the static module graph until the
+    // first gRPC operation is awaited. A literal import() is followed by
+    // Vite/Rolldown and fails a REST production build when the peer is absent.
     let initPromise = this.connectClientPromise;
     if (!initPromise) {
-      initPromise = Promise.all([
-        import("@connectrpc/connect"),
-        import("@connectrpc/connect-web"),
-        import("../gen/geospatial/v1/feature_service_pb.js"),
-      ]).then(([{ createClient }, { createGrpcWebTransport }, { FeatureService }]) => {
+      initPromise = loadGrpcWebRuntime().then(({ createClient, createGrpcWebTransport, FeatureService }) => {
         const transport = createGrpcWebTransport(this.connectTransportOptions());
         this.connectClient = createClient(FeatureService, transport);
         return this.connectClient;
@@ -596,7 +593,7 @@ export class HonuaClient {
       if (this.connectClientPromise === initPromise) {
         this.connectClientPromise = undefined;
       }
-      throw error;
+      throw explainOptionalGrpcLoadFailure(error);
     }
   }
 
@@ -686,8 +683,17 @@ export class HonuaClient {
     }
   }
 
-  private static async loadGrpcAdapter() {
-    return import("./grpc-adapter.js");
+  private static async loadGrpcAdapter(): Promise<GrpcAdapterModule> {
+    let loaded: unknown;
+    try {
+      loaded = await importOptionalGrpcSpecifier(GRPC_ADAPTER_SPECIFIER);
+    } catch (error) {
+      throw explainOptionalGrpcLoadFailure(error);
+    }
+    if (!isGrpcAdapterModule(loaded)) {
+      throw new Error("HonuaClient gRPC adapter loaded but did not export the query runtime.");
+    }
+    return loaded;
   }
 
   public get isGrpcWeb(): boolean {
@@ -2682,4 +2688,66 @@ function mergePathWithQueryParams(path: string, additionalParams: URLSearchParam
   const nextQuery = merged.toString();
   const withQuery = nextQuery.length > 0 ? `${basePath}?${nextQuery}` : basePath;
   return `${withQuery}${hash}`;
+}
+
+const CONNECT_SPECIFIER = "@connectrpc/connect";
+const CONNECT_WEB_SPECIFIER = "@connectrpc/connect-web";
+const FEATURE_SERVICE_SPECIFIER = "../gen/geospatial/v1/feature_service_pb.js";
+const GRPC_ADAPTER_SPECIFIER = "./grpc-adapter.js";
+
+type ConnectModule = typeof import("@connectrpc/connect");
+type ConnectWebModule = typeof import("@connectrpc/connect-web");
+type FeatureServiceModule = typeof import("../gen/geospatial/v1/feature_service_pb.js");
+type GrpcAdapterModule = typeof import("./grpc-adapter.js");
+
+/**
+ * Bundlers statically follow a literal `import("@connectrpc/connect")` and a
+ * relative `import("./grpc-adapter.js")` even when REST never calls them.
+ * Passing the specifier through a parameter leaves the import unbound, so a
+ * REST production build does not resolve the optional peers. Node still
+ * resolves the same strings when `transport: "grpc-web"` is selected.
+ */
+function importOptionalGrpcSpecifier(specifier: string): Promise<unknown> {
+  return import(/* @vite-ignore */ specifier);
+}
+
+function isNamespace(value: unknown): value is Record<string, unknown> {
+  return (typeof value === "object" && value !== null) || typeof value === "function";
+}
+
+async function loadGrpcWebRuntime(): Promise<{
+  createClient: ConnectModule["createClient"];
+  createGrpcWebTransport: ConnectWebModule["createGrpcWebTransport"];
+  FeatureService: FeatureServiceModule["FeatureService"];
+}> {
+  const [connect, connectWeb, featureService] = await Promise.all([
+    importOptionalGrpcSpecifier(CONNECT_SPECIFIER),
+    importOptionalGrpcSpecifier(CONNECT_WEB_SPECIFIER),
+    importOptionalGrpcSpecifier(FEATURE_SERVICE_SPECIFIER),
+  ]);
+  if (!isNamespace(connect) || typeof connect.createClient !== "function") {
+    throw new Error('The optional peer "@connectrpc/connect" loaded but did not export createClient.');
+  }
+  if (!isNamespace(connectWeb) || typeof connectWeb.createGrpcWebTransport !== "function") {
+    throw new Error('The optional peer "@connectrpc/connect-web" loaded but did not export createGrpcWebTransport.');
+  }
+  const descriptor = isNamespace(featureService) ? featureService.FeatureService : undefined;
+  if (descriptor == null || typeof descriptor !== "object") {
+    throw new Error("The gRPC FeatureService descriptor loaded but was not a service descriptor.");
+  }
+  return {
+    createClient: connect.createClient as ConnectModule["createClient"],
+    createGrpcWebTransport: connectWeb.createGrpcWebTransport as ConnectWebModule["createGrpcWebTransport"],
+    FeatureService: descriptor as FeatureServiceModule["FeatureService"],
+  };
+}
+
+function isGrpcAdapterModule(value: unknown): value is GrpcAdapterModule {
+  if (!isNamespace(value)) return false;
+  return (
+    typeof value.toProtoQueryRequest === "function" &&
+    typeof value.fromProtoQueryResponse === "function" &&
+    typeof value.wrapConnectError === "function" &&
+    typeof value.streamProtoPages === "function"
+  );
 }
