@@ -58,6 +58,8 @@ describe("split package manifests", () => {
     const restProof = fs.readFileSync(path.join(process.cwd(), "scripts/verify-rest-clean-install.mjs"), "utf8");
     expect(restProof).toContain("installed-quickstart-budget.json");
     expect(restProof).toContain("temporary sample workaround");
+    expect(restProof).toContain('ROOT_PACKAGE_LOCK.packages?.["node_modules/@playwright/test"]?.version');
+    expect(restProof).toContain('"@playwright/test": PLAYWRIGHT_VERSION');
   });
 
   it("verifies discoverability metadata for every generated package", () => {

@@ -29,6 +29,12 @@ const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const PACKAGES_ROOT = path.join(PROJECT_ROOT, "dist", "packages");
 const OPTIONAL_GRPC_PACKAGES = ["@bufbuild/protobuf", "@connectrpc/connect", "@connectrpc/connect-web"];
 const ROOT_PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
+const ROOT_PACKAGE_LOCK = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package-lock.json"), "utf8"));
+const PLAYWRIGHT_VERSION = ROOT_PACKAGE_LOCK.packages?.["node_modules/@playwright/test"]?.version;
+
+if (typeof PLAYWRIGHT_VERSION !== "string" || PLAYWRIGHT_VERSION.length === 0) {
+  throw new Error("Root package-lock.json does not pin @playwright/test to an exact version.");
+}
 
 const appDir = fs.mkdtempSync(path.join(os.tmpdir(), "honua-rest-clean-"));
 let preview;
@@ -50,7 +56,10 @@ try {
         },
         devDependencies: {
           vite: ROOT_PACKAGE_JSON.devDependencies.vite,
-          "@playwright/test": ROOT_PACKAGE_JSON.devDependencies["@playwright/test"],
+          // Keep the isolated consumer on the same Playwright revision that CI
+          // provisions before this check. A semver range can resolve a newer
+          // browser revision than the root lockfile's installed browser.
+          "@playwright/test": PLAYWRIGHT_VERSION,
         },
       },
       null,
