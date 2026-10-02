@@ -161,6 +161,9 @@ const PINNED_DEPENDENCIES = Object.freeze({
   "@turf/union": "7.3.5",
   "terra-draw": "1.32.0",
   "terra-draw-maplibre-gl-adapter": "1.4.1",
+  // Optional archive reader. Samples that describe a PMTiles file import it
+  // themselves because Vite will not follow the SDK's non-literal peer import.
+  pmtiles: "4.5.0",
 });
 
 /**

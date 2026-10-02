@@ -1,10 +1,12 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./maplibre-vite-worker.js";
 
+import type { PmtilesModuleLike } from "@honua/sdk-js/contract";
 import { type PmtilesArchiveInspection, inspectPmtilesArchive } from "@honua/sdk-js/pmtiles";
 import type { DynamicStacAssetDescriptor, HonuaStacItemResponse, StacSearchMethod } from "@honua/sdk-js/stac";
 import { createDynamicStacClient } from "@honua/sdk-js/stac";
 import * as maplibregl from "maplibre-gl";
+import { PMTiles } from "pmtiles";
 
 import { MAUI_BOUNDS, MAUI_DATETIME, mauiSearchRequest } from "./dynamic-stac-example.js";
 import {
@@ -410,6 +412,8 @@ async function inspectSelectedPmtiles(
     client: environment.createAssetClient(asset.href),
     signal: selection.controller.signal,
     limits: PMTILES_INSPECTION_LIMITS,
+    // Vite does not bundle the SDK's non-literal `pmtiles` import.
+    PMTiles: PMTiles as unknown as PmtilesModuleLike,
   });
   if (!isCurrentAssetSelection(selection)) return;
   pmtilesInspection = inspection;

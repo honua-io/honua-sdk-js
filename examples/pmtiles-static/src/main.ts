@@ -1,7 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../shared/maplibre-vite-worker.js";
 
-import { type PmtilesArchiveDescription, describePmtilesArchive } from "@honua/sdk-js/contract";
+import { type PmtilesArchiveDescription, type PmtilesModuleLike, describePmtilesArchive } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import {
   HONUA_MAP_PACKAGE_FORMAT_V1,
@@ -10,6 +10,7 @@ import {
   loadMapPackage,
 } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
+import { PMTiles } from "pmtiles";
 
 import "./styles.css";
 
@@ -137,7 +138,9 @@ async function main(): Promise<void> {
 
   // Inspect the archive metadata through the contract's describe() surface.
   try {
-    const info = await describePmtilesArchive(archiveUrl);
+    // Vite does not bundle the SDK's non-literal `pmtiles` import. Pass the
+    // constructor this example imported so describe() can read the archive.
+    const info = await describePmtilesArchive(archiveUrl, { PMTiles: PMTiles as unknown as PmtilesModuleLike });
     state.archive = info;
     renderArchive(info);
   } catch (error) {

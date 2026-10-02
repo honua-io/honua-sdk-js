@@ -110,7 +110,7 @@ import {
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
 } from "./contract/discovery.js";
-import type { PmtilesArchiveDescription } from "./contract/pmtiles.js";
+import type { PmtilesArchiveDescription, PmtilesModuleLike } from "./contract/pmtiles.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
 import { type SchemaIdentity, parseSchemaIdentity } from "./contract/schema.js";
 import { normalizeCapabilityDescriptor } from "./contract/source-capability-support.js";
@@ -340,6 +340,12 @@ export interface ConnectOptions {
   };
   /** Bounded direct-PMTiles archive discovery policy. */
   readonly pmtiles?: {
+    /**
+     * Reader constructor from the app's own `pmtiles` import. A Vite build does
+     * not follow the SDK's non-literal import of that optional peer, so browser
+     * discovery passes the constructor it bundled.
+     */
+    readonly PMTiles?: PmtilesModuleLike;
     readonly limits?: {
       /** Physical HTTP attempts, including retries/auth replays; defaults to and cannot exceed 2. */
       readonly maxRequests?: number;

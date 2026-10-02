@@ -157,6 +157,7 @@ export async function discoverPmtilesSources(
     description = await describePmtilesArchive(identity.endpoint, {
       source,
       decompress: decompressor.decompress,
+      ...(options.pmtiles?.PMTiles ? { PMTiles: options.pmtiles.PMTiles } : {}),
     });
   } catch (cause) {
     if (options.signal?.aborted) throw new HonuaAbortError();
@@ -980,5 +981,7 @@ function isMissingPeerDependency(cause: unknown): boolean {
   if (!cause || typeof cause !== "object") return false;
   const code = "code" in cause ? String(cause.code) : "";
   const message = "message" in cause ? String(cause.message) : "";
-  return code === "ERR_MODULE_NOT_FOUND" || /Cannot find (?:package|module).*pmtiles/i.test(message);
+  if (code === "ERR_MODULE_NOT_FOUND" || /Cannot find (?:package|module).*pmtiles/i.test(message)) return true;
+  if (/optional peer "pmtiles"/i.test(message)) return true;
+  return "cause" in cause && isMissingPeerDependency(cause.cause);
 }
