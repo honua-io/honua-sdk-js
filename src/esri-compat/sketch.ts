@@ -2,6 +2,7 @@ import type { EditSketchTool } from "../contract/edit-sketch.js";
 import type { SnappingConfig } from "../contract/edit-snapping.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { type SnappingOptionsCompat, snappingOptionsToSnappingConfig } from "./snapping.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export type SketchCreationModeCompat = "single" | "update" | "continuous";
 export type SketchToolCompat = "point" | "polyline" | "polygon" | "rectangle" | "circle";
@@ -107,6 +108,7 @@ export class SketchCompat {
   public snappingOptions: SnappingOptionsCompat;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
   private readonly sketchBinding: SketchToolBindingCompat | undefined;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: SketchCompatOptions = {}) {
     this.view = options.view;
@@ -127,6 +129,8 @@ export class SketchCompat {
     this.snappingOptions = { ...(options.snappingOptions ?? {}) };
     this.watchListeners = new Map();
     this.sketchBinding = resolveSketchToolBindingCompat(options.sketchBinding);
+    this.widgetHost = bindHonuaWidgetHost("honua-sketch-control", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   /** Whether tool modes delegate to a terra-draw sketch binding. @experimental */
@@ -139,6 +143,7 @@ export class SketchCompat {
     this.snappingOptions = { ...options };
     this.notifyWatchers("snappingOptions", this.snappingOptions);
     this.eventBus.emit("sketch.snapping-options-changed", { options: this.snappingOptions }, this);
+    this.pushWidgetHost();
   }
 
   /** The snapping options mapped onto the contract `SnappingConfig`. */
@@ -322,6 +327,14 @@ export class SketchCompat {
 
   public destroy(): void {
     this.watchListeners.clear();
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      layer: this.layer,
+      snappingOptions: this.snappingOptions,
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {

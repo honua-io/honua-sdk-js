@@ -1,6 +1,7 @@
 import type { HonuaRelatedRecordsResponse, QueryMethod } from "../core/types.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import type { FeatureLayerCompat } from "./feature-layer.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export interface FeatureTableCompatOptions {
   view?: unknown;
@@ -237,6 +238,7 @@ export class FeatureTableCompat {
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
   private refreshRevision: number;
   private layerInternal: FeatureLayerCompat | undefined;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public get size(): number {
     return this.rows.length;
@@ -244,6 +246,14 @@ export class FeatureTableCompat {
 
   public get layer(): FeatureLayerCompat | undefined {
     return this.layerInternal;
+  }
+
+  /** Field names the host pushes into `<honua-feature-table>`. */
+  public get visibleFields(): readonly string[] {
+    return (this.fieldConfigs ?? []).flatMap((config) => {
+      const name = config.name ?? config.field ?? config.fieldName;
+      return typeof name === "string" ? [name] : [];
+    });
   }
 
   public set layer(layer: FeatureLayerCompat | undefined) {
@@ -288,6 +298,8 @@ export class FeatureTableCompat {
     this.rows = [];
     this.watchListeners = new Map();
     this.refreshRevision = 0;
+    this.widgetHost = bindHonuaWidgetHost("honua-feature-table", this.container, this.eventBus);
+    this.pushWidgetHost();
 
     this.highlightIds.on("change", (event) => {
       this.notifyWatchers("highlightIds", this.highlightIds.toArray());
@@ -407,6 +419,13 @@ export class FeatureTableCompat {
     this.layerInternal = layer;
     this.notifyWatchers("layer", this.layerInternal);
     this.eventBus.emit("feature-table.layer-changed", { hasLayer: Boolean(layer) }, this);
+    this.pushWidgetHost();
+  }
+
+  public setVisibleFields(fields: readonly string[]): void {
+    this.fieldConfigs = fields.map((name) => ({ name }));
+    this.notifyWatchers("fieldConfigs", this.fieldConfigs);
+    this.pushWidgetHost();
   }
 
   public setWhere(where: string): void {
@@ -512,6 +531,13 @@ export class FeatureTableCompat {
       returnGeometry: options.returnGeometry,
       method: options.method,
       extraParams: options.extraParams,
+    });
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      layer: this.layer,
+      visibleFields: this.visibleFields,
     });
   }
 

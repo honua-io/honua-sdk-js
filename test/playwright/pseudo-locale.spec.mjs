@@ -36,6 +36,16 @@ const HOSTS = {
   "web-components.print-export": "honua-print-export",
   "web-components.map-status": "honua-map-status",
   "web-components.action-panel": "honua-action-panel",
+  "web-components.zoom": "honua-zoom",
+  "web-components.home": "honua-home",
+  "web-components.scale-bar": "honua-scale-bar",
+  "web-components.compass": "honua-compass",
+  "web-components.fullscreen": "honua-fullscreen",
+  "web-components.attribution": "honua-attribution",
+  "web-components.feature-pager": "honua-feature-pager",
+  "web-components.attachments": "honua-attachments",
+  "web-components.scale-range": "honua-scale-range",
+  "web-components.directions": "honua-directions",
 };
 
 function componentIds() {
@@ -92,6 +102,12 @@ test.describe("pseudo-locale component qualification", () => {
           const expanded = [...value].map((character) => accents[character] ?? character).join("");
           return `［${expanded}${"·".repeat(Math.max(0, Math.ceil([...value].length * 1.35) - [...expanded].length))}］`;
         };
+        for (const [id, tag] of Object.entries(hosts)) {
+          if (document.querySelector(tag)) continue;
+          const created = document.createElement(tag);
+          created.id = `pseudo-${id}`;
+          document.body.append(created);
+        }
         const byId = new Map();
         for (const id of ids) {
           const selector = hosts[id];

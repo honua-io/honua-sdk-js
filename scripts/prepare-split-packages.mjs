@@ -385,6 +385,10 @@ function createCompatPackage() {
   // so the compat tarball ships both directories (issue #497).
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
+  // esri-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.
+  // That module sits beside esri-compat/ in dist/src, so the tarball has to ship it.
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -603,6 +607,10 @@ function createAppPlatformPackage() {
   // the app-platform package must carry this internal stable-tier dependency.
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.js"), path.join(packageRoot, "connect-url-safety.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.d.ts"), path.join(packageRoot, "connect-url-safety.d.ts"));
+  // web-components/elements.js and esri-compat/feature-layer.js import
+  // ../widget-capabilities.js, which lives beside those directories in dist/src.
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
   copySourceCapabilityContractSupport(packageRoot);
   // Custom Elements Manifest for the web components this package registers
   // (issue #1419), advertised through the conventional `customElements` key so

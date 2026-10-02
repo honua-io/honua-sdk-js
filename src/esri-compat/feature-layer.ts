@@ -17,6 +17,7 @@ import type {
   QueryMethod,
 } from "../core/types.js";
 import { responseExceededTransferLimit } from "../core/wire-shared.js";
+import { applyToFeatures as applyFeatureEdits } from "../widget-capabilities.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { parseFeatureLayerUrl } from "./url.js";
 
@@ -25,8 +26,12 @@ const DEFAULT_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export interface FeatureLayerCompatOptions {
   /** Service layer URL. Omit when {@link source} holds the features in memory. */
   url?: string;
-  /** In-memory graphics. When set without {@link url}, the layer does not call a service. */
-  source?: readonly unknown[];
+  /**
+   * In-memory graphics. When set without {@link url}, the layer does not call
+   * a service. A non-iterable value such as `{}` is an empty client collection,
+   * which is how some ArcGIS apps start a layer before `applyEdits`.
+   */
+  source?: readonly unknown[] | object;
   fields?: readonly unknown[];
   objectIdField?: string;
   geometryType?: string;
@@ -44,6 +49,7 @@ export interface FeatureLayerCompatOptions {
   maxScale?: number;
   legendEnabled?: boolean;
   listMode?: string;
+  featureEffect?: unknown;
   maxAttachmentBytes?: number;
   client?: HonuaClient;
   eventBus?: CompatEventBus;
@@ -163,6 +169,7 @@ export class FeatureLayerCompat {
   public definitionExpression: string | undefined;
   public renderer: unknown;
   public popupTemplate: unknown;
+  private featureEffectValue: unknown;
   public labelingInfo: unknown[];
   public labelsVisible: boolean;
   public opacity: number;
@@ -188,7 +195,7 @@ export class FeatureLayerCompat {
     const inMemory = options.source !== undefined && options.url === undefined;
     const parsed = inMemory ? undefined : parseFeatureLayerUrl(options.url ?? "");
     this.url = options.url;
-    this.source = options.source === undefined ? undefined : [...options.source];
+    this.source = normalizeFeatureSource(options.source);
     this.fields = options.fields === undefined ? undefined : [...options.fields];
     this.objectIdField = options.objectIdField;
     this.geometryType = options.geometryType;
@@ -204,6 +211,7 @@ export class FeatureLayerCompat {
           : [options.outFields];
     this.definitionExpression = options.definitionExpression;
     this.renderer = options.renderer;
+    this.featureEffectValue = options.featureEffect;
     this.popupTemplate = options.popupTemplate;
     this.labelingInfo = Array.isArray(options.labelingInfo)
       ? [...options.labelingInfo]
@@ -227,6 +235,34 @@ export class FeatureLayerCompat {
     this.watchListeners = new Map();
     this.eventListeners = new Map();
     this.maxAttachmentBytes = normalizeAttachmentSizeLimit(options.maxAttachmentBytes);
+  }
+
+  public get featureEffect(): unknown {
+    return this.featureEffectValue;
+  }
+
+  public set featureEffect(value: unknown) {
+    this.featureEffectValue = value;
+    this.notifyWatchers("featureEffect", value);
+    this.eventBus.emit("feature-layer.feature-effect-changed", { featureEffect: value }, this);
+  }
+
+  /**
+   * Symbol the view should paint for one feature. A feature's own symbol wins.
+   * Otherwise the renderer supplies it, and an excluded feature effect replaces
+   * the color.
+   */
+  public symbolForFeature(feature: unknown): unknown | undefined {
+    if (feature && typeof feature === "object" && (feature as { symbol?: unknown }).symbol) {
+      return (feature as { symbol: unknown }).symbol;
+    }
+    const base = symbolFromRenderer(this.renderer, feature);
+    const where = effectWhere(this.featureEffectValue);
+    const excludedEffect = effectString(this.featureEffectValue, "excludedEffect");
+    if (where && !featureMatchesWhere(feature, where) && excludedEffect) {
+      return excludedSymbol(base, excludedEffect);
+    }
+    return base;
   }
 
   public async load(): Promise<FeatureLayerCompat> {
@@ -744,6 +780,21 @@ export class FeatureLayerCompat {
     return result;
   }
 
+  /** Applies one attribute change to each feature through {@link applyEdits}. A named edit error rejects that feature only. */
+  public applyToFeatures(
+    features: readonly { attributes?: Record<string, unknown> }[],
+    change: Record<string, unknown>,
+  ): ReturnType<typeof applyFeatureEdits> {
+    return applyFeatureEdits(features, change, async (edit) => {
+      const result = await this.applyEdits({ updates: [edit.update] });
+      const updates = result.updateFeatureResults ?? result.updateResults ?? [];
+      const failed = updates.find((item) => item.success === false || item.error);
+      if (!failed) return {};
+      const reason = failed.error?.description ?? "rejected";
+      return { error: reason, reason };
+    });
+  }
+
   public queryRelatedFeatures(options: FeatureLayerQueryRelatedFeaturesOptions): Promise<HonuaRelatedRecordsResponse> {
     return this.client.queryRelatedRecords({
       serviceId: this.serviceId,
@@ -1129,6 +1180,153 @@ function copyToArrayBuffer(chunk: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(chunk.byteLength);
   copy.set(chunk);
   return copy.buffer;
+}
+
+function normalizeFeatureSource(source: unknown): readonly unknown[] | undefined {
+  if (source === undefined) {
+    return undefined;
+  }
+  if (Array.isArray(source)) {
+    return [...source];
+  }
+  if (source && typeof source === "object") {
+    const record = source as { items?: unknown; toArray?: () => unknown; length?: unknown };
+    if (typeof record.toArray === "function") {
+      const items = record.toArray();
+      return Array.isArray(items) ? [...items] : [];
+    }
+    if (Array.isArray(record.items)) {
+      return [...record.items];
+    }
+    if (typeof record.length === "number" && Number.isFinite(record.length)) {
+      return Array.from(source as ArrayLike<unknown>);
+    }
+  }
+  return [];
+}
+
+function symbolFromRenderer(renderer: unknown, feature: unknown): unknown | undefined {
+  if (!renderer || typeof renderer !== "object") {
+    return undefined;
+  }
+  const record = renderer as {
+    type?: unknown;
+    symbol?: unknown;
+    field?: unknown;
+    defaultSymbol?: unknown;
+    uniqueValueInfos?: unknown;
+    classBreakInfos?: unknown;
+  };
+  const type = typeof record.type === "string" ? record.type : record.symbol ? "simple" : "";
+  if (type === "simple") {
+    return record.symbol;
+  }
+  if (type === "unique-value" && Array.isArray(record.uniqueValueInfos)) {
+    const field = typeof record.field === "string" ? record.field : undefined;
+    const value = field ? featureAttributes(feature)[field] : undefined;
+    for (const info of record.uniqueValueInfos) {
+      if (!info || typeof info !== "object") {
+        continue;
+      }
+      const entry = info as { value?: unknown; symbol?: unknown };
+      if (entry.value === value || String(entry.value) === String(value)) {
+        return entry.symbol ?? record.defaultSymbol;
+      }
+    }
+    return record.defaultSymbol ?? record.symbol;
+  }
+  if (type === "class-breaks" && Array.isArray(record.classBreakInfos)) {
+    const field = typeof record.field === "string" ? record.field : undefined;
+    const raw = field ? featureAttributes(feature)[field] : undefined;
+    const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+    if (!Number.isFinite(value)) {
+      return record.defaultSymbol ?? record.symbol;
+    }
+    for (const info of record.classBreakInfos) {
+      if (!info || typeof info !== "object") {
+        continue;
+      }
+      const entry = info as { minValue?: unknown; maxValue?: unknown; symbol?: unknown };
+      const min = typeof entry.minValue === "number" ? entry.minValue : Number.NEGATIVE_INFINITY;
+      const max = typeof entry.maxValue === "number" ? entry.maxValue : Number.POSITIVE_INFINITY;
+      if (value >= min && value <= max) {
+        return entry.symbol ?? record.defaultSymbol;
+      }
+    }
+    return record.defaultSymbol ?? record.symbol;
+  }
+  return record.symbol;
+}
+
+function effectWhere(effect: unknown): string | undefined {
+  if (!effect || typeof effect !== "object") {
+    return undefined;
+  }
+  const filter = (effect as { filter?: unknown }).filter;
+  if (!filter || typeof filter !== "object") {
+    return undefined;
+  }
+  const where = (filter as { where?: unknown }).where;
+  return typeof where === "string" ? where : undefined;
+}
+
+function effectString(effect: unknown, key: "includedEffect" | "excludedEffect"): string | undefined {
+  if (!effect || typeof effect !== "object") {
+    return undefined;
+  }
+  const value = (effect as Record<string, unknown>)[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function excludedSymbol(base: unknown, excludedEffect: string): unknown {
+  const opacity = opacityFromEffect(excludedEffect);
+  const grayscale = /grayscale\(/i.test(excludedEffect);
+  const alpha = Math.round((opacity ?? 1) * 255);
+  const color = grayscale || opacity !== undefined ? [158, 158, 158, alpha] : undefined;
+  if (!color) {
+    return base;
+  }
+  if (grayscale) {
+    const symbol =
+      base && typeof base === "object" ? { ...(base as Record<string, unknown>) } : { type: "simple-marker", size: 12 };
+    return { ...symbol, color: [158, 158, 158, alpha] };
+  }
+  const rgb = rgbFromColor(base && typeof base === "object" ? (base as { color?: unknown }).color : undefined);
+  const next = rgb ? [rgb[0], rgb[1], rgb[2], alpha] : [158, 158, 158, alpha];
+  const symbol =
+    base && typeof base === "object" ? { ...(base as Record<string, unknown>) } : { type: "simple-marker", size: 12 };
+  return { ...symbol, color: next };
+}
+
+function opacityFromEffect(effect: string): number | undefined {
+  const match = /opacity\(\s*(\d+(?:\.\d+)?)\s*(%?)\s*\)/i.exec(effect);
+  if (!match) {
+    return undefined;
+  }
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) {
+    return undefined;
+  }
+  const ratio = match[2] === "%" || amount > 1 ? amount / 100 : amount;
+  return Math.min(1, Math.max(0, ratio));
+}
+
+function rgbFromColor(value: unknown): [number, number, number] | undefined {
+  if (Array.isArray(value) && value.length >= 3 && value.every((part) => typeof part === "number")) {
+    return [value[0] as number, value[1] as number, value[2] as number];
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const hex = /^#?([0-9a-f]{6})$/i.exec(value.trim());
+  if (!hex?.[1]) {
+    return undefined;
+  }
+  return [
+    Number.parseInt(hex[1].slice(0, 2), 16),
+    Number.parseInt(hex[1].slice(2, 4), 16),
+    Number.parseInt(hex[1].slice(4, 6), 16),
+  ];
 }
 
 function featureAttributes(feature: unknown): Record<string, unknown> {

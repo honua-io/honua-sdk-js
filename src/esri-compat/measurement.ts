@@ -1,4 +1,5 @@
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export type MeasurementToolCompat = "distance" | "area" | "direct-line";
 export type LinearUnitCompat = "meters" | "kilometers" | "feet" | "miles";
@@ -36,6 +37,7 @@ export class MeasurementCompat {
   public areaUnit: AreaUnitCompat;
   public lastMeasurement: MeasurementResultCompat | undefined;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: MeasurementCompatOptions = {}) {
     this.view = options.view;
@@ -48,6 +50,8 @@ export class MeasurementCompat {
     this.areaUnit = options.areaUnit ?? "square-meters";
     this.lastMeasurement = undefined;
     this.watchListeners = new Map();
+    this.widgetHost = bindHonuaWidgetHost("honua-measurement", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public async load(): Promise<MeasurementCompat> {
@@ -93,6 +97,7 @@ export class MeasurementCompat {
     this.activeTool = tool;
     this.notifyWatchers("activeTool", this.activeTool);
     this.eventBus.emit("measurement.started", { tool }, this);
+    this.pushWidgetHost();
   }
 
   public stop(): void {
@@ -103,6 +108,7 @@ export class MeasurementCompat {
     this.activeTool = undefined;
     this.notifyWatchers("activeTool", this.activeTool);
     this.eventBus.emit("measurement.stopped", { tool }, this);
+    this.pushWidgetHost();
   }
 
   public clear(): void {
@@ -141,6 +147,15 @@ export class MeasurementCompat {
 
   public destroy(): void {
     this.watchListeners.clear();
+    this.widgetHost?.destroy();
+  }
+
+  private pushWidgetHost(): void {
+    const tool = this.activeTool === "direct-line" ? "distance" : this.activeTool;
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      activeTool: tool,
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {

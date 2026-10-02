@@ -9,6 +9,15 @@ import {
 } from "../src/esri-compat-entry.js";
 
 describe("geometry primitives compat", () => {
+  it("accepts longitude and latitude as geographic coordinates", () => {
+    const point = new PointCompat({ longitude: 11.5, latitude: 48.1 });
+    expect(point.x).toBe(11.5);
+    expect(point.y).toBe(48.1);
+    expect(point.longitude).toBe(11.5);
+    expect(point.latitude).toBe(48.1);
+    expect(point.spatialReference).toEqual({ wkid: 4326 });
+  });
+
   it("supports when() and watch() lifecycle for point and spatial reference", async () => {
     const point = new PointCompat({ x: 1, y: 2 });
     const pointLoadStatusValues: unknown[] = [];

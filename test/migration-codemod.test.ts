@@ -4610,11 +4610,11 @@ describe("runEsriCompatCodemod", () => {
   // #1012 — the codemod used to rewrite an in-scope producer whose only
   // consumer was out of scope, leaving a compat value in an un-migrated
   // ArcGIS constructor's hands and still scoring the call site as
-  // auto-migrated. The construct below is the one the OSS-corpus deep-build
-  // lane hit in lujoh/owls_of_bavaria @ 2849491
-  // (src/features/map/filterOwlLayer.jsx).
+  // auto-migrated. FeatureEffect is now in scope, so the Owls of Bavaria
+  // filter and effect rewrite together. The seam guard stays covered by an
+  // out-of-scope Viewpoint consumer below.
   describe("compat → ArcGIS seams", () => {
-    it("holds back a FeatureFilter rewrite whose only consumer is an out-of-scope FeatureEffect", () => {
+    it("rewrites a FeatureFilter whose consumer is FeatureEffect", () => {
       const root = makeTempProject();
       const file = path.join(root, "filterOwlLayer.jsx");
       const source = [
@@ -4641,30 +4641,20 @@ describe("runEsriCompatCodemod", () => {
         compatImportPath: "@honua/sdk-esri-compat",
       });
 
-      expect(result.metrics.totalCodemodScopedCallSites).toBe(1);
-      expect(result.metrics.autoMigratedCallSites).toBe(0);
-      expect(result.metrics.manualCallSites).toBe(1);
-      expect(result.metrics.seamCallSites).toBe(1);
-      expect(result.metrics.byKind["feature-filter"]).toEqual({ total: 1, autoMigrated: 0, manual: 1 });
-
-      // The TODO names both sides of the seam: the compat symbol that would
-      // have been produced and the ArcGIS module that stays un-migrated.
-      expect(result.manualTodos).toEqual([
-        expect.objectContaining({
-          kind: "feature-filter",
-          file,
-          reason: expect.stringContaining("FeatureFilterCompat"),
-        }),
-      ]);
-      expect(result.manualTodos[0].reason).toContain("@arcgis/core/layers/support/FeatureEffect");
-      expect(result.manualTodos[0].reason).toContain("FeatureEffect");
+      expect(result.metrics.totalCodemodScopedCallSites).toBe(2);
+      expect(result.metrics.autoMigratedCallSites).toBe(2);
+      expect(result.metrics.manualCallSites).toBe(0);
+      expect(result.metrics.seamCallSites).toBe(0);
+      expect(result.metrics.byKind["feature-filter"]).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
+      expect(result.metrics.byKind["feature-effect"]).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
+      expect(result.manualTodos).toEqual([]);
 
       const nextSource = fs.readFileSync(file, "utf8");
-      expect(nextSource).toContain("TODO(honua-migrate)[feature-filter]");
-      expect(nextSource).toContain("new FeatureFilter({ where: buildWhere(filters) })");
-      expect(nextSource).not.toContain("new FeatureFilterCompat(");
-      expect(nextSource).not.toContain("@honua/sdk-esri-compat");
-      expect(nextSource).toContain("import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';");
+      expect(nextSource).toContain("new FeatureFilterCompat(");
+      expect(nextSource).toContain("new FeatureEffectCompat(");
+      expect(nextSource).toContain("@honua/sdk-esri-compat");
+      expect(nextSource).not.toContain("@arcgis/core/layers/support/FeatureFilter");
+      expect(nextSource).not.toContain("@arcgis/core/layers/support/FeatureEffect");
     });
 
     it("holds back a rewrite handed straight to an out-of-scope ArcGIS constructor", () => {
@@ -4673,10 +4663,10 @@ describe("runEsriCompatCodemod", () => {
       fs.writeFileSync(
         file,
         [
-          "import FeatureEffect from '@arcgis/core/layers/support/FeatureEffect';",
-          "import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';",
-          "const effect = new FeatureEffect({ filter: new FeatureFilter({ where: '1=1' }) });",
-          "void effect;",
+          "import Viewpoint from '@arcgis/core/Viewpoint';",
+          "import Point from '@arcgis/core/geometry/Point';",
+          "const viewpoint = new Viewpoint({ targetGeometry: new Point({ x: 1, y: 2 }) });",
+          "void viewpoint;",
         ].join("\n"),
         "utf8",
       );
@@ -4697,11 +4687,11 @@ describe("runEsriCompatCodemod", () => {
       fs.writeFileSync(
         file,
         [
-          "import FeatureEffect from '@arcgis/core/layers/support/FeatureEffect';",
-          "import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';",
-          "const effect = new FeatureEffect({});",
-          "const filter = new FeatureFilter({ where: '1=1' });",
-          "effect.filter = filter;",
+          "import Viewpoint from '@arcgis/core/Viewpoint';",
+          "import Point from '@arcgis/core/geometry/Point';",
+          "const viewpoint = new Viewpoint({});",
+          "const point = new Point({ x: 1, y: 2 });",
+          "viewpoint.targetGeometry = point;",
         ].join("\n"),
         "utf8",
       );
@@ -4714,7 +4704,7 @@ describe("runEsriCompatCodemod", () => {
 
       expect(result.metrics.autoMigratedCallSites).toBe(0);
       expect(result.metrics.seamCallSites).toBe(1);
-      expect(result.manualTodos[0].reason).toContain("effect.filter");
+      expect(result.manualTodos[0].reason).toContain("viewpoint.targetGeometry");
     });
 
     it("still rewrites a construct whose consumer is also in codemod scope", () => {
@@ -4768,5 +4758,113 @@ describe("runEsriCompatCodemod", () => {
       expect(result.metrics.autoMigratedCallSites).toBe(1);
       expect(result.metrics.seamCallSites).toBe(0);
     });
+  });
+
+  it("rewrites a client-side FeatureLayer that has source instead of url", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "loadMap.jsx");
+    fs.writeFileSync(
+      file,
+      [
+        "import FeatureLayer from '@arcgis/core/layers/FeatureLayer';",
+        "const layer = new FeatureLayer({",
+        "  source: {},",
+        "  objectIdField: 'ObjectId',",
+        "  fields: [{ name: 'ObjectId', type: 'oid' }],",
+        "  renderer: { type: 'simple', symbol: { type: 'simple-marker', color: '#102A44' } },",
+        "});",
+        "void layer;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.manualTodos).toEqual([]);
+    expect(result.metrics.byKind["feature-layer"]).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
+    expect(fs.readFileSync(file, "utf8")).toContain("new FeatureLayerCompat(");
+  });
+
+  it("rewrites a Basemap portal item and a MapView ui list", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "useMapSetup.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import Basemap from '@arcgis/core/Basemap';",
+        "import MapView from '@arcgis/core/views/MapView';",
+        "const hybridBasemap = new Basemap({ id: 'hybrid', portalItem: { id: hybridId } });",
+        "const view = new MapView({",
+        "  container: mapNode,",
+        "  map,",
+        "  ui: { components: isSmallScreen ? [] : ['zoom'] },",
+        "  popupEnabled: false,",
+        "});",
+        "void hybridBasemap;",
+        "void view;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.manualTodos).toEqual([]);
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain("new BasemapCompat(");
+    expect(nextSource).toContain("new MapViewCompat(");
+  });
+
+  it("keeps a MapView manual when ui.components names an unknown widget", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "view.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import MapView from '@arcgis/core/views/MapView';",
+        "const view = new MapView({ container: 'view', ui: { components: ['zoom', 'navigation-toggle'] } });",
+        "void view;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: false,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.metrics.manualCallSites).toBe(1);
+    expect(result.manualTodos[0]?.reason).toContain("ui.components");
+  });
+
+  it("rewrites a Point constructed with longitude and latitude", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "point.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import Point from '@arcgis/core/geometry/Point';",
+        "const point = new Point({ longitude: 11.5, latitude: 48.1 });",
+        "void point;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.manualTodos).toEqual([]);
+    expect(fs.readFileSync(file, "utf8")).toContain("new PointCompat({ longitude: 11.5, latitude: 48.1 })");
   });
 });

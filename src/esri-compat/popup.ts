@@ -4,6 +4,7 @@ import {
   resolveCompatEventBus,
   safeInvokeCompatListener,
 } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export interface PopupCompatOptions {
   view?: unknown;
@@ -46,6 +47,7 @@ export class PopupCompat {
 
   private readonly subscriptions: CompatEventSubscription[];
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: PopupCompatOptions = {}) {
     this.view = options.view;
@@ -64,6 +66,7 @@ export class PopupCompat {
     this.selectedFeature = undefined;
     this.selectedFeatureIndex = -1;
     this.watchListeners = new Map();
+    this.widgetHost = bindHonuaWidgetHost("honua-feature-inspection", this.container, this.eventBus);
     this.subscriptions = [
       this.eventBus.on("popup.open", () => {
         this.syncFromViewPopup();
@@ -74,6 +77,7 @@ export class PopupCompat {
     ];
 
     this.syncFromViewPopup();
+    this.pushWidgetHost();
   }
 
   public async load(): Promise<PopupCompat> {
@@ -123,6 +127,7 @@ export class PopupCompat {
     this.notifyWatchers("selectedFeature", this.selectedFeature);
     this.notifyWatchers("selectedFeatureIndex", this.selectedFeatureIndex);
     this.eventBus.emit("popup.open", options, this);
+    this.pushWidgetHost();
   }
 
   public close(): void {
@@ -310,6 +315,14 @@ export class PopupCompat {
       },
       this,
     );
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      selectedFeature: this.selectedFeature,
+      template: this.content ?? (this.title !== undefined ? { title: this.title } : undefined),
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {

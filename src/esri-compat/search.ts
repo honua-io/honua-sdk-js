@@ -4,6 +4,7 @@ import {
   resolveCompatEventBus,
   safeInvokeCompatListener,
 } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 /** Structural point-like type used for search result locations. */
 export interface SearchPointLike {
@@ -94,6 +95,7 @@ export class SearchCompat {
   public loaded: boolean;
   public loadStatus: SearchLoadStatusCompat;
   public sources: SearchSourceCompat[];
+  public activeSource: SearchSourceCompat | undefined;
   public searchTerm: string;
   public results: SearchResultCompat[];
   public suggestions: SearchSuggestionCompat[];
@@ -112,6 +114,7 @@ export class SearchCompat {
   private readonly subscriptions: CompatEventSubscription[];
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
   private customSources: SearchSourceCompat[];
+  private widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: SearchCompatOptions = {}) {
     this.view = options.view;
@@ -124,6 +127,8 @@ export class SearchCompat {
     this.loadStatus = "not-loaded";
     this.customSources = [...(options.sources ?? [])];
     this.sources = [];
+    this.activeSource = undefined;
+    this.widgetHost = bindHonuaWidgetHost("honua-search", this.container, this.eventBus);
     this.searchTerm = "";
     this.results = [];
     this.suggestions = [];
@@ -151,12 +156,18 @@ export class SearchCompat {
     this.watchListeners = new Map();
     this.refreshSourceSubscriptions();
     this.rebuildSources(false);
-    mountSearchBox(this);
   }
 
   public attachContainer(element: HTMLElement): void {
     this.container = element;
-    mountSearchBox(this);
+    this.widgetHost ??= bindHonuaWidgetHost("honua-search", element, this.eventBus);
+    this.pushWidgetHost();
+  }
+
+  public setActiveSource(source: SearchSourceCompat | undefined): void {
+    this.activeSource = source;
+    this.notifyWatchers("activeSource", this.activeSource);
+    this.pushWidgetHost();
   }
 
   public async load(): Promise<SearchCompat> {
@@ -401,6 +412,8 @@ export class SearchCompat {
       subscription.remove();
     }
     this.watchListeners.clear();
+    this.widgetHost?.destroy();
+    this.widgetHost = undefined;
   }
 
   private async navigateToSelectedResult(): Promise<void> {
@@ -431,7 +444,11 @@ export class SearchCompat {
           })
         : []),
     ];
+    if (!this.sources.includes(this.activeSource as SearchSourceCompat)) {
+      this.activeSource = this.sources[0];
+    }
     this.notifyWatchers("sources", this.sources);
+    this.pushWidgetHost();
     if (emitChange) {
       this.eventBus.emit("search.sources-changed", { sourceCount: this.sources.length }, this);
     }
@@ -464,6 +481,14 @@ export class SearchCompat {
         }),
       );
     }
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      sources: this.sources,
+      activeSource: this.activeSource,
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {
@@ -669,34 +694,6 @@ const COMMON_SEARCH_FIELD_NAMES = [
 ] as const;
 const MAX_SERVER_SEARCH_FIELDS = 6;
 const MAX_SERVER_OUT_FIELDS = 16;
-
-function mountSearchBox(search: SearchCompat): void {
-  const container = search.container;
-  const element =
-    typeof HTMLElement !== "undefined" && container instanceof HTMLElement
-      ? container
-      : typeof container === "string" && typeof document !== "undefined"
-        ? document.getElementById(container)
-        : undefined;
-  if (typeof HTMLElement === "undefined" || typeof document === "undefined" || !(element instanceof HTMLElement)) {
-    return;
-  }
-  element.querySelector(":scope > .honua-search")?.remove();
-  const form = document.createElement("form");
-  form.className = "honua-search";
-  const input = document.createElement("input");
-  input.type = "search";
-  input.placeholder = search.allPlaceholder || "Search";
-  const button = document.createElement("button");
-  button.type = "submit";
-  button.textContent = "Search";
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    void search.search(input.value);
-  });
-  form.append(input, button);
-  element.append(form);
-}
 
 function createFallbackLayerSearchQueryOptions(
   maxFeatureCandidates: number,

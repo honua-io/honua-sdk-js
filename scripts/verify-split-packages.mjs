@@ -110,6 +110,25 @@ for (const [name, directory] of Object.entries(packageDirs)) {
   }
 }
 
+for (const fileName of ["widget-capabilities.js", "widget-capabilities.d.ts"]) {
+  for (const [name, reason] of [
+    [
+      "@honua/sdk-esri-compat",
+      "esri-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.",
+    ],
+    [
+      "@honua/app-platform",
+      "web-components/elements.js and esri-compat/feature-layer.js import ../widget-capabilities.js.",
+    ],
+  ]) {
+    const capabilityFile = path.join(packageDirs[name], fileName);
+    if (!fs.existsSync(capabilityFile)) {
+      process.stderr.write(`Split ${name} is missing ${fileName}. ${reason}\n`);
+      process.exit(1);
+    }
+  }
+}
+
 const generatedProjJsonValidator = path.join(
   packageDirs["@honua/sdk"],
   "contract",
@@ -144,6 +163,10 @@ try {
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
       "@honua/geometry": `file:${packageDirs["@honua/geometry"]}`,
       "@honua/app-platform": `file:${packageDirs["@honua/app-platform"]}`,
+      // The web-components entry statically imports maplibre-gl. It is an
+      // optional peer of @honua/app-platform, so a consumer that imports that
+      // entry has to install it. The smoke import does.
+      "maplibre-gl": ROOT_PACKAGE_JSON.peerDependencies["maplibre-gl"],
       ...Object.fromEntries(
         OPTIONAL_GRPC_RUNTIME_PEERS.map((name) => [name, ROOT_PACKAGE_JSON.peerDependencies[name]]),
       ),

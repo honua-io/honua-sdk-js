@@ -39,7 +39,7 @@ import { defineHonuaWebComponents } from "./elements.js";
 // import so `../controls/registry.js` can dynamically `import()` it to
 // register one tag without also claiming every tag the kit owns. This is
 // every existing `@honua/sdk-js/web-components` consumer's actual entry
-// point, so the observable behavior — importing this module registers all 16
+// point, so the observable behavior — importing this module registers the kit's
 // tags when a `customElements` registry is present — is unchanged.
 defineHonuaWebComponents();
 
@@ -173,6 +173,20 @@ export {
   defineHonuaWebComponents,
   honuaExportKindFromFormat,
 } from "./elements.js";
+export {
+  HonuaAttributionElement,
+  HonuaCompassElement,
+  HonuaFullscreenElement,
+  HonuaHomeElement,
+  HonuaScaleBarElement,
+  HonuaZoomElement,
+} from "./map-chrome.js";
+export {
+  HonuaAttachmentsElement,
+  HonuaDirectionsElement,
+  HonuaFeaturePagerElement,
+  HonuaScaleRangeElement,
+} from "./widget-shell.js";
 export type { HonuaFeatureTableConflictDetail } from "./elements.js";
 
 export { HonuaMeasurementElement, defineHonuaMeasurement } from "./measurement.js";
