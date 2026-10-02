@@ -183,16 +183,14 @@ hold the surface stable).
    These rewrite cleanly only for the simple case; arrow-function
    field-info `format` callbacks fall through to manual TODO.
 6. **Widget UI behavior.** The widget shims accept the same
-   constructor options ArcGIS does, but only `LegendCompat` and
-   `LayerListCompat` render, through the Honua widget host
-   (`HonuaWidgetHost`) and only after the app registers the
-   web-component kit — see
+   constructor options ArcGIS does. A shim that constructs a
+   `HonuaWidgetHost` renders after the app registers the
+   web-component kit. A shim that does not construct a host stays
+   state-model-only. The current lists are in
    [widget kit registration](./migration-honua-maplibre.md#widget-kit-registration).
-   Their visual parity (icons, ARIA, CSS class names that downstream
+   Visual parity (icons, ARIA, CSS class names that downstream
    apps style against) is **not** byte-identical; apps that rely on
-   `calcite-action--`-prefixed selectors will need style work. Every
-   other container-bearing shim is state-model-only and needs the
-   application to render it.
+   `calcite-action--`-prefixed selectors will need style work.
 7. **Typed-surface divergences from the emulated ArcGIS shape.**
    The shims are structurally compatible with the ArcGIS surface
    they emulate except where this list says otherwise. The audit
