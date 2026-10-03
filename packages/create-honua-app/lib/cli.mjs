@@ -1,19 +1,23 @@
 // Argument parsing and console output for `npm create honua-app`.
 //
 // `parseArgs` is pure so the repository test suite can assert the grammar, and
-// `run` takes its streams and working directory as options so a test can drive
-// a full scaffold in-process without spawning npm or a build.
+// `run` takes its streams, working directory, environment, and registry fetch
+// as options so a test can drive a full scaffold in-process without spawning
+// npm, a build, or a real registry request.
 
 import fs from "node:fs";
 import path from "node:path";
 
 import { scaffoldProject } from "./scaffold.mjs";
+import { resolveSdkVersion } from "./sdk-version.mjs";
 import { PACKAGE_ROOT, defaultTemplate, loadTemplateManifest, playgroundLinks, templateIds } from "./templates.mjs";
 
 const USAGE = `Usage: create-honua-app [directory] [options]
 
 Options:
   -t, --template <id>   Starter to scaffold (default: the manifest's default template)
+      --sdk-version <v> Pin this exact SDK version instead of the promoted
+                        release channel (the only way to scaffold a prerelease)
       --list-templates  Print the available templates and exit
       --force           Scaffold into a directory that already has files
   -h, --help            Print this message and exit
@@ -21,7 +25,13 @@ Options:
 
 /** Parse argv (already stripped of node and the script path). */
 export function parseArgs(argv) {
-  const options = { mode: "scaffold", directory: undefined, templateId: undefined, force: false };
+  const options = {
+    mode: "scaffold",
+    directory: undefined,
+    templateId: undefined,
+    sdkVersion: undefined,
+    force: false,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--help" || argument === "-h") {
@@ -53,6 +63,19 @@ export function parseArgs(argv) {
       options.templateId = value;
       continue;
     }
+    if (argument === "--sdk-version") {
+      const value = argv[index + 1];
+      if (!value || value.startsWith("-")) throw new Error(`${argument} requires a version.`);
+      options.sdkVersion = value;
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith("--sdk-version=")) {
+      const value = argument.slice("--sdk-version=".length);
+      if (value.length === 0) throw new Error("--sdk-version requires a version.");
+      options.sdkVersion = value;
+      continue;
+    }
     if (argument.startsWith("-")) throw new Error(`Unknown option: ${argument}`);
     if (options.directory !== undefined) throw new Error(`Unexpected extra argument: ${argument}`);
     options.directory = argument;
@@ -74,10 +97,21 @@ export function templateListing(manifest) {
   for (const template of manifest.templates) {
     lines.push(`${template.id}${template.default ? " (default)" : ""} — ${template.title}`);
     lines.push(`  ${template.summary}`);
-    lines.push(`  SDK: ${manifest.sdk.package}@${manifest.sdk.version}`);
+    lines.push(
+      `  SDK: ${manifest.sdk.package} from the ${manifest.sdk.channel} channel (certified fallback ${manifest.sdk.version})`,
+    );
     for (const link of playgroundLinks(manifest, template)) lines.push(`  ${link.title}: ${link.url}`);
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** One line saying which SDK version the scaffold pinned and why. */
+export function sdkPinLine(sdk) {
+  const pinned = `${sdk.package}@${sdk.version}`;
+  if (sdk.source === "channel") return `Pinned ${pinned} from the promoted ${sdk.channel} channel.`;
+  if (sdk.source === "override")
+    return `Pinned ${pinned} as requested by --sdk-version${sdk.note ? ` (${sdk.note})` : ""}.`;
+  return `Pinned ${pinned}, the certified version this release of create-honua-app ships${sdk.note ? ` (${sdk.note})` : ""}.`;
 }
 
 /** Next-step instructions printed after a successful scaffold. */
@@ -85,7 +119,7 @@ export function nextSteps(receipt, cwd) {
   const relative = path.relative(cwd, receipt.targetRoot) || ".";
   return [
     `Created ${receipt.projectName} from the ${receipt.templateId} template in ${relative}.`,
-    `Pinned ${receipt.sdk.package}@${receipt.sdk.version}.`,
+    sdkPinLine(receipt.sdk),
     "",
     "Next steps:",
     ...(relative === "." ? [] : [`  cd ${relative}`]),
@@ -102,12 +136,20 @@ function packageVersion(packageRoot) {
 }
 
 /**
- * Run the CLI. Returns the process exit code instead of calling `process.exit`
- * so the bin wrapper stays the only place that touches process state.
+ * Run the CLI. Resolves to the process exit code instead of calling
+ * `process.exit` so the bin wrapper stays the only place that touches process
+ * state. `env` and `fetch` reach the registry lookup in lib/sdk-version.mjs.
  */
-export function run(
+export async function run(
   argv,
-  { cwd = process.cwd(), stdout = process.stdout, stderr = process.stderr, packageRoot = PACKAGE_ROOT } = {},
+  {
+    cwd = process.cwd(),
+    stdout = process.stdout,
+    stderr = process.stderr,
+    packageRoot = PACKAGE_ROOT,
+    env = process.env,
+    fetch = globalThis.fetch,
+  } = {},
 ) {
   let options;
   try {
@@ -139,7 +181,8 @@ export function run(
   }
 
   try {
-    const receipt = scaffoldProject({ templateId, directory, force: options.force, cwd, packageRoot });
+    const sdk = await resolveSdkVersion({ manifest, override: options.sdkVersion, env, fetch });
+    const receipt = scaffoldProject({ templateId, directory, force: options.force, cwd, packageRoot, sdk });
     stdout.write(nextSteps(receipt, cwd));
     return 0;
   } catch (error) {

@@ -1,7 +1,7 @@
 # create-honua-app
 
 Scaffold a [Honua JavaScript SDK](https://github.com/honua-io/honua-sdk-js) map application — Vite + TypeScript,
-pinned to a published SDK version, running a map on the first `npm run dev`.
+pinned to the certified SDK release, running a map on the first `npm run dev`.
 
 ```bash
 npm create honua-app@latest my-map
@@ -16,6 +16,8 @@ npm run dev
 create-honua-app [directory] [options]
 
   -t, --template <id>   Starter to scaffold (default: vanilla-ts)
+      --sdk-version <v> Pin this exact @honua/sdk-js version instead of the promoted
+                        release channel (the only way to scaffold a prerelease)
       --list-templates  Print the available templates and their playground links
       --force           Scaffold into a directory that already has files
   -h, --help            Print usage
@@ -26,6 +28,21 @@ With `npm create`, pass CLI options after `--`:
 
 ```bash
 npm create honua-app@latest my-map -- --template react-ts
+```
+
+## Which SDK version a scaffold pins
+
+The scaffold resolves `@honua/sdk-js` when it runs, from the `release-2026.1` npm dist-tag. Only a Honua release
+promotion moves that tag, so a newly promoted SDK reaches fresh scaffolds without a new `create-honua-app`. The
+generated `package.json` still records one exact version, so the app stays reproducible.
+
+The channel is used only when it names a stable release on the starter's own SDK line. Until the channel is promoted,
+or if it names a prerelease or another line, or if the registry cannot be read, the scaffold pins the certified
+version this release of `create-honua-app` ships with. The default path never pins a prerelease. To choose a version
+yourself, pass `--sdk-version`:
+
+```bash
+npm create honua-app@latest my-map -- --sdk-version 0.1.12
 ```
 
 ## Templates
