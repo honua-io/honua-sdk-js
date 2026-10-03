@@ -73,9 +73,36 @@ describe("split package relative imports", () => {
         'import("@honua/sdk");',
         'const specifier = "../absent.js";',
         "import(/* @vite-ignore */ specifier);",
+        'const hint = `Run import("./optional.js") to enable this feature`;',
+        "const prose = 'from \"./nope.js\"';",
+        "const loaded = await import(`./${name}.js`);",
         "",
       ].join("\n"),
     );
+    expect(missingRelativeImports(root)).toEqual([]);
+  });
+
+  it("still sees a relative import inside a template substitution", () => {
+    const root = appPlatformCopy();
+    fs.writeFileSync(
+      path.join(root, "web-components", "elements.js"),
+      'export const loaded = `${import("./needed.js")}`;\n',
+    );
+    expect(missingRelativeImports(root)).toEqual([{ file: "web-components/elements.js", specifier: "./needed.js" }]);
+  });
+
+  it("requires the declaration sibling for an import written in a declaration file", () => {
+    const root = appPlatformCopy();
+    fs.writeFileSync(path.join(root, "widget-capabilities.js"), "export function applyToFeatures() {}\n");
+    fs.writeFileSync(
+      path.join(root, "widget-capabilities-user.d.ts"),
+      'import { applyToFeatures } from "./widget-capabilities.js";\n',
+    );
+    expect(missingRelativeImports(root)).toEqual([
+      { file: "widget-capabilities-user.d.ts", specifier: "./widget-capabilities.js" },
+    ]);
+
+    fs.writeFileSync(path.join(root, "widget-capabilities.d.ts"), "export function applyToFeatures(): void;\n");
     expect(missingRelativeImports(root)).toEqual([]);
   });
 });
