@@ -46,6 +46,16 @@ describe("MapCompat", () => {
     expect(map.remove(layerA)).toBe(false);
   });
 
+  it("accepts Collection.add on layers", () => {
+    const map = new MapCompat();
+    const layer = { id: "owls" };
+    const added = map.layers.add(layer);
+    expect(added).toBe(map.layers);
+    expect(map.layers).toEqual([layer]);
+    added.add({ id: "under" }, 0);
+    expect(map.layers.map((item) => (item as { id: string }).id)).toEqual(["under", "owls"]);
+  });
+
   it("supports watch handles for map property changes", async () => {
     const map = new MapCompat({
       basemap: "streets",
