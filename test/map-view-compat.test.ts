@@ -49,9 +49,10 @@ describe("MapCompat", () => {
   it("accepts Collection.add on layers", () => {
     const map = new MapCompat();
     const layer = { id: "owls" };
-    map.layers.add(layer);
+    const added = map.layers.add(layer);
+    expect(added).toBe(map.layers);
     expect(map.layers).toEqual([layer]);
-    map.layers.add({ id: "under" }, 0);
+    added.add({ id: "under" }, 0);
     expect(map.layers.map((item) => (item as { id: string }).id)).toEqual(["under", "owls"]);
   });
 

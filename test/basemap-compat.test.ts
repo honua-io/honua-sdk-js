@@ -137,8 +137,8 @@ describe("BasemapCompat", () => {
     expect(sources["honua-basemap-1"]?.tiles[0]).toContain("World_Boundaries_and_Places/MapServer/tile/");
   });
 
-  it("maps arcgis-dark-gray to the canvas dark gray tiles", () => {
-    const style = rasterStyleForBasemap("arcgis-dark-gray");
+  it("maps dark-gray to the canvas dark gray tiles", () => {
+    const style = rasterStyleForBasemap("dark-gray");
     const sources = style.sources as Record<string, { tiles: string[] }>;
     expect(sources["honua-basemap"]?.tiles[0]).toContain("Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}");
     expect(sources["honua-basemap"]?.tiles[0]).not.toContain("openstreetmap.org");

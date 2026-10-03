@@ -164,7 +164,7 @@ import {
   MapViewCompat,
 } from "/esri-compat-entry.js";
 
-const webmap = new MapCompat({ basemap: "arcgis-dark-gray" });
+const webmap = new MapCompat({ basemap: "dark-gray" });
 const view = new MapViewCompat({
   container: "view",
   map: webmap,
