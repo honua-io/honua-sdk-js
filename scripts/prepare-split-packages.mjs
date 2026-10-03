@@ -110,6 +110,14 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-safety"), path.join(packageRoot, "agent-safety"));
   copyDirectory(path.join(DIST_SRC_ROOT, "nl-map-control"), path.join(packageRoot, "nl-map-control"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
+  // geometry-engine.js imports ../geometry/index.js, and feature-layer.js imports
+  // ../widget-capabilities.js. The SDK entry does not load either module, so
+  // turf stays a dependency of the packages whose entry does.
+  copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
+  copyEmittedModule(packageRoot, "widget-capabilities");
+  // Offline declarations type-import this module. Its implementation stays on
+  // @honua/app-platform; the type module only imports contract/types.js.
+  copyEmittedModule(packageRoot, "replica-sync/types");
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "filter-registry"), path.join(packageRoot, "filter-registry"));
@@ -389,6 +397,7 @@ function createCompatPackage() {
   // That module sits beside esri-compat/ in dist/src, so the tarball has to ship it.
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
+  copyContractRuntimeClosure(packageRoot);
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -447,6 +456,7 @@ function createGeometryPackage() {
   copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
+  copyContractRuntimeClosure(packageRoot);
 
   writePackageJson(packageRoot, {
     name: "@honua/geometry",
@@ -510,10 +520,20 @@ function createReactPackage() {
     "studio",
     "style",
     "webmap",
+    // LocatorCompat imports geocoding/provider.js. geometry-engine.js imports
+    // geometry/index.js. Turf stays declared on @honua/geometry and the compat
+    // package, whose entries are what load that shim.
+    "geocoding",
+    "geometry",
   ];
   for (const directory of reactClosureDirectories) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  copyColumnarRuntimeClosure(packageRoot);
+  copyEmittedModule(packageRoot, "widget-capabilities");
+  // runtime/maplibre-renderer.d.ts type-imports this module. The rest of kernel
+  // imports connect.js, which this package does not ship.
+  copyEmittedModule(packageRoot, "kernel/renderer");
   copySourceCapabilityContractSupport(packageRoot);
 
   writePackageJson(packageRoot, {
@@ -600,6 +620,11 @@ function createAppPlatformPackage() {
     "interactions",
     "map",
     "query-planner",
+    // The planner barrel imports columnar. Web-component declarations import
+    // offline/edit-queue.js, and the columnar batch cache imports the offline
+    // digest modules in that same directory.
+    "columnar",
+    "offline",
     "realtime",
     "runtime",
     "style",
@@ -616,6 +641,9 @@ function createAppPlatformPackage() {
   // ../widget-capabilities.js, which lives beside those directories in dist/src.
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
+  // runtime/maplibre-renderer.d.ts type-imports this module. The rest of kernel
+  // imports connect.js, which this package does not ship.
+  copyEmittedModule(packageRoot, "kernel/renderer");
   copySourceCapabilityContractSupport(packageRoot);
   // Custom Elements Manifest for the web components this package registers
   // (issue #1419), advertised through the conventional `customElements` key so
@@ -768,6 +796,31 @@ function writeReadme(packageRoot, contents) {
 function copyFile(sourcePath, destinationPath) {
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
   fs.copyFileSync(sourcePath, destinationPath);
+}
+
+function copyEmittedModule(packageRoot, moduleName) {
+  for (const extension of [".js", ".d.ts"]) {
+    copyFile(
+      path.join(DIST_SRC_ROOT, `${moduleName}${extension}`),
+      path.join(packageRoot, `${moduleName}${extension}`),
+    );
+  }
+}
+
+function copyColumnarRuntimeClosure(packageRoot) {
+  // The planner barrel value-imports columnar, and the batch cache imports
+  // connect-url-safety plus the offline digest, quota, and types modules.
+  copyDirectory(path.join(DIST_SRC_ROOT, "columnar"), path.join(packageRoot, "columnar"));
+  copyEmittedModule(packageRoot, "connect-url-safety");
+  for (const moduleName of ["offline/digest", "offline/quota", "offline/types"]) {
+    copyEmittedModule(packageRoot, moduleName);
+  }
+}
+
+function copyContractRuntimeClosure(packageRoot) {
+  // contract/source.js value-imports the query planner.
+  copyDirectory(path.join(DIST_SRC_ROOT, "query-planner"), path.join(packageRoot, "query-planner"));
+  copyColumnarRuntimeClosure(packageRoot);
 }
 
 function copyDirectory(sourceDirectory, destinationDirectory) {
