@@ -2,14 +2,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   CallToolRequestSchema,
-  GetPromptRequestSchema,
   ErrorCode,
-  isJSONRPCRequest,
-  isJSONRPCResultResponse,
+  GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourceTemplatesRequestSchema,
   ListResourcesRequestSchema,
@@ -19,6 +17,8 @@ import {
   ResourceListChangedNotificationSchema,
   type ServerCapabilities,
   ToolListChangedNotificationSchema,
+  isJSONRPCRequest,
+  isJSONRPCResultResponse,
 } from "@modelcontextprotocol/sdk/types.js";
 import { requireSecureCredentialEndpoint } from "./credential-endpoint.js";
 import { isMainEntrypoint } from "./entrypoint.js";
@@ -198,7 +198,9 @@ export async function connectProxyTransport(options: ProxyOptions, downstream: T
     closed = true;
     await Promise.all([downstream.close().catch(() => {}), upstream.close().catch(() => {})]);
   };
-  downstream.onclose = upstream.onclose = () => { void shutdown(); };
+  downstream.onclose = upstream.onclose = () => {
+    void shutdown();
+  };
   // HTTP errors can contain credential-bearing response bodies. Report a
   // bounded protocol error below, without copying the upstream error text.
   upstream.onerror = () => {};
@@ -206,22 +208,33 @@ export async function connectProxyTransport(options: ProxyOptions, downstream: T
     if (isJSONRPCRequest(message) && message.method === "initialize") initializeId = message.id;
     void upstream.send(message).catch(async () => {
       if (isJSONRPCRequest(message)) {
-        await downstream.send({
-          jsonrpc: "2.0", id: message.id,
-          error: { code: ErrorCode.InternalError, message: "Upstream MCP transport request failed" },
-        }).catch(() => { void shutdown(); });
+        await downstream
+          .send({
+            jsonrpc: "2.0",
+            id: message.id,
+            error: { code: ErrorCode.InternalError, message: "Upstream MCP transport request failed" },
+          })
+          .catch(() => {
+            void shutdown();
+          });
       } else {
         await shutdown();
       }
     });
   };
   upstream.onmessage = (message) => {
-    if (isJSONRPCResultResponse(message) && message.id === initializeId &&
-        typeof message.result.protocolVersion === "string") {
+    if (
+      isJSONRPCResultResponse(message) &&
+      message.id === initializeId &&
+      typeof message.result.protocolVersion === "string"
+    ) {
       upstream.setProtocolVersion(message.result.protocolVersion);
       downstream.setProtocolVersion?.(message.result.protocolVersion);
+      initializeId = undefined;
     }
-    void downstream.send(message).catch(() => { void shutdown(); });
+    void downstream.send(message).catch(() => {
+      void shutdown();
+    });
   };
   try {
     await upstream.start();
@@ -235,7 +248,20 @@ export async function connectProxyTransport(options: ProxyOptions, downstream: T
 
 /** Run the published stdio executable with the caller's initialize intact. */
 export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  await connectProxyTransport(resolveProxyOptions(env), new StdioServerTransport());
+  const options = resolveProxyOptions(env);
+  const transport = new StdioServerTransport();
+  const close = () => {
+    void transport.close().catch(() => {});
+  };
+  process.stdin.once("end", close);
+  process.stdin.once("close", close);
+  try {
+    await connectProxyTransport(options, transport);
+  } catch (error) {
+    process.stdin.off("end", close);
+    process.stdin.off("close", close);
+    throw error;
+  }
 }
 
 /* v8 ignore start -- process entry; the transport bridge is tested above. */

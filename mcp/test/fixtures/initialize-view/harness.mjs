@@ -32,7 +32,7 @@ export async function startFixture() {
     const body = Buffer.concat(chunks).toString('utf8');
     const message = JSON.parse(body);
     let session = req.headers['mcp-session-id'];
-    traffic.push({ direction: 'http-request', session: session ?? null, body });
+    traffic.push({ direction: 'http-request', session: session ?? null, protocolVersion: req.headers['mcp-protocol-version'] ?? null, body });
     let result;
     if (message.method === 'initialize') {
       session = `fixture-session-${++nextSession}`;
@@ -50,6 +50,10 @@ export async function startFixture() {
       res.writeHead(202).end();
       return;
     } else if (message.method === 'tools/list') {
+      if (message.params?.view === 'full' && req.headers['x-api-key'] !== 'fixture-key') {
+        res.writeHead(403).end('fixture authorization required');
+        return;
+      }
       result = catalog(message.params?.view ?? sessions.get(session));
     } else {
       result = { _meta: { view: sessions.get(session) }, content: [{ type: 'text', text: sessions.get(session) }] };
@@ -69,9 +73,9 @@ export async function startFixture() {
   };
 }
 
-export function startProxy(executable, url) {
+export function startProxy(executable, url, apiKey = '') {
   const child = spawn(process.execPath, [executable], {
-    env: { ...process.env, HONUA_MCP_REMOTE_URL: url, HONUA_MCP_AUTH_TOKEN: '', HONUA_ADMIN_KEY: '', HONUA_API_KEY: '' },
+    env: { ...process.env, HONUA_MCP_REMOTE_URL: url, HONUA_MCP_AUTH_TOKEN: '', HONUA_ADMIN_KEY: '', HONUA_API_KEY: apiKey },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   const traffic = [];
