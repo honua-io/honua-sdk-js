@@ -346,6 +346,24 @@ execute, matched on working directory plus program plus script name, and fails
 if the graph drops any of them. Sharding redistributes work; it must never
 retire a gate.
 
+`pull_request` runs the workflow file from the merge commit, and every long
+job then checks out `head.sha`. Those trees diverge when the base has gained a
+gate the head does not contain: `npm run` exits with `Missing script`, and the
+aggregate disagrees with `ci.yml`, which checked out the merge and therefore
+had the script. Head-pinned jobs skip a gate whose npm script or source file
+is absent and still run it when it is present. The skip is a notice, not a
+pass of a gate that exists. `scripts/sdk-build-evidence.mjs` and
+`scripts/quickstart-time-to-map.mjs` are not skipped — a head that cannot admit
+the immutable build, or cannot record the quickstart clock, fails closed. A
+head that predates `scripts/unit-test-shards.mjs` runs `test:coverage:prepared`
+on shard 1 when that script exists, which is the coverage command `ci.yml`
+still runs, and the merge gate does not treat the marker as a blob. The
+committed parity snapshot is left as collected; it is not edited to drop the
+historical disagreements. The examples browser shard prepares split packages
+before Playwright. `migration-browser-installed-package.spec.mjs` skips every
+test when `dist/packages` is absent, and `ci.yml` only runs them because the
+same job built those packages earlier.
+
 ### Measuring parity, so promotion is a decision and not a feeling
 
 "Parity and cost thresholds pass" is only actionable if somebody can say what

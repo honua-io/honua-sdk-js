@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -670,5 +672,172 @@ describe("ci.yml stays the authoritative workflow while the graph runs in shadow
         assert.ok(commands.has(command), `ci.yml ${jobId} must still run ${command}`);
       }
     }
+  });
+});
+
+const HEAD_PINNED_FILE_DENY = new Set([
+  "scripts/sdk-build-evidence.mjs",
+  "scripts/quickstart-time-to-map.mjs",
+  "scripts/unit-test-shards.mjs",
+  "scripts/browser-shards.mjs",
+]);
+
+function headPinnedJobs() {
+  return Object.entries(graph.jobs).filter(([, job]) =>
+    (job.steps ?? []).some((step) => String(step.with?.ref ?? "").includes("head_sha")),
+  );
+}
+
+function stepDirectory(job, step) {
+  return step["working-directory"] ?? job.defaults?.run?.["working-directory"] ?? ".";
+}
+
+function dedent(block) {
+  const lines = block.split("\n");
+  const widths = lines.filter((line) => line.trim().length > 0).map((line) => line.match(/^ */u)[0].length);
+  const width = Math.min(...widths);
+  return `${lines.map((line) => line.slice(width)).join("\n")}\n`;
+}
+
+function gateHelpers() {
+  const raw = fs.readFileSync(path.join(root, GRAPH_WORKFLOW), "utf8");
+  const bodies = [...raw.matchAll(/<< 'EXACT_HEAD_GATE'\n([\s\S]*?)\n *EXACT_HEAD_GATE/gu)].map((match) =>
+    dedent(match[1]),
+  );
+  assert.ok(bodies.length > 0, "head-pinned jobs must install the exact-head gate helper");
+  return bodies;
+}
+
+function runBash(cwd, command) {
+  const result = spawnSync("bash", ["-eo", "pipefail", "-c", command], {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  return { status: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+}
+
+describe("exact-head workflow compatibility", () => {
+  it("installs one identical helper in every job that sources it", () => {
+    const bodies = gateHelpers();
+    assert.equal(new Set(bodies).size, 1);
+    const raw = fs.readFileSync(path.join(root, GRAPH_WORKFLOW), "utf8");
+    const sources = raw.match(/source "\$RUNNER_TEMP\/exact-head-gate\.sh"/gu) ?? [];
+    assert.ok(sources.length > 0);
+    assert.equal(bodies.length, (raw.match(/Install exact-head gate compatibility/gu) ?? []).length);
+  });
+
+  it("wraps every npm script and source file a head-pinned job runs", () => {
+    for (const [jobId, job] of headPinnedJobs()) {
+      for (const step of job.steps ?? []) {
+        const script = stepScript(step);
+        if (script.includes("<< 'EXACT_HEAD_GATE'")) continue;
+        for (const line of script.split("\n")) {
+          const npm = /^\s*npm run ([a-z0-9:._-]+)/u.exec(line);
+          if (npm) {
+            assert.match(
+              line,
+              new RegExp(`run_if_script ${npm[1]} npm run ${npm[1]}\\b`, "u"),
+              `${jobId} runs a bare npm script on the pinned head: ${line.trim()}`,
+            );
+          }
+          const nodeScript = /^\s*node (scripts\/\S+\.(?:mjs|js|cjs))\b/u.exec(line);
+          if (nodeScript && !HEAD_PINNED_FILE_DENY.has(nodeScript[1]) && !line.includes("run_if_file ")) {
+            assert.fail(`${jobId} runs ${nodeScript[1]} without run_if_file`);
+          }
+          for (const pattern of [/^\s*node --test (\S+)/u, /^\s*python3 (scripts\/\S+\.py)/u, /^\s*npx vitest run (\S+)/u]) {
+            const match = pattern.exec(line);
+            if (match && !line.includes("run_if_file ")) assert.fail(`${jobId} runs ${match[1]} without run_if_file`);
+          }
+          if (/^\s*node dist\/src\/certification\/cli\.js\b/u.test(line) && !line.includes("run_if_file ")) {
+            assert.fail(`${jobId} runs the certification cli without run_if_file`);
+          }
+        }
+      }
+    }
+  });
+
+  it("only skips entrypoints the current tree does not have, so a typo cannot hide", () => {
+    for (const [jobId, job] of headPinnedJobs()) {
+      for (const step of job.steps ?? []) {
+        const directory = stepDirectory(job, step);
+        const script = stepScript(step);
+        for (const match of script.matchAll(/^ *run_if_script ([a-z0-9:._-]+) npm run \1\b/gmu)) {
+          const pkg = JSON.parse(fs.readFileSync(path.join(root, directory, "package.json"), "utf8"));
+          assert.ok(
+            Object.hasOwn(pkg.scripts ?? {}, match[1]),
+            `${jobId} would skip ${match[1]} on the current tree (${directory})`,
+          );
+        }
+        for (const match of script.matchAll(/^ *run_if_file (\S+) /gmu)) {
+          assert.ok(
+            fs.existsSync(path.join(root, directory, match[1])),
+            `${jobId} would skip missing ${directory}/${match[1]} on the current tree`,
+          );
+        }
+      }
+    }
+  });
+
+  it("falls back to the monolith coverage command only when the shard runner is absent", () => {
+    const shard = steps(graph, "unit-coverage").find((step) => step.id === "unit_coverage");
+    assert.match(stepScript(shard), /scripts\/unit-test-shards\.mjs run/u);
+    assert.match(stepScript(shard), /exact-head-coverage-/u);
+    assert.equal(shard["continue-on-error"], true);
+    const legacy = steps(graph, "unit-coverage").find((step) => stepScript(step).includes("test:coverage:prepared"));
+    assert.equal(legacy.if, "matrix.shard == 1 && steps.unit_coverage.outputs.sharded == 'false'");
+    const merge = steps(graph, "coverage-gate").map(stepScript).join("\n");
+    assert.match(merge, /exact-head-coverage-\*\.json/u);
+    assert.match(merge, /npx vitest --merge-reports=\.vitest-reports --coverage/u);
+  });
+
+  it("prepares split packages on the examples shard before the suite that skips without them", () => {
+    const browserSteps = steps(graph, "browser");
+    const prepare = browserSteps.find((step) => stepScript(step).includes("build:split-packages:prepared"));
+    assert.ok(prepare, "the examples shard must build dist/packages before Playwright");
+    assert.equal(prepare.if, "matrix.shard == 'examples'");
+    const suite = browserSteps.find((step) => stepScript(step).includes("test:playwright:prepared"));
+    assert.ok(browserSteps.indexOf(prepare) < browserSteps.indexOf(suite));
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+    assert.ok(Object.hasOwn(pkg.scripts, "build:split-packages:prepared"));
+  });
+
+  it("skips an entrypoint the head lacks and still fails one the head has", () => {
+    const helper = gateHelpers()[0];
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "exact-head-gate-"));
+    fs.writeFileSync(path.join(dir, "exact-head-gate.sh"), helper);
+    fs.writeFileSync(
+      path.join(dir, "package.json"),
+      JSON.stringify({ scripts: { ok: "node -e 'process.exit(0)'", boom: "node -e 'process.exit(7)'" } }),
+    );
+    fs.writeFileSync(path.join(dir, "present.txt"), "ok");
+    const source = "source ./exact-head-gate.sh";
+
+    const missing = runBash(dir, `${source} && run_if_script absent npm run absent`);
+    assert.equal(missing.status, 0);
+    assert.match(missing.stdout, /Skipping npm run absent/u);
+
+    const present = runBash(dir, `${source} && run_if_script ok npm run ok`);
+    assert.equal(present.status, 0, present.stderr);
+    assert.doesNotMatch(present.stdout, /Skipping/u);
+
+    const failed = runBash(dir, `${source} && run_if_script boom npm run boom`);
+    assert.equal(failed.status, 7);
+    assert.doesNotMatch(`${failed.stdout}\n${failed.stderr}`, /Skipping/u);
+
+    const mismatched = runBash(dir, `${source} && run_if_script ok npm run boom`);
+    assert.equal(mismatched.status, 1);
+
+    const missingFile = runBash(dir, `${source} && run_if_file missing.txt node -e 'process.exit(9)'`);
+    assert.equal(missingFile.status, 0);
+    assert.match(missingFile.stdout, /Skipping missing\.txt/u);
+
+    const failedFile = runBash(dir, `${source} && run_if_file present.txt node -e 'process.exit(9)'`);
+    assert.equal(failedFile.status, 9);
+    assert.doesNotMatch(`${failedFile.stdout}\n${failedFile.stderr}`, /Skipping/u);
+
+    fs.rmSync(path.join(dir, "package.json"));
+    const unreadable = runBash(dir, `${source} && run_if_script ok npm run ok`);
+    assert.equal(unreadable.status, 2);
   });
 });
