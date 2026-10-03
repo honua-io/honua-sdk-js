@@ -542,6 +542,18 @@ describe("sdk version resolution", () => {
     );
   });
 
+  it("treats a malformed registry setting as an unreadable registry", async () => {
+    const env = { npm_config_registry: "not a url s3cret" };
+    const fallback = await resolveSdkVersion({ manifest, env, fetch: offlineFetch });
+    assert.equal(fallback.version, "0.1.12");
+    assert.equal(fallback.source, "pinned");
+    assert.match(fallback.note, /is not a valid URL/);
+    assert.ok(!fallback.note.includes("s3cret"));
+    const kept = await resolveSdkVersion({ manifest, env: { npm_config_registry: "file:///tmp/r" }, fetch: offlineFetch, override: "0.1.13" });
+    assert.equal(kept.version, "0.1.13");
+    assert.match(kept.note, /must be an http\(s\) URL/);
+  });
+
   it("honours an explicit --sdk-version, including a prerelease", async () => {
     const resolved = await resolveWith({ "release-2026.1": "0.1.13" }, { override: "0.1.11-beta.0" });
     assert.equal(resolved.version, "0.1.11-beta.0");
