@@ -22,8 +22,19 @@ export async function startFixture(options = {}) {
   const sessions = new Map();
   const traffic = [];
   let nextSession = 0;
+  const streams = new Set();
   let initializeNotificationComplete = false;
   const server = createServer(async (req, res) => {
+    const getSession = req.headers['mcp-session-id'];
+    if (req.method === 'GET' && options.sse && sessions.has(getSession)) {
+      // Standalone server-to-client stream for notifications such as list_changed.
+      traffic.push({ direction: 'http-get', session: getSession });
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'mcp-session-id': getSession });
+      res.flushHeaders();
+      streams.add(res);
+      res.on('close', () => streams.delete(res));
+      return;
+    }
     if (req.method !== 'POST') {
       res.writeHead(req.method === 'DELETE' ? 204 : 405).end();
       return;
@@ -35,7 +46,9 @@ export async function startFixture(options = {}) {
     let session = req.headers['mcp-session-id'];
     traffic.push({ direction: 'http-request', session: session ?? null, protocolVersion: req.headers['mcp-protocol-version'] ?? null, body });
     let result;
-    if (message.method === 'initialize') {
+    if (message.method === 'initialize' && options.hangInitialize) {
+      return;
+    } else if (message.method === 'initialize') {
       session = `fixture-session-${++nextSession}`;
       sessions.set(session, message.params?._meta?.['honua.io/workflow-view'] ?? 'default');
       result = {
@@ -78,7 +91,11 @@ export async function startFixture(options = {}) {
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   return {
-    url: `http://127.0.0.1:${server.address().port}/mcp`, traffic, sessions,
+    url: `http://127.0.0.1:${server.address().port}/mcp`, traffic, sessions, streams,
+    notify(message) {
+      for (const stream of streams) stream.write(`event: message\ndata: ${JSON.stringify(message)}\n\n`);
+      return streams.size;
+    },
     close: () => new Promise((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());
       server.closeAllConnections();
@@ -93,12 +110,19 @@ export function startProxy(executable, url, apiKey = '') {
   });
   const traffic = [];
   const pending = new Map();
+  const notifications = [];
+  const notificationWaiters = [];
   let stderr = '';
   const exited = once(child, 'exit');
   child.stderr.on('data', (chunk) => { stderr += chunk; });
   createInterface({ input: child.stdout }).on('line', (line) => {
     traffic.push({ direction: 'stdio-response', body: `${line}\n` });
     const message = JSON.parse(line);
+    if (message.id === undefined) {
+      notifications.push(message);
+      for (const waiter of notificationWaiters.splice(0)) waiter();
+      return;
+    }
     const waiter = pending.get(message.id);
     if (waiter) { pending.delete(message.id); clearTimeout(waiter.timer); waiter.resolve(message); }
   });
@@ -115,7 +139,18 @@ export function startProxy(executable, url, apiKey = '') {
     child.stdin.write(body);
   };
   return {
-    traffic, send,
+    traffic, send, notifications,
+    async waitForNotification(method, ms = 5000) {
+      const deadline = Date.now() + ms;
+      while (!notifications.some((message) => message.method === method)) {
+        if (Date.now() > deadline) throw new Error(`proxy did not relay ${method}: ${stderr}`);
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, 50);
+          notificationWaiters.push(() => { clearTimeout(timer); resolve(); });
+        });
+      }
+      return notifications.find((message) => message.method === method);
+    },
     async expectExit() {
       let timer;
       try {
