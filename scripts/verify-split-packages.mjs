@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { runNpmSync } from "./lib/npm-cli.mjs";
 import { splitPackageDiscoverabilityErrors } from "./lib/package-discoverability.mjs";
+import { missingRelativeImports } from "./lib/split-package-relative-imports.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -126,6 +127,17 @@ for (const [name, directory] of Object.entries(packageDirs)) {
 
   if (!fs.existsSync(path.join(directory, "LICENSE"))) {
     process.stderr.write(`Missing LICENSE file in split package ${name}: ${directory}\n`);
+    process.exit(1);
+  }
+}
+
+for (const [name, directory] of Object.entries(packageDirs)) {
+  const missing = missingRelativeImports(directory);
+  if (missing.length > 0) {
+    process.stderr.write(`Split ${name} is missing relative import targets:\n`);
+    for (const item of missing) {
+      process.stderr.write(`  ${item.file} imports ${item.specifier}\n`);
+    }
     process.exit(1);
   }
 }

@@ -48,6 +48,7 @@ describe("split package manifests", () => {
     expect(verifier).toContain("packed-grpc-smoke");
     expect(verifier).toContain("splitPackageGrpcSmoke=ok");
     expect(verifier).toContain("verify-rest-clean-install.mjs");
+    expect(verifier).toContain("missingRelativeImports");
     const compatFactory = prepareScript.slice(
       prepareScript.indexOf("function createCompatPackage()"),
       prepareScript.indexOf("function createGeometryPackage()"),
@@ -123,5 +124,35 @@ describe("split package manifests", () => {
     expect(reactPackageFactory).toContain('"query-planner",');
     expect(reactPackageFactory).toContain('"filter-registry",');
     expect(reactPackageFactory).toContain('"runtime",');
+  });
+
+  it("copies the relative-import closure each split package reaches", () => {
+    const prepareScript = fs.readFileSync(path.join(process.cwd(), "scripts/prepare-split-packages.mjs"), "utf8");
+    const between = (start: string, end: string) =>
+      prepareScript.slice(prepareScript.indexOf(start), prepareScript.indexOf(end));
+    const sdk = between("function createSdkPackage()", "function createCompatPackage()");
+    const compat = between("function createCompatPackage()", "function createGeometryPackage()");
+    const geometry = between("function createGeometryPackage()", "function createReactPackage()");
+    const react = between("function createReactPackage()", "function createAppPlatformPackage()");
+    const appPlatform = prepareScript.slice(prepareScript.indexOf("function createAppPlatformPackage()"));
+
+    expect(sdk).toContain('DIST_SRC_ROOT, "geometry"');
+    expect(sdk).toContain('copyEmittedModule(packageRoot, "widget-capabilities")');
+    expect(sdk).toContain('copyEmittedModule(packageRoot, "replica-sync/types")');
+    expect(compat).toContain("copyContractRuntimeClosure(packageRoot)");
+    expect(geometry).toContain("copyContractRuntimeClosure(packageRoot)");
+    expect(react).toContain("copyColumnarRuntimeClosure(packageRoot)");
+    expect(react).toContain('"geocoding",');
+    expect(react).toContain('"geometry",');
+    expect(react).toContain('copyEmittedModule(packageRoot, "widget-capabilities")');
+    expect(react).toContain('copyEmittedModule(packageRoot, "kernel/renderer")');
+    expect(appPlatform).toContain('"columnar",');
+    expect(appPlatform).toContain('"offline",');
+    expect(appPlatform).toContain('copyEmittedModule(packageRoot, "kernel/renderer")');
+    expect(prepareScript).toContain('DIST_SRC_ROOT, "query-planner"');
+    expect(prepareScript).toContain('DIST_SRC_ROOT, "columnar"');
+    expect(prepareScript).toContain('"offline/digest"');
+    expect(prepareScript).toContain('"offline/quota"');
+    expect(prepareScript).toContain('"offline/types"');
   });
 });
