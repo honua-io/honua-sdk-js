@@ -1,0 +1,15 @@
+{
+  "package": "@honua/mcp-server",
+  "version": "0.1.12",
+  "tarball": "https://registry.npmjs.org/@honua/mcp-server/-/mcp-server-0.1.12.tgz",
+  "integrity": "sha512-BsRehciN9mT4XkrO6ActiuyenUBhSzZvX6TOjCOq9ZoJQVNCVe46IQxdwZvZYRust2W6w7BsSEhwuTzabvXEsg==",
+  "gitHead": "44289c02568035d626728ab7d5c149b693f95956",
+  "installation": "npm install @honua/mcp-server@0.1.12 @honua/sdk-js@0.1.12 --no-audit --no-fund",
+  "peerResolution": "npm default; no force or legacy-peer-deps",
+  "reproduction": "node mcp/test/fixtures/initialize-view/reproduce.mjs /tmp/sdkjs-1875-published/node_modules/@honua/mcp-server/dist/src/proxy.js mcp/test/fixtures/initialize-view/published-0.1.12.json",
+  "observed": {
+    "requestedView": "setup",
+    "revision": "default.v1",
+    "tools": 12
+  }
+}

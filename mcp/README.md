@@ -390,8 +390,8 @@ The honua server exposes one MCP catalog over streamable-HTTP/SSE at `/mcp`.
 Claude-Desktop-style clients speak **stdio**. Rather than reimplement that
 catalog (which is how the HTTP and stdio surfaces historically drifted apart),
 this package ships a **stdio proxy** (`honua-mcp-proxy`) that bridges a local
-stdio MCP client to the remote HTTP-SSE MCP server. It connects upstream as an
-MCP client and re-exposes the *same* catalog downstream over stdio — identical
+stdio MCP client to the remote HTTP-SSE MCP server. It forwards MCP messages
+between the transports and exposes the *same* catalog downstream over stdio — identical
 tools, identical input/output schemas, identical resources and prompts, and live
 `tools/list_changed` notifications. There is one source-of-truth catalog (the
 server's `/mcp`); the SDK proxies it, so the two transports are symmetric by
@@ -416,6 +416,18 @@ Credentialed endpoints require HTTPS except for exact `localhost`, `127.0.0.1`,
 or `[::1]` HTTP development endpoints. Userinfo, query parameters, fragments,
 non-HTTP(S) URLs are rejected before connect, and redirect targets are never
 followed or sent credentials.
+
+The proxy forwards the caller's `initialize` request before opening an initialized
+upstream session, including `_meta["honua.io/workflow-view"]`. That HTTP session
+is retained for subsequent requests, so initializing with `setup` makes a later
+selector-free `tools/list` return the server's setup catalog. A temporary
+per-request catalog override leaves the initialized view intact; separate proxy
+processes have separate sessions.
+
+Executable protocol tests (`test/proxy-session.test.ts`) exercise setup/default
+initialization, concurrent sessions, and authenticated full-catalog override and
+restoration against a loopback fixture. The published 0.1.12 reproduction and
+exact JSON wire captures are under `test/fixtures/initialize-view/`.
 
 A parity test (`test/proxy.test.ts`) asserts the tool/resource/template catalog
 the downstream client sees is byte-identical to the upstream surface, that

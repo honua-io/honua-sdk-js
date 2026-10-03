@@ -3,6 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   CallToolRequestSchema,
   GetPromptRequestSchema,
@@ -15,6 +16,9 @@ import {
   ResourceListChangedNotificationSchema,
   type ServerCapabilities,
   ToolListChangedNotificationSchema,
+  isInitializedNotification,
+  isJSONRPCRequest,
+  isJSONRPCResultResponse,
 } from "@modelcontextprotocol/sdk/types.js";
 import { requireSecureCredentialEndpoint } from "./credential-endpoint.js";
 import { isMainEntrypoint } from "./entrypoint.js";
@@ -176,34 +180,88 @@ export function createProxyServer(upstream: Client): Server {
   return server;
 }
 
-/* v8 ignore start -- live-process entry: wires the stdio transport to a real
-   remote /mcp upstream; exercised by running the proxy, not by unit tests. The
-   unit-testable logic (option/header resolution, upstream connect, catalog
-   forwarding) lives in the exported functions above and is covered there. */
-
 /**
- * Run the stdio proxy end-to-end: resolve the remote `/mcp` from the
- * environment, connect upstream, and expose the mirrored catalog over stdio.
- * Also used by the deprecated `honua-mcp` bin, which now delegates here.
+ * Bridge one downstream transport to one upstream HTTP session. In particular,
+ * forward the caller's initialize instead of letting Client.connect synthesize
+ * an earlier initialize without its metadata. The server owns view selection
+ * and request overrides; the proxy never supplies a tools/list selector.
  */
-export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  const options = resolveProxyOptions(env);
-  const upstream = await connectUpstream(options);
-  const server = createProxyServer(upstream);
-
-  // Tear down both ends together so a dropped upstream surfaces to the client.
+export async function connectProxyTransport(options: ProxyOptions, downstream: Transport): Promise<Transport> {
+  const headers = buildUpstreamHeaders(options);
+  const upstream = new StreamableHTTPClientTransport(validateProxyOptions(options), {
+    requestInit: { ...(Object.keys(headers).length > 0 ? { headers } : {}), redirect: "manual" },
+  });
+  let closed = false;
+  let initializeId: string | number | undefined;
+  let initialized = Promise.resolve();
   const shutdown = async () => {
-    await server.close().catch(() => {});
-    await upstream.close().catch(() => {});
+    if (closed) return;
+    closed = true;
+    await Promise.all([downstream.close().catch(() => {}), upstream.close().catch(() => {})]);
   };
-  upstream.onclose = () => {
+  downstream.onclose = upstream.onclose = () => {
     void shutdown();
   };
-
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  // HTTP/SSE errors can contain credential-bearing response bodies. Close
+  // both transports on synchronous or background failures without echoing
+  // those details. In particular, a failed SSE reader must not strand stdio.
+  upstream.onerror = () => {
+    void shutdown();
+  };
+  downstream.onmessage = (message) => {
+    if (isJSONRPCRequest(message) && message.method === "initialize") initializeId = message.id;
+    const sending = initialized.then(() => upstream.send(message));
+    // HTTP POSTs may otherwise overtake the initialized notification. Await
+    // its acceptance before subsequent traffic, while allowing later tool
+    // calls and cancellation notifications to proceed concurrently.
+    if (isInitializedNotification(message)) initialized = sending;
+    void sending.catch(() => {
+      void shutdown();
+    });
+  };
+  upstream.onmessage = (message) => {
+    if (
+      isJSONRPCResultResponse(message) &&
+      message.id === initializeId &&
+      typeof message.result.protocolVersion === "string"
+    ) {
+      upstream.setProtocolVersion(message.result.protocolVersion);
+      downstream.setProtocolVersion?.(message.result.protocolVersion);
+      initializeId = undefined;
+    }
+    void downstream.send(message).catch(() => {
+      void shutdown();
+    });
+  };
+  try {
+    await upstream.start();
+    await downstream.start();
+  } catch (error) {
+    await shutdown();
+    throw error;
+  }
+  return upstream;
 }
 
+/** Run the published stdio executable with the caller's initialize intact. */
+export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const options = resolveProxyOptions(env);
+  const transport = new StdioServerTransport();
+  const close = () => {
+    void transport.close().catch(() => {});
+  };
+  process.stdin.once("end", close);
+  process.stdin.once("close", close);
+  try {
+    await connectProxyTransport(options, transport);
+  } catch (error) {
+    process.stdin.off("end", close);
+    process.stdin.off("close", close);
+    throw error;
+  }
+}
+
+/* v8 ignore start -- process entry; the transport bridge is tested above. */
 if (isMainEntrypoint(import.meta.url)) {
   runProxy().catch((err) => {
     process.stderr.write(`Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
