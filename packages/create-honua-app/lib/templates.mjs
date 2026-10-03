@@ -19,12 +19,18 @@ export const MANIFEST_FILE = "templates.manifest.json";
 export const MANIFEST_FORMAT = "honua.sdk.create-honua-app-templates.v1";
 export const TEMPLATE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /**
- * npm dist-tag names the manifest may follow. npm refuses a tag that is also a
- * valid semver range, which is why the 2026.1 channel is `release-2026.1` and
- * not `2026.1`; starting with a letter other than the range wildcards keeps
- * every accepted name publishable.
+ * npm dist-tag names the manifest may follow: lowercase, dot-separated words.
+ * npm refuses a tag that is also a valid semver range, which is why the
+ * 2026.1 channel is `release-2026.1` and not `2026.1`, so a name whose first
+ * segment is a range token (`x`, `v1`) is refused as well.
  */
-export const CHANNEL_PATTERN = /^[a-uw-z][a-z0-9.-]*$/;
+export const CHANNEL_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)*$/;
+const RANGE_LIKE_CHANNEL = /^(?:x|v\d+)(?:\.|$)/;
+
+/** True for a channel name npm can publish as a dist-tag. */
+export function isChannelName(name) {
+  return typeof name === "string" && CHANNEL_PATTERN.test(name) && !RANGE_LIKE_CHANNEL.test(name);
+}
 
 function fail(message) {
   throw new Error(`${MANIFEST_FILE} is invalid: ${message}`);
@@ -47,7 +53,7 @@ export function loadTemplateManifest(packageRoot = PACKAGE_ROOT) {
     fail(`sdk.version must be a stable release version, found ${JSON.stringify(manifest.sdk.version)}`);
   }
   nonEmptyString(manifest.sdk?.channel, "sdk.channel");
-  if (!CHANNEL_PATTERN.test(manifest.sdk.channel)) {
+  if (!isChannelName(manifest.sdk.channel)) {
     fail(`sdk.channel must be an npm dist-tag name, found ${JSON.stringify(manifest.sdk.channel)}`);
   }
   for (const field of ["owner", "name", "branch"]) nonEmptyString(manifest.repository?.[field], `repository.${field}`);

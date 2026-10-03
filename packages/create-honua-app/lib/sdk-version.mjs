@@ -12,12 +12,22 @@
 // promoted yet, it names a prerelease or another line, or the registry cannot
 // be read — falls back to the certified version the manifest pins, so a first
 // map never lands on a beta the user did not ask for. An explicit
-// `--sdk-version` is the only way to scaffold a prerelease. A registry that
-// answers 404 for the SDK is not "offline": the app it would scaffold could
-// never install, so that fails the scaffold instead.
+// `--sdk-version` is the only way to scaffold a prerelease.
+//
+// When npm launched the scaffold (`npm create`, `npx`), the registry is read
+// through npm's own CLI (`npm view`), so the lookup sees exactly what the
+// later `npm install` will: scope registries, `.npmrc` auth, proxies, and CA
+// settings. Otherwise it is a direct read of the exported registry setting.
+// A registry that answers 404 for the SDK, or that lists neither the channel
+// version nor the certified fallback, is not "offline": the app it would
+// scaffold could never install, so that fails the scaffold instead.
+
+import { execFile } from "node:child_process";
+import path from "node:path";
 
 export const DEFAULT_REGISTRY = "https://registry.npmjs.org/";
 export const REGISTRY_TIMEOUT_MS = 5000;
+export const NPM_VIEW_TIMEOUT_MS = 30000;
 
 // The SemVer 2.0.0 grammar (semver.org): numeric identifiers carry no leading
 // zeros and every prerelease or build identifier is non-empty, so a malformed
@@ -139,6 +149,52 @@ export async function fetchPackument(
   return { distTags, versions: new Set(Object.keys(versions)) };
 }
 
+/** npm's own CLI script when npm launched this process; undefined for pnpm, yarn, or a direct run. */
+export function npmCliPath(env = process.env) {
+  const execpath = env.npm_execpath;
+  return typeof execpath === "string" && path.basename(execpath) === "npm-cli.js" ? execpath : undefined;
+}
+
+/**
+ * Read a package's dist-tags and published versions with `npm view`, under
+ * npm's effective configuration. Throws `PackageNotFoundError` for npm's E404
+ * and a plain `Error` naming only npm's error code otherwise, so nothing npm
+ * printed (URLs included) reaches the scaffold's output.
+ */
+export function viewPackument(packageName, { npmCli, env = process.env, timeoutMs = NPM_VIEW_TIMEOUT_MS } = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      process.execPath,
+      [npmCli, "view", packageName, "dist-tags", "versions", "--json"],
+      { env, encoding: "utf8", maxBuffer: 16 * 1024 * 1024, timeout: timeoutMs, windowsHide: true },
+      (error, stdout) => {
+        let document;
+        try {
+          document = JSON.parse(stdout);
+        } catch {
+          document = undefined;
+        }
+        if (error) {
+          const code = typeof document?.error?.code === "string" ? document.error.code : undefined;
+          if (code === "E404") {
+            reject(new PackageNotFoundError(`npm view ${packageName} returned E404`));
+            return;
+          }
+          reject(new Error(`npm view ${packageName} failed (${code ?? (error.killed ? "timed out" : "no result")})`));
+          return;
+        }
+        const distTags = document?.["dist-tags"];
+        const versions = typeof document?.versions === "string" ? [document.versions] : document?.versions;
+        if (!distTags || typeof distTags !== "object" || !Array.isArray(versions)) {
+          reject(new Error(`npm view ${packageName} did not return package metadata`));
+          return;
+        }
+        resolve({ distTags, versions: new Set(versions) });
+      },
+    );
+  });
+}
+
 /**
  * Decide which `manifest.sdk.package` version a scaffold pins.
  *
@@ -146,23 +202,33 @@ export async function fetchPackument(
  * `"override"` (the user passed `--sdk-version`), `"channel"` (the promoted
  * dist-tag), or `"pinned"` (the certified fallback); `note` explains a
  * fallback or an unconfirmed override. Throws when the override is malformed
- * or unpublished, or when the registry has no SDK package at all.
+ * or unpublished, when the registry has no SDK package at all, or when it
+ * lists neither a usable channel version nor the certified fallback.
  */
-export async function resolveSdkVersion({ manifest, override, env = process.env, fetch: fetchImpl, timeoutMs } = {}) {
+export async function resolveSdkVersion({
+  manifest,
+  override,
+  env = process.env,
+  fetch: fetchImpl,
+  timeoutMs,
+  npmCli = npmCliPath(env),
+} = {}) {
   const { package: packageName, version: pinned, channel } = manifest.sdk;
   const base = { package: packageName, channel };
   if (override !== undefined && !parseVersion(override)) {
     throw new Error(`--sdk-version must be an exact version such as ${pinned}, found ${JSON.stringify(override)}.`);
   }
-  const registry = registryUrl(env, packageName);
-  const shownRegistry = redactUrl(registry);
+  const registry = npmCli ? undefined : registryUrl(env, packageName);
+  const shownRegistry = npmCli ? "the npm registry npm is configured to use" : redactUrl(registry);
   const read = async () => {
     try {
-      return await fetchPackument(packageName, { registry, fetch: fetchImpl, timeoutMs });
+      return npmCli
+        ? await viewPackument(packageName, { npmCli, env, timeoutMs })
+        : await fetchPackument(packageName, { registry, fetch: fetchImpl, timeoutMs });
     } catch (error) {
       if (!(error instanceof PackageNotFoundError)) throw error;
       throw new PackageNotFoundError(
-        `${packageName} is not on the configured npm registry ${shownRegistry}, so the app could not install.`,
+        `${packageName} is not on ${npmCli ? shownRegistry : `the configured npm registry ${shownRegistry}`}, so the app could not install.`,
       );
     }
   };
@@ -186,14 +252,27 @@ export async function resolveSdkVersion({ manifest, override, env = process.env,
     return { ...base, version: override, source: "override" };
   }
 
-  const pinnedResult = (note) => ({ ...base, version: pinned, source: "pinned", note });
   let packument;
   try {
     packument = await read();
   } catch (error) {
     if (error instanceof PackageNotFoundError) throw error;
-    return pinnedResult(`could not read the ${channel} channel: ${error.message}`);
+    return {
+      ...base,
+      version: pinned,
+      source: "pinned",
+      note: `could not read the ${channel} channel: ${error.message}`,
+    };
   }
+  // The registry answered, so the fallback must be installable from it too.
+  const pinnedResult = (note) => {
+    if (!packument.versions.has(pinned)) {
+      throw new Error(
+        `${note}, and ${shownRegistry} does not list the certified ${packageName}@${pinned}, so the app could not install. Pass --sdk-version to choose a published version.`,
+      );
+    }
+    return { ...base, version: pinned, source: "pinned", note };
+  };
   const promoted = packument.distTags[channel];
   if (typeof promoted !== "string" || promoted.length === 0) {
     return pinnedResult(`the ${channel} channel has not been promoted yet`);
