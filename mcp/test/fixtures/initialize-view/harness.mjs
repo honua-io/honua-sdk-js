@@ -18,10 +18,11 @@ export const catalog = (view) => ({
   _meta: { view, revision: view === 'setup' ? 'setup.v2' : `${view}.v1`, 'fixture/opaque': [1, 'unchanged'] },
 });
 
-export async function startFixture() {
+export async function startFixture(options = {}) {
   const sessions = new Map();
   const traffic = [];
   let nextSession = 0;
+  let initializeNotificationComplete = false;
   const server = createServer(async (req, res) => {
     if (req.method !== 'POST') {
       res.writeHead(req.method === 'DELETE' ? 204 : 405).end();
@@ -47,7 +48,19 @@ export async function startFixture() {
       res.writeHead(400).end('missing initialized session');
       return;
     } else if (message.id === undefined) {
+      if (message.method === 'notifications/initialized' && options.initializedDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.initializedDelayMs));
+        initializeNotificationComplete = true;
+      }
       res.writeHead(202).end();
+      return;
+    } else if (options.initializedDelayMs && !initializeNotificationComplete) {
+      res.writeHead(409).end('initialized notification not accepted yet');
+      return;
+    } else if (message.method === 'tools/list' && options.brokenSse) {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'mcp-session-id': session });
+      // send() returns before this asynchronous reader failure.
+      res.write('event: message\ndata: invalid-json\n\n');
       return;
     } else if (message.method === 'tools/list') {
       if (message.params?.view === 'full' && req.headers['x-api-key'] !== 'fixture-key') {
@@ -81,6 +94,7 @@ export function startProxy(executable, url, apiKey = '') {
   const traffic = [];
   const pending = new Map();
   let stderr = '';
+  const exited = once(child, 'exit');
   child.stderr.on('data', (chunk) => { stderr += chunk; });
   createInterface({ input: child.stdout }).on('line', (line) => {
     traffic.push({ direction: 'stdio-response', body: `${line}\n` });
@@ -102,6 +116,14 @@ export function startProxy(executable, url, apiKey = '') {
   };
   return {
     traffic, send,
+    async expectExit() {
+      let timer;
+      try {
+        return await Promise.race([exited, new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('proxy did not exit after upstream failure')), 3000);
+        })]);
+      } finally { clearTimeout(timer); }
+    },
     request(message) {
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => { pending.delete(message.id); reject(new Error(`proxy request timeout: ${stderr}`)); }, 10000);

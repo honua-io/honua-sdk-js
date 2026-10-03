@@ -9,7 +9,7 @@ const executable =
   process.env.HONUA_PROXY_TEST_EXECUTABLE ?? fileURLToPath(new URL("../dist/src/proxy.js", import.meta.url));
 
 describe("published proxy protocol boundary: initialize-bound sessions", () => {
-  it("waits for downstream initialize and keeps transport failures bounded", async () => {
+  it("waits for downstream initialize and closes both transports on HTTP failure", async () => {
     const fixture = await startFixture();
     const [client, downstream] = InMemoryTransport.createLinkedPair();
     const upstream = await connectProxyTransport({ remoteUrl: fixture.url }, downstream);
@@ -27,17 +27,44 @@ describe("published proxy protocol boundary: initialize-bound sessions", () => {
       expect(initialized).toMatchObject({ id: 1, result: { _meta: { "fixture/initialize": "preserve" } } });
       const listed = await request({ jsonrpc: "2.0", id: 2, method: "tools/list" });
       expect(listed).toMatchObject({ id: 2, result: catalog("setup") });
-      const denied = await request({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { view: "full" } });
-      expect(denied).toEqual({
-        jsonrpc: "2.0",
-        id: 3,
-        error: { code: -32603, message: "Upstream MCP transport request failed" },
+      const closed = new Promise<void>((resolve) => {
+        client.onclose = resolve;
       });
-      const restored = await request({ jsonrpc: "2.0", id: 4, method: "tools/list" });
-      expect(restored).toMatchObject({ id: 4, result: catalog("setup") });
+      await client.send({ jsonrpc: "2.0", id: 3, method: "tools/list", params: { view: "full" } });
+      await closed;
+      expect(fixture.sessions.size).toBe(1);
     } finally {
       await client.close();
       await upstream.close();
+      await fixture.close();
+    }
+  });
+
+  it("accepts initialized before sending an immediately following tools/list", async () => {
+    const fixture = await startFixture({ initializedDelayMs: 200 });
+    const proxy = startProxy(executable, fixture.url);
+    try {
+      await proxy.request(initialize("setup"));
+      proxy.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+      const listed = await proxy.request({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+      expect(listed.result).toEqual(catalog("setup"));
+    } finally {
+      await proxy.close();
+      await fixture.close();
+    }
+  });
+
+  it("closes stdio after an asynchronous SSE reader failure", async () => {
+    const fixture = await startFixture({ brokenSse: true });
+    const proxy = startProxy(executable, fixture.url);
+    try {
+      await proxy.request(initialize("setup"));
+      proxy.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+      proxy.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+      await proxy.expectExit();
+      expect(fixture.sessions.size).toBe(1);
+    } finally {
+      await proxy.close();
       await fixture.close();
     }
   });

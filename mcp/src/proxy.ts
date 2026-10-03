@@ -6,7 +6,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   CallToolRequestSchema,
-  ErrorCode,
   GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourceTemplatesRequestSchema,
@@ -17,6 +16,7 @@ import {
   ResourceListChangedNotificationSchema,
   type ServerCapabilities,
   ToolListChangedNotificationSchema,
+  isInitializedNotification,
   isJSONRPCRequest,
   isJSONRPCResultResponse,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -193,6 +193,7 @@ export async function connectProxyTransport(options: ProxyOptions, downstream: T
   });
   let closed = false;
   let initializeId: string | number | undefined;
+  let initialized = Promise.resolve();
   const shutdown = async () => {
     if (closed) return;
     closed = true;
@@ -201,25 +202,21 @@ export async function connectProxyTransport(options: ProxyOptions, downstream: T
   downstream.onclose = upstream.onclose = () => {
     void shutdown();
   };
-  // HTTP errors can contain credential-bearing response bodies. Report a
-  // bounded protocol error below, without copying the upstream error text.
-  upstream.onerror = () => {};
+  // HTTP/SSE errors can contain credential-bearing response bodies. Close
+  // both transports on synchronous or background failures without echoing
+  // those details. In particular, a failed SSE reader must not strand stdio.
+  upstream.onerror = () => {
+    void shutdown();
+  };
   downstream.onmessage = (message) => {
     if (isJSONRPCRequest(message) && message.method === "initialize") initializeId = message.id;
-    void upstream.send(message).catch(async () => {
-      if (isJSONRPCRequest(message)) {
-        await downstream
-          .send({
-            jsonrpc: "2.0",
-            id: message.id,
-            error: { code: ErrorCode.InternalError, message: "Upstream MCP transport request failed" },
-          })
-          .catch(() => {
-            void shutdown();
-          });
-      } else {
-        await shutdown();
-      }
+    const sending = initialized.then(() => upstream.send(message));
+    // HTTP POSTs may otherwise overtake the initialized notification. Await
+    // its acceptance before subsequent traffic, while allowing later tool
+    // calls and cancellation notifications to proceed concurrently.
+    if (isInitializedNotification(message)) initialized = sending;
+    void sending.catch(() => {
+      void shutdown();
     });
   };
   upstream.onmessage = (message) => {
