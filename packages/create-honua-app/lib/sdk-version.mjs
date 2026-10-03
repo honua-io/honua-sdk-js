@@ -56,9 +56,13 @@ export function registryUrl(env = process.env) {
   return url.toString();
 }
 
-/** Registry document URL for a package name (`@scope/name` keeps its `@` and escapes the slash). */
+/**
+ * Registry document URL for a package name. The whole name is one path
+ * segment: `@scope/name` keeps its leading `@` and escapes everything else,
+ * including the scope slash, exactly as the npm CLI requests it.
+ */
 export function packumentUrl(packageName, registry) {
-  return new URL(packageName.replace("/", "%2f"), registry).toString();
+  return new URL(encodeURIComponent(packageName).replace(/^%40/, "@"), registry).toString();
 }
 
 /**
