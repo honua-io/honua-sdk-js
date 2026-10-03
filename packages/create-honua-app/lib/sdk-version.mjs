@@ -12,12 +12,18 @@
 // promoted yet, it names a prerelease or another line, or the registry cannot
 // be read — falls back to the certified version the manifest pins, so a first
 // map never lands on a beta the user did not ask for. An explicit
-// `--sdk-version` is the only way to scaffold a prerelease.
+// `--sdk-version` is the only way to scaffold a prerelease. A registry that
+// answers 404 for the SDK is not "offline": the app it would scaffold could
+// never install, so that fails the scaffold instead.
 
 export const DEFAULT_REGISTRY = "https://registry.npmjs.org/";
 export const REGISTRY_TIMEOUT_MS = 5000;
 
-const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+// The SemVer 2.0.0 grammar (semver.org): numeric identifiers carry no leading
+// zeros and every prerelease or build identifier is non-empty, so a malformed
+// --sdk-version is refused even when the registry cannot be asked about it.
+const VERSION_PATTERN =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 /** Parse an exact semver version, or return undefined for anything else (ranges, tags, garbage). */
 export function parseVersion(value) {
@@ -45,12 +51,35 @@ export function onPinnedLine(candidate, pinned) {
   return pin.major !== 0 || next.minor === pin.minor;
 }
 
-/** The registry a scaffold reads: npm's configured registry when npm launched us, else npmjs. */
-export function registryUrl(env = process.env) {
-  const configured = env.npm_config_registry || env.NPM_CONFIG_REGISTRY || DEFAULT_REGISTRY;
-  const url = new URL(configured);
+/** A registry URL safe to print: any userinfo (`user:token@`) is removed. */
+export function redactUrl(value) {
+  const url = new URL(value);
+  url.username = "";
+  url.password = "";
+  return url.toString();
+}
+
+/**
+ * The registry npm installs `packageName` from, as npm exported it to this
+ * process: the scope's own registry (`@scope:registry`) first, then the
+ * default `registry`, else npmjs. The setting is never echoed back, because a
+ * registry URL may carry credentials.
+ */
+export function registryUrl(env = process.env, packageName = "") {
+  const scope = packageName.startsWith("@") ? packageName.split("/")[0] : undefined;
+  const configured =
+    (scope && (env[`npm_config_${scope}:registry`] || env[`NPM_CONFIG_${scope}:registry`])) ||
+    env.npm_config_registry ||
+    env.NPM_CONFIG_REGISTRY ||
+    DEFAULT_REGISTRY;
+  let url;
+  try {
+    url = new URL(configured);
+  } catch {
+    throw new Error(`The npm registry configured for ${packageName || "packages"} is not a valid URL.`);
+  }
   if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error(`npm registry ${configured} must be an http(s) URL.`);
+    throw new Error(`The npm registry configured for ${packageName || "packages"} must be an http(s) URL.`);
   }
   if (!url.pathname.endsWith("/")) url.pathname = `${url.pathname}/`;
   return url.toString();
@@ -65,25 +94,36 @@ export function packumentUrl(packageName, registry) {
   return new URL(encodeURIComponent(packageName).replace(/^%40/, "@"), registry).toString();
 }
 
+/** The registry answered that it has no such package: definitive, not a transport failure. */
+export class PackageNotFoundError extends Error {}
+
 /**
  * Read a package's dist-tags and published versions from the registry.
- * Throws with a reader-facing reason on any transport, status, or shape failure.
+ * Throws `PackageNotFoundError` on HTTP 404 and a plain `Error` with a
+ * reader-facing, credential-free reason on any other transport, status, or
+ * shape failure.
  */
 export async function fetchPackument(
   packageName,
   { registry = DEFAULT_REGISTRY, fetch: fetchImpl = globalThis.fetch, timeoutMs = REGISTRY_TIMEOUT_MS } = {},
 ) {
   if (typeof fetchImpl !== "function") throw new Error("this Node.js runtime has no fetch");
-  const url = packumentUrl(packageName, registry);
+  const target = new URL(packumentUrl(packageName, registry));
+  const headers = { accept: "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8" };
+  // fetch refuses a URL with userinfo; send it the way npm does for a
+  // credentialed registry URL, as basic auth to that same registry.
+  if (target.username || target.password) {
+    const credentials = `${decodeURIComponent(target.username)}:${decodeURIComponent(target.password)}`;
+    headers.authorization = `Basic ${Buffer.from(credentials).toString("base64")}`;
+  }
+  const url = redactUrl(target);
   let response;
   try {
-    response = await fetchImpl(url, {
-      headers: { accept: "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8" },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    response = await fetchImpl(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
   } catch (error) {
     throw new Error(`${url} could not be reached (${error instanceof Error ? error.message : String(error)})`);
   }
+  if (response.status === 404) throw new PackageNotFoundError(`${url} returned HTTP 404`);
   if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
   let document;
   try {
@@ -105,22 +145,34 @@ export async function fetchPackument(
  * Returns `{ package, version, source, channel, note }` where `source` is
  * `"override"` (the user passed `--sdk-version`), `"channel"` (the promoted
  * dist-tag), or `"pinned"` (the certified fallback); `note` explains a
- * fallback or an unconfirmed override.
+ * fallback or an unconfirmed override. Throws when the override is malformed
+ * or unpublished, or when the registry has no SDK package at all.
  */
 export async function resolveSdkVersion({ manifest, override, env = process.env, fetch: fetchImpl, timeoutMs } = {}) {
   const { package: packageName, version: pinned, channel } = manifest.sdk;
   const base = { package: packageName, channel };
-  const registry = registryUrl(env);
-  const read = () => fetchPackument(packageName, { registry, fetch: fetchImpl, timeoutMs });
+  if (override !== undefined && !parseVersion(override)) {
+    throw new Error(`--sdk-version must be an exact version such as ${pinned}, found ${JSON.stringify(override)}.`);
+  }
+  const registry = registryUrl(env, packageName);
+  const shownRegistry = redactUrl(registry);
+  const read = async () => {
+    try {
+      return await fetchPackument(packageName, { registry, fetch: fetchImpl, timeoutMs });
+    } catch (error) {
+      if (!(error instanceof PackageNotFoundError)) throw error;
+      throw new PackageNotFoundError(
+        `${packageName} is not on the configured npm registry ${shownRegistry}, so the app could not install.`,
+      );
+    }
+  };
 
   if (override !== undefined) {
-    if (!parseVersion(override)) {
-      throw new Error(`--sdk-version must be an exact version such as ${pinned}, found ${JSON.stringify(override)}.`);
-    }
     let packument;
     try {
       packument = await read();
     } catch (error) {
+      if (error instanceof PackageNotFoundError) throw error;
       return {
         ...base,
         version: override,
@@ -129,7 +181,7 @@ export async function resolveSdkVersion({ manifest, override, env = process.env,
       };
     }
     if (!packument.versions.has(override)) {
-      throw new Error(`${packageName}@${override} is not published on ${registry}.`);
+      throw new Error(`${packageName}@${override} is not published on ${shownRegistry}.`);
     }
     return { ...base, version: override, source: "override" };
   }
@@ -139,6 +191,7 @@ export async function resolveSdkVersion({ manifest, override, env = process.env,
   try {
     packument = await read();
   } catch (error) {
+    if (error instanceof PackageNotFoundError) throw error;
     return pinnedResult(`could not read the ${channel} channel: ${error.message}`);
   }
   const promoted = packument.distTags[channel];
