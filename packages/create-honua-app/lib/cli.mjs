@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { scaffoldProject } from "./scaffold.mjs";
+import { assertWritableTarget, projectNameFromDirectory, scaffoldProject } from "./scaffold.mjs";
 import { resolveSdkVersion } from "./sdk-version.mjs";
 import { PACKAGE_ROOT, defaultTemplate, loadTemplateManifest, playgroundLinks, templateIds } from "./templates.mjs";
 
@@ -181,6 +181,11 @@ export async function run(
   }
 
   try {
+    // Refuse an unusable target before the registry round-trip, which can take
+    // seconds; scaffoldProject repeats both checks when it writes.
+    const targetRoot = path.resolve(cwd, directory);
+    projectNameFromDirectory(targetRoot);
+    assertWritableTarget(targetRoot, options.force);
     const sdk = await resolveSdkVersion({ manifest, override: options.sdkVersion, env, fetch });
     const receipt = scaffoldProject({ templateId, directory, force: options.force, cwd, packageRoot, sdk });
     stdout.write(nextSteps(receipt, cwd));

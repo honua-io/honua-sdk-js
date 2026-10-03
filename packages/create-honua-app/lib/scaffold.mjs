@@ -87,7 +87,8 @@ export function renderProjectManifest(source, projectName, sdk) {
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-function assertWritableTarget(targetRoot, force) {
+/** Throw unless `targetRoot` is absent, empty, or `force` allows writing into it. */
+export function assertWritableTarget(targetRoot, force) {
   if (!fs.existsSync(targetRoot)) return;
   const stats = fs.statSync(targetRoot);
   if (!stats.isDirectory()) throw new Error(`${targetRoot} exists and is not a directory.`);
