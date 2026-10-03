@@ -20,6 +20,7 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 import { scaffoldProject } from "../packages/create-honua-app/lib/scaffold.mjs";
+import { resolveSdkVersion } from "../packages/create-honua-app/lib/sdk-version.mjs";
 import { defaultTemplate, loadTemplateManifest } from "../packages/create-honua-app/lib/templates.mjs";
 import {
   CREATE_HONUA_APP_BUDGET_MS,
@@ -188,7 +189,11 @@ async function main() {
   };
   let preview;
   try {
-    scaffoldProject({ templateId, directory: projectDirectory, cwd: workspace, packageRoot: PACKAGE_ROOT });
+    // Resolve the SDK the way a user's scaffold does, so the lane measures the
+    // promoted channel rather than the fallback pin.
+    const sdk = await resolveSdkVersion({ manifest });
+    app.sdkVersion = sdk.version;
+    scaffoldProject({ templateId, directory: projectDirectory, cwd: workspace, packageRoot: PACKAGE_ROOT, sdk });
     finishStage("scaffold");
     runCommand("npm", ["install", "--no-audit", "--no-fund"], projectDirectory);
     finishStage("install");

@@ -71,14 +71,24 @@ export function isPlaygroundOnlyFile(relativePath) {
   return PLAYGROUND_ONLY_FILES.has(relativePath.split("/").pop());
 }
 
-/** Rewrite a template `package.json` so the scaffolded app carries its own name. */
-export function renderProjectManifest(source, projectName) {
+/**
+ * Rewrite a template `package.json` so the scaffolded app carries its own name
+ * and pins the SDK version the scaffold resolved (`sdk`, when given).
+ */
+export function renderProjectManifest(source, projectName, sdk) {
   const manifest = JSON.parse(source);
   manifest.name = projectName;
+  if (sdk) {
+    if (!Object.hasOwn(manifest.dependencies ?? {}, sdk.package)) {
+      throw new Error(`Template package.json does not depend on ${sdk.package}.`);
+    }
+    manifest.dependencies[sdk.package] = sdk.version;
+  }
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-function assertWritableTarget(targetRoot, force) {
+/** Throw unless `targetRoot` is absent, empty, or `force` allows writing into it. */
+export function assertWritableTarget(targetRoot, force) {
   if (!fs.existsSync(targetRoot)) return;
   const stats = fs.statSync(targetRoot);
   if (!stats.isDirectory()) throw new Error(`${targetRoot} exists and is not a directory.`);
@@ -92,7 +102,9 @@ function assertWritableTarget(targetRoot, force) {
 /**
  * Copy `templateId` into `directory`, returning the scaffold receipt the CLI
  * prints. `directory` is resolved against `cwd` so tests never depend on the
- * process working directory.
+ * process working directory. `sdk` is the resolution from
+ * `resolveSdkVersion` (lib/sdk-version.mjs); without one the scaffold pins the
+ * manifest's certified version.
  */
 export function scaffoldProject({
   templateId,
@@ -100,8 +112,13 @@ export function scaffoldProject({
   force = false,
   cwd = process.cwd(),
   packageRoot = PACKAGE_ROOT,
+  sdk,
 }) {
   const manifest = loadTemplateManifest(packageRoot);
+  const pinnedSdk = sdk ?? { ...manifest.sdk, source: "pinned" };
+  if (pinnedSdk.package !== manifest.sdk.package) {
+    throw new Error(`Resolved SDK ${pinnedSdk.package} is not the manifest's ${manifest.sdk.package}.`);
+  }
   const template = templateById(manifest, templateId);
   const sourceRoot = templateRoot(manifest, template.id, packageRoot);
   const targetRoot = path.resolve(cwd, directory);
@@ -116,7 +133,7 @@ export function scaffoldProject({
     const destination = path.join(targetRoot, destinationRelative);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     if (destinationRelative === "package.json") {
-      fs.writeFileSync(destination, renderProjectManifest(fs.readFileSync(source, "utf8"), projectName));
+      fs.writeFileSync(destination, renderProjectManifest(fs.readFileSync(source, "utf8"), projectName, pinnedSdk));
     } else {
       fs.copyFileSync(source, destination);
     }
@@ -128,7 +145,7 @@ export function scaffoldProject({
     templateTitle: template.title,
     projectName,
     targetRoot,
-    sdk: { ...manifest.sdk },
+    sdk: { ...pinnedSdk },
     files: written,
   };
 }

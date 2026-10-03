@@ -382,7 +382,7 @@
     "docs:quickstart:time-to-map": "node scripts/quickstart-time-to-map.mjs",
     "docs:quickstart:time-to-map:test": "node --test test/scripts/quickstart-time-to-map.test.mjs",
     "create-app:verify": "node scripts/verify-create-honua-app.mjs",
-    "create-app:test": "node --test test/scripts/create-honua-app.test.mjs test/scripts/create-honua-app-evidence.test.mjs",
+    "create-app:test": "node --test test/scripts/create-honua-app.test.mjs test/scripts/create-honua-app-evidence.test.mjs test/scripts/create-honua-app-package.test.mjs",
     "create-app:templates:typecheck": "tsc -p packages/create-honua-app/tsconfig.templates.json --noEmit",
     "create-app:time-to-map": "node scripts/create-honua-app-time-to-map.mjs",
     "create-app:verify:package": "node scripts/verify-create-honua-app-package.mjs",
