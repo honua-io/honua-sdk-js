@@ -276,10 +276,13 @@ describe("real HTTP and spawned stdio session negotiation", () => {
     const server = await upstreamFixture(true);
     const proxy = childProxy(server.url);
     const rejected = proxy.request("initialize", initialize()).catch(() => undefined);
-    await expect.poll(() => server.requests.length).toBe(1);
+    // Spawn plus the deferred stdio handshake exceeds vitest's 1s poll default
+    // on a loaded host. The assertions stay the same: one held upstream
+    // initialize, then a non-zero exit that abandons that handshake.
+    await expect.poll(() => server.requests.length, { timeout: 5_000 }).toBe(1);
     proxy.closeInput();
     expect(await proxy.exited).not.toBe(0);
-    await expect.poll(server.abandonedInitializations).toBe(1);
+    await expect.poll(server.abandonedInitializations, { timeout: 5_000 }).toBe(1);
     expect(server.streams.size).toBe(0);
     await rejected;
   });
