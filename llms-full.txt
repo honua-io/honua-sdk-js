@@ -27,6 +27,10 @@ runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatib
 layer with a codemod. MapLibre is the stable renderer path; the optional Cesium scene
 surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimental.
 
+## Which import
+
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and
 removal begins with 6.0 — **as early as Q1 2027**. If your app constructs one, that code stops
 compiling and running when you take the 6.0 upgrade. Run
@@ -260,7 +264,7 @@ published from this repository for consumers who only want a subset:
 | [`@honua/mcp-server`](https://www.npmjs.com/package/@honua/mcp-server) | Platform-free geospatial MCP server (`honua-mcp`, `honua-mcp-proxy`) — see [`mcp/`](./mcp/README.md) |
 | [`@honua/react`](https://www.npmjs.com/package/@honua/react) | React provider, hooks, and map components (split build; [`docs/react.md`](./docs/react.md)) |
 | [`@honua/geometry`](https://www.npmjs.com/package/@honua/geometry) | Curated turf/proj4 geometry ops + reprojection (split build; [`docs/geometry.md`](./docs/geometry.md)) |
-| [`@honua/sdk`](https://www.npmjs.com/package/@honua/sdk) | Core client + contract only (split build) |
+| [`@honua/sdk`](https://www.npmjs.com/package/@honua/sdk) | `HonuaClient`, not `createHonua` (split build; same entry as `@honua/sdk-js/honua`) |
 | [`@honua/sdk-esri-compat`](https://www.npmjs.com/package/@honua/sdk-esri-compat) | ArcGIS JS compatibility layer (split build) |
 | [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner, owned by the [`honua-migrate`](https://github.com/honua-io/honua-migrate) repository |
 | [`@honua/app-platform`](https://www.npmjs.com/package/@honua/app-platform) | Application-platform surfaces extracted from the SDK (split build; own pre-1.0 cadence) |
@@ -779,10 +783,16 @@ while the branch contains unreleased work. Use the
 published artifact.
 <!-- support-manifest:install-status:end -->
 
+## Which import
+
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+
 ## Stable subpath entrypoints
 
-Subpaths covered by the SDK's semver contract. Symbols reachable from these
-entrypoints are stable across minor versions.
+While the SDK is on `0.x`, a minor may still change a stable symbol, only as a
+reviewed, called-out change. Symbols marked `@experimental` may change in any
+minor. At 1.0 the stable tier freezes. See
+[`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
 
 | Subpath | What it gives you |
 |---------|-------------------|
@@ -792,7 +802,7 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
 | `@honua/sdk-js/esri-compat` | Esri ArcGIS JS-API compatibility layer for migration |
-| `@honua/sdk-js/migration` | Programmatic migration helpers (codemod runner, scan reports) |
+| `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
 | `@honua/sdk-js/webmap` | WebMap JSON load/save helpers |
@@ -944,7 +954,7 @@ no extra installs are required.
 ## Quick Start
 
 ```typescript doc-test=compile
-import { HonuaClient } from "@honua/sdk-js";
+import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.com",
@@ -1011,8 +1021,10 @@ classes. These are reachable via the `@honua/sdk-js/contract` and
 
 ## Esri Migration
 
-The migration helpers live behind the `@honua/sdk-js/migration` subpath. They
-power the same codemod that the standalone CLI runs:
+The npm program is `@honua/honua-migrate` (`npx honua-js-migrate`).
+`@honua/sdk-js/migration` forwards to that package. `src/migration/codemod.ts`
+is the in-repo suite, not the npm program. The forwarder keeps the old import
+working:
 
 ```typescript doc-test=compile
 import { runEsriCompatCodemod, scanArcGisUsage } from "@honua/sdk-js/migration";
@@ -1029,18 +1041,18 @@ const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
   archived guides, compatibility ranges, and migration links.
 - **Pre-release** (`-alpha.*`, `-beta.*`): Published to npm with `@alpha` / `@beta` dist-tags.
 - **Stable** (`1.0.0+`): Published to npm as `@latest`.
-- **Semver:** All releases follow [Semantic Versioning](https://semver.org/). Public symbols
-  reachable from the documented subpaths above are covered by the contract; symbols marked
-  `@experimental` in JSDoc may change in any minor release.
+- **Semver:** Releases follow [Semantic Versioning](https://semver.org/). While the SDK is on `0.x`, a minor may still change a stable symbol, only as a reviewed, called-out change. At 1.0, breaking or removing a stable symbol requires a major. Symbols marked `@experimental` in JSDoc may change in any minor release.
 - **Cross-language alignment:** Major versions are coordinated across the Honua SDK family
   (JavaScript, Python, .NET) so a single semver line tells you what the contract is on every
   platform.
 
-> **Advanced packaging.** Downstream packagers can also produce a three-package
-> split (`@honua/sdk` / `@honua/sdk-esri-compat` / `@honua/honua-migrate`) via
-> `npm run build:split-packages`. This is an opt-in build target, not the default
-> consumer install. See [`docs/split-packages.md`](./docs/split-packages.md) if you
-> are integrating with a downstream registry that needs the smaller surfaces.
+> **Advanced packaging.** Downstream packagers can also produce the split
+> packages, including `@honua/sdk` (`HonuaClient`, not `createHonua`) and
+> `@honua/sdk-esri-compat`, via `npm run build:split-packages`.
+> `@honua/honua-migrate` is not one of those generated packages.
+> This is an opt-in build target, not the default consumer install. See
+> [`docs/split-packages.md`](./docs/split-packages.md) if you are integrating
+> with a downstream registry that needs the smaller surfaces.
 
 Maintainers can verify the artifact consumers actually install with
 `npm run verify:packed-sdk` after the library and browser builds. The gate packs
@@ -1773,7 +1785,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-02 at commit `aeef16c84`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-03 at commit `949ec08c7`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -1783,7 +1795,7 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Importing only `HonuaClient` (tree-shake guard) | 226.4 KiB | 57.1 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 46.0 KiB | 13.8 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 374.4 KiB | 101.2 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 1076.2 KiB | 268.6 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 1076.4 KiB | 268.7 KiB |
 | Geocoding client | 32.7 KiB | 9.2 KiB |
 | Routing client | 26.1 KiB | 7.8 KiB |
 
@@ -11480,7 +11492,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-02 at commit `aeef16c84`._
+_Generated 2026-10-03 at commit `949ec08c7`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11501,7 +11513,7 @@ _Generated 2026-10-02 at commit `aeef16c84`._
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 767.4 KiB | 778.7 KiB | 173.9 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.1 KiB | 183.6 KiB | 52.5 KiB | 55.8 KiB |
-| `/esri-compat` | 1076.2 KiB | 1139.7 KiB | 268.6 KiB | 309.5 KiB |
+| `/esri-compat` | 1076.4 KiB | 1139.7 KiB | 268.7 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
 | `/geocoding` | 32.7 KiB | 35.9 KiB | 9.2 KiB | 10.1 KiB |
@@ -15596,53 +15608,65 @@ and SHA-256 manifest. The browser only projects and revalidates those
 artifacts; it does not contain a second transform, accept uploads, read
 credentials, or perform cloud import.
 
+## Which import
+
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+
 ## Widget kit registration
 
-**This is a required step, not a footnote.** A migrated app that constructs
-`LegendCompat` or `LayerListCompat` must register the Honua web-component kit
-once, or those two widgets render nothing.
+**This is a required step, not a footnote.** A shim that constructs a
+`HonuaWidgetHost` paints only after the application registers the kit. A shim
+that does not construct a host stays state-model-only whether or not a kit is
+registered, and it does not emit the missing-kit diagnostic.
 
-Be precise about the scope, because it cuts both ways:
+Importing `@honua/sdk-esri-compat` does not load the kit. The compat entry is
+bundle-budgeted, and any import of the kit from that entry would pull the
+component set into every compat bundle. The application registers the tag.
 
-| Shim | With a registered kit | Without one |
-| --- | --- | --- |
-| `LegendCompat` (`<honua-legend>`) | renders the delegated component | state-model-only, container stays empty, diagnostic fires |
-| `LayerListCompat` (`<honua-layer-list>`) | renders the delegated component | state-model-only, container stays empty, diagnostic fires |
-| every other container-bearing shim (`SearchCompat`, `MeasurementCompat`, `ExpandCompat`, `BasemapGalleryCompat`, `SketchCompat`, …) | **still state-model-only** | state-model-only, no diagnostic |
-
-Registration is *necessary* for the first two and *not sufficient* for the
-rest: about two dozen shims accept a `container` option, but only `LegendCompat`
-and `LayerListCompat` construct a `HonuaWidgetHost` today. The others carry the
-ArcGIS state model — properties, `watch`, events, methods — and expect the
-application to render their state itself. Registering the kit does not give
-them UI, and they never emit the missing-kit diagnostic, so do not read a
-silent `SearchCompat` as a registration problem.
-
-The two delegating shims draw UI through the Honua web components. The compat
-entry point never imports that kit — not even dynamically: `/esri-compat` is
-bundle-budgeted, and any intra-package import would pull the whole component
-set plus its geometry closure into every compat bundle. The application injects
-it instead, as early as the entry module runs:
+Paint one tag through the side-effect-free registry in `src/controls/registry.ts`.
+`registerComponent` dynamically imports `web-components/elements.js`, which does
+not register tags on import, and calls `defineHonuaWebComponent` for that
+catalog id only. Pass the registered constructor to `registerHonuaWidgetKit`
+and omit `defineHonuaWebComponents`. If the kit object includes
+`defineHonuaWebComponents`, the host calls it and every tag in the kit is
+defined.
 
 ```ts doc-test=skip reason="wiring snippet requires an application host"
+import { registerComponent } from "@honua/app-platform/controls";
 import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
 
-// Eager (module object) or lazy (loader) — both work.
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+await registerComponent("web-components.legend");
+registerHonuaWidgetKit({
+  HonuaLegendElement: customElements.get("honua-legend"),
+});
 ```
 
-Register before you construct widgets. The call is idempotent, and passing
-`undefined` unregisters: the delegating shims return to state-model-only mode
-and any component they had already mounted is removed from its container on the
-next refresh, so unregistering never strands stale UI.
+`@honua/app-platform/web-components` is the widget package. Importing it, or
+the deprecated `@honua/sdk-js/web-components` forwarder, evaluates
+`defineHonuaWebComponents()` and defines every tag. Use that import when the
+app wants the whole kit. Use `registerComponent` when it wants one tag.
 
-Without a kit those two shims degrade to state-model-only: `legend.items` is
-populated, `layerList.toggle()` mutates layers, events still fire — and the
-`container` you passed stays empty. Since a migrated app in that state simply
-looks broken, the first mount without a registered kit emits a one-time
-diagnostic (honua-io/honua-sdk-js#957):
+The `honua-compat` codemod in `@honua/honua-migrate` inserts one
+`registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"))` call
+when the file constructs a hosted compat widget (Legend, LayerList, TimeSlider,
+Search, Measurement, Editor, FeatureForm, FeatureTable, Bookmarks,
+BasemapGallery, BasemapToggle, Locate, Sketch, Print, Popup, Zoom, Home,
+ScaleBar, Compass, Fullscreen, Attribution, or Directions). That emitted import
+defines every tag. `esri-leaflet` output does not insert the call.
+`keep-esri` output stays byte-identical. Replace the emitted loader with the
+`registerComponent` call above when one tag is enough.
 
-- a `console.warn` naming `registerHonuaWidgetKit`, quoting the exact call, and
+Register before you construct widgets. `registerHonuaWidgetKit` is idempotent,
+and passing `undefined` unregisters: painting shims return to state-model-only
+mode and any component they had already mounted is removed from its container
+on the next refresh.
+
+Without a kit, a painting shim still keeps its state model — `legend.items`
+stays populated, `layerList.toggle()` still mutates layers, events still fire —
+and the `container` you passed stays empty. The first mount in that state
+emits a one-time diagnostic (honua-io/honua-sdk-js#957):
+
+- a `console.warn` naming `registerComponent` and `registerHonuaWidgetKit`, and
   linking back to this section; and
 - a `widget-kit.missing` event on the shim's `CompatEventBus`, carrying
   `{ tagName, api, docs, message }` for telemetry or a first-run banner.
@@ -15655,26 +15679,56 @@ legend.eventBus.on("widget-kit.missing", (event) => {
 
 The diagnostic fires **once per runtime**, on the first mount that finds no
 kit — not once per widget instance — so subscribe before constructing widgets.
-It re-arms whenever `registerHonuaWidgetKit` is called again, which keeps
-register-then-unregister cycles honest.
+It re-arms whenever `registerHonuaWidgetKit` is called again.
 
-Three consequences worth planning for:
+`@honua/sdk-esri-compat` does not ship the kit. Install
+`@honua/app-platform` to register tags. `FeaturesCompat`, `AttachmentsCompat`,
+and `ScaleRangeCompat` construct hosts and are not on the stable esri-compat
+entry.
 
-- The standalone `@honua/sdk-esri-compat` split package does not ship the kit.
-  An app on that package installs `@honua/sdk-js` (or
-  `@honua/app-platform`) as well to have something to register.
-- The codemod does not insert this call for you yet — it is tracked on
-  honua-io/honua-sdk-js#957 against the `honua-migrate` engine. Until it lands,
-  add the registration to every migrated entry point by hand.
-- Widgets outside the delegation set need a rendering plan of their own. Budget
-  for it during migration rather than discovering it after: read the shim's
-  state model and render it with your own components, or with the Honua web
-  components directly.
+<!-- widget-host-tags:start -->
+
+| Shim | Tag |
+| --- | --- |
+| `AttributionCompat` | `honua-attribution` |
+| `AttachmentsCompat` | `honua-attachments` |
+| `BasemapGalleryCompat`, `BasemapToggleCompat` | `honua-basemap-control` |
+| `BookmarksCompat` | `honua-bookmarks` |
+| `CompassCompat` | `honua-compass` |
+| `DirectionsCompat` | `honua-directions` |
+| `EditorCompat` | `honua-editor` |
+| `FeatureFormCompat` | `honua-feature-editor` |
+| `FeatureTableCompat` | `honua-feature-table` |
+| `FeaturesCompat` | `honua-feature-pager` |
+| `FullscreenCompat` | `honua-fullscreen` |
+| `HomeCompat` | `honua-home` |
+| `LayerListCompat` | `honua-layer-list` |
+| `LegendCompat` | `honua-legend` |
+| `LocateCompat` | `honua-locate-control` |
+| `MeasurementCompat` | `honua-measurement` |
+| `PopupCompat` | `honua-feature-inspection` |
+| `PrintCompat` | `honua-print-export` |
+| `ScaleBarCompat` | `honua-scale-bar` |
+| `ScaleRangeCompat` | `honua-scale-range` |
+| `SearchCompat` | `honua-search` |
+| `SketchCompat` | `honua-sketch-control` |
+| `TimeSliderCompat` | `honua-time-slider` |
+| `ZoomCompat` | `honua-zoom` |
+
+<!-- widget-host-tags:end -->
+
+<!-- widget-host-state-only:start -->
+
+These container-bearing shims do not construct a host. They stay state-model-only: `AreaMeasurement2DCompat`, `BasemapLayerListCompat`, `CoordinateConversionCompat`, `DistanceMeasurement2DCompat`, `ExpandCompat`, `FeatureCompat`, `FeatureTemplatesCompat`, `SwipeCompat`, `TableListCompat`, `TrackCompat`.
+
+<!-- widget-host-state-only:end -->
 
 ## How it differs from the other targets
 
-The migration codemod (`src/migration/codemod.ts`) exposes three
-targets selected with `--target` on the CLI:
+`src/migration/codemod.ts` is the in-repo suite, not the npm program.
+`@honua/sdk-js/migration` forwards to `@honua/honua-migrate`, and the CLI is
+`npx honua-js-migrate`. The suite exposes three targets selected with
+`--target` on the CLI:
 
 | Target | Output shape | What it rewrites natively |
 | --- | --- | --- |
@@ -15929,8 +15983,10 @@ public-facing claims stand:
 
 1. **"Parity with the ArcGIS JS SDK"** — the symbol surface app
    authors can `import` and call against.
-2. **"Automated app conversion"** — the `src/migration` codemod that
-   rewrites ArcGIS imports/constructors to Honua compat shims.
+2. **"Automated app conversion"** — the npm program is `@honua/honua-migrate`.
+   `@honua/sdk-js/migration` forwards to that package. `src/migration/codemod.ts`
+   is the in-repo suite, not the npm program. It rewrites ArcGIS
+   imports and constructors to Honua compat shims.
 
 It is intentionally written so a reader can tell what is shipped,
 what is *partial*, and what is *not started*. None of the entries
@@ -15998,8 +16054,10 @@ scope with the rest of the SceneView surface.
 
 ### Automated app conversion (`src/migration/codemod.ts`)
 
-The codemod is a real AST rewriter built on the TypeScript Compiler
-API (it does **not** use regex). It:
+`src/migration/codemod.ts` is the in-repo suite, not the npm program.
+`@honua/sdk-js/migration` forwards to `@honua/honua-migrate`. The suite is a
+real AST rewriter built on the TypeScript Compiler API (it does **not** use
+regex). It:
 
 - Detects `import { X } from "@arcgis/core/..."` and rewrites
   bindings to the matching `XCompat` symbol from `esri-compat`.
@@ -16103,16 +16161,14 @@ hold the surface stable).
    These rewrite cleanly only for the simple case; arrow-function
    field-info `format` callbacks fall through to manual TODO.
 6. **Widget UI behavior.** The widget shims accept the same
-   constructor options ArcGIS does, but only `LegendCompat` and
-   `LayerListCompat` render, through the Honua widget host
-   (`HonuaWidgetHost`) and only after the app registers the
-   web-component kit — see
+   constructor options ArcGIS does. A shim that constructs a
+   `HonuaWidgetHost` renders after the app registers the
+   web-component kit. A shim that does not construct a host stays
+   state-model-only. The current lists are in
    [widget kit registration](./migration-honua-maplibre.md#widget-kit-registration).
-   Their visual parity (icons, ARIA, CSS class names that downstream
+   Visual parity (icons, ARIA, CSS class names that downstream
    apps style against) is **not** byte-identical; apps that rely on
-   `calcite-action--`-prefixed selectors will need style work. Every
-   other container-bearing shim is state-model-only and needs the
-   application to render it.
+   `calcite-action--`-prefixed selectors will need style work.
 7. **Typed-surface divergences from the emulated ArcGIS shape.**
    The shims are structurally compatible with the ArcGIS surface
    they emulate except where this list says otherwise. The audit
@@ -16856,8 +16912,8 @@ The honua server exposes one MCP catalog over streamable-HTTP/SSE at `/mcp`.
 Claude-Desktop-style clients speak **stdio**. Rather than reimplement that
 catalog (which is how the HTTP and stdio surfaces historically drifted apart),
 this package ships a **stdio proxy** (`honua-mcp-proxy`) that bridges a local
-stdio MCP client to the remote HTTP-SSE MCP server. It connects upstream as an
-MCP client and re-exposes the *same* catalog downstream over stdio — identical
+stdio MCP client to the remote HTTP-SSE MCP server. It forwards MCP messages
+between the transports and exposes the *same* catalog downstream over stdio — identical
 tools, identical input/output schemas, identical resources and prompts, and live
 `tools/list_changed` notifications. There is one source-of-truth catalog (the
 server's `/mcp`); the SDK proxies it, so the two transports are symmetric by
@@ -16883,8 +16939,33 @@ or `[::1]` HTTP development endpoints. Userinfo, query parameters, fragments,
 non-HTTP(S) URLs are rejected before connect, and redirect targets are never
 followed or sent credentials.
 
-A parity test (`test/proxy.test.ts`) asserts the tool/resource/template catalog
-the downstream client sees is byte-identical to the upstream surface, that
+The proxy forwards the caller's `initialize` request before opening an initialized
+upstream session, including `_meta["honua.io/workflow-view"]`. That HTTP session
+is retained for subsequent requests, so initializing with `setup` makes a later
+selector-free `tools/list` return the server's setup catalog. A temporary
+per-request catalog override leaves the initialized view intact; separate proxy
+processes have separate sessions.
+
+The view selector is the only `initialize` metadata the server reads, and the
+only metadata the proxy forwards: other `_meta` keys stay local rather than
+entering the credentialed upstream session. The handshake fails closed. A
+request before `initialize`, an `initialize` the server's selector contract
+would refuse (a non-string or longer-than-64-character view), or a second
+`initialize` is answered with JSON-RPC `-32600` without reaching the server,
+and the proxy exits. If `initialize` does not arrive, or the server does not
+answer it, within 30 seconds, the proxy exits as well.
+
+Executable protocol tests (`test/proxy-session.test.ts`) exercise setup/default
+initialization, concurrent sessions, authenticated full-catalog override and
+restoration, `tools/list_changed` relay, and the fail-closed handshake against a
+loopback fixture. The `MCP session contract` workflow also runs them against the
+`honua-mcp-proxy` executable npm installs from the packed tarballs. The
+published 0.1.12 reproduction and exact JSON wire captures are under
+`test/fixtures/initialize-view/`.
+
+A parity test (`test/proxy.test.ts`) runs the same bridge against the canonical
+server over streamable HTTP. It asserts the tool/resource/template catalog the
+downstream client sees is byte-identical to a direct HTTP client's, that
 `tools/call` and resource reads round-trip identically, and that `list_changed`
 notifications are forwarded.
 
