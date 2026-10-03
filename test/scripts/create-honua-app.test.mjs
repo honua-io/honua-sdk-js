@@ -312,7 +312,7 @@ describe("cli run", () => {
       fetch,
     });
     assert.equal(code, 0, streams.chunks.stderr);
-    assert.deepEqual(requested, ["https://registry.example.test/npm/@honua%2fsdk-js"]);
+    assert.deepEqual(requested, ["https://registry.example.test/npm/@honua%2Fsdk-js"]);
     const projectManifest = JSON.parse(fs.readFileSync(path.join(cwd, "promoted/package.json"), "utf8"));
     assert.equal(projectManifest.dependencies["@honua/sdk-js"], "0.1.13");
     assert.match(streams.chunks.stdout, /from the promoted release-2026\.1 channel/);
@@ -363,7 +363,8 @@ describe("sdk version resolution", () => {
     assert.equal(registryUrl({}), "https://registry.npmjs.org/");
     assert.equal(registryUrl({ npm_config_registry: "https://npm.example.test/sub" }), "https://npm.example.test/sub/");
     assert.throws(() => registryUrl({ npm_config_registry: "file:///tmp/registry" }), /must be an http\(s\) URL/);
-    assert.equal(packumentUrl("@honua/sdk-js", "https://npm.example.test/sub/"), "https://npm.example.test/sub/@honua%2fsdk-js");
+    assert.equal(packumentUrl("@honua/sdk-js", "https://npm.example.test/sub/"), "https://npm.example.test/sub/@honua%2Fsdk-js");
+    assert.equal(packumentUrl("a/../b?c#d", "https://npm.example.test/"), "https://npm.example.test/a%2F..%2Fb%3Fc%23d");
   });
 
   it("accepts only stable versions on the pinned SDK line", () => {
