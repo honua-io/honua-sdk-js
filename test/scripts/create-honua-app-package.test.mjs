@@ -133,6 +133,18 @@ describe("packed create-honua-app SDK pin", () => {
     assert.equal(result.dependencies[SDK], CERTIFIED);
   });
 
+  it("fails when the configured registry has no SDK package", async () => {
+    const empty = await startStubRegistry({});
+    try {
+      const result = await scaffold({ registryUrl: empty.url });
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /is not on the configured npm registry/);
+      assert.ok(!fs.existsSync(result.target));
+    } finally {
+      await empty.close();
+    }
+  });
+
   it("pins a prerelease only when --sdk-version asks for it", async () => {
     const result = await scaffold({ distTags: { [CHANNEL]: NEXT_PATCH }, extraArgs: ["--sdk-version", BETA] });
     assert.equal(result.status, 0, result.stderr);

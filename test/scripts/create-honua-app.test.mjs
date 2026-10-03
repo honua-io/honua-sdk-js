@@ -11,6 +11,7 @@ import {
   isStableVersion,
   onPinnedLine,
   packumentUrl,
+  parseVersion,
   registryUrl,
   resolveSdkVersion,
 } from "../../packages/create-honua-app/lib/sdk-version.mjs";
@@ -25,6 +26,14 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PACKAGE_ROOT = path.join(ROOT, "packages/create-honua-app");
 const workspaces = [];
+
+/**
+ * The certified @honua/sdk-js the starters fall back to. It moves only by a
+ * deliberate edit once a release certifies a new SDK (honua-release#376, R25),
+ * so a release bump that carries an uncertified version into the manifest
+ * fails here instead of shipping in the next create-honua-app.
+ */
+const CERTIFIED_SDK_VERSION = "0.1.12";
 
 /** A registry fetch that always fails, so in-process scaffolds never touch the network. */
 async function offlineFetch() {
@@ -125,6 +134,7 @@ describe("template manifest", () => {
 
   it("follows a promotable channel with a stable certified fallback", () => {
     assert.equal(manifest.sdk.channel, "release-2026.1");
+    assert.equal(manifest.sdk.version, CERTIFIED_SDK_VERSION);
     assert.ok(isStableVersion(manifest.sdk.version), `${manifest.sdk.version} must not be a prerelease`);
   });
 
@@ -359,10 +369,29 @@ describe("sdk version resolution", () => {
   const resolveWith = (distTags, options = {}) =>
     resolveSdkVersion({ manifest, env: {}, fetch: registryFetch({ "dist-tags": distTags, versions: published }), ...options });
 
-  it("reads npm's configured registry and escapes scoped names", () => {
+  it("parses only SemVer 2.0.0 versions", () => {
+    for (const valid of ["0.1.12", "0.1.13-beta.0", "1.0.0-alpha-1.x", "1.0.0+build.7", "1.0.0-0.3.7"]) {
+      assert.ok(parseVersion(valid), valid);
+    }
+    for (const invalid of ["0.1.13-..", "0.1.13-alpha..1", "0.1.13-01", "01.1.0", "0.1", "^0.1.12", "0.1.12+", "latest"]) {
+      assert.equal(parseVersion(invalid), undefined, invalid);
+    }
+  });
+
+  it("reads the registry npm installs the SDK from, scope first", () => {
     assert.equal(registryUrl({}), "https://registry.npmjs.org/");
     assert.equal(registryUrl({ npm_config_registry: "https://npm.example.test/sub" }), "https://npm.example.test/sub/");
+    const scoped = {
+      npm_config_registry: "https://default.example.test/",
+      "npm_config_@honua:registry": "https://honua.example.test/npm/",
+    };
+    assert.equal(registryUrl(scoped, "@honua/sdk-js"), "https://honua.example.test/npm/");
+    assert.equal(registryUrl(scoped, "@other/pkg"), "https://default.example.test/");
     assert.throws(() => registryUrl({ npm_config_registry: "file:///tmp/registry" }), /must be an http\(s\) URL/);
+    assert.throws(
+      () => registryUrl({ npm_config_registry: "not a url s3cret" }),
+      (error) => /is not a valid URL/.test(error.message) && !error.message.includes("s3cret"),
+    );
     assert.equal(packumentUrl("@honua/sdk-js", "https://npm.example.test/sub/"), "https://npm.example.test/sub/@honua%2Fsdk-js");
     assert.equal(packumentUrl("a/../b?c#d", "https://npm.example.test/"), "https://npm.example.test/a%2F..%2Fb%3Fc%23d");
   });
@@ -401,12 +430,55 @@ describe("sdk version resolution", () => {
     const offline = await resolveSdkVersion({ manifest, env: {}, fetch: offlineFetch });
     assert.equal(offline.version, "0.1.12");
     assert.match(offline.note, /could not be reached \(offline\)/);
-    const notFound = await resolveSdkVersion({ manifest, env: {}, fetch: async () => new Response("{}", { status: 404 }) });
-    assert.equal(notFound.version, "0.1.12");
-    assert.match(notFound.note, /returned HTTP 404/);
+    const unavailable = await resolveSdkVersion({ manifest, env: {}, fetch: async () => new Response("{}", { status: 503 }) });
+    assert.equal(unavailable.version, "0.1.12");
+    assert.match(unavailable.note, /returned HTTP 503/);
     const garbage = await resolveSdkVersion({ manifest, env: {}, fetch: async () => new Response("<html>", { status: 200 }) });
     assert.equal(garbage.version, "0.1.12");
     assert.match(garbage.note, /did not return JSON/);
+  });
+
+  it("fails when the configured registry has no SDK package at all", async () => {
+    const missing = async () => new Response("{}", { status: 404 });
+    await assert.rejects(
+      resolveSdkVersion({ manifest, env: {}, fetch: missing }),
+      /@honua\/sdk-js is not on the configured npm registry https:\/\/registry\.npmjs\.org\/, so the app could not install/,
+    );
+    await assert.rejects(resolveSdkVersion({ manifest, env: {}, fetch: missing, override: "0.1.12" }), /is not on the configured/);
+  });
+
+  it("queries the scope registry and never prints registry credentials", async () => {
+    const env = { "npm_config_@honua:registry": "https://ci-user:s3cret@honua.example.test/npm/" };
+    const seen = [];
+    const resolved = await resolveSdkVersion({
+      manifest,
+      env,
+      fetch: async (url, init) => {
+        seen.push({ url, authorization: init.headers.authorization });
+        throw new Error("offline");
+      },
+    });
+    assert.deepEqual(seen, [
+      {
+        url: "https://honua.example.test/npm/@honua%2Fsdk-js",
+        authorization: `Basic ${Buffer.from("ci-user:s3cret").toString("base64")}`,
+      },
+    ]);
+    assert.equal(resolved.version, "0.1.12");
+    assert.ok(!resolved.note.includes("s3cret") && !resolved.note.includes("ci-user"), resolved.note);
+    await assert.rejects(
+      resolveSdkVersion({ manifest, env, fetch: async () => new Response("{}", { status: 404 }) }),
+      (error) => !error.message.includes("s3cret") && /honua\.example\.test/.test(error.message),
+    );
+    await assert.rejects(
+      resolveSdkVersion({
+        manifest,
+        env,
+        override: "0.1.99",
+        fetch: registryFetch({ "dist-tags": {}, versions: published }),
+      }),
+      (error) => /is not published on https:\/\/honua\.example\.test\/npm\//.test(error.message) && !error.message.includes("s3cret"),
+    );
   });
 
   it("honours an explicit --sdk-version, including a prerelease", async () => {
@@ -419,6 +491,10 @@ describe("sdk version resolution", () => {
   it("refuses an unpublished or malformed --sdk-version", async () => {
     await assert.rejects(resolveWith({}, { override: "0.9.0" }), /@honua\/sdk-js@0\.9\.0 is not published/);
     await assert.rejects(resolveWith({}, { override: "latest" }), /must be an exact version/);
+    await assert.rejects(
+      resolveSdkVersion({ manifest, env: {}, fetch: offlineFetch, override: "0.1.13-.." }),
+      /must be an exact version/,
+    );
   });
 
   it("keeps an --sdk-version it cannot confirm while offline, and says so", async () => {
