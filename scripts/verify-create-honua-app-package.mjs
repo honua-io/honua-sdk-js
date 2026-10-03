@@ -12,17 +12,25 @@
 // tarball, no binary artifacts) and scripts/verify-split-packages.mjs (install
 // the packed artifact into a temporary consumer and use it).
 //
+// The scaffold reads the promoted release channel from the registry (#1824).
+// Here it reads a loopback stub whose channel is not promoted, so the gate is
+// offline and proves the packed fallback: every template pins the manifest's
+// certified, stable SDK version. test/scripts/create-honua-app-package.test.mjs
+// drives the same tarball through every channel state.
+//
 // Run with: npm run create-app:verify:package
 
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadTemplateManifest } from "../packages/create-honua-app/lib/templates.mjs";
+import { isStableVersion } from "../packages/create-honua-app/lib/sdk-version.mjs";
 import { scanBinaryArtifactFiles } from "./lib/binary-artifact-policy.mjs";
 import { runNpmSync } from "./lib/npm-cli.mjs";
+import { packument, startStubRegistry } from "./lib/stub-npm-registry.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGE_ROOT = path.join(ROOT, "packages/create-honua-app");
@@ -81,9 +89,21 @@ function verifyTarballContents(packed, manifest, packageManifest) {
   }
 }
 
+/** Run a node script without blocking the event loop the stub registry answers on. */
+function runNode(args, { cwd, env }) {
+  return new Promise((resolve) => {
+    execFile(process.execPath, args, { cwd, env, encoding: "utf8" }, (error, stdout, stderr) => {
+      resolve({ status: error ? (typeof error.code === "number" ? error.code : 1) : 0, stdout, stderr });
+    });
+  });
+}
+
 /** Install the packed artifact into a throwaway consumer and scaffold with it. */
-function verifyInstalledScaffold(manifest) {
+async function verifyInstalledScaffold(manifest) {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "create-honua-app-pack-"));
+  const registry = await startStubRegistry({
+    [manifest.sdk.package]: packument({ latest: manifest.sdk.version }, [manifest.sdk.version]),
+  });
   try {
     const packed = JSON.parse(npm(["pack", "--json", "--ignore-scripts", "--pack-destination", workspace], PACKAGE_ROOT));
     const tarball = path.join(workspace, packed[0].filename);
@@ -101,9 +121,9 @@ function verifyInstalledScaffold(manifest) {
     }
     for (const template of manifest.templates) {
       const target = path.join(consumer, `scaffold-${template.id}`);
-      const result = spawnSync(process.execPath, [installedBin, target, "--template", template.id], {
+      const result = await runNode([installedBin, target, "--template", template.id], {
         cwd: consumer,
-        encoding: "utf8",
+        env: { ...process.env, npm_config_registry: registry.url },
       });
       if (result.status !== 0) {
         failures.push(`scaffolding ${template.id} from the packed package exited ${result.status}: ${result.stderr}`);
@@ -115,11 +135,18 @@ function verifyInstalledScaffold(manifest) {
         }
       }
       const scaffolded = readJson(path.join(target, "package.json"));
-      if (scaffolded.dependencies?.[manifest.sdk.package] !== manifest.sdk.version) {
-        failures.push(`scaffold from the packed ${template.id} template does not pin ${manifest.sdk.package}`);
+      const sdkPin = scaffolded.dependencies?.[manifest.sdk.package];
+      if (sdkPin !== manifest.sdk.version || !isStableVersion(sdkPin)) {
+        failures.push(
+          `scaffold from the packed ${template.id} template pins ${manifest.sdk.package}@${sdkPin}, not the certified ${manifest.sdk.version}`,
+        );
       }
     }
+    if (!registry.requests.includes(manifest.sdk.package)) {
+      failures.push(`the packed scaffold never read the ${manifest.sdk.channel} channel from the registry`);
+    }
   } finally {
+    await registry.close();
     fs.rmSync(workspace, { recursive: true, force: true });
   }
 }
@@ -127,7 +154,7 @@ function verifyInstalledScaffold(manifest) {
 const packageManifest = readJson(path.join(PACKAGE_ROOT, "package.json"));
 const manifest = loadTemplateManifest(PACKAGE_ROOT);
 verifyTarballContents(packedFiles(), manifest, packageManifest);
-verifyInstalledScaffold(manifest);
+await verifyInstalledScaffold(manifest);
 
 if (failures.length > 0) {
   process.stderr.write("create-honua-app package verification failed:\n");

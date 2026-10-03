@@ -8,6 +8,13 @@ import { after, describe, it } from "node:test";
 import { parseArgs, run, templateListing } from "../../packages/create-honua-app/lib/cli.mjs";
 import { collectTemplateFiles, projectNameFromDirectory, scaffoldProject } from "../../packages/create-honua-app/lib/scaffold.mjs";
 import {
+  isStableVersion,
+  onPinnedLine,
+  packumentUrl,
+  registryUrl,
+  resolveSdkVersion,
+} from "../../packages/create-honua-app/lib/sdk-version.mjs";
+import {
   defaultTemplate,
   loadTemplateManifest,
   playgroundLinks,
@@ -18,6 +25,29 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PACKAGE_ROOT = path.join(ROOT, "packages/create-honua-app");
 const workspaces = [];
+
+/** A registry fetch that always fails, so in-process scaffolds never touch the network. */
+async function offlineFetch() {
+  throw new Error("offline");
+}
+
+/** A registry fetch serving one package document and recording the URLs it was asked for. */
+function registryFetch(document, requested = []) {
+  return async (url) => {
+    requested.push(url);
+    return new Response(JSON.stringify(document), { status: 200, headers: { "content-type": "application/json" } });
+  };
+}
+
+function copyPackage(mutate) {
+  const directory = workspace();
+  fs.cpSync(PACKAGE_ROOT, directory, { recursive: true });
+  const manifestPath = path.join(directory, "templates.manifest.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  mutate(manifest);
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  return directory;
+}
 
 function workspace() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "create-honua-app-test-"));
@@ -48,7 +78,13 @@ after(() => {
 
 describe("create-honua-app argument grammar", () => {
   it("defaults to a scaffold with no template override", () => {
-    assert.deepEqual(parseArgs(["my-map"]), { mode: "scaffold", directory: "my-map", templateId: undefined, force: false });
+    assert.deepEqual(parseArgs(["my-map"]), {
+      mode: "scaffold",
+      directory: "my-map",
+      templateId: undefined,
+      sdkVersion: undefined,
+      force: false,
+    });
   });
 
   it("accepts both template spellings and --force", () => {
@@ -56,6 +92,13 @@ describe("create-honua-app argument grammar", () => {
     assert.equal(parseArgs(["-t", "react-ts", "my-map"]).templateId, "react-ts");
     assert.equal(parseArgs(["--template=react-ts", "my-map"]).templateId, "react-ts");
     assert.equal(parseArgs(["my-map", "--force"]).force, true);
+  });
+
+  it("accepts both --sdk-version spellings", () => {
+    assert.equal(parseArgs(["my-map", "--sdk-version", "0.1.12"]).sdkVersion, "0.1.12");
+    assert.equal(parseArgs(["--sdk-version=0.1.13-beta.0", "my-map"]).sdkVersion, "0.1.13-beta.0");
+    assert.throws(() => parseArgs(["--sdk-version"]), /requires a version/);
+    assert.throws(() => parseArgs(["--sdk-version="]), /requires a version/);
   });
 
   it("recognizes the informational modes", () => {
@@ -78,6 +121,26 @@ describe("template manifest", () => {
   it("advertises the vanilla and React starters with exactly one default", () => {
     assert.deepEqual(templateIds(manifest), ["vanilla-ts", "react-ts"]);
     assert.equal(defaultTemplate(manifest).id, "vanilla-ts");
+  });
+
+  it("follows a promotable channel with a stable certified fallback", () => {
+    assert.equal(manifest.sdk.channel, "release-2026.1");
+    assert.ok(isStableVersion(manifest.sdk.version), `${manifest.sdk.version} must not be a prerelease`);
+  });
+
+  it("refuses a prerelease fallback or a channel npm cannot tag", () => {
+    const beta = copyPackage((manifest) => {
+      manifest.sdk.version = "0.1.11-beta.0";
+    });
+    assert.throws(() => loadTemplateManifest(beta), /sdk\.version must be a stable release version/);
+    const rangeTag = copyPackage((manifest) => {
+      manifest.sdk.channel = "2026.1";
+    });
+    assert.throws(() => loadTemplateManifest(rangeTag), /sdk\.channel must be an npm dist-tag name/);
+    const missing = copyPackage((manifest) => {
+      delete manifest.sdk.channel;
+    });
+    assert.throws(() => loadTemplateManifest(missing), /sdk\.channel must be a non-empty string/);
   });
 
   it("pins every template to the manifest's published SDK version", () => {
@@ -155,7 +218,28 @@ describe("scaffolding", () => {
 
     const projectManifest = JSON.parse(fs.readFileSync(path.join(target, "package.json"), "utf8"));
     assert.equal(projectManifest.name, "my-map");
-    assert.ok(projectManifest.dependencies["@honua/sdk-js"]);
+    assert.equal(projectManifest.dependencies["@honua/sdk-js"], loadTemplateManifest(PACKAGE_ROOT).sdk.version);
+    assert.equal(receipt.sdk.source, "pinned");
+  });
+
+  it("pins the SDK version the scaffold resolved", () => {
+    const cwd = workspace();
+    const sdk = { package: "@honua/sdk-js", version: "0.1.99", channel: "release-2026.1", source: "channel" };
+    const receipt = scaffoldProject({ templateId: "react-ts", directory: "resolved", cwd, packageRoot: PACKAGE_ROOT, sdk });
+    const projectManifest = JSON.parse(fs.readFileSync(path.join(cwd, "resolved/package.json"), "utf8"));
+    assert.equal(projectManifest.dependencies["@honua/sdk-js"], "0.1.99");
+    assert.deepEqual(receipt.sdk, sdk);
+    assert.throws(
+      () =>
+        scaffoldProject({
+          templateId: "react-ts",
+          directory: "other",
+          cwd,
+          packageRoot: PACKAGE_ROOT,
+          sdk: { ...sdk, package: "@honua/other" },
+        }),
+      /is not the manifest's @honua\/sdk-js/,
+    );
   });
 
   it("scaffolds the React starter with its own entry point", () => {
@@ -196,35 +280,149 @@ describe("scaffolding", () => {
 });
 
 describe("cli run", () => {
-  it("scaffolds and reports next steps", () => {
+  it("scaffolds and reports next steps", async () => {
     const cwd = workspace();
     const streams = captureStreams();
-    const code = run(["fresh-map"], { cwd, stdout: streams.stdout, stderr: streams.stderr, packageRoot: PACKAGE_ROOT });
-    assert.equal(code, 0);
-    assert.match(streams.chunks.stdout, /npm run dev/);
-    assert.ok(fs.existsSync(path.join(cwd, "fresh-map/src/main.ts")));
-  });
-
-  it("reports an unknown template without writing anything", () => {
-    const cwd = workspace();
-    const streams = captureStreams();
-    const code = run(["x", "--template", "nope"], {
+    const code = await run(["fresh-map"], {
       cwd,
       stdout: streams.stdout,
       stderr: streams.stderr,
       packageRoot: PACKAGE_ROOT,
+      fetch: offlineFetch,
+    });
+    assert.equal(code, 0);
+    assert.match(streams.chunks.stdout, /npm run dev/);
+    assert.match(streams.chunks.stdout, /the certified version this release of create-honua-app ships/);
+    assert.ok(fs.existsSync(path.join(cwd, "fresh-map/src/main.ts")));
+  });
+
+  it("pins the promoted channel version a registry reports", async () => {
+    const cwd = workspace();
+    const streams = captureStreams();
+    const requested = [];
+    const fetch = registryFetch(
+      { "dist-tags": { latest: "0.1.12", "release-2026.1": "0.1.13" }, versions: { "0.1.12": {}, "0.1.13": {} } },
+      requested,
+    );
+    const code = await run(["promoted", "--template", "react-ts"], {
+      cwd,
+      ...streams,
+      packageRoot: PACKAGE_ROOT,
+      env: { npm_config_registry: "https://registry.example.test/npm" },
+      fetch,
+    });
+    assert.equal(code, 0, streams.chunks.stderr);
+    assert.deepEqual(requested, ["https://registry.example.test/npm/@honua%2fsdk-js"]);
+    const projectManifest = JSON.parse(fs.readFileSync(path.join(cwd, "promoted/package.json"), "utf8"));
+    assert.equal(projectManifest.dependencies["@honua/sdk-js"], "0.1.13");
+    assert.match(streams.chunks.stdout, /from the promoted release-2026\.1 channel/);
+  });
+
+  it("rejects a malformed --sdk-version without writing anything", async () => {
+    const cwd = workspace();
+    const streams = captureStreams();
+    const code = await run(["x", "--sdk-version", "^0.1.12"], { cwd, ...streams, packageRoot: PACKAGE_ROOT, fetch: offlineFetch });
+    assert.equal(code, 1);
+    assert.match(streams.chunks.stderr, /must be an exact version/);
+    assert.deepEqual(fs.readdirSync(cwd), []);
+  });
+
+  it("reports an unknown template without writing anything", async () => {
+    const cwd = workspace();
+    const streams = captureStreams();
+    const code = await run(["x", "--template", "nope"], {
+      cwd,
+      stdout: streams.stdout,
+      stderr: streams.stderr,
+      packageRoot: PACKAGE_ROOT,
+      fetch: offlineFetch,
     });
     assert.equal(code, 1);
     assert.match(streams.chunks.stderr, /Unknown template/);
     assert.deepEqual(fs.readdirSync(cwd), []);
   });
 
-  it("prints help and the version", () => {
+  it("prints help and the version", async () => {
     const streams = captureStreams();
-    assert.equal(run(["--help"], { ...streams, packageRoot: PACKAGE_ROOT }), 0);
+    assert.equal(await run(["--help"], { ...streams, packageRoot: PACKAGE_ROOT }), 0);
     assert.match(streams.chunks.stdout, /--template/);
+    assert.match(streams.chunks.stdout, /--sdk-version/);
     const version = captureStreams();
-    assert.equal(run(["--version"], { ...version, packageRoot: PACKAGE_ROOT }), 0);
+    assert.equal(await run(["--version"], { ...version, packageRoot: PACKAGE_ROOT }), 0);
     assert.match(version.chunks.stdout, /^\d+\.\d+\.\d+/);
+  });
+});
+
+describe("sdk version resolution", () => {
+  const manifest = { sdk: { package: "@honua/sdk-js", channel: "release-2026.1", version: "0.1.12" } };
+  const published = { "0.1.11-beta.0": {}, "0.1.12": {}, "0.1.13": {}, "0.1.14-beta.0": {}, "0.2.0": {} };
+  const resolveWith = (distTags, options = {}) =>
+    resolveSdkVersion({ manifest, env: {}, fetch: registryFetch({ "dist-tags": distTags, versions: published }), ...options });
+
+  it("reads npm's configured registry and escapes scoped names", () => {
+    assert.equal(registryUrl({}), "https://registry.npmjs.org/");
+    assert.equal(registryUrl({ npm_config_registry: "https://npm.example.test/sub" }), "https://npm.example.test/sub/");
+    assert.throws(() => registryUrl({ npm_config_registry: "file:///tmp/registry" }), /must be an http\(s\) URL/);
+    assert.equal(packumentUrl("@honua/sdk-js", "https://npm.example.test/sub/"), "https://npm.example.test/sub/@honua%2fsdk-js");
+  });
+
+  it("accepts only stable versions on the pinned SDK line", () => {
+    assert.ok(onPinnedLine("0.1.13", "0.1.12"));
+    assert.ok(onPinnedLine("0.1.11", "0.1.12"));
+    assert.ok(!onPinnedLine("0.1.13-beta.0", "0.1.12"));
+    assert.ok(!onPinnedLine("0.2.0", "0.1.12"));
+    assert.ok(onPinnedLine("1.4.0", "1.2.3"));
+    assert.ok(!onPinnedLine("2.0.0", "1.2.3"));
+    assert.ok(!onPinnedLine("latest", "0.1.12"));
+  });
+
+  it("follows the promoted channel", async () => {
+    const resolved = await resolveWith({ latest: "0.1.12", "release-2026.1": "0.1.13" });
+    assert.deepEqual(resolved, { package: "@honua/sdk-js", channel: "release-2026.1", version: "0.1.13", source: "channel" });
+  });
+
+  it("falls back to the certified pin for every channel it cannot trust", async () => {
+    const cases = [
+      [{ latest: "0.1.13" }, /has not been promoted yet/],
+      [{ "release-2026.1": "0.1.14-beta.0" }, /not a stable release on this starter's 0\.1\.12 line/],
+      [{ "release-2026.1": "0.2.0" }, /not a stable release on this starter's 0\.1\.12 line/],
+      [{ "release-2026.1": "0.1.15" }, /which the registry does not list/],
+    ];
+    for (const [distTags, note] of cases) {
+      const resolved = await resolveWith(distTags);
+      assert.equal(resolved.version, "0.1.12", JSON.stringify(distTags));
+      assert.equal(resolved.source, "pinned");
+      assert.match(resolved.note, note);
+    }
+  });
+
+  it("falls back to the certified pin when the registry fails", async () => {
+    const offline = await resolveSdkVersion({ manifest, env: {}, fetch: offlineFetch });
+    assert.equal(offline.version, "0.1.12");
+    assert.match(offline.note, /could not be reached \(offline\)/);
+    const notFound = await resolveSdkVersion({ manifest, env: {}, fetch: async () => new Response("{}", { status: 404 }) });
+    assert.equal(notFound.version, "0.1.12");
+    assert.match(notFound.note, /returned HTTP 404/);
+    const garbage = await resolveSdkVersion({ manifest, env: {}, fetch: async () => new Response("<html>", { status: 200 }) });
+    assert.equal(garbage.version, "0.1.12");
+    assert.match(garbage.note, /did not return JSON/);
+  });
+
+  it("honours an explicit --sdk-version, including a prerelease", async () => {
+    const resolved = await resolveWith({ "release-2026.1": "0.1.13" }, { override: "0.1.11-beta.0" });
+    assert.equal(resolved.version, "0.1.11-beta.0");
+    assert.equal(resolved.source, "override");
+    assert.equal(resolved.note, undefined);
+  });
+
+  it("refuses an unpublished or malformed --sdk-version", async () => {
+    await assert.rejects(resolveWith({}, { override: "0.9.0" }), /@honua\/sdk-js@0\.9\.0 is not published/);
+    await assert.rejects(resolveWith({}, { override: "latest" }), /must be an exact version/);
+  });
+
+  it("keeps an --sdk-version it cannot confirm while offline, and says so", async () => {
+    const resolved = await resolveSdkVersion({ manifest, env: {}, fetch: offlineFetch, override: "0.1.13" });
+    assert.equal(resolved.version, "0.1.13");
+    assert.match(resolved.note, /could not confirm @honua\/sdk-js@0\.1\.13 is published/);
   });
 });
