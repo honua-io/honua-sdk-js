@@ -16,7 +16,7 @@ subset of the surface.
 
 | Package | Subpath equivalent | What it contains |
 |---------|--------------------|------------------|
-| `@honua/sdk` | `@honua/sdk-js/honua` + most stable subpaths | Core client, shared contract, query planner, offline-region contract, and plan-bound MapLibre adapter |
+| `@honua/sdk` | `@honua/sdk-js/honua` + most stable subpaths | `HonuaClient`, not `createHonua`. Also the shared contract, query planner, offline-region contract, and plan-bound MapLibre adapter |
 | `@honua/sdk-esri-compat` | `@honua/sdk-js/esri-compat` | Esri ArcGIS JS compatibility layer (incl. the `geometryEngine` shim) |
 | `@honua/react` | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers) |
 | `@honua/geometry` | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops + reprojection |
@@ -28,9 +28,12 @@ capability-profile recognition to that peer, so an immutable profile created by
 the core SDK remains valid across React, app-platform, geometry, and Esri-compat
 boundaries without exposing the profile-registration authority.
 
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and [@honua/honua-migrate](https://www.npmjs.com/package/@honua/honua-migrate). Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+
 The migration package is no longer a generated SDK split. It is built from the
 [`honua-migrate`](https://github.com/honua-io/honua-migrate) repository, while
-`@honua/sdk-js/migration` remains a temporary forwarder. See the
+`@honua/sdk-js/migration` remains a temporary forwarder. `src/migration/codemod.ts`
+in this repository is the in-repo suite, not the npm program. See the
 [transition policy](./migration-tool-transition.md).
 
 ## Optional gRPC-Web runtime

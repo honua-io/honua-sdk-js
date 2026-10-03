@@ -17,10 +17,15 @@
  * once via {@link registerHonuaWidgetKit}:
  *
  * ```ts doc-test=skip reason="wiring snippet requires an application host"
+ * import { registerComponent } from "@honua/app-platform/controls";
  * import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
  *
- * // Eager (module object) or lazy (loader) — both work:
- * registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+ * // One tag. registerComponent imports the side-effect-free elements module
+ * // and calls defineHonuaWebComponent for that catalog id only.
+ * await registerComponent("web-components.legend");
+ * registerHonuaWidgetKit({
+ *   HonuaLegendElement: customElements.get("honua-legend"),
+ * });
  * ```
  *
  * The host is deliberately defensive:
@@ -117,12 +122,14 @@ let missingWidgetKitReported = false;
 
 /**
  * Injects the web-component kit that {@link HonuaWidgetHost} delegates to.
- * Call once from application code with the `@honua/sdk-js/web-components`
- * (or `@honua/app-platform/web-components`) module — eagerly or as a lazy
- * loader. Pass `undefined` to unregister: delegating shims return to headless
- * mode, and each host drops any element it had mounted on its next
- * {@link HonuaWidgetHost.mount} / {@link HonuaWidgetHost.update} rather than
- * stranding a live component that no longer receives updates.
+ * Register one tag with `registerComponent` from `@honua/app-platform/controls`
+ * (`src/controls/registry.ts`), then pass that tag's constructor here and omit
+ * `defineHonuaWebComponents`. Importing `@honua/app-platform/web-components`
+ * runs `defineHonuaWebComponents()` for every tag. Pass `undefined` to
+ * unregister: delegating shims return to headless mode, and each host drops
+ * any element it had mounted on its next {@link HonuaWidgetHost.mount} /
+ * {@link HonuaWidgetHost.update} rather than stranding a live component that
+ * no longer receives updates.
  *
  * Calling this also re-arms the one-time missing-kit diagnostic: registration
  * is exactly the state the warning asks for, so an app that later unregisters
@@ -138,8 +145,10 @@ function missingWidgetKitMessage(tagName: string): string {
   return [
     `[honua/esri-compat] <${tagName}> was not mounted because no Honua widget kit is registered,`,
     "so this widget stays state-model-only and its container renders nothing.",
-    'Call registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components")) once during application',
-    "startup, before constructing compat widgets. This affects the shims that construct a widget host.",
+    "Call registerComponent from @honua/app-platform/controls for that one tag, then",
+    "registerHonuaWidgetKit with the registered constructor and without defineHonuaWebComponents,",
+    "once during application startup. Importing @honua/app-platform/web-components runs",
+    "defineHonuaWebComponents() for every tag. This affects the shims that construct a widget host.",
     `See ${WIDGET_KIT_DOCS_URL}`,
   ].join(" ");
 }

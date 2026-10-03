@@ -26,10 +26,16 @@ while the branch contains unreleased work. Use the
 published artifact.
 <!-- support-manifest:install-status:end -->
 
+## Which import
+
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+
 ## Stable subpath entrypoints
 
-Subpaths covered by the SDK's semver contract. Symbols reachable from these
-entrypoints are stable across minor versions.
+While the SDK is on `0.x`, a minor may still change a stable symbol, only as a
+reviewed, called-out change. Symbols marked `@experimental` may change in any
+minor. At 1.0 the stable tier freezes. See
+[`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
 
 | Subpath | What it gives you |
 |---------|-------------------|
@@ -39,7 +45,7 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
 | `@honua/sdk-js/esri-compat` | Esri ArcGIS JS-API compatibility layer for migration |
-| `@honua/sdk-js/migration` | Programmatic migration helpers (codemod runner, scan reports) |
+| `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
 | `@honua/sdk-js/webmap` | WebMap JSON load/save helpers |
@@ -191,7 +197,7 @@ no extra installs are required.
 ## Quick Start
 
 ```typescript doc-test=compile
-import { HonuaClient } from "@honua/sdk-js";
+import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.com",
@@ -258,8 +264,10 @@ classes. These are reachable via the `@honua/sdk-js/contract` and
 
 ## Esri Migration
 
-The migration helpers live behind the `@honua/sdk-js/migration` subpath. They
-power the same codemod that the standalone CLI runs:
+The npm program is `@honua/honua-migrate` (`npx honua-js-migrate`).
+`@honua/sdk-js/migration` forwards to that package. `src/migration/codemod.ts`
+is the in-repo suite, not the npm program. The forwarder keeps the old import
+working:
 
 ```typescript doc-test=compile
 import { runEsriCompatCodemod, scanArcGisUsage } from "@honua/sdk-js/migration";
@@ -276,18 +284,18 @@ const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
   archived guides, compatibility ranges, and migration links.
 - **Pre-release** (`-alpha.*`, `-beta.*`): Published to npm with `@alpha` / `@beta` dist-tags.
 - **Stable** (`1.0.0+`): Published to npm as `@latest`.
-- **Semver:** All releases follow [Semantic Versioning](https://semver.org/). Public symbols
-  reachable from the documented subpaths above are covered by the contract; symbols marked
-  `@experimental` in JSDoc may change in any minor release.
+- **Semver:** Releases follow [Semantic Versioning](https://semver.org/). While the SDK is on `0.x`, a minor may still change a stable symbol, only as a reviewed, called-out change. At 1.0, breaking or removing a stable symbol requires a major. Symbols marked `@experimental` in JSDoc may change in any minor release.
 - **Cross-language alignment:** Major versions are coordinated across the Honua SDK family
   (JavaScript, Python, .NET) so a single semver line tells you what the contract is on every
   platform.
 
-> **Advanced packaging.** Downstream packagers can also produce a three-package
-> split (`@honua/sdk` / `@honua/sdk-esri-compat` / `@honua/honua-migrate`) via
-> `npm run build:split-packages`. This is an opt-in build target, not the default
-> consumer install. See [`docs/split-packages.md`](./docs/split-packages.md) if you
-> are integrating with a downstream registry that needs the smaller surfaces.
+> **Advanced packaging.** Downstream packagers can also produce the split
+> packages, including `@honua/sdk` (`HonuaClient`, not `createHonua`) and
+> `@honua/sdk-esri-compat`, via `npm run build:split-packages`.
+> `@honua/honua-migrate` is not one of those generated packages.
+> This is an opt-in build target, not the default consumer install. See
+> [`docs/split-packages.md`](./docs/split-packages.md) if you are integrating
+> with a downstream registry that needs the smaller surfaces.
 
 Maintainers can verify the artifact consumers actually install with
 `npm run verify:packed-sdk` after the library and browser builds. The gate packs

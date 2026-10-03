@@ -24,53 +24,65 @@ and SHA-256 manifest. The browser only projects and revalidates those
 artifacts; it does not contain a second transform, accept uploads, read
 credentials, or perform cloud import.
 
+## Which import
+
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+
 ## Widget kit registration
 
-**This is a required step, not a footnote.** A migrated app that constructs
-`LegendCompat` or `LayerListCompat` must register the Honua web-component kit
-once, or those two widgets render nothing.
+**This is a required step, not a footnote.** A shim that constructs a
+`HonuaWidgetHost` paints only after the application registers the kit. A shim
+that does not construct a host stays state-model-only whether or not a kit is
+registered, and it does not emit the missing-kit diagnostic.
 
-Be precise about the scope, because it cuts both ways:
+Importing `@honua/sdk-esri-compat` does not load the kit. The compat entry is
+bundle-budgeted, and any import of the kit from that entry would pull the
+component set into every compat bundle. The application registers the tag.
 
-| Shim | With a registered kit | Without one |
-| --- | --- | --- |
-| `LegendCompat` (`<honua-legend>`) | renders the delegated component | state-model-only, container stays empty, diagnostic fires |
-| `LayerListCompat` (`<honua-layer-list>`) | renders the delegated component | state-model-only, container stays empty, diagnostic fires |
-| every other container-bearing shim (`SearchCompat`, `MeasurementCompat`, `ExpandCompat`, `BasemapGalleryCompat`, `SketchCompat`, …) | **still state-model-only** | state-model-only, no diagnostic |
-
-Registration is *necessary* for the first two and *not sufficient* for the
-rest: about two dozen shims accept a `container` option, but only `LegendCompat`
-and `LayerListCompat` construct a `HonuaWidgetHost` today. The others carry the
-ArcGIS state model — properties, `watch`, events, methods — and expect the
-application to render their state itself. Registering the kit does not give
-them UI, and they never emit the missing-kit diagnostic, so do not read a
-silent `SearchCompat` as a registration problem.
-
-The two delegating shims draw UI through the Honua web components. The compat
-entry point never imports that kit — not even dynamically: `/esri-compat` is
-bundle-budgeted, and any intra-package import would pull the whole component
-set plus its geometry closure into every compat bundle. The application injects
-it instead, as early as the entry module runs:
+Paint one tag through the side-effect-free registry in `src/controls/registry.ts`.
+`registerComponent` dynamically imports `web-components/elements.js`, which does
+not register tags on import, and calls `defineHonuaWebComponent` for that
+catalog id only. Pass the registered constructor to `registerHonuaWidgetKit`
+and omit `defineHonuaWebComponents`. If the kit object includes
+`defineHonuaWebComponents`, the host calls it and every tag in the kit is
+defined.
 
 ```ts doc-test=skip reason="wiring snippet requires an application host"
+import { registerComponent } from "@honua/app-platform/controls";
 import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
 
-// Eager (module object) or lazy (loader) — both work.
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+await registerComponent("web-components.legend");
+registerHonuaWidgetKit({
+  HonuaLegendElement: customElements.get("honua-legend"),
+});
 ```
 
-Register before you construct widgets. The call is idempotent, and passing
-`undefined` unregisters: the delegating shims return to state-model-only mode
-and any component they had already mounted is removed from its container on the
-next refresh, so unregistering never strands stale UI.
+`@honua/app-platform/web-components` is the widget package. Importing it, or
+the deprecated `@honua/sdk-js/web-components` forwarder, evaluates
+`defineHonuaWebComponents()` and defines every tag. Use that import when the
+app wants the whole kit. Use `registerComponent` when it wants one tag.
 
-Without a kit those two shims degrade to state-model-only: `legend.items` is
-populated, `layerList.toggle()` mutates layers, events still fire — and the
-`container` you passed stays empty. Since a migrated app in that state simply
-looks broken, the first mount without a registered kit emits a one-time
-diagnostic (honua-io/honua-sdk-js#957):
+The `honua-compat` codemod in `@honua/honua-migrate` inserts one
+`registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"))` call
+when the file constructs a hosted compat widget (Legend, LayerList, TimeSlider,
+Search, Measurement, Editor, FeatureForm, FeatureTable, Bookmarks,
+BasemapGallery, BasemapToggle, Locate, Sketch, Print, Popup, Zoom, Home,
+ScaleBar, Compass, Fullscreen, Attribution, or Directions). That emitted import
+defines every tag. `esri-leaflet` output does not insert the call.
+`keep-esri` output stays byte-identical. Replace the emitted loader with the
+`registerComponent` call above when one tag is enough.
 
-- a `console.warn` naming `registerHonuaWidgetKit`, quoting the exact call, and
+Register before you construct widgets. `registerHonuaWidgetKit` is idempotent,
+and passing `undefined` unregisters: painting shims return to state-model-only
+mode and any component they had already mounted is removed from its container
+on the next refresh.
+
+Without a kit, a painting shim still keeps its state model — `legend.items`
+stays populated, `layerList.toggle()` still mutates layers, events still fire —
+and the `container` you passed stays empty. The first mount in that state
+emits a one-time diagnostic (honua-io/honua-sdk-js#957):
+
+- a `console.warn` naming `registerComponent` and `registerHonuaWidgetKit`, and
   linking back to this section; and
 - a `widget-kit.missing` event on the shim's `CompatEventBus`, carrying
   `{ tagName, api, docs, message }` for telemetry or a first-run banner.
@@ -83,26 +95,56 @@ legend.eventBus.on("widget-kit.missing", (event) => {
 
 The diagnostic fires **once per runtime**, on the first mount that finds no
 kit — not once per widget instance — so subscribe before constructing widgets.
-It re-arms whenever `registerHonuaWidgetKit` is called again, which keeps
-register-then-unregister cycles honest.
+It re-arms whenever `registerHonuaWidgetKit` is called again.
 
-Three consequences worth planning for:
+`@honua/sdk-esri-compat` does not ship the kit. Install
+`@honua/app-platform` to register tags. `FeaturesCompat`, `AttachmentsCompat`,
+and `ScaleRangeCompat` construct hosts and are not on the stable esri-compat
+entry.
 
-- The standalone `@honua/sdk-esri-compat` split package does not ship the kit.
-  An app on that package installs `@honua/sdk-js` (or
-  `@honua/app-platform`) as well to have something to register.
-- The codemod does not insert this call for you yet — it is tracked on
-  honua-io/honua-sdk-js#957 against the `honua-migrate` engine. Until it lands,
-  add the registration to every migrated entry point by hand.
-- Widgets outside the delegation set need a rendering plan of their own. Budget
-  for it during migration rather than discovering it after: read the shim's
-  state model and render it with your own components, or with the Honua web
-  components directly.
+<!-- widget-host-tags:start -->
+
+| Shim | Tag |
+| --- | --- |
+| `AttributionCompat` | `honua-attribution` |
+| `AttachmentsCompat` | `honua-attachments` |
+| `BasemapGalleryCompat`, `BasemapToggleCompat` | `honua-basemap-control` |
+| `BookmarksCompat` | `honua-bookmarks` |
+| `CompassCompat` | `honua-compass` |
+| `DirectionsCompat` | `honua-directions` |
+| `EditorCompat` | `honua-editor` |
+| `FeatureFormCompat` | `honua-feature-editor` |
+| `FeatureTableCompat` | `honua-feature-table` |
+| `FeaturesCompat` | `honua-feature-pager` |
+| `FullscreenCompat` | `honua-fullscreen` |
+| `HomeCompat` | `honua-home` |
+| `LayerListCompat` | `honua-layer-list` |
+| `LegendCompat` | `honua-legend` |
+| `LocateCompat` | `honua-locate-control` |
+| `MeasurementCompat` | `honua-measurement` |
+| `PopupCompat` | `honua-feature-inspection` |
+| `PrintCompat` | `honua-print-export` |
+| `ScaleBarCompat` | `honua-scale-bar` |
+| `ScaleRangeCompat` | `honua-scale-range` |
+| `SearchCompat` | `honua-search` |
+| `SketchCompat` | `honua-sketch-control` |
+| `TimeSliderCompat` | `honua-time-slider` |
+| `ZoomCompat` | `honua-zoom` |
+
+<!-- widget-host-tags:end -->
+
+<!-- widget-host-state-only:start -->
+
+These container-bearing shims do not construct a host. They stay state-model-only: `AreaMeasurement2DCompat`, `BasemapLayerListCompat`, `CoordinateConversionCompat`, `DistanceMeasurement2DCompat`, `ExpandCompat`, `FeatureCompat`, `FeatureTemplatesCompat`, `SwipeCompat`, `TableListCompat`, `TrackCompat`.
+
+<!-- widget-host-state-only:end -->
 
 ## How it differs from the other targets
 
-The migration codemod (`src/migration/codemod.ts`) exposes three
-targets selected with `--target` on the CLI:
+`src/migration/codemod.ts` is the in-repo suite, not the npm program.
+`@honua/sdk-js/migration` forwards to `@honua/honua-migrate`, and the CLI is
+`npx honua-js-migrate`. The suite exposes three targets selected with
+`--target` on the CLI:
 
 | Target | Output shape | What it rewrites natively |
 | --- | --- | --- |

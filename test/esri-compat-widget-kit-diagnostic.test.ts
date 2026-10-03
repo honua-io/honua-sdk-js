@@ -75,7 +75,10 @@ describe("missing widget-kit diagnostic", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     const message = String(warn.mock.calls[0]?.[0]);
     expect(message).toContain("honua-legend");
-    expect(message).toContain('registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"))');
+    expect(message).toContain("registerComponent");
+    expect(message).toContain("@honua/app-platform/controls");
+    expect(message).toContain("defineHonuaWebComponents");
+    expect(message).not.toContain('import("@honua/sdk-js/web-components")');
     expect(message).toContain(DOCS_URL);
 
     expect(events).toHaveLength(1);

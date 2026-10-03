@@ -5,8 +5,10 @@ public-facing claims stand:
 
 1. **"Parity with the ArcGIS JS SDK"** — the symbol surface app
    authors can `import` and call against.
-2. **"Automated app conversion"** — the `src/migration` codemod that
-   rewrites ArcGIS imports/constructors to Honua compat shims.
+2. **"Automated app conversion"** — the npm program is `@honua/honua-migrate`.
+   `@honua/sdk-js/migration` forwards to that package. `src/migration/codemod.ts`
+   is the in-repo suite, not the npm program. It rewrites ArcGIS
+   imports and constructors to Honua compat shims.
 
 It is intentionally written so a reader can tell what is shipped,
 what is *partial*, and what is *not started*. None of the entries
@@ -74,8 +76,10 @@ scope with the rest of the SceneView surface.
 
 ### Automated app conversion (`src/migration/codemod.ts`)
 
-The codemod is a real AST rewriter built on the TypeScript Compiler
-API (it does **not** use regex). It:
+`src/migration/codemod.ts` is the in-repo suite, not the npm program.
+`@honua/sdk-js/migration` forwards to `@honua/honua-migrate`. The suite is a
+real AST rewriter built on the TypeScript Compiler API (it does **not** use
+regex). It:
 
 - Detects `import { X } from "@arcgis/core/..."` and rewrites
   bindings to the matching `XCompat` symbol from `esri-compat`.
@@ -179,16 +183,14 @@ hold the surface stable).
    These rewrite cleanly only for the simple case; arrow-function
    field-info `format` callbacks fall through to manual TODO.
 6. **Widget UI behavior.** The widget shims accept the same
-   constructor options ArcGIS does, but only `LegendCompat` and
-   `LayerListCompat` render, through the Honua widget host
-   (`HonuaWidgetHost`) and only after the app registers the
-   web-component kit — see
+   constructor options ArcGIS does. A shim that constructs a
+   `HonuaWidgetHost` renders after the app registers the
+   web-component kit. A shim that does not construct a host stays
+   state-model-only. The current lists are in
    [widget kit registration](./migration-honua-maplibre.md#widget-kit-registration).
-   Their visual parity (icons, ARIA, CSS class names that downstream
+   Visual parity (icons, ARIA, CSS class names that downstream
    apps style against) is **not** byte-identical; apps that rely on
-   `calcite-action--`-prefixed selectors will need style work. Every
-   other container-bearing shim is state-model-only and needs the
-   application to render it.
+   `calcite-action--`-prefixed selectors will need style work.
 7. **Typed-surface divergences from the emulated ArcGIS shape.**
    The shims are structurally compatible with the ArcGIS surface
    they emulate except where this list says otherwise. The audit
