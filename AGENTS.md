@@ -245,3 +245,11 @@ This machine runs many agents concurrently (**Codex + Claude**, often via agentf
 3. **Commit hygiene — no agent attribution.** Author every commit as the repo owner only (git identity: Mike McDougall <mike@honua.io>). Do **NOT** add any agent/tool attribution to commits: no `Co-Authored-By: Claude ...`, no `Co-Authored-By: Codex ...` (or other bot co-authors), and no "Generated with Claude Code" / "Generated with Codex" / "🤖" lines in the message or PR body. Write a plain, descriptive commit message and stop.
 
 4. **Agents outside this WSL environment (Windows Codex/Claude, other machines).** The build lock and worktree conventions above exist only inside WSL. If you are not running inside it: work from your own checkout and never edit the WSL working trees (e.g. via `\\wsl.localhost`) — git remotes are the only shared surface; claim an issue before starting (assign yourself or leave a claiming comment), because agents that cannot see each other's worktrees cannot avoid collisions any other way; and run at most one heavy build/test at a time, avoiding overlap with active WSL builds — no semaphore protects the host across environments.
+
+## Release component-version declaration
+
+`release/component-versions.json` declares this package's contract and schema versions
+(`honua.component-versions/v1`). The honua-release nightly resolver reads it at the published
+source commit of the npm package and refuses `honua-sdk-js` when it is missing or invalid. Any PR
+that bumps a contract version (for example `connect-parity`) or a schema version (for example the
+diagnostic bundle `schemaVersion` in `src/diagnostics/schema.ts`) must update this file in the same PR.
