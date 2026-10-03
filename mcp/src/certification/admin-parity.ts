@@ -15,7 +15,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { isMainEntrypoint } from "../entrypoint.js";
-import { connectUpstream, createProxyServer, resolveProxyOptions } from "../proxy.js";
+import { connectProxyTransport, connectUpstream, resolveProxyOptions } from "../proxy.js";
 
 export interface AdminParityReceipt {
   readonly schemaVersion: "honua.admin-mcp-parity.v1";
@@ -273,12 +273,13 @@ export async function runAdminParityCertification(
       "Admin MCP live certification is blocked until config/admin-client.v1.json pins the final server head.",
     );
   }
-  const upstream = await connectUpstream(resolveProxyOptions(env));
-  const proxy = createProxyServer(upstream);
+  const options = resolveProxyOptions(env);
+  const upstream = await connectUpstream(options);
+  // The proxied side runs through the same bridge the stdio executable uses.
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const proxied = new Client({ name: "honua-admin-parity", version: "1.0.0" });
   try {
-    await proxy.connect(serverTransport);
+    await connectProxyTransport(options, serverTransport);
     await proxied.connect(clientTransport);
     const directTools = await listAllTools(upstream);
     const proxiedTools = await listAllTools(proxied);
@@ -288,7 +289,6 @@ export async function runAdminParityCertification(
     return receipt;
   } finally {
     await proxied.close().catch(() => {});
-    await proxy.close().catch(() => {});
     await upstream.close().catch(() => {});
   }
 }

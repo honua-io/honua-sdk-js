@@ -1,0 +1,114 @@
+name: MCP session contract
+
+# The stdio proxy's protocol boundary (initialize-bound views, fail-closed
+# handshake, list_changed relay) proven twice: against the source build, then
+# against the honua-mcp-proxy executable npm installs from the packed
+# tarballs, which is what `npx @honua/mcp-server` users run (#1875).
+
+on:
+  pull_request:
+    paths:
+      - mcp/src/proxy.ts
+      - mcp/src/certification/admin-parity.ts
+      - mcp/test/proxy*.test.ts
+      - mcp/test/certification/admin-parity.test.ts
+      - mcp/test/fixtures/initialize-view/**
+      - mcp/package.json
+      - mcp/package-lock.json
+      - .github/workflows/mcp-session-contract.yml
+  push:
+    branches: [trunk]
+    paths:
+      - mcp/src/proxy.ts
+      - mcp/src/certification/admin-parity.ts
+      - mcp/test/proxy*.test.ts
+      - mcp/test/certification/admin-parity.test.ts
+      - mcp/test/fixtures/initialize-view/**
+      - mcp/package.json
+      - mcp/package-lock.json
+      - .github/workflows/mcp-session-contract.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-session-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  session-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20.19.0"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mcp/package-lock.json
+      - name: Build SDK and MCP package
+        run: |
+          npm ci
+          npm run build
+          npm ci --prefix mcp
+          npm run typecheck --prefix mcp
+          npm run build --prefix mcp
+      - name: Source protocol-boundary and parity tests
+        working-directory: mcp
+        run: npx vitest run test/proxy.test.ts test/proxy-session.test.ts test/certification/admin-parity.test.ts --reporter=default --reporter=json --outputFile=session-source-tests.json
+      - name: Install the packed tarballs into a clean directory
+        # Resolved from the registry like a user install; no --offline, since
+        # the npm cache holds only what this repository's lockfiles restored.
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="$RUNNER_TEMP/mcp-session-packages"
+          install_dir="$RUNNER_TEMP/mcp-session-installed"
+          mkdir -p "$package_dir" "$install_dir"
+          npm pack --ignore-scripts --pack-destination "$package_dir" --json > "$RUNNER_TEMP/sdk-pack.json"
+          npm pack ./mcp --ignore-scripts --pack-destination "$package_dir" --json > "$RUNNER_TEMP/mcp-pack.json"
+          sdk_file=$(node -p "require(process.env.RUNNER_TEMP + '/sdk-pack.json')[0].filename")
+          mcp_file=$(node -p "require(process.env.RUNNER_TEMP + '/mcp-pack.json')[0].filename")
+          npm install --prefix "$install_dir" --ignore-scripts --no-audit --no-fund "$package_dir/$sdk_file" "$package_dir/$mcp_file"
+          executable="$install_dir/node_modules/.bin/honua-mcp-proxy"
+          test -x "$executable"
+          case "$(realpath "$executable")" in
+            "$install_dir"/node_modules/@honua/mcp-server/*) ;;
+            *) echo "installed executable resolves outside the clean install: $(realpath "$executable")" >&2; exit 1 ;;
+          esac
+          echo "HONUA_PROXY_TEST_EXECUTABLE=$executable" >> "$GITHUB_ENV"
+          sha256sum "$package_dir/$sdk_file" "$package_dir/$mcp_file" > mcp/session-package-sha256.txt
+          cat mcp/session-package-sha256.txt
+      - name: Protocol-boundary tests against the installed executable
+        working-directory: mcp
+        run: npx vitest run test/proxy-session.test.ts --reporter=default --reporter=json --outputFile=session-installed-tests.json
+      - name: Reproduce #1875 against the installed executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          node mcp/test/fixtures/initialize-view/reproduce.mjs "$HONUA_PROXY_TEST_EXECUTABLE" mcp/session-installed-capture.json | tee mcp/session-installed-repro.json
+          node -e '
+            const observed = JSON.parse(require("fs").readFileSync("mcp/session-installed-repro.json", "utf8"));
+            if (observed.tools !== 25 || observed.revision !== "setup.v2") {
+              console.error(`expected the setup catalog (25 tools, setup.v2), observed ${JSON.stringify(observed)}`);
+              process.exit(1);
+            }
+          '
+      - name: Check MCP code style
+        working-directory: mcp
+        run: npm run check
+      - name: Retain session contract evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: mcp-session-contract
+          path: |
+            mcp/session-source-tests.json
+            mcp/session-installed-tests.json
+            mcp/session-package-sha256.txt
+            mcp/session-installed-repro.json
+            mcp/session-installed-capture.json
+          if-no-files-found: warn
