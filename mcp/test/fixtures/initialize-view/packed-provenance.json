@@ -1,0 +1,36 @@
+{
+  "sourceRevision": "17583272e",
+  "published": false,
+  "packages": [
+    {
+      "name": "@honua/sdk-js",
+      "version": "0.1.12",
+      "filename": "honua-sdk-js-0.1.12.tgz",
+      "integrity": "sha512-ANcGDe0s0Qs8A0+bmzatkNTbrLPBY3c3YTuyr1XAB0bbE9DNVQJ3xRDTaf0tNQYo4GMIjp7NcEialuV7R82/og==",
+      "entryCount": 2178
+    },
+    {
+      "name": "@honua/mcp-server",
+      "version": "0.1.12",
+      "filename": "honua-mcp-server-0.1.12.tgz",
+      "integrity": "sha512-ynO4/Ie/1Q09cZKvnOHJkuGHprq87s1XsxAzJ9Wlwey2QwfOtQXzhWX79kDUI+fm1cfvyt55Y0CXnyGlXlDAqA==",
+      "entryCount": 282
+    }
+  ],
+  "installation": "npm install /tmp/sdkjs-1875-artifacts/honua-sdk-js-0.1.12.tgz /tmp/sdkjs-1875-artifacts/honua-mcp-server-0.1.12.tgz --no-audit --no-fund",
+  "peerResolution": "npm default; no force or legacy-peer-deps",
+  "executable": "/tmp/sdkjs-1875-fixed-install/node_modules/.bin/honua-mcp-proxy",
+  "tests": {
+    "protocolBoundary": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "observed": {
+    "requestedView": "setup",
+    "revision": "setup.v2",
+    "tools": 25
+  },
+  "releaseTarget": "@honua/mcp-server@0.1.13 through release-please; publication and candidate qualification pending"
+}
