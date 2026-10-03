@@ -1,5 +1,5 @@
 {
-  "sourceRevision": "17583272e",
+  "sourceRevision": "b1dddbcb56f40fe5281d8cfb1fc56db85cd026c0",
   "published": false,
   "packages": [
     {
@@ -13,18 +13,26 @@
       "name": "@honua/mcp-server",
       "version": "0.1.12",
       "filename": "honua-mcp-server-0.1.12.tgz",
-      "integrity": "sha512-ynO4/Ie/1Q09cZKvnOHJkuGHprq87s1XsxAzJ9Wlwey2QwfOtQXzhWX79kDUI+fm1cfvyt55Y0CXnyGlXlDAqA==",
+      "integrity": "sha512-GkLFyTU80umN57jvJQvymYRgfkrwTB5yb8GsAoMl+JHS03FexYrtEcCpxkO82bVPMELquggYROXW5GoZmoJh4A==",
       "entryCount": 282
     }
   ],
   "installation": "npm install /tmp/sdkjs-1875-artifacts/honua-sdk-js-0.1.12.tgz /tmp/sdkjs-1875-artifacts/honua-mcp-server-0.1.12.tgz --no-audit --no-fund",
   "peerResolution": "npm default; no force or legacy-peer-deps",
-  "executable": "/tmp/sdkjs-1875-fixed-install/node_modules/.bin/honua-mcp-proxy",
+  "executable": "/tmp/sdkjs-1875-fixed-install-v2/node_modules/.bin/honua-mcp-proxy",
   "tests": {
     "protocolBoundary": {
-      "passed": 4,
+      "passed": 6,
       "failed": 0,
       "skipped": 0
+    },
+    "priorArtifactReviewRegressions": {
+      "sourceRevision": "99d57cf896033e9d038c282e1a879f6e20845024",
+      "expectedFailures": [
+        "initialized acceptance ordering",
+        "asynchronous SSE reader failure closes stdio"
+      ],
+      "observedFailures": 2
     }
   },
   "observed": {
