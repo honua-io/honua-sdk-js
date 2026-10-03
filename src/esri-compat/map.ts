@@ -37,6 +37,15 @@ export class MapCompat {
     this.loaded = false;
     this.loadStatus = "not-loaded";
     this.layersInternal = Array.isArray(options.layers) ? [...options.layers] : [];
+    // Esri Map.layers is a collection. Owls calls `webmap.layers.add(layer)`.
+    Object.defineProperty(this.layersInternal, "add", {
+      configurable: true,
+      enumerable: false,
+      writable: false,
+      value: (layer: unknown, index?: number) => {
+        this.add(layer, index);
+      },
+    });
     this.eventBus = options.eventBus ?? resolveCompatEventBus(options.layers) ?? new CompatEventBus();
     this.watchListeners = new Map();
   }
@@ -80,8 +89,12 @@ export class MapCompat {
     };
   }
 
-  public get layers(): readonly unknown[] {
-    return this.layersInternal;
+  public get layers(): readonly unknown[] & {
+    add(layer: unknown, index?: number): void;
+  } {
+    return this.layersInternal as unknown as readonly unknown[] & {
+      add(layer: unknown, index?: number): void;
+    };
   }
 
   public get allLayers(): readonly unknown[] {
