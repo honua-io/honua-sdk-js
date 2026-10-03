@@ -123,7 +123,13 @@ async function verifyInstalledScaffold(manifest) {
       const target = path.join(consumer, `scaffold-${template.id}`);
       const result = await runNode([installedBin, target, "--template", template.id], {
         cwd: consumer,
-        env: { ...process.env, npm_config_registry: registry.url },
+        // Drop the npm_* settings an `npm run` exports (npm_execpath and
+        // npm_config_local_prefix included) so the scaffold takes the direct,
+        // offline read of the stub rather than the host npm's configuration.
+        env: {
+          ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^npm_/i.test(key))),
+          npm_config_registry: registry.url,
+        },
       });
       if (result.status !== 0) {
         failures.push(`scaffolding ${template.id} from the packed package exited ${result.status}: ${result.stderr}`);

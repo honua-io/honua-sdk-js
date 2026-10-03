@@ -359,6 +359,28 @@ describe("cli run", () => {
     assert.deepEqual(fs.readdirSync(cwd), []);
   });
 
+  it("refuses a non-empty directory before asking the registry", async () => {
+    const cwd = workspace();
+    fs.mkdirSync(path.join(cwd, "occupied"));
+    fs.writeFileSync(path.join(cwd, "occupied/notes.txt"), "keep me\n");
+    const streams = captureStreams();
+    const requested = [];
+    const code = await run(["occupied"], {
+      cwd,
+      ...streams,
+      packageRoot: PACKAGE_ROOT,
+      env: {},
+      fetch: async (url) => {
+        requested.push(url);
+        throw new Error("offline");
+      },
+    });
+    assert.equal(code, 1);
+    assert.match(streams.chunks.stderr, /is not empty/);
+    assert.deepEqual(requested, []);
+    assert.deepEqual(fs.readdirSync(path.join(cwd, "occupied")), ["notes.txt"]);
+  });
+
   it("reports an unknown template without writing anything", async () => {
     const cwd = workspace();
     const streams = captureStreams();
