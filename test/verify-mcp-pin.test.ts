@@ -46,17 +46,25 @@ async function readManifest(relativePath: string) {
 }
 
 describe("generated MCP client configuration pin", () => {
-  it("keeps every create-honua-app SDK pin on the coordinated pair", async () => {
+  it("keeps every create-honua-app SDK pin on the certified manifest fallback", async () => {
     const sdk = await readManifest("package.json");
-    expect(verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: sdk.version })).toEqual(
+    const templateManifest = (await readManifest("packages/create-honua-app/templates.manifest.json")) as {
+      name: string;
+      version: string;
+      sdk?: { package?: string; version?: string };
+    };
+    expect(templateManifest.sdk?.package).toBe(sdk.name);
+    expect(templateManifest.sdk?.version).toEqual(expect.any(String));
+    const certified = templateManifest.sdk?.version;
+    expect(verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: certified })).toEqual(
       CREATE_APP_PIN_SITES.map((relativePath: string) => ({
         relativePath,
-        pin: `${sdk.name}@${sdk.version}`,
+        pin: `${sdk.name}@${certified}`,
       })),
     );
   });
 
-  it("rejects a create-honua-app pin that drifts from the coordinated pair", () => {
+  it("rejects a create-honua-app pin that drifts from the certified fallback", () => {
     expect(() =>
       verifyCreateAppPins({
         sdkName: "@honua/sdk-js",
@@ -66,7 +74,7 @@ describe("generated MCP client configuration pin", () => {
             ? { sdk: { package: "@honua/sdk-js", version: "0.1.4-beta.0" } }
             : { dependencies: { "@honua/sdk-js": "0.1.4-beta.0" } },
       }),
-    ).toThrow(/sync:mcp-pin/);
+    ).toThrow(/certified starter fallback/);
   });
 
   it("keeps every shipped zero-to-map config on the coordinated pin", () => {
