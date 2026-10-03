@@ -23,12 +23,14 @@ The starter package lives in this repository at `packages/create-honua-app`.
 
 `templates.manifest.json` names the release channel the starters follow (`sdk.channel`, the `release-2026.1` npm
 dist-tag) and a certified fallback (`sdk.version`). At scaffold time the CLI reads the channel from the registry npm is
-configured to use. It pins the channel's version only when that version is a stable release on the starter's SDK line:
+configured to use. Under `npm create` or `npx` it asks npm itself (`npm view`), so scope registries, `.npmrc`
+authentication, and proxy settings apply exactly as they will for `npm install`. It pins the channel's version only when that version is a stable release on the starter's SDK line:
 the same major, and the same minor while the SDK is `0.x`. Release promotion is the only thing that moves the tag, so
 an SDK promotion reaches new scaffolds without a `create-honua-app` republish.
 
 In every other case the scaffold pins the certified fallback and prints why: the channel is not promoted yet, it names
-a prerelease or another line, or the registry cannot be read. The tag is not named `2026.1` because npm refuses a
+a prerelease or another line, or the registry cannot be read. A registry that answers but has no SDK package, or lists
+neither the channel version nor the certified fallback, fails the scaffold, because that app could never install. The tag is not named `2026.1` because npm refuses a
 dist-tag that is also a valid semver range. `--sdk-version <exact>` overrides the channel. It is the only way to
 scaffold a prerelease, and the CLI refuses a version the registry does not list.
 

@@ -9,6 +9,7 @@ import { parseArgs, run, templateListing } from "../../packages/create-honua-app
 import { collectTemplateFiles, projectNameFromDirectory, scaffoldProject } from "../../packages/create-honua-app/lib/scaffold.mjs";
 import {
   isStableVersion,
+  npmCliPath,
   onPinnedLine,
   packumentUrl,
   parseVersion,
@@ -17,6 +18,7 @@ import {
 } from "../../packages/create-honua-app/lib/sdk-version.mjs";
 import {
   defaultTemplate,
+  isChannelName,
   loadTemplateManifest,
   playgroundLinks,
   templateIds,
@@ -147,10 +149,23 @@ describe("template manifest", () => {
       manifest.sdk.channel = "2026.1";
     });
     assert.throws(() => loadTemplateManifest(rangeTag), /sdk\.channel must be an npm dist-tag name/);
+    const wildcardTag = copyPackage((manifest) => {
+      manifest.sdk.channel = "x";
+    });
+    assert.throws(() => loadTemplateManifest(wildcardTag), /sdk\.channel must be an npm dist-tag name/);
     const missing = copyPackage((manifest) => {
       delete manifest.sdk.channel;
     });
     assert.throws(() => loadTemplateManifest(missing), /sdk\.channel must be a non-empty string/);
+  });
+
+  it("accepts only channel names npm can publish as dist-tags", () => {
+    for (const name of ["release-2026.1", "latest", "stable", "x-1", "xray", "v-next"]) {
+      assert.ok(isChannelName(name), name);
+    }
+    for (const name of ["2026.1", "x", "X", "x.x.x", "x.1", "v1", "v1.2", "*", "Release", "release_1", "", undefined]) {
+      assert.ok(!isChannelName(name), String(name));
+    }
   });
 
   it("pins every template to the manifest's published SDK version", () => {
@@ -295,6 +310,7 @@ describe("cli run", () => {
     const streams = captureStreams();
     const code = await run(["fresh-map"], {
       cwd,
+      env: {},
       stdout: streams.stdout,
       stderr: streams.stderr,
       packageRoot: PACKAGE_ROOT,
@@ -331,7 +347,13 @@ describe("cli run", () => {
   it("rejects a malformed --sdk-version without writing anything", async () => {
     const cwd = workspace();
     const streams = captureStreams();
-    const code = await run(["x", "--sdk-version", "^0.1.12"], { cwd, ...streams, packageRoot: PACKAGE_ROOT, fetch: offlineFetch });
+    const code = await run(["x", "--sdk-version", "^0.1.12"], {
+      cwd,
+      ...streams,
+      packageRoot: PACKAGE_ROOT,
+      env: {},
+      fetch: offlineFetch,
+    });
     assert.equal(code, 1);
     assert.match(streams.chunks.stderr, /must be an exact version/);
     assert.deepEqual(fs.readdirSync(cwd), []);
@@ -342,6 +364,7 @@ describe("cli run", () => {
     const streams = captureStreams();
     const code = await run(["x", "--template", "nope"], {
       cwd,
+      env: {},
       stdout: streams.stdout,
       stderr: streams.stderr,
       packageRoot: PACKAGE_ROOT,
@@ -436,6 +459,22 @@ describe("sdk version resolution", () => {
     const garbage = await resolveSdkVersion({ manifest, env: {}, fetch: async () => new Response("<html>", { status: 200 }) });
     assert.equal(garbage.version, "0.1.12");
     assert.match(garbage.note, /did not return JSON/);
+  });
+
+  it("fails when the registry lists neither a usable channel nor the certified fallback", async () => {
+    const onlyNextLine = registryFetch({ "dist-tags": { "release-2026.1": "0.2.0" }, versions: { "0.2.0": {} } });
+    await assert.rejects(
+      resolveSdkVersion({ manifest, env: {}, fetch: onlyNextLine }),
+      /does not list the certified @honua\/sdk-js@0\.1\.12, so the app could not install/,
+    );
+    const unpromoted = registryFetch({ "dist-tags": { latest: "0.2.0" }, versions: { "0.2.0": {} } });
+    await assert.rejects(resolveSdkVersion({ manifest, env: {}, fetch: unpromoted }), /has not been promoted yet, and/);
+  });
+
+  it("reads through npm's own CLI only when npm launched the scaffold", () => {
+    assert.equal(npmCliPath({}), undefined);
+    assert.equal(npmCliPath({ npm_execpath: "/usr/lib/node_modules/npm/bin/npm-cli.js" }), "/usr/lib/node_modules/npm/bin/npm-cli.js");
+    assert.equal(npmCliPath({ npm_execpath: "/usr/lib/node_modules/pnpm/bin/pnpm.cjs" }), undefined);
   });
 
   it("fails when the configured registry has no SDK package at all", async () => {

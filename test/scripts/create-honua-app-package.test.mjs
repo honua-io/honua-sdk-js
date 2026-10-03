@@ -4,7 +4,10 @@
 // `npm create honua-app` runs — against a loopback registry, once per channel
 // state, and asserts the `@honua/sdk-js` version the scaffolded package.json
 // pins. The default path must always land on a stable version; only an
-// explicit --sdk-version may choose a prerelease.
+// explicit --sdk-version may choose a prerelease. Each state runs the direct
+// registry read (no npm_execpath, as under pnpm or a bare `node` run), and the
+// npm-launched path is driven through the real npm CLI, including a scope
+// registry that only a project `.npmrc` declares.
 
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -34,6 +37,18 @@ const PUBLISHED = [BETA, CERTIFIED, NEXT_PATCH, NEXT_LINE];
 let workspace;
 let installedBin;
 
+/** npm's own CLI script: the one running this suite, else the one beside this node. */
+function locateNpmCli() {
+  const candidates = [
+    process.env.npm_execpath,
+    path.join(path.dirname(process.execPath), "node_modules/npm/bin/npm-cli.js"),
+    path.join(path.dirname(process.execPath), "../lib/node_modules/npm/bin/npm-cli.js"),
+  ];
+  const found = candidates.find((candidate) => candidate?.endsWith("npm-cli.js") && fs.existsSync(candidate));
+  assert.ok(found, `npm-cli.js not found among ${candidates.filter(Boolean).join(", ")}`);
+  return found;
+}
+
 function npm(args, cwd) {
   const result = runNpmSync(args, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (result.error || result.status !== 0) {
@@ -42,9 +57,9 @@ function npm(args, cwd) {
   return result.stdout;
 }
 
-function runNode(args, env) {
+function runNode(args, env, cwd = workspace) {
   return new Promise((resolve) => {
-    execFile(process.execPath, args, { cwd: workspace, env, encoding: "utf8" }, (error, stdout, stderr) => {
+    execFile(process.execPath, args, { cwd, env, encoding: "utf8" }, (error, stdout, stderr) => {
       resolve({ status: error ? (typeof error.code === "number" ? error.code : 1) : 0, stdout, stderr });
     });
   });
@@ -52,16 +67,39 @@ function runNode(args, env) {
 
 let scaffoldCount = 0;
 
-/** Scaffold `templateId` from the installed tarball against a registry serving `distTags`. */
-async function scaffold({ templateId = "vanilla-ts", distTags, extraArgs = [], registryUrl } = {}) {
-  const registry = registryUrl ? undefined : await startStubRegistry({ [SDK]: packument(distTags, PUBLISHED) });
+/**
+ * Scaffold `templateId` from the installed tarball against a registry serving
+ * `distTags` over `versions`. `npmCli` launches it the way `npm create` does;
+ * without it no npm_execpath reaches the scaffold.
+ */
+async function scaffold({
+  templateId = "vanilla-ts",
+  distTags,
+  versions = PUBLISHED,
+  extraArgs = [],
+  registryUrl,
+  npmCli,
+  cwd,
+  extraEnv = {},
+} = {}) {
+  const registry = registryUrl ? undefined : await startStubRegistry({ [SDK]: packument(distTags, versions) });
   try {
     scaffoldCount += 1;
     const target = path.join(workspace, `app-${scaffoldCount}`);
-    const result = await runNode([installedBin, target, "--template", templateId, ...extraArgs], {
-      ...process.env,
-      npm_config_registry: registryUrl ?? registry.url,
-    });
+    // Start from a shell npm has not configured: the suite itself may run
+    // under `npm run`, whose exported npm_config_* (local_prefix included)
+    // would otherwise stand in for the user's own project configuration.
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^npm_/i.test(key)));
+    const result = await runNode(
+      [installedBin, target, "--template", templateId, ...extraArgs],
+      {
+        ...env,
+        ...(npmCli ? { npm_execpath: npmCli } : {}),
+        npm_config_registry: registryUrl ?? registry.url,
+        ...extraEnv,
+      },
+      cwd,
+    );
     const packageJson = path.join(target, "package.json");
     const dependencies = fs.existsSync(packageJson)
       ? JSON.parse(fs.readFileSync(packageJson, "utf8")).dependencies
@@ -145,6 +183,13 @@ describe("packed create-honua-app SDK pin", () => {
     }
   });
 
+  it("fails when the registry lists neither a usable channel nor the certified fallback", async () => {
+    const result = await scaffold({ distTags: { [CHANNEL]: NEXT_LINE }, versions: [NEXT_LINE] });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`does not list the certified ${SDK}@${CERTIFIED.replaceAll(".", "\\.")}`));
+    assert.ok(!fs.existsSync(result.target));
+  });
+
   it("pins a prerelease only when --sdk-version asks for it", async () => {
     const result = await scaffold({ distTags: { [CHANNEL]: NEXT_PATCH }, extraArgs: ["--sdk-version", BETA] });
     assert.equal(result.status, 0, result.stderr);
@@ -158,5 +203,55 @@ describe("packed create-honua-app SDK pin", () => {
     assert.match(result.stderr, /is not published/);
     assert.equal(result.dependencies, undefined);
     assert.ok(!fs.existsSync(result.target));
+  });
+});
+
+describe("packed create-honua-app SDK pin under npm", () => {
+  let npmCli;
+  before(() => {
+    npmCli = locateNpmCli();
+  });
+
+  it(`follows a promotion of ${CHANNEL} read through npm view`, async () => {
+    const result = await scaffold({ npmCli, distTags: { latest: CERTIFIED, [CHANNEL]: NEXT_PATCH } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.dependencies[SDK], NEXT_PATCH);
+  });
+
+  it("keeps the certified pin while the channel is unpromoted", async () => {
+    const result = await scaffold({ npmCli, distTags: { latest: NEXT_PATCH } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.dependencies[SDK], CERTIFIED);
+  });
+
+  it("reads the scope registry a project .npmrc declares", async () => {
+    const scoped = await startStubRegistry({ [SDK]: packument({ latest: CERTIFIED, [CHANNEL]: NEXT_PATCH }, PUBLISHED) });
+    const project = path.join(workspace, "scoped-project");
+    fs.mkdirSync(project, { recursive: true });
+    fs.writeFileSync(path.join(project, "package.json"), '{"name":"scoped-project","private":true}\n');
+    fs.writeFileSync(path.join(project, ".npmrc"), `@honua:registry=${scoped.url}\n`);
+    const unscoped = await startStubRegistry({});
+    try {
+      const result = await scaffold({ npmCli, registryUrl: unscoped.url, cwd: project });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.dependencies[SDK], NEXT_PATCH);
+      assert.deepEqual(unscoped.requests, [], "the SDK lookup must not go to the unscoped registry");
+      assert.ok(scoped.requests.includes(SDK));
+    } finally {
+      await scoped.close();
+      await unscoped.close();
+    }
+  });
+
+  it("fails when npm's registry has no SDK package", async () => {
+    const empty = await startStubRegistry({});
+    try {
+      const result = await scaffold({ npmCli, registryUrl: empty.url });
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /is not on the npm registry npm is configured to use/);
+      assert.ok(!fs.existsSync(result.target));
+    } finally {
+      await empty.close();
+    }
   });
 });
