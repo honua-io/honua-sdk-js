@@ -424,13 +424,26 @@ selector-free `tools/list` return the server's setup catalog. A temporary
 per-request catalog override leaves the initialized view intact; separate proxy
 processes have separate sessions.
 
-Executable protocol tests (`test/proxy-session.test.ts`) exercise setup/default
-initialization, concurrent sessions, and authenticated full-catalog override and
-restoration against a loopback fixture. The published 0.1.12 reproduction and
-exact JSON wire captures are under `test/fixtures/initialize-view/`.
+The view selector is the only `initialize` metadata the server reads, and the
+only metadata the proxy forwards: other `_meta` keys stay local rather than
+entering the credentialed upstream session. The handshake fails closed. A
+request before `initialize`, an `initialize` the server's selector contract
+would refuse (a non-string or longer-than-64-character view), or a second
+`initialize` is answered with JSON-RPC `-32600` without reaching the server,
+and the proxy exits. If `initialize` does not arrive, or the server does not
+answer it, within 30 seconds, the proxy exits as well.
 
-A parity test (`test/proxy.test.ts`) asserts the tool/resource/template catalog
-the downstream client sees is byte-identical to the upstream surface, that
+Executable protocol tests (`test/proxy-session.test.ts`) exercise setup/default
+initialization, concurrent sessions, authenticated full-catalog override and
+restoration, `tools/list_changed` relay, and the fail-closed handshake against a
+loopback fixture. The `MCP session contract` workflow also runs them against the
+`honua-mcp-proxy` executable npm installs from the packed tarballs. The
+published 0.1.12 reproduction and exact JSON wire captures are under
+`test/fixtures/initialize-view/`.
+
+A parity test (`test/proxy.test.ts`) runs the same bridge against the canonical
+server over streamable HTTP. It asserts the tool/resource/template catalog the
+downstream client sees is byte-identical to a direct HTTP client's, that
 `tools/call` and resource reads round-trip identically, and that `list_changed`
 notifications are forwarded.
 
