@@ -218,13 +218,15 @@ export async function resolveSdkVersion({
   if (override !== undefined && !parseVersion(override)) {
     throw new Error(`--sdk-version must be an exact version such as ${pinned}, found ${JSON.stringify(override)}.`);
   }
-  const registry = npmCli ? undefined : registryUrl(env, packageName);
-  const shownRegistry = npmCli ? "the npm registry npm is configured to use" : redactUrl(registry);
+  // Resolved inside read() so a malformed registry setting is just another
+  // unreadable registry: the fallback (or an unconfirmed override) applies.
+  let shownRegistry = "the npm registry npm is configured to use";
   const read = async () => {
     try {
-      return npmCli
-        ? await viewPackument(packageName, { npmCli, env, timeoutMs })
-        : await fetchPackument(packageName, { registry, fetch: fetchImpl, timeoutMs });
+      if (npmCli) return await viewPackument(packageName, { npmCli, env, timeoutMs });
+      const registry = registryUrl(env, packageName);
+      shownRegistry = redactUrl(registry);
+      return await fetchPackument(packageName, { registry, fetch: fetchImpl, timeoutMs });
     } catch (error) {
       if (!(error instanceof PackageNotFoundError)) throw error;
       throw new PackageNotFoundError(
