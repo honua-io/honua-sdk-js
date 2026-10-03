@@ -32,7 +32,8 @@ widget mapped to its Honua/MapLibre disposition.
 
 Ten application lines. No Honua server, no API key, no account — one lifecycle owner takes a
 public Esri Living Atlas FeatureServer through inspection, a bounded query, an explainable plan,
-and a styled MapLibre map:
+and a styled MapLibre map. MapLibre is a peer you install beside the SDK
+(`npm install @honua/sdk-js maplibre-gl`; see [Install](#install)):
 
 ```ts doc-test=compile
 import { createHonua } from "@honua/sdk-js";
@@ -221,8 +222,11 @@ non-goals are explicit rather than implied:
 ## Install
 
 ```bash
-npm install @honua/sdk-js
+npm install @honua/sdk-js maplibre-gl
 ```
+
+`maplibre-gl` is the renderer the map examples on this page mount into. Leave it out if you
+only query data (Node services, the `honua` CLI).
 
 Runtime support, stated up front:
 
@@ -404,13 +408,20 @@ const { features } = await geoServicesClient.queryFeatures({
 });
 ```
 
-Run the complete First Map app locally — public endpoint in, inspected MapLibre map out:
+Run the complete First Map app locally — public endpoint in, inspected MapLibre map out. The
+app lives in this repository, so clone it first (Node.js `>=20.19` and git):
 
 ```bash
-npm install
-npm run demo:quickstart:mock   # deterministic fixture lane (what CI runs)
-npm run demo:quickstart        # paste or configure an anonymous public endpoint
+git clone https://github.com/honua-io/honua-sdk-js.git
+cd honua-sdk-js
+npm ci
+npm run demo:quickstart:mock -- --evidence-once   # build, serve the fixture, probe it once, exit (what CI runs)
+cd ..
 ```
+
+Drop `-- --evidence-once` to keep the fixture server running, and open the printed
+`quickstartMockUrl` in a browser. `npm run demo:quickstart` starts the same app on a live
+anonymous public endpoint that you paste or configure.
 
 See [`docs/quickstart.md`](./docs/quickstart.md) for the canonical
 guided server-optional walkthrough,
@@ -451,13 +462,20 @@ export HONUA_BASE_URL=https://demo.honua.io   # anonymous reads on the public de
 honua services                    # list published services
 honua layers maui-parcels         # list a service's layers
 honua query maui-parcels/1 --count
-honua query maui-parcels/1 --where "tmk_txt LIKE '2%'" --limit 5
+honua query maui-parcels/1 --limit 1 --format json   # one feature: shows the layer's fields
+honua query maui-parcels/1 --where "zone = '1'" --limit 5
 honua query maui-parcels/1 --bbox -156.7,20.7,-156.3,21.0 --format geojson
 honua explain maui-parcels/1 --bbox -156.7,20.7,-156.3,21.0 --json   # the plan, no server call
 honua stac collections
 honua geocode "1 Honolulu Pl, HI"
-honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o maui.png
 honua tiles maui-parcels 12/912/1809 -o tile.png
+```
+
+Render a map image of a bounding box:
+
+<!-- doc-run: blocked https://github.com/honua-io/honua-sdk-js/issues/1899 -->
+```bash
+honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o maui.png
 ```
 
 The CLI's `--where` takes the *source-native* filter grammar by design (SQL for

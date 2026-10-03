@@ -103,6 +103,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 ## Start from a scaffold instead
 
+<!-- doc-run: blocked https://github.com/honua-io/honua-release/issues/423 -->
 ```bash
 npm create honua-app@latest my-map
 cd my-map
@@ -120,16 +121,21 @@ the same starters in a browser from [Zero-install playgrounds](playgrounds.md).
 [`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md) is
 the complete version of this page: endpoint input, a table and filter over the
 bounded result, popup selection, the accepted plan and its degradation reasons,
-copyable code, and managed cleanup. From a clone of the repository:
+copyable code, and managed cleanup. It runs from a clone of the repository
+(Node.js `>=20.19` and git):
 
 ```bash
+git clone https://github.com/honua-io/honua-sdk-js.git
+cd honua-sdk-js
 npm ci
-npm run demo:quickstart:mock
+npm run demo:quickstart:mock -- --evidence-once   # build, serve the fixture, probe it once, exit
+cd ..
 ```
 
-Open the printed `quickstartMockUrl`. The mock lane serves a committed fixture
-and needs no network. To run it against a public endpoint, copy
-`examples/maplibre-quickstart/.env.example` to `.env`, set
+The mock lane serves a committed fixture and needs no network. Drop
+`-- --evidence-once` to keep the server running, then open the printed
+`quickstartMockUrl` in a browser. To run it against a public endpoint, copy
+`examples/maplibre-quickstart/.env.example` in the clone to `.env`, set
 `VITE_HONUA_QUICKSTART_ENDPOINT` and `VITE_HONUA_QUICKSTART_PROTOCOL` (`auto`,
 `geoservices-feature-service`, or `ogc-features`), and run `npm run demo:quickstart`.
 Never put an API key or bearer token in a `VITE_*` variable: Vite embeds those

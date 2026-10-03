@@ -256,8 +256,33 @@ atomic approval-use store can opt into two additional tools:
   expiry, single-use, cancellation, and plan-identity checks. The envelope is required for effects and for every
   read step that names a `sourceId`; only non-source inspection may use read-only auto-execution.
 
-```ts
+Embedding the server in your own Node.js host needs the packages as local
+dependencies of that host project:
+
+```bash
+npm install @honua/mcp-server @honua/sdk-js
+```
+
+The map runtime, model callback, approval verifier, receipt signer, and
+approval-use store are yours to supply; the `declare const` lines stand in for them:
+
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js";
+import type {
+  AgentApprovalUseConsumer,
+  AgentEnvelopeSigner,
+  AgentEnvelopeVerifier,
+} from "@honua/sdk-js/agent-safety";
+import type { CreateNlMapControlOptions, NlMapControlToolsOptions } from "@honua/sdk-js/nl-map-control";
 import { createNlMapControlMcpHost, createServer } from "@honua/mcp-server";
+
+declare const runtime: NlMapControlToolsOptions["runtime"];
+declare const callYourModel: CreateNlMapControlOptions["llm"];
+declare const approvalVerifier: AgentEnvelopeVerifier;
+declare const receiptSigner: AgentEnvelopeSigner;
+declare const approvalUseConsumer: AgentApprovalUseConsumer;
+
+const honuaClient = new HonuaClient({ baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis" });
 
 const nlMapControl = createNlMapControlMcpHost({
   control: {
@@ -310,6 +335,20 @@ For each tool the server advertises (over an in-memory MCP transport) it:
 
 It emits a stable machine-readable JSON report plus a human-readable Markdown
 summary, and exits non-zero on any conformance/round-trip failure.
+
+The certification and eval scripts in this section and the next run from a clone
+of this repository (Node.js `>=20.19` and git). `mcp/` links to the SDK at the
+repository root, so build the SDK first:
+
+```bash
+git clone https://github.com/honua-io/honua-sdk-js.git
+cd honua-sdk-js
+npm ci && npm run build   # the SDK that mcp/ links to
+cd mcp
+npm ci
+```
+
+From `mcp/`:
 
 ```bash
 # Run the certifier against the offline fixture backend and write artifacts:
@@ -552,6 +591,12 @@ Shared env for every live run:
 Set exactly one of `HONUA_MCP_AUTH_TOKEN` or `HONUA_API_KEY` for authenticated
 live runs; ambiguous authentication fails closed.
 
+The commands below read three values you supply from your own accounts: `HONUA_TOKEN`
+(a bearer token your operator deployment issued), and the model provider's
+`ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (the Bedrock driver uses the AWS credential
+chain instead). Export the ones your driver needs before you run it, and run from `mcp/`:
+
+<!-- doc-run: skip reason="billable live-model lane: needs the reader's own operator token and Anthropic, OpenAI or AWS model credentials; the offline control above (npm run eval:offline) is the runnable lane" -->
 ```bash
 # Anthropic Claude (default claude-opus-4-8; override with HONUA_EVAL_ANTHROPIC_MODEL):
 HONUA_MCP_REMOTE_URL="https://demo.honua.io/mcp" \
