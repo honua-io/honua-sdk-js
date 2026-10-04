@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GraphicCompat } from "../src/esri-compat-entry.js";
+import { GraphicCompat } from "../src/client-compat-entry.js";
 
 describe("GraphicCompat", () => {
   it("supports when() and watch() for lifecycle state", async () => {

@@ -6,7 +6,7 @@ import {
   PolygonCompat,
   PolylineCompat,
   SpatialReferenceCompat,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
 
 describe("geometry primitives compat", () => {
   it("accepts longitude and latitude as geographic coordinates", () => {

@@ -177,7 +177,7 @@ interface EsriErrorEnvelope {
  *
  * @example
  * ```ts
- * import { PortalCompat } from "@honua/sdk-js/esri-compat";
+ * import { PortalCompat } from "@honua/sdk-js/client-compat";
  *
  * const portal = new PortalCompat({ portalUrl: "https://honua.example" });
  * await portal.generateToken({ username: "u", password: "p" });

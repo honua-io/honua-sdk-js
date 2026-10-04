@@ -34,7 +34,7 @@ Three rules apply to every adapter:
 
 | Provider | geocode | reverse | suggest | route | Notes |
 |----------|---------|---------|---------|-------|-------|
-| `honua` (facade) | ✓ | ✓ | ✓ | ✓ | Wraps `HonuaGeocodingClient` / the esri-compat route solver |
+| `honua` (facade) | ✓ | ✓ | ✓ | ✓ | Wraps `HonuaGeocodingClient` / the client-compat route solver |
 | `nominatim` | ✓ | ✓ | — (throws typed error) | | No typeahead endpoint; the OSMF policy forbids autocomplete traffic |
 | `photon` | ✓ | ✓ | ✓ | | Typeahead-first engine |
 | `pelias` | ✓ | ✓ | ✓ (`/v1/autocomplete`) | | Hosted instances usually need an `apiKey` |
@@ -171,7 +171,7 @@ need it directly.
 (`valhalla1.openstreetmap.de`) expects fair use; self-host for production.
 **Attribution**: OpenStreetMap (ODbL), as above.
 
-### Honua facade + esri-compat bridge
+### Honua facade + client-compat bridge
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -179,13 +179,13 @@ import {
   osrmRoutingProvider,
   routingProviderToCompatRouteProvider,
 } from "@honua/sdk-js/routing";
-import { RouteTaskCompat } from "@honua/sdk-js/esri-compat";
+import { RouteTaskCompat } from "@honua/sdk-js/client-compat";
 
-// Wrap the existing Honua facade solver (the esri-compat routeProvider shape)
+// Wrap the existing Honua facade solver (the client-compat routeProvider shape)
 // in the provider contract:
 const honua = honuaRoutingProvider(myExistingRouteSolver);
 
-// Or drive esri-compat widgets (RouteTaskCompat / RouteLayerCompat /
+// Or drive client-compat widgets (RouteTaskCompat / RouteLayerCompat /
 // DirectionsCompat) with any RoutingProvider:
 const task = new RouteTaskCompat({
   routeProvider: routingProviderToCompatRouteProvider(

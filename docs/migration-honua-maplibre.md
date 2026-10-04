@@ -99,7 +99,7 @@ It re-arms whenever `registerHonuaWidgetKit` is called again.
 
 `@honua/sdk-esri-compat` does not ship the kit. Install
 `@honua/app-platform` to register tags. `FeaturesCompat`, `AttachmentsCompat`,
-and `ScaleRangeCompat` construct hosts and are not on the stable esri-compat
+and `ScaleRangeCompat` construct hosts and are not on the stable client-compat
 entry.
 
 <!-- widget-host-tags:start -->

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { BasemapCompat, CompatEventBus } from "../src/esri-compat-entry.js";
+import { BasemapCompat, CompatEventBus } from "../src/client-compat-entry.js";
 import { rasterStyleForBasemap } from "../src/esri-compat/map-view-mount.js";
 
 describe("BasemapCompat", () => {

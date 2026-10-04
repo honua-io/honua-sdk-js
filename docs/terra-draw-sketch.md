@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "terra-draw sketch binding (`@honua/sdk-js/runtime`)"
-description: "Interactive drawing on MapLibre through terra-draw, adapted onto the renderer-neutral edit sketch workflow: peers, modes, setup, reprojection, snapping and esri-compat delegation."
+description: "Interactive drawing on MapLibre through terra-draw, adapted onto the renderer-neutral edit sketch workflow: peers, modes, setup, reprojection, snapping and client-compat delegation."
 resource: "honua://capability/editing.featureserver-edits"
 ---
 # terra-draw sketch binding (`@honua/sdk-js/runtime`)
@@ -117,9 +117,9 @@ pipeline, so those modes keep terra-draw-native behavior. If you need snapped
 point placement, resolve the position with `SnapIndex.resolve()` on click and
 set the geometry through the workflow directly.
 
-## esri-compat delegation
+## client-compat delegation
 
-The `Sketch` shim (`@honua/sdk-js/esri-compat`) feature-detects a binding via
+The `Sketch` shim (`@honua/sdk-js/client-compat`) feature-detects a binding via
 its `sketchBinding` option: any object with a callable `setTool` (the
 `bindTerraDrawSketch` / `createTerraDrawSketch` handle qualifies) receives
 `create` tool-mode changes (`polyline` → `line`), `update()` switches to

@@ -5,7 +5,7 @@
  * switcher, the legend, the layer list, and the swipe control.
  *
  * This entry is intentionally independent of the SDK core bundle (the same
- * posture as `@honua/sdk-js/esri-compat`): it imports nothing from
+ * posture as `@honua/sdk-js/client-compat`): it imports nothing from
  * `src/core`/`src/runtime` and has no dependency on `maplibre-gl` — controls
  * drive any MapLibre `Map` through a duck-typed interface.
  *

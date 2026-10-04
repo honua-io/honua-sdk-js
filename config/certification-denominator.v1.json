@@ -144,8 +144,8 @@
     },
     {
       "path": "config/sdk-coverage.v1.json",
-      "bytes": 20681,
-      "sha256": "sha256:321a18c68f0f8fa670a590a9feac0b4c75f44b2233bc4aa5bb336fb6a232e665",
+      "bytes": 20685,
+      "sha256": "sha256:a7b8e037fdfb1c33d9152873d6eda68df427ef733a4c04b821abda4e63542625",
       "releaseManagedFields": [
         "sdk.version"
       ]
@@ -157,8 +157,8 @@
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 82063,
-      "sha256": "sha256:66def5ddd6c151cea6a3c9bd3c69a6cade48615d3c9a7591b76444c6fd710da8"
+      "bytes": 82225,
+      "sha256": "sha256:436b1f6e33ecd28f08299797b76b3bddac3b3027cdbc0fb14d4e1decf1d563e6"
     }
   ],
   "profiles": {
@@ -526,10 +526,10 @@
     }
   },
   "digests": {
-    "inputs": "sha256:8009d16a5577eea9f4498198bec9934e4825ee71351a73d3dfaa84a688a320d8",
+    "inputs": "sha256:3cea8c705c7ac51b890592086f101257f7973757488914454d934450edd68ad8",
     "capabilityProfile": "sha256:b39f35595f99d6b11e87c0bdf5752a09a34eae8cc01006c0d67d654afdf079f3",
     "supportProfile": "sha256:7aaa73ac15c045a52c790ca0fb6a27f4ec9665fe71b5051389a676da2c85be90",
-    "rows": "sha256:ae65f8c13a4348c60b4ebee4ff25f14c0cd0ac2f6048afdf144316d2e8071770"
+    "rows": "sha256:c82824fea4d29259c8686a289494ef25a28e680a7df2f06a6c8291646a51c42a"
   },
   "summary": {
     "rows": 295,
@@ -4473,7 +4473,7 @@
       "id": "sdk-operation:esri-compat-standalone:applyEdits",
       "family": "sdk-operation",
       "subject": "esri-compat-standalone",
-      "label": "Esri compatibility layer",
+      "label": "Client compatibility layer",
       "operation": "applyEdits",
       "tier": "supported",
       "tierSource": "config/support-manifest.v1.json#/supportClaims/7/status",
@@ -4495,7 +4495,7 @@
       "id": "sdk-operation:esri-compat-standalone:query",
       "family": "sdk-operation",
       "subject": "esri-compat-standalone",
-      "label": "Esri compatibility layer",
+      "label": "Client compatibility layer",
       "operation": "query",
       "tier": "supported",
       "tierSource": "config/support-manifest.v1.json#/supportClaims/7/status",

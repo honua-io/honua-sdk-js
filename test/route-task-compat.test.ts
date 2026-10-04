@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, RouteTaskCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, RouteTaskCompat } from "../src/client-compat-entry.js";
 
 describe("RouteTaskCompat", () => {
   it("supports when() and watch() lifecycle and solve result state", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, LegendCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, LegendCompat } from "../src/client-compat-entry.js";
 
 describe("LegendCompat", () => {
   it("builds a swatch from an in-memory simple renderer", async () => {

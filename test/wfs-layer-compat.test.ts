@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WFSLayerCompat } from "../src/esri-compat-entry.js";
+import { WFSLayerCompat } from "../src/client-compat-entry.js";
 
 describe("WFSLayerCompat queryFeatures", () => {
   let originalFetch: typeof globalThis.fetch;

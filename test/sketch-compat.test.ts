@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, GraphicsLayerCompat, SketchCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, GraphicsLayerCompat, SketchCompat } from "../src/client-compat-entry.js";
 
 describe("SketchCompat", () => {
   it("supports when() and watch() lifecycle and state updates", async () => {
