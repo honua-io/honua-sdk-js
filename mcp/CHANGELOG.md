@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.13](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.12...mcp-server-v0.1.13) (2026-10-04)
+
+
+### Bug Fixes
+
+* **ci:** fail when the JS SDK job skips the browser smoke suite ([3c96e76](https://github.com/honua-io/honua-sdk-js/commit/3c96e7611461dce20bb2bff13a4b633d0c6c25c3))
+* **mcp:** fail closed on invalid proxy initialize and certify the installed executable ([#1877](https://github.com/honua-io/honua-sdk-js/issues/1877)) ([eecea68](https://github.com/honua-io/honua-sdk-js/commit/eecea688b42076f8cff0616e389bc34ecd1fb25d))
+* **mcp:** override fast-uri to 3.1.8 ([55d375f](https://github.com/honua-io/honua-sdk-js/commit/55d375fc4cce4f46d9aad42a6e4d9eb782cef151))
+* **mcp:** preserve initialize-bound views in the published proxy ([#1876](https://github.com/honua-io/honua-sdk-js/issues/1876)) ([94d2fd3](https://github.com/honua-io/honua-sdk-js/commit/94d2fd3f0677dd86ad7c73e47ce08aa59c81ea82))
+
+
+### Documentation
+
+* make the getting-started blocks run against the 2026.1 candidate (R28) ([#1900](https://github.com/honua-io/honua-sdk-js/issues/1900)) ([8715567](https://github.com/honua-io/honua-sdk-js/commit/8715567ff3e6f054a81540e0f521ce346d6a9f73))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.13
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.12 to ^0.1.13
+
 ## [0.1.12](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.11-beta.0...mcp-server-v0.1.12) (2026-09-29)
 
 
