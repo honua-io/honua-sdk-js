@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.6](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.5...create-honua-app-v0.1.6) (2026-10-04)
+
+
+### Bug Fixes
+
+* **create-app:** scaffold the certified SDK from the promoted release channel ([#1885](https://github.com/honua-io/honua-sdk-js/issues/1885)) ([ad9a8a8](https://github.com/honua-io/honua-sdk-js/commit/ad9a8a8d7be2eb2640f58c64ac386cf87b6f4c71)), closes [#1824](https://github.com/honua-io/honua-sdk-js/issues/1824)
+
+
+### Documentation
+
+* make the getting-started blocks run against the 2026.1 candidate (R28) ([#1900](https://github.com/honua-io/honua-sdk-js/issues/1900)) ([8715567](https://github.com/honua-io/honua-sdk-js/commit/8715567ff3e6f054a81540e0f521ce346d6a9f73))
+
 ## [0.1.5](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.4...create-honua-app-v0.1.5) (2026-09-29)
 
 
