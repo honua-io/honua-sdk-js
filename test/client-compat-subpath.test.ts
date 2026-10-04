@@ -8,6 +8,8 @@ import { emitDeprecationNoticeOnce } from "../src/core/deprecation-notice.js";
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const WARNING_CODE = "HONUA_ESRI_COMPAT_SUBPATH_RENAMED";
 const WARNED_KEY = Symbol.for(`@honua/sdk-js:deprecation:${WARNING_CODE}`);
+// Each test re-imports the full compatibility module graph after vi.resetModules().
+const COLD_IMPORT_TIMEOUT_MS = 60_000;
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(fs.readFileSync(path.join(projectRoot, relativePath), "utf8")) as T;
@@ -86,47 +88,59 @@ describe("@honua/sdk-js/client-compat and the deprecated @honua/sdk-js/esri-comp
     expect(report.stableEntrypoints.some((candidate) => candidate.subpath === "@honua/sdk-js/esri-compat")).toBe(false);
   });
 
-  it("resolves both subpaths to the same symbols", async () => {
-    vi.spyOn(process, "emitWarning").mockImplementation(() => undefined);
-    const renamed = await import("@honua/sdk-js/client-compat");
-    const legacy = await import("@honua/sdk-js/esri-compat");
+  it(
+    "resolves both subpaths to the same symbols",
+    async () => {
+      vi.spyOn(process, "emitWarning").mockImplementation(() => undefined);
+      const renamed = await import("@honua/sdk-js/client-compat");
+      const legacy = await import("@honua/sdk-js/esri-compat");
 
-    expectTypeOf(legacy).toEqualTypeOf(renamed);
-    const renamedNames = Object.keys(renamed).sort();
-    expect(renamedNames.length).toBeGreaterThan(100);
-    expect(Object.keys(legacy).sort()).toEqual(renamedNames);
-    for (const name of renamedNames) {
-      expect(legacy[name as keyof typeof legacy], name).toBe(renamed[name as keyof typeof renamed]);
-    }
-  });
+      expectTypeOf(legacy).toEqualTypeOf(renamed);
+      const renamedNames = Object.keys(renamed).sort();
+      expect(renamedNames.length).toBeGreaterThan(100);
+      expect(Object.keys(legacy).sort()).toEqual(renamedNames);
+      for (const name of renamedNames) {
+        expect(legacy[name as keyof typeof legacy], name).toBe(renamed[name as keyof typeof renamed]);
+      }
+    },
+    COLD_IMPORT_TIMEOUT_MS,
+  );
 
-  it("warns exactly once per process, naming the replacement and the removal version", async () => {
-    const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => undefined);
+  it(
+    "warns exactly once per process, naming the replacement and the removal version",
+    async () => {
+      const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => undefined);
 
-    await import("@honua/sdk-js/esri-compat");
-    await import("@honua/sdk-js/esri-compat");
-    // A second evaluation of the shim (a fresh module graph, a duplicate copy
-    // in node_modules) must not warn again.
-    vi.resetModules();
-    await import("@honua/sdk-js/esri-compat");
-    await import("../src/esri-compat-entry.js");
+      await import("@honua/sdk-js/esri-compat");
+      await import("@honua/sdk-js/esri-compat");
+      // A second evaluation of the shim (a fresh module graph, a duplicate copy
+      // in node_modules) must not warn again.
+      vi.resetModules();
+      await import("@honua/sdk-js/esri-compat");
+      await import("../src/esri-compat-entry.js");
 
-    const warnings = subpathWarnings(emitWarning);
-    expect(warnings).toHaveLength(1);
-    const [message, options] = warnings[0]!;
-    expect(options).toEqual({ code: WARNING_CODE, type: "DeprecationWarning" });
-    expect(message).toContain("@honua/sdk-js/esri-compat is deprecated");
-    expect(message).toContain("@honua/sdk-js/client-compat");
-    expect(message).toContain("2026.2");
-  });
+      const warnings = subpathWarnings(emitWarning);
+      expect(warnings).toHaveLength(1);
+      const [message, options] = warnings[0]!;
+      expect(options).toEqual({ code: WARNING_CODE, type: "DeprecationWarning" });
+      expect(message).toContain("@honua/sdk-js/esri-compat is deprecated");
+      expect(message).toContain("@honua/sdk-js/client-compat");
+      expect(message).toContain("2026.2");
+    },
+    COLD_IMPORT_TIMEOUT_MS,
+  );
 
-  it("does not warn when only the new subpath is imported", async () => {
-    const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => undefined);
+  it(
+    "does not warn when only the new subpath is imported",
+    async () => {
+      const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => undefined);
 
-    await import("@honua/sdk-js/client-compat");
+      await import("@honua/sdk-js/client-compat");
 
-    expect(subpathWarnings(emitWarning)).toHaveLength(0);
-  });
+      expect(subpathWarnings(emitWarning)).toHaveLength(0);
+    },
+    COLD_IMPORT_TIMEOUT_MS,
+  );
 });
 
 describe("emitDeprecationNoticeOnce", () => {

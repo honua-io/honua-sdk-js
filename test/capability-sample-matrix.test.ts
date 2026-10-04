@@ -165,10 +165,20 @@ describe("capability-to-sample matrix contract", () => {
     // 2026-08, none named kepler-analytics. #1681 corrected the sample count
     // after the Kepler retirement and swept this adjacent line along with it.
     expect(matrix.supportClaims).toHaveLength(35);
-    // 66 = 59 original package entrypoints + the experimental STAC, raster,
+    // 67 = 59 original package entrypoints + the experimental STAC, raster,
     // PMTiles, zarr, and the experimental declarative-interactions compiler
-    // and Studio agent session, plus the experimental local installer.
-    expect(matrix.packageEntrypoints).toHaveLength(66);
+    // and Studio agent session, plus the experimental local installer, plus
+    // `./client-compat`, which took over `./esri-compat`'s stable slot (R33)
+    // while the old subpath stays exported as a deprecated alias.
+    expect(matrix.packageEntrypoints).toHaveLength(67);
+    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./client-compat")).toMatchObject({
+      subpath: "./client-compat",
+      supportStatus: "supported",
+    });
+    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./esri-compat")).toMatchObject({
+      subpath: "./esri-compat",
+      supportStatus: "deprecated",
+    });
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./pmtiles")).toMatchObject({
       subpath: "./pmtiles",
       supportStatus: "experimental",
