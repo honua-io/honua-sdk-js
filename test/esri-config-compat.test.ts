@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { esriConfig, getEsriConfigHonuaInterceptors, resetEsriConfig } from "../src/esri-compat-entry.js";
+import { esriConfig, getEsriConfigHonuaInterceptors, resetEsriConfig } from "../src/client-compat-entry.js";
 
 afterEach(() => {
   resetEsriConfig();

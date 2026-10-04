@@ -9,7 +9,7 @@ and the protocol-neutral contract are all reachable from this one install.
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
 It projects 22 supported (documented below as stable), 26 experimental,
-and 18 deprecated package entrypoints. Protocol status is independent
+and 19 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
@@ -44,7 +44,7 @@ minor. At 1.0 the stable tier freezes. See
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
-| `@honua/sdk-js/esri-compat` | Esri ArcGIS JS-API compatibility layer for migration |
+| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps; replaces `/esri-compat` |
 | `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
@@ -103,7 +103,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 ## Deprecated compatibility entrypoints
 
-These temporary `@honua/sdk-js` shims were introduced in `0.1.0-beta.0` when
+The application-platform shims were introduced in `0.1.0-beta.0` when
 the application platform moved. They remain available throughout `0.1.x` and
 are removed in `0.2.0`; new code must import the replacement directly. A
 replacement's own support status is independent of the shim: promoting
@@ -130,6 +130,14 @@ replacement's own support status is independent of the shim: promoting
 | `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.2.0` |
 | `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.2.0` |
 | `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.2.0` |
+| `@honua/sdk-js/esri-compat` | `@honua/sdk-js/client-compat` | `2026.2` |
+
+`@honua/sdk-js/esri-compat` was renamed to `@honua/sdk-js/client-compat` in
+`0.1.13`. The old subpath re-exports exactly the same symbols and, on first
+import, warns once per process (Node `DeprecationWarning` code
+`HONUA_ESRI_COMPAT_SUBPATH_RENAMED`, `console.warn` elsewhere) naming the
+replacement. It is removed in the 2026.2 release; change the import specifier
+and nothing else.
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 

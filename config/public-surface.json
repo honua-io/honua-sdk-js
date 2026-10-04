@@ -348,7 +348,7 @@
     { "subpath": "./honua", "tier": "stable" },
     { "subpath": "./auth", "tier": "stable" },
     { "subpath": "./contract", "tier": "stable" },
-    { "subpath": "./esri-compat", "tier": "stable" },
+    { "subpath": "./client-compat", "tier": "stable" },
     { "subpath": "./migration", "tier": "stable" },
     { "subpath": "./runtime", "tier": "stable" },
     { "subpath": "./expr", "tier": "stable" },
@@ -410,6 +410,7 @@
     { "subpath": "./operator/theming", "tier": "deprecated", "replacement": "@honua/app-platform/operator/theming", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
     { "subpath": "./operator/i18n", "tier": "deprecated", "replacement": "@honua/app-platform/operator/i18n", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
     { "subpath": "./controls", "tier": "deprecated", "replacement": "@honua/app-platform/controls", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
-    { "subpath": "./web-components", "tier": "deprecated", "replacement": "@honua/app-platform/web-components", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" }
+    { "subpath": "./web-components", "tier": "deprecated", "replacement": "@honua/app-platform/web-components", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./esri-compat", "tier": "deprecated", "replacement": "@honua/sdk-js/client-compat", "introducedIn": "0.1.13", "removeIn": "2026.2" }
   ]
 }

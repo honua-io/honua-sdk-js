@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { QueryCompat } from "../src/esri-compat-entry.js";
+import { QueryCompat } from "../src/client-compat-entry.js";
 
 describe("QueryCompat", () => {
   it("supports when() and watch() lifecycle state", async () => {

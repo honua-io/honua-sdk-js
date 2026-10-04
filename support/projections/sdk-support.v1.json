@@ -1970,7 +1970,7 @@
     },
     {
       "id": "esri-compat-standalone",
-      "label": "Esri compatibility layer",
+      "label": "Client compatibility layer",
       "operations": [
         "query",
         "applyEdits"
@@ -1979,7 +1979,7 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
-      "api": "@honua/sdk-js/esri-compat",
+      "api": "@honua/sdk-js/client-compat",
       "notes": "Compatibility classes parse public GeoServices URLs and create their own client.",
       "evidence": [
         "esri-compat-fixtures"
@@ -2889,7 +2889,7 @@
         "status": "supported"
       },
       {
-        "subpath": "./esri-compat",
+        "subpath": "./client-compat",
         "status": "supported"
       },
       {
@@ -3186,6 +3186,13 @@
         "replacement": "@honua/app-platform/web-components",
         "introducedIn": "0.1.0-beta.0",
         "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./esri-compat",
+        "status": "deprecated",
+        "replacement": "@honua/sdk-js/client-compat",
+        "introducedIn": "0.1.13",
+        "removeIn": "2026.2"
       }
     ]
   }

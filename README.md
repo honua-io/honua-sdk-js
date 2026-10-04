@@ -84,7 +84,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.12`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
-18 deprecated compatibility subpaths have explicit removal versions. See
+19 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
@@ -108,7 +108,7 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 | **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (as early as Q1 2027) | wiring a coding agent or assistant to live geospatial data |
 | **Start** | [First Map](./docs/quickstart.md) — paste a public GeoServices or OGC Features endpoint, no account required | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner | point [`honua-mcp`](./mcp/README.md) at any public FeatureServer/OGC endpoint — no Honua server |
 | **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions | the [protocol-neutral tool contract](./mcp/README.md) + [agent skills](./skills/README.md) for Claude Code and compatible agents |
-| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`esri-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) | [NL map control](./docs/nl-map-control.md) · [agent-safety threat model](./docs/agent-safety-threat-model.md) · [coding-agent evals](./docs/coding-agent-evals.md) |
+| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`client-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) | [NL map control](./docs/nl-map-control.md) · [agent-safety threat model](./docs/agent-safety-threat-model.md) · [coding-agent evals](./docs/coding-agent-evals.md) |
 | **Runnable proof** | [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) — deterministic fixture plus separately gated anonymous-live evidence | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end | [cross-model MCP eval scorecard](./docs/generated/mcp-eval-scorecard.md) — dated runs, failures and the zero-LLM control included |
 
 ## Where it fits
@@ -155,7 +155,7 @@ The honest comparisons are the service-client libraries, not the renderers:
   GeoServices *plus* OGC API / WFS / WMS / WMTS / STAC / OData under one typed contract, with a
   capability model that throws instead of returning silently-empty results.
 - vs **`esri-leaflet`** — dormant (no release since September 2025) and Leaflet-bound. Honua's
-  esri-compat + `honua-migrate` codemod is an actively maintained migration path that targets
+  client-compat + `honua-migrate` codemod is an actively maintained migration path that targets
   MapLibre.
 - vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
@@ -651,7 +651,7 @@ correctly use this SDK:
   stable and experimental subpaths lives in [`INSTALL.md`](./INSTALL.md). The short version:
   - **Stable** (semver-protected): `@honua/sdk-js`, `@honua/sdk-js/browser`,
     `@honua/sdk-js/honua`, `@honua/sdk-js/auth`, `@honua/sdk-js/contract`,
-    `@honua/sdk-js/esri-compat`, `@honua/sdk-js/migration`,
+    `@honua/sdk-js/client-compat`, `@honua/sdk-js/migration`,
     `@honua/sdk-js/runtime`, `@honua/sdk-js/expr`, `@honua/sdk-js/webmap`,
     `@honua/sdk-js/geocoding`, `@honua/sdk-js/exploration`, `@honua/sdk-js/interactions`,
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,

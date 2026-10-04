@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, LayerListCompat, MapCompat, MapImageLayerCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, LayerListCompat, MapCompat, MapImageLayerCompat } from "../src/client-compat-entry.js";
 
 describe("LayerListCompat", () => {
   it("supports when() and watch() for load and item updates", async () => {

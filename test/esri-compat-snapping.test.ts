@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { EditorCompat, SketchCompat, snappingOptionsToSnappingConfig } from "../src/esri-compat-entry.js";
+import { EditorCompat, SketchCompat, snappingOptionsToSnappingConfig } from "../src/client-compat-entry.js";
 
 describe("esri-compat / snappingOptions mapping", () => {
   it("defaults to disabled snapping with the contract tolerance", () => {

@@ -57,6 +57,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/control-plane/index.ts"),
       },
       {
+        find: "@honua/sdk-js/client-compat",
+        replacement: path.resolve(import.meta.dirname, "src/client-compat-entry.ts"),
+      },
+      {
         find: "@honua/sdk-js/esri-compat",
         replacement: path.resolve(import.meta.dirname, "src/esri-compat-entry.ts"),
       },
