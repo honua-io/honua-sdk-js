@@ -56,7 +56,7 @@ afterEach(() => {
 
 describe("arcgis migration integration", () => {
   it("runs scanner+codemod+report on an esri-style sample app fixture", () => {
-    const { workingCopy, report, codemodResult } = runFixtureMigration("esri-sample-app");
+    const { workingCopy, report, codemodResult } = runFixtureMigration("client-sample-app");
 
     expect(codemodResult.filesScanned).toBeGreaterThanOrEqual(2);
     expect(codemodResult.filesChanged).toBe(2);
@@ -227,7 +227,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("reports ready when a fixture fully auto-migrates with no blocking flags", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-ready-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-ready-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -282,7 +282,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates a hit-test sample app with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-hit-test-sample-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-hit-test-sample-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -339,7 +339,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates map image layer app flow with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-map-image-layer-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-map-image-layer-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -395,7 +395,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates tile layer app flow with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-tile-layer-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-tile-layer-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -418,7 +418,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates basemap constructor fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-basemap-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-basemap-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -452,7 +452,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates route task fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-route-task-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-route-task-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -474,7 +474,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates reactive-utils fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-reactive-utils-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-reactive-utils-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -500,7 +500,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates graphic fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-graphic-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-graphic-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -522,7 +522,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates query fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-query-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-query-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -550,7 +550,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates geometry/symbol fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-graphic-symbols-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-graphic-symbols-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -592,7 +592,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates geometry primitives fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-geometry-primitives-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-geometry-primitives-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -635,7 +635,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates labeling fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-labeling-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-labeling-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -671,7 +671,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates color/renderer fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-renderers-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-renderers-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -722,7 +722,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates feature-set fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-feature-set-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-feature-set-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -744,7 +744,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates esri-config fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-config-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-config-app");
 
     expect(scanReport.flags).toEqual(["auth-or-request-customization-detected"]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -786,7 +786,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates esri-request fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-request-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-request-app");
 
     expect(scanReport.flags).toEqual(["auth-or-request-customization-detected"]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -807,7 +807,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates oauth bootstrap fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-oauth-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-oauth-app");
 
     expect(scanReport.flags).toEqual(["auth-or-request-customization-detected"]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -843,7 +843,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates feature table fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-feature-table-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-feature-table-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -872,7 +872,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates advanced feature table fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-feature-table-relates-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-feature-table-relates-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -915,7 +915,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates feature widget fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-feature-widget-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-feature-widget-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -947,7 +947,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates feature form fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-feature-form-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-feature-form-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -974,7 +974,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates table list fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-table-list-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-table-list-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1008,7 +1008,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates feature templates fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-feature-templates-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-feature-templates-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1037,7 +1037,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates basemap layer list fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-basemap-layer-list-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-basemap-layer-list-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1071,7 +1071,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates print widget fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-print-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-print-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1103,7 +1103,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates swipe widget fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-swipe-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-swipe-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1135,7 +1135,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates distance/area measurement 2d fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-measurement-2d-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-measurement-2d-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1176,7 +1176,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("supports esri-leaflet codemod target for deterministic subset", () => {
-    const { workingCopy, report, codemodResult } = runFixtureMigration("esri-map-image-layer-app", {
+    const { workingCopy, report, codemodResult } = runFixtureMigration("client-map-image-layer-app", {
       target: "esri-leaflet",
     });
 
@@ -1207,7 +1207,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("supports honua-maplibre codemod target for native MapLibre fixture", () => {
-    const { workingCopy, report, codemodResult } = runFixtureMigration("esri-maplibre-simple-app", {
+    const { workingCopy, report, codemodResult } = runFixtureMigration("client-maplibre-simple-app", {
       target: "honua-maplibre",
     });
 
@@ -1233,7 +1233,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("reports unsupported widgets as manual for honua-maplibre target", () => {
-    const { report, codemodResult } = runFixtureMigration("esri-widget-controls-app", {
+    const { report, codemodResult } = runFixtureMigration("client-widget-controls-app", {
       target: "honua-maplibre",
       annotateTodos: true,
     });
@@ -1256,7 +1256,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates map + group-layer + graphics-layer fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-layer-tree-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-layer-tree-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1294,7 +1294,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates layer-list actions fixture with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-layer-list-actions-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-layer-list-actions-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1342,7 +1342,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates map widgets and controls with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-widget-controls-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-widget-controls-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1573,7 +1573,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates supported dynamic import usage with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-dynamic-map-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-dynamic-map-app");
 
     expect(scanReport.flags).toContain("dynamic-import-detected");
     expect(codemodResult.filesChanged).toBe(1);
@@ -1622,7 +1622,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates webmap constructor flow with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-webmap-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-webmap-app");
 
     expect(scanReport.flags).toContain("webmap-detected");
     expect(codemodResult.filesChanged).toBe(1);
@@ -1673,7 +1673,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates await import default flow with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-await-import-default-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-await-import-default-app");
 
     expect(scanReport.flags).toContain("dynamic-import-detected");
     expect(codemodResult.filesChanged).toBe(1);
@@ -1724,7 +1724,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("migrates related-feature query app flow with ready gating", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-related-features-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-related-features-app");
 
     expect(scanReport.flags).toEqual([]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1774,7 +1774,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("auto-migrates safe .cjs require-style usage to compat destructure", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-assisted-require-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-assisted-require-app");
 
     expect(scanReport.flags).toEqual(["commonjs-detected"]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1793,7 +1793,9 @@ describe("arcgis migration integration", () => {
   });
 
   it("auto-migrates safe .js CommonJS require usage to compat destructure", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-assisted-require-js-cjs-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration(
+      "client-assisted-require-js-cjs-app",
+    );
 
     expect(scanReport.flags).toEqual(["commonjs-detected"]);
     expect(codemodResult.filesChanged).toBe(1);
@@ -1810,7 +1812,7 @@ describe("arcgis migration integration", () => {
   });
 
   it("reports assisted for side-effect ArcGIS imports outside codemod scope", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("esri-assisted-side-effect-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-assisted-side-effect-app");
 
     expect(scanReport.flags).toEqual(["auth-or-request-customization-detected"]);
     expect(scanReport.imports).toEqual([

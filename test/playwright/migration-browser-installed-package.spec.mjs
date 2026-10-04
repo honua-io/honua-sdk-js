@@ -22,7 +22,7 @@
  *  3. Serves the installed package trees to a real browser with an import
  *     map resolving those bare specifiers to the installed bytes, and drives
  *     each migrated app to prove: rendering, querying/filtering, paging,
- *     popup/selection, layer controls, and (for `esri-real-sample-service-query-app`)
+ *     popup/selection, layer controls, and (for `client-real-sample-service-query-app`)
  *     a real HTTP round trip against a protocol-faithful FeatureServer
  *     fixture plus the documented auth-error-then-retry path, and editing.
  *
@@ -327,7 +327,7 @@ test("installed-package: packed tarballs installed the coordinates dist/packages
 
 test("installed-package: ops-center sample executes from published package bytes", async ({ page }) => {
   await driveFixture(page, {
-    fixtureName: "esri-real-sample-ops-center-app",
+    fixtureName: "client-real-sample-ops-center-app",
     fileExtension: "js",
     expectedCallSites: 16,
     assertResult: (migrationResult) => {
@@ -347,7 +347,7 @@ test("installed-package: ops-center sample executes from published package bytes
 
 test("installed-package: feature-table relates sample executes from published package bytes", async ({ page }) => {
   await driveFixture(page, {
-    fixtureName: "esri-demo-feature-table-relates-app",
+    fixtureName: "client-demo-feature-table-relates-app",
     fileExtension: "js",
     expectedCallSites: 8,
     assertResult: (migrationResult) => {
@@ -366,7 +366,7 @@ test("installed-package: feature-table relates sample executes from published pa
 
 test("installed-package: incident command sample executes from published package bytes", async ({ page }) => {
   await driveFixture(page, {
-    fixtureName: "esri-real-sample-incident-command-app",
+    fixtureName: "client-real-sample-incident-command-app",
     fileExtension: "js",
     expectedCallSites: 28,
     assertResult: (migrationResult) => {
@@ -388,7 +388,7 @@ test("installed-package: TypeScript service-query sample proves real HTTP query,
   const featureServer = await startHonuaFeatureServerFixture();
   try {
     await driveFixture(page, {
-      fixtureName: "esri-real-sample-service-query-app",
+      fixtureName: "client-real-sample-service-query-app",
       fileExtension: "ts",
       expectedCallSites: 6,
       featureServer,

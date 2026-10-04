@@ -591,7 +591,7 @@ correctly use this SDK:
   `README.md` + entrypoint JSDoc by `npm run docs:llms` (freshness-checked in CI
   via `npm run verify:llms`).
 - **Agent skills** under [`skills/`](./skills/README.md) — `honua-sdk-quickstart`,
-  `honua-arcgis-migration`, and `honua-mcp-setup` load procedural instructions
+  `honua-geoservices-migration`, and `honua-mcp-setup` load procedural instructions
   into Claude Code and compatible agents. See [`skills/README.md`](./skills/README.md)
   for installation.
 - **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**

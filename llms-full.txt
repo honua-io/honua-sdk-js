@@ -601,7 +601,7 @@ correctly use this SDK:
   `README.md` + entrypoint JSDoc by `npm run docs:llms` (freshness-checked in CI
   via `npm run verify:llms`).
 - **Agent skills** under [`skills/`](./skills/README.md) — `honua-sdk-quickstart`,
-  `honua-arcgis-migration`, and `honua-mcp-setup` load procedural instructions
+  `honua-geoservices-migration`, and `honua-mcp-setup` load procedural instructions
   into Claude Code and compatible agents. See [`skills/README.md`](./skills/README.md)
   for installation.
 - **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**
@@ -1217,7 +1217,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | <a id="ai-spatial-app-builder"></a>[`ai-spatial-app-builder`](../../examples/ai-spatial-app-builder/README.md) | lab | - | experimental | active | browser-lab | hybrid | approved | Proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states. |
 | <a id="app-bootstrap-basic"></a>[`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
-| <a id="arcgis-source-app"></a>[`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
+| <a id="geoservices-source-app"></a>[`geoservices-source-app`](../../examples/geoservices-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
 | <a id="columnar-query-quickstart"></a>[`columnar-query-quickstart`](../../examples/columnar-query-quickstart/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff. |
@@ -12493,10 +12493,10 @@ npx honua-js-migrate fixtures --report reports/real-sample-metrics.json
 npx honua-js-migrate fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
 
 # Enforce strict readiness gates for the demo target fixture only
-npx honua-js-migrate fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
+npx honua-js-migrate fixtures --target honua --fixtures client-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
 
 # Limit fixture metrics to a subset and esri-leaflet target mode
-npx honua-js-migrate fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
+npx honua-js-migrate fixtures --target esri-leaflet --fixtures client-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
 
 # Gate in CI (non-zero exit if migration constraints fail)
 npx honua-js-migrate codemod ./src --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3
@@ -15647,7 +15647,7 @@ ArcGIS JS API behind end-to-end.
 [`examples/migration-workbench`](../examples/migration-workbench/README.md)
 is the qualified `arcgis-migration` golden journey for the complete migration
 experience. The repository build invokes the real `honua-migrate` CLI against
-the Honua-authored `arcgis-source-app` fixture and commits a deterministic
+the Honua-authored `geoservices-source-app` fixture and commits a deterministic
 report, patch, widget guidance, MapLibre assessment, generated compat target,
 and SHA-256 manifest. The browser only projects and revalidates those
 artifacts; it does not contain a second transform, accept uploads, read
@@ -15875,7 +15875,7 @@ except for the `feature-layer`, `map-image-layer`, and the
 `map-view.navigation-go-to` capability which are tagged `native`.
 
 Use the canonical fixture
-[`test/fixtures/esri-maplibre-simple-app/`](../test/fixtures/esri-maplibre-simple-app/src/main.ts)
+[`test/fixtures/client-maplibre-simple-app/`](../test/fixtures/client-maplibre-simple-app/src/main.ts)
 as a worked example — it imports `Map`, `MapView`, `FeatureLayer`,
 `MapImageLayer`, and `TileLayer` from `@arcgis/core` and exercises
 exactly the kinds that `honua-maplibre` can rewrite natively.
@@ -15890,25 +15890,25 @@ and `esri-leaflet` — anything else is rejected by the parser.
 
 ```bash
 # Dry-run the codemod against the bundled MapLibre fixture
-node dist/src/migration/cli.js codemod test/fixtures/esri-maplibre-simple-app \
+node dist/src/migration/cli.js codemod test/fixtures/client-maplibre-simple-app \
   --target honua-maplibre \
   --report reports/maplibre-fixture-report.json
 
 # Write the rewrite in place with inline TODOs for manual sites
-node dist/src/migration/cli.js codemod test/fixtures/esri-maplibre-simple-app \
+node dist/src/migration/cli.js codemod test/fixtures/client-maplibre-simple-app \
   --target honua-maplibre \
   --write --annotate-todos \
   --report reports/maplibre-fixture-report.json
 
 # Run the codemod against the hand-written parcel viewer example
-node dist/src/migration/cli.js codemod examples/arcgis-source-app \
+node dist/src/migration/cli.js codemod examples/geoservices-source-app \
   --target honua-maplibre \
-  --report reports/arcgis-source-app-maplibre-report.json
+  --report reports/geoservices-source-app-maplibre-report.json
 
 # Per-fixture readiness metrics for a single MapLibre fixture, no gating
 node dist/src/migration/cli.js fixtures test/fixtures \
   --target honua-maplibre \
-  --fixtures esri-maplibre-simple-app \
+  --fixtures client-maplibre-simple-app \
   --report reports/maplibre-fixture-metrics.json
 ```
 
@@ -16380,7 +16380,7 @@ known constructors" into "automated app conversion":
    crosses a module boundary or moves through a data structure it
    cannot follow is not reported.
 7. **End-to-end demo conversion.** Shipped at
-   `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`.
+   `examples/geoservices-source-app/` + `test/migration-e2e.test.ts`.
    The sample is a hand-written parcel viewer exercising
    `FeatureLayer` (with `outFields` + `popupTemplate`), `Map`,
    `MapView`, an untouched `view.on("click", …)` handler, and an
@@ -16410,7 +16410,7 @@ In rough effort order:
 | ~~Locator compat (Task C, geocoding half)~~ | ~~1 week~~ | Shipped: `LocatorCompat` + `LocatorSearchSourceCompat` ride the provider-pluggable geocoding contract, so no `HonuaGeocodeService` was needed. The provider endpoint is caller-configured, which keeps the wiring step assisted. |
 | Geoprocessor compat (Task C, remainder) | 1–2 weeks | Requires a `HonuaGeoprocessService` surface (server work); service-area / OD-cost-matrix / closest-facility likewise. |
 | Scene-layer compat (Task A-rest) | 4–8 weeks | Requires I3S/glTF pipeline on `honua-server`; not pure-JS work. |
-| ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
+| ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/geoservices-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
 
 With Tasks D/F/E and the geocoding half of Task C now shipped,
 "automated app conversion" reaches deterministic constructor rewrite +
@@ -16558,7 +16558,7 @@ The codemod's MapLibre-native migration target is documented in
 page covers the `--target honua-maplibre` flag, the rewritten kinds, the
 migration report fields, and the manual gaps that remain open on issue
 #205. The bundled MapLibre fixture
-`test/fixtures/esri-maplibre-simple-app/` is the canonical example
+`test/fixtures/client-maplibre-simple-app/` is the canonical example
 for that target and is referenced from the doc.
 
 ---
@@ -17248,7 +17248,7 @@ repository does not publish, or leaves a journey stage with no skill.
 
 | Skill | Use it when |
 | --- | --- |
-| [`honua-arcgis-migration`](./honua-arcgis-migration/SKILL.md) | Migrate an existing ArcGIS JavaScript app and its service dependencies to Honua using native SDK primitives, agentic code conversion and optional canonical codemods. |
+| [`honua-geoservices-migration`](./honua-geoservices-migration/SKILL.md) | Migrate an existing ArcGIS JavaScript app and its service dependencies to Honua using native SDK primitives, agentic code conversion and optional canonical codemods. |
 | [`honua-mcp-setup`](./honua-mcp-setup/SKILL.md) | Connecting an MCP client (Claude Desktop, Claude Code, or any MCP-compatible agent) to ANY public ArcGIS/OGC FeatureServer via @honua/mcp-server — the platform-free geospatial MCP server. |
 | [`honua-sdk-quickstart`](./honua-sdk-quickstart/SKILL.md) | Writing or reviewing code that uses @honua/sdk-js — installing the SDK, constructing a HonuaClient, building a Dataset/Source and querying features across GeoServices/OGC/WFS/STAC/OData, or handling capability errors. |
 
@@ -17304,7 +17304,7 @@ agent looks for skills.
   your project root.
 
   ```bash
-  mkdir -p .claude/skills && cp -R skills/honua-arcgis-migration .claude/skills/
+  mkdir -p .claude/skills && cp -R skills/honua-geoservices-migration .claude/skills/
   ```
 
 Each skill keeps its own directory name (which must match the `name` in its

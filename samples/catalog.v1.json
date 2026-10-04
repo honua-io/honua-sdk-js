@@ -133,40 +133,44 @@
       ]
     },
     {
-      "id": "arcgis-source-app",
-      "title": "ArcGIS source migration fixture",
-      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
-      "tier": "reference",
-      "supportStatus": "internal",
+      "id": "columnar-query-quickstart",
+      "title": "Map a bounded Arrow result",
+      "summary": "Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff.",
+      "tier": "recipe",
+      "supportStatus": "experimental",
       "disposition": {
         "decision": "keep",
-        "reason": "Retain as a test input, not as a public Honua application."
+        "reason": "Map-first fixture workflow for exact Honua Arrow interoperability; Overture remains the complete production-shaped browser GeoParquet project."
       },
-      "sourcePath": "examples/arcgis-source-app",
-      "docsPath": "examples/arcgis-source-app/README.md",
+      "sourcePath": "examples/columnar-query-quickstart",
+      "docsPath": "examples/columnar-query-quickstart/README.md",
       "capabilities": [
-        "arcgis",
-        "migration"
+        "cancellation",
+        "columnar",
+        "map",
+        "query"
       ],
       "protocols": [
         "geoservices"
       ],
       "renderers": [
-        "arcgis"
+        "maplibre"
       ],
       "data": {
         "mode": "fixture",
         "authMode": "none",
         "config": [],
-        "provenance": "Committed migration input fixture.",
-        "attribution": "Synthetic parcel fixture.",
-        "freshness": "Versioned with the repository."
+        "provenance": "Base64 text embedding of the exact 4,160-byte Honua Server geoarrow.wkb workflow artifact produced by reviewed head 66a9d34496c6f6a03dd571957062f773bfef7f0a, merged as 4ef53ce7f49b78aad3572db1dfc3be88a6654a43, and pinned by SHA-256, with its producer receipt and digest sidecar retained byte-for-byte.",
+        "attribution": "Honua Server interoperability fixture; the field extension declares EPSG:4326 PROJJSON and schema-level GeoParquet metadata declares Point.",
+        "freshness": "Fixture producer commit, schema contract, byte length, and SHA-256 are release-gated."
       },
       "lanes": {
         "fixture": {
           "status": "executed",
           "commands": [
-            "npm run test:migration:real-samples"
+            "npm run demo:columnar-query:build",
+            "npx vitest run test/columnar-query-quickstart.test.ts",
+            "npm run test:playwright:columnar-query"
           ]
         },
         "live": {
@@ -174,9 +178,14 @@
           "commands": []
         }
       },
-      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime.",
+      "expectedDegradation": "No public live Arrow or Parquet endpoint is claimed. Cancellation and row, batch, transfer, backing-memory, schema, geometry, or CRS violations stop explicitly; unsupported layouts never fall back to full materialization.",
       "validation": [
-        "npm run test:migration:real-samples"
+        "npm run demo:columnar-query:typecheck",
+        "npm run demo:columnar-query:build",
+        "npx vitest run test/columnar-query-quickstart.test.ts",
+        "npm run test:playwright:columnar-query",
+        "npx vitest run test/columnar-workflow.test.ts",
+        "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
       ]
     },
     {
@@ -328,6 +337,53 @@
         "npm run demo:gp-runner:typecheck",
         "npx vitest run test/geoprocessing-job-runner.test.ts",
         "npm run demo:gp-runner:build"
+      ]
+    },
+    {
+      "id": "geoservices-source-app",
+      "title": "ArcGIS source migration fixture",
+      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
+      "tier": "reference",
+      "supportStatus": "internal",
+      "disposition": {
+        "decision": "keep",
+        "reason": "Retain as a test input, not as a public Honua application."
+      },
+      "sourcePath": "examples/geoservices-source-app",
+      "docsPath": "examples/geoservices-source-app/README.md",
+      "capabilities": [
+        "arcgis",
+        "migration"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "arcgis"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed migration input fixture.",
+        "attribution": "Synthetic parcel fixture.",
+        "freshness": "Versioned with the repository."
+      },
+      "lanes": {
+        "fixture": {
+          "status": "executed",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "live": {
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
+      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime.",
+      "validation": [
+        "npm run test:migration:real-samples"
       ]
     },
     {
@@ -649,62 +705,6 @@
       "validation": [
         "npm run demo:node-backend:typecheck",
         "npm run demo:node-backend:smoke"
-      ]
-    },
-    {
-      "id": "columnar-query-quickstart",
-      "title": "Map a bounded Arrow result",
-      "summary": "Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff.",
-      "tier": "recipe",
-      "supportStatus": "experimental",
-      "disposition": {
-        "decision": "keep",
-        "reason": "Map-first fixture workflow for exact Honua Arrow interoperability; Overture remains the complete production-shaped browser GeoParquet project."
-      },
-      "sourcePath": "examples/columnar-query-quickstart",
-      "docsPath": "examples/columnar-query-quickstart/README.md",
-      "capabilities": [
-        "cancellation",
-        "columnar",
-        "map",
-        "query"
-      ],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Base64 text embedding of the exact 4,160-byte Honua Server geoarrow.wkb workflow artifact produced by reviewed head 66a9d34496c6f6a03dd571957062f773bfef7f0a, merged as 4ef53ce7f49b78aad3572db1dfc3be88a6654a43, and pinned by SHA-256, with its producer receipt and digest sidecar retained byte-for-byte.",
-        "attribution": "Honua Server interoperability fixture; the field extension declares EPSG:4326 PROJJSON and schema-level GeoParquet metadata declares Point.",
-        "freshness": "Fixture producer commit, schema contract, byte length, and SHA-256 are release-gated."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:columnar-query:build",
-            "npx vitest run test/columnar-query-quickstart.test.ts",
-            "npm run test:playwright:columnar-query"
-          ]
-        },
-        "live": {
-          "status": "not-applicable",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "No public live Arrow or Parquet endpoint is claimed. Cancellation and row, batch, transfer, backing-memory, schema, geometry, or CRS violations stop explicitly; unsupported layouts never fall back to full materialization.",
-      "validation": [
-        "npm run demo:columnar-query:typecheck",
-        "npm run demo:columnar-query:build",
-        "npx vitest run test/columnar-query-quickstart.test.ts",
-        "npm run test:playwright:columnar-query",
-        "npx vitest run test/columnar-workflow.test.ts",
-        "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
       ]
     },
     {
@@ -1629,7 +1629,7 @@
       "id": "esri-leaflet",
       "route": "demo-esri-leaflet.html",
       "ownership": "sdk-projection",
-      "sampleId": "arcgis-source-app"
+      "sampleId": "geoservices-source-app"
     },
     {
       "id": "expr-builder",

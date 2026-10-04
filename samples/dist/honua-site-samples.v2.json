@@ -272,58 +272,6 @@
       "expectedDegradation": "Compatibility APIs are removed when the package advances to 0.2.0."
     },
     {
-      "id": "arcgis-source-app",
-      "title": "ArcGIS source migration fixture",
-      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
-      "sourceKind": "root-example",
-      "track": "fixture",
-      "supportTier": "internal",
-      "lifecycle": {
-        "state": "active",
-        "reason": "Retain as a test input, not as a public Honua application."
-      },
-      "validationProfile": "internal-fixture",
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/arcgis-source-app",
-        "docsPath": "examples/arcgis-source-app/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.1.12"
-      },
-      "capabilities": [
-        "arcgis",
-        "migration"
-      ],
-      "capabilityKeys": [],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "arcgis"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed migration input fixture.",
-        "attribution": "Synthetic parcel fixture.",
-        "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required"
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
-        }
-      },
-      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime."
-    },
-    {
       "id": "automatic-source-workflow",
       "title": "Automatic source-to-map workflow fixture",
       "summary": "Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures.",
@@ -723,6 +671,58 @@
         }
       },
       "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result."
+    },
+    {
+      "id": "geoservices-source-app",
+      "title": "ArcGIS source migration fixture",
+      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
+      "sourceKind": "root-example",
+      "track": "fixture",
+      "supportTier": "internal",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as a test input, not as a public Honua application."
+      },
+      "validationProfile": "internal-fixture",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/geoservices-source-app",
+        "docsPath": "examples/geoservices-source-app/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.12"
+      },
+      "capabilities": [
+        "arcgis",
+        "migration"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "arcgis"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed migration input fixture.",
+        "attribution": "Synthetic parcel fixture.",
+        "freshness": "Versioned with the repository.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime."
     },
     {
       "id": "imagery-cog-quickstart",
@@ -2203,7 +2203,7 @@
       "id": "esri-leaflet",
       "route": "demo-esri-leaflet.html",
       "ownership": "sdk-projection",
-      "sampleId": "arcgis-source-app"
+      "sampleId": "geoservices-source-app"
     },
     {
       "id": "expr-builder",

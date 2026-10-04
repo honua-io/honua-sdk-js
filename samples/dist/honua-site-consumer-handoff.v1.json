@@ -18,8 +18,8 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
       "format": "honua.site.sdk-sample-projection.v2",
       "schemaVersion": 2,
-      "bytes": 77292,
-      "sha256": "a03a6553a4cb231776ede24705eb9e3fe58223cad3c82eefa8887f330f2ae36c",
+      "bytes": 77312,
+      "sha256": "196ec4e988d3f66a8206cef51d41caa734cc12ed256c9a1bceef3fc5c175be95",
       "schemaBytes": 15143,
       "schemaSha256": "8b8fea558df79884f3d9522737d24043b33b099d234ab64f66f1e624cdc52bbd"
     },
@@ -28,8 +28,8 @@
       "schemaPath": "samples/contract/v2/schemas/capability-sample-matrix.schema.json",
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
-      "bytes": 506109,
-      "sha256": "097fc24b2d1bf743d90ab0974a255ee0149198990fcde53fa853b66d535cce5e",
+      "bytes": 506134,
+      "sha256": "d4b1125a70575d92b5d7b5de49c44de79ca29e582e25becb7ca11b959e7a8544",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -39,7 +39,7 @@
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
       "bytes": 45304,
-      "sha256": "30e5fb14dc2109c738a7c2026adabcaa4f4bc3aa0c090e5b84947a8347e5a607",
+      "sha256": "6babedc3768ad3341b251efde7e3f85f5f2e7371b39649215171024209972f33",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -4714,7 +4714,7 @@
       ],
       "ownership": "sdk-projection",
       "resolution": "not-public",
-      "sampleId": "arcgis-source-app",
+      "sampleId": "geoservices-source-app",
       "canonicalPath": null,
       "httpStatus": null,
       "presentation": "status-page",

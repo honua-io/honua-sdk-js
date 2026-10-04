@@ -65,7 +65,7 @@ function makeFakeRepository(): string {
     ".nvmrc",
     "LICENSE",
     "dist",
-    "examples/arcgis-source-app",
+    "examples/geoservices-source-app",
     "examples/migration-workbench/fixtures/expected-behavior.v1.json",
     "scripts/generate-migration-workbench-artifacts.mjs",
     "scripts/lib/migration-workbench-artifacts.mjs",
@@ -1302,7 +1302,7 @@ describe("migration workbench artifact hardening", () => {
 
   it("uses one immutable source snapshot and rejects snapshot, live-source, or prepared-dist TOCTOU mutation", async () => {
     const fakeRoot = makeFakeRepository();
-    const fixtureScenarioPath = path.join(fakeRoot, "examples/arcgis-source-app/src/workbench-scenario.js");
+    const fixtureScenarioPath = path.join(fakeRoot, "examples/geoservices-source-app/src/workbench-scenario.js");
     const fixtureScenarioBytes = fs.readFileSync(fixtureScenarioPath);
 
     await expect(
@@ -1555,7 +1555,7 @@ describe("migration workbench artifact hardening", () => {
     const outsideRoot = makeTempDir("migration-required-input-outside");
     const outsideFile = path.join(outsideRoot, "expected.json");
     fs.writeFileSync(outsideFile, '{"sentinel":"unchanged"}\n');
-    // expected-behavior.v1.json and arcgis-source-app both live under
+    // expected-behavior.v1.json and geoservices-source-app both live under
     // examples/, which the prepared-SDK inputs snapshot now walks (#652):
     // its own generic symlink rejection in collectTree() fires during
     // `prepare:test-sdk`, before the generator's dedicated
@@ -1569,7 +1569,7 @@ describe("migration workbench artifact hardening", () => {
 
     fs.unlinkSync(expectedPath);
     copyIntoFakeRepository(fakeRoot, "examples/migration-workbench/fixtures/expected-behavior.v1.json");
-    const fixturePath = path.join(fakeRoot, "examples/arcgis-source-app");
+    const fixturePath = path.join(fakeRoot, "examples/geoservices-source-app");
     fs.rmSync(fixturePath, { recursive: true });
     fs.symlinkSync(outsideRoot, fixturePath, "dir");
     expectGeneratorFailure(runGenerator(fakeRoot, "--check"), /unsafe symbolic link|SDK tree contains a symlink/i);

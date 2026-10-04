@@ -37,7 +37,7 @@ repository does not publish, or leaves a journey stage with no skill.
 
 | Skill | Use it when |
 | --- | --- |
-| [`honua-arcgis-migration`](./honua-arcgis-migration/SKILL.md) | Migrate an existing ArcGIS JavaScript app and its service dependencies to Honua using native SDK primitives, agentic code conversion and optional canonical codemods. |
+| [`honua-geoservices-migration`](./honua-geoservices-migration/SKILL.md) | Migrate an existing ArcGIS JavaScript app and its service dependencies to Honua using native SDK primitives, agentic code conversion and optional canonical codemods. |
 | [`honua-mcp-setup`](./honua-mcp-setup/SKILL.md) | Connecting an MCP client (Claude Desktop, Claude Code, or any MCP-compatible agent) to ANY public ArcGIS/OGC FeatureServer via @honua/mcp-server — the platform-free geospatial MCP server. |
 | [`honua-sdk-quickstart`](./honua-sdk-quickstart/SKILL.md) | Writing or reviewing code that uses @honua/sdk-js — installing the SDK, constructing a HonuaClient, building a Dataset/Source and querying features across GeoServices/OGC/WFS/STAC/OData, or handling capability errors. |
 
@@ -93,7 +93,7 @@ agent looks for skills.
   your project root.
 
   ```bash
-  mkdir -p .claude/skills && cp -R skills/honua-arcgis-migration .claude/skills/
+  mkdir -p .claude/skills && cp -R skills/honua-geoservices-migration .claude/skills/
   ```
 
 Each skill keeps its own directory name (which must match the `name` in its

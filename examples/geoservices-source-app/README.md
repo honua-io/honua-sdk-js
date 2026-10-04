@@ -1,4 +1,4 @@
-# arcgis-source-app
+# geoservices-source-app
 
 A hand-written ArcGIS JS SDK sample app used as the input to the migration
 end-to-end harness at `test/migration-e2e.test.ts`.

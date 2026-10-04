@@ -1,28 +1,28 @@
 {
   "schemaVersion": "honua.migration-workbench.manifest.v1",
-  "artifactSet": "arcgis-source-app/honua-compat",
-  "fixture": "arcgis-source-app",
+  "artifactSet": "geoservices-source-app/honua-compat",
+  "fixture": "geoservices-source-app",
   "provenance": {
-    "fixture": "examples/arcgis-source-app",
-    "scenario": "examples/arcgis-source-app/src/workbench-scenario.js",
+    "fixture": "examples/geoservices-source-app",
+    "scenario": "examples/geoservices-source-app/src/workbench-scenario.js",
     "sourceSnapshot": {
-      "fixtureTreeSha256": "7e79a2243b70da6efd3b90a206f834e8fc63eb8200905d0f5564586c2b70f87b",
+      "fixtureTreeSha256": "07da36f9d371736f89a0904ec4f811a09fd9962144f8c608bd1f9a662dee6cba",
       "expectedBehaviorPath": "examples/migration-workbench/fixtures/expected-behavior.v1.json",
-      "expectedBehaviorSha256": "bdd9eba31748936a4a7be7bc476ba4fed6a740f8f38f0362ce1aac7ee7bb8ef1",
-      "combinedSha256": "632eff429543e5c2e354a705e233e4a99657ab9718feaa61bba3429b8d12c031"
+      "expectedBehaviorSha256": "5dda40ab412f3c28785d486e3f6eb57a7f6f13006f21510e58c4e4a72e1e289d",
+      "combinedSha256": "0371040df7e246835d6ca21f1883f361fbaefb1bb59645c62086cba0094c7ddd"
     },
     "authorship": "Original Honua-authored repository fixture",
     "licenseScope": "Apache-2.0 repository license; no third-party sample source is reproduced in these artifacts",
     "excludedFixture": {
-      "path": "test/fixtures/esri-demo-feature-table-relates-app",
+      "path": "test/fixtures/client-demo-feature-table-relates-app",
       "reason": "Not used because publishable license evidence for that adapted fixture was not established for this public artifact supply chain."
     },
     "transformationEngine": {
       "path": "dist/src/migration/cli.js",
       "preparedArtifactFormat": "honua.prepared-sdk-artifact.v1",
-      "buildInputsSha256": "eb76db3bb3c7ece036de8de7993ff9f686beef70e5b1d6062aaf308dc728221e",
+      "buildInputsSha256": "9df5b94de75c3780e63ae0d9cfff5b5ed244245b84241c38ce01a46f5a55fbe0",
       "buildInputFileCount": 2533,
-      "distSrcSha256": "5cbe9568a43511eff714b2dcc9fc4bbc3ba10e49092a1ffced11cfb774f57553",
+      "distSrcSha256": "0a844f830c25628bd1c7330e7487aabd64831634f967760373fefb27575a4651",
       "distSrcFileCount": 2109,
       "digestScope": "Complete prepared SDK build inputs plus verified canonical dist/src transformation entries; adopted outputs outside dist/src are excluded."
     },
@@ -69,7 +69,7 @@
         "--fixtures-root",
         "<repo>/examples",
         "--fixture",
-        "arcgis-source-app",
+        "geoservices-source-app",
         "--output-dir",
         "<workspace>/demo-output",
         "--target",
@@ -89,7 +89,7 @@
       "argv": [
         "dist/src/migration/cli.js",
         "widgets",
-        "<repo>/examples/arcgis-source-app",
+        "<repo>/examples/geoservices-source-app",
         "--json",
         "--report",
         "<workspace>/widget-readiness.raw.json"
@@ -102,7 +102,7 @@
       "argv": [
         "dist/src/migration/cli.js",
         "codemod",
-        "<repo>/examples/arcgis-source-app",
+        "<repo>/examples/geoservices-source-app",
         "--target",
         "honua-maplibre",
         "--annotate-todos",
@@ -116,14 +116,14 @@
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/maplibre-assessment.v1.json",
       "mediaType": "application/json",
-      "bytes": 51856,
-      "sha256": "da7c8d462783da906aa2bb06f2a7e2028df7bd71cad04a834c7c383af15d8cc6"
+      "bytes": 52166,
+      "sha256": "c6015caf74d43018be700940d2d88ea04c5dbe19bf6a181a48ee3a8c6d839357"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration-report.v1.json",
       "mediaType": "application/json",
-      "bytes": 62840,
-      "sha256": "0fb76b43161308012a9c438bd4113b630e2eea63a165f8abedb417507e04cbbc"
+      "bytes": 63132,
+      "sha256": "c4030eea72e20869f4e126bbe745c1d483f2d8984b9e51458973812484edcf0e"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration.v1.patch",
@@ -134,8 +134,8 @@
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/widget-readiness.v1.json",
       "mediaType": "application/json",
-      "bytes": 5612,
-      "sha256": "8fcb1f910ca28e69f9ac58f0b6a47c6fb54a80e67d508cbfcb7d557476bccd9b"
+      "bytes": 5632,
+      "sha256": "d195f4fd3698ac12493a2468932f2f8142132b494401f8dbec5fffdde6a76d3c"
     },
     {
       "repositoryPath": "examples/migration-workbench/src/generated/migrated-main.js",

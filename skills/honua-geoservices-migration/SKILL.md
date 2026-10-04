@@ -1,5 +1,5 @@
 ---
-name: honua-arcgis-migration
+name: honua-geoservices-migration
 description: Migrate an existing ArcGIS JavaScript app and its service dependencies to Honua using native SDK primitives, agentic code conversion and optional canonical codemods. Use for inventory, conversion, imported-target validation and migration evidence.
 release: "2026.1"
 stages: []

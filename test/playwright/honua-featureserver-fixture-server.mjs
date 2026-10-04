@@ -5,7 +5,7 @@
  * sends and expects: `?f=json` layer metadata, `/query` with `where`,
  * `resultOffset`/`resultRecordCount` paging, `returnCountOnly`, and
  * `/applyEdits`. Unlike the synthetic in-memory fixtures under
- * `test/fixtures/esri-real-sample-*`, every request this server answers is a
+ * `test/fixtures/client-real-sample-*`, every request this server answers is a
  * genuine HTTP round trip over a real TCP socket, not an in-process call.
  *
  * Auth: every endpoint requires `Authorization: Bearer valid-token`. A
