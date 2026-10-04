@@ -19,7 +19,7 @@
       "format": "honua.site.sdk-sample-projection.v2",
       "schemaVersion": 2,
       "bytes": 77292,
-      "sha256": "443b986e70dcff33b89b3e22637e034cbd3acf933e90653df1f533dca5c157f7",
+      "sha256": "95e2de209901d40d3399af8f3d5f3f57fc37bc7a22e48b3fdcef95dc7ded4fd6",
       "schemaBytes": 15143,
       "schemaSha256": "8b8fea558df79884f3d9522737d24043b33b099d234ab64f66f1e624cdc52bbd"
     },
@@ -29,7 +29,7 @@
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
       "bytes": 505279,
-      "sha256": "4691e2e61ca2dec219418a4a2341ea13c3d65913f59498fe26f37f0776faf816",
+      "sha256": "519d2baa0b4d2f6052012bbec7f09bf9703413b0d3a5748f4a1e03b0e2dfaef4",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -39,7 +39,7 @@
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
       "bytes": 45304,
-      "sha256": "c17afa285c53b0e36c7973ddb2e008b8c49dfe9ab8a193ec561e113e4dac1a65",
+      "sha256": "bea17b809501d35b16d9de2ad84c6ab1f3107c39b8ff0518d59342a9852308de",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -1781,14 +1781,14 @@
             "gate": "packed-build",
             "sdkMode": "packed",
             "receiptPath": "samples/evidence/migration-workbench/receipts/packed-build.v1.json",
-            "receiptSha256": "5eedb6b11ebd8e8728c717657448222534f2189d08ea7bdeb860b0ab1311d781",
+            "receiptSha256": "8f8c5c209d6774cf39c8afa78bce552e3ad4ae2abe8a522830b4f97ed6969654",
             "runRoot": "samples/evidence/migration-workbench/runs/e7cd0348-1cb7-4081-8236-5913d7f9504d",
             "observedAt": "2026-10-03T19:03:11.337Z",
             "expiresAt": "2026-10-10T19:03:11.337Z",
             "reportKind": "packed-build-report",
             "reportPath": "samples/evidence/migration-workbench/runs/e7cd0348-1cb7-4081-8236-5913d7f9504d/artifacts/packed-build.json",
             "reportBytes": 6189,
-            "reportSha256": "305b6bca44f30346165a92b53c92a5397e363476612393753513ca286a93abda"
+            "reportSha256": "67210a17fe3c90b16ffb20f51568629d9524b034f2420d453de92a997450944f"
           },
           {
             "gate": "browser",
@@ -1885,14 +1885,14 @@
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/live.v1.json",
-            "receiptSha256": "72821243f5e951f072de435b22b651e92c0797885d38f14ca057664209277811",
+            "receiptSha256": "8df61490e8b0fbdde4b49b03684111dffaaa79f2249b43281f15fe68a4380423",
             "runRoot": "samples/evidence/migration-workbench/runs/1b162f36-7f5b-4eb7-94cf-955ee41165ee",
             "observedAt": "2026-10-03T19:03:05.215Z",
             "expiresAt": "2026-10-10T19:03:05.215Z",
             "reportKind": "live-evidence-report",
             "reportPath": "samples/evidence/migration-workbench/runs/1b162f36-7f5b-4eb7-94cf-955ee41165ee/artifacts/live.json",
             "reportBytes": 2239,
-            "reportSha256": "8bea9b19a160b8c06d6aba05af44c714db9e15ecb82b73d0323e3e94da6043cd"
+            "reportSha256": "aeefca241eb43a880e74a7a46a8cd1cbb234e30ac9deba1413c0c842bbc2af1f"
           }
         ],
         "liveEvidence": {
@@ -1904,7 +1904,7 @@
           "provenance": {
             "state": "live",
             "observedAt": "2026-10-03T19:03:00.929Z",
-            "attribution": "Honua-authored arcgis-source-app repository fixture; no third-party sample source is reproduced."
+            "attribution": "Honua-authored geoservices-source-app repository fixture; no third-party sample source is reproduced."
           },
           "semantics": {
             "operation": "migration-workbench-deterministic-cli-replay",
@@ -4049,14 +4049,14 @@
             "gate": "packed-build",
             "sdkMode": "packed",
             "receiptPath": "samples/evidence/migration-workbench/receipts/packed-build.v1.json",
-            "receiptSha256": "5eedb6b11ebd8e8728c717657448222534f2189d08ea7bdeb860b0ab1311d781",
+            "receiptSha256": "8f8c5c209d6774cf39c8afa78bce552e3ad4ae2abe8a522830b4f97ed6969654",
             "runRoot": "samples/evidence/migration-workbench/runs/e7cd0348-1cb7-4081-8236-5913d7f9504d",
             "observedAt": "2026-10-03T19:03:11.337Z",
             "expiresAt": "2026-10-10T19:03:11.337Z",
             "reportKind": "packed-build-report",
             "reportPath": "samples/evidence/migration-workbench/runs/e7cd0348-1cb7-4081-8236-5913d7f9504d/artifacts/packed-build.json",
             "reportBytes": 6189,
-            "reportSha256": "305b6bca44f30346165a92b53c92a5397e363476612393753513ca286a93abda"
+            "reportSha256": "67210a17fe3c90b16ffb20f51568629d9524b034f2420d453de92a997450944f"
           },
           {
             "gate": "browser",
@@ -4153,14 +4153,14 @@
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/live.v1.json",
-            "receiptSha256": "72821243f5e951f072de435b22b651e92c0797885d38f14ca057664209277811",
+            "receiptSha256": "8df61490e8b0fbdde4b49b03684111dffaaa79f2249b43281f15fe68a4380423",
             "runRoot": "samples/evidence/migration-workbench/runs/1b162f36-7f5b-4eb7-94cf-955ee41165ee",
             "observedAt": "2026-10-03T19:03:05.215Z",
             "expiresAt": "2026-10-10T19:03:05.215Z",
             "reportKind": "live-evidence-report",
             "reportPath": "samples/evidence/migration-workbench/runs/1b162f36-7f5b-4eb7-94cf-955ee41165ee/artifacts/live.json",
             "reportBytes": 2239,
-            "reportSha256": "8bea9b19a160b8c06d6aba05af44c714db9e15ecb82b73d0323e3e94da6043cd"
+            "reportSha256": "aeefca241eb43a880e74a7a46a8cd1cbb234e30ac9deba1413c0c842bbc2af1f"
           }
         ],
         "liveEvidence": {
@@ -4172,7 +4172,7 @@
           "provenance": {
             "state": "live",
             "observedAt": "2026-10-03T19:03:00.929Z",
-            "attribution": "Honua-authored arcgis-source-app repository fixture; no third-party sample source is reproduced."
+            "attribution": "Honua-authored geoservices-source-app repository fixture; no third-party sample source is reproduced."
           },
           "semantics": {
             "operation": "migration-workbench-deterministic-cli-replay",
@@ -4714,7 +4714,7 @@
       ],
       "ownership": "sdk-projection",
       "resolution": "not-public",
-      "sampleId": "arcgis-source-app",
+      "sampleId": "geoservices-source-app",
       "canonicalPath": null,
       "httpStatus": null,
       "presentation": "status-page",

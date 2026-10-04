@@ -35,11 +35,11 @@ driver closes that gap by proving the same fixtures run correctly when:
 
 - **Rendering, querying/filtering, paging, popup/selection, layer controls,
   search, measurement, routing/directions, and editing** — reused from the
-  four `esri-real-sample-*` / `esri-demo-feature-table-*` fixtures already
+  four `client-real-sample-*` / `client-demo-feature-table-*` fixtures already
   proven by `migration-browser-real-sample.spec.mjs`, now executed from
   installed bytes instead of `dist/src`.
 - **A real HTTP round trip against a real Honua service** —
-  `esri-real-sample-service-query-app` (TypeScript) points its migrated
+  `client-real-sample-service-query-app` (TypeScript) points its migrated
   `FeatureLayer` at `honua-featureserver-fixture-server.mjs`, a
   protocol-faithful GeoServices `FeatureServer` (the same wire shape
   `src/core/geoservices.ts` speaks against a real `honua-server`), across a
