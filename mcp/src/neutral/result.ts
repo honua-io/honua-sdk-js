@@ -1,5 +1,6 @@
+import { HonuaCapabilityNotSupportedError } from "@honua/sdk-js";
 import type { DegradedReason, Result } from "@honua/sdk-js/contract";
-import { esriToGeoJson } from "@honua/sdk-js/geometry";
+import { esriToGeoJson, geoJsonToEsri } from "@honua/sdk-js/geometry";
 
 /**
  * PROTOCOL-NEUTRAL result projection (#1005).
@@ -17,7 +18,7 @@ import { esriToGeoJson } from "@honua/sdk-js/geometry";
 export type GeometryFormat = "geojson" | "esri-json";
 
 function looksGeoJson(geometry: Record<string, unknown>): boolean {
-  return typeof geometry.type === "string" && "coordinates" in geometry;
+  return typeof geometry.type === "string" && ("coordinates" in geometry || geometry.type === "GeometryCollection");
 }
 
 /** Re-encode one feature geometry into the requested format. */
@@ -26,7 +27,12 @@ export function projectGeometry(
   format: GeometryFormat,
 ): Record<string, unknown> | null {
   if (!geometry) return null;
-  if (format === "esri-json") return geometry;
+  if (format === "esri-json") {
+    if (!looksGeoJson(geometry)) return geometry;
+    const converted = geoJsonToEsri(geometry as never);
+    if (!converted) throw new HonuaCapabilityNotSupportedError("geometryFormat.esri-json", "geometry-projection");
+    return converted as unknown as Record<string, unknown>;
+  }
   if (looksGeoJson(geometry)) return geometry;
   const converted = esriToGeoJson(geometry);
   return converted ? (converted as unknown as Record<string, unknown>) : null;

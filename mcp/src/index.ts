@@ -263,28 +263,28 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     "honua_query_features",
     "Query features from any supported protocol. Address the source with `source`; filter with the typed protocol-neutral `filter`, a GeoJSON `geometry` or `bbox` plus `spatialRel`, and `temporal`. returnGeometry defaults to false to save tokens. A construct the backing protocol cannot express returns a structured capability error, never a silently empty result.",
     queryFeatures.schema.shape,
-    async (args) => queryFeatures.execute(client, queryFeatures.schema.parse(args)),
+    async (args, extra) => queryFeatures.execute(client, queryFeatures.schema.parse(args), extra?.signal),
   );
 
   server.tool(
     "honua_count_features",
     "Count features matching a filter without returning data. Use before querying to check cardinality.",
     countFeatures.schema.shape,
-    async (args) => countFeatures.execute(client, countFeatures.schema.parse(args)),
+    async (args, extra) => countFeatures.execute(client, countFeatures.schema.parse(args), extra?.signal),
   );
 
   server.tool(
     "honua_get_extent",
     "Get the spatial bounding box of features matching a filter.",
     getExtent.schema.shape,
-    async (args) => getExtent.execute(client, getExtent.schema.parse(args)),
+    async (args, extra) => getExtent.execute(client, getExtent.schema.parse(args), extra?.signal),
   );
 
   server.tool(
     "honua_statistics",
     "Compute aggregate statistics (count, sum, avg, min, max, stddev, var) on a field, optionally grouped. Protocols without server-side aggregation answer client-side and report the degradation.",
     statistics.schema.shape,
-    async (args) => statistics.execute(client, statistics.schema.parse(args)),
+    async (args, extra) => statistics.execute(client, statistics.schema.parse(args), extra?.signal),
   );
 
   server.tool(

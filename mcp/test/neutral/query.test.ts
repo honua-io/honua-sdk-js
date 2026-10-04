@@ -90,6 +90,10 @@ describe("neutral result projection", () => {
       coordinates: [1, 2],
     });
     expect(projectGeometry({ x: 1, y: 2 }, "esri-json")).toEqual({ x: 1, y: 2 });
+    expect(projectGeometry({ type: "Point", coordinates: [1, 2] }, "esri-json")).toEqual({ x: 1, y: 2 });
+    expect(() => projectGeometry({ type: "GeometryCollection", coordinates: [] }, "esri-json")).toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
     expect(projectGeometry(null, "geojson")).toBeNull();
     expect(projectGeometry({ rings: [] }, "geojson")).toBeNull();
   });
