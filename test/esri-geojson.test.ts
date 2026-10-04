@@ -211,6 +211,39 @@ describe("esriGeometryToGeoJSON", () => {
     });
   });
 
+  it("assigns a hole to the containing closed exterior rather than the smallest disjoint exterior", () => {
+    const result = esriGeometryToGeoJSON({
+      rings: [
+        [
+          [0, 0],
+          [0, 10],
+          [10, 10],
+          [10, 0],
+          [0, 0],
+        ],
+        [
+          [20, 0],
+          [20, 2],
+          [22, 2],
+          [22, 0],
+          [20, 0],
+        ],
+        [
+          [1, 1],
+          [2, 1],
+          [2, 2],
+          [1, 2],
+          [1, 1],
+        ],
+      ],
+    });
+
+    expect(result).toMatchObject({
+      type: "MultiPolygon",
+      coordinates: [[expect.any(Array), expect.any(Array)], [expect.any(Array)]],
+    });
+  });
+
   it("emits exterior rings already CCW unchanged (idempotent rewinding)", () => {
     // A counter-clockwise (RFC 7946-conformant) exterior ring must pass through
     // untouched rather than being flipped to clockwise.

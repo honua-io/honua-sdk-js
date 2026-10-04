@@ -1847,6 +1847,7 @@ export class HonuaClient {
 
     return this.executeRequest<unknown>(request, {
       callerSignal,
+      deadlineThroughFinalize: true,
       readOnlyQuery: policy?.readOnlyQuery,
       redirect: policy?.readOnlyQuery ? "preserve-method" : undefined,
       finalize: async (response, durationMs, currentRequest, runAfter) => {
