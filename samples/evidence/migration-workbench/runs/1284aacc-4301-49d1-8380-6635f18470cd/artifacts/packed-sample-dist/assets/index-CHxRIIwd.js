@@ -483,7 +483,7 @@ var presentation = mountSamplePresentation({
 	sampleId: "migration-workbench",
 	evidence: {
 		mode: "committed artifact replay",
-		fixture: "geoservices-source-app",
+		fixture: "arcgis-source-app",
 		artifacts: "manifest-bound SHA-256 evidence",
 		network: "loopback fixture only"
 	},
