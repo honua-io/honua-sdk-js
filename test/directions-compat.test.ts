@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { CompatEventBus, DirectionsCompat, DirectionsViewModelCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, DirectionsCompat, DirectionsViewModelCompat } from "../src/client-compat-entry.js";
 
 describe("DirectionsCompat", () => {
   const originalFetch = globalThis.fetch;

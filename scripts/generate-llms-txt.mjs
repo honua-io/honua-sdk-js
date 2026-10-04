@@ -314,9 +314,9 @@ const ENTRYPOINTS = [
     fallback: "Natural language to inspectable map plans with BYO LLM, approval envelopes, and receipts.",
   },
   {
-    path: "src/esri-compat-entry.ts",
-    label: "@honua/sdk-js/esri-compat",
-    fallback: "Esri ArcGIS JS-API compatibility wrappers (FeatureLayerCompat, MapViewCompat, ...).",
+    path: "src/client-compat-entry.ts",
+    label: "@honua/sdk-js/client-compat",
+    fallback: "Drop-in compatibility wrappers for migrating GeoServices web apps (FeatureLayerCompat, MapViewCompat, ...).",
   },
   {
     path: "src/migration-entry.ts",

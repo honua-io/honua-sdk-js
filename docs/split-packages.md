@@ -17,7 +17,7 @@ subset of the surface.
 | Package | Subpath equivalent | What it contains |
 |---------|--------------------|------------------|
 | `@honua/sdk` | `@honua/sdk-js/honua` + most stable subpaths | `HonuaClient`, not `createHonua`. Also the shared contract, query planner, offline-region contract, and plan-bound MapLibre adapter |
-| `@honua/sdk-esri-compat` | `@honua/sdk-js/esri-compat` | Esri ArcGIS JS compatibility layer (incl. the `geometryEngine` shim) |
+| `@honua/sdk-esri-compat` | `@honua/sdk-js/client-compat` | Esri ArcGIS JS compatibility layer (incl. the `geometryEngine` shim) |
 | `@honua/react` | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers) |
 | `@honua/geometry` | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops + reprojection |
 | `@honua/app-platform` | (evicted from `@honua/sdk-js`) | Application-platform surfaces — app-shell/workspace/scene state, studio + generated-app builder contracts, operator controllers, native controls / web components, and hosted-product clients (control-plane, collaboration, share, operate, replica-sync). See [`decisions/scope-split-and-1.0.md`](./decisions/scope-split-and-1.0.md). |
