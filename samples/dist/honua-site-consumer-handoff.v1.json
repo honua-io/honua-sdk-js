@@ -29,7 +29,7 @@
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
       "bytes": 505304,
-      "sha256": "d1d0e3bf61dc604d4a7337296eed3db7a5425a2e57d4e03dfcb2401a82b111d3",
+      "sha256": "0405042f91e0ea33704f0383333775873a6e828fa2b46573d6fedc4a9a28b4e2",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -38,8 +38,8 @@
       "schemaPath": "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json",
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
-      "bytes": 45316,
-      "sha256": "7353e81f33312f68b07f1859e400df2d1be635c33a35cbf15024995351270c1f",
+      "bytes": 45311,
+      "sha256": "7a757934936c6cf5f2c1e91de212409f7cd23bdae38d0d1a4ad3681470fe1667",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -1690,7 +1690,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:a7a6f1ad890a0e10003a5abfe17e4f5a4889ad0f0676cd5870c8d67a7601d08f",
+        "evidenceBindingId": "qualification:c877ba38e8da7898dfb655280c40251f558abed47218b6972ae4634c24ad1f72",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -1711,10 +1711,10 @@
           "sourceRevisions": [
             "52dd6eb877b89dccb43500de99170eba5b5be222"
           ],
-          "sha256": "74ad6b9674f71144eeb801dbb1c85d6b900f0dac7377d18a10cc689beeb2014a"
+          "sha256": "97b78c011dfd558942b379b54c832731660b0d1dca37e4678d9c8a63577a53fe"
         }
       },
-      "evidenceBindingId": "qualification:a7a6f1ad890a0e10003a5abfe17e4f5a4889ad0f0676cd5870c8d67a7601d08f",
+      "evidenceBindingId": "qualification:c877ba38e8da7898dfb655280c40251f558abed47218b6972ae4634c24ad1f72",
       "visualEvidence": {
         "journeyId": "arcgis-migration",
         "sampleId": "migration-workbench",
@@ -1781,14 +1781,14 @@
             "gate": "packed-build",
             "sdkMode": "packed",
             "receiptPath": "samples/evidence/migration-workbench/receipts/packed-build.v1.json",
-            "receiptSha256": "5c0dffe1b2335b1da987e7597cf43d3324ab6d9bc8910af3ff27445f27121c11",
+            "receiptSha256": "5e12662f15891f786c14b6c8e553abac506d14f51f1ccba1aa7d885cf8f8615c",
             "runRoot": "samples/evidence/migration-workbench/runs/1284aacc-4301-49d1-8380-6635f18470cd",
             "observedAt": "2026-10-04T04:06:34.966Z",
             "expiresAt": "2026-10-11T04:06:34.966Z",
             "reportKind": "packed-build-report",
             "reportPath": "samples/evidence/migration-workbench/runs/1284aacc-4301-49d1-8380-6635f18470cd/artifacts/packed-build.json",
             "reportBytes": 6189,
-            "reportSha256": "8c81869f70e45bc2a097e9297c5f65649c2011c652d44631b25be18669a43bd6"
+            "reportSha256": "45495fedafb8a8045c2b3f7dfb6d1305bca3b2e6b8eb853ebdecb8396c62000e"
           },
           {
             "gate": "browser",
@@ -1885,14 +1885,14 @@
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/live.v1.json",
-            "receiptSha256": "256bd4d343362a41355aba1aa368e394d7d946e1ffbcd90ea9908a8a632ace3c",
+            "receiptSha256": "4968701385ec8c1dfe1ca2bfd4bb746a76850973017ac8f8dda2c11b34d998fc",
             "runRoot": "samples/evidence/migration-workbench/runs/1be2cc55-f9b8-468c-828f-13725dc4d043",
             "observedAt": "2026-10-04T04:06:28.870Z",
             "expiresAt": "2026-10-11T04:06:28.870Z",
             "reportKind": "live-evidence-report",
             "reportPath": "samples/evidence/migration-workbench/runs/1be2cc55-f9b8-468c-828f-13725dc4d043/artifacts/live.json",
-            "reportBytes": 2254,
-            "reportSha256": "1a29d0e523387b520c4d9236268fa22028c2e5ed8cdedf4313e91474e4fe53c7"
+            "reportBytes": 2239,
+            "reportSha256": "93a0b000dd19e8df12798e54f12f26e94e8fee6c6bbf2096164f6c9210318286"
           }
         ],
         "liveEvidence": {
@@ -1904,7 +1904,7 @@
           "provenance": {
             "state": "live",
             "observedAt": "2026-10-04T04:06:24.723Z",
-            "attribution": "Honua-authored geoservices-source-app repository fixture; no third-party sample source is reproduced."
+            "attribution": "Honua-authored arcgis-source-app repository fixture; no third-party sample source is reproduced."
           },
           "semantics": {
             "operation": "migration-workbench-deterministic-cli-replay",
@@ -3982,7 +3982,7 @@
       "journeyId": "arcgis-migration",
       "sampleId": "migration-workbench",
       "canonicalPath": "samples/migration-workbench.html",
-      "evidenceBindingId": "qualification:a7a6f1ad890a0e10003a5abfe17e4f5a4889ad0f0676cd5870c8d67a7601d08f",
+      "evidenceBindingId": "qualification:c877ba38e8da7898dfb655280c40251f558abed47218b6972ae4634c24ad1f72",
       "visualEvidence": {
         "journeyId": "arcgis-migration",
         "sampleId": "migration-workbench",
@@ -4049,14 +4049,14 @@
             "gate": "packed-build",
             "sdkMode": "packed",
             "receiptPath": "samples/evidence/migration-workbench/receipts/packed-build.v1.json",
-            "receiptSha256": "5c0dffe1b2335b1da987e7597cf43d3324ab6d9bc8910af3ff27445f27121c11",
+            "receiptSha256": "5e12662f15891f786c14b6c8e553abac506d14f51f1ccba1aa7d885cf8f8615c",
             "runRoot": "samples/evidence/migration-workbench/runs/1284aacc-4301-49d1-8380-6635f18470cd",
             "observedAt": "2026-10-04T04:06:34.966Z",
             "expiresAt": "2026-10-11T04:06:34.966Z",
             "reportKind": "packed-build-report",
             "reportPath": "samples/evidence/migration-workbench/runs/1284aacc-4301-49d1-8380-6635f18470cd/artifacts/packed-build.json",
             "reportBytes": 6189,
-            "reportSha256": "8c81869f70e45bc2a097e9297c5f65649c2011c652d44631b25be18669a43bd6"
+            "reportSha256": "45495fedafb8a8045c2b3f7dfb6d1305bca3b2e6b8eb853ebdecb8396c62000e"
           },
           {
             "gate": "browser",
@@ -4153,14 +4153,14 @@
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/live.v1.json",
-            "receiptSha256": "256bd4d343362a41355aba1aa368e394d7d946e1ffbcd90ea9908a8a632ace3c",
+            "receiptSha256": "4968701385ec8c1dfe1ca2bfd4bb746a76850973017ac8f8dda2c11b34d998fc",
             "runRoot": "samples/evidence/migration-workbench/runs/1be2cc55-f9b8-468c-828f-13725dc4d043",
             "observedAt": "2026-10-04T04:06:28.870Z",
             "expiresAt": "2026-10-11T04:06:28.870Z",
             "reportKind": "live-evidence-report",
             "reportPath": "samples/evidence/migration-workbench/runs/1be2cc55-f9b8-468c-828f-13725dc4d043/artifacts/live.json",
-            "reportBytes": 2254,
-            "reportSha256": "1a29d0e523387b520c4d9236268fa22028c2e5ed8cdedf4313e91474e4fe53c7"
+            "reportBytes": 2239,
+            "reportSha256": "93a0b000dd19e8df12798e54f12f26e94e8fee6c6bbf2096164f6c9210318286"
           }
         ],
         "liveEvidence": {
@@ -4172,7 +4172,7 @@
           "provenance": {
             "state": "live",
             "observedAt": "2026-10-04T04:06:24.723Z",
-            "attribution": "Honua-authored geoservices-source-app repository fixture; no third-party sample source is reproduced."
+            "attribution": "Honua-authored arcgis-source-app repository fixture; no third-party sample source is reproduced."
           },
           "semantics": {
             "operation": "migration-workbench-deterministic-cli-replay",
