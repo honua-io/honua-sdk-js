@@ -1,0 +1,71 @@
+{
+  "reproducibilityPolicy": {
+    "captureCount": 2,
+    "comparison": "byte-identical",
+    "scope": "same-page-session",
+    "animations": "disabled",
+    "stabilization": [
+      "map-idle",
+      "css-animation-freeze",
+      "fonts-ready",
+      "scroll-origin",
+      "double-animation-frame"
+    ],
+    "runtimeBinding": [
+      "playwright-version",
+      "project-name",
+      "browser-name",
+      "browser-version",
+      "platform",
+      "architecture"
+    ]
+  },
+  "runtime": {
+    "playwrightVersion": "1.58.2",
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "browserVersion": "145.0.7632.6",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "screenshots": [
+    {
+      "variant": "desktop",
+      "projectName": "chromium",
+      "browserName": "chromium",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "path": "samples/evidence/service-explorer/runs/c30bdfd4-4d15-46dd-ba2d-a8f3fbf82241/artifacts/screenshot-desktop.png",
+      "bytes": 87407,
+      "sha256": "7f89093f9b88b7eff31d96fdc3691dcfacfc6840201765673981968a86d0a68e",
+      "reproducibility": {
+        "captureCount": 2,
+        "comparison": "byte-identical",
+        "repeatPath": "samples/evidence/service-explorer/runs/c30bdfd4-4d15-46dd-ba2d-a8f3fbf82241/artifacts/screenshot-desktop-repeat.png",
+        "repeatBytes": 87407,
+        "repeatSha256": "7f89093f9b88b7eff31d96fdc3691dcfacfc6840201765673981968a86d0a68e"
+      }
+    },
+    {
+      "variant": "mobile",
+      "projectName": "chromium",
+      "browserName": "chromium",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "samples/evidence/service-explorer/runs/c30bdfd4-4d15-46dd-ba2d-a8f3fbf82241/artifacts/screenshot-mobile.png",
+      "bytes": 60492,
+      "sha256": "e3d26e465397a4db3b66fe38a0fb0cacbe3686f285a3c997cb8daf1852469179",
+      "reproducibility": {
+        "captureCount": 2,
+        "comparison": "byte-identical",
+        "repeatPath": "samples/evidence/service-explorer/runs/c30bdfd4-4d15-46dd-ba2d-a8f3fbf82241/artifacts/screenshot-mobile-repeat.png",
+        "repeatBytes": 60492,
+        "repeatSha256": "e3d26e465397a4db3b66fe38a0fb0cacbe3686f285a3c997cb8daf1852469179"
+      }
+    }
+  ]
+}
