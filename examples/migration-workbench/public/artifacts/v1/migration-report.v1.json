@@ -6,10 +6,10 @@
     "fixture": "examples/geoservices-source-app",
     "scenario": "examples/geoservices-source-app/src/workbench-scenario.js",
     "sourceSnapshot": {
-      "fixtureTreeSha256": "7e79a2243b70da6efd3b90a206f834e8fc63eb8200905d0f5564586c2b70f87b",
+      "fixtureTreeSha256": "07da36f9d371736f89a0904ec4f811a09fd9962144f8c608bd1f9a662dee6cba",
       "expectedBehaviorPath": "examples/migration-workbench/fixtures/expected-behavior.v1.json",
-      "expectedBehaviorSha256": "bdd9eba31748936a4a7be7bc476ba4fed6a740f8f38f0362ce1aac7ee7bb8ef1",
-      "combinedSha256": "632eff429543e5c2e354a705e233e4a99657ab9718feaa61bba3429b8d12c031"
+      "expectedBehaviorSha256": "5dda40ab412f3c28785d486e3f6eb57a7f6f13006f21510e58c4e4a72e1e289d",
+      "combinedSha256": "0371040df7e246835d6ca21f1883f361fbaefb1bb59645c62086cba0094c7ddd"
     },
     "authorship": "Original Honua-authored repository fixture",
     "licenseScope": "Apache-2.0 repository license; no third-party sample source is reproduced in these artifacts",
@@ -20,9 +20,9 @@
     "transformationEngine": {
       "path": "dist/src/migration/cli.js",
       "preparedArtifactFormat": "honua.prepared-sdk-artifact.v1",
-      "buildInputsSha256": "f9992b954761d5b687492bd318c06192ae6551a2e9319b3a6a06d061f184e1e2",
+      "buildInputsSha256": "761b643a304042ea4dab16daebb2ecaf3c9d13dc9841c5de8bf836f590c2af1f",
       "buildInputFileCount": 2530,
-      "distSrcSha256": "5ca3e65d2f897af9e33fe1fadbccb4e15be7cd5ac25da5fdf1a92a8baba2b854",
+      "distSrcSha256": "5c128f664693984683adfc9be3a0e6b364ca0b95e7ccb777e4f677fac3794b35",
       "distSrcFileCount": 2103,
       "digestScope": "Complete prepared SDK build inputs plus verified canonical dist/src transformation entries; adopted outputs outside dist/src are excluded."
     },
@@ -1106,8 +1106,8 @@
     "applyCheckPassed": true,
     "targetTreeEqual": true,
     "directEntryComparisonPassed": true,
-    "sourceTreeSha256": "7e79a2243b70da6efd3b90a206f834e8fc63eb8200905d0f5564586c2b70f87b",
-    "targetTreeSha256": "a2311e4b87463ca2fb1b6a3b2b1b33cb19ab19c81e83a852c588928b9b90efd5",
-    "appliedTreeSha256": "a2311e4b87463ca2fb1b6a3b2b1b33cb19ab19c81e83a852c588928b9b90efd5"
+    "sourceTreeSha256": "07da36f9d371736f89a0904ec4f811a09fd9962144f8c608bd1f9a662dee6cba",
+    "targetTreeSha256": "d2aa46ce339004a89d524fd840872a1fedfbb69f6d94d14d066f5a10a3e4bf58",
+    "appliedTreeSha256": "d2aa46ce339004a89d524fd840872a1fedfbb69f6d94d14d066f5a10a3e4bf58"
   }
 }

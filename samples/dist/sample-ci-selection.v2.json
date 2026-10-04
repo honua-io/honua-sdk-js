@@ -265,45 +265,6 @@
       }
     },
     {
-      "id": "geoservices-source-app",
-      "sourcePath": "examples/geoservices-source-app",
-      "track": "fixture",
-      "supportTier": "internal",
-      "validationProfile": "internal-fixture",
-      "gates": {
-        "packedBuild": false,
-        "browser": false,
-        "accessibility": false,
-        "console": false,
-        "responsive": false,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run test:migration:real-samples"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run test:migration:real-samples"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
-      }
-    },
-    {
       "id": "automatic-source-workflow",
       "sourcePath": "docs/examples/automatic-source-workflow",
       "track": "fixture",
@@ -592,6 +553,45 @@
       "liveEvidence": {
         "mode": "authenticated",
         "status": "planned"
+      }
+    },
+    {
+      "id": "geoservices-source-app",
+      "sourcePath": "examples/geoservices-source-app",
+      "track": "fixture",
+      "supportTier": "internal",
+      "validationProfile": "internal-fixture",
+      "gates": {
+        "packedBuild": false,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
       }
     },
     {
