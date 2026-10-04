@@ -1,0 +1,106 @@
+{
+  "format": "honua.sdk.sample-packed-build-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "f36211f95e168021294163817ecd36406f2cde5b",
+  "command": [
+    "npm",
+    "run",
+    "demo:service-explorer:build"
+  ],
+  "sdkMode": "packed",
+  "packageTarballSha256": "0704f4d09add3bef5c3bcc8f007eda2268bf9ba745a1c29b025f995309509cc3",
+  "packageTarball": "samples/evidence/service-explorer/runs/bc438c0c-005d-424d-ba9a-743ff58ce070/artifacts/honua-sdk-js-0.1.13.tgz",
+  "packageTarballBytes": 10454270,
+  "sampleDistRoot": "samples/evidence/service-explorer/runs/bc438c0c-005d-424d-ba9a-743ff58ce070/artifacts/packed-sample-dist",
+  "resolution": {
+    "format": "honua.sdk.sample-resolution.v1",
+    "schemaVersion": 1,
+    "mode": "packed",
+    "package": {
+      "name": "@honua/sdk-js",
+      "version": "0.1.13"
+    },
+    "entrypoints": [
+      {
+        "specifier": "@honua/sdk-js/contract",
+        "exportTarget": "./dist/src/contract/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "eb9a6c745c4d3b059847e0fd6fb864919557a2973edf9dfb819f49de12f49708"
+      },
+      {
+        "specifier": "@honua/sdk-js/map",
+        "exportTarget": "./dist/src/map/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "5acb1b806b80a8e21873973c99b41624dc6db185039cda22ba38d8c487102250"
+      },
+      {
+        "specifier": "@honua/sdk-js",
+        "exportTarget": "./dist/src/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "8008748993d823bcc238ac3401fbe63efaff0cb6d8a1803f7429f4c36e610661"
+      }
+    ],
+    "bundle": [
+      {
+        "fileName": "assets/index-5hq3d6td.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1786483,
+        "sha256": "827939d65b803c92fd8acea2ffb981fb6829116e321f8300360d54c493ce6698"
+      },
+      {
+        "fileName": "assets/odata-write-codec-hgwyS-_p.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 18695,
+        "sha256": "78f7f63b6c8a2892c08809feac527f5d01c639f7a56fcb6c1ea8af90af0a7882"
+      },
+      {
+        "fileName": "assets/index-Cctmk29s.css",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 120568,
+        "sha256": "536b2a1dc9f8efe609c6f4fefe326c651045fcef7fb05d85205025c603394c50"
+      },
+      {
+        "fileName": "assets/maplibre-gl-worker-CRiIRpYb.js",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 509702,
+        "sha256": "096f3b4deeeaa7ed1372a96978bea3495b78250041df835fada34f12320e11d2"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "assets/index-5hq3d6td.js",
+      "bytes": 1786483,
+      "sha256": "827939d65b803c92fd8acea2ffb981fb6829116e321f8300360d54c493ce6698"
+    },
+    {
+      "path": "assets/index-Cctmk29s.css",
+      "bytes": 120568,
+      "sha256": "536b2a1dc9f8efe609c6f4fefe326c651045fcef7fb05d85205025c603394c50"
+    },
+    {
+      "path": "assets/maplibre-gl-worker-CRiIRpYb.js",
+      "bytes": 509702,
+      "sha256": "096f3b4deeeaa7ed1372a96978bea3495b78250041df835fada34f12320e11d2"
+    },
+    {
+      "path": "assets/odata-write-codec-hgwyS-_p.js",
+      "bytes": 18695,
+      "sha256": "78f7f63b6c8a2892c08809feac527f5d01c639f7a56fcb6c1ea8af90af0a7882"
+    },
+    {
+      "path": "honua-sample-sdk-resolution.json",
+      "bytes": 1911,
+      "sha256": "71b6ec92268f9fc8dcad7157e228868f31cd42f53c2e3e671bc94b7642528962"
+    },
+    {
+      "path": "index.html",
+      "bytes": 11330,
+      "sha256": "26c3d7b57835331df01336f20f539ed28ad0f97f26210473d58968bb25c885bf"
+    }
+  ]
+}
