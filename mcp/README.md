@@ -379,9 +379,13 @@ apportionment layer from `services.arcgis.com`, with **no** Honua surfaces. It
 proves the tools certify **green with honest skips** against a non-Honua endpoint:
 the data tools round-trip against real recorded data, the Honua-only style tools
 degrade to structured "not available" results, and the auth/mutation/job contracts
-skip-with-reason. Fixture-backed and deterministic — no network.
+skip-with-reason. Fixture-backed and deterministic — no network — as long as
+`HONUA_BASE_URL` is unset: when it is set, this lane certifies that live endpoint
+instead (the scheduled live variant). Unset it if you exported it for `honua-mcp`
+above:
 
 ```bash
+unset HONUA_BASE_URL
 npm run certify:standalone            # platform-free cert (plain FeatureServer fixture)
 npm run test:certification:standalone # CI gate variant
 ```
