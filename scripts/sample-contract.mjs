@@ -35,6 +35,7 @@ import {
   releaseMatrixReceiptRelaxed,
   validateReleaseMatrixLaneRegistry,
 } from "./lib/release-matrix-receipt.mjs";
+import { RESEAL_OWNED_LIVE_EVIDENCE } from "./release-seal.mjs";
 import {
   readCanonicalBoundedFile,
   requiredReceiptGates,
@@ -3209,8 +3210,14 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       invariant(evidence.sampleId === sample.id, `${sample.id}: live evidence sampleId drift`);
       invariant(evidence.lane === "live", `${sample.id}: catalog evidence must be a live envelope`);
       invariant(evidence.status === sample.evidence.live.status, `${sample.id}: live lane status must match evidence`);
+      // Reseal-owned live evidence is version-stamped by the post-merge reseal,
+      // not by Release Please (honua-io/honua-release#376), so a release pull
+      // request and the bump commit legitimately carry the previous version
+      // there until the reseal lands. Strict runs (the reseal itself, tag
+      // seal, local) keep the binding.
       invariant(
-        evidence.sdk.version === packageJson.version,
+        evidence.sdk.version === packageJson.version ||
+          (derivedArtifactsRelaxed() && RESEAL_OWNED_LIVE_EVIDENCE.includes(sample.evidence.live.evidencePath)),
         `${sample.id}: live evidence SDK version ${evidence.sdk.version} does not match ${packageJson.version}`,
       );
       const observedAt = parseDateTime(evidence.observedAt, `${sample.id}.evidence.observedAt`);

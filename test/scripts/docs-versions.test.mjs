@@ -4,6 +4,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { RESEAL_OWNED_LIVE_EVIDENCE } from "../../scripts/release-seal.mjs";
+
 import {
   buildDocsVersions,
   expandDocsVersionTokens,
@@ -126,21 +128,39 @@ test("release projection updates without a committed generated manifest", () => 
       "samples/contract/v1/fixtures/sample-evidence.fixture.json",
       "samples/contract/v1/fixtures/sample-evidence.live.json",
       "samples/contract/v1/fixtures/sample-evidence.skipped.json",
-      "samples/evidence/imagery-cog-quickstart/live.v1.json",
-      "samples/evidence/maplibre-quickstart/live.v1.json",
-      "samples/evidence/migration-workbench/live.v1.json",
-      "samples/evidence/service-explorer/live.v1.json",
       "support/projections/sdk-support.v1.json",
     ],
   );
 
+  // Every catalog live evidence file is version-stamped by exactly one owner:
+  // Release Please (extra-files) or the post-merge reseal. Reseal-owned files
+  // must stay out of extra-files -- the reseal rewrites their sdk.gitCommit on
+  // every regeneration, directly below sdk.version, so a release pull request
+  // that also bumped them conflicted with every regeneration merge
+  // (honua-io/honua-release#376).
   const managedEvidencePaths = new Set(sdkVersionFiles.map((entry) => entry.path));
+  const resealOwnedPaths = new Set(RESEAL_OWNED_LIVE_EVIDENCE);
   const catalogEvidencePaths = catalog.samples.flatMap((sample) =>
     sample.evidence?.live?.evidencePath ? [sample.evidence.live.evidencePath] : [],
   );
   assert.ok(catalogEvidencePaths.length > 0);
   for (const evidencePath of catalogEvidencePaths) {
-    assert.ok(managedEvidencePaths.has(evidencePath), `${evidencePath} must be release-managed`);
+    assert.notEqual(
+      managedEvidencePaths.has(evidencePath),
+      resealOwnedPaths.has(evidencePath),
+      `${evidencePath} must be either release-managed or reseal-owned, not both or neither`,
+    );
+  }
+  for (const evidencePath of RESEAL_OWNED_LIVE_EVIDENCE) {
+    assert.ok(catalogEvidencePaths.includes(evidencePath), `${evidencePath} is reseal-owned but not catalog live evidence`);
+  }
+  // The reseal rewrites everything under samples/evidence and samples/dist
+  // wholesale, so no Release Please extra-file may live there.
+  for (const entry of config.packages["."]["extra-files"]) {
+    assert.ok(
+      !/^samples\/(?:evidence|dist)\//u.test(entry.path),
+      `${entry.path} is rewritten by every reseal and must not be a Release Please extra-file`,
+    );
   }
 
   const benchmarkVersionFile = config.packages["."]["extra-files"].find(
