@@ -1,0 +1,78 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "maplibre-quickstart",
+  "sourceRevision": "d0257fdbc8ce59a3913b844bf32320faa584db1f",
+  "command": [
+    "npm",
+    "run",
+    "evidence:first-map:live"
+  ],
+  "evidencePath": "samples/evidence/maplibre-quickstart/runs/e20c0492-bef8-4e68-9bc6-f7667f6fa35b/artifacts/live-evidence.json",
+  "evidence": {
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "maplibre-quickstart",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-10-04T19:23:14.541Z",
+    "authMode": "anonymous",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.13",
+      "gitCommit": "d0257fdbc8ce59a3913b844bf32320faa584db1f"
+    },
+    "source": {
+      "provider": "honua-demo",
+      "identity": "geoservices-feature-service:1",
+      "endpoint": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
+      "deploymentVersion": null,
+      "dataVersion": null
+    },
+    "provenance": {
+      "sourceId": "geoservices-feature-service:1",
+      "observedAt": "2026-10-04T19:23:15.814Z",
+      "validAt": null,
+      "state": "live",
+      "attribution": "maui-parcels"
+    },
+    "semantics": {
+      "operation": "first-map-anonymous-public-endpoint",
+      "outcome": "map-popup-filter-plan-ready",
+      "itemCount": 5,
+      "assertions": [
+        "protocol=\"geoservices-feature-service\"",
+        "sourceId=\"1\"",
+        "attribution=\"maui-parcels\"",
+        "freshness=\"observed\"",
+        "cacheStatus=\"miss\"",
+        "degradationCount=0",
+        "planFingerprint=\"sha256:50693cc63c03a9c9bb010b1418a056bc56be2b1486bb0b4a64df062f7eb3ecf5\"",
+        "mode=\"Anonymous live\"",
+        "credentialsSent=false",
+        "unexpectedNetworkRequests=0",
+        "cleanupBudgetMet=true"
+      ]
+    },
+    "timing": {
+      "totalMs": 444,
+      "firstSuccessfulInteractionMs": 444
+    },
+    "degradation": {
+      "state": "none",
+      "reasons": []
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "scripts/first-map-live-evidence.mjs",
+        "sha256": "5ef2da2d1ecb90c65a120d6633b5afd7bff5493a8e4db15fcf6d2f901ad33375"
+      },
+      {
+        "kind": "live-screenshot",
+        "path": "samples/evidence/maplibre-quickstart/runs/e20c0492-bef8-4e68-9bc6-f7667f6fa35b/artifacts/live-evidence.png",
+        "sha256": "5fa1c63b67662bb32979d23358670f78d69379a8c23c21ee7d60d141a8af5c58"
+      }
+    ]
+  }
+}
