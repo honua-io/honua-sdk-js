@@ -19,7 +19,7 @@
       "format": "honua.site.sdk-sample-projection.v3",
       "schemaVersion": 3,
       "bytes": 86402,
-      "sha256": "b9d96889bedc255e5719441b9b42f202a4369cc8b634e121b88574c78dd77095",
+      "sha256": "78ad624eb50819801aadd5454accbde68f73f1f88525be45bf298e97475a4702",
       "schemaBytes": 15096,
       "schemaSha256": "a73e66887e74d0e6c8a0bbda4b00792e615f91d0e5e1e40a1642ad04d657ce84"
     },
@@ -29,7 +29,7 @@
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
       "bytes": 505304,
-      "sha256": "a413bebe09399a1774cecf300a30d375bf2a82f1277c131275214ccaacec34b6",
+      "sha256": "27a081d508d3020657cf5e4a6e56e23ee145d631360a2a9e916f7c8afe37f311",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -39,7 +39,7 @@
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
       "bytes": 45309,
-      "sha256": "49ec88da6d1157da2dcea01028b9e534dc0d1c12206407c46f0c329a60138fca",
+      "sha256": "90ff9cac417ad715f3d695a7217d6395461e926b60a8e6029056cb54d30da95f",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -987,7 +987,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-11-03T18:58:20.981Z"
+          "expiresAt": "2026-11-04T04:01:42.981Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1302,7 +1302,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-11-03T18:56:12.479Z"
+          "expiresAt": "2026-11-04T03:59:28.780Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1683,7 +1683,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-11-03T18:58:45.825Z"
+          "expiresAt": "2026-11-04T04:02:09.324Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -2648,7 +2648,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-11-03T18:59:55.730Z"
+          "expiresAt": "2026-11-04T04:03:19.279Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
