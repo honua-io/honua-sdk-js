@@ -362,60 +362,6 @@
       ]
     },
     {
-      "id": "geoservices-source-app",
-      "title": "ArcGIS source migration fixture",
-      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
-      "sourceKind": "root-example",
-      "track": "fixture",
-      "supportTier": "internal",
-      "lifecycle": {
-        "state": "active",
-        "reason": "Retain as a test input, not as a public Honua application."
-      },
-      "sourcePath": "examples/geoservices-source-app",
-      "docsPath": "examples/geoservices-source-app/README.md",
-      "capabilities": [
-        "arcgis",
-        "migration"
-      ],
-      "capabilityKeys": [],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "arcgis"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed migration input fixture.",
-        "attribution": "Synthetic parcel fixture.",
-        "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run test:migration:real-samples"
-          ]
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime.",
-      "validationProfile": "internal-fixture",
-      "validation": [
-        "npm run test:migration:real-samples"
-      ]
-    },
-    {
       "id": "automatic-source-workflow",
       "title": "Automatic source-to-map workflow fixture",
       "summary": "Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures.",
@@ -876,6 +822,60 @@
         "npm run demo:gp-runner:typecheck",
         "npx vitest run test/geoprocessing-job-runner.test.ts",
         "npm run demo:gp-runner:build"
+      ]
+    },
+    {
+      "id": "geoservices-source-app",
+      "title": "ArcGIS source migration fixture",
+      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
+      "sourceKind": "root-example",
+      "track": "fixture",
+      "supportTier": "internal",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as a test input, not as a public Honua application."
+      },
+      "sourcePath": "examples/geoservices-source-app",
+      "docsPath": "examples/geoservices-source-app/README.md",
+      "capabilities": [
+        "arcgis",
+        "migration"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "arcgis"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed migration input fixture.",
+        "attribution": "Synthetic parcel fixture.",
+        "freshness": "Versioned with the repository.",
+        "configurationStatus": "not-required",
+        "configClassifications": []
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
+      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime.",
+      "validationProfile": "internal-fixture",
+      "validation": [
+        "npm run test:migration:real-samples"
       ]
     },
     {

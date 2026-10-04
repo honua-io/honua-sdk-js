@@ -1793,7 +1793,9 @@ describe("arcgis migration integration", () => {
   });
 
   it("auto-migrates safe .js CommonJS require usage to compat destructure", () => {
-    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration("client-assisted-require-js-cjs-app");
+    const { workingCopy, scanReport, report, codemodResult } = runFixtureMigration(
+      "client-assisted-require-js-cjs-app",
+    );
 
     expect(scanReport.flags).toEqual(["commonjs-detected"]);
     expect(codemodResult.filesChanged).toBe(1);
