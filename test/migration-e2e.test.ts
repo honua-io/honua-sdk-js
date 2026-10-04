@@ -12,7 +12,7 @@ import { buildJsMigrationReport } from "../src/migration/report.js";
 import { scanArcGisUsage } from "../src/migration/scanner.js";
 
 // End-to-end migration harness. Takes the hand-written ArcGIS sample app at
-// `examples/arcgis-source-app/`, runs the codemod against a copy in a tempdir,
+// `examples/geoservices-source-app/`, runs the codemod against a copy in a tempdir,
 // verifies the readiness gate is green, every expected rewrite landed, and
 // the migrated source typechecks against the workspace `src/esri-compat/`
 // entry point via tsconfig `paths` (so `@arcgis/core` doesn't need to be
@@ -38,10 +38,10 @@ afterEach(() => {
 });
 
 describe("e2e ArcGIS sample app conversion", () => {
-  it("migrates examples/arcgis-source-app/ to a typechecking honua-compat app", () => {
-    const sampleSource = path.join(repoRoot(), "examples", "arcgis-source-app");
+  it("migrates examples/geoservices-source-app/ to a typechecking honua-compat app", () => {
+    const sampleSource = path.join(repoRoot(), "examples", "geoservices-source-app");
     const tempRoot = makeTempDir();
-    const workingCopy = path.join(tempRoot, "arcgis-source-app");
+    const workingCopy = path.join(tempRoot, "geoservices-source-app");
     fs.cpSync(sampleSource, workingCopy, { recursive: true });
 
     const scanReport = scanArcGisUsage(workingCopy);

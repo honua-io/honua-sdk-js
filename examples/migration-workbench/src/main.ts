@@ -52,7 +52,7 @@ const presentation = mountSamplePresentation({
   sampleId: "migration-workbench",
   evidence: {
     mode: "committed artifact replay",
-    fixture: "arcgis-source-app",
+    fixture: "geoservices-source-app",
     artifacts: "manifest-bound SHA-256 evidence",
     network: "loopback fixture only",
   },

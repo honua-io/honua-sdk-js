@@ -130,5 +130,5 @@ The codemod's MapLibre-native migration target is documented in
 page covers the `--target honua-maplibre` flag, the rewritten kinds, the
 migration report fields, and the manual gaps that remain open on issue
 #205. The bundled MapLibre fixture
-`test/fixtures/esri-maplibre-simple-app/` is the canonical example
+`test/fixtures/client-maplibre-simple-app/` is the canonical example
 for that target and is referenced from the doc.

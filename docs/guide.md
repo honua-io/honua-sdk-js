@@ -895,10 +895,10 @@ npx honua-js-migrate fixtures --report reports/real-sample-metrics.json
 npx honua-js-migrate fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
 
 # Enforce strict readiness gates for the demo target fixture only
-npx honua-js-migrate fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
+npx honua-js-migrate fixtures --target honua --fixtures client-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json
 
 # Limit fixture metrics to a subset and esri-leaflet target mode
-npx honua-js-migrate fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
+npx honua-js-migrate fixtures --target esri-leaflet --fixtures client-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json
 
 # Gate in CI (non-zero exit if migration constraints fail)
 npx honua-js-migrate codemod ./src --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3

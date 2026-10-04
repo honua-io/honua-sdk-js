@@ -1,7 +1,7 @@
 # ArcGIS Migration Workbench
 
 This sample presents the committed, deterministic artifacts produced by the
-repository's `honua-migrate` CLI for the Honua-authored `arcgis-source-app`
+repository's `honua-migrate` CLI for the Honua-authored `geoservices-source-app`
 fixture. It is an evidence viewer and browser runtime proof, not a second
 migration engine.
 
@@ -87,7 +87,7 @@ fixture receipt independently:
 npm run demo:migration-workbench:mock -- --evidence-once
 ```
 
-The adapted `test/fixtures/esri-demo-feature-table-relates-app` fixture is not
+The adapted `test/fixtures/client-demo-feature-table-relates-app` fixture is not
 used or exposed here because public license evidence for it was not established.
 The artifact manifest records that exclusion and the Apache-2.0 scope of the
 Honua-authored source fixture.

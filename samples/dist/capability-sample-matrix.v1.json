@@ -525,9 +525,9 @@
       }
     },
     {
-      "id": "arcgis-source-app",
+      "id": "geoservices-source-app",
       "title": "ArcGIS source migration fixture",
-      "sourcePath": "examples/arcgis-source-app",
+      "sourcePath": "examples/geoservices-source-app",
       "track": "fixture",
       "tasks": [
         "arcgis",
@@ -9810,7 +9810,7 @@
       ],
       "candidateEvidence": [
         {
-          "sampleId": "arcgis-source-app",
+          "sampleId": "geoservices-source-app",
           "matchedOperations": [
             "migration"
           ],
@@ -9829,7 +9829,7 @@
         "reason": "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
         "candidateSampleIds": [
           "migration-workbench",
-          "arcgis-source-app"
+          "geoservices-source-app"
         ],
         "qualifyingSampleIds": [
           "migration-workbench"
@@ -11063,7 +11063,7 @@
         "reason": "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
         "candidateSampleIds": [
           "migration-workbench",
-          "arcgis-source-app"
+          "geoservices-source-app"
         ],
         "qualifyingSampleIds": [
           "migration-workbench"

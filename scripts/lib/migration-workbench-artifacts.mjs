@@ -8,7 +8,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import { verifyPreparedSdkArtifact } from "./prepared-sdk-artifact.mjs";
 
-const FIXTURE_NAME = "arcgis-source-app";
+const FIXTURE_NAME = "geoservices-source-app";
 const FIXTURE_REPOSITORY_PATH = `examples/${FIXTURE_NAME}`;
 const SCENARIO_REPOSITORY_PATH = `${FIXTURE_REPOSITORY_PATH}/src/workbench-scenario.js`;
 const EXPECTED_BEHAVIOR_REPOSITORY_PATH = "examples/migration-workbench/fixtures/expected-behavior.v1.json";
@@ -1100,7 +1100,7 @@ function buildProvenance(preparedSdk, liveSourceIdentity, executionEvidence) {
     authorship: "Original Honua-authored repository fixture",
     licenseScope: "Apache-2.0 repository license; no third-party sample source is reproduced in these artifacts",
     excludedFixture: {
-      path: "test/fixtures/esri-demo-feature-table-relates-app",
+      path: "test/fixtures/client-demo-feature-table-relates-app",
       reason:
         "Not used because publishable license evidence for that adapted fixture was not established " +
         "for this public artifact supply chain.",

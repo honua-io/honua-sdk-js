@@ -72,7 +72,7 @@ afterEach(() => {
 
 describe("migration real sample runtime", () => {
   it("migrates and executes ops center sample", { timeout: 60_000 }, async () => {
-    const { codemodResult, report, output } = await migrateAndRunFixture("esri-real-sample-ops-center-app");
+    const { codemodResult, report, output } = await migrateAndRunFixture("client-real-sample-ops-center-app");
 
     expect(codemodResult.filesChanged).toBe(1);
     expect(codemodResult.metrics.totalCodemodScopedCallSites).toBe(16);
@@ -126,7 +126,7 @@ describe("migration real sample runtime", () => {
   });
 
   it("migrates and executes editing workflow sample", { timeout: 60_000 }, async () => {
-    const { codemodResult, report, output } = await migrateAndRunFixture("esri-real-sample-editing-app");
+    const { codemodResult, report, output } = await migrateAndRunFixture("client-real-sample-editing-app");
 
     expect(codemodResult.filesChanged).toBe(1);
     expect(codemodResult.metrics.totalCodemodScopedCallSites).toBe(13);
@@ -180,7 +180,7 @@ describe("migration real sample runtime", () => {
   });
 
   it("migrates and executes network workflow sample", { timeout: 60_000 }, async () => {
-    const { codemodResult, report, output } = await migrateAndRunFixture("esri-real-sample-network-app");
+    const { codemodResult, report, output } = await migrateAndRunFixture("client-real-sample-network-app");
 
     expect(codemodResult.filesChanged).toBe(1);
     expect(codemodResult.metrics.totalCodemodScopedCallSites).toBe(10);
@@ -223,7 +223,7 @@ describe("migration real sample runtime", () => {
   });
 
   it("migrates and executes incident command sample", { timeout: 60_000 }, async () => {
-    const { codemodResult, report, output } = await migrateAndRunFixture("esri-real-sample-incident-command-app");
+    const { codemodResult, report, output } = await migrateAndRunFixture("client-real-sample-incident-command-app");
 
     expect(codemodResult.filesChanged).toBe(1);
     expect(codemodResult.metrics.totalCodemodScopedCallSites).toBe(28);
@@ -311,7 +311,7 @@ describe("migration real sample runtime", () => {
 
   it("migrates and executes address search sample", { timeout: 60_000 }, async () => {
     const { codemodResult, report, output, moduleNamespace } = await migrateAndRunFixture(
-      "esri-real-sample-address-search-app",
+      "client-real-sample-address-search-app",
     );
 
     expect(codemodResult.filesChanged).toBe(1);

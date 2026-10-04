@@ -272,7 +272,7 @@
       "expectedDegradation": "Compatibility APIs are removed when the package advances to 0.2.0."
     },
     {
-      "id": "arcgis-source-app",
+      "id": "geoservices-source-app",
       "title": "ArcGIS source migration fixture",
       "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
       "sourceKind": "root-example",
@@ -285,8 +285,8 @@
       "validationProfile": "internal-fixture",
       "source": {
         "repository": "honua-io/honua-sdk-js",
-        "path": "examples/arcgis-source-app",
-        "docsPath": "examples/arcgis-source-app/README.md"
+        "path": "examples/geoservices-source-app",
+        "docsPath": "examples/geoservices-source-app/README.md"
       },
       "sdk": {
         "package": "@honua/sdk-js",
@@ -2203,7 +2203,7 @@
       "id": "esri-leaflet",
       "route": "demo-esri-leaflet.html",
       "ownership": "sdk-projection",
-      "sampleId": "arcgis-source-app"
+      "sampleId": "geoservices-source-app"
     },
     {
       "id": "expr-builder",
