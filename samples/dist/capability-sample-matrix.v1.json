@@ -21,7 +21,7 @@
       "path": "samples/catalog.v2.json",
       "format": "honua.sdk.sample-catalog.v2",
       "schemaVersion": 2,
-      "sha256": "8be66f42f8885663a01845d697c87e36e705643b2d1acf52b4d2bc9642218e97"
+      "sha256": "332883654762158a608c46d5dcebaf67d0b9314a1e3293579bb276356082dde0"
     },
     "qualificationEvidence": {
       "root": "samples/evidence",
@@ -2698,14 +2698,14 @@
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/live.v1.json",
-            "receiptSha256": "72821243f5e951f072de435b22b651e92c0797885d38f14ca057664209277811",
+            "receiptSha256": "8df61490e8b0fbdde4b49b03684111dffaaa79f2249b43281f15fe68a4380423",
             "runRoot": "samples/evidence/migration-workbench/runs/1b162f36-7f5b-4eb7-94cf-955ee41165ee",
             "observedAt": "2026-10-03T19:03:05.215Z",
             "expiresAt": "2026-10-10T19:03:05.215Z",
             "reportKind": "live-evidence-report",
             "reportPath": "samples/evidence/migration-workbench/runs/1b162f36-7f5b-4eb7-94cf-955ee41165ee/artifacts/live.json",
             "reportBytes": 2239,
-            "reportSha256": "8bea9b19a160b8c06d6aba05af44c714db9e15ecb82b73d0323e3e94da6043cd"
+            "reportSha256": "aeefca241eb43a880e74a7a46a8cd1cbb234e30ac9deba1413c0c842bbc2af1f"
           },
           {
             "gate": "performance",
@@ -2752,14 +2752,14 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/migration-workbench/receipts/packed-build.v1.json",
-        "receiptSha256": "5eedb6b11ebd8e8728c717657448222534f2189d08ea7bdeb860b0ab1311d781",
+        "receiptSha256": "8f8c5c209d6774cf39c8afa78bce552e3ad4ae2abe8a522830b4f97ed6969654",
         "runRoot": "samples/evidence/migration-workbench/runs/e7cd0348-1cb7-4081-8236-5913d7f9504d",
         "observedAt": "2026-10-03T19:03:11.337Z",
         "expiresAt": "2026-10-10T19:03:11.337Z",
         "reportKind": "packed-build-report",
         "reportPath": "samples/evidence/migration-workbench/runs/e7cd0348-1cb7-4081-8236-5913d7f9504d/artifacts/packed-build.json",
         "reportBytes": 6189,
-        "reportSha256": "305b6bca44f30346165a92b53c92a5397e363476612393753513ca286a93abda"
+        "reportSha256": "67210a17fe3c90b16ffb20f51568629d9524b034f2420d453de92a997450944f"
       }
     },
     {
