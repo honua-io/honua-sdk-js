@@ -94,7 +94,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.12`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
-18 deprecated compatibility subpaths have explicit removal versions. See
+19 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
@@ -118,7 +118,7 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 | **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (as early as Q1 2027) | wiring a coding agent or assistant to live geospatial data |
 | **Start** | [First Map](./docs/quickstart.md) — paste a public GeoServices or OGC Features endpoint, no account required | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner | point [`honua-mcp`](./mcp/README.md) at any public FeatureServer/OGC endpoint — no Honua server |
 | **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions | the [protocol-neutral tool contract](./mcp/README.md) + [agent skills](./skills/README.md) for Claude Code and compatible agents |
-| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`esri-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) | [NL map control](./docs/nl-map-control.md) · [agent-safety threat model](./docs/agent-safety-threat-model.md) · [coding-agent evals](./docs/coding-agent-evals.md) |
+| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`client-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) | [NL map control](./docs/nl-map-control.md) · [agent-safety threat model](./docs/agent-safety-threat-model.md) · [coding-agent evals](./docs/coding-agent-evals.md) |
 | **Runnable proof** | [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) — deterministic fixture plus separately gated anonymous-live evidence | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end | [cross-model MCP eval scorecard](./docs/generated/mcp-eval-scorecard.md) — dated runs, failures and the zero-LLM control included |
 
 ## Where it fits
@@ -165,7 +165,7 @@ The honest comparisons are the service-client libraries, not the renderers:
   GeoServices *plus* OGC API / WFS / WMS / WMTS / STAC / OData under one typed contract, with a
   capability model that throws instead of returning silently-empty results.
 - vs **`esri-leaflet`** — dormant (no release since September 2025) and Leaflet-bound. Honua's
-  esri-compat + `honua-migrate` codemod is an actively maintained migration path that targets
+  client-compat + `honua-migrate` codemod is an actively maintained migration path that targets
   MapLibre.
 - vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
@@ -661,7 +661,7 @@ correctly use this SDK:
   stable and experimental subpaths lives in [`INSTALL.md`](./INSTALL.md). The short version:
   - **Stable** (semver-protected): `@honua/sdk-js`, `@honua/sdk-js/browser`,
     `@honua/sdk-js/honua`, `@honua/sdk-js/auth`, `@honua/sdk-js/contract`,
-    `@honua/sdk-js/esri-compat`, `@honua/sdk-js/migration`,
+    `@honua/sdk-js/client-compat`, `@honua/sdk-js/migration`,
     `@honua/sdk-js/runtime`, `@honua/sdk-js/expr`, `@honua/sdk-js/webmap`,
     `@honua/sdk-js/geocoding`, `@honua/sdk-js/exploration`, `@honua/sdk-js/interactions`,
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,
@@ -790,7 +790,7 @@ and the protocol-neutral contract are all reachable from this one install.
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
 It projects 22 supported (documented below as stable), 26 experimental,
-and 18 deprecated package entrypoints. Protocol status is independent
+and 19 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
@@ -825,7 +825,7 @@ minor. At 1.0 the stable tier freezes. See
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
-| `@honua/sdk-js/esri-compat` | Esri ArcGIS JS-API compatibility layer for migration |
+| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps; replaces `/esri-compat` |
 | `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
@@ -884,7 +884,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 ## Deprecated compatibility entrypoints
 
-These temporary `@honua/sdk-js` shims were introduced in `0.1.0-beta.0` when
+The application-platform shims were introduced in `0.1.0-beta.0` when
 the application platform moved. They remain available throughout `0.1.x` and
 are removed in `0.2.0`; new code must import the replacement directly. A
 replacement's own support status is independent of the shim: promoting
@@ -911,6 +911,14 @@ replacement's own support status is independent of the shim: promoting
 | `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.2.0` |
 | `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.2.0` |
 | `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.2.0` |
+| `@honua/sdk-js/esri-compat` | `@honua/sdk-js/client-compat` | `2026.2` |
+
+`@honua/sdk-js/esri-compat` was renamed to `@honua/sdk-js/client-compat` in
+`0.1.13`. The old subpath re-exports exactly the same symbols and, on first
+import, warns once per process (Node `DeprecationWarning` code
+`HONUA_ESRI_COMPAT_SUBPATH_RENAMED`, `console.warn` elsewhere) naming the
+replacement. It is removed in the 2026.2 release; change the import specifier
+and nothing else.
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 
@@ -1822,7 +1830,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-04 at commit `2ceb29304`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-04 at commit `e8baac124`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -1832,7 +1840,7 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Importing only `HonuaClient` (tree-shake guard) | 226.4 KiB | 57.1 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 46.0 KiB | 13.8 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 374.4 KiB | 101.2 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 1076.7 KiB | 268.7 KiB |
+| Client compatibility layer (drop-in migration surface) | 1076.7 KiB | 268.7 KiB |
 | Geocoding client | 32.7 KiB | 9.2 KiB |
 | Routing client | 26.1 KiB | 7.8 KiB |
 
@@ -1926,7 +1934,7 @@ records — treat them as orientation and check the linked products for anything
 | PMTiles archives | ✓ auto-registered protocol | ◐ (g) | — | ◐ (h) |
 | Geocoding (provider-pluggable) | ✓ Nominatim / Photon / Pelias / Honua | ◐ (i) | ✓ (j) | — |
 | Routing (provider-pluggable) | ✓ OSRM / Valhalla / Honua | — | ✓ (j) | — |
-| ArcGIS migration codemod | ✓ `honua-migrate` + esri-compat | — | — | — |
+| ArcGIS migration codemod | ✓ `honua-migrate` + client-compat | — | — | — |
 
 Notes:
 
@@ -8704,7 +8712,7 @@ Three rules apply to every adapter:
 
 | Provider | geocode | reverse | suggest | route | Notes |
 |----------|---------|---------|---------|-------|-------|
-| `honua` (facade) | ✓ | ✓ | ✓ | ✓ | Wraps `HonuaGeocodingClient` / the esri-compat route solver |
+| `honua` (facade) | ✓ | ✓ | ✓ | ✓ | Wraps `HonuaGeocodingClient` / the client-compat route solver |
 | `nominatim` | ✓ | ✓ | — (throws typed error) | | No typeahead endpoint; the OSMF policy forbids autocomplete traffic |
 | `photon` | ✓ | ✓ | ✓ | | Typeahead-first engine |
 | `pelias` | ✓ | ✓ | ✓ (`/v1/autocomplete`) | | Hosted instances usually need an `apiKey` |
@@ -8841,7 +8849,7 @@ need it directly.
 (`valhalla1.openstreetmap.de`) expects fair use; self-host for production.
 **Attribution**: OpenStreetMap (ODbL), as above.
 
-### Honua facade + esri-compat bridge
+### Honua facade + client-compat bridge
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -8849,13 +8857,13 @@ import {
   osrmRoutingProvider,
   routingProviderToCompatRouteProvider,
 } from "@honua/sdk-js/routing";
-import { RouteTaskCompat } from "@honua/sdk-js/esri-compat";
+import { RouteTaskCompat } from "@honua/sdk-js/client-compat";
 
-// Wrap the existing Honua facade solver (the esri-compat routeProvider shape)
+// Wrap the existing Honua facade solver (the client-compat routeProvider shape)
 // in the provider contract:
 const honua = honuaRoutingProvider(myExistingRouteSolver);
 
-// Or drive esri-compat widgets (RouteTaskCompat / RouteLayerCompat /
+// Or drive client-compat widgets (RouteTaskCompat / RouteLayerCompat /
 // DirectionsCompat) with any RoutingProvider:
 const task = new RouteTaskCompat({
   routeProvider: routingProviderToCompatRouteProvider(
@@ -9936,7 +9944,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | Unified bounded direct COG operations | `open-endpoint` | `experimental` | `client-only` | `native` | A static host with exact HTTP Range and readable CORS headers plus a caller-injected structural COG decoder | @honua/sdk-js/raster | [fixture: unified-raster-fixtures](../test/unified-raster.test.ts) | Consumes the dynamic STAC COG handoff or an explicit COG media type, structurally validates the object, enforces byte/range/pixel budgets, and provides bounded windows, one-based bands, statistics, histograms, value inspection, progress, cancellation, and MapLibre mounting. |
 | GeoServices GeometryServer discovery | `open-endpoint` | `supported` | `standalone` | `discovery` | Any ArcGIS Server GeometryServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns advertised geometry operations as metadata-only descriptors; it never invents a queryable Source. |
 | GeoServices GPServer discovery and asynchronous execution | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server GPServer endpoint for discovery; execution additionally requires the task to be published for asynchronous submission (submitJob) | discoverGeoServices(), HonuaClient.geoprocessing(), HonuaClient.geoprocessingRunner(), Source.protocol() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[fixture: geoprocessing-job-run-fixtures](../test/contract/geoprocessing-job-run.test.ts)<br>[fixture: process-runner-fixtures](../test/process-runner.test.ts) | Discovery returns task and job-lifecycle metadata for every task without starting work. Execution is asynchronous only: the typed GP service and the unified process runner submit, poll, cancel, and fetch results over submitJob/jobs/cancel, so a synchronous task that advertises only execute is discovered and reported with sdkSupported false rather than run. |
-| Esri compatibility layer | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | @honua/sdk-js/esri-compat | [fixture: esri-compat-fixtures](../test/feature-layer-compat.test.ts) | Compatibility classes parse public GeoServices URLs and create their own client. |
+| Client compatibility layer | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | @honua/sdk-js/client-compat | [fixture: esri-compat-fixtures](../test/feature-layer-compat.test.ts) | Compatibility classes parse public GeoServices URLs and create their own client. |
 | ArcGIS scanner and migration codemod | `open-endpoint` | `supported` | `build-time` | `static` | None | @honua/sdk-js/migration, honua-migrate | [fixture: migration-fixtures](../test/migration-codemod.test.ts) | Static analysis and rewrites run locally; no service is involved. |
 | Geometry operations | `open-endpoint` | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
 | OGC API Features | `open-endpoint` | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
@@ -10922,7 +10930,7 @@ backed by the real engine. Bind an `oauth2(...)` provider to a server and
 
 ```ts doc-test=compile
 import { oauth2 } from "@honua/sdk-js/auth";
-import { identityManager, OAuthInfoCompat } from "@honua/sdk-js/esri-compat";
+import { identityManager, OAuthInfoCompat } from "@honua/sdk-js/client-compat";
 
 const info = new OAuthInfoCompat({ appId: "app", portalUrl: "https://portal.example" });
 identityManager.registerOAuthInfos([info]);
@@ -11458,7 +11466,7 @@ const utm = project(feature.geometry, 4326, 32610);
 
 ## `geometryEngine` compat shim
 
-For ArcGIS migrants, `@honua/sdk-js/esri-compat` exposes a
+For ArcGIS migrants, `@honua/sdk-js/client-compat` exposes a
 `geometryEngine`-shaped shim (`geometryEngineCompat` / `geometryEngineAsyncCompat`)
 backed by `@honua/geometry`. Inputs may be plain Esri-JSON geometries or Honua
 compat instances (`PointCompat`, `PolygonCompat`, …) that expose `toJSON()`.
@@ -11529,7 +11537,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-04 at commit `2ceb29304`._
+_Generated 2026-10-04 at commit `e8baac124`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11550,7 +11558,7 @@ _Generated 2026-10-04 at commit `2ceb29304`._
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 767.4 KiB | 778.7 KiB | 173.9 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.1 KiB | 183.6 KiB | 52.5 KiB | 55.8 KiB |
-| `/esri-compat` | 1076.7 KiB | 1139.7 KiB | 268.7 KiB | 309.5 KiB |
+| `/client-compat` | 1076.7 KiB | 1139.7 KiB | 268.7 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
 | `/geocoding` | 32.7 KiB | 35.9 KiB | 9.2 KiB | 10.1 KiB |
@@ -11577,7 +11585,7 @@ _Generated 2026-10-04 at commit `2ceb29304`._
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 16.6 KiB | 17.1 KiB | 4.4 KiB | 4.5 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.1 KiB | 18.5 KiB | 3.6 KiB | 3.9 KiB |
 | tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 706.5 KiB | 791.3 KiB | 188.1 KiB | 210.6 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 250.7 KiB | 296.3 KiB | 63.4 KiB | 77.7 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 250.7 KiB | 296.3 KiB | 63.4 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.5 KiB | 316.3 KiB | 65.3 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 46.0 KiB | 49.4 KiB | 13.8 KiB | 14.0 KiB |
 | tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 34.7 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
@@ -11751,7 +11759,7 @@ The package provides:
 Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
-- Esri compat bridge: `@honua/sdk-js/esri-compat`
+- Esri compat bridge: `@honua/sdk-js/client-compat`
 - Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
@@ -11978,7 +11986,7 @@ see [split-packages.md](split-packages.md). `@honua/honua-migrate` is built from
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js";
-import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/esri-compat";
+import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/client-compat";
 
 const client = new HonuaClient({
   baseUrl: "https://example.test",
@@ -12361,7 +12369,7 @@ const mapLayerRelated = await mapLayer.queryRelatedFeatures({
 ## Streaming Pagination
 
 ```ts doc-test=compile
-import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
+import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/client-compat";
 
 const layer = new FeatureLayerCompat({
   url: "https://example.test/rest/services/transport/FeatureServer/0",
@@ -12379,7 +12387,7 @@ for await (const page of layer.queryFeaturesStream({ pageSize: 500 })) {
 ## Event Lifecycle (.on)
 
 ```ts doc-test=compile
-import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
+import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/client-compat";
 
 const eventBus = new CompatEventBus();
 const layer = new FeatureLayerCompat({
@@ -12401,7 +12409,7 @@ handle.remove();
 ## TimeSlider Integration
 
 ```ts doc-test=compile
-import { FeatureLayerCompat, TimeSliderCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
+import { FeatureLayerCompat, TimeSliderCompat, CompatEventBus } from "@honua/sdk-js/client-compat";
 
 const eventBus = new CompatEventBus();
 
@@ -14033,7 +14041,7 @@ const revived = rendererFromJSON(descriptor); // identical compile output
 ## One implementation everywhere
 
 WebMap JSON conversion (`@honua/sdk-js/webmap`'s `convertRenderer`) and the
-esri-compat renderer shims emit these objects and compile through the same
+client-compat renderer shims emit these objects and compile through the same
 `/expr` path — there is exactly one class-breaks/unique-value compiler in the
 SDK, and the WebMap converter's style output is unchanged byte for byte.
 
@@ -14041,7 +14049,7 @@ SDK, and the WebMap converter's style output is unchanged byte for byte.
   `classBreaksRendererFromWebMap(renderer, warn)` build renderer objects from
   WebMap renderer JSON.
 - `rendererObjectFromClassBreaksCompat(compat)` /
-  `rendererObjectFromUniqueValueCompat(compat)` (on `/esri-compat`) project a
+  `rendererObjectFromUniqueValueCompat(compat)` (on `/client-compat`) project a
   `ClassBreaksRendererCompat` / `UniqueValueRendererCompat` shim to a renderer
   object plus any symbol-conversion warnings.
 
@@ -14966,7 +14974,7 @@ correlation is preserved end-to-end.
 ---
 type: reference
 title: "terra-draw sketch binding (`@honua/sdk-js/runtime`)"
-description: "Interactive drawing on MapLibre through terra-draw, adapted onto the renderer-neutral edit sketch workflow: peers, modes, setup, reprojection, snapping and esri-compat delegation."
+description: "Interactive drawing on MapLibre through terra-draw, adapted onto the renderer-neutral edit sketch workflow: peers, modes, setup, reprojection, snapping and client-compat delegation."
 resource: "honua://capability/editing.featureserver-edits"
 ---
 # terra-draw sketch binding (`@honua/sdk-js/runtime`)
@@ -15082,9 +15090,9 @@ pipeline, so those modes keep terra-draw-native behavior. If you need snapped
 point placement, resolve the position with `SnapIndex.resolve()` on click and
 set the geometry through the workflow directly.
 
-## esri-compat delegation
+## client-compat delegation
 
-The `Sketch` shim (`@honua/sdk-js/esri-compat`) feature-detects a binding via
+The `Sketch` shim (`@honua/sdk-js/client-compat`) feature-detects a binding via
 its `sketchBinding` option: any object with a callable `setTool` (the
 `bindTerraDrawSketch` / `createTerraDrawSketch` handle qualifies) receives
 `create` tool-mode changes (`polyline` → `line`), `update()` switches to
@@ -15720,7 +15728,7 @@ It re-arms whenever `registerHonuaWidgetKit` is called again.
 
 `@honua/sdk-esri-compat` does not ship the kit. Install
 `@honua/app-platform` to register tags. `FeaturesCompat`, `AttachmentsCompat`,
-and `ScaleRangeCompat` construct hosts and are not on the stable esri-compat
+and `ScaleRangeCompat` construct hosts and are not on the stable client-compat
 entry.
 
 <!-- widget-host-tags:start -->
