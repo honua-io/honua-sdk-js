@@ -21,7 +21,7 @@
       "path": "samples/catalog.v2.json",
       "format": "honua.sdk.sample-catalog.v2",
       "schemaVersion": 2,
-      "sha256": "a3e080ffcfa1308ea9d3dabd530782251a98fc4c833c74c388b7524189b67311"
+      "sha256": "13649d02e7b1bfd90d1006d77358464fb02eb056ce8ec74ef67314278551d18c"
     },
     "qualificationEvidence": {
       "root": "samples/evidence",
@@ -526,52 +526,6 @@
       }
     },
     {
-      "id": "arcgis-source-app",
-      "title": "ArcGIS source migration fixture",
-      "sourcePath": "examples/arcgis-source-app",
-      "track": "fixture",
-      "tasks": [
-        "arcgis",
-        "migration"
-      ],
-      "catalogProtocols": [
-        "geoservices"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service"
-      ],
-      "supportClaimIds": [],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "arcgis"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "internal",
-      "lifecycleState": "active",
-      "qualification": {
-        "state": "unsupported",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
       "id": "automatic-source-workflow",
       "title": "Automatic source-to-map workflow fixture",
       "sourcePath": "docs/examples/automatic-source-workflow",
@@ -959,6 +913,52 @@
       "lifecycleState": "merge",
       "qualification": {
         "state": "partial",
+        "catalogStatus": "not-a-golden-journey"
+      }
+    },
+    {
+      "id": "geoservices-source-app",
+      "title": "ArcGIS source migration fixture",
+      "sourcePath": "examples/geoservices-source-app",
+      "track": "fixture",
+      "tasks": [
+        "arcgis",
+        "migration"
+      ],
+      "catalogProtocols": [
+        "geoservices"
+      ],
+      "protocolIds": [
+        "geoservices-feature-service",
+        "geoservices-geometry-service",
+        "geoservices-gp-service",
+        "geoservices-image-service",
+        "geoservices-map-service"
+      ],
+      "supportClaimIds": [],
+      "protocolBindings": [
+        {
+          "catalogProtocol": "geoservices",
+          "protocolIds": [
+            "geoservices-feature-service",
+            "geoservices-map-service",
+            "geoservices-image-service",
+            "geoservices-geometry-service",
+            "geoservices-gp-service"
+          ],
+          "supportClaimIds": [],
+          "external": false
+        }
+      ],
+      "renderers": [
+        "arcgis"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "internal",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "unsupported",
         "catalogStatus": "not-a-golden-journey"
       }
     },
@@ -9811,7 +9811,7 @@
       ],
       "candidateEvidence": [
         {
-          "sampleId": "arcgis-source-app",
+          "sampleId": "geoservices-source-app",
           "matchedOperations": [
             "migration"
           ],
@@ -9830,7 +9830,7 @@
         "reason": "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
         "candidateSampleIds": [
           "migration-workbench",
-          "arcgis-source-app"
+          "geoservices-source-app"
         ],
         "qualifyingSampleIds": [
           "migration-workbench"
@@ -11080,7 +11080,7 @@
         "reason": "A catalog-qualified sample has a complete current qualification receipt set for this exact cell.",
         "candidateSampleIds": [
           "migration-workbench",
-          "arcgis-source-app"
+          "geoservices-source-app"
         ],
         "qualifyingSampleIds": [
           "migration-workbench"

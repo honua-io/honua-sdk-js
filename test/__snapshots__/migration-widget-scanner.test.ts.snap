@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`widget readiness report on the esri-widget-cliff-app fixture > matches the JSON report snapshot 1`] = `
+exports[`widget readiness report on the client-widget-cliff-app fixture > matches the JSON report snapshot 1`] = `
 {
   "deprecationRelease": "5.0",
   "dispositionDataVersion": "1.4.0",
@@ -272,7 +272,7 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
 }
 `;
 
-exports[`widget readiness report on the esri-widget-cliff-app fixture > matches the markdown report snapshot 1`] = `
+exports[`widget readiness report on the client-widget-cliff-app fixture > matches the markdown report snapshot 1`] = `
 "# ArcGIS widget readiness report
 
 Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early as Q1 2027). Disposition data v1.4.0.

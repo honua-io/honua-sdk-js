@@ -70,7 +70,7 @@ afterEach(() => {
 
 describe("feature-table demo runtime", () => {
   it("migrates and executes primary related-records fixture with table/map and legend flows", async () => {
-    const { codemodResult, report, output } = await migrateAndRunFixture("esri-demo-feature-table-relates-app");
+    const { codemodResult, report, output } = await migrateAndRunFixture("client-demo-feature-table-relates-app");
 
     expect(codemodResult.filesChanged).toBe(1);
     expect(codemodResult.metrics.manualCallSites).toBe(0);
@@ -109,7 +109,7 @@ describe("feature-table demo runtime", () => {
 
   it("migrates and executes fallback popup-interaction fixture", async () => {
     const { codemodResult, report, output } = await migrateAndRunFixture(
-      "esri-demo-feature-table-popup-interaction-app",
+      "client-demo-feature-table-popup-interaction-app",
     );
 
     expect(codemodResult.filesChanged).toBe(1);
