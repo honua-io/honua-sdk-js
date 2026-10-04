@@ -1454,6 +1454,58 @@ describe("sample publication contract", () => {
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
   }, 100_000);
 
+  // A full strict validateCatalog is expensive; this test runs three, so it
+  // carries its own budget rather than inflating the version-derivation test.
+  it("tolerates stale reseal-owned evidence versions only for qualification bootstrap targets", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const packageJson = await readJson("package.json");
+    const versionMatch = /^(\d+)\.(\d+)\.(\d+)([-+].+)?$/.exec(packageJson.version);
+    if (!versionMatch) {
+      throw new Error(`Expected a semantic package version, received ${packageJson.version}`);
+    }
+    const bumpedVersion = `${versionMatch[1]}.${versionMatch[2]}.${Number(versionMatch[3]) + 1}${versionMatch[4] ?? ""}`;
+    const bumpedPackage = { ...packageJson, version: bumpedVersion };
+    // The strict reseal names the reseal-owned golden lanes as qualification
+    // bootstrap targets while it re-observes them, so their pre-bump version
+    // is tolerated for exactly those samples (honua-io/honua-release#376).
+    // Release-please-owned lab evidence is also stale after a bare package
+    // bump, so take those lanes off evidence to isolate the golden ones.
+    const goldenOnlyEvidence = structuredClone(catalog);
+    for (const sample of goldenOnlyEvidence.samples) {
+      if (sample.track === "golden") continue;
+      const { evidencePath: _path, expiresAt: _expires, targetMode: _target, ...live } = sample.evidence.live;
+      sample.evidence.live = { ...live, status: "not-applicable", mode: "unavailable" };
+    }
+    const resealOwnedGoldenIds = goldenOnlyEvidence.samples
+      .filter((sample: { track: string }) => sample.track === "golden")
+      .map((sample: { id: string }) => sample.id);
+    // The reseal runs strictly; PR CI relaxes derived artifacts, so pin strict.
+    vi.stubEnv("HONUA_DERIVED_ARTIFACTS_RELAX", "");
+    try {
+      await expect(validateCatalog(goldenOnlyEvidence, bumpedPackage, validationTime)).rejects.toThrow(
+        `${resealOwnedGoldenIds[0]}: live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
+      );
+      await expect(
+        validateCatalog(goldenOnlyEvidence, bumpedPackage, {
+          ...validationTime,
+          qualificationBootstrapSampleId: resealOwnedGoldenIds.slice(1),
+        }),
+      ).rejects.toThrow(
+        `${resealOwnedGoldenIds[0]}: live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
+      );
+      const bootstrapped = await validateCatalog(goldenOnlyEvidence, bumpedPackage, {
+        ...validationTime,
+        qualificationBootstrapSampleId: resealOwnedGoldenIds,
+      }).then(
+        () => undefined,
+        (error: Error) => error.message,
+      );
+      expect(bootstrapped ?? "").not.toContain("live evidence SDK version");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 240_000);
+
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
     const packageJson = await readJson("package.json");
 

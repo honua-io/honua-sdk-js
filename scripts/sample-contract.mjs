@@ -3213,11 +3213,15 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       // Reseal-owned live evidence is version-stamped by the post-merge reseal,
       // not by Release Please (honua-io/honua-release#376), so a release pull
       // request and the bump commit legitimately carry the previous version
-      // there until the reseal lands. Strict runs (the reseal itself, tag
-      // seal, local) keep the binding.
+      // there until the reseal lands. The reseal itself runs strictly but
+      // names these samples as qualification bootstrap targets while it
+      // re-observes them, so the stale version is tolerated only for the
+      // samples being resealed; its final strict verification and the tag
+      // seal keep the binding.
       invariant(
         evidence.sdk.version === packageJson.version ||
-          (derivedArtifactsRelaxed() && RESEAL_OWNED_LIVE_EVIDENCE.includes(sample.evidence.live.evidencePath)),
+          ((derivedArtifactsRelaxed() || qualificationBootstrapSampleIds.has(sample.id)) &&
+            RESEAL_OWNED_LIVE_EVIDENCE.includes(sample.evidence.live.evidencePath)),
         `${sample.id}: live evidence SDK version ${evidence.sdk.version} does not match ${packageJson.version}`,
       );
       const observedAt = parseDateTime(evidence.observedAt, `${sample.id}.evidence.observedAt`);
