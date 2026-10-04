@@ -1217,7 +1217,6 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | <a id="ai-spatial-app-builder"></a>[`ai-spatial-app-builder`](../../examples/ai-spatial-app-builder/README.md) | lab | - | experimental | active | browser-lab | hybrid | approved | Proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states. |
 | <a id="app-bootstrap-basic"></a>[`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
-| <a id="geoservices-source-app"></a>[`geoservices-source-app`](../../examples/geoservices-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
 | <a id="columnar-query-quickstart"></a>[`columnar-query-quickstart`](../../examples/columnar-query-quickstart/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff. |
@@ -1225,6 +1224,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | replace | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view. |
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | fixture | not-required | Runs a deterministic Honolulu buffer job and renders the verified polygon result. |
+| <a id="geoservices-source-app"></a>[`geoservices-source-app`](../../examples/geoservices-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | <a id="imagery-cog-quickstart"></a>[`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | golden | imagery-terrain | supported | active | golden-browser | hybrid | approved | Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles. |
 | <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | golden | first-map | supported | active | golden-browser | hybrid | approved | Starts with all 48 governed Maui County census tracts on an interactive map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it. |
 | <a id="mcp-gis-assistant"></a>[`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | lab | - | experimental | rework | browser-lab | fixture | not-required | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
@@ -1830,7 +1830,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-04 at commit `e8baac124`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-04 at commit `4768314f9`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11537,7 +11537,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-04 at commit `e8baac124`._
+_Generated 2026-10-04 at commit `4768314f9`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
