@@ -75,7 +75,7 @@ const revived = rendererFromJSON(descriptor); // identical compile output
 ## One implementation everywhere
 
 WebMap JSON conversion (`@honua/sdk-js/webmap`'s `convertRenderer`) and the
-esri-compat renderer shims emit these objects and compile through the same
+client-compat renderer shims emit these objects and compile through the same
 `/expr` path — there is exactly one class-breaks/unique-value compiler in the
 SDK, and the WebMap converter's style output is unchanged byte for byte.
 
@@ -83,7 +83,7 @@ SDK, and the WebMap converter's style output is unchanged byte for byte.
   `classBreaksRendererFromWebMap(renderer, warn)` build renderer objects from
   WebMap renderer JSON.
 - `rendererObjectFromClassBreaksCompat(compat)` /
-  `rendererObjectFromUniqueValueCompat(compat)` (on `/esri-compat`) project a
+  `rendererObjectFromUniqueValueCompat(compat)` (on `/client-compat`) project a
   `ClassBreaksRendererCompat` / `UniqueValueRendererCompat` shim to a renderer
   object plus any symbol-conversion warnings.
 

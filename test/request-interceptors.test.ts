@@ -4,7 +4,7 @@ import {
   EsriRequestInterceptorRegistry,
   createArcGisTokenInterceptor,
   createEsriRequestInterceptors,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
 import { HonuaClient, HonuaHttpError } from "../src/index.js";
 
 describe("HonuaClient request interceptors", () => {

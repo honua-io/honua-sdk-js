@@ -84,7 +84,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [@honua/sdk-js/agent-tools](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/agent-tools/index.ts): Agent-facing tool schemas and executors for bounded map/runtime actions.
 - [@honua/sdk-js/agent-safety](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/agent-safety/index.ts): Deterministic safety boundary for JSON-compatible agent plans.
 - [@honua/sdk-js/nl-map-control](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/nl-map-control/index.ts): Natural-language map control: compile NL instructions into serializable, inspectable plans over the agent-tools surface, and execute reviewed plans only.
-- [@honua/sdk-js/esri-compat](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/esri-compat-entry.ts): Esri ArcGIS JS-API compatibility wrappers (FeatureLayerCompat, MapViewCompat, ...).
+- [@honua/sdk-js/client-compat](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/client-compat-entry.ts): Drop-in compatibility wrappers for migrating GeoServices web apps (FeatureLayerCompat, MapViewCompat, ...).
 - [@honua/sdk-js/migration](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/migration-entry.ts): Codemod, scanner, and reporting used by the honua-migrate CLI.
 - [@honua/sdk-js/runtime](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/runtime/index.ts): @honua/sdk-js/runtime — MapLibre GL JS-first runtime for Honua MapPackage.
 - [@honua/sdk-js/geocoding](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/geocoding/index.ts): @honua/sdk-js/geocoding — HonuaGeocodingClient for forward / reverse geocoding and typeahead suggestions over a Honua-hosted GeocodeServer.

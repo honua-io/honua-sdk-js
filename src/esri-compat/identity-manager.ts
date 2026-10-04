@@ -116,7 +116,7 @@ class IdentityManagerCompatStore {
    * @example
    * ```ts
    * import { oauth2 } from "@honua/sdk-js/auth";
-   * import { identityManager, OAuthInfoCompat } from "@honua/sdk-js/esri-compat";
+   * import { identityManager, OAuthInfoCompat } from "@honua/sdk-js/client-compat";
    *
    * const info = new OAuthInfoCompat({ appId: "app", portalUrl: "https://portal.example" });
    * identityManager.registerOAuthInfos([info]);

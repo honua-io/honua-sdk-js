@@ -77,7 +77,7 @@ function compilerOptions(projectRoot) {
   for (const [packageName, subpath] of [
     ["@honua/geometry", "./geometry"],
     ["@honua/react", "./react"],
-    ["@honua/sdk-esri-compat", "./esri-compat"],
+    ["@honua/sdk-esri-compat", "./client-compat"],
   ]) {
     const typesPath = packageJson.exports?.[subpath]?.types;
     if (typeof typesPath === "string") splitPaths[packageName] = [typesPath];

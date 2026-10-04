@@ -98,7 +98,7 @@
       "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "@honua/sdk-js/esri-compat",
+        "@honua/sdk-js/client-compat",
         "HonuaClient.queryFeatures",
         "Source",
         "connect()"
@@ -284,7 +284,7 @@
       "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "@honua/sdk-js/esri-compat",
+        "@honua/sdk-js/client-compat",
         "HonuaClient.queryFeatures",
         "Source",
         "connect()"

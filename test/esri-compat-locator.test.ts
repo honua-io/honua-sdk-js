@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
 import {
   CompatEventBus,
   LocatorCompat,
@@ -9,7 +8,8 @@ import {
   locatorAddressToLocations,
   locatorLocationToAddress,
   locatorSuggestLocations,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
+import { HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
 import type {
   GeocodingCapability,
   GeocodingProvider,

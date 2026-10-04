@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, MapCompat, MapViewCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, MapCompat, MapViewCompat } from "../src/client-compat-entry.js";
 
 describe("MapCompat", () => {
   it("supports map load/when lifecycle state", async () => {

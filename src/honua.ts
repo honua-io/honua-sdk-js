@@ -6,7 +6,7 @@
  * (`HonuaFeatureLayer`, `HonuaMapService`, `HonuaOgcFeatures`, `HonuaWfs`, ...).
  *
  * Use this entrypoint for new code. For migration code that talks the legacy
- * Esri shape, import from `@honua/sdk-js/esri-compat`. For protocol-neutral
+ * Esri shape, import from `@honua/sdk-js/client-compat`. For protocol-neutral
  * cross-protocol code, import from `@honua/sdk-js/contract`.
  *
  * @example
