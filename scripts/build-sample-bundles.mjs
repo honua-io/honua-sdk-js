@@ -239,10 +239,10 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/ai-spatial-app-builder/src/main.ts imports only ./safe-agent.js and issues no fetch/EventSource/WebSocket; both declared config names are catalog-classified server-only, so no host-model lane can be enabled from a browser bundle and the deterministic fixture proposal is the only reachable path.",
   },
   {
-    id: "arcgis-source-app",
+    id: "geoservices-source-app",
     runtimeHosting: "not-a-runtime-sample",
     auditedVia:
-      "examples/arcgis-source-app has no vite.config.ts; it is the pre-migration ArcGIS input consumed by npm run test:migration:real-samples (catalog validationProfile internal-fixture).",
+      "examples/geoservices-source-app has no vite.config.ts; it is the pre-migration ArcGIS input consumed by npm run test:migration:real-samples (catalog validationProfile internal-fixture).",
   },
   {
     id: "automatic-source-workflow",

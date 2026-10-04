@@ -3,7 +3,7 @@
 // Live-evidence producer for the ArcGIS Migration Workbench golden journey
 // (honua-io/honua-sdk-js#549). Unlike maplibre-quickstart's live lane, this
 // sample's own requirements forbid any non-loopback network request (REQ-007)
-// and treat arcgis-source-app strictly as an internal fixture (REQ-004), so
+// and treat geoservices-source-app strictly as an internal fixture (REQ-004), so
 // there is no public endpoint this producer can call. Its "live" proof is
 // instead that the real honua-migrate CLI -- the same
 // scripts/lib/migration-workbench-artifacts.mjs supply chain the browser
@@ -72,17 +72,17 @@ async function writeEnvelope(target, values) {
     sdk: { package: packageJson.name, version: packageJson.version, gitCommit: sourceRevision() },
     source: {
       provider: "honua-migrate-cli",
-      identity: "arcgis-source-app:v1",
+      identity: "geoservices-source-app:v1",
       endpoint: null,
       deploymentVersion: null,
       dataVersion: null,
     },
     provenance: {
-      sourceId: "arcgis-source-app:v1",
+      sourceId: "geoservices-source-app:v1",
       observedAt: values.observedAt,
       validAt: null,
       state: "live",
-      attribution: "Honua-authored arcgis-source-app repository fixture; no third-party sample source is reproduced.",
+      attribution: "Honua-authored geoservices-source-app repository fixture; no third-party sample source is reproduced.",
     },
     semantics: values.semantics,
     timing: values.timing,

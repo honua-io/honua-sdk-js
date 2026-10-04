@@ -18,7 +18,7 @@ ArcGIS JS API behind end-to-end.
 [`examples/migration-workbench`](../examples/migration-workbench/README.md)
 is the qualified `arcgis-migration` golden journey for the complete migration
 experience. The repository build invokes the real `honua-migrate` CLI against
-the Honua-authored `arcgis-source-app` fixture and commits a deterministic
+the Honua-authored `geoservices-source-app` fixture and commits a deterministic
 report, patch, widget guidance, MapLibre assessment, generated compat target,
 and SHA-256 manifest. The browser only projects and revalidates those
 artifacts; it does not contain a second transform, accept uploads, read
@@ -246,7 +246,7 @@ except for the `feature-layer`, `map-image-layer`, and the
 `map-view.navigation-go-to` capability which are tagged `native`.
 
 Use the canonical fixture
-[`test/fixtures/esri-maplibre-simple-app/`](../test/fixtures/esri-maplibre-simple-app/src/main.ts)
+[`test/fixtures/client-maplibre-simple-app/`](../test/fixtures/client-maplibre-simple-app/src/main.ts)
 as a worked example — it imports `Map`, `MapView`, `FeatureLayer`,
 `MapImageLayer`, and `TileLayer` from `@arcgis/core` and exercises
 exactly the kinds that `honua-maplibre` can rewrite natively.
@@ -261,25 +261,25 @@ and `esri-leaflet` — anything else is rejected by the parser.
 
 ```bash
 # Dry-run the codemod against the bundled MapLibre fixture
-node dist/src/migration/cli.js codemod test/fixtures/esri-maplibre-simple-app \
+node dist/src/migration/cli.js codemod test/fixtures/client-maplibre-simple-app \
   --target honua-maplibre \
   --report reports/maplibre-fixture-report.json
 
 # Write the rewrite in place with inline TODOs for manual sites
-node dist/src/migration/cli.js codemod test/fixtures/esri-maplibre-simple-app \
+node dist/src/migration/cli.js codemod test/fixtures/client-maplibre-simple-app \
   --target honua-maplibre \
   --write --annotate-todos \
   --report reports/maplibre-fixture-report.json
 
 # Run the codemod against the hand-written parcel viewer example
-node dist/src/migration/cli.js codemod examples/arcgis-source-app \
+node dist/src/migration/cli.js codemod examples/geoservices-source-app \
   --target honua-maplibre \
-  --report reports/arcgis-source-app-maplibre-report.json
+  --report reports/geoservices-source-app-maplibre-report.json
 
 # Per-fixture readiness metrics for a single MapLibre fixture, no gating
 node dist/src/migration/cli.js fixtures test/fixtures \
   --target honua-maplibre \
-  --fixtures esri-maplibre-simple-app \
+  --fixtures client-maplibre-simple-app \
   --report reports/maplibre-fixture-metrics.json
 ```
 

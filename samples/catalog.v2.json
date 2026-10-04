@@ -362,7 +362,7 @@
       ]
     },
     {
-      "id": "arcgis-source-app",
+      "id": "geoservices-source-app",
       "title": "ArcGIS source migration fixture",
       "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
       "sourceKind": "root-example",
@@ -372,8 +372,8 @@
         "state": "active",
         "reason": "Retain as a test input, not as a public Honua application."
       },
-      "sourcePath": "examples/arcgis-source-app",
-      "docsPath": "examples/arcgis-source-app/README.md",
+      "sourcePath": "examples/geoservices-source-app",
+      "docsPath": "examples/geoservices-source-app/README.md",
       "capabilities": [
         "arcgis",
         "migration"
@@ -2957,7 +2957,7 @@
       "id": "esri-leaflet",
       "route": "demo-esri-leaflet.html",
       "ownership": "sdk-projection",
-      "sampleId": "arcgis-source-app"
+      "sampleId": "geoservices-source-app"
     },
     {
       "id": "expr-builder",

@@ -81,11 +81,11 @@ describe("migration cli fixtures metrics", () => {
     expect(report.codemodTarget).toBe("honua-compat");
     expect(report.summary.fixtureCount).toBe(5);
     expect(report.fixtureNames).toEqual([
-      "esri-real-sample-incident-command-app",
-      "esri-real-sample-ops-center-app",
-      "esri-real-sample-editing-app",
-      "esri-real-sample-network-app",
-      "esri-real-sample-address-search-app",
+      "client-real-sample-incident-command-app",
+      "client-real-sample-ops-center-app",
+      "client-real-sample-editing-app",
+      "client-real-sample-network-app",
+      "client-real-sample-address-search-app",
     ]);
     expect(report.summary.totalCallSites).toBeGreaterThan(0);
     expect(report.summary.autoMigratedCallSites).toBe(report.summary.totalCallSites);
@@ -104,7 +104,7 @@ describe("migration cli fixtures metrics", () => {
     const reportPath = path.join(root, "subset-metrics.json");
 
     const result = runCli(
-      ["fixtures", "--target", "esri-leaflet", "--fixtures", "esri-real-sample-network-app", "--report", reportPath],
+      ["fixtures", "--target", "esri-leaflet", "--fixtures", "client-real-sample-network-app", "--report", reportPath],
       getProjectRoot(),
     );
 
@@ -126,8 +126,8 @@ describe("migration cli fixtures metrics", () => {
 
     expect(report.codemodTarget).toBe("esri-leaflet");
     expect(report.summary.fixtureCount).toBe(1);
-    expect(report.fixtureNames).toEqual(["esri-real-sample-network-app"]);
-    expect(report.fixtures).toEqual([expect.objectContaining({ fixture: "esri-real-sample-network-app" })]);
+    expect(report.fixtureNames).toEqual(["client-real-sample-network-app"]);
+    expect(report.fixtures).toEqual([expect.objectContaining({ fixture: "client-real-sample-network-app" })]);
   }, 240_000);
 
   it("reports honua-maplibre fixture metrics for native supported sample", () => {
@@ -136,7 +136,7 @@ describe("migration cli fixtures metrics", () => {
     const reportPath = path.join(root, "maplibre-metrics.json");
 
     const result = runCli(
-      ["fixtures", "--target", "honua-maplibre", "--fixtures", "esri-maplibre-simple-app", "--report", reportPath],
+      ["fixtures", "--target", "honua-maplibre", "--fixtures", "client-maplibre-simple-app", "--report", reportPath],
       getProjectRoot(),
     );
 
@@ -171,7 +171,7 @@ describe("migration cli fixtures metrics", () => {
     expect(report.summary.unhandledUsageHits).toBe(0);
     expect(report.fixtures).toEqual([
       expect.objectContaining({
-        fixture: "esri-maplibre-simple-app",
+        fixture: "client-maplibre-simple-app",
         readiness: "ready",
         totalCallSites: 5,
         autoMigratedCallSites: 5,
@@ -210,7 +210,7 @@ describe("migration cli fixtures metrics", () => {
         "--target",
         "esri-leaflet",
         "--fixtures",
-        "esri-real-sample-network-app",
+        "client-real-sample-network-app",
         "--fail-on-manual",
         "--max-manual-ratio",
         "0",
@@ -232,7 +232,7 @@ describe("migration cli fixtures metrics", () => {
         "--target",
         "esri-leaflet",
         "--fixtures",
-        "esri-real-sample-ops-center-app",
+        "client-real-sample-ops-center-app",
         "--fail-on-manual",
         "--fail-on-unhandled",
         "--fail-on-blocked",

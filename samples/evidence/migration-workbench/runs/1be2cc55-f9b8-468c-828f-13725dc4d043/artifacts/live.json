@@ -24,17 +24,17 @@
     },
     "source": {
       "provider": "honua-migrate-cli",
-      "identity": "arcgis-source-app:v1",
+      "identity": "geoservices-source-app:v1",
       "endpoint": null,
       "deploymentVersion": null,
       "dataVersion": null
     },
     "provenance": {
-      "sourceId": "arcgis-source-app:v1",
+      "sourceId": "geoservices-source-app:v1",
       "observedAt": "2026-10-04T04:06:24.723Z",
       "validAt": null,
       "state": "live",
-      "attribution": "Honua-authored arcgis-source-app repository fixture; no third-party sample source is reproduced."
+      "attribution": "Honua-authored geoservices-source-app repository fixture; no third-party sample source is reproduced."
     },
     "semantics": {
       "operation": "migration-workbench-deterministic-cli-replay",

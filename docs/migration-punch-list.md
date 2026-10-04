@@ -357,7 +357,7 @@ known constructors" into "automated app conversion":
    crosses a module boundary or moves through a data structure it
    cannot follow is not reported.
 7. **End-to-end demo conversion.** Shipped at
-   `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`.
+   `examples/geoservices-source-app/` + `test/migration-e2e.test.ts`.
    The sample is a hand-written parcel viewer exercising
    `FeatureLayer` (with `outFields` + `popupTemplate`), `Map`,
    `MapView`, an untouched `view.on("click", …)` handler, and an
@@ -387,7 +387,7 @@ In rough effort order:
 | ~~Locator compat (Task C, geocoding half)~~ | ~~1 week~~ | Shipped: `LocatorCompat` + `LocatorSearchSourceCompat` ride the provider-pluggable geocoding contract, so no `HonuaGeocodeService` was needed. The provider endpoint is caller-configured, which keeps the wiring step assisted. |
 | Geoprocessor compat (Task C, remainder) | 1–2 weeks | Requires a `HonuaGeoprocessService` surface (server work); service-area / OD-cost-matrix / closest-facility likewise. |
 | Scene-layer compat (Task A-rest) | 4–8 weeks | Requires I3S/glTF pipeline on `honua-server`; not pure-JS work. |
-| ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
+| ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/geoservices-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
 
 With Tasks D/F/E and the geocoding half of Task C now shipped,
 "automated app conversion" reaches deterministic constructor rewrite +

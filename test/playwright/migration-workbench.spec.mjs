@@ -89,7 +89,7 @@ test(
       expect(runtimeIdentity).toMatchObject({
         ready: true,
         disposed: false,
-        fixture: "arcgis-source-app",
+        fixture: "geoservices-source-app",
         browserProofPassed: true,
       });
       expect(["source", "packed"]).toContain(runtimeIdentity.sdkMode);
