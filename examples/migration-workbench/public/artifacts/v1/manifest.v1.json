@@ -1,10 +1,10 @@
 {
   "schemaVersion": "honua.migration-workbench.manifest.v1",
-  "artifactSet": "arcgis-source-app/honua-compat",
-  "fixture": "arcgis-source-app",
+  "artifactSet": "geoservices-source-app/honua-compat",
+  "fixture": "geoservices-source-app",
   "provenance": {
-    "fixture": "examples/arcgis-source-app",
-    "scenario": "examples/arcgis-source-app/src/workbench-scenario.js",
+    "fixture": "examples/geoservices-source-app",
+    "scenario": "examples/geoservices-source-app/src/workbench-scenario.js",
     "sourceSnapshot": {
       "fixtureTreeSha256": "7e79a2243b70da6efd3b90a206f834e8fc63eb8200905d0f5564586c2b70f87b",
       "expectedBehaviorPath": "examples/migration-workbench/fixtures/expected-behavior.v1.json",
@@ -69,7 +69,7 @@
         "--fixtures-root",
         "<repo>/examples",
         "--fixture",
-        "arcgis-source-app",
+        "geoservices-source-app",
         "--output-dir",
         "<workspace>/demo-output",
         "--target",
@@ -89,7 +89,7 @@
       "argv": [
         "dist/src/migration/cli.js",
         "widgets",
-        "<repo>/examples/arcgis-source-app",
+        "<repo>/examples/geoservices-source-app",
         "--json",
         "--report",
         "<workspace>/widget-readiness.raw.json"
@@ -102,7 +102,7 @@
       "argv": [
         "dist/src/migration/cli.js",
         "codemod",
-        "<repo>/examples/arcgis-source-app",
+        "<repo>/examples/geoservices-source-app",
         "--target",
         "honua-maplibre",
         "--annotate-todos",
