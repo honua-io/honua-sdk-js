@@ -424,9 +424,10 @@ npm run demo:quickstart:mock -- --evidence-once   # build, serve the fixture, pr
 cd ..
 ```
 
-Drop `-- --evidence-once` to keep the fixture server running, and open the printed
-`quickstartMockUrl` in a browser. `npm run demo:quickstart` starts the same app on a live
-anonymous public endpoint that you paste or configure.
+To keep the fixture server running instead, go back into the clone (`cd honua-sdk-js`), run
+`npm run demo:quickstart:mock` without `-- --evidence-once`, and open the printed
+`quickstartMockUrl` in a browser. From the clone, `npm run demo:quickstart` starts the same app
+on a live anonymous public endpoint that you paste or configure.
 
 See [`docs/quickstart.md`](./docs/quickstart.md) for the canonical
 guided server-optional walkthrough,

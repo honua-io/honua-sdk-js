@@ -137,12 +137,14 @@ npm run demo:quickstart:mock -- --evidence-once   # build, serve the fixture, pr
 cd ..
 ```
 
-The mock lane serves a committed fixture and needs no network. Drop
-`-- --evidence-once` to keep the server running, then open the printed
+The mock lane serves a committed fixture and needs no network. To keep the
+server running instead, go back into the clone (`cd honua-sdk-js`), run
+`npm run demo:quickstart:mock` without `-- --evidence-once`, and open the printed
 `quickstartMockUrl` in a browser. To run it against a public endpoint, copy
 `examples/maplibre-quickstart/.env.example` in the clone to `.env`, set
 `VITE_HONUA_QUICKSTART_ENDPOINT` and `VITE_HONUA_QUICKSTART_PROTOCOL` (`auto`,
-`geoservices-feature-service`, or `ogc-features`), and run `npm run demo:quickstart`.
+`geoservices-feature-service`, or `ogc-features`), and run `npm run demo:quickstart`
+from the clone.
 Never put an API key or bearer token in a `VITE_*` variable: Vite embeds those
 values in public JavaScript.
 
