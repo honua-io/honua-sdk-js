@@ -4,7 +4,7 @@
  * Controls in this entry operate directly on a MapLibre `Map` instance via a
  * duck-typed interface — they never import `maplibre-gl` and never touch the
  * SDK core, so the entry stays bundle-independent (same packaging posture as
- * `@honua/sdk-js/esri-compat`).
+ * `@honua/sdk-js/client-compat`).
  *
  * @module
  */

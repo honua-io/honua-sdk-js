@@ -113,7 +113,7 @@ const utm = project(feature.geometry, 4326, 32610);
 
 ## `geometryEngine` compat shim
 
-For ArcGIS migrants, `@honua/sdk-js/esri-compat` exposes a
+For ArcGIS migrants, `@honua/sdk-js/client-compat` exposes a
 `geometryEngine`-shaped shim (`geometryEngineCompat` / `geometryEngineAsyncCompat`)
 backed by `@honua/geometry`. Inputs may be plain Esri-JSON geometries or Honua
 compat instances (`PointCompat`, `PolygonCompat`, …) that expose `toJSON()`.

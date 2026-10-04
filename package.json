@@ -56,6 +56,10 @@
       "types": "./dist/src/core/auth/index.d.ts",
       "default": "./dist/src/core/auth/index.js"
     },
+    "./client-compat": {
+      "types": "./dist/src/client-compat-entry.d.ts",
+      "default": "./dist/src/client-compat-entry.js"
+    },
     "./esri-compat": {
       "types": "./dist/src/esri-compat-entry.d.ts",
       "default": "./dist/src/esri-compat-entry.js"
@@ -994,6 +998,8 @@
   "sideEffects": [
     "./dist/src/migration-entry.js",
     "./src/migration-entry.ts",
+    "./dist/src/esri-compat-entry.js",
+    "./src/esri-compat-entry.ts",
     "./dist/src/web-components/index.js",
     "./dist/src/_deprecated/web-components.js",
     "./src/web-components/index.ts",

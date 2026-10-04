@@ -200,7 +200,7 @@ const TARGETS = [
     entry: "dist/src/_deprecated/scene-workspace.js",
     label: "`/scene-workspace` (MapLibre/Cesium external — optional peers)",
   },
-  { key: "/esri-compat", kind: "bundle", entry: "dist/src/esri-compat-entry.js", label: "`/esri-compat`" },
+  { key: "/client-compat", kind: "bundle", entry: "dist/src/client-compat-entry.js", label: "`/client-compat`" },
   { key: "/expr", kind: "bundle", entry: "dist/src/expr/index.js", label: "`/expr`" },
   { key: "/webmap", kind: "bundle", entry: "dist/src/webmap/index.js", label: "`/webmap`" },
   { key: "/geocoding", kind: "bundle", entry: "dist/src/geocoding/index.js", label: "`/geocoding`" },
@@ -377,10 +377,10 @@ const TARGETS = [
     ],
   },
   {
-    key: "tree-shake:esri-compat-FeatureLayerCompat",
+    key: "tree-shake:client-compat-FeatureLayerCompat",
     kind: "fixture",
-    entry: "scripts/bundle-size-fixtures/tree-shake-esri-compat-feature-layer.mjs",
-    label: "tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`)",
+    entry: "scripts/bundle-size-fixtures/tree-shake-client-compat-feature-layer.mjs",
+    label: "tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`)",
     forbiddenInputs: [
       "dist/src/core/grpc-adapter.js",
       "dist/src/gen/geospatial/",

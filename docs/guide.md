@@ -161,7 +161,7 @@ The package provides:
 Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
-- Esri compat bridge: `@honua/sdk-js/esri-compat`
+- Esri compat bridge: `@honua/sdk-js/client-compat`
 - Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
@@ -388,7 +388,7 @@ see [split-packages.md](split-packages.md). `@honua/honua-migrate` is built from
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js";
-import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/esri-compat";
+import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/client-compat";
 
 const client = new HonuaClient({
   baseUrl: "https://example.test",
@@ -771,7 +771,7 @@ const mapLayerRelated = await mapLayer.queryRelatedFeatures({
 ## Streaming Pagination
 
 ```ts doc-test=compile
-import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
+import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/client-compat";
 
 const layer = new FeatureLayerCompat({
   url: "https://example.test/rest/services/transport/FeatureServer/0",
@@ -789,7 +789,7 @@ for await (const page of layer.queryFeaturesStream({ pageSize: 500 })) {
 ## Event Lifecycle (.on)
 
 ```ts doc-test=compile
-import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
+import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/client-compat";
 
 const eventBus = new CompatEventBus();
 const layer = new FeatureLayerCompat({
@@ -811,7 +811,7 @@ handle.remove();
 ## TimeSlider Integration
 
 ```ts doc-test=compile
-import { FeatureLayerCompat, TimeSliderCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
+import { FeatureLayerCompat, TimeSliderCompat, CompatEventBus } from "@honua/sdk-js/client-compat";
 
 const eventBus = new CompatEventBus();
 

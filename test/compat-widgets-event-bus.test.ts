@@ -7,7 +7,7 @@ import {
   LayerListCompat,
   LegendCompat,
   MapCompat,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
 
 async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();

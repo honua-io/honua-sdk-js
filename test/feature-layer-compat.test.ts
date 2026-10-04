@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFeatureLayerUrl } from "../src/esri-compat-entry.js";
-import { CompatEventBus, FeatureLayerCompat } from "../src/esri-compat-entry.js";
+import { parseFeatureLayerUrl } from "../src/client-compat-entry.js";
+import { CompatEventBus, FeatureLayerCompat } from "../src/client-compat-entry.js";
 
 describe("parseFeatureLayerUrl", () => {
   it("parses canonical feature layer URL", () => {

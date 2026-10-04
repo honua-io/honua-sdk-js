@@ -76,7 +76,7 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Importing only `HonuaClient` (tree-shake guard) | 226.4 KiB | 57.1 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 46.0 KiB | 13.8 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 374.4 KiB | 101.2 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 1076.7 KiB | 268.7 KiB |
+| Client compatibility layer (drop-in migration surface) | 1076.7 KiB | 268.7 KiB |
 | Geocoding client | 32.7 KiB | 9.2 KiB |
 | Routing client | 26.1 KiB | 7.8 KiB |
 
@@ -170,7 +170,7 @@ records — treat them as orientation and check the linked products for anything
 | PMTiles archives | ✓ auto-registered protocol | ◐ (g) | — | ◐ (h) |
 | Geocoding (provider-pluggable) | ✓ Nominatim / Photon / Pelias / Honua | ◐ (i) | ✓ (j) | — |
 | Routing (provider-pluggable) | ✓ OSRM / Valhalla / Honua | — | ✓ (j) | — |
-| ArcGIS migration codemod | ✓ `honua-migrate` + esri-compat | — | — | — |
+| ArcGIS migration codemod | ✓ `honua-migrate` + client-compat | — | — | — |
 
 Notes:
 
