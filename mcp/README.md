@@ -341,9 +341,13 @@ of this repository (Node.js `>=20.19` and git). `mcp/` links to the SDK at the
 repository root, so build the SDK first:
 
 ```bash
-git clone https://github.com/honua-io/honua-sdk-js.git
+git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git
 cd honua-sdk-js
-npm ci && npm run build   # the SDK that mcp/ links to
+npm ci
+```
+
+```bash
+npm run build   # the SDK that mcp/ links to; takes a few minutes
 cd mcp
 npm ci
 ```

@@ -412,9 +412,14 @@ Run the complete First Map app locally — public endpoint in, inspected MapLibr
 app lives in this repository, so clone it first (Node.js `>=20.19` and git):
 
 ```bash
-git clone https://github.com/honua-io/honua-sdk-js.git
+git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git
 cd honua-sdk-js
 npm ci
+```
+
+Then run the fixture lane from the clone, and return to where you started:
+
+```bash
 npm run demo:quickstart:mock -- --evidence-once   # build, serve the fixture, probe it once, exit (what CI runs)
 cd ..
 ```

@@ -125,9 +125,14 @@ copyable code, and managed cleanup. It runs from a clone of the repository
 (Node.js `>=20.19` and git):
 
 ```bash
-git clone https://github.com/honua-io/honua-sdk-js.git
+git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git
 cd honua-sdk-js
 npm ci
+```
+
+Then run the fixture lane from the clone, and return to where you started:
+
+```bash
 npm run demo:quickstart:mock -- --evidence-once   # build, serve the fixture, probe it once, exit
 cd ..
 ```
