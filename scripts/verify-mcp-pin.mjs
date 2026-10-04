@@ -161,14 +161,14 @@ export function readCreateAppSdkPin(config, relativePath, sdkName) {
   return version;
 }
 
-/** Keep every scaffold on the SDK half of the coordinated MCP/SDK pair. */
+/** Keep every scaffold on the certified starter fallback, which may lag package.json. */
 export function verifyCreateAppPins({ sdkName, expectedVersion, readConfig = readJson }) {
   return CREATE_APP_PIN_SITES.map((relativePath) => {
     const version = readCreateAppSdkPin(readConfig(relativePath), relativePath, sdkName);
     invariant(
       version === expectedVersion,
-      `${relativePath} pins ${sdkName}@${version}, but generated MCP clients pin the coordinated ${expectedVersion} pair. ` +
-        "Run `npm run sync:mcp-pin` after the pair is published.",
+      `${relativePath} pins ${sdkName}@${version}, but the certified starter fallback is ${sdkName}@${expectedVersion}. ` +
+        "The scaffold sites must match templates.manifest.json, and that fallback moves only when a release certifies a new SDK.",
     );
     return { relativePath, pin: `${sdkName}@${version}` };
   });
@@ -466,8 +466,11 @@ async function main() {
   const zeroToMapConfigs = verifyZeroToMapConfigPins({ expectedPin: LOCAL_INSTALL_MCP_PACKAGE });
   process.stdout.write(`zero-to-map config pins ok: ${zeroToMapConfigs.length} configs name ${LOCAL_INSTALL_MCP_PACKAGE}\n`);
   const { name: sdkName, version: sdkVersion } = readJson("package.json");
-  const createAppPins = verifyCreateAppPins({ sdkName, expectedVersion: sdkVersion });
-  process.stdout.write(`create-honua-app pins ok: ${createAppPins.length} sites name ${sdkName}@${sdkVersion}\n`);
+  // Release Please bumps package.json before that version is certified. The
+  // starter fallback stays on the last certified SDK until a deliberate edit.
+  const certifiedSdkVersion = readJson("packages/create-honua-app/templates.manifest.json")?.sdk?.version;
+  const createAppPins = verifyCreateAppPins({ sdkName, expectedVersion: certifiedSdkVersion });
+  process.stdout.write(`create-honua-app pins ok: ${createAppPins.length} sites name ${sdkName}@${certifiedSdkVersion}\n`);
 
   // The pair this working tree would cut: mcp/package.json's declared peer
   // range against the SDK version sitting beside it.
