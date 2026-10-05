@@ -2,6 +2,22 @@
 -- Used by: js-integration-tests, mcp-certification, mcp-llm-smoke.
 -- Idempotent: safe to re-run (IF NOT EXISTS / ON CONFLICT).
 --
+-- Apply AFTER the server has booted once against an empty database
+-- (.github/workflows/integration.yml, honua-sdk-js#1946). The server owns the
+-- schema and its migration journal: on an empty database every migration
+-- applies, including contract-phase ones such as 038_DropV1MetadataGraphTables
+-- (Metadata v2 only; no v1 metadata-graph tables exist). Seeding first makes
+-- the database "existing", and the server's migration safety gate then refuses
+-- the pending contract migrations, which CI must not approve or skip. Provision
+-- postgis + postgis_raster before that first boot so the raster migrations run
+-- with it; installing postgis_raster afterwards leaves them pending and the next
+-- boot hits the same gate.
+--
+-- Against the migrated schema every CREATE/ALTER below is a no-op and only the
+-- data, the v2 compat snapshot function and its activation take effect. The DDL
+-- stays for seed-first consumers: scripts/installed-candidate-fixture.mjs still
+-- applies this file to an empty database before it boots the candidate.
+--
 -- This is a CI-focused schema that covers the tables and columns needed by
 -- integration tests. It is NOT a mirror of the canonical migration set in
 -- src/Honua.Server/Migrations/; the server runs its own migrations at startup.
@@ -23,7 +39,6 @@ CREATE TABLE IF NOT EXISTS honua.services (
     service_name VARCHAR(64) PRIMARY KEY,
     description TEXT NOT NULL DEFAULT '',
     srid INT NOT NULL DEFAULT 4326,
-    max_record_count INT NOT NULL DEFAULT 1000,
     supported_formats TEXT[] NOT NULL DEFAULT '{JSON,GeoJSON}',
     capabilities TEXT[] NOT NULL DEFAULT '{Query,Extract}',
     service_extent GEOMETRY,
@@ -1103,11 +1118,11 @@ $$;
 
 -- Base test service
 INSERT INTO honua.services (
-    service_name, description, srid, max_record_count,
+    service_name, description, srid,
     supported_formats, capabilities, service_extent
 )
 VALUES (
-    'test_service', 'Test Feature Service', 4326, 1000,
+    'test_service', 'Test Feature Service', 4326,
     ARRAY['JSON', 'GeoJSON'],
     ARRAY['Query', 'Extract', 'Create', 'Update', 'Delete'],
     ST_MakeEnvelope(-122.5, 37.7, -122.35, 37.84, 4326)
@@ -1115,7 +1130,6 @@ VALUES (
 ON CONFLICT (service_name) DO UPDATE SET
     description = EXCLUDED.description,
     srid = EXCLUDED.srid,
-    max_record_count = EXCLUDED.max_record_count,
     supported_formats = EXCLUDED.supported_formats,
     capabilities = EXCLUDED.capabilities,
     service_extent = EXCLUDED.service_extent,
@@ -1421,7 +1435,10 @@ CREATE INDEX IF NOT EXISTS tile_cache_entries_cache_zoom_idx
 -- Schema-floor guard adoption (honua-server#4889 is the same class of defect,
 -- for the older 055_SetRasterDataExternalStorage EXTERNAL-storage guard).
 --
--- This seed creates tables directly, before the candidate has ever booted to
+-- Only seed-first consumers (scripts/installed-candidate-fixture.mjs) need this
+-- section; on the server-migrated database the integration workflow seeds, the
+-- objects and journal rows already exist and every statement here is a no-op.
+-- Seeding first creates tables directly, before the candidate has ever booted to
 -- run its own migrations and journal them. honua-server's PostgresCoreSchemaGuard
 -- fails closed with SchemaExistsWithoutJournal/MigrationNotApplied the first
 -- time it boots against a schema that already has a migration-owned table (or
@@ -1553,6 +1570,15 @@ CREATE SEQUENCE IF NOT EXISTS honua.sta_sensor_id_seq;
 CREATE SEQUENCE IF NOT EXISTS honua.sta_observed_property_id_seq;
 CREATE SEQUENCE IF NOT EXISTS honua.sta_datastream_id_seq;
 CREATE SEQUENCE IF NOT EXISTS honua.sta_observation_id_seq;
+
+-- On a migrated database the sta_* ids default to the sequences from migration
+-- 116_AddSensorThingsIdSequences.sql. The rows above carry explicit ids, so position
+-- each sequence after them, exactly as that migration's setval block does.
+SELECT setval('honua.sta_thing_id_seq', GREATEST(COALESCE(MAX(id), 0), 1), COALESCE(MAX(id), 0) > 0) FROM honua.sta_thing;
+SELECT setval('honua.sta_sensor_id_seq', GREATEST(COALESCE(MAX(id), 0), 1), COALESCE(MAX(id), 0) > 0) FROM honua.sta_sensor;
+SELECT setval('honua.sta_observed_property_id_seq', GREATEST(COALESCE(MAX(id), 0), 1), COALESCE(MAX(id), 0) > 0) FROM honua.sta_observed_property;
+SELECT setval('honua.sta_datastream_id_seq', GREATEST(COALESCE(MAX(id), 0), 1), COALESCE(MAX(id), 0) > 0) FROM honua.sta_datastream;
+SELECT setval('honua.sta_observation_id_seq', GREATEST(COALESCE(MAX(id), 0), 1), COALESCE(MAX(id), 0) > 0) FROM honua.sta_observation;
 
 -- 110_PreserveGovernedLineage.sql is deliberately NOT pre-journaled below: it only ALTERs
 -- feature_change_outbox/feature_changes/alert_events, and feature_changes carries a real

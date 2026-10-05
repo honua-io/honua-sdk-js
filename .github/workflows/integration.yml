@@ -7,7 +7,8 @@ name: SDK Integration
 #
 #   * self-contained (default on push / schedule / dispatch): the workflow
 #     spins the PINNED `honua-server:nightly` container plus Redis and Postgres
-#     INSIDE the job, applies the vendored seed, waits for health, and points
+#     INSIDE the job, boots the server against the empty database so its own
+#     migrations run, applies the vendored seed, waits for health, and points
 #     the suites at it. No external environment and no new secrets — image
 #     pulls use the workflow GITHUB_TOKEN (packages: read), superseding the
 #     old connect-only decision (honua-sdk-js#39) for CI (honua-sdk-js#361).
@@ -69,21 +70,25 @@ env:
   # deliberate, reviewable change. The vendored seed
   # (test/integration/seed/places-roads-v1.sql) is refreshed 1:1 with this pin.
   #
-  # Pinned to the current nightly candidate identity. Repository overrides must
-  # also be immutable digest references so evidence cannot drift between runs.
-  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:78e3088d64d832d3e2752c87d80bfcad201b414f4525989ca5d9a242cd5fee8a' }}
-  HONUA_INTEGRATION_SERVER_COMMIT: ${{ vars.HONUA_INTEGRATION_SERVER_COMMIT || '6d13c20fdf131a04cdfe2658ff84d3b55c3f5b76' }}
-  HONUA_CANDIDATE_CUT_AT: ${{ vars.HONUA_CANDIDATE_CUT_AT || '2026-08-20T07:58:03Z' }}
+  # Pinned to the current nightly candidate identity (R21: SDKs certify against
+  # the candidate): honua-server ff5f567, built by Nightly Container Build run
+  # 37188030565, which started (cut) at 2026-10-04T08:09:54Z. Repository
+  # overrides must also be immutable digest references so evidence cannot drift
+  # between runs. NOTE: the HONUA_INTEGRATION_SERVER_IMAGE / _SERVER_COMMIT /
+  # HONUA_CANDIDATE_CUT_AT repo variables, when set, replace this pin — see
+  # docs/integration-tests.md.
+  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39' }}
+  HONUA_INTEGRATION_SERVER_COMMIT: ${{ vars.HONUA_INTEGRATION_SERVER_COMMIT || 'ff5f5671903e96e13cffac7b73546c3ed0f853c5' }}
+  HONUA_CANDIDATE_CUT_AT: ${{ vars.HONUA_CANDIDATE_CUT_AT || '2026-10-04T08:09:54Z' }}
   HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID: ${{ (vars.HONUA_INTEGRATION_SERVER_IMAGE != '' || vars.HONUA_INTEGRATION_SERVER_COMMIT != '' || vars.HONUA_CANDIDATE_CUT_AT != '') && !(vars.HONUA_INTEGRATION_SERVER_IMAGE != '' && vars.HONUA_INTEGRATION_SERVER_COMMIT != '' && vars.HONUA_CANDIDATE_CUT_AT != '') }}
   HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.2.0-alpha.1' }}
   # Deterministic container passwords for the self-contained stack. These are
-  # NOT secrets (the stack is ephemeral and never exposed off the runner); the
-  # encryption master-key/salt are the same fixed test values honua-server's own
-  # client-compat compose uses.
+  # NOT secrets (the stack is ephemeral and never exposed off the runner). The
+  # connection-encryption master key/salt and the operation key-ring certificate
+  # are minted per run in "Start self-contained Honua Server": Production refuses
+  # the placeholder values shipped in honua-server's harness files.
   SELF_CONTAINED_PG_PASSWORD: ci_password
   SELF_CONTAINED_ADMIN_PASSWORD: CiIntegrationAdmin123!
-  SELF_CONTAINED_ENC_MASTER_KEY: test-master-key-that-is-at-least-32-characters-long-for-security
-  SELF_CONTAINED_ENC_SALT: dGVzdC1zYWx0LWZvci1lbmNyeXB0aW9uLXRlc3RpbmctcHVycG9zZXM=
 
 jobs:
   integration:
@@ -236,10 +241,14 @@ jobs:
         if: steps.mode.outputs.mode == 'self-contained'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      # Bring up Postgres + Redis + the pinned server, seed BEFORE the server
-      # boots (mirroring honua-server's client-compat compose ordering so the
-      # activated Metadata v2 snapshot covers the seeded service), then health-
-      # gate with a bounded wait and a container-log dump on timeout (NFR-002).
+      # Bring up Postgres + Redis, boot the pinned server against the EMPTY
+      # database so it applies every migration itself (contract-phase ones such
+      # as 038_DropV1MetadataGraphTables included), then seed the migrated schema
+      # and restart. Seeding first made the database "existing" and the server's
+      # migration safety gate refused the pending contract migrations
+      # (honua-sdk-js#1946); CI never approves (HONUA_APPROVE_CONTRACT_MIGRATIONS)
+      # or skips (HONUA_SKIP_MIGRATIONS) that gate. Each readiness wait is bounded
+      # and dumps container logs on timeout (NFR-002).
       - name: Start self-contained Honua Server
         id: server
         if: steps.mode.outputs.mode == 'self-contained'
@@ -247,6 +256,46 @@ jobs:
           set -euo pipefail
           NET=honua-integration
           PG_DB=honua_integration
+
+          if [ "${HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID}" = "true" ]; then
+            echo "::error::HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together"
+            exit 1
+          fi
+          node --input-type=module -e \
+            'import { validateIdentityOverrideEnvironment } from "./scripts/protocol-certification-fragment.mjs"; validateIdentityOverrideEnvironment(process.env);'
+
+          # Production refuses to boot without an operator certificate for the
+          # Redis-backed operation key ring (honua-server#4722) and rejects the
+          # placeholder connection-encryption key/salt from honua-server's harness
+          # files. Mint throwaway values for this run only: they guard this
+          # runner's disposable Postgres/Redis and never leave it. Both servers
+          # (Community and the Pro alerts surface below) share them via GITHUB_ENV.
+          keyring="$RUNNER_TEMP/keyring"
+          install -d -m 0755 "$keyring"
+          KEYRING_PASSWORD="$(openssl rand -hex 24)"
+          ENC_MASTER_KEY="$(openssl rand -hex 32)"
+          ENC_SALT="$(openssl rand -base64 32)"
+          export KEYRING_PASSWORD
+          echo "::add-mask::$KEYRING_PASSWORD"
+          echo "::add-mask::$ENC_MASTER_KEY"
+          echo "::add-mask::$ENC_SALT"
+          (
+            umask 077
+            openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=honua-sdk-js-integration-keyring" \
+              -keyout "$keyring/keyring.key" -out "$keyring/keyring.crt" 2>/dev/null
+            openssl pkcs12 -export -in "$keyring/keyring.crt" -inkey "$keyring/keyring.key" \
+              -out "$keyring/operation-keyring.pfx" -passout env:KEYRING_PASSWORD
+          )
+          rm -f "$keyring/keyring.key" "$keyring/keyring.crt"
+          # Bind-mounted read-only; the image's non-root user reads it by mode.
+          chmod 0644 "$keyring/operation-keyring.pfx"
+          {
+            echo "SELF_CONTAINED_KEYRING_CERTIFICATE=$keyring/operation-keyring.pfx"
+            echo "SELF_CONTAINED_KEYRING_PASSWORD=$KEYRING_PASSWORD"
+            echo "SELF_CONTAINED_ENC_MASTER_KEY=$ENC_MASTER_KEY"
+            echo "SELF_CONTAINED_ENC_SALT=$ENC_SALT"
+          } >> "$GITHUB_ENV"
+
           docker network create "$NET"
 
           docker run -d --name honua-pg --network "$NET" \
@@ -259,28 +308,25 @@ jobs:
           docker run -d --name honua-redis --network "$NET" \
             redis:7.4-alpine redis-server --appendonly no
 
+          # Probe over TCP: during the image's init phase the temporary server
+          # answers on the Unix socket only, then restarts.
           echo "Waiting for Postgres..."
           for i in $(seq 1 30); do
-            if docker exec honua-pg pg_isready -U postgres >/dev/null 2>&1; then break; fi
+            if docker exec honua-pg pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then break; fi
             sleep 2
             if [ "$i" -eq 30 ]; then echo "::error::Postgres did not become ready"; docker logs honua-pg; exit 1; fi
           done
 
-          echo "Applying vendored seed (registers test_service / layer 0, activates the v2 snapshot last)..."
-          docker run --rm --network "$NET" \
-            -e PGPASSWORD="$SELF_CONTAINED_PG_PASSWORD" \
-            -v "${GITHUB_WORKSPACE}/test/integration/seed:/seed:ro" \
-            postgres:16 \
-            psql -v ON_ERROR_STOP=1 -h honua-pg -U postgres -d "$PG_DB" -f /seed/places-roads-v1.sql
+          # The seed's raster fixtures need postgis_raster. Install it BEFORE the
+          # first boot so the server's raster migrations run with the rest;
+          # installed afterwards, they stay pending on an existing database and
+          # the next boot (the restart below, the Pro alerts server) is gated.
+          docker exec honua-pg psql -v ON_ERROR_STOP=1 -U postgres -d "$PG_DB" \
+            -c "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS postgis_raster;"
 
-          if [ "${HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID}" = "true" ]; then
-            echo "::error::HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together"
-            exit 1
-          fi
-          node --input-type=module -e \
-            'import { validateIdentityOverrideEnvironment } from "./scripts/protocol-certification-fragment.mjs"; validateIdentityOverrideEnvironment(process.env);'
-          echo "Starting Honua Server (${HONUA_INTEGRATION_SERVER_IMAGE})..."
+          echo "Starting Honua Server (${HONUA_INTEGRATION_SERVER_IMAGE}) against the empty database..."
           docker run -d --name honua-server --network "$NET" -p 8080:8080 \
+            -v "$keyring/operation-keyring.pfx:/keyring/operation-keyring.pfx:ro" \
             -e ASPNETCORE_ENVIRONMENT=Production \
             -e ASPNETCORE_URLS=http://+:8080 \
             -e Kestrel__Endpoints__Http__Protocols=Http1AndHttp2 \
@@ -289,27 +335,46 @@ jobs:
             -e "ConnectionStrings__DefaultConnection=Server=honua-pg;Port=5432;Database=${PG_DB};User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
             -e "ConnectionStrings__honua=Server=honua-pg;Port=5432;Database=${PG_DB};User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
             -e ConnectionStrings__Redis=honua-redis:6379 \
-            -e Security__ConnectionEncryption__MasterKey="$SELF_CONTAINED_ENC_MASTER_KEY" \
-            -e Security__ConnectionEncryption__Salt="$SELF_CONTAINED_ENC_SALT" \
+            -e Security__ConnectionEncryption__MasterKey="$ENC_MASTER_KEY" \
+            -e Security__ConnectionEncryption__Salt="$ENC_SALT" \
+            -e Operations__SecretChannel__KeyRingCertificatePath=/keyring/operation-keyring.pfx \
+            -e Operations__SecretChannel__KeyRingCertificatePassword="$KEYRING_PASSWORD" \
             -e HostValidation__AllowedHosts__0=localhost \
             -e HostValidation__AllowedHosts__1=127.0.0.1 \
             "$HONUA_INTEGRATION_SERVER_IMAGE"
 
-          echo "Waiting for server readiness (bounded)..."
-          ready=0
-          for i in $(seq 1 60); do
-            if curl -fsS http://localhost:8080/healthz/ready >/dev/null 2>&1; then ready=1; break; fi
-            if [ "$(docker inspect -f '{{.State.Running}}' honua-server 2>/dev/null)" != "true" ]; then
-              echo "::error::Honua Server container exited before becoming ready"; break
-            fi
-            sleep 5
-          done
-          if [ "$ready" -ne 1 ]; then
-            echo "::error::Honua Server did not report ready within the timeout; dumping logs"
+          wait_ready() {
+            for i in $(seq 1 60); do
+              if curl -fsS http://localhost:8080/healthz/ready >/dev/null 2>&1; then return 0; fi
+              if [ "$(docker inspect -f '{{.State.Running}}' honua-server 2>/dev/null)" != "true" ]; then
+                echo "::error::Honua Server container exited before becoming ready ($1)"; break
+              fi
+              sleep 5
+            done
+            echo "::error::Honua Server did not report ready within the timeout ($1); dumping logs"
             docker logs honua-server || true
             docker logs honua-pg || true
-            exit 1
-          fi
+            return 1
+          }
+
+          echo "Waiting for server readiness after first boot (migrations)..."
+          wait_ready "first boot"
+
+          echo "Applying vendored seed (registers test_service / layer 0, activates the v2 snapshot last)..."
+          docker run --rm --network "$NET" \
+            -e PGPASSWORD="$SELF_CONTAINED_PG_PASSWORD" \
+            -v "${GITHUB_WORKSPACE}/test/integration/seed:/seed:ro" \
+            postgres:16 \
+            psql -v ON_ERROR_STOP=1 -h honua-pg -U postgres -d "$PG_DB" -f /seed/places-roads-v1.sql
+
+          # Restart so every surface starts from the seeded catalog and the
+          # activated snapshot, and so a seed that leaves a migration pending
+          # fails here rather than in a later step.
+          echo "Restarting Honua Server on the seeded database..."
+          docker restart honua-server >/dev/null
+
+          echo "Waiting for server readiness after the seeded restart..."
+          wait_ready "seeded restart"
 
           # Point the suites at the in-workflow server and the seed's actual
           # coordinates (test_service / layer 0 / collection 0 — what the
@@ -456,6 +521,7 @@ jobs:
           # non-Production CI entitlement hook, without changing the Production
           # Community target used by every other surface and conformance.
           docker run -d --name honua-server-alerts --network honua-integration -p 8081:8080 \
+            -v "$SELF_CONTAINED_KEYRING_CERTIFICATE:/keyring/operation-keyring.pfx:ro" \
             -e ASPNETCORE_ENVIRONMENT=Development \
             -e Licensing__DevGrantEdition=Pro \
             -e ASPNETCORE_URLS=http://+:8080 \
@@ -467,6 +533,8 @@ jobs:
             -e ConnectionStrings__Redis=honua-redis:6379 \
             -e Security__ConnectionEncryption__MasterKey="$SELF_CONTAINED_ENC_MASTER_KEY" \
             -e Security__ConnectionEncryption__Salt="$SELF_CONTAINED_ENC_SALT" \
+            -e Operations__SecretChannel__KeyRingCertificatePath=/keyring/operation-keyring.pfx \
+            -e Operations__SecretChannel__KeyRingCertificatePassword="$SELF_CONTAINED_KEYRING_PASSWORD" \
             -e HostValidation__AllowedHosts__0=localhost \
             -e HostValidation__AllowedHosts__1=127.0.0.1 \
             "$HONUA_INTEGRATION_SERVER_IMAGE"
