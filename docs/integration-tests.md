@@ -140,49 +140,59 @@ truncated with a `[truncated, original N chars]` suffix.
 ## CI integration
 
 `.github/workflows/integration.yml` runs the lane on `trunk` /
-`release/**` pushes and on manual dispatch. It is **connect-only**
-against an externally-managed seeded Honua Server — the SDK repo does
-not own the server bootstrap or seed because there is no public
-seed-on-start image or admin seed API in honua-server today (tracked
-as a follow-on, see "Deferred infrastructure" below).
+`release/**` pushes, nightly, and on manual dispatch. By default it is
+**self-contained**: the job runs the pinned Honua Server image plus
+Postgres and Redis inside the workflow. An external base URL (dispatch
+`base_url` input or the `HONUA_INTEGRATION_BASE_URL` repo variable)
+switches it to connect-only against an already-seeded deployment.
 
-The job:
+The self-contained stack starts in this order (honua-sdk-js#1946):
 
-1. Reads `HONUA_INTEGRATION_BASE_URL` from the workflow input or repo
-   variable. If neither is set, the workflow exits 0 with a notice in
-   the step summary so trunk pushes do not fail before the staging
-   environment is provisioned.
-2. Verifies that `HONUA_INTEGRATION_API_KEY` (repo secret) is present;
-   otherwise it fails fast with an explicit error. The value must
-   match the target server's `HONUA_ADMIN_PASSWORD`.
-3. Polls `${HONUA_INTEGRATION_BASE_URL}/healthz/live` until the server
-   reports healthy.
-4. Runs `npm run test:integration` with the resolved env.
-5. Uploads `test-results/integration-meta.json` as the
-   `integration-meta` artifact (always, including on failure).
-6. Renders a summary table into `$GITHUB_STEP_SUMMARY` listing every
-   surface and its status.
+1. Start Postgres and Redis, then install `postgis` and `postgis_raster`.
+2. Boot the server against the **empty** database. It applies every
+   migration itself, contract-phase ones such as
+   `038_DropV1MetadataGraphTables` included, and journals them.
+3. Wait for `/healthz/ready`.
+4. Apply `test/integration/seed/places-roads-v1.sql` to the migrated
+   schema. It registers `test_service` / layer `0` and activates the
+   Metadata v2 compat snapshot last.
+5. Restart the server and wait for ready again.
 
-### Required repo configuration
+Do not seed before the first boot. A seeded database counts as
+"existing", and the migration safety gate then refuses the pending
+contract migrations. CI never sets `HONUA_APPROVE_CONTRACT_MIGRATIONS` or
+`HONUA_SKIP_MIGRATIONS` to get past that gate. Installing
+`postgis_raster` after the first boot has the same effect: the raster
+migrations stay pending and the restart is refused.
+
+Production refuses the placeholder connection-encryption key/salt and
+needs an operation key-ring certificate. The step mints both per run;
+they never leave the runner.
+
+### Server pin and repo-variable override
+
+The workflow pins the candidate at workflow level:
+
+| Env | Default |
+| --- | --- |
+| `HONUA_INTEGRATION_SERVER_IMAGE` | `ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39` |
+| `HONUA_INTEGRATION_SERVER_COMMIT` | `ff5f5671903e96e13cffac7b73546c3ed0f853c5` |
+| `HONUA_CANDIDATE_CUT_AT` | `2026-10-04T08:09:54Z` |
+
+Repo variables with the same three names **replace** these defaults.
+They must be set together (the job fails otherwise), and the image must
+be an `@sha256:` digest. While they are set, CI runs the variable image,
+not the pin in the workflow file. Check `gh variable list` before
+treating a run as evidence for the pinned candidate. To run the pin,
+delete all three variables. To certify another image, update all three.
+
+### External mode configuration
 
 | Scope | Name | Purpose |
 | --- | --- | --- |
-| Repository variable | `HONUA_INTEGRATION_BASE_URL` | URL of the staging Honua Server. When unset the workflow skips. |
-| Repository secret | `HONUA_INTEGRATION_API_KEY` | `X-API-Key` (matches server `HONUA_ADMIN_PASSWORD`). Required when the base URL is set. |
-| Repository variable (optional) | `HONUA_INTEGRATION_SERVICE_ID`, `HONUA_INTEGRATION_LAYER_ID`, `HONUA_INTEGRATION_COLLECTION_ID`, `HONUA_INTEGRATION_TILE_MATRIX_SET`, `HONUA_INTEGRATION_SEED_PROFILE`, `HONUA_INTEGRATION_SERVER_IMAGE`, `HONUA_INTEGRATION_SERVER_COMMIT` | Override the corresponding harness defaults to match the staging seed. `HONUA_INTEGRATION_SERVER_COMMIT` records the Honua Server commit (not the SDK commit) in `integration-meta.json`; leave unset when it is unknown. |
-
-### Deferred infrastructure
-
-- A `:nightly-seeded` (or equivalent) Honua Server image with the test
-  catalog baked in does not yet exist. Until it does, the workflow
-  cannot bootstrap its own server from inside CI.
-- A public admin seed API (`POST /api/v1/admin/services` /
-  `.../layers` / `.../features`) does not yet exist. Until it does,
-  the SDK repo cannot seed a freshly-started server without sibling-
-  checking out honua-server and reaching into its Python fixture.
-
-These gaps are tracked as honua-server follow-ons and re-enable the
-service-container path in this workflow once either lands.
+| Repository variable | `HONUA_INTEGRATION_BASE_URL` | URL of an external Honua Server. Unset means self-contained mode. |
+| Repository secret | `HONUA_INTEGRATION_API_KEY` | `X-API-Key` (matches server `HONUA_ADMIN_PASSWORD`). Required in external mode. |
+| Repository variable (optional) | `HONUA_INTEGRATION_SERVICE_ID`, `HONUA_INTEGRATION_LAYER_ID`, `HONUA_INTEGRATION_COLLECTION_ID`, `HONUA_INTEGRATION_TILE_MATRIX_SET`, `HONUA_INTEGRATION_SEED_PROFILE`, `HONUA_INTEGRATION_SERVER_COMMIT`, `HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE` | Override the harness defaults to match the external seed and record its provenance. `HONUA_INTEGRATION_SERVER_COMMIT` records the Honua Server commit (not the SDK commit) in `integration-meta.json`. |
 
 ### Metadata artifact
 

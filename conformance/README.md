@@ -79,9 +79,14 @@ npm run test:conformance
 ```
 
 To reproduce CI's self-contained server locally (what the workflow does), run
-the pinned image plus Redis and Postgres and apply the vendored seed before the
-server boots — see the `Start self-contained Honua Server` step in
+the pinned image plus Redis and Postgres: install `postgis` and
+`postgis_raster`, boot the server against the empty database so it applies its
+own migrations, wait for `/healthz/ready`, apply the vendored seed, then restart
+the server. See the `Start self-contained Honua Server` step in
 `.github/workflows/integration.yml` and `test/integration/seed/places-roads-v1.sql`.
+Seeding before the first boot makes the database "existing", and the server's
+migration safety gate then refuses its pending contract migrations
+(honua-sdk-js#1946).
 That seed exposes service `test_service` / layer `0` / collection `0`, so set
 `HONUA_INTEGRATION_SERVICE_ID=test_service` and `HONUA_INTEGRATION_LAYER_ID=0`.
 
@@ -95,8 +100,9 @@ The **test code** is connect-only — it round-trips against whatever
 `HONUA_INTEGRATION_BASE_URL` points at and never owns server bootstrap. What
 changed in honua-sdk-js#361 is that **CI now provides that server itself**: the
 `Integration + Conformance` job in `.github/workflows/integration.yml` spins the
-pinned image below plus Redis and Postgres inside the workflow, applies the
-vendored seed (`test/integration/seed/places-roads-v1.sql`), waits for health,
+pinned image below plus Redis and Postgres inside the workflow, boots the
+server against the empty database, applies the vendored seed
+(`test/integration/seed/places-roads-v1.sql`), restarts it, waits for health,
 and runs BOTH the surface matrix and this live conformance round-trip against
 it — on every push to trunk and on a nightly `schedule:` cron, with no external
 environment and no new secrets (image pulls use the workflow `GITHUB_TOKEN`).
@@ -108,15 +114,18 @@ The lane pins and records the server under test into
 
 | Field | Value |
 | --- | --- |
-| Image | `ghcr.io/honua-io/honua-server@sha256:78e3088d64d832d3e2752c87d80bfcad201b414f4525989ca5d9a242cd5fee8a` |
-| Server commit | `6d13c20fdf131a04cdfe2658ff84d3b55c3f5b76` |
-| Candidate cut | `2026-08-20T07:58:03Z` |
-| Digest | `sha256:78e3088d64d832d3e2752c87d80bfcad201b414f4525989ca5d9a242cd5fee8a` |
+| Image | `ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39` |
+| Server commit | `ff5f5671903e96e13cffac7b73546c3ed0f853c5` |
+| Candidate cut | `2026-10-04T08:09:54Z` |
+| Digest | `sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39` |
 | Fixtures version | `0.2.0-alpha.1` |
 
 The pin is set at workflow level in `.github/workflows/integration.yml`
 (`HONUA_INTEGRATION_SERVER_IMAGE` / `HONUA_INTEGRATION_SERVER_COMMIT` /
-`HONUA_CONFORMANCE_FIXTURES_VERSION`) and overridable via repo variables. The
+`HONUA_CANDIDATE_CUT_AT` / `HONUA_CONFORMANCE_FIXTURES_VERSION`) and overridable
+via repo variables of the same names. The first three move together: set all of
+them or none. While they are set they replace the pin above, so check
+`gh variable list` before reading a run as evidence for this pin. The
 vendored seed is kept 1:1 with the image pin. Advancing the pin (and refreshing
 the seed alongside it) is a deliberate, reviewable change.
 
