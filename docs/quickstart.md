@@ -103,9 +103,8 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 ## Start from a scaffold instead
 
-<!-- doc-run: blocked https://github.com/honua-io/honua-release/issues/423 -->
 ```bash
-npm create honua-app@latest my-map
+npm create honua-app@0.1.6 my-map -- --sdk-version 0.1.13
 cd my-map
 npm install
 npm run dev
