@@ -3,9 +3,8 @@
 Scaffold a [Honua JavaScript SDK](https://github.com/honua-io/honua-sdk-js) map application — Vite + TypeScript,
 pinned to the certified SDK release, running a map on the first `npm run dev`.
 
-<!-- doc-run: blocked https://github.com/honua-io/honua-release/issues/423 -->
 ```bash
-npm create honua-app@latest my-map
+npm create honua-app@0.1.6 my-map
 cd my-map
 npm install
 npm run dev
@@ -27,9 +26,8 @@ create-honua-app [directory] [options]
 
 With `npm create`, pass CLI options after `--`:
 
-<!-- doc-run: blocked https://github.com/honua-io/honua-release/issues/423 -->
 ```bash
-npm create honua-app@latest my-react-map -- --template react-ts
+npm create honua-app@0.1.6 my-react-map -- --template react-ts
 ```
 
 ## Which SDK version a scaffold pins
@@ -43,9 +41,8 @@ or if it names a prerelease or another line, or if the registry cannot be read, 
 version this release of `create-honua-app` ships with. The default path never pins a prerelease. To choose a version
 yourself, pass `--sdk-version`:
 
-<!-- doc-run: blocked https://github.com/honua-io/honua-release/issues/423 -->
 ```bash
-npm create honua-app@latest my-pinned-map -- --sdk-version 0.1.12
+npm create honua-app@0.1.6 my-pinned-map -- --sdk-version 0.1.13
 ```
 
 ## Templates

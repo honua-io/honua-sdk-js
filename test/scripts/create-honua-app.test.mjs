@@ -35,7 +35,7 @@ const workspaces = [];
  * so a release bump that carries an uncertified version into the manifest
  * fails here instead of shipping in the next create-honua-app.
  */
-const CERTIFIED_SDK_VERSION = "0.1.12";
+const CERTIFIED_SDK_VERSION = "0.1.13";
 
 /** A registry fetch that always fails, so in-process scaffolds never touch the network. */
 async function offlineFetch() {
