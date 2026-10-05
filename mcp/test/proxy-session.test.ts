@@ -9,6 +9,24 @@ const executable =
   process.env.HONUA_PROXY_TEST_EXECUTABLE ?? fileURLToPath(new URL("../dist/src/proxy.js", import.meta.url));
 
 describe("published proxy protocol boundary: initialize-bound sessions", () => {
+  it("preserves the setup view selected by the terminal journey initialize", async () => {
+    const fixture = await startFixture();
+    const proxy = startProxy(executable, fixture.url);
+    try {
+      await proxy.request(initialize("setup"));
+      proxy.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+
+      const listed = await proxy.request({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+
+      expect(listed.result.tools).toHaveLength(25);
+      expect(listed.result._meta.revision).toBe("setup.v2");
+      expect([...fixture.sessions.values()]).toEqual(["setup"]);
+    } finally {
+      await proxy.close();
+      await fixture.close();
+    }
+  });
+
   it("waits for downstream initialize and closes both transports on HTTP failure", async () => {
     const fixture = await startFixture();
     const [client, downstream] = InMemoryTransport.createLinkedPair();
