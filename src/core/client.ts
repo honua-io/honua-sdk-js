@@ -1847,9 +1847,10 @@ export class HonuaClient {
 
     return this.executeRequest<unknown>(request, {
       callerSignal,
+      deadlineThroughFinalize: true,
       readOnlyQuery: policy?.readOnlyQuery,
       redirect: policy?.readOnlyQuery ? "preserve-method" : undefined,
-      finalize: async (response, durationMs, currentRequest, runAfter) => {
+      finalize: async (response, _durationMs, _currentRequest, runAfter) => {
         // Parse the original body directly when no after-interceptor will read
         // it; only clone when an interceptor needs an independent copy.
         const body = await parseResponseBody(this.hasAfterInterceptors() ? response.clone() : response);
@@ -1860,11 +1861,9 @@ export class HonuaClient {
         // failure envelope back as a "successful" response object.
         const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
-          await this.applyErrorInterceptors({
-            request: cloneRequestContext(currentRequest),
-            error: envelopeError,
-            durationMs,
-          });
+          // deadlineThroughFinalize is set for this wrapper, so executeRequest
+          // dispatches error interceptors for this throw. Notifying here as well
+          // runs every hook twice.
           throw envelopeError;
         }
 
@@ -2205,9 +2204,14 @@ export class HonuaClient {
         }
 
         if (!response.ok && !options.okStatuses?.includes(response.status)) {
-          const body = options.errorBody
-            ? await options.errorBody(response, options.deadlineThroughFinalize ? timeout.signal : undefined)
-            : await parseResponseBody(response.clone());
+          const errorBodyRead = options.errorBody
+            ? options.errorBody(response, options.deadlineThroughFinalize ? timeout.signal : undefined)
+            : parseResponseBody(response.clone());
+          // A custom fetchFn can return a non-OK body that ignores init.signal.
+          // Race that read with the same deadline as a successful body.
+          const body = options.deadlineThroughFinalize
+            ? await awaitAbortable(errorBodyRead, timeout.signal)
+            : await errorBodyRead;
           const httpError = toHttpError(response.status, body, response.headers);
           if (
             !refreshedAuth &&
@@ -2246,6 +2250,18 @@ export class HonuaClient {
       } catch (error) {
         if (!options.deadlineThroughFinalize || !timeout.signal?.aborted) throw error;
         const terminalError = timeout.didTimeout ? new HonuaTimeoutError(this.timeoutMs ?? 0) : new HonuaAbortError();
+        // A body-read or finalize deadline is the same transient failure as a
+        // timeout inside fetch. Replay-safe requests re-enter the retry policy.
+        // Caller cancellation is never retried. Interceptors run only once the
+        // attempt is terminal, so a later successful retry does not observe it.
+        if (
+          timeout.didTimeout &&
+          shouldRetryRequest(this.retryOptions, request.method, attempt, undefined, terminalError, readOnlyQuery)
+        ) {
+          await options.beforeReplay?.(cloneRequestContext(request), undefined, "retry");
+          await this.sleepBeforeRetry(attempt, undefined, retrySignal);
+          continue;
+        }
         beginTerminalErrorNotification(terminalError, performance.now() - startTime);
         throw terminalError;
       } finally {
