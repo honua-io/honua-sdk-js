@@ -188,6 +188,7 @@ export function summarize(values) {
   const sorted = [...values].sort((left, right) => left - right);
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  const standardDeviation = Math.sqrt(variance);
   const middle = Math.floor(sorted.length / 2);
   return {
     min: sorted[0],
@@ -195,7 +196,8 @@ export function summarize(values) {
     mean,
     median: sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle],
     p95: percentile(sorted, 0.95),
-    coefficientOfVariation: mean === 0 ? 0 : Math.sqrt(variance) / Math.abs(mean),
+    standardDeviation,
+    coefficientOfVariation: mean === 0 ? 0 : standardDeviation / Math.abs(mean),
   };
 }
 
@@ -275,10 +277,15 @@ export function evaluateScenarios(scenarios, budgets) {
         message: `${metric} median ${summary.median.toFixed(2)} ms`,
       });
       const coefficient = summary.coefficientOfVariation;
+      const minimumStandardDeviationMs =
+        scenarioBudget.variability?.minimumStandardDeviationMs?.[metric] ??
+        budgets.variability.minimumStandardDeviationMs[metric];
       const variationLevel =
-        coefficient > budgets.variability.failureCoefficientOfVariation
+        coefficient > budgets.variability.failureCoefficientOfVariation &&
+        summary.standardDeviation > minimumStandardDeviationMs
           ? "failure"
-          : coefficient > budgets.variability.warningCoefficientOfVariation
+          : coefficient > budgets.variability.warningCoefficientOfVariation &&
+              summary.standardDeviation > minimumStandardDeviationMs
             ? "warning"
             : "pass";
       items.push({
@@ -288,7 +295,9 @@ export function evaluateScenarios(scenarios, budgets) {
         actual: coefficient,
         warning: budgets.variability.warningCoefficientOfVariation,
         failure: budgets.variability.failureCoefficientOfVariation,
-        message: `${metric} repeated-run variation ${(coefficient * 100).toFixed(2)}%`,
+        absoluteSpread: summary.standardDeviation,
+        absoluteFloor: minimumStandardDeviationMs,
+        message: `${metric} repeated-run variation ${(coefficient * 100).toFixed(2)}% with ${summary.standardDeviation.toFixed(2)} ms standard deviation (floor ${minimumStandardDeviationMs.toFixed(2)} ms)`,
       });
     }
     items.push(...evaluateStageBudgets(scenario, scenarioBudget));
@@ -301,6 +310,21 @@ export function evaluateScenarios(scenarios, budgets) {
         : "pass",
     items,
   };
+}
+
+export function formatFailingItems(evaluation) {
+  return evaluation.items
+    .filter((item) => item.level === "failure")
+    .map((item) => {
+      const actual = item.actual ?? "n/a";
+      const threshold = item.failure ?? "n/a";
+      const spread =
+        item.absoluteSpread === undefined
+          ? ""
+          : `; absolute spread ${item.absoluteSpread} ms, floor ${item.absoluteFloor} ms`;
+      return `  FAILURE ${item.scenarioId} ${item.metric}: actual ${actual}, threshold ${threshold}${spread}`;
+    })
+    .join("\n");
 }
 
 function screenshotEvidence(buffer, relativePath) {
@@ -972,6 +996,8 @@ async function main() {
     for (const result of operationalScenarioList) {
       process.stdout.write(`  ${result.id}: ${result.passed ? "pass" : "FAILURE"}\n`);
     }
+    const failingItems = formatFailingItems(report.evaluation);
+    if (failingItems) process.stdout.write(`Failing benchmark items:\n${failingItems}\n`);
     if (options.check && report.evaluation.level === "failure") process.exitCode = 1;
   } finally {
     await browser.close();

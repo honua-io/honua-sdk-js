@@ -139,6 +139,17 @@ committed [`browser/budgets.json`](./browser/budgets.json) bounds hangs, extreme
 latency, variance, and broken rendering/interaction invariants. CI uploads the
 complete directory as `sdk-browser-benchmark`.
 
+Repeated-run variation uses two gates together. A timing metric warns or fails
+only when its coefficient of variation exceeds the corresponding ratio budget
+**and** its standard deviation exceeds the metric's
+`minimumStandardDeviationMs` floor. The committed defaults are 250 ms for
+first-visible time and 40 ms for interaction latency (small fractions of their
+warning budgets); a scenario can replace either default in its `variability`
+block, as the flagship MapLibre interaction does. This retains detection of
+material instability without treating a few milliseconds of scheduler noise
+around a tiny median as a regression. Median budgets are evaluated separately
+and are unchanged by the variation floor.
+
 `report.corpus.sha256` identifies only the benchmark's own scenario/data
 definitions (`BROWSER_CORPUS_SOURCE_FILES` + the versioned fixture pack) — it
 deliberately does **not** include the deck.gl adapter (or any other SDK
