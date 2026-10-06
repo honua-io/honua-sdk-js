@@ -27,6 +27,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PACKAGE_ROOT = path.join(ROOT, "packages/create-honua-app");
+const WORKSPACE_PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 const workspaces = [];
 
 /**
@@ -168,12 +169,14 @@ describe("template manifest", () => {
     }
   });
 
-  it("pins every template to the manifest's published SDK version", () => {
+  it("pins every template to the workspace SDK package version", () => {
+    assert.equal(manifest.sdk.package, WORKSPACE_PACKAGE.name);
+    assert.equal(manifest.sdk.version, WORKSPACE_PACKAGE.version);
     for (const template of manifest.templates) {
       const projectManifest = JSON.parse(
         fs.readFileSync(path.join(templateRoot(manifest, template.id, PACKAGE_ROOT), "package.json"), "utf8"),
       );
-      assert.equal(projectManifest.dependencies[manifest.sdk.package], manifest.sdk.version);
+      assert.equal(projectManifest.dependencies[WORKSPACE_PACKAGE.name], WORKSPACE_PACKAGE.version);
     }
   });
 
