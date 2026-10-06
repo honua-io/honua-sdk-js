@@ -72,10 +72,6 @@
           "type": "json",
           "path": "config/protocol-certification.v1.json",
           "jsonpath": "$.clientVersion"
-        },
-        {
-          "type": "generic",
-          "path": "docs/playgrounds.md"
         }
       ],
       "changelog-sections": [
