@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.14](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.13...mcp-server-v0.1.14) (2026-10-06)
+
+
+### Bug Fixes
+
+* **mcp-proxy:** preserve the initialize-bound setup view across the proxy ([#1950](https://github.com/honua-io/honua-sdk-js/issues/1950)) ([ef1e3bd](https://github.com/honua-io/honua-sdk-js/commit/ef1e3bd909e2f30b2cb19463ede66f7427b86220))
+* **mcp-server:** keep 3D point altitude in esri-json output; WFS extent drains observe cancellation ([1557f9f](https://github.com/honua-io/honua-sdk-js/commit/1557f9f8c6d84a40b5c1dca31d08817aa93a3207))
+* **mcp-server:** query output format must match the payload; standalone aggregation observes MCP cancellation ([c1d2a0a](https://github.com/honua-io/honua-sdk-js/commit/c1d2a0a10f8035d6540f7597e37bb511a285f326))
+* **mcp-server:** query output format must match the payload; standalone aggregation observes MCP cancellation ([5bb9005](https://github.com/honua-io/honua-sdk-js/commit/5bb900551d178e01c14f7c4a880e15001cb89ba2))
+
+
+### Documentation
+
+* **mcp:** make mcp/README.md blocks run against the 2026.1 candidate ([55cd8bd](https://github.com/honua-io/honua-sdk-js/commit/55cd8bd4ecd151c74839d6431acb50a860216fe6))
+* **mcp:** make mcp/README.md blocks run against the 2026.1 candidate ([56991c2](https://github.com/honua-io/honua-sdk-js/commit/56991c24edddc01ab53bc1eeb6612cac00d6a37d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.14
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.13 to ^0.1.14
+
 ## [0.1.13](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.12...mcp-server-v0.1.13) (2026-10-04)
 
 
