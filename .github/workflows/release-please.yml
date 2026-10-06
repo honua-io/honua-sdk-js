@@ -106,6 +106,9 @@ jobs:
               (github.event_name == 'workflow_dispatch' &&
                inputs.finish_stranded_draft != '') }}
         env:
+          # Read-only run polling uses the job token, never the bot App token.
+          # Run 37443697644 already used this identity when GitHub rejected it
+          # with 401; App expiry is not supported by that run's evidence.
           GH_TOKEN: ${{ github.token }}
           FINISH_STRANDED_DRAFT: ${{ inputs.finish_stranded_draft }}
           JS_SDK_RELEASE_CREATED: ${{ steps.release.outputs.release_created || steps.release.outputs['.--release_created'] }}
