@@ -10,6 +10,7 @@ import {
   SAME_ORIGIN_FIRST_MAP_FIXTURE,
   endpointForFirstMapProtocol,
   resolveFirstMapConfig,
+  resolveFirstMapFixtureEndpoint,
 } from "../examples/maplibre-quickstart/src/first-map-config.js";
 import { runFirstMapWorkflow } from "../examples/maplibre-quickstart/src/workflow.js";
 import { type SampleFixtureHarness, loadFixturePack, startSampleFixtureHarness } from "../samples/scenarios/index.mjs";
@@ -268,6 +269,12 @@ describe("First Map copyable workflow core", () => {
       ),
     ).toBe(`${publishedBase}custom/FeatureServer/0/`);
     expect(endpointForFirstMapProtocol(geoservices, "ogc-features", "https://other.example.test")).toBe(geoservices);
+  });
+
+  it("resolves the fixture endpoint relative to a sub-path document", () => {
+    expect(resolveFirstMapFixtureEndpoint("https://samples.example.test/sdk/maplibre-quickstart/app/index.html")).toBe(
+      "https://samples.example.test/sdk/maplibre-quickstart/app/rest/services/natural-earth/FeatureServer/0/",
+    );
   });
 
   it("mechanically keeps the published-SDK workflow within 120 non-comment lines", () => {
