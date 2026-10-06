@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { HonuaClient } from "@honua/sdk-js";
 import type { HonuaTransport } from "@honua/sdk-js";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -73,7 +74,9 @@ export const SERVER_VERSION = resolveServerVersion();
 
 function resolveServerVersion(): string {
   try {
-    const packageJsonPath = new URL("../../package.json", import.meta.url);
+    // Self-reference resolves this package in both src/ and dist/src/. A
+    // relative ../../ path reads the SDK's manifest when Vitest loads src/.
+    const packageJsonPath = createRequire(import.meta.url).resolve("@honua/mcp-server/package.json");
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { version?: unknown };
     if (typeof packageJson.version === "string" && packageJson.version.length > 0) {
       return packageJson.version;

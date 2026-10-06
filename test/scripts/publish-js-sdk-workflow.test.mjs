@@ -122,3 +122,24 @@ function fixture(t, dryRun, failClientPair = false) {
     calls: () => fs.readFileSync(path.join(fixtureRoot, "calls.jsonl"), "utf8").trim().split("\n").map(JSON.parse),
   };
 }
+
+for (const availableAfter of [17 * 60, Infinity]) {
+  it(`registry verification waits for propagation and fails closed (available after ${availableAfter}s)`, () => {
+    const verify = workflow.jobs["verify-published-release"].steps
+      .find((step) => step.name === "Verify registry versions, integrity, provenance, and source SHA").run;
+    const clock = `
+      SECONDS=0
+      calls=0
+      node() { calls=$((calls + 1)); (( SECONDS >= ${Number.isFinite(availableAfter) ? availableAfter : 99999} )); }
+      sleep() { SECONDS=$((SECONDS + $1)); }
+      trap 'echo "clock=$SECONDS calls=$calls"' EXIT
+    `;
+    const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", clock + verify], {
+      encoding: "utf8", env: { ...process.env, RELEASE_TAG: "js-sdk-v0.1.14", SEALED_COMMIT: "a".repeat(40), PUBLISH_REF: "refs/tags/js-sdk-v0.1.14" },
+    });
+    assert.equal(result.status, Number.isFinite(availableAfter) ? 0 : 1, result.stderr);
+    const elapsed = Number(/clock=([0-9]+)/u.exec(result.stdout)[1]);
+    assert.ok(elapsed >= (Number.isFinite(availableAfter) ? availableAfter : 45 * 60));
+    assert.ok(elapsed <= 45 * 60);
+  });
+}
