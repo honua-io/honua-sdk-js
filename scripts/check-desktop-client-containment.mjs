@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { inspectDesktopClientContainment } from "./lib/desktop-client-containment.mjs";
+import { ALLOWED_LINE_HASHES, inspectDesktopClientContainment } from "./lib/desktop-client-containment.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const trackedPaths = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
@@ -22,5 +22,6 @@ if (result.unexpected.length > 0 || result.missing.length > 0) {
   }
   process.exitCode = 1;
 } else {
-  console.log("Desktop-client containment verified: 5 nominative references, no testing detail.");
+  const nominativeCount = [...ALLOWED_LINE_HASHES.values()].reduce((count, hashes) => count + hashes.size, 0);
+  console.log(`Desktop-client containment verified: ${nominativeCount} nominative references, no testing detail.`);
 }
