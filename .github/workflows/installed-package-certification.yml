@@ -10,6 +10,12 @@ permissions:
   issues: write
   packages: read
 
+# Serialize runs so the tracking-issue lookup/create below cannot race and
+# open duplicates; never cancel a certification run in flight.
+concurrency:
+  group: installed-package-certification
+  cancel-in-progress: false
+
 jobs:
   certify:
     runs-on: ubuntu-24.04
