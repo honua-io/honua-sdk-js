@@ -12,6 +12,15 @@ describe("@honua/geometry convert (reused core esri-geojson)", () => {
     expect(back).toMatchObject({ x: -122.4, y: 37.7, spatialReference: { wkid: 4326 } });
   });
 
+  it("keeps the altitude of a 3D GeoJSON point as Esri z", () => {
+    expect(geoJsonToEsri({ type: "Point", coordinates: [-122.4, 37.7, 12.5] })).toEqual({
+      x: -122.4,
+      y: 37.7,
+      z: 12.5,
+    });
+    expect(geoJsonToEsri({ type: "Point", coordinates: [-122.4, 37.7] })).toEqual({ x: -122.4, y: 37.7 });
+  });
+
   it("rewinds polygon rings to the Esri convention (clockwise exterior)", () => {
     // GeoJSON exterior ring is counter-clockwise (positive signed area).
     const geojson: GeoJsonPolygon = {

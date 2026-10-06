@@ -1751,9 +1751,9 @@ export function wfsSource<T>(
    * does not issue network traffic.
    */
   let cachedFormat: OutputFormatChoice | undefined;
-  async function negotiateJsonOrThrow(): Promise<OutputFormatChoice> {
+  async function negotiateJsonOrThrow(signal?: AbortSignal): Promise<OutputFormatChoice> {
     if (cachedFormat) return cachedFormat;
-    const snapshot = await root.capabilities();
+    const snapshot = await root.capabilities(signal ? { signal } : undefined);
     const choice = root.negotiateOutputFormat(snapshot);
     if (!choice) {
       throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
@@ -1866,7 +1866,7 @@ export function wfsSource<T>(
       // Unfiltered queryExtent: prefer the per-feature-type WGS84BoundingBox
       // from GetCapabilities so we avoid an extra HTTP request entirely.
       if (!hasExtentFilter(request) && request?.outSr === undefined) {
-        const snapshot = await root.capabilities();
+        const snapshot = await root.capabilities(request?.signal ? { signal: request.signal } : undefined);
         const ft = snapshot.featureTypes.find((entry) => entry.name === typeName);
         if (ft?.wgs84BoundingBox) {
           return { extent: { ...ft.wgs84BoundingBox } };
@@ -1876,7 +1876,7 @@ export function wfsSource<T>(
       // covers all features the filter resolves to, not just the first
       // server-default page. Caller pagination is intentionally ignored —
       // queryExtent is a "what bbox holds the matching set" question.
-      const choice = await negotiateJsonOrThrow();
+      const choice = await negotiateJsonOrThrow(request?.signal);
       const drainPageSize = 2000;
       const extentRequest = toWfsExtentDrainRequest(request);
       let xmin = Number.POSITIVE_INFINITY;
@@ -1896,6 +1896,7 @@ export function wfsSource<T>(
           choice,
           featureNamespace,
           await compileSourceQuery(pageRequest, "query"),
+          request?.signal,
         );
         const page = computeExtentFromFeatureCollection(json);
         count += page.count;
@@ -1980,7 +1981,7 @@ export function wfsSource<T>(
       // means "drain everything".
       const requestedLimit = request?.pagination?.limit;
       if (requestedLimit === 0) return [];
-      const choice = await negotiateJsonOrThrow();
+      const choice = await negotiateJsonOrThrow(request?.signal);
       const limitCap = typeof requestedLimit === "number" && requestedLimit > 0 ? requestedLimit : undefined;
       const drainPageSize = 2000;
       const ids: FeatureId[] = [];
@@ -1999,6 +2000,7 @@ export function wfsSource<T>(
           choice,
           featureNamespace,
           await compileSourceQuery(pageRequest, "query"),
+          request?.signal,
         );
         const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
         const features = collection.features ?? [];
@@ -2181,6 +2183,7 @@ async function runGetFeatureJson(
   choice: OutputFormatChoice,
   featureNamespace: string | undefined,
   compiled: WfsProtocolCompiledQueryV1,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const typePrefix = compiled.typeName.includes(":")
     ? compiled.typeName.slice(0, compiled.typeName.indexOf(":"))
@@ -2200,6 +2203,9 @@ async function runGetFeatureJson(
     ...(compiled.count !== undefined ? { count: compiled.count } : {}),
     ...(compiled.startIndex !== undefined && compiled.startIndex > 0 ? { startIndex: compiled.startIndex } : {}),
     ...(compiled.srsName !== undefined ? { srsName: compiled.srsName } : {}),
+    // The drains (queryExtent / queryObjectIds) issue many pages; every page
+    // must observe the caller's cancellation, not just the first request.
+    ...(signal ? { signal } : {}),
   };
   if (compiled.method === "POST" && compiled.filter !== undefined) {
     params.body = buildWfsPostGetFeatureBody({

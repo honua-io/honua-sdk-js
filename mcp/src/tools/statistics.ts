@@ -37,10 +37,11 @@ function normalizeGroupBy(groupBy: Input["groupBy"]): string[] | undefined {
   return fields.length > 0 ? fields : undefined;
 }
 
-export async function execute(client: HonuaClient, input: Input) {
+export async function execute(client: HonuaClient, input: Input, signal?: AbortSignal) {
   return withCapabilityHonesty(async () => {
     const resolved = resolveSource(client, input);
     const base = toQuery(input, { protocol: resolved.descriptor.protocol, paginate: false });
+    base.signal = signal;
     // GeoServices rejects an `outStatistics` query that carries no `where`;
     // every other protocol treats "no filter" as "all records". Supplying the
     // tautology keeps the neutral "omit the filter ⇒ aggregate everything"

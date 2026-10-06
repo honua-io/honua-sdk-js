@@ -415,11 +415,13 @@ export function geoJsonToEsriGeometry(
 
   switch (geometry.type) {
     case "Point": {
-      const [x, y] = geometry.coordinates;
+      const [x, y, z] = geometry.coordinates;
       if (typeof x !== "number" || typeof y !== "number") {
         return null;
       }
-      return { x, y, ...sr } satisfies EsriPoint;
+      // Keep the altitude of a 3D position: dropping it would hand back a
+      // different geometry than the source served.
+      return { x, y, ...(typeof z === "number" && Number.isFinite(z) ? { z } : {}), ...sr } satisfies EsriPoint;
     }
     case "MultiPoint": {
       return { points: geometry.coordinates.map((position) => [...position]), ...sr } satisfies EsriMultipoint;

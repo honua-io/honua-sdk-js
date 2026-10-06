@@ -58,10 +58,11 @@ export async function countThroughSource(
   throw new HonuaCapabilityNotSupportedError("count", protocol, sourceId);
 }
 
-export async function execute(client: HonuaClient, input: Input) {
+export async function execute(client: HonuaClient, input: Input, signal?: AbortSignal) {
   return withCapabilityHonesty(async () => {
     const resolved = resolveSource(client, input);
     const query = toQuery(input, { protocol: resolved.descriptor.protocol, paginate: false });
+    query.signal = signal;
     const outcome = await countThroughSource(
       resolved.source,
       query,

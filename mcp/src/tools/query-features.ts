@@ -23,10 +23,11 @@ export const schema = z.object({
 
 export type Input = z.infer<typeof schema>;
 
-export async function execute(client: HonuaClient, input: Input) {
+export async function execute(client: HonuaClient, input: Input, signal?: AbortSignal) {
   return withCapabilityHonesty(async () => {
     const resolved = resolveSource(client, input);
     const query = toQuery(input, { protocol: resolved.descriptor.protocol });
+    query.signal = signal;
     const result = await resolved.source.query(query);
 
     // Legacy addressing keeps legacy output: a client that still sends
