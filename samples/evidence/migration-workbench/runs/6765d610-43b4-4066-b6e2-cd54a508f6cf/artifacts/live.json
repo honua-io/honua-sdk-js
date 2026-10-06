@@ -1,0 +1,74 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "migration-workbench",
+  "sourceRevision": "f28cacd166741344c5eb9b07ce83a2028df90ea2",
+  "command": [
+    "npm",
+    "run",
+    "evidence:migration-workbench:live"
+  ],
+  "evidencePath": "samples/evidence/migration-workbench/runs/6765d610-43b4-4066-b6e2-cd54a508f6cf/artifacts/live-evidence.json",
+  "evidence": {
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "migration-workbench",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-10-06T01:38:25.764Z",
+    "authMode": "none",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.13",
+      "gitCommit": "f28cacd166741344c5eb9b07ce83a2028df90ea2"
+    },
+    "source": {
+      "provider": "honua-migrate-cli",
+      "identity": "geoservices-source-app:v1",
+      "endpoint": null,
+      "deploymentVersion": null,
+      "dataVersion": null
+    },
+    "provenance": {
+      "sourceId": "geoservices-source-app:v1",
+      "observedAt": "2026-10-06T01:38:25.764Z",
+      "validAt": null,
+      "state": "live",
+      "attribution": "Honua-authored geoservices-source-app repository fixture; no third-party sample source is reproduced."
+    },
+    "semantics": {
+      "operation": "migration-workbench-deterministic-cli-replay",
+      "outcome": "codemod:auto=9,manual=0,total=9",
+      "itemCount": 9,
+      "assertions": [
+        "readiness=\"ready\"",
+        "autoMigratedCallSites=9",
+        "manualCallSites=0",
+        "totalCodemodScopedCallSites=9",
+        "manualInterventionRatio=0",
+        "behaviorProofPassed=true",
+        "behaviorAssertionCount=23",
+        "patchApplyCheckPassed=true",
+        "patchTargetTreeEqual=true",
+        "artifactCount=6",
+        "sourceUpload=false",
+        "credentialsRequired=false"
+      ]
+    },
+    "timing": {
+      "totalMs": 3996,
+      "firstSuccessfulInteractionMs": 3996
+    },
+    "degradation": {
+      "state": "none",
+      "reasons": []
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "scripts/migration-workbench-live-evidence.mjs",
+        "sha256": "6a3b88f75159e0bad11727a836bc551ce86f1d86a8dc4fc532745e4961544779"
+      }
+    ]
+  }
+}
