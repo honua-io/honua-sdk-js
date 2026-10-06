@@ -279,7 +279,8 @@ export function evaluateScenarios(scenarios, budgets) {
       const coefficient = summary.coefficientOfVariation;
       const minimumStandardDeviationMs =
         scenarioBudget.variability?.minimumStandardDeviationMs?.[metric] ??
-        budgets.variability.minimumStandardDeviationMs[metric];
+        budgets.variability.minimumStandardDeviationMs?.[metric] ??
+        0;
       const variationLevel =
         coefficient > budgets.variability.failureCoefficientOfVariation &&
         summary.standardDeviation > minimumStandardDeviationMs

@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BROWSER_CORPUS_SOURCE_FILES,
+  type BrowserBenchmarkBudgets,
   CODE_UNDER_TEST_SOURCE_FILES,
   browserCorpusFingerprint,
   codeUnderTestFingerprint,
@@ -163,6 +164,35 @@ describe("browser benchmark budget evaluator", () => {
       }),
     );
   });
+
+  it.each([undefined, { firstVisibleMs: 250 }])(
+    "preserves schema-v2 relative variation gates with missing metric floors (%j)",
+    (minimumStandardDeviationMs) => {
+      const legacyBudgets: BrowserBenchmarkBudgets = {
+        ...budgets,
+        variability: {
+          warningCoefficientOfVariation: 0.35,
+          failureCoefficientOfVariation: 0.75,
+          ...(minimumStandardDeviationMs === undefined ? {} : { minimumStandardDeviationMs }),
+        },
+      };
+      for (const [samples, level] of [
+        [[8, 9, 10], "pass"],
+        [[1, 2, 4], "warning"],
+        [[0.5, 10.1, 30], "failure"],
+      ] as const) {
+        const evaluation = evaluateScenarios([scenario([900, 1_000, 1_100], samples)], legacyBudgets);
+        expect(evaluation.level).toBe(level);
+        expect(evaluation.items).toContainEqual(
+          expect.objectContaining({
+            metric: "interactionLatencyMs.coefficientOfVariation",
+            level,
+            absoluteFloor: 0,
+          }),
+        );
+      }
+    },
+  );
 
   it("still fails variation with both a high ratio and a material absolute spread", () => {
     const evaluation = evaluateScenarios([scenario([900, 1_000, 1_100], [10, 500, 1_500])], budgets);

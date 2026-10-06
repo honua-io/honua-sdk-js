@@ -31,7 +31,8 @@ export interface BrowserBenchmarkBudgets {
   variability: {
     warningCoefficientOfVariation: number;
     failureCoefficientOfVariation: number;
-    minimumStandardDeviationMs: Record<"firstVisibleMs" | "interactionLatencyMs", number>;
+    /** Missing metric floors default to zero for existing schema-v2 budgets. */
+    minimumStandardDeviationMs?: Partial<Record<"firstVisibleMs" | "interactionLatencyMs", number>>;
   };
   scenarios: Record<
     string,

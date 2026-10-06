@@ -148,7 +148,9 @@ warning budgets); a scenario can replace either default in its `variability`
 block, as the flagship MapLibre interaction does. This retains detection of
 material instability without treating a few milliseconds of scheduler noise
 around a tiny median as a regression. Median budgets are evaluated separately
-and are unchanged by the variation floor.
+and are unchanged by the variation floor. Existing schema-v2 budget files may
+omit the floor map or individual metric entries; missing floors default to zero,
+preserving the previous coefficient-only variation gate.
 
 `report.corpus.sha256` identifies only the benchmark's own scenario/data
 definitions (`BROWSER_CORPUS_SOURCE_FILES` + the versioned fixture pack) — it
