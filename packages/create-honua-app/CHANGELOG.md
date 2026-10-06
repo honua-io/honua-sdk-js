@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.6...create-honua-app-v0.1.7) (2026-10-06)
+
+
+### Bug Fixes
+
+* **create-honua-app:** README blocks run against 2026.1; scaffold pins the published @honua/sdk-js ([ce109a5](https://github.com/honua-io/honua-sdk-js/commit/ce109a58f8672a8c7a9bf98f53c1f2de3030ef6a))
+* **create-honua-app:** README blocks run against 2026.1; scaffold pins the published @honua/sdk-js ([c96dcd4](https://github.com/honua-io/honua-sdk-js/commit/c96dcd45f7301398e576c3fe7c11f39f3abdb418))
+
 ## [0.1.6](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.5...create-honua-app-v0.1.6) (2026-10-04)
 
 

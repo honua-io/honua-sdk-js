@@ -1476,14 +1476,20 @@ describe("sample publication contract", () => {
       const { evidencePath: _path, expiresAt: _expires, targetMode: _target, ...live } = sample.evidence.live;
       sample.evidence.live = { ...live, status: "not-applicable", mode: "unavailable" };
     }
-    const resealOwnedGoldenIds = goldenOnlyEvidence.samples
-      .filter((sample: { track: string }) => sample.track === "golden")
-      .map((sample: { id: string }) => sample.id);
+    const resealOwnedGoldenSamples = goldenOnlyEvidence.samples.filter(
+      (sample: { track: string }) => sample.track === "golden",
+    );
+    const resealOwnedGoldenIds = resealOwnedGoldenSamples.map((sample: { id: string }) => sample.id);
+    // The reseal, not Release Please, stamps this evidence, so on a release
+    // pull request it still carries the previous version while package.json
+    // already carries the new one. Expect the version the evidence records.
+    const resealOwnedEvidenceVersion = (await readJson(resealOwnedGoldenSamples[0].evidence.live.evidencePath)).sdk
+      .version;
     // The reseal runs strictly; PR CI relaxes derived artifacts, so pin strict.
     vi.stubEnv("HONUA_DERIVED_ARTIFACTS_RELAX", "");
     try {
       await expect(validateCatalog(goldenOnlyEvidence, bumpedPackage, validationTime)).rejects.toThrow(
-        `${resealOwnedGoldenIds[0]}: live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
+        `${resealOwnedGoldenIds[0]}: live evidence SDK version ${resealOwnedEvidenceVersion} does not match ${bumpedVersion}`,
       );
       await expect(
         validateCatalog(goldenOnlyEvidence, bumpedPackage, {
@@ -1491,7 +1497,7 @@ describe("sample publication contract", () => {
           qualificationBootstrapSampleId: resealOwnedGoldenIds.slice(1),
         }),
       ).rejects.toThrow(
-        `${resealOwnedGoldenIds[0]}: live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
+        `${resealOwnedGoldenIds[0]}: live evidence SDK version ${resealOwnedEvidenceVersion} does not match ${bumpedVersion}`,
       );
       const bootstrapped = await validateCatalog(goldenOnlyEvidence, bumpedPackage, {
         ...validationTime,
