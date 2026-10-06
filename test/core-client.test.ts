@@ -987,6 +987,29 @@ describe("HonuaClient", () => {
     expect(requestedUrl).toContain("/rest/services/Public%20Works/Utilities%20%26%20More/FeatureServer/0/query?");
   });
 
+  it("SDKJS-007 accepts valid JSON containing a raw field through the public pipeline", async () => {
+    const body = { raw: "legitimate" };
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () => new Response(JSON.stringify(body), { status: 200 }),
+    });
+    await expect(client.pipelineRequestJson<typeof body>("GET", "/custom")).resolves.toEqual(body);
+    await expect(client.listServices({ cache: "bypass", maxResponseBytes: 1024 })).resolves.toMatchObject(body);
+  });
+
+  it("SDKJS-007 rejects malformed JSON through the public pipeline", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () => new Response('{"raw":', { status: 200 }),
+    });
+    await expect(client.pipelineRequestJson("GET", "/custom")).rejects.toMatchObject({
+      name: "HonuaHttpError",
+      statusCode: 200,
+      message: "HTTP 200: Expected a JSON response",
+      body: { raw: '{"raw":' },
+    });
+  });
+
   it("SDKJS-007 rejects a successful non-JSON response instead of treating it as data", async () => {
     const responses = [new Response("", { status: 200 }), new Response("plain text", { status: 200 })];
     let responseIndex = 0;

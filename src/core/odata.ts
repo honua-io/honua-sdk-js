@@ -1610,17 +1610,52 @@ export function geometryToWkt(geometry: Record<string, unknown>, geometryType: s
   throw new Error(`odata: spatialFilter.geometryType "${geometryType}" is not supported.`);
 }
 
-/** Group Esri rings, whose clockwise rings start polygon parts and counter-clockwise rings are holes. */
+/** Group clockwise Esri exteriors and assign counter-clockwise holes by containment, independent of order. */
 export function groupEsriPolygonRings(rings: unknown[][][]): unknown[][][][] {
   const parts: unknown[][][][] = [];
+  const outerAreas: number[] = [];
+  const holes: Array<{ ring: unknown[][]; area: number }> = [];
   for (const ring of rings) {
     const area = ring.reduce((sum, point, index) => {
       const next = ring[(index + 1) % ring.length];
       if (!Array.isArray(point) || !Array.isArray(next)) return sum;
       return sum + Number(point[0]) * Number(next[1]) - Number(next[0]) * Number(point[1]);
     }, 0);
-    if (parts.length === 0 || area < 0) parts.push([ring]);
-    else parts[parts.length - 1].push(ring);
+    if (area < 0) {
+      parts.push([ring]);
+      outerAreas.push(Math.abs(area));
+    } else holes.push({ ring, area: Math.abs(area) });
+  }
+  for (const { ring: hole, area } of holes) {
+    let containing = -1;
+    let smallestArea = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < parts.length; index++) {
+      if (outerAreas[index] < smallestArea && ringContainsPoint(parts[index][0], hole[0])) {
+        containing = index;
+        smallestArea = outerAreas[index];
+      }
+    }
+    if (containing >= 0) parts[containing].push(hole);
+    // Preserve standalone rings with non-Esri winding, as the GeoJSON converter does.
+    else {
+      parts.push([hole]);
+      outerAreas.push(area);
+    }
   }
   return parts;
+}
+
+function ringContainsPoint(ring: unknown[][], point: unknown[] | undefined): boolean {
+  if (!point) return false;
+  const x = Number(point[0]);
+  const y = Number(point[1]);
+  let inside = false;
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const xi = Number(ring[index][0]);
+    const yi = Number(ring[index][1]);
+    const xj = Number(ring[previous][0]);
+    const yj = Number(ring[previous][1]);
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }

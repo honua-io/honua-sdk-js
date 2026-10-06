@@ -2385,7 +2385,7 @@ export class HonuaClient {
  * results or confusing `undefined` access. Returns a normalized
  * {@link HonuaHttpError} when the envelope is present, otherwise `undefined`.
  */
-async function parseResponseBody(response: Response, maxResponseBytes?: number): Promise<unknown> {
+async function parseResponseBody(response: Response, maxResponseBytes?: number, requireJson = false): Promise<unknown> {
   const text =
     maxResponseBytes === undefined
       ? await response.text()
@@ -2396,22 +2396,22 @@ async function parseResponseBody(response: Response, maxResponseBytes?: number):
   try {
     return JSON.parse(text) as unknown;
   } catch {
+    if (requireJson) {
+      throw new HonuaHttpError(
+        response.status,
+        "Expected a JSON response",
+        { raw: text },
+        {
+          responseHeaders: response.headers,
+        },
+      );
+    }
     return { raw: text };
   }
 }
 
 async function parseSuccessfulJsonBody(response: Response, maxResponseBytes?: number): Promise<unknown> {
-  const body = await parseResponseBody(response, maxResponseBytes);
-  if (isRawResponseBody(body)) {
-    throw new HonuaHttpError(response.status, "Expected a JSON response", body, { responseHeaders: response.headers });
-  }
-  return body;
-}
-
-function isRawResponseBody(body: unknown): body is { raw: string } {
-  return (
-    typeof body === "object" && body !== null && "raw" in body && typeof (body as { raw?: unknown }).raw === "string"
-  );
+  return parseResponseBody(response, maxResponseBytes, true);
 }
 
 async function readBoundedResponseBytes(

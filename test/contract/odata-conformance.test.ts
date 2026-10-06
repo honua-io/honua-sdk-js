@@ -583,6 +583,54 @@ describe("odata / canonical Source surface translation", () => {
     expect(observedFilter).toMatch(/^\(STATE eq 'CA' or STATE eq 'NV'\) and \(geo\.intersects/);
   });
 
+  it.each(["after exteriors", "before exteriors", "between exteriors"])(
+    "SDKJS-004 assigns polygon holes by containment %s in WKT and WFS",
+    (ordering) => {
+      const exteriorA = [
+        [0, 0],
+        [0, 10],
+        [10, 10],
+        [10, 0],
+        [0, 0],
+      ];
+      const exteriorB = [
+        [20, 0],
+        [20, 2],
+        [22, 2],
+        [22, 0],
+        [20, 0],
+      ];
+      const holeA = [
+        [1, 1],
+        [2, 1],
+        [2, 2],
+        [1, 2],
+        [1, 1],
+      ];
+      const rings =
+        ordering === "after exteriors"
+          ? [exteriorA, exteriorB, holeA]
+          : ordering === "before exteriors"
+            ? [holeA, exteriorA, exteriorB]
+            : [exteriorA, holeA, exteriorB];
+      expect(geometryToWkt({ rings }, "esriGeometryPolygon")).toBe(
+        "MULTIPOLYGON(((0 0, 0 10, 10 10, 10 0, 0 0), (1 1, 2 1, 2 2, 1 2, 1 1)), ((20 0, 20 2, 22 2, 22 0, 20 0)))",
+      );
+      const node = compileSpatialFilter(
+        { geometry: { rings }, geometryType: "esriGeometryPolygon" },
+        { geometryProperty: "Geometry" },
+      );
+      expect(node).not.toBe("unsupported");
+      const xml = serializeFes([node as Exclude<typeof node, "unsupported">]);
+      const members = [...xml.matchAll(/<gml:surfaceMember>(.*?)<\/gml:surfaceMember>/g)].map((match) => match[1]);
+      expect(members).toHaveLength(2);
+      expect(members[0]).toContain("<gml:posList>0 0 0 10 10 10 10 0 0 0</gml:posList>");
+      expect(members[0]).toContain("<gml:interior><gml:LinearRing><gml:posList>1 1 2 1 2 2 1 2 1 1</gml:posList>");
+      expect(members[1]).toContain("<gml:posList>20 0 20 2 22 2 22 0 20 0</gml:posList>");
+      expect(members[1]).not.toContain("<gml:interior>");
+    },
+  );
+
   it("SDKJS-004 preserves multipart polylines and polygon exteriors in WKT", () => {
     expect(
       geometryToWkt(
