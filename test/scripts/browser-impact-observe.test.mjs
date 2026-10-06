@@ -109,6 +109,25 @@ test("discovers SDK package entry dependencies from browser fixtures", () => {
   assert.ok(dependencies.some((path) => path.startsWith("src/realtime/")));
 });
 
+test("shared example kit changes select every consuming browser lane", () => {
+  for (const path of [
+    "examples/_kit/cleanup.ts",
+    "examples/_kit/design/components.css",
+    "examples/_kit/design/index.css",
+    "examples/_kit/design/tokens.css",
+    "examples/_kit/presentation.css",
+    "examples/_kit/presentation.ts",
+    "examples/_kit/vite.config.ts",
+  ]) {
+    const report = evaluate(policy, [path]);
+    assert.deepEqual(report.candidate.selected_lanes, [
+      "realtime-collaboration",
+      "heavy-map-kepler",
+      "examples-general",
+    ]);
+  }
+});
+
 test("shared fixtures select every direct browser consumer", () => {
   const spatial = evaluate(policy, ["examples/spatial-analytics-workbench/src/kepler-handoff.ts"]);
   assert.deepEqual(spatial.candidate.selected_lanes, ["heavy-map-kepler", "examples-general"]);
@@ -118,12 +137,6 @@ test("shared fixtures select every direct browser consumer", () => {
   assert.deepEqual(scenarios.candidate.selected_lanes, policy.lanes.map((lane) => lane.id));
   const sharedRenderer = evaluate(policy, ["docs/examples/shared-renderer-state/app.mjs"]);
   assert.deepEqual(sharedRenderer.candidate.selected_lanes, ["heavy-map-kepler"]);
-  const sharedKit = evaluate(policy, ["examples/_kit/vite.config.ts"]);
-  assert.deepEqual(sharedKit.candidate.selected_lanes, [
-    "realtime-collaboration",
-    "heavy-map-kepler",
-    "examples-general",
-  ]);
   const sharedExample = evaluate(policy, ["examples/shared/maplibre-vite-worker.js"]);
   assert.deepEqual(sharedExample.candidate.selected_lanes, policy.lanes.map((lane) => lane.id));
 });
