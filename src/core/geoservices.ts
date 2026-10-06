@@ -138,7 +138,9 @@ export async function queryFeaturesRest(
   const params = new URLSearchParams();
   params.set("f", preferBinary && (request.method === undefined || request.method === "GET") ? "pbf" : "json");
   params.set("where", request.where ?? "1=1");
-  params.set("outFields", normalizeOutFields(request.outFields));
+  if (request.extraParams?.returnCountOnly !== true && request.extraParams?.returnIdsOnly !== true) {
+    params.set("outFields", normalizeOutFields(request.outFields));
+  }
   params.set("returnGeometry", String(request.returnGeometry ?? true));
 
   serializeQueryParams(params, request);

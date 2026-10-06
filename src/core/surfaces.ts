@@ -471,7 +471,6 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       layerId: this.layerId,
       where: request.where ?? "1=1",
       returnGeometry: false,
-      outFields: "OBJECTID",
       method: request.method,
       extraParams: {
         returnCountOnly: true,
@@ -495,7 +494,6 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       layerId: this.layerId,
       where: request.where ?? "1=1",
       returnGeometry: false,
-      outFields: request.outFields ?? "OBJECTID",
       extraParams: {
         returnIdsOnly: true,
         ...request.extraParams,

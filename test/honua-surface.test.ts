@@ -114,10 +114,12 @@ describe("Honua native API surfaces", () => {
   });
 
   it("supports queryFeatureCount and queryObjectIds convenience methods", async () => {
+    const queryUrls: URL[] = [];
     const client = new HonuaClient({
       baseUrl: "https://example.test",
       fetchFn: async (input) => {
         const url = new URL(String(input));
+        queryUrls.push(url);
         if (url.searchParams.get("returnCountOnly") === "true") {
           return new Response(JSON.stringify({ count: 7 }), { status: 200 });
         }
@@ -134,6 +136,8 @@ describe("Honua native API surfaces", () => {
 
     expect(count).toBe(7);
     expect(objectIds).toEqual([1, 2, 3]);
+    expect(queryUrls).toHaveLength(2);
+    expect(queryUrls.every((url) => !url.searchParams.has("outFields"))).toBe(true);
   });
 
   it("supports queryFeaturesAll pagination helper", async () => {
