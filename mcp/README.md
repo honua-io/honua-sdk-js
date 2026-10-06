@@ -260,7 +260,7 @@ Embedding the server in your own Node.js host needs the packages as local
 dependencies of that host project:
 
 ```bash
-npm install @honua/mcp-server @honua/sdk-js
+npm install @honua/mcp-server@0.1.13 @honua/sdk-js@0.1.13
 ```
 
 The map runtime, model callback, approval verifier, receipt signer, and
@@ -346,6 +346,7 @@ cd honua-sdk-js
 npm ci
 ```
 
+<!-- doc-run: checkout -->
 ```bash
 npm run build   # the SDK that mcp/ links to; takes a few minutes
 cd mcp
@@ -354,6 +355,7 @@ npm ci
 
 From `mcp/`:
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 # Run the certifier against the offline fixture backend and write artifacts:
 npm run certify
@@ -384,6 +386,7 @@ skip-with-reason. Fixture-backed and deterministic — no network — as long as
 instead (the scheduled live variant). Unset it if you exported it for `honua-mcp`
 above:
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 unset HONUA_BASE_URL
 npm run certify:standalone            # platform-free cert (plain FeatureServer fixture)
@@ -406,6 +409,7 @@ in `config/live-conformance-endpoints.v1.json`). Nothing Esri exists there: the
 GeoServices entry points all reject, so a tool that still secretly required
 `serviceId`/`layerId` fails loudly instead of passing by accident.
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 npm run certify:standalone-ogc            # non-GeoServices cert (OGC API Features fixture)
 npm run test:certification:standalone-ogc # CI gate variant
@@ -521,6 +525,7 @@ honua-io/honua-server#1956.)
   dependencies); keys come from the environment and are never hardcoded. Set
   `HONUA_MCP_REMOTE_URL` to drive a live remote `/mcp` instead of the fixture.
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 npm run eval            # run the eval (live models join if their keys are set)
 npm run eval:offline    # force the deterministic control + fixture surface
@@ -546,6 +551,7 @@ guards. Because the fixture replays real recorded data, a wrong number or a
 hallucinated place name fails. The grading taxonomy is documented in
 [`evals/README.md`](evals/README.md).
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 npm run eval:standalone       # deterministic control over the census fixture (offline)
 ```
@@ -564,6 +570,7 @@ an extent that came from the declared collection extent must say so, and a CQL2
 spatial predicate the endpoint does not publish must come back as a structured
 capability refusal — never as an empty result set.
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 npm run eval:ogc              # deterministic control over the OGC API Features fixture (offline)
 ```
