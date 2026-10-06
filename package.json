@@ -353,6 +353,7 @@
     "verify:client-pair:registry": "npm run build --silent && node scripts/verify-client-pair-install.mjs --sdk-source registry",
     "verify:split-packages:prepared": "npm run build:split-packages:prepared --silent && node scripts/verify-split-packages.mjs",
     "security:binary-artifacts": "node scripts/check-binary-artifacts.mjs",
+    "security:desktop-client-containment": "node --test test/scripts/desktop-client-containment.test.mjs && node scripts/check-desktop-client-containment.mjs",
     "verify:publish-surface": "node scripts/verify-publish-surface.mjs",
     "verify:release-artifacts": "node --test test/scripts/release-artifacts.test.mjs && node scripts/verify-release-artifacts.mjs",
     "denominator:certification": "node scripts/certification-denominator.mjs write",
