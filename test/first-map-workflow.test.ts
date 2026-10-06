@@ -272,8 +272,13 @@ describe("First Map copyable workflow core", () => {
   });
 
   it("resolves the fixture endpoint relative to a sub-path document", () => {
+    const prefixed = "https://samples.example.test/sdk/maplibre-quickstart/app/rest/services/natural-earth/FeatureServer/0/";
     expect(resolveFirstMapFixtureEndpoint("https://samples.example.test/sdk/maplibre-quickstart/app/index.html")).toBe(
-      "https://samples.example.test/sdk/maplibre-quickstart/app/rest/services/natural-earth/FeatureServer/0/",
+      prefixed,
+    );
+    expect(resolveFirstMapFixtureEndpoint("https://samples.example.test/sdk/maplibre-quickstart/app/")).toBe(prefixed);
+    expect(resolveFirstMapFixtureEndpoint("https://samples.example.test/")).toBe(
+      "https://samples.example.test/rest/services/natural-earth/FeatureServer/0/",
     );
   });
 
