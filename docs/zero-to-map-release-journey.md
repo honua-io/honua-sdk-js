@@ -17,6 +17,10 @@ The 2026.1 release journey answers one end-to-end question: can one admin, in
 one session, install the platform, configure services, buffer a published
 layer, and publish a map, app, and dashboard whose share URLs return HTTP 200?
 
+> **Preview:** The Studio draft, proposal, and publication steps in this
+> journey are Preview in 2026.1. They are retained integration evidence, not a
+> generally available Studio workflow.
+
 The executable bundle lives at
 [`mcp/release/zero-to-map`](../mcp/release/zero-to-map/README.md). It implements
 the stages from `honua-release#123` D9.3:

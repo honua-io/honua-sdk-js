@@ -561,7 +561,7 @@ tables, and backwards-compatibility policy live in:
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
 - [`docs/geoprocessing.md`](./docs/geoprocessing.md) — one job lifecycle across OGC API Processes, Esri GPServer compatibility, and AI-selected operations
-- [`docs/zero-to-map-release-journey.md`](./docs/zero-to-map-release-journey.md) — contract-first 2026.1 install → admin → buffer → Studio → share URL walkthrough
+- [`docs/zero-to-map-release-journey.md`](./docs/zero-to-map-release-journey.md) — contract-first 2026.1 install → admin → buffer → Studio (Preview) → share URL walkthrough
 - [`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md) — provider-pluggable geocoding & routing adapters
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
@@ -738,7 +738,7 @@ deprecated at 5.0 mapped to its Honua/MapLibre disposition ahead of the 6.0 remo
 | Repo | What it is |
 |------|------------|
 | [honua-server](https://github.com/honua-io/honua-server) | Flagship multi-protocol geospatial server (ELv2 open core) |
-| [honua-console](https://github.com/honua-io/honua-console) | Unified web console — Studio, Catalog, Operate, Share |
+| [honua-console](https://github.com/honua-io/honua-console) | Display-and-approve web console; Studio workflows are Preview in 2026.1 |
 | [honua-sdk-python](https://github.com/honua-io/honua-sdk-python) | Python SDK (same `Dataset`/`Source`/`Query`/`Result` contract) |
 | [honua-sdk-dotnet](https://github.com/honua-io/honua-sdk-dotnet) | .NET SDKs (same contract) |
 | [honua-migrate](https://github.com/honua-io/honua-migrate) | Esri migration CLI suite — read-only footprint assessment, service and content migration, codemods, durable runs, reconciliation |
