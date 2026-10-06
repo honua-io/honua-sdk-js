@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
   packages: read
 
 jobs:
@@ -73,3 +74,30 @@ jobs:
       - name: Enforce installed First Map budget
         if: always() && steps.quickstart.outcome != 'success'
         run: exit 1
+      # A red scheduled run is otherwise silent: keep ONE open tracking issue
+      # and comment each further failure on it instead of opening duplicates.
+      - name: Open or update the tracking issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUICKSTART: ${{ steps.quickstart.outcome }}
+          CERTIFY: ${{ steps.certify.outcome }}
+          EXAMPLES: ${{ steps.examples.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="Installed package certification is failing"
+          run="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body="Scheduled installed-package certification failed.
+
+          - First Map bundle budget: ${QUICKSTART}
+          - Installed-package receipt: ${CERTIFY}
+          - Installed-example receipt: ${EXAMPLES}
+
+          Run: ${run}"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "${title} in:title" --json number,title --jq ".[] | select(.title == \"${title}\") | .number" | head -1)"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --assignee mikemcdougall
+          fi
