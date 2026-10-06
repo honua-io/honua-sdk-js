@@ -389,8 +389,9 @@ jobs:
   # honua-io/honua-sdk-js#39 consumes.
   verify-published-release:
     name: Verify published release against the registry
+    timeout-minutes: 55
     needs: publish-js-packages
-    if: ${{ needs.publish-js-packages.result == 'success' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
+    if: ${{ !cancelled() && needs.publish-js-packages.result == 'success' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -426,11 +427,15 @@ jobs:
           PUBLISH_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          # npm's attestation endpoint trails the publish by seconds to a couple
-          # of minutes. Retry the whole verification rather than weakening any
-          # single check: a genuinely missing artifact still fails after the
-          # last attempt.
-          for attempt in 1 2 3 4 5; do
+          # Registry metadata, tarballs and attestations propagate separately.
+          # 0.1.14 took about 17 minutes to become visible. Retry the complete
+          # verifier for up to 45 minutes; every integrity/provenance gate still
+          # has to pass on the same attempt and the final receipt stays red.
+          deadline=$((SECONDS + 45 * 60))
+          delay=15
+          attempt=0
+          while true; do
+            attempt=$((attempt + 1))
             if node scripts/verify-published-release.mjs \
               --tag "${RELEASE_TAG}" \
               --commit "${SEALED_COMMIT}" \
@@ -438,10 +443,14 @@ jobs:
               --receipt test-results/published-release-verification.v1.json; then
               exit 0
             fi
-            if [[ "$attempt" -lt 5 ]]; then
-              echo "::notice::Registry verification attempt ${attempt} failed; retrying in 60s."
-              sleep 60
+            remaining=$((deadline - SECONDS))
+            if (( remaining <= 0 )); then
+              break
             fi
+            pause=$((delay < remaining ? delay : remaining))
+            echo "::notice::Registry verification attempt ${attempt} failed; retrying in ${pause}s."
+            sleep "${pause}"
+            delay=$((delay < 120 ? delay * 2 : 120))
           done
           echo "::error title=Published release verification failed for ${RELEASE_TAG}::The registry does not agree with the release manifest. See the receipt artifact for the failing checks."
           exit 1

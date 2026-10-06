@@ -374,3 +374,12 @@ describe("Release Please check-writer workflow policy", () => {
     );
   });
 });
+
+it("rejects continuation events for a different run or stale head before writing checks", async () => {
+  for (const override of [{ expectedWorkflowRunId: 9999 }, { expectedHeadSha: "f".repeat(40) }]) {
+    const mock = harness();
+    await assert.rejects(publishReleasePleaseCiChecks({ ...publishOptions(), ...override }, mock.request),
+      /completed event does not identify/u);
+    assert.equal(mock.created.length, 0);
+  }
+});
