@@ -705,6 +705,46 @@ describe("wfs / canonical Source", () => {
     expect(out.extent).toEqual({ xmin: -121, ymin: 37, xmax: -120, ymax: 38 });
   });
 
+  it("filtered queryExtent threads the caller's abort signal through every drained page", async () => {
+    const controller = new AbortController();
+    const getFeatureSignals: Array<AbortSignal | null | undefined> = [];
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url, init) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            getFeatureSignals.push(init?.signal);
+            const count = Number(url.searchParams.get("count") ?? "2000");
+            const startIndex = Number(url.searchParams.get("startIndex") ?? "0");
+            // Page 1 is full, which keeps the drain going; the caller cancels
+            // meanwhile. Any later page is empty so an uncancellable drain
+            // still terminates (and fails the assertions below).
+            const features = Array.from({ length: startIndex === 0 ? count : 0 }, (_, idx) => ({
+              type: "Feature" as const,
+              id: idx + 1,
+              properties: { OBJECTID: idx + 1, STATE: "CA", ACRES: 1 },
+              geometry: { type: "Point", coordinates: [-122, 38] },
+            }));
+            controller.abort();
+            return new Response(JSON.stringify({ type: "FeatureCollection", features }), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await expect(source.queryExtent({ where: "STATE = 'CA'", signal: controller.signal })).rejects.toThrow();
+    // The first page carried a cancellable signal, and cancellation stopped
+    // the drain instead of fetching the next page.
+    expect(getFeatureSignals).toHaveLength(1);
+    expect(getFeatureSignals[0]).toBeTruthy();
+  });
+
   it("filtered queryExtent drains all pages so the widest geometry on a later page is included", async () => {
     // Server-side feature set: two pages worth, where the second page holds
     // the widest x and the smallest y. A single-page implementation would
