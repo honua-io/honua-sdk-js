@@ -126,7 +126,9 @@ export function compileOdataQuery(source: QueryIrSourceIdentity, query: Canonica
   return {
     compiler: "odata-v4-query-v1",
     entitySet: source.entitySet,
-    ...(filterParts.length > 0 ? { filter: filterParts.join(" and ") } : {}),
+    ...(filterParts.length > 0
+      ? { filter: filterParts.length === 1 ? filterParts[0] : filterParts.map((part) => `(${part})`).join(" and ") }
+      : {}),
     ...(projection && projection.select.length > 0 ? { select: projection.select } : {}),
     ...(projection && projection.expand.length > 0 ? { expand: projection.expand } : {}),
     ...(query.orderBy && query.orderBy.length > 0

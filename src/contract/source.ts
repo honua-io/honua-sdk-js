@@ -3269,7 +3269,9 @@ async function buildOdataParams<T>(
     };
     filterParts.push(buildOdataSpatialFilter(request.spatialFilter, ctx));
   }
-  if (filterParts.length > 0) out.filter = filterParts.join(" and ");
+  if (filterParts.length > 0) {
+    out.filter = filterParts.length === 1 ? filterParts[0] : filterParts.map((part) => `(${part})`).join(" and ");
+  }
   if (request.outFields && request.outFields.length > 0) {
     const split = splitOdataOutFields(request.outFields);
     let rootSelect = split.select;

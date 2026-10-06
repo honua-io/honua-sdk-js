@@ -987,7 +987,7 @@ describe("HonuaClient", () => {
     expect(requestedUrl).toContain("/rest/services/Public%20Works/Utilities%20%26%20More/FeatureServer/0/query?");
   });
 
-  it("returns empty object for empty responses and raw text for non-JSON responses", async () => {
+  it("SDKJS-007 rejects a successful non-JSON response instead of treating it as data", async () => {
     const responses = [new Response("", { status: 200 }), new Response("plain text", { status: 200 })];
     let responseIndex = 0;
 
@@ -1006,12 +1006,10 @@ describe("HonuaClient", () => {
         status: "bypass",
       },
     });
-    await expect(client.listServices({ cache: "bypass" })).resolves.toMatchObject({
-      raw: "plain text",
-      cache: {
-        scope: "metadata",
-        status: "bypass",
-      },
+    await expect(client.listServices({ cache: "bypass" })).rejects.toMatchObject({
+      name: "HonuaHttpError",
+      statusCode: 200,
+      message: "HTTP 200: Expected a JSON response",
     });
   });
 

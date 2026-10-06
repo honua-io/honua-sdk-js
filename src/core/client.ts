@@ -1346,7 +1346,7 @@ export class HonuaClient {
         };
       },
       finalize: async (response, durationMs, currentRequest, runAfter) => {
-        const body = await parseResponseBody(
+        const body = await parseSuccessfulJsonBody(
           this.hasAfterInterceptors() ? response.clone() : response,
           metadataOptions.maxResponseBytes,
         );
@@ -1853,7 +1853,7 @@ export class HonuaClient {
       finalize: async (response, _durationMs, _currentRequest, runAfter) => {
         // Parse the original body directly when no after-interceptor will read
         // it; only clone when an interceptor needs an independent copy.
-        const body = await parseResponseBody(this.hasAfterInterceptors() ? response.clone() : response);
+        const body = await parseSuccessfulJsonBody(this.hasAfterInterceptors() ? response.clone() : response);
 
         // GeoServices/Esri services return HTTP 200 with a top-level `{error}`
         // envelope on failure (bad WHERE, invalid outFields, edit failures, …).
@@ -1921,7 +1921,7 @@ export class HonuaClient {
         // even when f=pbf was requested. Detect the `{error}` envelope here so
         // preferBinary callers throw a normalized HonuaHttpError exactly like
         // the JSON path instead of receiving the failure envelope as success.
-        const body = await parseResponseBody(response);
+        const body = await parseSuccessfulJsonBody(response);
         const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
           await this.applyErrorInterceptors({
@@ -2398,6 +2398,20 @@ async function parseResponseBody(response: Response, maxResponseBytes?: number):
   } catch {
     return { raw: text };
   }
+}
+
+async function parseSuccessfulJsonBody(response: Response, maxResponseBytes?: number): Promise<unknown> {
+  const body = await parseResponseBody(response, maxResponseBytes);
+  if (isRawResponseBody(body)) {
+    throw new HonuaHttpError(response.status, "Expected a JSON response", body, { responseHeaders: response.headers });
+  }
+  return body;
+}
+
+function isRawResponseBody(body: unknown): body is { raw: string } {
+  return (
+    typeof body === "object" && body !== null && "raw" in body && typeof (body as { raw?: unknown }).raw === "string"
+  );
 }
 
 async function readBoundedResponseBytes(
