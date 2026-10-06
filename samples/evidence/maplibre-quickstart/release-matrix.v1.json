@@ -1,0 +1,76 @@
+{
+  "$schema": "../../contract/v2/schemas/sample-release-matrix-receipt.schema.json",
+  "format": "honua.sdk.sample-release-matrix-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "lane": "release-matrix-browser",
+  "status": "failed",
+  "sdkMode": "source",
+  "sourceRevision": "984425f9d88b3c699cbd4766538ba311b48790aa",
+  "sourceDigest": "6cf4aa7487cde188275796ca1ada6763d440e936300c534a7d9c5ca451a4987b",
+  "matrix": {
+    "envName": "HONUA_FIRST_MAP_RELEASE_MATRIX",
+    "envValue": "true",
+    "playwrightConfig": "playwright.first-map.config.mjs",
+    "playwrightVersion": "1.58.2",
+    "engines": [
+      {
+        "name": "chromium",
+        "browserName": "chromium",
+        "headless": true,
+        "status": "passed",
+        "tests": 1,
+        "failed": 0,
+        "durationMs": 5947
+      },
+      {
+        "name": "firefox",
+        "browserName": "firefox",
+        "headless": false,
+        "status": "failed",
+        "tests": 1,
+        "failed": 1,
+        "durationMs": 28129
+      },
+      {
+        "name": "webkit",
+        "browserName": "webkit",
+        "headless": true,
+        "status": "passed",
+        "tests": 1,
+        "failed": 0,
+        "durationMs": 14421
+      }
+    ]
+  },
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "test:playwright:quickstart"
+    ]
+  },
+  "run": {
+    "repository": "honua-io/honua-sdk-js",
+    "workflow": "First Map Release Smoke",
+    "runId": "37454546336",
+    "runAttempt": 1,
+    "event": "workflow_dispatch",
+    "ref": "refs/tags/js-sdk-v0.1.14",
+    "commit": "984425f9d88b3c699cbd4766538ba311b48790aa"
+  },
+  "report": {
+    "kind": "playwright-release-matrix-report",
+    "bytes": 58439,
+    "sha256": "6903e6fb65f98365974b2337b2cfb1dc8d039695451371295650f6490297e187",
+    "workflowArtifactName": "honua-sdk-first-map-release-matrix"
+  },
+  "producer": {
+    "id": "honua-sdk-release-matrix-receipt",
+    "version": 1,
+    "path": "scripts/seal-release-matrix-receipt.mjs",
+    "sha256": "23d667cf2e39223d5e52913370498ad928a57d170a1793176a86e7784006e07a"
+  },
+  "observedAt": "2026-10-06T11:14:52.104Z",
+  "expiresAt": "2026-10-13T11:14:52.104Z"
+}
