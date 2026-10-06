@@ -301,13 +301,24 @@ describe("pull request issue disposition policy", () => {
       (match) => match[1],
     );
     assert.match(workflow, /^  push:\n    branches:\n      - trunk$/mu);
+    assert.match(workflow, /^  workflow_run:\n    workflows: \[SDK CI\]\n    types: \[completed\]$/mu);
     assert.match(workflow, /^  workflow_dispatch:$/mu);
     assert.doesNotMatch(workflow, /pull_request(?:_target)?:/u);
     assert.match(workflow, /^permissions: read-all$/mu);
+    // workflow_run reports github.ref as the default branch, so a ref-only
+    // guard would run the release iterator on every SDK CI completion. That
+    // event is excluded here; check publication stays on the continuation job,
+    // which still executes pinned trunk code. Push and workflow_dispatch stay
+    // trunk-only.
     assert.match(
       workflow,
-      /^  release-please:\n    if: \$\{\{ github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n(?:    #[^\n]*\n)*    concurrency:\n      group: release-please-\$\{\{ github\.repository \}\}\n      cancel-in-progress: false\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
+      /^  release-please:\n    if: \$\{\{ github\.event_name != 'workflow_run' && github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n(?:    #[^\n]*\n)*    concurrency:\n      group: release-please-\$\{\{ github\.repository \}\}\n      cancel-in-progress: false\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
     );
+    assert.match(
+      workflow,
+      /^  release-please-continuation:\n    # Only a same-repository release-head dispatch can enter the privileged\n    # continuation\. Trusted trunk code revalidates the exact run, current PR,\n    # base, branch head, successful jobs and rollup before emitting any checks\.\n    if: >-\n      \$\{\{ github\.event_name == 'workflow_run' &&\n          github\.event\.workflow_run\.event == 'workflow_dispatch' &&\n          github\.event\.workflow_run\.head_branch == 'release-please--branches--trunk' &&\n          github\.event\.workflow_run\.head_repository\.full_name == github\.repository &&\n          github\.event\.workflow_run\.conclusion == 'success' \}\}\n    runs-on: ubuntu-latest\n    timeout-minutes: 5\n    permissions:\n      actions: read\n      checks: write\n      contents: read\n      issues: read\n      pull-requests: read$/mu,
+    );
+    assert.match(workflow, /node scripts\/continue-release-please-ci\.mjs/u);
     assert.match(
       workflow,
       /^  release-please-disposition:\n    needs: \[release-please, release-please-refresh, release-please-ci\]\n[\s\S]*?    runs-on: ubuntu-latest\n    permissions:\n      actions: read\n      checks: write\n      contents: read\n      issues: read\n      pull-requests: read$/mu,

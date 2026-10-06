@@ -17,13 +17,17 @@ function writeSummary(result) {
     "## Trusted Release Please canonical CI",
     "",
     result.status === "already-dispatched"
-      ? "The exact current release head already has terminal-success canonical CI."
-      : "Canonical CI was dispatched and reached terminal success for the exact current release head.",
+      ? "Canonical CI already exists for the exact current release head."
+      : "Canonical CI was dispatched for the exact current release head; completion resumes through workflow_run.",
     `Pull request: ${result.repository}#${result.pullRequestNumber}.`,
     `Release head: ${result.headSha}.`,
     `Trusted trunk policy revision: ${result.trustedPolicySha}.`,
     `Workflow run: [${result.workflowRunId}](${result.workflowRunUrl}).`,
   ];
+  if (process.env.GITHUB_OUTPUT) {
+    fs.appendFileSync(process.env.GITHUB_OUTPUT,
+      `canonical_ci_success=${result.workflowRunConclusion === "success"}\n`);
+  }
   const summary = `${lines.join("\n")}\n`;
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
   process.stdout.write(summary);
@@ -43,7 +47,7 @@ async function main() {
     await dispatchReleasePleaseCi({
       repository: requiredEnvironment("GITHUB_REPOSITORY"),
       trustedPolicySha,
-      waitForCompletion: true,
+      waitForCompletion: false,
     }),
   );
 }
