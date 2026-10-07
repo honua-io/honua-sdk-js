@@ -1,0 +1,59 @@
+{
+  "format": "honua.sdk.sample-resolution.v1",
+  "schemaVersion": 1,
+  "mode": "packed",
+  "package": {
+    "name": "@honua/sdk-js",
+    "version": "0.1.14"
+  },
+  "entrypoints": [
+    {
+      "specifier": "@honua/sdk-js/contract",
+      "exportTarget": "./dist/src/contract/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "eb9a6c745c4d3b059847e0fd6fb864919557a2973edf9dfb819f49de12f49708"
+    },
+    {
+      "specifier": "@honua/sdk-js/map",
+      "exportTarget": "./dist/src/map/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "5acb1b806b80a8e21873973c99b41624dc6db185039cda22ba38d8c487102250"
+    },
+    {
+      "specifier": "@honua/sdk-js",
+      "exportTarget": "./dist/src/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "8008748993d823bcc238ac3401fbe63efaff0cb6d8a1803f7429f4c36e610661"
+    }
+  ],
+  "bundle": [
+    {
+      "fileName": "assets/index-BtKvoeY-.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 1787068,
+      "sha256": "680be3651317e4d3c3a5e95c77d87bf7f90fa72f029aefa5353f5290da15c5da"
+    },
+    {
+      "fileName": "assets/odata-write-codec-BuQ30V72.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 18695,
+      "sha256": "dcfd40fd91ed2e076cdf84335aea8cfdb38550c9d00c76296a89e162e2263c88"
+    },
+    {
+      "fileName": "assets/index-Cctmk29s.css",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 120568,
+      "sha256": "536b2a1dc9f8efe609c6f4fefe326c651045fcef7fb05d85205025c603394c50"
+    },
+    {
+      "fileName": "assets/maplibre-gl-worker-CRiIRpYb.js",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 509702,
+      "sha256": "096f3b4deeeaa7ed1372a96978bea3495b78250041df835fada34f12320e11d2"
+    }
+  ]
+}
