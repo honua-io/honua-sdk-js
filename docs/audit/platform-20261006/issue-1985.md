@@ -1,3 +1,9 @@
+---
+type: reference
+title: Query correctness audit record for issue 1985
+description: Findings, outcomes, and regression evidence from the 2026-10-06 SDK query correctness audit.
+---
+
 # Audit record: issue 1985
 
 | Finding id | Outcome | Evidence |
