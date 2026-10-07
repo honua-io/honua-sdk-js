@@ -15,15 +15,18 @@ import {
   createDataset,
   odataSource,
 } from "../../src/contract/index.js";
+import { HonuaClient } from "../../src/core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
 import {
   HonuaOdataEntitySet,
   buildOdataSpatialFilter,
+  geometryToWkt,
   getOdataSourceSchemaProjectionDetails,
   parseOdataMetadata,
   rewriteWhereToOdataFilter,
 } from "../../src/core/odata.js";
 import { envelope } from "../../src/core/spatial-filter.js";
+import { compileSpatialFilter, serializeFes } from "../../src/core/wfs-filter.js";
 
 import {
   PARCEL_FEATURES,
@@ -563,6 +566,148 @@ describe("odata / canonical Source surface translation", () => {
       outSr: 4326,
     });
     expect(observedFilter).toMatch(/^geo\.intersects\(Geometry,geography'SRID=4326;POLYGON/);
+  });
+
+  it("SDKJS-001 parenthesizes every OData predicate before combining OR where and spatial filters", async () => {
+    let observedFilter: string | null = null;
+    const source = build([
+      [
+        "/odata/Parcels",
+        (url) => {
+          observedFilter = url.searchParams.get("$filter");
+          return jsonResponse(odataParcelsResponse());
+        },
+      ],
+    ]);
+    await source.query({ where: "STATE = 'CA' OR STATE = 'NV'", spatialFilter: envelope(-120, 35, -119, 36) });
+    expect(observedFilter).toMatch(/^\(STATE eq 'CA' or STATE eq 'NV'\) and \(geo\.intersects/);
+  });
+
+  it.each(["after exteriors", "before exteriors", "between exteriors"])(
+    "SDKJS-004 assigns polygon holes by containment %s in WKT and WFS",
+    (ordering) => {
+      const exteriorA = [
+        [0, 0],
+        [0, 10],
+        [10, 10],
+        [10, 0],
+        [0, 0],
+      ];
+      const exteriorB = [
+        [20, 0],
+        [20, 2],
+        [22, 2],
+        [22, 0],
+        [20, 0],
+      ];
+      const holeA = [
+        [1, 1],
+        [2, 1],
+        [2, 2],
+        [1, 2],
+        [1, 1],
+      ];
+      const rings =
+        ordering === "after exteriors"
+          ? [exteriorA, exteriorB, holeA]
+          : ordering === "before exteriors"
+            ? [holeA, exteriorA, exteriorB]
+            : [exteriorA, holeA, exteriorB];
+      expect(geometryToWkt({ rings }, "esriGeometryPolygon")).toBe(
+        "MULTIPOLYGON(((0 0, 0 10, 10 10, 10 0, 0 0), (1 1, 2 1, 2 2, 1 2, 1 1)), ((20 0, 20 2, 22 2, 22 0, 20 0)))",
+      );
+      const node = compileSpatialFilter(
+        { geometry: { rings }, geometryType: "esriGeometryPolygon" },
+        { geometryProperty: "Geometry" },
+      );
+      expect(node).not.toBe("unsupported");
+      const xml = serializeFes([node as Exclude<typeof node, "unsupported">]);
+      const members = [...xml.matchAll(/<gml:surfaceMember>(.*?)<\/gml:surfaceMember>/g)].map((match) => match[1]);
+      expect(members).toHaveLength(2);
+      expect(members[0]).toContain("<gml:posList>0 0 0 10 10 10 10 0 0 0</gml:posList>");
+      expect(members[0]).toContain("<gml:interior><gml:LinearRing><gml:posList>1 1 2 1 2 2 1 2 1 1</gml:posList>");
+      expect(members[1]).toContain("<gml:posList>20 0 20 2 22 2 22 0 20 0</gml:posList>");
+      expect(members[1]).not.toContain("<gml:interior>");
+    },
+  );
+
+  it("SDKJS-004 preserves multipart polylines and polygon exteriors in WKT", () => {
+    expect(
+      geometryToWkt(
+        {
+          paths: [
+            [
+              [0, 0],
+              [1, 1],
+            ],
+            [
+              [2, 2],
+              [3, 3],
+            ],
+          ],
+        },
+        "esriGeometryPolyline",
+      ),
+    ).toBe("MULTILINESTRING((0 0, 1 1), (2 2, 3 3))");
+    const clockwiseA = [
+      [0, 0],
+      [0, 2],
+      [2, 2],
+      [2, 0],
+      [0, 0],
+    ];
+    const clockwiseB = [
+      [3, 0],
+      [3, 2],
+      [5, 2],
+      [5, 0],
+      [3, 0],
+    ];
+    expect(geometryToWkt({ rings: [clockwiseA, clockwiseB] }, "esriGeometryPolygon")).toMatch(/^MULTIPOLYGON/);
+    const wfsNode = compileSpatialFilter(
+      {
+        geometry: {
+          paths: [
+            [
+              [0, 0],
+              [1, 1],
+            ],
+            [
+              [2, 2],
+              [3, 3],
+            ],
+          ],
+        },
+        geometryType: "esriGeometryPolyline",
+      },
+      { geometryProperty: "Geometry" },
+    );
+    expect(wfsNode).not.toBe("unsupported");
+    expect(serializeFes([wfsNode as Exclude<typeof wfsNode, "unsupported">])).toContain("<gml:MultiCurve");
+  });
+});
+
+describe("SDKJS-008 OData nextLink base paths", () => {
+  it("does not prepend a sub-path base URL twice", async () => {
+    const urls: string[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://mock.honua.test/honua",
+      fetchFn: async (input) => {
+        const url = String(input);
+        urls.push(url);
+        return jsonResponse(
+          url.includes("skiptoken")
+            ? { value: [{ Id: 2 }] }
+            : {
+                value: [{ Id: 1 }],
+                "@odata.nextLink": "https://mock.honua.test/honua/odata/Parcels?$skiptoken=p2",
+              },
+        );
+      },
+    });
+    const rows = await client.odata("Parcels").queryAll();
+    expect(rows.rows).toHaveLength(2);
+    expect(urls[1]).toBe("https://mock.honua.test/honua/odata/Parcels?%24skiptoken=p2");
   });
 });
 
