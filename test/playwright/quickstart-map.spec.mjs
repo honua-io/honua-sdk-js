@@ -58,7 +58,11 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     ) {
       const fixtureUrl = new URL(requestUrl);
       fixtureUrl.pathname = requestUrl.pathname.slice(publishedAppPath.length) || "/";
-      await route.continue({ url: fixtureUrl.href });
+      // continue({ url }) commits the stripped URL as the document location, so
+      // location.href loses /sdk/maplibre-quickstart/app/ and result provenance
+      // resolves at the origin root. Serve the fixture body on the original URL.
+      const response = await route.fetch({ url: fixtureUrl.href });
+      await route.fulfill({ response });
       return;
     }
     await route.continue();

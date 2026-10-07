@@ -11,6 +11,7 @@ import {
   SAME_ORIGIN_FIRST_MAP_FIXTURE,
   endpointForFirstMapProtocol,
   resolveFirstMapConfig,
+  resolveFirstMapFixtureEndpoint,
 } from "./first-map-config.js";
 import type { FirstMapMode, FirstMapProtocol } from "./first-map-config.js";
 import {
@@ -92,7 +93,7 @@ function readProtocol(value: string | undefined): FirstMapProtocol {
 function endpointFromEnvironment(env: Record<string, string | undefined>): { endpoint: string; live: boolean } {
   const direct = readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT");
   if (direct === SAME_ORIGIN_FIRST_MAP_FIXTURE) {
-    return { endpoint: new URL(`.${FIRST_MAP_FIXTURE_GEOSERVICES_PATH}/`, location.href).href, live: false };
+    return { endpoint: resolveFirstMapFixtureEndpoint(location.href), live: false };
   }
   if (direct) return { endpoint: direct, live: true };
   return { endpoint: PUBLIC_FIRST_MAP_ENDPOINT, live: true };

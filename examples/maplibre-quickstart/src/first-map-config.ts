@@ -31,6 +31,11 @@ export interface FirstMapConfigInput<T = Record<string, unknown>> {
 export const DEFAULT_FIRST_MAP_MAX_FEATURES = 5_000;
 export const MAX_FIRST_MAP_FEATURES = 10_000;
 
+/** Resolve the packaged fixture relative to the document directory so sub-path deployments retain their prefix. */
+export function resolveFirstMapFixtureEndpoint(documentUrl: string): string {
+  return new URL(`.${FIRST_MAP_FIXTURE_GEOSERVICES_PATH}/`, documentUrl).href;
+}
+
 /** Keep canonical OGC collection URLs in the form while connecting through their service root plus collection scope. */
 export function firstMapConnectLocator(config: Pick<FirstMapConfig, "endpoint" | "protocol">) {
   if (config.protocol !== "ogc-features") return { url: config.endpoint, protocol: config.protocol };

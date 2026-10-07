@@ -168,12 +168,18 @@ describe("template manifest", () => {
     }
   });
 
-  it("pins every template to the manifest's published SDK version", () => {
+  it("pins every template to the certified SDK version in the template manifest", () => {
+    // Release Please bumps the root package.json on the js-sdk component and
+    // excludes packages/create-honua-app. The certified pin and the starter
+    // manifests move only together, by a deliberate edit, after that SDK is
+    // published — never because the workspace version changed.
+    assert.equal(manifest.sdk.version, CERTIFIED_SDK_VERSION);
     for (const template of manifest.templates) {
       const projectManifest = JSON.parse(
         fs.readFileSync(path.join(templateRoot(manifest, template.id, PACKAGE_ROOT), "package.json"), "utf8"),
       );
       assert.equal(projectManifest.dependencies[manifest.sdk.package], manifest.sdk.version);
+      assert.equal(projectManifest.dependencies[manifest.sdk.package], CERTIFIED_SDK_VERSION);
     }
   });
 

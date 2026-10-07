@@ -7,11 +7,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   BROWSER_CORPUS_SOURCE_FILES,
+  type BrowserBenchmarkBudgets,
   CODE_UNDER_TEST_SOURCE_FILES,
   browserCorpusFingerprint,
   codeUnderTestFingerprint,
   evaluateOperationalScenarios,
   evaluateScenarios,
+  formatFailingItems,
   runRepeatedScenario,
   summarize,
 } from "../bench/browser/run.mjs";
@@ -23,6 +25,10 @@ const budgets = {
   variability: {
     warningCoefficientOfVariation: 0.35,
     failureCoefficientOfVariation: 0.75,
+    minimumStandardDeviationMs: {
+      firstVisibleMs: 250,
+      interactionLatencyMs: 15,
+    },
   },
   scenarios: {
     renderer: {
@@ -142,6 +148,68 @@ describe("browser benchmark budget evaluator", () => {
     const evaluation = evaluateScenarios([scenario([900, 1_000, 1_100], [8, 9, 10])], budgets);
     expect(evaluation.level).toBe("pass");
     expect(evaluation.items).toHaveLength(5);
+  });
+
+  it("does not fail high relative variation around a tiny interaction median", () => {
+    const noisyTinyMedian = scenario([900, 1_000, 1_100], [0.5, 10.1, 30]);
+    noisyTinyMedian.summary.interactionLatencyMs.coefficientOfVariation = 0.787;
+    noisyTinyMedian.summary.interactionLatencyMs.median = 10.1;
+
+    const evaluation = evaluateScenarios([noisyTinyMedian], budgets);
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({
+        metric: "interactionLatencyMs.coefficientOfVariation",
+        actual: 0.787,
+        level: "pass",
+      }),
+    );
+  });
+
+  it.each([undefined, { firstVisibleMs: 250 }])(
+    "preserves schema-v2 relative variation gates with missing metric floors (%j)",
+    (minimumStandardDeviationMs) => {
+      const legacyBudgets: BrowserBenchmarkBudgets = {
+        ...budgets,
+        variability: {
+          warningCoefficientOfVariation: 0.35,
+          failureCoefficientOfVariation: 0.75,
+          ...(minimumStandardDeviationMs === undefined ? {} : { minimumStandardDeviationMs }),
+        },
+      };
+      for (const [samples, level] of [
+        [[8, 9, 10], "pass"],
+        [[1, 2, 4], "warning"],
+        [[0.5, 10.1, 30], "failure"],
+      ] as const) {
+        const evaluation = evaluateScenarios([scenario([900, 1_000, 1_100], samples)], legacyBudgets);
+        expect(evaluation.level).toBe(level);
+        expect(evaluation.items).toContainEqual(
+          expect.objectContaining({
+            metric: "interactionLatencyMs.coefficientOfVariation",
+            level,
+            absoluteFloor: 0,
+          }),
+        );
+      }
+    },
+  );
+
+  it("still fails variation with both a high ratio and a material absolute spread", () => {
+    const evaluation = evaluateScenarios([scenario([900, 1_000, 1_100], [10, 500, 1_500])], budgets);
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({ metric: "interactionLatencyMs.coefficientOfVariation", level: "failure" }),
+    );
+  });
+
+  it("formats every failed evaluation item with its scenario, metric, actual, and threshold", () => {
+    const evaluation = evaluateScenarios([scenario([16_000, 16_100, 16_200], [10, 500, 1_500])], budgets);
+    const summary = formatFailingItems(evaluation);
+
+    expect(summary).toContain("FAILURE renderer firstVisibleMs.median: actual 16100, threshold 15000");
+    expect(summary).toContain("FAILURE renderer interactionLatencyMs.coefficientOfVariation:");
+    expect(summary.match(/FAILURE renderer/g)).toHaveLength(
+      evaluation.items.filter((item) => item.level === "failure").length,
+    );
   });
 
   it("proves a deliberate rendering regression fails the gate", () => {

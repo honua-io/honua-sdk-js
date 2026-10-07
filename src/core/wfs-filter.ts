@@ -21,6 +21,7 @@
  * @module
  */
 
+import { groupEsriPolygonRings } from "./odata.js";
 import type { SpatialFilter } from "./spatial-filter.js";
 import { type WfsAxisOrder, requireWfsAxisOrder } from "./wfs-axis-order.js";
 
@@ -332,34 +333,41 @@ function geometryToGml(
     case "esriGeometryPolyline": {
       const paths = (geometry as { paths?: unknown }).paths;
       if (!Array.isArray(paths) || paths.length === 0) return undefined;
-      // Honua emits a single line; downstream curves are out of scope.
-      const path = paths[0];
-      if (!Array.isArray(path)) return undefined;
-      const coords = path
-        .map((p) => (Array.isArray(p) ? formatCoord(p[0], p[1], axisOrder) : ""))
-        .filter(Boolean)
-        .join(" ");
-      if (!coords) return undefined;
-      return `<gml:LineString${srsAttr}><gml:posList>${coords}</gml:posList></gml:LineString>`;
+      const lines = paths.map((path) => {
+        if (!Array.isArray(path)) return undefined;
+        const coords = path
+          .map((p) => (Array.isArray(p) ? formatCoord(p[0], p[1], axisOrder) : ""))
+          .filter(Boolean)
+          .join(" ");
+        return coords ? `<gml:LineString${srsAttr}><gml:posList>${coords}</gml:posList></gml:LineString>` : undefined;
+      });
+      if (lines.some((line) => line === undefined)) return undefined;
+      return lines.length === 1
+        ? lines[0]
+        : `<gml:MultiCurve${srsAttr}>${lines.map((line) => `<gml:curveMember>${line}</gml:curveMember>`).join("")}</gml:MultiCurve>`;
     }
     case "esriGeometryPolygon": {
       const rings = (geometry as { rings?: unknown }).rings;
       if (!Array.isArray(rings) || rings.length === 0) return undefined;
-      const exterior = ringToPosList(rings[0], axisOrder);
-      if (!exterior) return undefined;
-      const interiors: string[] = [];
-      for (let i = 1; i < rings.length; i += 1) {
-        const inner = ringToPosList(rings[i], axisOrder);
-        if (!inner) return undefined;
-        interiors.push(
-          `<gml:interior><gml:LinearRing><gml:posList>${inner}</gml:posList></gml:LinearRing></gml:interior>`,
-        );
-      }
-      return `<gml:Polygon${srsAttr}><gml:exterior><gml:LinearRing><gml:posList>${exterior}</gml:posList></gml:LinearRing></gml:exterior>${interiors.join("")}</gml:Polygon>`;
+      const polygons = groupEsriPolygonRings(rings as unknown[][][]).map((part) =>
+        polygonPartToGml(part, srsAttr, axisOrder),
+      );
+      if (polygons.some((polygon) => polygon === undefined)) return undefined;
+      return polygons.length === 1
+        ? polygons[0]
+        : `<gml:MultiSurface${srsAttr}>${polygons.map((polygon) => `<gml:surfaceMember>${polygon}</gml:surfaceMember>`).join("")}</gml:MultiSurface>`;
     }
     default:
       return undefined;
   }
+}
+
+function polygonPartToGml(rings: unknown[][][], srsAttr: string, axisOrder: WfsAxisOrder): string | undefined {
+  const exterior = ringToPosList(rings[0], axisOrder);
+  if (!exterior) return undefined;
+  const interiors = rings.slice(1).map((ring) => ringToPosList(ring, axisOrder));
+  if (interiors.some((ring) => ring === undefined)) return undefined;
+  return `<gml:Polygon${srsAttr}><gml:exterior><gml:LinearRing><gml:posList>${exterior}</gml:posList></gml:LinearRing></gml:exterior>${interiors.map((ring) => `<gml:interior><gml:LinearRing><gml:posList>${ring}</gml:posList></gml:LinearRing></gml:interior>`).join("")}</gml:Polygon>`;
 }
 
 function ringToPosList(ring: unknown, axisOrder: WfsAxisOrder): string | undefined {

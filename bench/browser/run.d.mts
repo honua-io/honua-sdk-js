@@ -4,6 +4,7 @@ export interface BrowserMetricSummary {
   mean: number;
   median: number;
   p95: number;
+  standardDeviation: number;
   coefficientOfVariation: number;
 }
 
@@ -30,12 +31,17 @@ export interface BrowserBenchmarkBudgets {
   variability: {
     warningCoefficientOfVariation: number;
     failureCoefficientOfVariation: number;
+    /** Missing metric floors default to zero for existing schema-v2 budgets. */
+    minimumStandardDeviationMs?: Partial<Record<"firstVisibleMs" | "interactionLatencyMs", number>>;
   };
   scenarios: Record<
     string,
     {
       firstVisibleMs: { warning: number; failure: number };
       interactionLatencyMs: { warning: number; failure: number };
+      variability?: {
+        minimumStandardDeviationMs?: Partial<Record<"firstVisibleMs" | "interactionLatencyMs", number>>;
+      };
       stages?: Record<string, BrowserStageBudget>;
     }
   >;
@@ -52,6 +58,8 @@ export interface BrowserEvaluationItem {
   actual?: number;
   warning?: number;
   failure?: number;
+  absoluteSpread?: number;
+  absoluteFloor?: number;
   message?: string;
 }
 
@@ -75,6 +83,7 @@ export function evaluateScenarios(
   scenarios: readonly BrowserScenarioEvaluationInput[],
   budgets: BrowserBenchmarkBudgets,
 ): BrowserEvaluationResult;
+export function formatFailingItems(evaluation: BrowserEvaluationResult): string;
 export function evaluateOperationalScenarios(
   results: ReadonlyArray<{ id: string; passed: boolean; evidence?: Record<string, unknown> }>,
   budgets: BrowserBenchmarkBudgets,
