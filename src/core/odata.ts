@@ -795,7 +795,12 @@ function parseNextLink(
     link.startsWith("http://") || link.startsWith("https://")
       ? new URL(link)
       : new URL(link, `${ensureTrailingSlash(serverBaseUrl)}${stripLeadingSlash(basePath)}/`);
-  const path = absolute.pathname;
+  const serverBase = new URL(serverBaseUrl);
+  const serverPath = trimTrailingSlashes(serverBase.pathname);
+  const path =
+    serverPath && absolute.pathname.startsWith(`${serverPath}/`)
+      ? absolute.pathname.slice(serverPath.length)
+      : absolute.pathname;
   const query: Record<string, string | number | boolean> = {};
   for (const [key, value] of absolute.searchParams) query[key] = value;
   return { path, query };
@@ -1584,18 +1589,73 @@ export function geometryToWkt(geometry: Record<string, unknown>, geometryType: s
     if (!Array.isArray(rings) || rings.length === 0) {
       throw new Error("odata: polygon spatialFilter has no rings");
     }
-    const inner = rings
-      .map((ring) => `(${ring.map((pt) => wktPoint(pt as ArrayLike<unknown>, "polygon.ring")).join(", ")})`)
-      .join(", ");
-    return `POLYGON(${inner})`;
+    const parts = groupEsriPolygonRings(rings).map(
+      (part) =>
+        `(${part
+          .map((ring) => `(${ring.map((pt) => wktPoint(pt as ArrayLike<unknown>, "polygon.ring")).join(", ")})`)
+          .join(", ")})`,
+    );
+    return parts.length === 1 ? `POLYGON${parts[0]}` : `MULTIPOLYGON(${parts.join(", ")})`;
   }
   if (geometryType === "esriGeometryPolyline") {
     const paths = geometry.paths as unknown[][][] | undefined;
     if (!Array.isArray(paths) || paths.length === 0) {
       throw new Error("odata: polyline spatialFilter has no paths");
     }
-    const path = paths[0];
-    return `LINESTRING(${path.map((pt) => wktPoint(pt as ArrayLike<unknown>, "polyline.path")).join(", ")})`;
+    const serialized = paths.map(
+      (path) => `(${path.map((pt) => wktPoint(pt as ArrayLike<unknown>, "polyline.path")).join(", ")})`,
+    );
+    return serialized.length === 1 ? `LINESTRING${serialized[0]}` : `MULTILINESTRING(${serialized.join(", ")})`;
   }
   throw new Error(`odata: spatialFilter.geometryType "${geometryType}" is not supported.`);
+}
+
+/** Group clockwise Esri exteriors and assign counter-clockwise holes by containment, independent of order. */
+export function groupEsriPolygonRings(rings: unknown[][][]): unknown[][][][] {
+  const parts: unknown[][][][] = [];
+  const outerAreas: number[] = [];
+  const holes: Array<{ ring: unknown[][]; area: number }> = [];
+  for (const ring of rings) {
+    const area = ring.reduce((sum, point, index) => {
+      const next = ring[(index + 1) % ring.length];
+      if (!Array.isArray(point) || !Array.isArray(next)) return sum;
+      return sum + Number(point[0]) * Number(next[1]) - Number(next[0]) * Number(point[1]);
+    }, 0);
+    if (area < 0) {
+      parts.push([ring]);
+      outerAreas.push(Math.abs(area));
+    } else holes.push({ ring, area: Math.abs(area) });
+  }
+  for (const { ring: hole, area } of holes) {
+    let containing = -1;
+    let smallestArea = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < parts.length; index++) {
+      if (outerAreas[index] < smallestArea && ringContainsPoint(parts[index][0], hole[0])) {
+        containing = index;
+        smallestArea = outerAreas[index];
+      }
+    }
+    if (containing >= 0) parts[containing].push(hole);
+    // Preserve standalone rings with non-Esri winding, as the GeoJSON converter does.
+    else {
+      parts.push([hole]);
+      outerAreas.push(area);
+    }
+  }
+  return parts;
+}
+
+function ringContainsPoint(ring: unknown[][], point: unknown[] | undefined): boolean {
+  if (!point) return false;
+  const x = Number(point[0]);
+  const y = Number(point[1]);
+  let inside = false;
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const xi = Number(ring[index][0]);
+    const yi = Number(ring[index][1]);
+    const xj = Number(ring[previous][0]);
+    const yj = Number(ring[previous][1]);
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }

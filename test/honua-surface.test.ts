@@ -114,10 +114,12 @@ describe("Honua native API surfaces", () => {
   });
 
   it("supports queryFeatureCount and queryObjectIds convenience methods", async () => {
+    const queryUrls: URL[] = [];
     const client = new HonuaClient({
       baseUrl: "https://example.test",
       fetchFn: async (input) => {
         const url = new URL(String(input));
+        queryUrls.push(url);
         if (url.searchParams.get("returnCountOnly") === "true") {
           return new Response(JSON.stringify({ count: 7 }), { status: 200 });
         }
@@ -134,6 +136,80 @@ describe("Honua native API surfaces", () => {
 
     expect(count).toBe(7);
     expect(objectIds).toEqual([1, 2, 3]);
+    expect(queryUrls).toHaveLength(2);
+    expect(queryUrls.every((url) => !url.searchParams.has("outFields"))).toBe(true);
+  });
+
+  it("omits outFields for string and numeric count or ids flags on FeatureServer and MapServer", async () => {
+    const queries: Array<{ path: string; params: URLSearchParams }> = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (input, init) => {
+        const url = new URL(String(input));
+        const params =
+          init?.body !== undefined ? new URLSearchParams(String(init.body)) : new URLSearchParams(url.search);
+        queries.push({ path: url.pathname, params });
+        if (params.get("returnCountOnly") !== null) {
+          return new Response(JSON.stringify({ count: 1 }), { status: 200 });
+        }
+        if (params.get("returnIdsOnly") !== null) {
+          return new Response(JSON.stringify({ objectIds: [1] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ features: [] }), { status: 200 });
+      },
+    });
+
+    const suppressing = ["true", " TRUE ", "1", "yes", 1] as const;
+    for (const returnCountOnly of suppressing) {
+      await client.queryFeatures({
+        serviceId: "transport",
+        layerId: 1,
+        outFields: "OBJECTID",
+        extraParams: { returnCountOnly, outFields: "NAME" },
+      });
+      await client.queryMapLayer({
+        serviceId: "basemap",
+        layerId: 2,
+        outFields: "OBJECTID",
+        extraParams: { returnIdsOnly: returnCountOnly, outFields: "NAME" },
+      });
+    }
+
+    await client.queryFeatures({
+      serviceId: "transport",
+      layerId: 1,
+      outFields: ["OBJECTID", "NAME"],
+      extraParams: { returnCountOnly: "false" },
+    });
+    await client.queryMapLayer({
+      serviceId: "basemap",
+      layerId: 2,
+      outFields: "OBJECTID",
+      extraParams: { returnIdsOnly: 0 },
+    });
+    await client.queryMapLayer({
+      serviceId: "basemap",
+      layerId: 2,
+      method: "POST",
+      outFields: "OBJECTID",
+      extraParams: { returnCountOnly: "yes" },
+    });
+
+    const suppressed = queries.slice(0, suppressing.length * 2);
+    expect(suppressed).toHaveLength(10);
+    expect(suppressed.every((query) => !query.params.has("outFields"))).toBe(true);
+    expect(suppressed.filter((query) => query.path.includes("/FeatureServer/"))).toHaveLength(5);
+    expect(suppressed.filter((query) => query.path.includes("/MapServer/"))).toHaveLength(5);
+
+    expect(queries[10]?.path).toContain("/FeatureServer/1/query");
+    expect(queries[10]?.params.get("outFields")).toBe("OBJECTID,NAME");
+    expect(queries[10]?.params.get("returnCountOnly")).toBe("false");
+    expect(queries[11]?.path).toContain("/MapServer/2/query");
+    expect(queries[11]?.params.get("outFields")).toBe("OBJECTID");
+    expect(queries[11]?.params.get("returnIdsOnly")).toBe("0");
+    expect(queries[12]?.path).toContain("/MapServer/2/query");
+    expect(queries[12]?.params.has("outFields")).toBe(false);
+    expect(queries[12]?.params.get("returnCountOnly")).toBe("yes");
   });
 
   it("supports queryFeaturesAll pagination helper", async () => {
@@ -417,8 +493,10 @@ describe("Honua native API surfaces", () => {
     });
     expect(requestedUrls[0]).toContain("/rest/services/basemap/MapServer/2/query?");
     expect(requestedUrls[0]).toContain("returnCountOnly=true");
+    expect(new URL(requestedUrls[0]!).searchParams.has("outFields")).toBe(false);
     expect(requestedUrls[1]).toContain("/rest/services/basemap/MapServer/2/query?");
     expect(requestedUrls[1]).toContain("returnIdsOnly=true");
+    expect(new URL(requestedUrls[1]!).searchParams.has("outFields")).toBe(false);
     expect(requestedUrls[2]).toContain("/rest/services/basemap/MapServer/2/query?");
     expect(requestedUrls[2]).toContain("returnExtentOnly=true");
   });
@@ -644,7 +722,9 @@ describe("Honua native API surfaces", () => {
     expect(requests[0]).toContain("/rest/services/basemap/MapServer/4?f=json");
     expect(requests[1]).toContain("/rest/services/basemap/MapServer/4/query?");
     expect(requests[2]).toContain("returnCountOnly=true");
+    expect(new URL(requests[2]!).searchParams.has("outFields")).toBe(false);
     expect(requests[3]).toContain("returnIdsOnly=true");
+    expect(new URL(requests[3]!).searchParams.has("outFields")).toBe(false);
     expect(requests[4]).toContain("returnExtentOnly=true");
     expect(requests[5]).toContain("/rest/services/basemap/MapServer/4/queryDomains?f=json");
   });

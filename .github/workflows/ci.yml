@@ -441,6 +441,9 @@ jobs:
       - name: Verify agent skills
         run: npm run verify:skills
 
+      - name: Verify desktop-client detail containment
+        run: npm run security:desktop-client-containment
+
       - name: Build
         run: npm run build
 

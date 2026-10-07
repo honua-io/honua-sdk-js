@@ -138,7 +138,7 @@ export async function queryFeaturesRest(
   const params = new URLSearchParams();
   params.set("f", preferBinary && (request.method === undefined || request.method === "GET") ? "pbf" : "json");
   params.set("where", request.where ?? "1=1");
-  params.set("outFields", normalizeOutFields(request.outFields));
+  applyOutFields(params, request);
   params.set("returnGeometry", String(request.returnGeometry ?? true));
 
   serializeQueryParams(params, request);
@@ -183,7 +183,7 @@ export async function queryMapLayer(
   const params = new URLSearchParams();
   params.set("f", "json");
   params.set("where", request.where ?? "1=1");
-  params.set("outFields", normalizeOutFields(request.outFields));
+  applyOutFields(params, request);
   params.set("returnGeometry", String(request.returnGeometry ?? true));
 
   serializeQueryParams(params, request);
@@ -527,6 +527,49 @@ function normalizeOutFields(outFields: string | string[] | undefined): string {
   return outFields;
 }
 
+/**
+ * Count-only and IDs-only queries must not send `outFields`. Some servers
+ * reject the combination. Flag values follow `parseExtraBoolean` in
+ * `grpc-adapter.ts`: boolean, non-zero numbers, and the strings
+ * `true` / `1` / `yes` (trimmed, case-insensitive).
+ */
+function querySuppressesOutFields(
+  extraParams: QueryFeaturesRequest["extraParams"] | MapLayerQueryRequest["extraParams"],
+): boolean {
+  return extraParamIsTrue(extraParams, "returnCountOnly") || extraParamIsTrue(extraParams, "returnIdsOnly");
+}
+
+function extraParamIsTrue(
+  params: QueryFeaturesRequest["extraParams"] | MapLayerQueryRequest["extraParams"],
+  key: string,
+): boolean {
+  if (params === undefined) {
+    return false;
+  }
+  const value = params[key];
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+function applyOutFields(
+  params: URLSearchParams,
+  request: Pick<QueryFeaturesRequest | MapLayerQueryRequest, "outFields" | "extraParams">,
+): void {
+  if (querySuppressesOutFields(request.extraParams)) {
+    return;
+  }
+  params.set("outFields", normalizeOutFields(request.outFields));
+}
+
 function encodeFormValue(value: unknown): string {
   if (typeof value === "string") {
     return value;
@@ -654,8 +697,12 @@ function appendQueryExtraParams(
     return;
   }
 
+  const suppressOutFields = querySuppressesOutFields(request.extraParams);
   for (const [key, value] of Object.entries(request.extraParams)) {
     if (request.outSr !== undefined && (key === "outSr" || key === "outSR")) {
+      continue;
+    }
+    if (suppressOutFields && key === "outFields") {
       continue;
     }
     params.set(key, String(value));
