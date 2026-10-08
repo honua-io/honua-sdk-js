@@ -7,6 +7,7 @@ import {
   CoordinateSequenceSchema,
   DistanceUnit,
   ExtentSchema,
+  type Feature,
   FeaturePageSchema,
   FeatureSchema,
   FieldDefinitionSchema,
@@ -713,6 +714,108 @@ describe("fromProtoQueryResponse", () => {
     // which would serialize to invalid JSON null.
     expect(coords).toEqual([0, 0, 3]);
   });
+
+  describe("object ID from Feature.id (honua-server#5330)", () => {
+    function featureResponse(objectIdFieldName: string, features: Feature[]) {
+      const response = create(QueryFeaturesResponseSchema);
+      response.objectIdFieldName = objectIdFieldName;
+      response.geometryType = GeometryType.POINT;
+      response.features = features;
+      return response;
+    }
+
+    function protoFeature(id: bigint, attributes: Record<string, string | bigint> = {}) {
+      const feature = create(FeatureSchema);
+      feature.id = id;
+      for (const [key, value] of Object.entries(attributes)) {
+        const attr = create(AttributeValueSchema);
+        attr.value = typeof value === "bigint" ? { case: "int64Value", value } : { case: "stringValue", value };
+        feature.attributes[key] = attr;
+      }
+      return feature;
+    }
+
+    it("restores the object ID under the declared field name", () => {
+      const result = fromProtoQueryResponse(
+        featureResponse("objectid", [protoFeature(7n, { name: "A" }), protoFeature(8n, { name: "B" })]),
+      ) as any;
+
+      expect(result.features.map((f: any) => f.attributes)).toEqual([
+        { name: "A", objectid: 7 },
+        { name: "B", objectid: 8 },
+      ]);
+    });
+
+    it("uses a custom object ID field name", () => {
+      const result = fromProtoQueryResponse(featureResponse("FID", [protoFeature(12n)])) as any;
+
+      expect(result.features[0].attributes).toEqual({ FID: 12 });
+    });
+
+    it("keeps unsafe int64 object IDs exact as decimal strings", () => {
+      const result = fromProtoQueryResponse(
+        featureResponse("objectid", [protoFeature(9007199254740993n), protoFeature(-9223372036854775808n)]),
+      ) as any;
+
+      expect(result.features[0].attributes.objectid).toBe("9007199254740993");
+      expect(result.features[1].attributes.objectid).toBe("-9223372036854775808");
+    });
+
+    it("keeps an attribute a legacy server already sent under the field name", () => {
+      const result = fromProtoQueryResponse(
+        featureResponse("objectid", [protoFeature(3n, { objectid: 3n }), protoFeature(4n, { OBJECTID: 4n })]),
+      ) as any;
+
+      expect(result.features[0].attributes).toEqual({ objectid: 3 });
+      expect(result.features[1].attributes).toEqual({ OBJECTID: 4 });
+    });
+
+    it("keeps a differing custom public ID rather than overwriting it", () => {
+      const result = fromProtoQueryResponse(
+        featureResponse("parcel_id", [protoFeature(5n, { parcel_id: "P-0005" })]),
+      ) as any;
+
+      expect(result.features[0].attributes).toEqual({ parcel_id: "P-0005" });
+    });
+
+    it("adds nothing when the object ID field name is absent or redacted", () => {
+      const result = fromProtoQueryResponse(featureResponse("", [protoFeature(9n, { name: "A" })])) as any;
+
+      expect(result.features[0].attributes).toEqual({ name: "A" });
+    });
+
+    it("adds nothing for features without an object ID such as distinct projections", () => {
+      const result = fromProtoQueryResponse(featureResponse("objectid", [protoFeature(0n, { zone: "R1" })])) as any;
+
+      expect(result.features[0].attributes).toEqual({ zone: "R1" });
+    });
+
+    it("leaves count, ids-only and extent envelopes unchanged", () => {
+      const count = create(QueryFeaturesResponseSchema);
+      count.count = 3n;
+      expect(fromProtoQueryResponse(count)).toEqual({ count: 3 });
+
+      const ids = create(QueryFeaturesResponseSchema);
+      ids.objectIdFieldName = "objectid";
+      ids.objectIds = [1n, 9007199254740993n];
+      expect(fromProtoQueryResponse(ids)).toEqual({
+        objectIdFieldName: "objectid",
+        objectIds: [1, "9007199254740993"],
+      });
+
+      const extent = create(QueryFeaturesResponseSchema);
+      extent.objectIdFieldName = "objectid";
+      const ext = create(ExtentSchema);
+      ext.xmin = 0;
+      ext.ymin = 0;
+      ext.xmax = 1;
+      ext.ymax = 1;
+      extent.extent = ext;
+      expect(fromProtoQueryResponse(extent)).toEqual({
+        extent: { xmin: 0, ymin: 0, xmax: 1, ymax: 1, spatialReference: undefined },
+      });
+    });
+  });
 });
 
 describe("streamProtoPages", () => {
@@ -805,5 +908,78 @@ describe("streamProtoPages", () => {
     }
 
     expect(pages).toHaveLength(0);
+  });
+
+  it("restores object IDs on every page from first-page metadata", async () => {
+    const page1 = create(FeaturePageSchema);
+    page1.objectIdFieldName = "objectid";
+    const f1 = create(FeatureSchema);
+    f1.id = 1n;
+    page1.features = [f1];
+
+    const page2 = create(FeaturePageSchema);
+    const f2 = create(FeatureSchema);
+    f2.id = 9007199254740993n;
+    const f3 = create(FeatureSchema);
+    f3.id = 0n;
+    page2.features = [f2, f3];
+    page2.isLastPage = true;
+
+    async function* mockStream() {
+      yield page1;
+      yield page2;
+    }
+
+    const pages: any[][] = [];
+    for await (const batch of streamProtoPages(mockStream())) {
+      pages.push(batch);
+    }
+
+    expect(pages.map((page) => page.map((f) => f.attributes))).toEqual([
+      [{ objectid: 1 }],
+      [{ objectid: "9007199254740993" }, {}],
+    ]);
+  });
+
+  it("keeps object ID metadata from an empty first page", async () => {
+    const page1 = create(FeaturePageSchema);
+    page1.objectIdFieldName = "OBJECTID";
+
+    const page2 = create(FeaturePageSchema);
+    const f1 = create(FeatureSchema);
+    f1.id = -4n;
+    page2.features = [f1];
+    page2.isLastPage = true;
+
+    async function* mockStream() {
+      yield page1;
+      yield page2;
+    }
+
+    const pages: any[][] = [];
+    for await (const batch of streamProtoPages(mockStream())) {
+      pages.push(batch);
+    }
+
+    expect(pages).toEqual([[{ attributes: { OBJECTID: -4 } }]]);
+  });
+
+  it("adds no object ID to streamed features when metadata is absent", async () => {
+    const page = create(FeaturePageSchema);
+    const f1 = create(FeatureSchema);
+    f1.id = 1n;
+    page.features = [f1];
+    page.isLastPage = true;
+
+    async function* mockStream() {
+      yield page;
+    }
+
+    const pages: any[][] = [];
+    for await (const batch of streamProtoPages(mockStream())) {
+      pages.push(batch);
+    }
+
+    expect(pages[0][0].attributes).toEqual({});
   });
 });

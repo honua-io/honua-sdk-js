@@ -341,7 +341,7 @@ export function fromProtoQueryResponse(
     geometryType: GEOMETRY_TYPE_MAP[response.geometryType] ?? "esriGeometryPoint",
     spatialReference: response.spatialReference ? convertSpatialReference(response.spatialReference) : undefined,
     fields: response.fields.map(convertField),
-    features: response.features.map(convertFeature),
+    features: response.features.map((feature) => convertFeature(feature, response.objectIdFieldName)),
     exceededTransferLimit: response.exceededTransferLimit || undefined,
   };
 }
@@ -682,12 +682,17 @@ function isPolygon(value: Record<string, unknown>): value is { rings: unknown[] 
 export async function* streamProtoPages(
   stream: AsyncIterable<FeaturePage>,
 ): AsyncGenerator<HonuaFeature[], void, undefined> {
+  // Metadata is populated on the first page only; later pages reuse it.
+  let objectIdFieldName = "";
   try {
     for await (const page of stream) {
+      if (page.objectIdFieldName) {
+        objectIdFieldName = page.objectIdFieldName;
+      }
       if (page.features.length === 0 && page.isLastPage) {
         break;
       }
-      const features = page.features.map(convertFeature);
+      const features = page.features.map((feature) => convertFeature(feature, objectIdFieldName));
       if (features.length > 0) {
         yield features;
       }
@@ -747,10 +752,22 @@ function convertField(field: ProtoFieldDefinition): HonuaFieldInfo {
   };
 }
 
-function convertFeature(feature: ProtoFeature): HonuaFeature {
+/**
+ * geospatial.v1 carries the object ID in `Feature.id` and the server no
+ * longer repeats it in `Feature.attributes` (honua-server#5330), so it is
+ * restored under the declared `objectIdFieldName` to match `f=json` output.
+ * An `id` of 0 means no object ID (for example distinct projections), and an
+ * attribute already present under that name in any casing (a legacy server
+ * repeating it, or a differing custom public ID) is kept as sent.
+ */
+function convertFeature(feature: ProtoFeature, objectIdFieldName: string): HonuaFeature {
   const attributes: Record<string, unknown> = {};
   for (const [key, attrValue] of Object.entries(feature.attributes)) {
     attributes[key] = convertAttributeValue(attrValue);
+  }
+
+  if (objectIdFieldName.length > 0 && feature.id !== 0n && !hasAttributeIgnoreCase(attributes, objectIdFieldName)) {
+    attributes[objectIdFieldName] = toSafeNumberOrString(feature.id);
   }
 
   const result: HonuaFeature = { attributes };
@@ -760,6 +777,11 @@ function convertFeature(feature: ProtoFeature): HonuaFeature {
   }
 
   return result;
+}
+
+function hasAttributeIgnoreCase(attributes: Record<string, unknown>, name: string): boolean {
+  const lowered = name.toLowerCase();
+  return Object.keys(attributes).some((key) => key.toLowerCase() === lowered);
 }
 
 function convertAttributeValue(attr: AttributeValue): unknown {
