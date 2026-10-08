@@ -941,6 +941,29 @@ describe("streamProtoPages", () => {
     ]);
   });
 
+  it("keeps object ID metadata from an empty first page", async () => {
+    const page1 = create(FeaturePageSchema);
+    page1.objectIdFieldName = "OBJECTID";
+
+    const page2 = create(FeaturePageSchema);
+    const f1 = create(FeatureSchema);
+    f1.id = -4n;
+    page2.features = [f1];
+    page2.isLastPage = true;
+
+    async function* mockStream() {
+      yield page1;
+      yield page2;
+    }
+
+    const pages: any[][] = [];
+    for await (const batch of streamProtoPages(mockStream())) {
+      pages.push(batch);
+    }
+
+    expect(pages).toEqual([[{ attributes: { OBJECTID: -4 } }]]);
+  });
+
   it("adds no object ID to streamed features when metadata is absent", async () => {
     const page = create(FeaturePageSchema);
     const f1 = create(FeatureSchema);
