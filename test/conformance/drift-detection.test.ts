@@ -24,6 +24,7 @@ import {
   type CanonQueryRequest,
   type CanonQueryResponse,
   VALID_ESRI_FIELD_TYPES,
+  canonFieldTypeToEsri,
   canonRequestToQuery,
   goldenToExpectedQueryResult,
 } from "./mapping.js";
@@ -60,6 +61,90 @@ const CANON_GOLDEN: CanonQueryResponse = {
   ],
   exceededTransferLimit: false,
 };
+
+describe("canonical temporal field contract", () => {
+  const golden: CanonQueryResponse = {
+    fields: [
+      { name: "flightDate", fieldType: "FIELD_TYPE_DATE" },
+      { name: "observedAt", fieldType: "FIELD_TYPE_DATE_TIME" },
+    ],
+    exceededTransferLimit: false,
+  };
+
+  function temporalResult(): Result {
+    return {
+      fields: [
+        { name: "flightDate", type: "esriFieldTypeDateOnly" },
+        { name: "observedAt", type: "esriFieldTypeDate" },
+      ],
+      features: [],
+      exceededTransferLimit: false,
+    };
+  }
+
+  it("maps DATE and DATE_TIME to their distinct literal SDK field types", () => {
+    expect(canonFieldTypeToEsri("FIELD_TYPE_DATE")).toBe("esriFieldTypeDateOnly");
+    expect(canonFieldTypeToEsri("FIELD_TYPE_DATE_TIME")).toBe("esriFieldTypeDate");
+  });
+
+  it("derives literal date-only and date-time expectations from a golden schema", () => {
+    const expected = goldenToExpectedQueryResult(golden);
+
+    expect(expected.fields).toEqual([
+      { name: "flightDate", esriType: "esriFieldTypeDateOnly" },
+      { name: "observedAt", esriType: "esriFieldTypeDate" },
+    ]);
+    expect(VALID_ESRI_FIELD_TYPES.has("esriFieldTypeDateOnly")).toBe(true);
+  });
+
+  it("accepts date-only and date-time fields through both drift detectors", () => {
+    const expected = goldenToExpectedQueryResult(golden);
+    const actual = temporalResult();
+    expect(findQueryResultDrift(expected, actual)).toEqual([]);
+    expect(findLiveProjectionDrift(expected, actual, VALID_ESRI_FIELD_TYPES)).toEqual([]);
+  });
+
+  it.each([
+    ["flightDate", "esriFieldTypeDateOnly", "esriFieldTypeDate"],
+    ["observedAt", "esriFieldTypeDate", "esriFieldTypeDateOnly"],
+  ])("detects a temporal type mismatch for %s", (name, expectedType, wrongType) => {
+    const expected = goldenToExpectedQueryResult(golden);
+    const actual = temporalResult();
+    actual.fields = actual.fields?.map((field) => (field.name === name ? { ...field, type: wrongType } : field));
+    const drift = findQueryResultDrift(expected, actual);
+    expect(drift).toEqual([
+      {
+        kind: "field-type",
+        message: `field "${name}" type drift: golden expects ${expectedType} but live returned ${wrongType}`,
+      },
+    ]);
+    expect(formatDriftFindings("temporal", drift)).toContain("(field-type)");
+  });
+
+  it("detects an unknown live temporal type through both drift detectors", () => {
+    const expected = goldenToExpectedQueryResult(golden);
+    const actual = temporalResult();
+    actual.fields = actual.fields?.map((field) =>
+      field.name === "flightDate" ? { ...field, type: "esriFieldTypeFutureTemporal" } : field,
+    );
+    const queryDrift = findQueryResultDrift(expected, actual);
+    const liveDrift = findLiveProjectionDrift(expected, actual, VALID_ESRI_FIELD_TYPES);
+    expect(queryDrift).toHaveLength(1);
+    expect(queryDrift[0]?.kind).toBe("field-type");
+    expect(liveDrift).toHaveLength(1);
+    expect(liveDrift[0]?.kind).toBe("field-type");
+    expect(formatDriftFindings("temporal", liveDrift)).toContain(
+      'live field "flightDate" has unrecognised type "esriFieldTypeFutureTemporal"',
+    );
+  });
+
+  it("rejects an unknown canonical type instead of weakening drift detection", () => {
+    expect(() => canonFieldTypeToEsri("FIELD_TYPE_FUTURE_TEMPORAL")).toThrow(
+      'Unknown geospatial.v1 field type "FIELD_TYPE_FUTURE_TEMPORAL"',
+    );
+    expect(VALID_ESRI_FIELD_TYPES.has("esriFieldTypeFutureTemporal")).toBe(false);
+  });
+});
 
 /** A synthetic, fully-conformant live `Result` derived from the golden. */
 function conformantResult(): Result {
