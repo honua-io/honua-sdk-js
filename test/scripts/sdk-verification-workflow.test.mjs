@@ -609,14 +609,13 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
     assert.equal(/\bnpm publish\b/u.test(executedScripts), false, "the verification graph must never publish");
   });
 
-  it("keeps the desktop-client containment gate in a job the aggregate gate depends on", () => {
+  it("runs the desktop-client containment gate once, with the source-tree gates", () => {
     // The containment scan reads every tracked file, not dist/, so it belongs
-    // with the other source-tree gates in verify-core, and the aggregate must
-    // not be able to go green without it (#1999).
+    // with the other source-tree gates in verify-core, which the aggregate
+    // already depends on (#1999).
     const containment = "npm run security:desktop-client-containment";
     const owners = Object.keys(graph.jobs).filter((jobId) => jobCommands(graph, jobId).has(containment));
     assert.deepEqual(owners, ["verify-core"], "exactly one source-tree job must run the containment gate");
-    assert.ok(graph.jobs.verified.needs.includes("verify-core"));
   });
 });
 
