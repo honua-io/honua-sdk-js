@@ -608,6 +608,15 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
       .join("\n");
     assert.equal(/\bnpm publish\b/u.test(executedScripts), false, "the verification graph must never publish");
   });
+
+  it("runs the desktop-client containment gate once, with the source-tree gates", () => {
+    // The containment scan reads every tracked file, not dist/, so it belongs
+    // with the other source-tree gates in verify-core, which the aggregate
+    // already depends on (#1999).
+    const containment = "npm run security:desktop-client-containment";
+    const owners = Object.keys(graph.jobs).filter((jobId) => jobCommands(graph, jobId).has(containment));
+    assert.deepEqual(owners, ["verify-core"], "exactly one source-tree job must run the containment gate");
+  });
 });
 
 describe("the shadow graph cannot satisfy or block a required status context", () => {
