@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { startMockUpstream } from "../../src/certification/mock-upstream.js";
+import { buildOperatorTools } from "../../src/certification/operator-catalog.js";
 import { certifyTarget } from "../../src/certification/run.js";
 import {
   type CertificationTarget,
@@ -76,16 +80,36 @@ describe("remote target (against an in-process mock /mcp)", () => {
     const mock = await startMockUpstream();
     cleanups.push(() => mock.close());
 
+    // A remote target is held to a server roster. This one is the roster of the
+    // surface actually behind the URL (the mock's catalog), supplied as a file
+    // so the test needs no network.
+    const rosterDir = mkdtempSync(join(tmpdir(), "mcp-target-roster-"));
+    cleanups.push(async () => rmSync(rosterDir, { recursive: true, force: true }));
+    const names = buildOperatorTools().map((t) => t.name);
+    const rosterFile = join(rosterDir, "mcp-tool-roster.v1.json");
+    writeFileSync(
+      rosterFile,
+      JSON.stringify({
+        static: names,
+        projectedAdmin: [],
+        requiresDurableControlPlane: [],
+        views: { default: names, setup: [], configure: [], operate: [], analyze: [] },
+        retired: ["honua_propose_operation"],
+      }),
+    );
+
     const env = {
       HONUA_MCP_CERT_TARGET: "remote",
       HONUA_MCP_REMOTE_URL: mock.url,
       HONUA_MCP_AUTH_TOKEN: mock.authToken,
+      HONUA_MCP_ROSTER_FILE: rosterFile,
     } as NodeJS.ProcessEnv;
 
     const target: CertificationTarget = await openCertificationTarget(env);
     const report = await certifyTarget(target, env); // closes the connected clients
     expect(report.protocol.targetMode).toBe("remote");
     expect(report.protocol.backend).toBe("live");
+    expect(report.contracts.find((c) => c.contract === "roster-parity")?.status).toBe("passed");
     expect(report.summary.pass).toBe(true);
     // auth contract still exercised via a fresh unauthenticated connection.
     const authChecks = report.contracts.filter((c) => c.contract === "auth-unauthenticated");

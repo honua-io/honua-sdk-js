@@ -1,3 +1,4 @@
+import { TYPED_PROPOSAL_TOOLS } from "./proposal-tools.js";
 import type { Scenario } from "./types.js";
 
 /**
@@ -40,12 +41,13 @@ import type { Scenario } from "./types.js";
  */
 
 /**
- * The generic mutation escape-hatch. Every north-star workflow must compose the
- * structured lifecycle (plan → validate → execute → publish) rather than reach
- * for `honua_propose_operation`, so forbidding it turns "did the client use the
+ * The governed control-plane proposal roster (the typed tools that replaced the
+ * retired `honua_propose_operation`). Every north-star workflow must compose the
+ * structured lifecycle (plan → validate → execute → publish) rather than file a
+ * control-plane proposal, so forbidding the roster turns "did the client use the
  * intended workflow?" into a graded criterion.
  */
-const GENERIC_MUTATION_TOOL = "honua_propose_operation";
+const PROPOSAL_TOOLS: string[] = [...TYPED_PROPOSAL_TOOLS];
 
 /** A small, embedded address CSV for the geocode → publish workflow (10 rows). */
 const ADDRESS_CSV = [
@@ -77,7 +79,7 @@ const CSV_GEOCODE_PROMPT = `Here is a CSV of addresses. Geocode them and publish
 ${ADDRESS_CSV}
 \`\`\`
 
-Batch-geocode every row, ingest the geocoded points as a dataset, and publish that dataset as a hosted point service. Do not reach for a raw propose_operation.`;
+Batch-geocode every row, ingest the geocoded points as a dataset, and publish that dataset as a hosted point service. Do not file a control-plane proposal (honua_propose_*).`;
 
 export const NORTHSTAR_CORPUS: Scenario[] = [
   {
@@ -88,13 +90,13 @@ export const NORTHSTAR_CORPUS: Scenario[] = [
       "Find all parcels within 500 m of a flood zone and produce a styled map of them. " +
       "Resolve the parcels and flood-zone layers, plan and run the proximity analysis as a " +
       "governed job, publish the result as a new layer, style it, and render a map. Use the " +
-      "structured analysis lifecycle — do not reach for a raw propose_operation.",
+      "structured analysis lifecycle — do not file a control-plane proposal (honua_propose_*).",
     criteria: {
       // Load-bearing arc of the workflow: ground the entities, execute the plan,
       // publish the job artifact to a layer, and render a map of it.
       requiredTools: ["honua_resolve_entity", "honua_execute_plan", "honua_publish_result", "honua_render_map"],
       expectedToolSequence: ["honua_resolve_entity", "honua_execute_plan", "honua_publish_result", "honua_render_map"],
-      forbiddenTools: [GENERIC_MUTATION_TOOL],
+      forbiddenTools: PROPOSAL_TOOLS,
     },
     script: [
       { tool: "honua_resolve_entity", args: { text: "parcels", entityType: "layer" } },
@@ -129,7 +131,7 @@ export const NORTHSTAR_CORPUS: Scenario[] = [
       // ingest the resulting points → publish the source table as a service.
       requiredTools: ["honua_geocode_addresses", "honua_ingest_dataset", "honua_publish_service"],
       expectedToolSequence: ["honua_geocode_addresses", "honua_ingest_dataset", "honua_publish_service"],
-      forbiddenTools: [GENERIC_MUTATION_TOOL],
+      forbiddenTools: PROPOSAL_TOOLS,
     },
     script: [
       { tool: "honua_geocode_addresses", args: { addresses: ADDRESS_ROWS } },
@@ -162,7 +164,7 @@ export const NORTHSTAR_CORPUS: Scenario[] = [
       "Buffer highways by 100 m, intersect the buffers with wetlands, and give me summary " +
       "statistics for the overlap. Run it as a job and report progress. Ground the goal into " +
       "an analysis plan, validate it, then execute it as a governed job and report the results " +
-      "the job produces. Do not reach for a raw propose_operation.",
+      "the job produces. Do not file a control-plane proposal (honua_propose_*).",
     criteria: {
       // Plan entry → validate → execute-as-job. The answer must carry evidence
       // that the JOB path was used and its results read back — kept loose (the
@@ -175,7 +177,7 @@ export const NORTHSTAR_CORPUS: Scenario[] = [
         "honua_validate_plan",
         "honua_execute_plan",
       ],
-      forbiddenTools: [GENERIC_MUTATION_TOOL],
+      forbiddenTools: PROPOSAL_TOOLS,
       answerMustInclude: ["job"],
     },
     script: [

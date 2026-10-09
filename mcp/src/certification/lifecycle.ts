@@ -44,6 +44,8 @@ export interface DeepContractOptions {
   /** Open a fresh unauthenticated client (for the permission-denied case). */
   connectUnauthenticated?: (() => Promise<Client>) | undefined;
   env?: NodeJS.ProcessEnv;
+  /** Set when no published layer could be discovered; query pagination is skipped with this reason. */
+  targetUnavailable?: string;
 }
 
 function isTruthy(value: string | undefined): boolean {
@@ -348,6 +350,9 @@ async function runQueryPagination(options: DeepContractOptions, target: EditTarg
   const contract = "query-pagination" as const;
   if (!options.advertisedToolNames.has(QUERY_TOOL)) {
     return skip(contract, QUERY_TOOL, `${QUERY_TOOL} not advertised by this surface`);
+  }
+  if (options.targetUnavailable) {
+    return skip(contract, QUERY_TOOL, `no published layer to page: ${options.targetUnavailable}`);
   }
 
   const { client } = options;

@@ -6,13 +6,15 @@
 // Each artifact is a certification report (schemaVersion 2, has `contracts`) or a
 // cross-model eval report (schemaVersion 4, has `models` + `results`). The
 // generator classifies them, then emits:
-//   - a model × corpus × pass-rate leaderboard,
+//   - the latest scheduled-certification verdict and date, ABOVE every table, so
+//     the page never headlines a months-old pass while the weekly lane is red,
+//   - a model × corpus × pass-rate leaderboard (history),
 //   - a per-scenario breakdown matrix per corpus,
 //   - a certification-runs table,
 // into mcp/evals/LEADERBOARD.md and mcp/evals/leaderboard.html.
 
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -105,6 +107,78 @@ for (const file of files) {
   else if (kind === "cert") certs.push({ file, report });
 }
 
+// ── Latest scheduled certification verdict ──────────────────────────────────
+//
+// The weekly mcp-cert-scheduled lane writes `cert-candidate.json` (the pinned
+// candidate image, certified with a real key: the gate) and, when a demo target
+// is configured, `cert-demo.json`. Before the candidate gate existed the lane
+// certified only the demo, so `cert-demo.json` is the scheduled verdict for
+// those older runs.
+
+const SCHEDULED_CERT_FILES = new Map([
+  ["cert-candidate.json", "candidate"],
+  ["cert-demo.json", "demo"],
+]);
+
+function generatedAtOf(report) {
+  const ts = report?.generatedAt ?? report?.provenance?.generatedAt;
+  return typeof ts === "string" ? ts : "";
+}
+
+function blockedCount(report) {
+  const fromSummary = report?.summary?.contractsBlocked;
+  if (typeof fromSummary === "number") return fromSummary;
+  return (report?.contracts ?? []).filter((c) => c.status === "blocked").length;
+}
+
+const scheduledCerts = certs
+  .filter(({ file }) => SCHEDULED_CERT_FILES.has(basename(file)))
+  .map(({ file, report }) => ({ file, report, kind: SCHEDULED_CERT_FILES.get(basename(file)) }))
+  .sort((a, b) => generatedAtOf(a.report).localeCompare(generatedAtOf(b.report)));
+const latestScheduled = (() => {
+  if (scheduledCerts.length === 0) return undefined;
+  // On a run that certified both, the candidate is the verdict.
+  const lastDate = dateOf(scheduledCerts[scheduledCerts.length - 1].report);
+  const sameRun = scheduledCerts.filter((c) => dateOf(c.report) === lastDate);
+  return sameRun.find((c) => c.kind === "candidate") ?? sameRun[sameRun.length - 1];
+})();
+const candidateCertified = scheduledCerts.some((c) => c.kind === "candidate");
+const latestEvalDate = evals.map(({ report }) => dateOf(report)).sort().pop();
+
+function verdictSummary() {
+  if (!latestScheduled) {
+    return {
+      verdict: "NONE",
+      line: "No scheduled certification has been recorded yet, so there is no current verdict.",
+    };
+  }
+  const { report, file, kind } = latestScheduled;
+  const s = report.summary ?? {};
+  const blocked = blockedCount(report);
+  const verdict = s.pass ? "PASS" : "FAIL";
+  const rel = `runs/${dateOf(report)}/${basename(file)}`;
+  const line =
+    `${dateOf(report)}, ${kind === "candidate" ? "pinned candidate" : "demo target"} ` +
+    `${report.protocol?.surface ?? "unknown"}, auth \`${report.provenance?.authMode ?? "unknown"}\`, ` +
+    `${s.failures ?? "?"} failure(s), ${blocked} blocked contract(s). Source: [\`${rel}\`](./${rel}).`;
+  return { verdict, line, rel };
+}
+
+function verdictNotes() {
+  const notes = [];
+  if (!candidateCertified) {
+    notes.push(
+      "No scheduled run has certified the pinned candidate image yet. Until one does, the scheduled lane has no passing verdict; earlier scheduled runs certified the demo surface.",
+    );
+  }
+  if (latestEvalDate) {
+    notes.push(
+      `The cross-model rows below are history (latest eval run ${latestEvalDate}). They are not a current verdict.`,
+    );
+  }
+  return notes;
+}
+
 // ── Leaderboard rows: one per (corpus, model), dedup control ─────────────────
 
 const leaderboardRows = [];
@@ -184,6 +258,19 @@ function renderMarkdown() {
   );
   lines.push("");
 
+  const verdict = verdictSummary();
+  const icon = verdict.verdict === "PASS" ? "✅" : verdict.verdict === "FAIL" ? "❌" : "➖";
+  lines.push("## Latest scheduled certification");
+  lines.push("");
+  lines.push(`**Verdict: ${icon} ${verdict.verdict}** (${verdict.line})`);
+  lines.push("");
+  for (const note of verdictNotes()) {
+    lines.push(`> ${note}`);
+    lines.push(">");
+  }
+  if (verdictNotes().length > 0) lines.pop();
+  lines.push("");
+
   lines.push("## Cross-model leaderboard");
   lines.push("");
   if (leaderboardRows.length === 0) {
@@ -239,6 +326,16 @@ function renderMarkdown() {
 
 function esc(s) {
   return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+}
+
+function renderVerdictHtml() {
+  const verdict = verdictSummary();
+  const icon = verdict.verdict === "PASS" ? "✅" : verdict.verdict === "FAIL" ? "❌" : "➖";
+  const line = esc(verdict.line).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\[(<code>[^<]+<\/code>)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  const notes = verdictNotes()
+    .map((n) => `<p class="muted">${esc(n)}</p>`)
+    .join("");
+  return `<h2>Latest scheduled certification</h2><p><strong>Verdict: ${icon} ${verdict.verdict}</strong> (${line})</p>${notes}`;
 }
 
 function renderHtml() {
@@ -300,6 +397,7 @@ function renderHtml() {
 </head>
 <body>
 <h1>Honua MCP Evals — Leaderboard</h1>
+${renderVerdictHtml()}
 <p class="gen">Generated ${esc(new Date().toISOString())} from ${evals.length} eval + ${certs.length} certification run artifact(s). Every row is reproducible from its source artifact (target, protocol version, tool count, auth mode, suite git SHA). All model calls run through AWS Bedrock.</p>
 <h2>Cross-model leaderboard</h2>
 <div class="scroll"><table><tr>${lbHead.map((h) => `<th>${h}</th>`).join("")}</tr>

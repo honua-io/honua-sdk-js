@@ -18,7 +18,8 @@ trunk by `npm run docs:mcp-scorecard:check` (relaxed on PRs, like `verify:llms`)
 evals/
   runs/<YYYY-MM-DD>/          committed run artifacts (JSON + Markdown)
     eval-<corpus>-<model>.json   cross-model eval report (schemaVersion 4)
-    cert-demo.json               certification report (schemaVersion 2)
+    cert-candidate.json          scheduled certification of the pinned candidate (schemaVersion 2)
+    cert-demo.json               demo /mcp certification (schemaVersion 2; optional since 2026-10)
   LEADERBOARD.md             generated — model × corpus × pass-rate + breakdown
   leaderboard.html           generated — self-contained static page
   README.md                  this file
@@ -100,9 +101,13 @@ named surface and expect the same numbers.
 ## How runs get here
 
 - **Scheduled free certification** (`.github/workflows/mcp-cert-scheduled.yml`) —
-  weekly + on-demand, runs the deterministic (zero-LLM, free) certifier against
-  the live demo `/mcp`, then publishes `cert-demo.json`, the regenerated
-  leaderboard, and the docs-site scorecard through an automation pull request
+  weekly + on-demand, boots the pinned candidate image (`ADMIN_LOCAL_SERVER_IMAGE`)
+  with the installer's compose, certifies its `/mcp` with the installer-minted
+  admin key, and runs the deterministic (zero-LLM, free) certifier, including the
+  `roster-parity` contract against honua-server's tool roster at the candidate's
+  server sha. It then publishes `cert-candidate.json` (plus `cert-demo.json` when
+  `HONUA_DEMO_MCP_URL` is set), the regenerated leaderboard, whose header is the
+  latest scheduled verdict, and the docs-site scorecard through an automation pull request
   that merges once trunk's required checks pass. It cannot push at trunk
   directly: the branch ruleset rejects that, so every run used to certify the
   surface and then discard the report (honua-sdk-js#1351). The raw certification
