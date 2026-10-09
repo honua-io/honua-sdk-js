@@ -117,6 +117,10 @@ jobs:
           HONUA_MCP_REMOTE_URL: ${{ steps.boot.outputs.mcp_url }}
           HONUA_MCP_ROSTER_SERVER_SHA: ${{ steps.boot.outputs.server_sha }}
           HONUA_MCP_ROSTER_TOKEN: ${{ secrets.HONUA_SERVER_READ_TOKEN }}
+          # A fresh install publishes nothing under the mock's svc-parks id: bind the
+          # read-only round trips to the first layer the candidate lists, or report
+          # the round-trip-target contract as blocked when it publishes none.
+          HONUA_MCP_SERVICE_ID: discover
           INSTALL_DIR: ${{ steps.boot.outputs.install_dir }}
         run: |
           set -euo pipefail

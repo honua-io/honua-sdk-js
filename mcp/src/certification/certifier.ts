@@ -19,6 +19,13 @@ import { runDeepContracts } from "./lifecycle.js";
 import { OGC_COLLECTION_IDS } from "./ogc-data.js";
 import { type RosterResolution, checkRosterParity, describeRosterParity } from "./roster.js";
 import {
+  DISCOVER_SERVICE_ID,
+  type RoundTripTargetResolution,
+  discoverRoundTripTarget,
+  wantsDiscovery,
+  withoutServiceBoundInputs,
+} from "./round-trip-target.js";
+import {
   type JsonSchema,
   PLATFORM_FREE_DEGRADATIONS,
   type StandardToolEntry,
@@ -76,7 +83,8 @@ export interface ContractCheck {
     | "mutating-round-trip"
     | "mutating-permission-denied"
     | "async-job-lifecycle"
-    | "roster-parity";
+    | "roster-parity"
+    | "round-trip-target";
   target: string;
   /**
    * `blocked` means the check could not run for a reason outside the surface
@@ -193,8 +201,7 @@ function withTargetRoundTripDefaults(env: RoundTripEnv, targetMode: CertTargetMo
  */
 export async function certify(options: CertifyOptions): Promise<CertificationReport> {
   const { client } = options;
-  const roundTripEnv = withTargetRoundTripDefaults(resolveRoundTripEnv(options.env), options.targetMode);
-  const roundTripInputs = buildRoundTripInputs(roundTripEnv);
+  let roundTripEnv = withTargetRoundTripDefaults(resolveRoundTripEnv(options.env), options.targetMode);
 
   const index = loadSchemaIndex();
   const referenceLookup = buildReferenceToolLookup(index);
@@ -210,10 +217,30 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
   // platform-bound required properties. Conformance is evaluated accordingly.
   const platformFree = isStandaloneTargetMode(options.targetMode);
 
+  const advertisedNames = new Set(advertisedTools.map((t) => t.name));
+
+  // `HONUA_MCP_SERVICE_ID=discover`: bind the round trips to the first layer the
+  // candidate actually publishes instead of a seeded id it may not have.
+  let targetResolution: RoundTripTargetResolution | undefined;
+  let env = options.env;
+  if (wantsDiscovery(roundTripEnv)) {
+    targetResolution = await discoverRoundTripTarget(client, advertisedNames);
+    if (targetResolution.status === "passed") {
+      roundTripEnv = { ...roundTripEnv, serviceId: targetResolution.serviceId, layerId: targetResolution.layerId };
+      env = {
+        ...(options.env ?? process.env),
+        HONUA_MCP_SERVICE_ID: targetResolution.serviceId,
+        HONUA_MCP_LAYER_ID: String(targetResolution.layerId),
+      };
+    }
+  }
+  const roundTripInputs =
+    targetResolution?.status === "blocked"
+      ? withoutServiceBoundInputs(buildRoundTripInputs(roundTripEnv))
+      : buildRoundTripInputs(roundTripEnv);
+
   const tools: ToolCertification[] = [];
-  const advertisedNames = new Set<string>();
   for (const tool of advertisedTools) {
-    advertisedNames.add(tool.name);
     tools.push(await certifyTool(client, tool, referenceLookup, roundTripInputs, platformFree));
   }
 
@@ -228,7 +255,7 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
   contracts.push(paginationCheck("resources", resourcePages));
   collectOutputSchemaContracts(tools, contracts);
   contracts.push(await runErrorShapeContract(client, advertisedTools));
-  await runAuthContracts(options, advertisedTools, advertisedResources, contracts);
+  await runAuthContracts(options, advertisedTools, advertisedResources, contracts, roundTripInputs);
 
   // Deep contracts: mutating round-trip, unauthenticated-write refusal, async job
   // lifecycle, and query pagination. Safe by construction — mutations only run
@@ -238,9 +265,18 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
     advertisedToolNames: advertisedNames,
     isDisposableBackend: options.backend === "mock-upstream",
     connectUnauthenticated: options.connectUnauthenticated,
-    env: options.env,
+    env,
+    ...(targetResolution?.status === "blocked" ? { targetUnavailable: targetResolution.detail } : {}),
   });
   contracts.push(...deep);
+  if (targetResolution) {
+    contracts.push({
+      contract: "round-trip-target",
+      target: `HONUA_MCP_SERVICE_ID=${DISCOVER_SERVICE_ID}`,
+      status: targetResolution.status,
+      detail: targetResolution.detail,
+    });
+  }
   contracts.push(rosterParityContract(options, advertisedNames));
 
   const knownGaps = collectKnownGaps(index, advertisedNames, referenceLookup);
@@ -491,6 +527,7 @@ async function runAuthContracts(
   advertised: AdvertisedTool[],
   resources: { uri: string }[],
   contracts: ContractCheck[],
+  roundTripInputs: Record<string, Record<string, unknown>>,
 ): Promise<void> {
   if (!options.connectUnauthenticated) {
     contracts.push({
@@ -515,7 +552,6 @@ async function runAuthContracts(
     // tools/call without credentials.
     const toolTarget = advertised.find((t) => isReadOnlyTool(t)) ?? advertised[0];
     if (toolTarget) {
-      const roundTripInputs = buildRoundTripInputs(resolveRoundTripEnv(options.env));
       const args = roundTripInputs[toolTarget.name] ?? {};
       contracts.push(await authCheckToolsCall(unauth, toolTarget.name, args));
     }
