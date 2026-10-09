@@ -61,7 +61,20 @@ export interface LocalInstallResult {
   readonly accessCredential: LocalAccessCredentialReceipt;
   readonly serverImage: string;
   readonly reused: boolean;
+  /**
+   * True when this run revoked the existing local-agent credential and issued
+   * a replacement (see {@link LocalInstallResult.reason}).
+   */
+  readonly credentialReissued: boolean;
+  /**
+   * Why the credential was re-issued. `legacy-grants`: the existing key carried
+   * only `admin:read`/`admin:write`, which honua-server (#5643) no longer lets
+   * read layer data, so it was replaced with one carrying {@link LOCAL_AGENT_GRANTS}.
+   */
+  readonly reason?: LocalCredentialReissueReason;
 }
+
+export type LocalCredentialReissueReason = "legacy-grants";
 
 export interface LocalAccessCredentialReceipt {
   readonly id: string;
@@ -84,7 +97,24 @@ interface ProvisionedAdminCredential {
   readonly provisioned: boolean;
 }
 
-export const LOCAL_AGENT_GRANTS = ["admin:read", "admin:write"] as const;
+/**
+ * Grants on the `honua-local-agent` key the installer hands to MCP clients.
+ *
+ * `admin:read`/`admin:write` let the agent administer the local server. Since
+ * honua-server #5643 a key holding administrative grants is scope-governed and
+ * gets no implicit data access, so `read:*` (read every service and layer) is
+ * what lets the agent list, query and render layers. No `write:` data grant and
+ * no `admin:approve` are issued: data edits and approvals stay with the human.
+ */
+export const LOCAL_AGENT_GRANTS = ["admin:read", "admin:write", "read:*"] as const;
+
+/**
+ * Grants minted by installers before `read:*` was added. A key carrying exactly
+ * these is re-issued with {@link LOCAL_AGENT_GRANTS} by `installHonuaLocal`.
+ */
+export const LEGACY_LOCAL_AGENT_GRANTS = ["admin:read", "admin:write"] as const;
+
+const LOCAL_AGENT_KEY_NAME = "honua-local-agent";
 
 export interface LocalInstallStatus {
   readonly installed: boolean;
@@ -234,6 +264,7 @@ export async function installHonuaLocal(
   await waitForReady(`${baseUrl}/healthz/ready`, options.timeoutMs ?? 180_000, runtime);
 
   let credential: ProvisionedAdminCredential;
+  let reissueReason: LocalCredentialReissueReason | undefined;
   if (!env.HONUA_ADMIN_KEY) {
     credential = await bootstrapAdminKey(baseUrl, env.HONUA_ADMIN_PASSWORD, runtime.fetchFn);
     try {
@@ -249,9 +280,23 @@ export async function installHonuaLocal(
       });
     }
   } else {
-    credential = await resolveExistingAdminKey(baseUrl, env.HONUA_ADMIN_KEY, runtime.fetchFn);
-    const mcpConfig = renderMcpConfig(baseUrl, credential.material);
-    await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, mcpConfig);
+    const existing = await resolveExistingAdminKey(baseUrl, env.HONUA_ADMIN_KEY, runtime.fetchFn);
+    if (existing.kind === "current") {
+      credential = existing.credential;
+      const mcpConfig = renderMcpConfig(baseUrl, credential.material);
+      await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, mcpConfig);
+    } else {
+      credential = await reissueLegacyAdminKey({
+        baseUrl,
+        env,
+        legacyId: existing.id,
+        envFile,
+        mcpConfigFile,
+        claudeDesktopConfigFile,
+        fetchFn: runtime.fetchFn,
+      });
+      reissueReason = "legacy-grants";
+    }
   }
 
   return {
@@ -278,6 +323,8 @@ export async function installHonuaLocal(
     },
     serverImage: LOCAL_INSTALL_SERVER_IMAGE,
     reused,
+    credentialReissued: reissueReason !== undefined,
+    ...(reissueReason ? { reason: reissueReason } : {}),
   };
 }
 
@@ -514,7 +561,7 @@ async function bootstrapAdminKey(
 ): Promise<ProvisionedAdminCredential> {
   const client = new HonuaAdminClient({ baseUrl, adminKey: rootKey, fetchFn });
   const result = await client.call("createAdminApiKey", {
-    body: { name: "honua-local-agent", permissions: LOCAL_AGENT_GRANTS },
+    body: { name: LOCAL_AGENT_KEY_NAME, permissions: LOCAL_AGENT_GRANTS },
   });
   const issued = readIssuedAdminCredential(result.data);
   try {
@@ -560,26 +607,80 @@ async function revokeIssuedAdminKey(
   throw originalError;
 }
 
+/**
+ * Replaces a legacy two-grant local-agent key: issue the new key with the root
+ * credential, persist it to `.env` and both MCP configs, then revoke the legacy
+ * key. Any failure revokes the new key and restores the files to the legacy
+ * material, so a re-run starts from the same state.
+ */
+async function reissueLegacyAdminKey(args: {
+  readonly baseUrl: string;
+  readonly env: Record<string, string | undefined> & { HONUA_ADMIN_PASSWORD: string };
+  readonly legacyId: string;
+  readonly envFile: string;
+  readonly mcpConfigFile: string;
+  readonly claudeDesktopConfigFile: string;
+  readonly fetchFn: typeof fetch | undefined;
+}): Promise<ProvisionedAdminCredential> {
+  const { baseUrl, env, legacyId, envFile, mcpConfigFile, claudeDesktopConfigFile, fetchFn } = args;
+  const previousMaterial = env.HONUA_ADMIN_KEY;
+  if (!previousMaterial) throw new Error("Legacy local-agent credential re-issue requires the existing key material.");
+  const credential = await bootstrapAdminKey(baseUrl, env.HONUA_ADMIN_PASSWORD, fetchFn);
+  const root = new HonuaAdminClient({ baseUrl, adminKey: env.HONUA_ADMIN_PASSWORD, fetchFn });
+  const restorePrevious = async () => {
+    env.HONUA_ADMIN_KEY = previousMaterial;
+    await writePrivateFileAtomic(envFile, renderEnv(env));
+    await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, renderMcpConfig(baseUrl, previousMaterial));
+  };
+  try {
+    env.HONUA_ADMIN_KEY = credential.material;
+    await writePrivateFileAtomic(envFile, renderEnv(env));
+    await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, renderMcpConfig(baseUrl, credential.material));
+  } catch (error) {
+    return await revokeIssuedAdminKey(root, credential.id, error, restorePrevious);
+  }
+  try {
+    await root.call("revokeAdminApiKey", { path: { id: legacyId } });
+  } catch (error) {
+    return await revokeIssuedAdminKey(
+      root,
+      credential.id,
+      new Error(
+        "The legacy local-agent credential could not be revoked; its replacement was rolled back and the legacy key left in place.",
+        { cause: error },
+      ),
+      restorePrevious,
+    );
+  }
+  return credential;
+}
+
+type ExistingAdminKeyResolution =
+  | { readonly kind: "current"; readonly credential: ProvisionedAdminCredential }
+  | { readonly kind: "legacy"; readonly id: string; readonly name: string };
+
 async function resolveExistingAdminKey(
   baseUrl: string,
   material: string,
   fetchFn: typeof fetch | undefined,
-): Promise<ProvisionedAdminCredential> {
+): Promise<ExistingAdminKeyResolution> {
   const client = new HonuaAdminClient({ baseUrl, adminKey: material, fetchFn });
   const result = await client.call("listAdminApiKeys", {});
   const root = result.data;
   if (!isRecord(root) || !Array.isArray(root.data)) {
     throw new Error("Existing Admin credential could not be resolved to secret-safe server metadata.");
   }
-  const matches = root.data.filter(
+  const active = root.data.filter(
     (candidate): candidate is Record<string, unknown> =>
-      isRecord(candidate) &&
-      candidate.name === "honua-local-agent" &&
-      candidate.status === "active" &&
+      isRecord(candidate) && candidate.name === LOCAL_AGENT_KEY_NAME && candidate.status === "active",
+  );
+  const matches = active.filter(
+    (candidate) =>
       typeof candidate.keyPrefix === "string" &&
       candidate.keyPrefix.length > 0 &&
       isStringArray(candidate.permissions) &&
-      sameStrings(candidate.permissions, LOCAL_AGENT_GRANTS) &&
+      (sameStrings(candidate.permissions, LOCAL_AGENT_GRANTS) ||
+        sameStrings(candidate.permissions, LEGACY_LOCAL_AGENT_GRANTS)) &&
       material.startsWith(candidate.keyPrefix),
   );
   if (matches.length !== 1) {
@@ -590,17 +691,28 @@ async function resolveExistingAdminKey(
     throw new Error("Existing Admin credential metadata was incomplete.");
   }
   const effective = await readEffectiveAdminCredential(client, match.id);
-  if (!sameStrings(LOCAL_AGENT_GRANTS, effective.permissions)) {
-    throw new Error("Existing Admin credential was not scoped to the required local-agent grants.");
+  if (sameStrings(LOCAL_AGENT_GRANTS, effective.permissions)) {
+    return {
+      kind: "current",
+      credential: {
+        material,
+        id: match.id,
+        name: match.name,
+        requestedGrants: LOCAL_AGENT_GRANTS,
+        effectiveGrants: effective.permissions,
+        provisioned: false,
+      },
+    };
   }
-  return {
-    material,
-    id: match.id,
-    name: match.name,
-    requestedGrants: LOCAL_AGENT_GRANTS,
-    effectiveGrants: effective.permissions,
-    provisioned: false,
-  };
+  if (sameStrings(LEGACY_LOCAL_AGENT_GRANTS, effective.permissions)) {
+    if (active.length !== 1) {
+      throw new Error(
+        "Existing Admin credential carries legacy local-agent grants, but more than one active local-agent identity exists. Revoke the extra honua-local-agent keys before re-running the installer.",
+      );
+    }
+    return { kind: "legacy", id: match.id, name: match.name };
+  }
+  throw new Error("Existing Admin credential was not scoped to the required local-agent grants.");
 }
 
 function readIssuedAdminCredential(value: unknown): {
@@ -719,7 +831,13 @@ export async function inspectLocalAgentAccess(
   readonly effectiveGrants: readonly string[];
   readonly canAuthenticate: true;
 }> {
-  const credential = await resolveExistingAdminKey(baseUrl, material, fetchFn);
+  const resolution = await resolveExistingAdminKey(baseUrl, material, fetchFn);
+  if (resolution.kind === "legacy") {
+    throw new Error(
+      `The local agent credential carries the legacy grants [${LEGACY_LOCAL_AGENT_GRANTS.join(", ")}] without read:*, so it cannot read layer data. Re-run \`honua admin install local\` to re-issue it.`,
+    );
+  }
+  const credential = resolution.credential;
   return {
     id: credential.id,
     name: credential.name,

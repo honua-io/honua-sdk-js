@@ -116,6 +116,35 @@ list as the rule, not as journey trivia:
   truth; if a later call is denied, re-read the effective grants instead of
   escalating to a shared admin key.
 
+### What the local agent key can and cannot do
+
+The installer mints one key, `honua-local-agent`, with exactly
+`["admin:read", "admin:write", "read:*"]`:
+
+- `admin:read` / `admin:write` — read and change server administration
+  (connections, services, layers, styles, imports, deploy proposals).
+- `read:*` — read data on every service and layer: `honua_list_layers`,
+  queries, and `honua_render_map` over `/mcp`, OGC, and GeoServices. Since
+  honua-server #5643 a key that holds administrative grants is scope-governed
+  and gets no implicit data access, so without `read:*` the agent could
+  administer the server but every layer read would be forbidden.
+
+It deliberately carries no `write:` data grant (no feature edits) and no
+`admin:approve` (it cannot approve its own proposals). Approvals and data edits
+stay with the human.
+
+A directory installed before `read:*` was added holds a key with only the two
+admin grants. Re-running `honua admin install local` against it detects that,
+issues a replacement with the three grants, rewrites `.env`, `.mcp.json`, and
+`claude_desktop_config.json` together, revokes the old key, and reports
+`"credentialReissued": true, "reason": "legacy-grants"` in its JSON result
+(otherwise `credentialReissued` is `false`). Restart the MCP client afterwards
+so it picks up the new key. The installer still refuses, without changing
+anything, when the state is ambiguous: more than one active
+`honua-local-agent` key, or no active key whose prefix matches `.env`. Revoke
+the stray keys and re-run; do not hand-edit grants. `honua admin qualify`
+reports a legacy key as an access error rather than re-issuing it.
+
 The CLI enforces the same boundary: the one-time-secret admin operations fail
 closed unless `--secret-output <new-private-file>` is supplied, and `--dry-run`
 replaces credential-bearing values with `[REDACTED]`

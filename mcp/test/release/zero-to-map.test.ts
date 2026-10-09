@@ -56,12 +56,13 @@ describe("zero-to-map D9.3 release journey", () => {
       adminKeyWritten: true,
       serverImage: "ghcr.io/honua-io/honua-server:2026.1",
       reused: false,
+      credentialReissued: false,
       accessCredential: {
         id: "11111111-1111-4111-8111-111111111111",
         name: "honua-local-agent",
         status: "active",
-        requestedGrants: ["admin:read", "admin:write"],
-        effectiveGrants: ["admin:write", "admin:read"],
+        requestedGrants: ["admin:read", "admin:write", "read:*"],
+        effectiveGrants: ["read:*", "admin:write", "admin:read"],
         canAuthenticate: true,
         referenceType: "private-env-file",
         referenceDigestSha256: "a".repeat(64),
@@ -69,14 +70,35 @@ describe("zero-to-map D9.3 release journey", () => {
       },
     };
     expect(parseInstallAccessCredential(JSON.stringify(receipt))).toEqual(receipt.accessCredential);
+    expect(
+      parseInstallAccessCredential(JSON.stringify({ ...receipt, credentialReissued: true, reason: "legacy-grants" })),
+    ).toEqual(receipt.accessCredential);
+    expect(() =>
+      parseInstallAccessCredential(JSON.stringify({ ...receipt, credentialReissued: true, reason: "other" })),
+    ).toThrow("re-issue fields are inconsistent");
+    expect(() => parseInstallAccessCredential(JSON.stringify({ ...receipt, reason: "legacy-grants" }))).toThrow(
+      "re-issue fields are inconsistent",
+    );
     expect(() =>
       parseInstallAccessCredential(
         JSON.stringify({
           ...receipt,
           accessCredential: {
             ...receipt.accessCredential,
-            requestedGrants: ["admin:approve", "admin:read", "admin:write"],
-            effectiveGrants: ["admin:approve", "admin:read", "admin:write"],
+            requestedGrants: ["admin:read", "admin:write"],
+            effectiveGrants: ["admin:read", "admin:write"],
+          },
+        }),
+      ),
+    ).toThrow("not scoped to the required release grants");
+    expect(() =>
+      parseInstallAccessCredential(
+        JSON.stringify({
+          ...receipt,
+          accessCredential: {
+            ...receipt.accessCredential,
+            requestedGrants: ["admin:approve", "admin:read", "admin:write", "read:*"],
+            effectiveGrants: ["admin:approve", "admin:read", "admin:write", "read:*"],
           },
         }),
       ),
@@ -852,7 +874,7 @@ describe("zero-to-map D9.3 release journey", () => {
               {
                 id: "11111111-1111-4111-8111-111111111111",
                 status: "active",
-                permissions: ["admin:read", "admin:write"],
+                permissions: ["admin:read", "admin:write", "read:*"],
               },
             ],
           });
@@ -863,7 +885,7 @@ describe("zero-to-map D9.3 release journey", () => {
               id: "11111111-1111-4111-8111-111111111111",
               status: "active",
               canAuthenticate: true,
-              permissions: ["admin:read", "admin:write"],
+              permissions: ["admin:read", "admin:write", "read:*"],
             },
           });
         }
@@ -1394,8 +1416,8 @@ function cliResult(args: readonly string[]): JourneyExecutionResult {
     id: "11111111-1111-4111-8111-111111111111",
     name: "honua-local-agent",
     status: "active",
-    requestedGrants: ["admin:read", "admin:write"],
-    effectiveGrants: ["admin:read", "admin:write"],
+    requestedGrants: ["admin:read", "admin:write", "read:*"],
+    effectiveGrants: ["admin:read", "admin:write", "read:*"],
     canAuthenticate: true,
     referenceType: "private-env-file",
     referenceDigestSha256: "a".repeat(64),

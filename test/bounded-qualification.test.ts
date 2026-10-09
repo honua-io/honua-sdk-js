@@ -79,8 +79,8 @@ function evidence(overrides: Partial<BoundedQualificationEvidence> = {}): Bounde
     access: {
       id: "key-1",
       name: "honua-local-agent",
-      requestedGrants: ["admin:read", "admin:write"],
-      effectiveGrants: ["admin:write", "admin:read"],
+      requestedGrants: ["admin:read", "admin:write", "read:*"],
+      effectiveGrants: ["read:*", "admin:write", "admin:read"],
       canAuthenticate: true,
     },
     adminVersion: { version: "2026.1.0", metadataApiVersion: "honua.io/admin/v1" },
@@ -251,14 +251,19 @@ describe("bounded setup qualification", () => {
               name: "honua-local-agent",
               status: "active",
               keyPrefix: "local-agent",
-              permissions: ["admin:read", "admin:write"],
+              permissions: ["admin:read", "admin:write", "read:*"],
             },
           ],
         });
       }
       if (url.includes("/effective-permissions")) {
         return json({
-          data: { id: "key-1", status: "active", canAuthenticate: true, permissions: ["admin:read", "admin:write"] },
+          data: {
+            id: "key-1",
+            status: "active",
+            canAuthenticate: true,
+            permissions: ["admin:read", "admin:write", "read:*"],
+          },
         });
       }
       if (url.endsWith("/api/v1/admin/version"))
