@@ -263,7 +263,7 @@ describe("read-only classification", () => {
 
   it("treats mutation-shaped names as not read-only by default", () => {
     expect(isReadOnlyTool({ name: "honua_create_map_package" })).toBe(false);
-    expect(isReadOnlyTool({ name: "honua_propose_operation" })).toBe(false);
+    expect(isReadOnlyTool({ name: "honua_propose_rollback" })).toBe(false);
     expect(isReadOnlyTool({ name: "honua_query_features" })).toBe(true);
   });
 });

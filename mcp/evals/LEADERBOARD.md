@@ -1,8 +1,16 @@
 # Honua MCP Evals — Leaderboard
 
-_Generated 2026-10-05T15:41:39.107Z from 3 eval + 19 certification run artifact(s) in [`runs/`](./runs)._
+_Generated 2026-10-09T00:11:10.166Z from 3 eval + 19 certification run artifact(s) in [`runs/`](./runs)._
 
 Every row is reproducible: each source artifact records its target surface, negotiated protocol version, tool count, auth mode, and the git SHA of the suite that produced it. All model calls run through AWS Bedrock; the deterministic control makes no model calls and is the CI gate.
+
+## Latest scheduled certification
+
+**Verdict: ❌ FAIL** (2026-10-05, demo target live honua /mcp (https://demo.honua.io/mcp), auth `anonymous`, 15 failure(s), 0 blocked contract(s). Source: [`runs/2026-10-05/cert-demo.json`](./runs/2026-10-05/cert-demo.json).)
+
+> No scheduled run has certified the pinned candidate image yet. Until one does, the scheduled lane has no passing verdict; earlier scheduled runs certified the demo surface.
+>
+> The cross-model rows below are history (latest eval run 2026-07-07). They are not a current verdict.
 
 ## Cross-model leaderboard
 

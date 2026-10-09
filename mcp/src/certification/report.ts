@@ -51,6 +51,7 @@ export function renderMarkdown(report: CertificationReport): string {
   lines.push(`| Prompts discovered | ${s.promptsDiscovered} |`);
   lines.push(`| Contracts checked | ${s.contractsPassed} / ${s.contractsChecked} passed |`);
   lines.push(`| Contracts skipped | ${s.contractsSkipped} |`);
+  lines.push(`| Contracts blocked | ${s.contractsBlocked ?? 0} |`);
   lines.push(`| Known gaps | ${s.knownGaps} |`);
   lines.push(`| Failures | ${s.failures} |`);
   lines.push("");
@@ -82,7 +83,7 @@ export function renderMarkdown(report: CertificationReport): string {
   lines.push("| Contract | Target | Status | Detail |");
   lines.push("| --- | --- | :---: | --- |");
   for (const c of report.contracts) {
-    const icon = c.status === "passed" ? "✅" : c.status === "failed" ? "❌" : "➖";
+    const icon = c.status === "passed" ? "✅" : c.status === "failed" ? "❌" : c.status === "blocked" ? "⛔" : "➖";
     lines.push(`| \`${c.contract}\` | \`${c.target}\` | ${icon} ${c.status} | ${c.detail} |`);
   }
   lines.push("");

@@ -82,11 +82,14 @@ async function main(): Promise<void> {
   process.stdout.write(
     `MCP certification ${status} [${report.protocol.targetMode}]: ${s.toolsConformant}/${s.toolsConformanceChecked} conformant, ` +
       `${s.toolsOutputValidated} output-validated, ${s.contractsPassed}/${s.contractsChecked} contracts, ` +
-      `${s.contractsSkipped} skipped, ${s.knownGaps} known gaps, ${s.failures} failures.\n`,
+      `${s.contractsSkipped} skipped, ${s.contractsBlocked} blocked, ${s.knownGaps} known gaps, ${s.failures} failures.\n`,
   );
   const skipped = report.contracts.filter((c) => c.status === "skipped");
   for (const c of skipped) {
     process.stdout.write(`  SKIP [${c.contract} / ${c.target}]: ${c.detail}\n`);
+  }
+  for (const c of report.contracts.filter((contract) => contract.status === "blocked")) {
+    process.stdout.write(`  BLOCKED [${c.contract} / ${c.target}]: ${c.detail}\n`);
   }
   process.stdout.write(`Artifacts: ${paths.json}\n           ${paths.markdown}\n`);
 

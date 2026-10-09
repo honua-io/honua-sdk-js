@@ -1,17 +1,27 @@
 name: MCP scheduled live certification
 
 # FREE, evidence-producing lane. Runs the deterministic MCP certifier (zero LLM /
-# model calls — pure contract checks) against the live demo /mcp surface on a
-# weekly schedule and on demand, then commits the JSON + Markdown report into
-# mcp/evals/runs/ and refreshes the leaderboard. Because it makes no paid calls it
-# is safe to run automatically; the paid cross-model eval stays workflow_dispatch
-# only (mcp-eval-live.yml).
+# model calls — pure contract checks) on a weekly schedule and on demand, then
+# commits the JSON + Markdown report into mcp/evals/runs/ and refreshes the
+# leaderboard. Because it makes no paid calls it is safe to run automatically;
+# the paid cross-model eval stays workflow_dispatch only (mcp-eval-live.yml).
 #
-# The certifier runs in --artifact-only mode so it completes end-to-end and still
-# publishes evidence even when some tool contracts fail against a pre-P1 image
-# (missing pagination, edit_features, etc.). Deep mutating/async contracts are NOT
-# enabled here (HONUA_MCP_CERT_ALLOW_MUTATION is unset), so the scheduled cert
-# never mutates demo data — they skip-with-reason and are recorded loudly.
+# What is certified (the gate). The PINNED CANDIDATE, not the demo: the job
+# boots ADMIN_LOCAL_SERVER_IMAGE with the compose `honua admin install local`
+# generates (Postgres/PostGIS + Redis, so the durable control plane and its
+# governed tools are registered), lets the installer mint the admin key with the
+# generated HONUA_ADMIN_PASSWORD as X-API-Key, and certifies
+# http://localhost:8080/mcp with that key (mcp/scripts/boot-candidate.sh). The
+# lane used to certify https://demo.honua.io/mcp, and with no key configured it
+# ran anonymously: every read-only round trip returned AuthorizationDenied and the
+# lane was red on every run since 2026-07-05 for a reason that said nothing about
+# the release. The roster-parity contract compares tools/list with honua-server's
+# docs/gis/data/mcp-tool-roster.v1.json at the candidate's server sha; until that
+# file exists at the pinned sha the contract reports `blocked`, which is not a pass.
+#
+# The certifier runs in --artifact-only mode so the report is always published;
+# the `gate` job then fails the run unless the candidate certified PASS. Deep
+# mutating/async contracts stay off (HONUA_MCP_CERT_ALLOW_MUTATION is unset).
 #
 # Publication shape (honua-sdk-js#1351). The publish job used to `git push` the
 # report straight at trunk, which the branch ruleset rejects with GH013 — a
@@ -26,12 +36,12 @@ name: MCP scheduled live certification
 # reaches trunk makes those surfaces silently stale. Not publishing at all would
 # retire the certification record entirely.
 #
-# Required repo secret:
-#   HONUA_DEMO_MCP_API_KEY — x-api-key for https://demo.honua.io/mcp. Configure it
-#     under Settings → Secrets and variables → Actions. Without it the run reaches
-#     the surface anonymously and records auth mode `anonymous` in the report.
-# Optional repo variable:
-#   HONUA_DEMO_MCP_URL — overrides the default https://demo.honua.io/mcp target.
+# No secret is required for the gate: the candidate's key is minted in the job
+# and never leaves it. Optional:
+#   secret HONUA_SERVER_READ_TOKEN — read access to honua-io/honua-server, so the
+#     roster fetch can tell "absent at this sha" from "not visible to this token".
+#   variable HONUA_DEMO_MCP_URL (+ secret HONUA_DEMO_MCP_API_KEY) — ALSO certify a
+#     demo /mcp as non-gating evidence (cert-demo.json). Unset: no demo run.
 on:
   schedule:
     # Mondays 07:00 UTC.
@@ -39,7 +49,7 @@ on:
   workflow_dispatch:
     inputs:
       remote_url:
-        description: "Remote /mcp endpoint to certify"
+        description: "Optional extra (non-gating) /mcp endpoint to certify beside the candidate"
         required: false
         type: string
       publish:
@@ -57,8 +67,15 @@ env:
 
 jobs:
   certify:
-    name: Certify demo /mcp (free)
+    name: Certify pinned candidate /mcp (free)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      # Pull the pinned ghcr.io/honua-io/honua-server candidate image.
+      packages: read
+    outputs:
+      verdict: ${{ steps.candidate.outputs.verdict }}
     defaults:
       run:
         working-directory: mcp
@@ -83,12 +100,51 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Live certification (deterministic, free)
+      - name: Log in to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: Boot the pinned candidate (installer compose + admin-key bootstrap)
+        id: boot
+        run: bash scripts/boot-candidate.sh "$RUNNER_TEMP/honua-candidate"
+
+      - name: Certify the pinned candidate (deterministic, free, authenticated)
+        id: candidate
         env:
           HONUA_MCP_CERT_TARGET: remote
-          HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url || vars.HONUA_DEMO_MCP_URL || 'https://demo.honua.io/mcp' }}
+          HONUA_MCP_REMOTE_URL: ${{ steps.boot.outputs.mcp_url }}
+          HONUA_MCP_ROSTER_SERVER_SHA: ${{ steps.boot.outputs.server_sha }}
+          HONUA_MCP_ROSTER_TOKEN: ${{ secrets.HONUA_SERVER_READ_TOKEN }}
+          INSTALL_DIR: ${{ steps.boot.outputs.install_dir }}
+        run: |
+          set -euo pipefail
+          # The installer-minted key goes straight from the private .env into the
+          # certifier's environment; it is masked and never echoed.
+          HONUA_API_KEY="$(sed -n 's/^HONUA_ADMIN_KEY=//p' "$INSTALL_DIR/.env")" \
+            node dist/src/certification/cli.js --artifact-only --out-dir candidate
+          verdict="$(node -e 'const r=require("./candidate/mcp-certification-results.json");process.stdout.write(r.summary.pass?"pass":"fail")')"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Candidate verdict: $verdict"
+
+      - name: Candidate logs
+        if: always() && steps.boot.outcome != 'skipped'
+        run: |
+          docker compose --project-directory "$RUNNER_TEMP/honua-candidate" \
+            --file "$RUNNER_TEMP/honua-candidate/compose.yaml" logs --no-color --tail 300 honua || true
+
+      - name: Tear down the candidate
+        if: always()
+        run: bash scripts/boot-candidate.sh "$RUNNER_TEMP/honua-candidate" --down
+
+      - name: Demo certification (optional, non-gating)
+        if: ${{ inputs.remote_url != '' || vars.HONUA_DEMO_MCP_URL != '' }}
+        env:
+          HONUA_MCP_CERT_TARGET: remote
+          HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url || vars.HONUA_DEMO_MCP_URL }}
           HONUA_API_KEY: ${{ secrets.HONUA_DEMO_MCP_API_KEY }}
-        run: node dist/src/certification/cli.js --artifact-only
+        run: node dist/src/certification/cli.js --artifact-only --out-dir demo
 
       - name: Platform-free live certification (any public FeatureServer, free)
         # Second target (issue #369): certify the standalone surface against a LIVE
@@ -107,8 +163,12 @@ jobs:
       - name: Stage report for leaderboard
         run: |
           mkdir -p staged
-          cp mcp-certification-results.json staged/cert-demo.json
-          cp mcp-certification-results.md staged/cert-demo.md
+          cp candidate/mcp-certification-results.json staged/cert-candidate.json
+          cp candidate/mcp-certification-results.md staged/cert-candidate.md
+          if [ -f demo/mcp-certification-results.json ]; then
+            cp demo/mcp-certification-results.json staged/cert-demo.json
+            cp demo/mcp-certification-results.md staged/cert-demo.md
+          fi
           cp standalone-live/mcp-certification-results.json staged/cert-standalone.json
           cp standalone-live/mcp-certification-results.md staged/cert-standalone.md
 
@@ -189,7 +249,9 @@ jobs:
           set -euo pipefail
           dest="mcp/evals/runs/$(date -u +%Y-%m-%d)"
           mkdir -p "$dest"
-          cp downloaded/cert-demo.json "$dest"/
+          cp downloaded/cert-candidate.json "$dest"/
+          cp downloaded/cert-candidate.md "$dest"/ 2>/dev/null || true
+          cp downloaded/cert-demo.json "$dest"/ 2>/dev/null || true
           cp downloaded/cert-demo.md "$dest"/ 2>/dev/null || true
           cp downloaded/cert-standalone.json "$dest"/ 2>/dev/null || true
           cp downloaded/cert-standalone.md "$dest"/ 2>/dev/null || true
@@ -239,7 +301,7 @@ jobs:
             --base trunk \
             --head "$branch" \
             --title "chore(mcp): publish scheduled live-certification report" \
-            --body "Scheduled deterministic MCP certification of the live demo and standalone surfaces, run \`${GITHUB_RUN_ID}\`. The report, leaderboard, and docs-site scorecard are regenerated from that run and published here because trunk cannot be pushed directly.")"
+            --body "Scheduled deterministic MCP certification of the pinned candidate (and the standalone surface, plus the demo when configured), run \`${GITHUB_RUN_ID}\`. The report, leaderboard, and docs-site scorecard are regenerated from that run and published here because trunk cannot be pushed directly.")"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "published=$published" >> "$GITHUB_OUTPUT"
@@ -355,3 +417,27 @@ jobs:
             echo "The raw certification JSON and Markdown are always available as the"
             echo "\`mcp-scheduled-cert\` artifact on this run, whether or not the corpus changed."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # The certification verdict gates the run. The report is published first (the
+  # certify step is --artifact-only) so a red verdict still leaves its evidence on
+  # trunk; this job then turns a non-PASS candidate verdict into a failed run.
+  gate:
+    name: Gate on the candidate verdict
+    needs: [certify, publish]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a PASS from the pinned candidate
+        env:
+          CERTIFY_RESULT: ${{ needs.certify.result }}
+          VERDICT: ${{ needs.certify.outputs.verdict }}
+        run: |
+          if [ "$CERTIFY_RESULT" != "success" ]; then
+            echo "::error::Candidate certification did not complete ($CERTIFY_RESULT)."
+            exit 1
+          fi
+          if [ "$VERDICT" != "pass" ]; then
+            echo "::error::The pinned candidate did not certify PASS (verdict: ${VERDICT:-none}). See the mcp-scheduled-cert artifact."
+            exit 1
+          fi
+          echo "The pinned candidate certified PASS."

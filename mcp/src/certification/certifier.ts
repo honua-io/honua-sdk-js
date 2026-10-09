@@ -17,6 +17,7 @@ import { type RoundTripEnv, buildInvalidArgsInputs, buildRoundTripInputs, resolv
 import { checkConformance, checkWellFormed, validateAgainstSchema } from "./json-schema.js";
 import { runDeepContracts } from "./lifecycle.js";
 import { OGC_COLLECTION_IDS } from "./ogc-data.js";
+import { type RosterResolution, checkRosterParity, describeRosterParity } from "./roster.js";
 import {
   type JsonSchema,
   PLATFORM_FREE_DEGRADATIONS,
@@ -74,9 +75,15 @@ export interface ContractCheck {
     | "query-pagination"
     | "mutating-round-trip"
     | "mutating-permission-denied"
-    | "async-job-lifecycle";
+    | "async-job-lifecycle"
+    | "roster-parity";
   target: string;
-  status: "passed" | "failed" | "skipped";
+  /**
+   * `blocked` means the check could not run for a reason outside the surface
+   * (e.g. the server roster is not published at the pinned sha). A blocked
+   * contract is never a pass: it keeps the summary from passing.
+   */
+  status: "passed" | "failed" | "skipped" | "blocked";
   detail: string;
 }
 
@@ -108,6 +115,7 @@ export interface CertificationReport {
     contractsPassed: number;
     contractsFailed: number;
     contractsSkipped: number;
+    contractsBlocked: number;
     knownGaps: number;
     failures: number;
   };
@@ -135,9 +143,17 @@ export interface CertifyOptions {
   authMode?: AuthMode;
   /** Environment used to resolve round-trip identifiers. */
   env?: NodeJS.ProcessEnv;
+  /**
+   * honua-server tool roster for the `roster-parity` contract. Omitted for
+   * targets that are not the product `/mcp` (the in-process fixture, the
+   * platform-free surface), where the contract is skipped with that reason.
+   */
+  roster?: RosterResolution;
+  /** Whether the certified topology has a durable control plane (Redis). Default true. */
+  durableControlPlane?: boolean;
 }
 
-const STANDARD_SOURCE = "geospatial-mcp@54cbd49 (spec/schemas)";
+const STANDARD_SOURCE = "geospatial-mcp@4fac81c (spec/schemas)";
 
 /** Determine whether a discovered tool is safe to round-trip (read-only). */
 export function isReadOnlyTool(tool: { name: string; annotations?: { readOnlyHint?: boolean } }): boolean {
@@ -225,6 +241,7 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
     env: options.env,
   });
   contracts.push(...deep);
+  contracts.push(rosterParityContract(options, advertisedNames));
 
   const knownGaps = collectKnownGaps(index, advertisedNames, referenceLookup);
 
@@ -566,6 +583,35 @@ function contractFromOutcome(
   };
 }
 
+function rosterParityContract(options: CertifyOptions, advertisedNames: Set<string>): ContractCheck {
+  const roster = options.roster;
+  if (!roster) {
+    return {
+      contract: "roster-parity",
+      target: "tools/list",
+      status: "skipped",
+      detail: "roster parity runs only against a live honua-server /mcp; this target is not the product surface",
+    };
+  }
+  if (roster.status === "blocked") {
+    return {
+      contract: "roster-parity",
+      target: "tools/list",
+      status: "blocked",
+      detail: `${roster.reason} [${roster.source}]`,
+    };
+  }
+  const result = checkRosterParity(advertisedNames, roster.roster, {
+    durableControlPlane: options.durableControlPlane ?? true,
+  });
+  return {
+    contract: "roster-parity",
+    target: "tools/list",
+    status: result.ok ? "passed" : "failed",
+    detail: `${describeRosterParity(result, advertisedNames.size)} [${roster.source}]`,
+  };
+}
+
 function collectKnownGaps(
   index: ReturnType<typeof loadSchemaIndex>,
   advertisedNames: Set<string>,
@@ -626,14 +672,16 @@ function assembleReport(args: {
   const toolsRoundTripped = tools.filter((t) => t.roundTrip === "passed").length;
   const toolsOutputValidated = tools.filter((t) => t.structuredOutputValidated === true).length;
 
-  const contractsChecked = contracts.filter((c) => c.status !== "skipped").length;
+  const contractsChecked = contracts.filter((c) => c.status === "passed" || c.status === "failed").length;
   const contractsPassed = contracts.filter((c) => c.status === "passed").length;
   const contractsFailed = contracts.filter((c) => c.status === "failed").length;
   const contractsSkipped = contracts.filter((c) => c.status === "skipped").length;
+  const contractsBlocked = contracts.filter((c) => c.status === "blocked").length;
 
   const toolFailures = tools.reduce((acc, t) => acc + t.errors.length, 0);
   const failures = toolFailures + contractsFailed;
-  const pass = failures === 0;
+  // A blocked contract is evidence that could not be gathered, never a pass.
+  const pass = failures === 0 && contractsBlocked === 0;
 
   return {
     schemaVersion: 2,
@@ -662,6 +710,7 @@ function assembleReport(args: {
       contractsPassed,
       contractsFailed,
       contractsSkipped,
+      contractsBlocked,
       knownGaps: knownGaps.length,
       failures,
     },

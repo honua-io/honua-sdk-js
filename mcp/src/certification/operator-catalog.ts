@@ -350,18 +350,6 @@ export function buildOperatorTools(): OperatorTool[] {
       sampleOutput: { jobId: "job-001", status: "Cancelling" },
     },
     {
-      name: "honua_propose_operation",
-      title: "Propose operation",
-      description: "Propose an in-scope control-plane operation for human approval.",
-      inputSchema: vendoredInputSchema("honua_propose_operation"),
-      outputSchema: OBJECT_SCHEMA({ proposalId: { type: "string" }, status: { type: "string" } }, [
-        "proposalId",
-        "status",
-      ]),
-      readOnly: false,
-      sampleOutput: { proposalId: "prop-001", status: "PendingApproval" },
-    },
-    {
       name: "honua_publish_service",
       title: "Publish service",
       description:
