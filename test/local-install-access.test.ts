@@ -12,7 +12,7 @@ vi.mock("../src/control-plane/generated/admin-operations.js", async (importOrigi
   ADMIN_RELEASE_CONTRACT_STATUS: "compatible",
 }));
 
-import { installHonuaLocal } from "../src/local-install.js";
+import { inspectLocalAgentAccess, installHonuaLocal } from "../src/local-install.js";
 import { writePrivateFileAtomic } from "../src/private-file.js";
 
 const cleanup: string[] = [];
@@ -27,7 +27,7 @@ describe("local installer access handoff", () => {
     cleanup.push(directory);
     const material = "hnua_one-time-material-that-must-not-enter-the-receipt";
     const credentialId = "11111111-1111-4111-8111-111111111111";
-    const grants = ["admin:read", "admin:write"];
+    const grants = ["admin:read", "admin:write", "read:*"];
     const fetchFn = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
       if (url.pathname === "/healthz/ready") return new Response("ready", { status: 200 });
@@ -144,7 +144,7 @@ describe("local installer access handoff", () => {
               id: "11111111-1111-4111-8111-111111111111",
               name: "honua-local-agent",
               keyPrefix: material.slice(0, 12),
-              permissions: ["admin:approve", "admin:read", "admin:write"],
+              permissions: ["admin:approve", "admin:read", "admin:write", "read:*"],
               status: "active",
             },
           ],
@@ -156,7 +156,7 @@ describe("local installer access handoff", () => {
           data: {
             id: "44444444-4444-4444-8444-444444444444",
             name: "honua-local-agent",
-            permissions: ["admin:read", "admin:write"],
+            permissions: ["admin:read", "admin:write", "read:*"],
             status: "active",
             canAuthenticate: true,
           },
@@ -197,7 +197,7 @@ describe("local installer access handoff", () => {
                 apiKey: {
                   id: credentialId,
                   name: "honua-local-agent",
-                  permissions: ["admin:read", "admin:write"],
+                  permissions: ["admin:read", "admin:write", "read:*"],
                   status: "active",
                 },
                 key: material,
@@ -215,7 +215,7 @@ describe("local installer access handoff", () => {
             data: {
               id: credentialId,
               name: "honua-local-agent",
-              permissions: ["admin:approve", "admin:read", "admin:write"],
+              permissions: ["admin:approve", "admin:read", "admin:write", "read:*"],
               status: "active",
               canAuthenticate: true,
             },
@@ -261,7 +261,7 @@ describe("local installer access handoff", () => {
               apiKey: {
                 id: credentialId,
                 name: "honua-local-agent",
-                permissions: ["admin:read", "admin:write"],
+                permissions: ["admin:read", "admin:write", "read:*"],
                 status: "active",
               },
               key: material,
@@ -277,7 +277,7 @@ describe("local installer access handoff", () => {
           data: {
             id: credentialId,
             name: "honua-local-agent",
-            permissions: ["admin:read", "admin:write"],
+            permissions: ["admin:read", "admin:write", "read:*"],
             status: "active",
             canAuthenticate: true,
           },
@@ -335,7 +335,7 @@ describe("local installer access handoff", () => {
               id: "44444444-4444-4444-8444-444444444444",
               name: "honua-local-agent",
               keyPrefix: material.slice(0, 12),
-              permissions: ["admin:read", "admin:write"],
+              permissions: ["admin:read", "admin:write", "read:*"],
               status: "active",
             },
           ],
@@ -347,7 +347,7 @@ describe("local installer access handoff", () => {
           data: {
             id: "44444444-4444-4444-8444-444444444444",
             name: "honua-local-agent",
-            permissions: ["admin:read", "admin:write"],
+            permissions: ["admin:read", "admin:write", "read:*"],
             status: "active",
             canAuthenticate: true,
           },
@@ -370,6 +370,103 @@ describe("local installer access handoff", () => {
     expect(readFileSync(envFile, "utf8")).toContain(material);
   });
 
+  it.each([
+    { label: "legacy two-grant key is re-minted with read:*", listed: LEGACY_GRANTS },
+    { label: "effective-permissions missing read:* takes the legacy path", listed: CURRENT_GRANTS },
+  ])("$label", async ({ listed }) => {
+    const directory = await legacyInstallDirectory("honua-local-access-legacy-");
+    const scenario = legacyServer({ listedGrants: listed });
+
+    const result = await installHonuaLocal(
+      { directory, profile: "gp-dev", timeoutMs: 1_000 },
+      runtimeFor(scenario.fetchFn),
+    );
+
+    expect(result.credentialReissued).toBe(true);
+    expect(result.reason).toBe("legacy-grants");
+    expect(result.accessCredential).toMatchObject({
+      id: NEW_ID,
+      name: "honua-local-agent",
+      requestedGrants: CURRENT_GRANTS,
+      effectiveGrants: CURRENT_GRANTS,
+      provisioned: true,
+    });
+    expect(scenario.created).toEqual([{ name: "honua-local-agent", permissions: CURRENT_GRANTS }]);
+    expect(scenario.revoked).toEqual([LEGACY_ID]);
+    for (const file of [".env", ".mcp.json", "claude_desktop_config.json"]) {
+      const content = readFileSync(path.join(directory, file), "utf8");
+      expect(content).toContain(NEW_MATERIAL);
+      expect(content).not.toContain(LEGACY_MATERIAL);
+    }
+    expect(JSON.stringify(result)).not.toContain(NEW_MATERIAL);
+    expect(JSON.stringify(result)).not.toContain(LEGACY_MATERIAL);
+  });
+
+  it("reports credentialReissued false when the existing key already carries read:*", async () => {
+    const directory = await legacyInstallDirectory("honua-local-access-current-");
+    const scenario = legacyServer({ listedGrants: CURRENT_GRANTS, effectiveGrants: CURRENT_GRANTS });
+
+    const result = await installHonuaLocal({ directory, timeoutMs: 1_000 }, runtimeFor(scenario.fetchFn));
+
+    expect(result.credentialReissued).toBe(false);
+    expect(result).not.toHaveProperty("reason");
+    expect(result.accessCredential).toMatchObject({ id: LEGACY_ID, provisioned: false });
+    expect(scenario.created).toEqual([]);
+    expect(scenario.revoked).toEqual([]);
+  });
+
+  it("rolls the replacement back when the legacy key cannot be revoked", async () => {
+    const directory = await legacyInstallDirectory("honua-local-access-legacy-rollback-");
+    const scenario = legacyServer({ listedGrants: LEGACY_GRANTS, failLegacyRevoke: true });
+
+    await expect(installHonuaLocal({ directory, timeoutMs: 1_000 }, runtimeFor(scenario.fetchFn))).rejects.toThrow(
+      "legacy local-agent credential could not be revoked",
+    );
+
+    expect(scenario.revoked).toEqual([NEW_ID]);
+    for (const file of [".env", ".mcp.json", "claude_desktop_config.json"]) {
+      const content = readFileSync(path.join(directory, file), "utf8");
+      expect(content).toContain(LEGACY_MATERIAL);
+      expect(content).not.toContain(NEW_MATERIAL);
+    }
+  });
+
+  it.each([
+    {
+      label: "two active local-agent keys",
+      extraKeys: [{ id: OTHER_ID, keyPrefix: "hnua_other-p", permissions: LEGACY_GRANTS }],
+      prefix: undefined,
+      message: "more than one active local-agent identity",
+    },
+    {
+      label: "a key prefix that does not match .env",
+      extraKeys: [],
+      prefix: "hnua_someone",
+      message: "exactly one active local-agent identity",
+    },
+  ])("ambiguous state still refuses: $label", async ({ extraKeys, prefix, message }) => {
+    const directory = await legacyInstallDirectory("honua-local-access-ambiguous-");
+    const scenario = legacyServer({ listedGrants: LEGACY_GRANTS, extraKeys, prefix });
+
+    await expect(installHonuaLocal({ directory, timeoutMs: 1_000 }, runtimeFor(scenario.fetchFn))).rejects.toThrow(
+      message,
+    );
+
+    expect(scenario.created).toEqual([]);
+    expect(scenario.revoked).toEqual([]);
+    expect(readFileSync(path.join(directory, ".env"), "utf8")).toContain(LEGACY_MATERIAL);
+  });
+
+  it("read-only access inspection reports a legacy key instead of re-issuing it", async () => {
+    const scenario = legacyServer({ listedGrants: LEGACY_GRANTS });
+
+    await expect(inspectLocalAgentAccess("http://127.0.0.1:8080", LEGACY_MATERIAL, scenario.fetchFn)).rejects.toThrow(
+      "without read:*",
+    );
+    expect(scenario.created).toEqual([]);
+    expect(scenario.revoked).toEqual([]);
+  });
+
   it.skipIf(process.platform === "win32")("refuses a symbolic-link credential target", async () => {
     const directory = mkdtempSync(path.join(tmpdir(), "honua-local-access-symlink-"));
     cleanup.push(directory);
@@ -390,6 +487,110 @@ describe("local installer access handoff", () => {
     expect(readFileSync(external, "utf8")).toBe("DO_NOT_OVERWRITE=true\n");
   });
 });
+
+const CURRENT_GRANTS = ["admin:read", "admin:write", "read:*"];
+const LEGACY_GRANTS = ["admin:read", "admin:write"];
+const LEGACY_ID = "55555555-5555-4555-8555-555555555555";
+const NEW_ID = "66666666-6666-4666-8666-666666666666";
+const OTHER_ID = "77777777-7777-4777-8777-777777777777";
+const LEGACY_MATERIAL = "hnua_legacy-two-grant-material";
+const NEW_MATERIAL = "hnua_reissued-read-wildcard-material";
+
+async function legacyInstallDirectory(prefix: string): Promise<string> {
+  const directory = mkdtempSync(path.join(tmpdir(), prefix));
+  cleanup.push(directory);
+  await writePrivateFileAtomic(
+    path.join(directory, ".env"),
+    [
+      "HONUA_SERVER_IMAGE=example.invalid/honua@sha256:1234",
+      "HONUA_HTTP_PORT=8080",
+      "POSTGRES_PASSWORD=postgres",
+      "HONUA_ADMIN_PASSWORD=root",
+      "HONUA_CONNECTION_ENCRYPTION_MASTER_KEY=master",
+      `HONUA_ADMIN_KEY=${LEGACY_MATERIAL}`,
+      "",
+    ].join("\n"),
+  );
+  const legacyConfig = JSON.stringify({ mcpServers: { honua: { env: { HONUA_ADMIN_KEY: LEGACY_MATERIAL } } } });
+  await writePrivateFileAtomic(path.join(directory, ".mcp.json"), legacyConfig);
+  await writePrivateFileAtomic(path.join(directory, "claude_desktop_config.json"), legacyConfig);
+  return directory;
+}
+
+function legacyServer(options: {
+  readonly listedGrants: readonly string[];
+  readonly effectiveGrants?: readonly string[];
+  readonly extraKeys?: readonly { id: string; keyPrefix: string; permissions: readonly string[] }[];
+  readonly prefix?: string;
+  readonly failLegacyRevoke?: boolean;
+}) {
+  const created: unknown[] = [];
+  const revoked: string[] = [];
+  const effective = (id: string, permissions: readonly string[]) =>
+    jsonResponse({
+      success: true,
+      data: { id, name: "honua-local-agent", permissions, status: "active", canAuthenticate: true },
+    });
+  const fetchFn = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : input.toString());
+    const method = (input instanceof Request ? input.method : init?.method) ?? "GET";
+    if (url.pathname === "/healthz/ready") return new Response("ready", { status: 200 });
+    if (url.pathname === "/api/v1/admin/api-keys" && method === "GET") {
+      return jsonResponse({
+        success: true,
+        data: [
+          {
+            id: LEGACY_ID,
+            name: "honua-local-agent",
+            keyPrefix: options.prefix ?? LEGACY_MATERIAL.slice(0, 12),
+            permissions: options.listedGrants,
+            status: "active",
+          },
+          ...(options.extraKeys ?? []).map((key) => ({ ...key, name: "honua-local-agent", status: "active" })),
+        ],
+      });
+    }
+    if (url.pathname === "/api/v1/admin/api-keys" && method === "POST") {
+      const body = input instanceof Request ? await input.text() : String(init?.body);
+      created.push(JSON.parse(body));
+      return jsonResponse(
+        {
+          success: true,
+          data: {
+            apiKey: { id: NEW_ID, name: "honua-local-agent", permissions: CURRENT_GRANTS, status: "active" },
+            key: NEW_MATERIAL,
+          },
+        },
+        201,
+      );
+    }
+    if (url.pathname === `/api/v1/admin/api-keys/${LEGACY_ID}/effective-permissions`) {
+      return effective(LEGACY_ID, options.effectiveGrants ?? LEGACY_GRANTS);
+    }
+    if (url.pathname === `/api/v1/admin/api-keys/${NEW_ID}/effective-permissions`) {
+      return effective(NEW_ID, CURRENT_GRANTS);
+    }
+    const revoke = /^\/api\/v1\/admin\/api-keys\/([^/]+)\/revoke$/.exec(url.pathname);
+    if (revoke?.[1] && method === "POST") {
+      if (revoke[1] === LEGACY_ID && options.failLegacyRevoke) {
+        return jsonResponse({ title: "Unavailable", status: 503 }, 503);
+      }
+      revoked.push(revoke[1]);
+      return jsonResponse({ success: true, data: { id: revoke[1], status: "revoked" } });
+    }
+    throw new Error(`unexpected request ${method} ${url.pathname}`);
+  });
+  return { fetchFn, created, revoked };
+}
+
+function runtimeFor(fetchFn: typeof fetch) {
+  return {
+    fetchFn,
+    randomSecret: (bytes: number) => `unused-${bytes}`,
+    run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+    wait: async () => undefined,
+  };
+}
 
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
