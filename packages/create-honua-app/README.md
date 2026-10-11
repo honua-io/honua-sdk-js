@@ -3,6 +3,7 @@
 Scaffold a [Honua JavaScript SDK](https://github.com/honua-io/honua-sdk-js) map application — Vite + TypeScript,
 pinned to the certified SDK release, running a map on the first `npm run dev`.
 
+<!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
 npm create honua-app@0.1.7 my-map
 cd my-map
