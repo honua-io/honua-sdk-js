@@ -28,7 +28,8 @@ export function mountSampleOnlineBasemap(
   map.getContainer().append(notice);
   // Older published SDKs can still run the local fixture lane. A live map
   // explicitly reports the required upgrade instead of failing module loading.
-  const Binding = Reflect.get(runtime, "HonuaOnlineBasemapBinding") as OnlineBasemapConstructor | undefined;
+  const Binding = (runtime as unknown as { readonly HonuaOnlineBasemapBinding?: OnlineBasemapConstructor })
+    .HonuaOnlineBasemapBinding;
   if (typeof Binding !== "function") {
     notice.textContent =
       "Online basemaps require a newer @honua/sdk-js release with HonuaOnlineBasemapBinding. Upgrade @honua/sdk-js after the basemap SDK release is published, then reload. Operational data remains usable.";
@@ -49,19 +50,30 @@ export function mountSampleOnlineBasemap(
     },
   });
   const preferred = matchMedia("(prefers-color-scheme: dark)");
+  let pendingTheme: HonuaOnlineBasemapTheme | undefined;
+  const flush = () => {
+    if (!pendingTheme || !map.isStyleLoaded()) return;
+    const theme = pendingTheme;
+    pendingTheme = undefined;
+    void binding.activate({ theme, styleUrl: options.styleUrl });
+  };
   const update = () => {
-    if (!map.isStyleLoaded()) return;
     const selected = document.documentElement.dataset.theme;
     const dark = selected === "dark" || (!selected && preferred.matches);
-    void binding.activate({ theme: dark ? "dark" : (options.lightTheme ?? "positron"), styleUrl: options.styleUrl });
+    pendingTheme = dark ? "dark" : (options.lightTheme ?? "positron");
+    flush();
   };
   const observer = new MutationObserver(update);
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   preferred.addEventListener("change", update);
-  if (map.isStyleLoaded()) update();
-  else map.once("load", update);
+  // Theme changes during tile/sprite loading must survive until the renderer
+  // is ready again. Consume only the latest pending theme, once per update.
+  map.on("idle", flush);
+  map.once("load", flush);
+  update();
   const dispose = () => {
-    map.off("load", update);
+    map.off("load", flush);
+    map.off("idle", flush);
     observer.disconnect();
     preferred.removeEventListener("change", update);
     binding.dispose();

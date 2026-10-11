@@ -37,6 +37,7 @@ function bundleBytes(directory) {
   let javascriptBytes = 0;
   let javascriptGzipBytes = 0;
   let chunks = 0;
+  const files = [];
   const walk = (current) => {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const file = path.join(current, entry.name);
@@ -46,11 +47,12 @@ function bundleBytes(directory) {
         javascriptBytes += bytes.length;
         javascriptGzipBytes += gzipSync(bytes).length;
         chunks++;
+        files.push({ path: path.relative(path.join(directory, "dist"), file), bytes: bytes.length, gzipBytes: gzipSync(bytes).length });
       }
     }
   };
   walk(path.join(directory, "dist"));
-  return { javascriptBytes, javascriptGzipBytes, chunks };
+  return { javascriptBytes, javascriptGzipBytes, chunks, files: files.sort((a, b) => a.path.localeCompare(b.path)) };
 }
 
 function compareLiveStarter(template, destination) {

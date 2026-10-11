@@ -83,6 +83,7 @@
 * [Renderer objects and temporal playback](renderers.md)
 * [Disconnected replica sync](replica-sync.md)
 * [Runtime Parity Showcase](runtime-parity-showcase.md)
+* [Sample basemap policy and inventory](sample-basemaps.md)
 * [Saved-Map Collaboration](saved-map-collaboration.md)
 * [Scene Workspace Interop](scene-workspace.md)
 * [Share, Embed, and Open-Data Browser Contracts](share-embed-open-data-contracts.md)
