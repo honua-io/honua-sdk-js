@@ -39,8 +39,13 @@ Both local profiles use `Licensing__Mode=Disabled` for 2026.1, following the
 [release licensing policy](https://github.com/honua-io/honua-release/issues/338).
 No license file or development edition grant is required; authentication and
 authorization remain enforced. Re-running the installer updates an existing
-local Compose file to this policy. Qualification must verify that the Admin
-license status reports `mode: disabled` on the running candidate.
+installer-owned Compose file to this policy. An older Community installation
+may have held its API keys only in memory; restarting it with the release policy
+can leave the saved key invalid. The installer refuses that credential rather
+than silently replacing it. A fresh directory and unused HTTP port create an
+independent installation while preserving the old project's data. Qualification
+must verify that the Admin license status reports `mode: disabled` on the
+running candidate.
 
 `honua admin` is the control-plane CLI shipped by `@honua/sdk-js`. If `honua`
 on `PATH` fails before Docker starts with `ModuleNotFoundError` for the Python
