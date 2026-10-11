@@ -140,10 +140,19 @@ test("dispatch advertises the bare immutable SHA accepted by admission", async (
   const workflow = parse(await readFile(path.join(root, ".github/workflows/installed-package-certification.yml"), "utf8"));
   assert.match(workflow.on.workflow_dispatch.inputs.candidate_ref.description, /commit SHA, exactly 40 lowercase hex characters/);
   const selection = workflow.jobs.certify.steps.find((step) => step.name === "Require immutable release snapshot selection");
-  const sha = "a".repeat(40);
-  for (const [candidate, expected] of [[sha, 0], [`refs/nightly-candidates/${sha}`, 1]]) {
-    const result = spawnSync("bash", ["-c", selection.run], { encoding: "utf8", env: { ...process.env, RELEASE_SHA: sha, CANDIDATE_SHA: candidate } });
-    assert.equal(result.status, expected);
+  const directory = await mkdtemp(path.join(tmpdir(), "honua-candidate-selection-"));
+  try {
+    // Execute the actual workflow body as a fixture file, matching the other
+    // workflow tests without an unanalyzable dynamic inline shell launch.
+    const scriptPath = path.join(directory, "selection.sh");
+    await writeFile(scriptPath, selection.run);
+    const sha = "a".repeat(40);
+    for (const [candidate, expected] of [[sha, 0], [`refs/nightly-candidates/${sha}`, 1]]) {
+      const result = spawnSync("bash", [scriptPath], { encoding: "utf8", env: { ...process.env, RELEASE_SHA: sha, CANDIDATE_SHA: candidate } });
+      assert.equal(result.status, expected);
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });
 
