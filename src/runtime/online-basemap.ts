@@ -71,55 +71,66 @@ let nextBindingId = 0;
  * operational labels. Custom styles can use the same template or omit glyphs.
  */
 export class HonuaOnlineBasemapBinding {
-  readonly #map: HonuaOnlineBasemapMap;
-  readonly #options: HonuaOnlineBasemapBindingOptions;
-  #active: PreparedBasemap | undefined;
-  readonly #prefix = `honua-online-basemap-${++nextBindingId}-`;
-  readonly #styles = new Map<string, { value: unknown; baseUrl: string }>();
-  #installationId = 0;
-  readonly #assetPrefixes = new Set<string>();
-  #request: AbortController | undefined;
-  #disposed = false;
-  #hostGlyphs: string | undefined;
-  #hostGlyphsCaptured = false;
+  readonly #state: {
+    readonly map: HonuaOnlineBasemapMap;
+    readonly options: HonuaOnlineBasemapBindingOptions;
+    readonly prefix: string;
+    readonly styles: Map<string, { value: unknown; baseUrl: string }>;
+    readonly assetPrefixes: Set<string>;
+    installationId: number;
+    active?: PreparedBasemap;
+    request?: AbortController;
+    disposed: boolean;
+    hostGlyphs?: string;
+    hostGlyphsCaptured: boolean;
+  };
 
   constructor(map: HonuaOnlineBasemapMap, options: HonuaOnlineBasemapBindingOptions) {
-    this.#map = map;
-    this.#options = options;
+    this.#state = {
+      map,
+      options,
+      prefix: `honua-online-basemap-${++nextBindingId}-`,
+      styles: new Map(),
+      assetPrefixes: new Set(),
+      installationId: 0,
+      disposed: false,
+      hostGlyphsCaptured: false,
+    };
     map.on("error", this.#onMapError);
   }
 
   /** Fetch and activate a theme/override; errors leave the previous base intact. */
   async activate(options: HonuaOnlineBasemapOptions = {}): Promise<boolean> {
-    if (this.#disposed) return false;
-    this.#request?.abort();
+    const state = this.#state;
+    if (state.disposed) return false;
+    state.request?.abort();
     const request = new AbortController();
-    this.#request = request;
+    state.request = request;
     let styleUrl = "";
     try {
       styleUrl = resolveHonuaOnlineBasemapStyle(options);
-      if (!this.#hostGlyphsCaptured) {
-        const hostGlyphs = object(this.#map.getStyle())?.glyphs;
-        this.#hostGlyphs = typeof hostGlyphs === "string" ? hostGlyphs : undefined;
-        this.#hostGlyphsCaptured = true;
+      if (!state.hostGlyphsCaptured) {
+        const hostGlyphs = object(state.map.getStyle())?.glyphs;
+        state.hostGlyphs = typeof hostGlyphs === "string" ? hostGlyphs : undefined;
+        state.hostGlyphsCaptured = true;
       }
-      let downloaded = this.#styles.get(styleUrl);
+      let downloaded = state.styles.get(styleUrl);
       if (!downloaded) {
-        const response = await (this.#options.fetch ?? globalThis.fetch)(styleUrl, { signal: request.signal });
+        const response = await (state.options.fetch ?? globalThis.fetch)(styleUrl, { signal: request.signal });
         if (!response.ok) throw new Error(`Style request returned HTTP ${response.status}.`);
         const value: unknown = await response.json();
-        if (request.signal.aborted || this.#disposed) return false;
+        if (request.signal.aborted || state.disposed) return false;
         downloaded = { value, baseUrl: response.url || new URL(styleUrl, globalThis.location?.href).href };
       }
       const prepared = await this.#prepare(downloaded.value, downloaded.baseUrl);
-      if (request.signal.aborted || this.#disposed) return false;
+      if (request.signal.aborted || state.disposed) return false;
       this.#install(prepared);
-      this.#styles.set(styleUrl, downloaded);
-      this.#options.onReady?.();
+      state.styles.set(styleUrl, downloaded);
+      state.options.onReady?.();
       return true;
     } catch (error) {
-      if (!request.signal.aborted && !this.#disposed) {
-        this.#options.onError(this.#failure(error instanceof Error ? error.message : String(error)));
+      if (!request.signal.aborted && !state.disposed) {
+        state.options.onError(this.#failure(error instanceof Error ? error.message : String(error)));
       }
       return false;
     }
@@ -127,15 +138,16 @@ export class HonuaOnlineBasemapBinding {
 
   /** Cancel downloads and remove only the sources, layers and sprites we own. */
   dispose(): void {
-    if (this.#disposed) return;
-    this.#disposed = true;
-    this.#request?.abort();
-    this.#map.off("error", this.#onMapError);
-    if (this.#active) {
-      this.#remove(this.#active);
-      this.#map.setGlyphs(this.#hostGlyphs ?? null);
+    const state = this.#state;
+    if (state.disposed) return;
+    state.disposed = true;
+    state.request?.abort();
+    state.map.off("error", this.#onMapError);
+    if (state.active) {
+      this.#remove(state.active);
+      state.map.setGlyphs(state.hostGlyphs ?? null);
     }
-    this.#active = undefined;
+    state.active = undefined;
   }
 
   #failure(detail: string): string {
@@ -143,18 +155,20 @@ export class HonuaOnlineBasemapBinding {
   }
 
   readonly #onMapError = (event: unknown): void => {
+    const state = this.#state;
     const record = object(event);
     const sourceId = record?.sourceId;
     const detail = record?.error instanceof Error ? record.error.message : "";
     // An identified operational-source failure belongs to its host, even if
     // its data happens to share a server with the basemap assets.
-    if (typeof sourceId === "string" && !sourceId.startsWith(this.#prefix)) return;
-    if (typeof sourceId === "string" || [...this.#assetPrefixes].some((prefix) => detail.includes(prefix))) {
-      this.#options.onError(this.#failure(detail || "A tile, glyph or sprite request failed."));
+    if (typeof sourceId === "string" && !sourceId.startsWith(state.prefix)) return;
+    if (typeof sourceId === "string" || [...state.assetPrefixes].some((prefix) => detail.includes(prefix))) {
+      state.options.onError(this.#failure(detail || "A tile, glyph or sprite request failed."));
     }
   };
 
   async #prepare(value: unknown, baseUrl: string): Promise<PreparedBasemap> {
+    const state = this.#state;
     const style = object(value);
     const sources = object(style?.sources);
     if (style?.version !== 8 || !sources || !Array.isArray(style.layers)) {
@@ -163,9 +177,9 @@ export class HonuaOnlineBasemapBinding {
     const diagnostics = await validateRuntimeStyleSpec(style as unknown as HonuaStyleSpecification, { mode: "strict" });
     const invalid = diagnostics.find((diagnostic) => diagnostic.severity === "error");
     if (invalid) throw new Error(`Invalid basemap style: ${invalid.message}`);
-    const id = `${this.#prefix}${++this.#installationId}-`;
+    const id = `${state.prefix}${++state.installationId}-`;
     const glyphs = typeof style.glyphs === "string" ? absoluteAsset(style.glyphs, baseUrl) : undefined;
-    if (glyphs && this.#hostGlyphs !== undefined && this.#hostGlyphs !== glyphs) {
+    if (glyphs && state.hostGlyphs !== undefined && state.hostGlyphs !== glyphs) {
       throw new Error("Basemap glyphs conflict; use the host glyph template.");
     }
     const spriteDefinitions =
@@ -222,7 +236,8 @@ export class HonuaOnlineBasemapBinding {
     const invalidPrepared = preparedDiagnostics.find((diagnostic) => diagnostic.severity === "error");
     if (invalidPrepared) throw new Error(`Invalid prepared basemap style: ${invalidPrepared.message}`);
     return {
-      definition: { id, label: id, kind: "vector", sources: preparedSources, layers },
+      sources: preparedSources,
+      layers,
       sprites,
       glyphs,
       baseUrl,
@@ -230,41 +245,43 @@ export class HonuaOnlineBasemapBinding {
   }
 
   #remove(prepared: PreparedBasemap): void {
-    for (const layer of [...prepared.definition.layers].reverse()) {
-      if (this.#map.getLayer(layer.id)) this.#map.removeLayer(layer.id);
+    const state = this.#state;
+    for (const layer of [...prepared.layers].reverse()) {
+      if (state.map.getLayer(layer.id)) state.map.removeLayer(layer.id);
     }
-    for (const sourceId of Object.keys(prepared.definition.sources)) {
-      if (this.#map.getSource(sourceId)) this.#map.removeSource(sourceId);
+    for (const sourceId of Object.keys(prepared.sources)) {
+      if (state.map.getSource(sourceId)) state.map.removeSource(sourceId);
     }
     for (const sprite of prepared.sprites) {
-      if (this.#map.getSprite().some((installed) => installed.id === sprite.id)) this.#map.removeSprite(sprite.id);
+      if (state.map.getSprite().some((installed) => installed.id === sprite.id)) state.map.removeSprite(sprite.id);
     }
   }
 
   #install(prepared: PreparedBasemap): void {
+    const state = this.#state;
     // Another SDK module instance or host may already own a generated ID.
     // Check before mutation so rollback can never remove foreign resources.
-    for (const id of Object.keys(prepared.definition.sources)) {
-      if (this.#map.getSource(id)) throw new Error(`Basemap source namespace collides with an existing source: ${id}.`);
+    for (const id of Object.keys(prepared.sources)) {
+      if (state.map.getSource(id)) throw new Error(`Basemap source namespace collides with an existing source: ${id}.`);
     }
-    for (const layer of prepared.definition.layers) {
-      if (this.#map.getLayer(layer.id))
+    for (const layer of prepared.layers) {
+      if (state.map.getLayer(layer.id))
         throw new Error(`Basemap layer namespace collides with an existing layer: ${layer.id}.`);
     }
-    const installedSprites = new Set(this.#map.getSprite().map((sprite) => sprite.id));
+    const installedSprites = new Set(state.map.getSprite().map((sprite) => sprite.id));
     for (const sprite of prepared.sprites) {
       if (installedSprites.has(sprite.id))
         throw new Error(`Basemap sprite namespace collides with an existing sprite: ${sprite.id}.`);
     }
-    const previousGlyphs = object(this.#map.getStyle())?.glyphs;
+    const previousGlyphs = object(state.map.getStyle())?.glyphs;
     try {
-      this.#map.setGlyphs(prepared.glyphs ?? this.#hostGlyphs ?? null);
+      state.map.setGlyphs(prepared.glyphs ?? state.hostGlyphs ?? null);
       for (const sprite of prepared.sprites) {
-        this.#map.addSprite(sprite.id, sprite.url);
+        state.map.addSprite(sprite.id, sprite.url);
       }
-      for (const [id, source] of Object.entries(prepared.definition.sources)) this.#map.addSource(id, source);
-      const previousLayers = object(this.#map.getStyle())?.layers;
-      const activeIds = new Set(this.#active?.definition.layers.map((layer) => layer.id));
+      for (const [id, source] of Object.entries(prepared.sources)) state.map.addSource(id, source);
+      const previousLayers = object(state.map.getStyle())?.layers;
+      const activeIds = new Set(state.active?.layers.map((layer) => layer.id));
       const anchor = Array.isArray(previousLayers)
         ? previousLayers.find((layer: unknown) => {
             const entry = object(layer);
@@ -272,25 +289,25 @@ export class HonuaOnlineBasemapBinding {
           })
         : undefined;
       const anchorId = object(anchor)?.id;
-      for (const layer of prepared.definition.layers)
-        this.#map.addLayer(layer, typeof anchorId === "string" ? anchorId : undefined);
+      for (const layer of prepared.layers)
+        state.map.addLayer(layer, typeof anchorId === "string" ? anchorId : undefined);
     } catch (error) {
       // A renderer can throw after inserting a resource. The unique namespace
       // lets rollback find even resources it did not return successfully.
       this.#remove(prepared);
-      this.#map.setGlyphs(typeof previousGlyphs === "string" ? previousGlyphs : null);
+      state.map.setGlyphs(typeof previousGlyphs === "string" ? previousGlyphs : null);
       throw error;
     }
-    if (this.#active) this.#remove(this.#active);
-    this.#active = prepared;
-    this.#assetPrefixes.clear();
+    if (state.active) this.#remove(state.active);
+    state.active = prepared;
+    state.assetPrefixes.clear();
     const track = (url: string) => {
-      this.#assetPrefixes.add(url.split("{")[0]);
+      state.assetPrefixes.add(url.split("{")[0]);
     };
     for (const sprite of prepared.sprites) track(sprite.url);
     if (prepared.glyphs) track(prepared.glyphs);
     track(prepared.baseUrl);
-    for (const value of Object.values(prepared.definition.sources)) {
+    for (const value of Object.values(prepared.sources)) {
       const source = object(value);
       if (!source) continue;
       for (const key of ["url", "data"]) {
@@ -363,13 +380,8 @@ function isResolvedImageExpression(value: unknown): boolean {
 }
 
 interface PreparedBasemap {
-  readonly definition: {
-    readonly id: string;
-    readonly label: string;
-    readonly kind: "vector";
-    readonly sources: Readonly<Record<string, unknown>>;
-    readonly layers: readonly { readonly id: string; readonly [key: string]: unknown }[];
-  };
+  readonly sources: Readonly<Record<string, unknown>>;
+  readonly layers: readonly { readonly id: string; readonly [key: string]: unknown }[];
   readonly sprites: readonly { id: string; url: string }[];
   readonly glyphs: string | undefined;
   readonly baseUrl: string;
