@@ -1,5 +1,5 @@
 {
-  "source": "actual local diagnostics copied byte-for-byte; no successful corrected runtime claim",
+  "source": "actual local diagnostics retained byte-for-byte, with the exact source patch base64-encoded to preserve its whitespace; no successful corrected runtime claim",
   "files": [
     {
       "path": "initial-production-build.json",
@@ -32,10 +32,11 @@
       "redactedPaths": []
     },
     {
-      "path": "reviewed-source.patch",
-      "sha256": "c60dde6c188596da710f37160672eb150e1a281885efa7e7249059ed6620f8b0",
+      "path": "reviewed-source.patch.base64",
+      "sha256": "a6b6115a86f64aef043abf8caa2da4a09c70de60c96578da10448d49dcb41c3a",
       "originalSha256": "c60dde6c188596da710f37160672eb150e1a281885efa7e7249059ed6620f8b0",
-      "redactedPaths": []
+      "redactedPaths": [],
+      "encoding": "base64"
     }
   ]
 }
