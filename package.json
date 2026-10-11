@@ -391,6 +391,7 @@
     "create-app:templates:typecheck": "tsc -p packages/create-honua-app/tsconfig.templates.json --noEmit",
     "create-app:time-to-map": "node scripts/create-honua-app-time-to-map.mjs",
     "create-app:verify:package": "node scripts/verify-create-honua-app-package.mjs",
+    "create-app:verify:sdk-pair": "npm run prepare:test-sdk --silent && node scripts/verify-create-honua-app-sdk-pair.mjs",
     "playgrounds:generate": "node scripts/playgrounds.mjs write",
     "playgrounds:check": "node scripts/playgrounds.mjs check",
     "samples:playgrounds:generate": "node scripts/sample-playgrounds.mjs write",

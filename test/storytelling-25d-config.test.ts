@@ -12,8 +12,16 @@ describe("storytelling 2.5D demo config", () => {
       route: "story-25d-route",
       stops: "story-25d-stops",
     });
-    expect(config.basemapStyle).toBe("https://demotiles.maplibre.org/style.json");
+    expect(config.basemapStyle).toBe("https://tiles.openfreemap.org/styles/liberty");
     expect(config.sourceIds.assets).toBe("story-assets");
+    expect(config.basemapStyleOverride).toBeUndefined();
+  });
+
+  it("retains an explicit override even when it names the default provider style", () => {
+    const config = resolveStoryDemoConfig({
+      VITE_HONUA_25D_BASEMAP_STYLE: "https://tiles.openfreemap.org/styles/liberty",
+    });
+    expect(config.basemapStyleOverride).toBe(true);
   });
 
   it("normalizes live environment overrides without trailing slashes", () => {

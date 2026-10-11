@@ -36,16 +36,22 @@ const inFlight = new Map<string, Promise<void>>();
  * UMD build. Accept either so this works across the `^5 || ^6` peer range.
  */
 export async function loadMaplibreRegistrar(): Promise<MaplibreProtocolRegistrar> {
-  const mod = (await import("maplibre-gl")) as unknown as {
+  // Name the consumed exports so bundlers can discard unrelated renderer controls.
+  // Returning an opaque module namespace retains every MapLibre export.
+  const {
+    addProtocol,
+    removeProtocol,
+    default: legacy,
+  } = (await import("maplibre-gl")) as unknown as {
     addProtocol?: MaplibreProtocolRegistrar["addProtocol"];
     removeProtocol?: MaplibreProtocolRegistrar["removeProtocol"];
     default?: MaplibreProtocolRegistrar;
   };
-  if (typeof mod.addProtocol === "function") {
-    return { addProtocol: mod.addProtocol, removeProtocol: mod.removeProtocol };
+  if (typeof addProtocol === "function") {
+    return { addProtocol, removeProtocol };
   }
-  if (mod.default && typeof mod.default.addProtocol === "function") {
-    return mod.default;
+  if (legacy && typeof legacy.addProtocol === "function") {
+    return legacy;
   }
   throw new Error(
     "maplibre-gl does not expose addProtocol(); install maplibre-gl 5.x or 6.x (the SDK peer range is ^5.0.0 || ^6.0.0).",

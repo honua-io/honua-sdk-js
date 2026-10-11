@@ -37,6 +37,8 @@ export interface StoryDemoConfig {
   honuaBaseUrl: string;
   apiKey?: string;
   basemapStyle: string;
+  /** Explicit provider choice stays fixed across light/dark theme changes. */
+  basemapStyleOverride?: boolean;
   collections: StoryDemoCollections;
   sourceIds: StorySourceIds;
   priorityRiskThreshold: number;

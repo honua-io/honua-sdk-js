@@ -72,3 +72,7 @@ For browser smoke tests and troubleshooting, the runtime exposes
 selection count, and any bridge error. The Playwright spec
 `test/playwright/react-quickstart.spec.mjs` asserts a StrictMode boot, three fixture
 features, a mounted map canvas, shared sidebar selection, and zero page errors.
+
+## Live basemap policy
+
+Live maps use free, keyless OpenFreeMap styles with source attribution; dark mode changes the basemap while preserving operational data and selection. Set `VITE_HONUA_BASEMAP_STYLE` to a custom/self-hosted style URL. Asset failures show an actionable status and leave operational controls usable. The committed fixture lane stays network-independent. See [shared basemap policy](../../docs/sample-basemaps.md) for provider terms, exceptions and export credits.
