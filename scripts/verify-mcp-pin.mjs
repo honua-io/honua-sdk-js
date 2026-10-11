@@ -370,9 +370,9 @@ export function verifyClientPairCoInstallable({ sdkName, sdkVersion, mcpName, mc
     satisfiesUnderNpmDefaults(sdkVersion, peerRange),
     `${mcpName}@${mcpVersion} peer-depends on ${sdkName}@"${peerRange}", which npm's default resolver does NOT ` +
       `consider satisfied by ${sdkName}@${sdkVersion}. Installing the pair fails ERESOLVE unless the consumer ` +
-      "passes --legacy-peer-deps or --force, so the documented install is broken. A prerelease satisfies a range " +
-      "only when a comparator in it carries a prerelease on the same major.minor.patch tuple, so widening the " +
-      `range cannot fix this -- the pair has to be cut, pinned, and published on one tuple.${
+      "passes --legacy-peer-deps or --force, so the documented install is broken. Select published versions " +
+      "whose declared SDK peer range admits the SDK under default resolution; stable package versions " +
+      `need not share a patch number.${
         remedy ? `\n\nTo fix: ${remedy}` : ""
       }`,
   );
@@ -486,48 +486,39 @@ async function main() {
     `source pair co-installable: ${mcpManifest.name}@${mcpManifest.version} + ${sdkName}@${sdkVersion}\n`,
   );
 
-  // The pair a customer actually gets: the *pinned* published MCP artifact
-  // against the SDK this tree ships. release-please writes the peer range as a
-  // caret on the MCP version at the commit that cut it, so that is the range
-  // the published tarball carries; the live lane below re-reads it from the
-  // registry rather than trusting this reconstruction.
-  //
-  // This check is a publish gate, not a PR gate. Between a release-please bump
-  // and the coordinated MCP publish the pin legitimately lags the SDK version,
-  // and no edit can fix that until the MCP half is on the registry -- so
-  // reddening every release PR here would only make releases impossible. PR CI
-  // asserts the source pair above (which release-please keeps in lockstep) and
-  // that this rule rejects the lagging pin; `verify:client-pair` in
-  // publish-js-sdk.yml is what stops a lagging pin from actually shipping.
+  // A separately published MCP patch can retain an older compatible SDK peer.
+  // In the live lane the registry is authoritative; never fabricate its peer
+  // from the MCP version before querying it. Offline, use the source declaration
+  // only for the same MCP version, and retain the conservative historical bound
+  // for an older pin whose manifest is not available in this checkout.
+  const published = isMcpPinLiveVerificationEnabled()
+    ? await verifyMcpPinPublication({
+        pin: LOCAL_INSTALL_MCP_PACKAGE,
+        integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
+      })
+    : undefined;
+  const pinnedPeerRange = published
+    ? published.peerDependencies[sdkName]
+    : lineage.version === mcpManifest.version
+      ? mcpManifest.peerDependencies?.[sdkName]
+      : `^${lineage.version}`;
   verifyClientPairCoInstallable({
     sdkName,
     sdkVersion,
     mcpName: lineage.name,
     mcpVersion: lineage.version,
-    peerRange: `^${lineage.version}`,
+    peerRange: pinnedPeerRange,
     remedy: PIN_SYNC_REMEDY,
   });
-  process.stdout.write(`pinned pair co-installable: ${lineage.name}@${lineage.version} + ${sdkName}@${sdkVersion}\n`);
+  process.stdout.write(`pinned pair metadata compatible: ${lineage.name}@${lineage.version} + ${sdkName}@${sdkVersion} ` +
+    `peer="${pinnedPeerRange}" source=${published ? "registry" : "offline"}\n`);
 
-  if (!isMcpPinLiveVerificationEnabled()) {
+  if (!published) {
     process.stdout.write(`registry lane skipped: set ${NETWORK_GATE}=true to query the public registry\n`);
     return;
   }
-  const published = await verifyMcpPinPublication({
-    pin: LOCAL_INSTALL_MCP_PACKAGE,
-    integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
-  });
   process.stdout.write(`mcp pin published: ${published.tarball}\n`);
   process.stdout.write(`zero-to-map config pins published: ${zeroToMapConfigs.length} configs resolve to ${published.tarball}\n`);
-  // The published peer range, not the one reconstructed above.
-  verifyClientPairCoInstallable({
-    sdkName,
-    sdkVersion,
-    mcpName: published.name,
-    mcpVersion: published.version,
-    peerRange: published.peerDependencies?.[sdkName],
-    remedy: PIN_SYNC_REMEDY,
-  });
   process.stdout.write(
     `published pair co-installable: ${published.name}@${published.version} peer ${sdkName}@"${published.peerDependencies?.[sdkName]}"\n`,
   );

@@ -375,13 +375,30 @@ function withSyncCliFixture(manifest, run) {
       ...manifest,
     } };
     fs.writeFileSync(preload, `globalThis.fetch = async (url) => {
-if (url !== "https://registry.npmjs.org/%40honua%2Fmcp-server") throw new Error("Unexpected registry URL");
-return { ok: true, json: async () => (${JSON.stringify(response)}) };
+const packument = ${JSON.stringify(response)};
+if (url === "https://registry.npmjs.org/%40honua%2Fmcp-server") return { ok: true, json: async () => packument };
+if (url === "https://registry.npmjs.org/%40honua%2Fmcp-server/0.1.16") return { ok: true, json: async () => ({ version: "0.1.16", ...packument.versions["0.1.16"] }) };
+throw new Error("Unexpected registry URL");
 };`);
     const invoke = (args) => spawnSync(process.execPath,
       ["--import", preload, path.join(root, "scripts/sync-mcp-pin.mjs"), ...args], { encoding: "utf8" });
     const snapshot = () => sites.map((site) => fs.readFileSync(path.join(root, site), "utf8"));
-    run({ root, invoke, snapshot });
+    const verify = ({ live = true } = {}) => {
+      const integrity = response.versions["0.1.16"].dist.integrity;
+      fs.mkdirSync(path.join(root, "mcp"), { recursive: true });
+      fs.writeFileSync(path.join(root, "mcp/package.json"), JSON.stringify({ name: "@honua/mcp-server", version: "0.1.16", peerDependencies: { "@honua/sdk-js": "^0.1.15" } }));
+      fs.writeFileSync(path.join(root, "mcp/CHANGELOG.md"), "## [0.1.16]\n");
+      fs.writeFileSync(path.join(root, "dist/src/local-install.js"),
+        `export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";
+export const LOCAL_INSTALL_MCP_PACKAGE = "@honua/mcp-server@0.1.16";
+export const LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY = ${JSON.stringify(integrity)};`);
+      for (const site of ZERO_TO_MAP_CONFIGS) fs.writeFileSync(path.join(root, site), applyConfigPin(fs.readFileSync(path.join(root, site), "utf8"), "@honua/mcp-server@0.1.16", site));
+      for (const site of CREATE_APP_PIN_SITES) fs.writeFileSync(path.join(root, site), applyCreateAppPin(fs.readFileSync(path.join(root, site), "utf8"), "@honua/sdk-js", "0.1.15", site));
+      return spawnSync(process.execPath, ["--import", preload, path.join(root, "scripts/verify-mcp-pin.mjs")], {
+        encoding: "utf8", env: { ...process.env, HONUA_MCP_PIN_LIVE_ENABLED: live ? "true" : "false" },
+      });
+    };
+    run({ root, invoke, snapshot, verify });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -441,4 +458,29 @@ test("CLI rejects missing, duplicate and unknown selection arguments before chan
       assert.deepEqual(snapshot(), original);
     }
   });
+});
+
+
+test("live verifier accepts an independent MCP patch using its actual older compatible SDK peer", () => {
+  withSyncCliFixture({ "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: `sha512-${"B".repeat(86)}==` } } },
+    ({ verify }) => {
+      const result = verify();
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /peer="\^0\.1\.15" source=registry/);
+      const offline = verify({ live: false });
+      assert.equal(offline.status, 0, offline.stderr);
+      assert.match(offline.stdout, /registry lane skipped/);
+    });
+});
+
+test("live verifier refuses an incompatible or missing published peer despite a compatible source manifest", () => {
+  for (const peerDependencies of [{ "@honua/sdk-js": "^0.1.16" }, {}]) {
+    withSyncCliFixture({ "0.1.16": { peerDependencies, dist: { integrity: `sha512-${"B".repeat(86)}==` } } },
+      ({ verify }) => {
+        const result = verify();
+        assert.equal(result.status, 1, result.stderr);
+        assert.match(result.stderr, /does NOT consider satisfied|must declare/);
+        assert.doesNotMatch(result.stdout, /published pair co-installable/);
+      });
+  }
 });
