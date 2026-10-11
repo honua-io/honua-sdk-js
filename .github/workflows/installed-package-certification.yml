@@ -2,6 +2,20 @@ name: Installed package certification
 
 on:
   workflow_dispatch:
+    inputs:
+      candidate_mode:
+        description: Preserve the legacy regression lane or consume an explicit release snapshot
+        type: choice
+        default: legacy-regression
+        options: [legacy-regression, release-snapshot]
+      reviewed_release_sha:
+        description: Immutable reviewed honua-release trunk commit; required for release-snapshot
+        type: string
+        default: ""
+      candidate_ref:
+        description: Immutable refs/nightly-candidates/<sha>; required for release-snapshot
+        type: string
+        default: ""
   schedule:
     - cron: "30 8 * * *"
 
@@ -19,14 +33,74 @@ concurrency:
 jobs:
   certify:
     runs-on: ubuntu-24.04
+    env:
+      HONUA_INSTALLED_CANDIDATE_MODE: ${{ inputs.candidate_mode || 'legacy-regression' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Remove receipts retained from previous candidates
+        run: rm -f test-results/installed-package-certification.json test-results/installed-example-certification.json test-results/installed-quickstart-budget.json
+      - name: Require immutable release snapshot selection
+        if: inputs.candidate_mode == 'release-snapshot'
+        env:
+          RELEASE_SHA: ${{ inputs.reviewed_release_sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_ref }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'reviewed_release_sha must be an immutable release commit'; exit 1; }
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'candidate_ref must be an immutable nightly snapshot commit'; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: inputs.candidate_mode == 'release-snapshot'
+        with:
+          repository: honua-io/honua-release
+          ref: ${{ inputs.reviewed_release_sha }}
+          path: .tmp/honua-release-input
+          fetch-depth: 0
+      - uses: honua-io/honua-release/.github/actions/candidate-input@3ca3728f6675636e294dadbc585af874802cc7bc
+        id: release_input
+        if: inputs.candidate_mode == 'release-snapshot'
+        with:
+          candidate_ref: ${{ inputs.candidate_ref }}
+          reviewed_release_sha: ${{ inputs.reviewed_release_sha }}
+          checkout_directory: .tmp/honua-release-input
+      - name: Bind all installed producers to the adopted release bytes
+        if: inputs.candidate_mode == 'release-snapshot'
+        env:
+          RELEASE_SHA: ${{ inputs.reviewed_release_sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_ref }}
+          MANIFEST_SHA256: ${{ steps.release_input.outputs.manifest_sha256 }}
+          MATRIX_SHA256: ${{ steps.release_input.outputs.matrix_sha256 }}
+        run: |
+          {
+            echo "HONUA_RELEASE_INPUT_DIRECTORY=$GITHUB_WORKSPACE/.tmp/honua-release-input"
+            echo "HONUA_RELEASE_REVIEWED_SHA=$RELEASE_SHA"
+            echo "HONUA_RELEASE_CANDIDATE_SHA=$CANDIDATE_SHA"
+            echo "HONUA_RELEASE_MANIFEST_SHA256=$MANIFEST_SHA256"
+            echo "HONUA_RELEASE_MATRIX_SHA256=$MATRIX_SHA256"
+          } >> "$GITHUB_ENV"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        if: inputs.candidate_mode == 'release-snapshot'
+        with:
+          python-version: "3.12"
+      - name: Verify the selected release npm artifacts with the upstream verifier
+        if: inputs.candidate_mode == 'release-snapshot'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install -r .tmp/honua-release-input/tools/requirements-nightly.txt
+          mkdir -p test-results
+          python3 .tmp/honua-release-input/tools/verify_client_artifacts.py \
+            --manifest .tmp/honua-release-input/platform-manifest.yaml --ecosystem npm \
+            | tee test-results/release-npm-artifact-verification.txt
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20.19.0
           registry-url: https://registry.npmjs.org
       - name: Install locked test tooling
         run: npm ci
+      - name: Validate the complete SDK package denominator before execution
+        if: inputs.candidate_mode == 'release-snapshot'
+        run: node --input-type=module -e 'import { readInstalledCandidate } from "./scripts/installed-package-certification.mjs"; await readInstalledCandidate();'
       - name: Installed First Map bundle regression
         id: quickstart
         continue-on-error: true
@@ -60,6 +134,13 @@ jobs:
         with:
           name: honua-sdk-js-installed-package-certification
           path: test-results/installed-package-certification.json
+          if-no-files-found: error
+      - name: Upload scoped upstream artifact verification
+        if: always() && inputs.candidate_mode == 'release-snapshot'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-npm-artifact-verification
+          path: test-results/release-npm-artifact-verification.txt
           if-no-files-found: error
       - name: Upload installed-example receipt
         if: always()
