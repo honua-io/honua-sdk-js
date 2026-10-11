@@ -59,6 +59,13 @@ describe("local Honua installer", () => {
     expect(Object.fromEntries(Object.entries(environment).filter(([key]) => key.startsWith("Licensing__")))).toEqual({
       Licensing__Mode: "Disabled",
     });
+    expect(
+      Object.fromEntries(
+        Object.entries(environment).filter(([key]) => key.startsWith("Security__RequestSecretReferences__")),
+      ),
+    ).toEqual({
+      Security__RequestSecretReferences__AllowedEnvironmentVariables__0: "HONUA_LOCAL_DB_PASSWORD",
+    });
     expect(environment.HONUA_ADMIN_PASSWORD).toBe("${HONUA_ADMIN_PASSWORD}");
   });
 

@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import * as boundedQualification from "../src/cli/bounded-qualification.js";
 import { run } from "../src/cli/main.js";
 import { writePrivateFileAtomic } from "../src/private-file.js";
 
@@ -660,4 +661,42 @@ describe("honua admin", () => {
       rmSync(directory, { recursive: true, force: true });
     }
   });
+});
+
+describe("admin qualify layer IDs", () => {
+  const args = [
+    "admin",
+    "qualify",
+    "--manifest",
+    "manifest.json",
+    "--manifest-sha256",
+    "a".repeat(64),
+    "--catalog-receipt",
+    "catalog.json",
+    "--service-id",
+    "service-1",
+    "--bbox",
+    "0,0,1,1",
+    "--yes",
+  ];
+
+  it.each(["0", "42", "2147483647"])("converts decimal layer %s at the CLI boundary", async (value) => {
+    capture();
+    const qualify = vi
+      .spyOn(boundedQualification, "qualifyBoundedSetup")
+      .mockRejectedValue(new Error("qualification stopped by test"));
+    expect(await run([...args, `--layer-id=${value}`])).toBe(1);
+    expect(qualify).toHaveBeenCalledWith(expect.objectContaining({ layerId: Number(value), executeStyle: true }));
+  });
+
+  it.each(["", "-1", "1.5", "1e2", "0x10", "NaN", "Infinity", "2147483648", " 1 "])(
+    "rejects malformed layer %j before qualification",
+    async (value) => {
+      const output = capture();
+      const qualify = vi.spyOn(boundedQualification, "qualifyBoundedSetup");
+      expect(await run([...args, `--layer-id=${value}`])).toBe(2);
+      expect(qualify).not.toHaveBeenCalled();
+      expect(output.join("")).toContain("--layer-id");
+    },
+  );
 });

@@ -235,10 +235,11 @@ async function qualifyCommand(parsed: ParsedArgs): Promise<void> {
     );
   }
   const serviceId = getString(parsed, "service-id");
-  const layerId = getString(parsed, "layer-id");
+  const layerIdText = getString(parsed, "layer-id");
+  const layerId = layerIdText === undefined ? undefined : parseLayerId(layerIdText);
   const styleEvidencePath = getString(parsed, "style-evidence");
   const stylePngPath = getString(parsed, "style-png");
-  const liveStyle = Boolean(serviceId || layerId);
+  const liveStyle = Boolean(serviceId || layerId !== undefined);
   if (liveStyle && (styleEvidencePath || stylePngPath)) {
     throw new ArgError(
       "Pass either a live --service-id/--layer-id style run or --style-evidence with --style-png, not both.",
@@ -257,7 +258,7 @@ async function qualifyCommand(parsed: ParsedArgs): Promise<void> {
     catalogReceiptPath,
     ...(getString(parsed, "output") ? { outputPath: getString(parsed, "output") } : {}),
     ...(serviceId ? { serviceId } : {}),
-    ...(layerId ? { layerId } : {}),
+    ...(layerId !== undefined ? { layerId } : {}),
     ...(bbox ? { bbox } : {}),
     ...(styleEvidencePath ? { styleEvidencePath } : {}),
     ...(stylePngPath ? { stylePngPath } : {}),
@@ -267,6 +268,14 @@ async function qualifyCommand(parsed: ParsedArgs): Promise<void> {
   if (!receipt.pass) {
     throw new Error(receipt.differences.join("; "));
   }
+}
+
+function parseLayerId(value: string): number {
+  const layerId = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isInteger(layerId) || layerId > 2_147_483_647) {
+    throw new ArgError("--layer-id must be a decimal integer between 0 and 2147483647.");
+  }
+  return layerId;
 }
 
 function parseBbox(value: string | undefined): [number, number, number, number] {

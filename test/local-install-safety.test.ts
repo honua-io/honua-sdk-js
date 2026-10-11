@@ -76,16 +76,49 @@ describe("local installer file and project safety", () => {
       const originalEnv = readFileSync(path.join(directory, ".env"), "utf8");
       writeFileSync(
         composeFile,
-        current.replace(
-          'Licensing__Mode: "Disabled"',
-          `Licensing__DevGrantEdition: "${profile === "gp-dev" ? "Pro" : ""}"`,
-        ),
+        current
+          .replace(
+            "      Security__RequestSecretReferences__AllowedEnvironmentVariables__0: HONUA_LOCAL_DB_PASSWORD\n",
+            "",
+          )
+          .replace('Licensing__Mode: "Disabled"', `Licensing__DevGrantEdition: "${profile === "gp-dev" ? "Pro" : ""}"`),
       );
       await expect(installHonuaLocal({ directory, profile }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
       expect(readFileSync(composeFile, "utf8")).toBe(current);
       expect(readFileSync(path.join(directory, ".env"), "utf8")).toBe(originalEnv);
     },
   );
+
+  it("upgrades the exact disabled-policy template before the bundled reference allowlist", async () => {
+    const directory = temporaryDirectory();
+    await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+    const composeFile = path.join(directory, "compose.yaml");
+    const current = readFileSync(composeFile, "utf8");
+    writeFileSync(
+      composeFile,
+      current.replace(
+        "      Security__RequestSecretReferences__AllowedEnvironmentVariables__0: HONUA_LOCAL_DB_PASSWORD\n",
+        "",
+      ),
+    );
+    await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+    expect(readFileSync(composeFile, "utf8")).toBe(current);
+  });
+
+  it("preserves a custom request-secret allowlist before Docker access", async () => {
+    const directory = temporaryDirectory();
+    await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+    const composeFile = path.join(directory, "compose.yaml");
+    const custom = readFileSync(composeFile, "utf8").replace(
+      "AllowedEnvironmentVariables__0: HONUA_LOCAL_DB_PASSWORD",
+      "AllowedEnvironmentVariables__0: OTHER_SECRET",
+    );
+    writeFileSync(composeFile, custom);
+    const run = vi.fn(failAtUp);
+    await expect(installHonuaLocal({ directory }, { run })).rejects.toThrow(/Refusing to overwrite/);
+    expect(run).not.toHaveBeenCalled();
+    expect(readFileSync(composeFile, "utf8")).toBe(custom);
+  });
 
   it.each(['Licensing__Mode: "Enabled"', 'Licensing__DevGrantEdition: "Enterprise"'])(
     "preserves an unrecognized licensing configuration: %s",

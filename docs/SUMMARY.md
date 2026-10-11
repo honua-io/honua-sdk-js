@@ -53,6 +53,7 @@
 * [Discovery truth and cache identity](discovery-contract.md)
 * [Dynamic Query Tiles](dynamic-query-tiles.md)
 * [Error envelope](errors.md)
+* [Local setup development qualification for issue 1401](evidence/local-setup-1401/README.md)
 * [ExplorationContext](exploration-context.md)
 * [Feature inspection](feature-inspection.md)
 * [Read multidimensional coverages with OGC API Coverages and WCS](features/coverages-wcs.md)
