@@ -8,10 +8,12 @@ import { RESEAL_OWNED_LIVE_EVIDENCE } from "../../scripts/release-seal.mjs";
 
 import {
   buildDocsVersions,
+  checkScaffoldCommandVersions,
   expandDocsVersionTokens,
   missingReleaseTags,
   parseChangelogReleases,
   serializeDocsVersions,
+  SCAFFOLD_COMMAND_DOCS,
 } from "../../scripts/docs-versions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -29,6 +31,45 @@ const changelog = `# Changelog
 ## [0.0.5-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.4-alpha.0...js-sdk-vv0.0.5-alpha.0) (2025-01-01)
 ## [0.0.1-alpha.0] - Unreleased
 `;
+
+test("scaffold commands track release versions without advancing certified or published pins", () => {
+  const config = JSON.parse(fs.readFileSync(path.join(ROOT, "release-please-config.json"), "utf8"));
+  const current = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+  const documents = Object.fromEntries(SCAFFOLD_COMMAND_DOCS.map((name) => [
+    name, fs.readFileSync(path.join(ROOT, name), "utf8"),
+  ]));
+  checkScaffoldCommandVersions(documents, current);
+  for (const name of SCAFFOLD_COMMAND_DOCS) {
+    const owners = Object.entries(config.packages).filter(([, component]) =>
+      component["extra-files"]?.some((entry) => entry.type === "generic" && entry.path === name),
+    );
+    assert.deepEqual(owners.map(([name]) => name), ["."], `${name} must follow only the SDK release`);
+  }
+  // Match Generic's first-semver-per-annotated-line replacement. In particular,
+  // a scaffold semver before --sdk-version would receive the SDK bump instead.
+  const nextVersion = "0.1.999";
+  const bumped = Object.fromEntries(Object.entries(documents).map(([name, markdown]) => [
+    name, markdown.split("\n").map((line) => line.includes("x-release-please-version")
+      ? line.replace(/\d+\.\d+\.\d+(?:-[\w.]+)?/, nextVersion)
+      : line).join("\n"),
+  ]));
+  checkScaffoldCommandVersions(bumped, nextVersion);
+  assert.throws(() => checkScaffoldCommandVersions(documents, nextVersion), /explicitly pin SDK/);
+  assert.throws(() => checkScaffoldCommandVersions({ doc: "npm create honua-app@latest app" }, current), /explicitly pin SDK/);
+  assert.throws(() => checkScaffoldCommandVersions({ doc: "no commands" }, current), /no documented scaffold command/);
+  for (const component of Object.values(config.packages)) {
+    for (const entry of component["extra-files"] ?? []) {
+      const name = typeof entry === "string" ? entry : entry.path;
+      assert.ok(![
+        "src/local-install.ts",
+        "packages/create-honua-app/templates.manifest.json",
+        "packages/create-honua-app/templates/vanilla-ts/package.json",
+        "packages/create-honua-app/templates/react-ts/package.json",
+      ].includes(name) && !name.startsWith("mcp/release/zero-to-map/configs/"),
+      `${name} must remain owned by postpublication sync:mcp-pin`);
+    }
+  }
+});
 
 test("builds current and archived documentation destinations from release metadata", () => {
   const result = buildDocsVersions({ packageJson, releaseManifest, changelog });

@@ -10,14 +10,16 @@ resource: "https://www.npmjs.com/package/create-honua-app"
 a source on MapLibre. It exists so the first minute with the SDK is spent reading a working workflow instead of
 assembling peer dependencies.
 
+<!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map
+npm create honua-app@latest my-map -- --sdk-version 0.1.14 # x-release-please-version
 cd my-map
 npm install
 npm run dev
 ```
 
-The starter package lives in this repository at `packages/create-honua-app`.
+The starter package lives in this repository at `packages/create-honua-app`. The commands on this page explicitly
+pin the SDK version documented here; omit `--sdk-version` to use the promoted channel or certified fallback below.
 
 ## Which SDK version a scaffold pins
 
@@ -51,7 +53,7 @@ ESM-only and loads its worker as a separate module, each starter ships `src/mapl
 the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
 
 ```bash
-npm create honua-app@latest my-map -- --template react-ts
+npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.1.14 # x-release-please-version
 create-honua-app --list-templates
 ```
 

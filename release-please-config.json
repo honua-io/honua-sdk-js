@@ -59,6 +59,18 @@
           "path": "README.md"
         },
         {
+          "type": "generic",
+          "path": "docs/quickstart.md"
+        },
+        {
+          "type": "generic",
+          "path": "docs/create-honua-app.md"
+        },
+        {
+          "type": "generic",
+          "path": "packages/create-honua-app/README.md"
+        },
+        {
           "type": "json",
           "path": "support/projections/sdk-support.v1.json",
           "jsonpath": "$.sdk.version"
