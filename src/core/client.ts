@@ -771,11 +771,11 @@ export class HonuaClient {
   }
 
   /**
-   * Drive a paginated FeatureServer query as an async generator. Each yielded
-   * chunk is a `HonuaFeature[]` slice; iteration stops when the server stops
-   * advertising `exceededTransferLimit`. Lower-level than
-   * `dataset.source(...).queryAll()` but suitable for streaming pipelines that
-   * want backpressure between pages.
+   * Consume the native gRPC FeatureService server stream. Each yielded chunk
+   * is a `HonuaFeature[]` slice. The server controls batching and may apply a
+   * total result limit, including its default when resultRecordCount is absent.
+   * Use `featureLayer(...).queryFeaturesStream()` or `Source.stream()` to page
+   * through the full match set with a caller-selected per-batch budget.
    *
    * @example
    * ```ts
