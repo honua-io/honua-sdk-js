@@ -1025,6 +1025,10 @@ describe("honua-site consumer handoff", () => {
         expect(sampleContract.integrity).toMatch(/^sha512-/);
         const tarball = path.join(packed, sampleContract.filename);
         execFileSync("tar", ["-xf", tarball, "-C", packed], { stdio: "ignore", windowsHide: true });
+        const legacyEvidenceSchema = "samples/contract/v1/schemas/sample-evidence.schema.json";
+        expect(await readFile(path.join(packed, "package", legacyEvidenceSchema), "utf8")).toBe(
+          await readFile(legacyEvidenceSchema, "utf8"),
+        );
 
         const contexts = [extracted, shallow, path.join(packed, "package")];
         const originalPath = process.env.PATH;

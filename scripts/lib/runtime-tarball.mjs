@@ -17,3 +17,12 @@ export function evaluateRuntimeTarball(packed, policy) {
   const validSizes = Object.entries(policy.ceiling).every(([key, limit]) => Number.isSafeInteger(measurement[key]) && measurement[key] > 0 && measurement[key] <= limit);
   return { status: forbidden.length || missing.length || !validSizes ? "failed" : "passed", measurement, owners, forbidden, missing };
 }
+
+/** Published browser inventory refers only to files in the packed runtime. */
+export function missingBrowserArtifactFiles(packed, manifest) {
+  if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
+    throw new Error("Browser artifact manifest must list shipped files");
+  }
+  const present = new Set(packed.files.map((file) => file.path));
+  return manifest.files.map((file) => file.path).filter((file) => !present.has(file));
+}

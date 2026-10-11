@@ -6,6 +6,7 @@ import path from "node:path";
 
 export const SAMPLE_CONTRACT_PATHS = Object.freeze([
   "samples/dist",
+  "samples/contract/v1/schemas",
   "samples/contract/v2/schemas",
   "samples/contract/v2/consumer-fixtures",
 ]);
