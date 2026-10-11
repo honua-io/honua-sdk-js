@@ -149,10 +149,7 @@ export class HonuaOnlineBasemapBinding {
     // An identified operational-source failure belongs to its host, even if
     // its data happens to share a server with the basemap assets.
     if (typeof sourceId === "string" && !sourceId.startsWith(this.#prefix)) return;
-    if (
-      (typeof sourceId === "string" && sourceId.startsWith(this.#prefix)) ||
-      [...this.#assetPrefixes].some((prefix) => detail.includes(prefix))
-    ) {
+    if (typeof sourceId === "string" || [...this.#assetPrefixes].some((prefix) => detail.includes(prefix))) {
       this.#options.onError(this.#failure(detail || "A tile, glyph or sprite request failed."));
     }
   };
@@ -169,9 +166,7 @@ export class HonuaOnlineBasemapBinding {
     const id = `${this.#prefix}${++this.#installationId}-`;
     const glyphs = typeof style.glyphs === "string" ? absoluteAsset(style.glyphs, baseUrl) : undefined;
     if (glyphs && this.#hostGlyphs !== undefined && this.#hostGlyphs !== glyphs) {
-      throw new Error(
-        "The basemap glyph template differs from the operational style; configure a style using the host glyph template.",
-      );
+      throw new Error("Basemap glyphs conflict; use the host glyph template.");
     }
     const spriteDefinitions =
       typeof style.sprite === "string"
@@ -261,7 +256,7 @@ export class HonuaOnlineBasemapBinding {
       if (installedSprites.has(sprite.id))
         throw new Error(`Basemap sprite namespace collides with an existing sprite: ${sprite.id}.`);
     }
-    const previousGlyphs = object(this.#map.getStyle?.())?.glyphs;
+    const previousGlyphs = object(this.#map.getStyle())?.glyphs;
     try {
       this.#map.setGlyphs(prepared.glyphs ?? this.#hostGlyphs ?? null);
       for (const sprite of prepared.sprites) {
