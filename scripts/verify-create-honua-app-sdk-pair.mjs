@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 import ts from "typescript";
 import { runNpmSync } from "./lib/npm-cli.mjs";
 
@@ -16,10 +17,12 @@ const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "honua-starter-sdk-pair-
 const sdk = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const scaffoldRoot = path.join(root, "packages/create-honua-app");
 const scaffold = JSON.parse(fs.readFileSync(path.join(scaffoldRoot, "package.json"), "utf8"));
-const report = { observedAt: new Date().toISOString(), sdkVersion: sdk.version, scaffoldVersion: scaffold.version, defaultPeerResolution: true, templates: [] };
+const baselineRef = process.env.HONUA_BASEMAP_BUNDLE_BASELINE_REF;
+const baselineCommit = baselineRef ? execFileSync("git", ["rev-parse", "--verify", "--end-of-options", `${baselineRef}^{commit}`], { cwd: root, encoding: "utf8" }).trim() : undefined;
+const report = { observedAt: new Date().toISOString(), sdkVersion: sdk.version, scaffoldVersion: scaffold.version, bundleBaselineCommit: baselineCommit, defaultPeerResolution: true, templates: [] };
 
-function npm(args, cwd) {
-  const result = runNpmSync(args, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+function npm(args, cwd, extraEnv = {}) {
+  const result = runNpmSync(args, { cwd, env: { ...process.env, ...extraEnv }, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (result.error || result.status !== 0) throw new Error(`npm ${args.join(" ")} failed: ${result.error?.message ?? ""}\n${result.stdout ?? ""}\n${result.stderr ?? ""}`);
   return result.stdout;
 }
@@ -28,6 +31,45 @@ function pack(directory) {
   const result = JSON.parse(npm(["pack", "--json", "--ignore-scripts", "--pack-destination", workspace], directory));
   const tarball = path.join(workspace, result[0].filename);
   return { tarball, integrity: `sha512-${createHash("sha512").update(fs.readFileSync(tarball)).digest("base64")}` };
+}
+
+function bundleBytes(directory) {
+  let javascriptBytes = 0;
+  let javascriptGzipBytes = 0;
+  let chunks = 0;
+  const walk = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const file = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (entry.name.endsWith(".js")) {
+        const bytes = fs.readFileSync(file);
+        javascriptBytes += bytes.length;
+        javascriptGzipBytes += gzipSync(bytes).length;
+        chunks++;
+      }
+    }
+  };
+  walk(path.join(directory, "dist"));
+  return { javascriptBytes, javascriptGzipBytes, chunks };
+}
+
+function compareLiveStarter(template, destination) {
+  const sourceName = template === "react-ts" ? "App.tsx" : "main.ts";
+  const sourcePath = path.join(destination, "src", sourceName);
+  const currentSource = fs.readFileSync(sourcePath, "utf8");
+  const baselineSource = execFileSync("git", ["show", `${baselineCommit}:packages/create-honua-app/templates/${template}/src/${sourceName}`], { cwd: root, encoding: "utf8" });
+  // Exercise the live branch; default fixture builds may eliminate its imports.
+  const liveEnv = { VITE_HONUA_ENDPOINT: "https://example.test/FeatureServer/0" };
+  npm(["run", "build"], destination, liveEnv);
+  const current = bundleBytes(destination);
+  try {
+    fs.writeFileSync(sourcePath, baselineSource);
+    npm(["run", "build"], destination, liveEnv);
+    const baseline = bundleBytes(destination);
+    return { baselineCommit, sameInstalledSdk: true, allJavaScriptChunks: true, baseline, current, delta: { javascriptBytes: current.javascriptBytes - baseline.javascriptBytes, javascriptGzipBytes: current.javascriptGzipBytes - baseline.javascriptGzipBytes } };
+  } finally {
+    fs.writeFileSync(sourcePath, currentSource);
+  }
 }
 
 try {
@@ -56,6 +98,8 @@ try {
       if (!installedIntegrity) throw new Error(`${template}: installed SDK integrity missing from consumer lockfile`);
       npm(["run", "typecheck"], destination);
       npm(["run", "build"], destination);
+      const fixtureBundleBytes = bundleBytes(destination);
+      const liveBundleComparison = candidate.name === "packed" && baselineCommit ? compareLiveStarter(template, destination) : undefined;
       if (candidate.name === "packed") {
         const resolvedStyle = execFileSync(process.execPath, ["--input-type=module", "--eval", 'import { resolveHonuaOnlineBasemapStyle } from "@honua/sdk-js/runtime"; process.stdout.write(resolveHonuaOnlineBasemapStyle());'], { cwd: destination, encoding: "utf8" });
         if (resolvedStyle !== "https://tiles.openfreemap.org/styles/positron") throw new Error(`${template}: installed runtime basemap export did not resolve its shared default`);
@@ -77,7 +121,10 @@ try {
           dispose();
         `], { cwd: destination, encoding: "utf8" });
       }
-      report.templates.push({ template, candidate: candidate.name, sdkVersion: installedSdk.version, sdkIntegrity: installedIntegrity, typecheck: "pass", build: "pass", installedRuntimeExport: candidate.name === "packed" ? "pass" : "actionable-upgrade-pass" });
+      report.templates.push({ template, candidate: candidate.name, sdkVersion: installedSdk.version, sdkIntegrity: installedIntegrity, fixtureBundleBytes, liveBundleComparison, typecheck: "pass", build: "pass", installedRuntimeExport: candidate.name === "packed" ? "pass" : "actionable-upgrade-pass" });
+      fs.mkdirSync(path.join(root, "test-results"), { recursive: true });
+      fs.writeFileSync(path.join(root, "test-results/create-app-sdk-pair.json"), `${JSON.stringify(report, null, 2)}\n`);
+      process.stdout.write(`${candidate.name}/${template} bundle=${JSON.stringify({ fixtureBundleBytes, liveBundleComparison })}\n`);
     }
   }
   fs.mkdirSync(path.join(root, "test-results"), { recursive: true });
