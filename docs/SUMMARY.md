@@ -54,6 +54,7 @@
 * [Dynamic Query Tiles](dynamic-query-tiles.md)
 * [Error envelope](errors.md)
 * [Local setup development qualification for issue 1401](evidence/local-setup-1401/README.md)
+* [Basemap development bundle evidence](evidence/basemap-1717/README.md)
 * [ExplorationContext](exploration-context.md)
 * [Feature inspection](feature-inspection.md)
 * [Read multidimensional coverages with OGC API Coverages and WCS](features/coverages-wcs.md)
@@ -85,6 +86,7 @@
 * [Renderer objects and temporal playback](renderers.md)
 * [Disconnected replica sync](replica-sync.md)
 * [Runtime Parity Showcase](runtime-parity-showcase.md)
+* [Sample basemap policy and inventory](sample-basemaps.md)
 * [Saved-Map Collaboration](saved-map-collaboration.md)
 * [Scene Workspace Interop](scene-workspace.md)
 * [Share, Embed, and Open-Data Browser Contracts](share-embed-open-data-contracts.md)
@@ -109,3 +111,4 @@
 ## Other
 
 * [evidence/distribution-1413/README.md](evidence/distribution-1413/README.md)
+* [evidence/local-agent-2003/README.md](evidence/local-agent-2003/README.md)

@@ -1,3 +1,5 @@
+import { resolveHonuaOnlineBasemapStyle } from "@honua/sdk-js/runtime";
+import { mountSampleOnlineBasemap } from "../../shared/online-basemap.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../shared/maplibre-vite-worker.js";
 import "../../_kit/design/index.css";
@@ -57,7 +59,7 @@ const FIRST_MAP_SOURCE_ID = "first-map-features";
 const FIRST_MAP_LAYER_ID = "first-map-feature";
 const FIXTURE_OGC_ROOT_PATH = "/ogc/features";
 const FIXTURE_BASEMAP_STYLE = "__honua-quickstart__/basemap-style.json";
-const PUBLIC_BASEMAP_STYLE = FIXTURE_BASEMAP_STYLE;
+const PUBLIC_BASEMAP_STYLE = resolveHonuaOnlineBasemapStyle();
 
 interface FirstMapLaunch {
   readonly endpoint: string;
@@ -545,7 +547,7 @@ async function bootstrap(): Promise<void> {
     inFlightAbort = controller;
     const map = new maplibregl.Map({
       container: "map",
-      style: basemapStyle,
+      style: launch.mode === "fixture" ? basemapStyle : FIXTURE_BASEMAP_STYLE,
       center: [-157.8583, 21.3069],
       zoom: 11,
       // Deterministic capture: MapLibre's default 300ms label/marker fade
@@ -555,6 +557,15 @@ async function bootstrap(): Promise<void> {
       // is what actually makes that wait sufficient.
       fadeDuration: 0,
     });
+    const disposeBasemap =
+      launch.mode === "fixture"
+        ? () => {}
+        : mountSampleOnlineBasemap(map, {
+            styleUrl:
+              import.meta.env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE?.trim() ||
+              (basemapStyle === PUBLIC_BASEMAP_STYLE ? undefined : basemapStyle),
+            styleEnvironmentVariable: "VITE_HONUA_QUICKSTART_BASEMAP_STYLE",
+          });
     window.__HONUA_QUICKSTART_MAP__ = map;
     map.on("style.load", () => harmonizeFixtureBasemap(map, basemapStyle));
     let mapRemoved = false;
@@ -562,6 +573,7 @@ async function bootstrap(): Promise<void> {
       if (mapRemoved) return;
       mapRemoved = true;
       if (window.__HONUA_QUICKSTART_MAP__ === map) window.__HONUA_QUICKSTART_MAP__ = undefined;
+      disposeBasemap();
       map.remove();
     };
     removeInFlightMap = removeMap;
@@ -579,7 +591,12 @@ async function bootstrap(): Promise<void> {
       getElement<HTMLElement>("#workflow-code").textContent = createFirstMapCode(config);
       const result = await runFirstMapWorkflow(config, {
         map,
-        maplibre: maplibregl,
+        // Inject only the renderer operations used by the adapter.
+        maplibre: {
+          Map: maplibregl.Map,
+          addProtocol: maplibregl.addProtocol,
+          removeProtocol: maplibregl.removeProtocol,
+        },
         ...(launch.mode === "fixture" && isPackagedFixtureEndpoint(launch.endpoint)
           ? { fetchFn: createFirstMapFixtureFetch(launch.endpoint) }
           : {}),

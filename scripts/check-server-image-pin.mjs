@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The `honua admin` local installer starts `ADMIN_LOCAL_SERVER_IMAGE` (config/admin-client.v1.json
 // `serverImage`). The release decides which server image customers install: honua-release
-// `customer-install-manifest.json` `server.image`. This check fails when the two drift apart.
+// `customer-install-manifest.json` `server.image` and `server.sourceSha`. Both identities must match.
 //
 // The release is read at the immutable honua-release commit pinned in
 // config/admin-client.v1.json `releaseManifestPin` (raw.githubusercontent.com), or from a local copy
@@ -30,6 +30,12 @@ export function generatedServerImage(generatedText) {
   return JSON.parse(match[1]);
 }
 
+export function generatedServerSha(generatedText) {
+  const match = /export const ADMIN_LOCAL_SERVER_SHA = "([0-9a-f]{40})" as const;/.exec(generatedText);
+  if (!match) throw new Error("src/control-plane/generated/admin-operations.ts does not export a full ADMIN_LOCAL_SERVER_SHA.");
+  return match[1];
+}
+
 export function assertReleasePin(pin) {
   if (!pin || typeof pin !== "object") throw new Error("config/admin-client.v1.json is missing releaseManifestPin.");
   if (pin.repository !== "honua-io/honua-release") throw new Error("releaseManifestPin.repository must be honua-io/honua-release.");
@@ -38,7 +44,7 @@ export function assertReleasePin(pin) {
 }
 
 /**
- * Compare the installer pin (config + generated constant) with the release manifest's server image.
+ * Compare installer image/source pins (config + generated constants) with the release manifest.
  * Returns a one-line summary; throws with every mismatch named.
  */
 export function checkServerImagePin({ source, generatedText, releaseManifest }) {
@@ -46,7 +52,15 @@ export function checkServerImagePin({ source, generatedText, releaseManifest }) 
   const where = `${source.releaseManifestPin.repository}@${source.releaseManifestPin.ref}:${source.releaseManifestPin.path}`;
   const releaseImage = releaseManifest?.server?.image;
   const release = parseDigestRef(releaseImage, `${where} server.image`);
+  const releaseSha = releaseManifest?.server?.sourceSha;
+  if (!/^[0-9a-f]{40}$/.test(releaseSha ?? "")) throw new Error(`${where} server.sourceSha must be a full commit SHA.`);
   const problems = [];
+  for (const [label, value] of [
+    ["config/admin-client.v1.json localServerSourceSha", source.localServerSourceSha],
+    ["src/control-plane/generated/admin-operations.ts ADMIN_LOCAL_SERVER_SHA", generatedServerSha(generatedText)],
+  ]) {
+    if (value !== releaseSha) problems.push(`${label} is ${value}, but the release installs source ${releaseSha} (${where} server.sourceSha).`);
+  }
   const candidates = [
     ["config/admin-client.v1.json serverImage", source.serverImage],
     ["src/control-plane/generated/admin-operations.ts ADMIN_LOCAL_SERVER_IMAGE", generatedServerImage(generatedText)],
@@ -66,11 +80,11 @@ export function checkServerImagePin({ source, generatedText, releaseManifest }) 
   if (problems.length) {
     throw new Error(
       `Installer server image pin does not match the release manifest:\n  - ${problems.join("\n  - ")}\n` +
-        "Advance config/admin-client.v1.json serverImage (and releaseManifestPin.ref) to the release, then run " +
+        "Advance config/admin-client.v1.json serverImage and localServerSourceSha (and releaseManifestPin.ref) to the release, then run " +
         "`npm run admin-client:generate`.",
     );
   }
-  return `Installer server image matches ${where} server.image (${release.repository}@${release.digest}).`;
+  return `Installer server image matches ${where} server.image and server.sourceSha (${release.repository}@${release.digest}, source ${releaseSha}).`;
 }
 
 async function loadReleaseManifest(pin) {

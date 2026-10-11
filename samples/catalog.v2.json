@@ -950,7 +950,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-11-11T14:23:30.910Z"
+          "expiresAt": "2026-11-11T16:58:22.601Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1056,7 +1056,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-11-11T14:21:38.972Z"
+          "expiresAt": "2026-11-11T16:42:27.437Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1178,7 +1178,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-11-11T14:23:54.629Z"
+          "expiresAt": "2026-11-11T17:03:33.969Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -1795,6 +1795,7 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
+          "VITE_HONUA_BASEMAP_STYLE",
           "VITE_HONUA_REACT_BASE_URL",
           "VITE_HONUA_REACT_LAYER_ID",
           "VITE_HONUA_REACT_SERVICE_ID",
@@ -1805,6 +1806,11 @@
         "freshness": "Fixture capture metadata or live observation time.",
         "configurationStatus": "approved",
         "configClassifications": [
+          {
+            "name": "VITE_HONUA_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
           {
             "name": "VITE_HONUA_REACT_BASE_URL",
             "exposure": "browser-public",
@@ -1885,6 +1891,7 @@
         "mode": "hybrid",
         "authMode": "anonymous",
         "config": [
+          "VITE_HONUA_BASEMAP_STYLE",
           "VITE_HONUA_INCIDENT_BASE_URL",
           "VITE_HONUA_INCIDENT_CAPABILITIES_URL",
           "VITE_HONUA_INCIDENT_LAYER_ID",
@@ -1897,6 +1904,11 @@
         "freshness": "Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes.",
         "configurationStatus": "approved",
         "configClassifications": [
+          {
+            "name": "VITE_HONUA_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
           {
             "name": "VITE_HONUA_INCIDENT_BASE_URL",
             "exposure": "browser-public",
@@ -2064,7 +2076,8 @@
         "mode": "hybrid",
         "authMode": "anonymous",
         "config": [
-          "HONUA_SERVICE_EXPLORER_LIVE_ENABLED"
+          "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
+          "VITE_HONUA_BASEMAP_STYLE"
         ],
         "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
         "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
@@ -2074,6 +2087,11 @@
           {
             "name": "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
             "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_BASEMAP_STYLE",
+            "exposure": "browser-public",
             "valueKind": "non-secret"
           }
         ]
@@ -2093,7 +2111,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-11-11T14:25:00.338Z"
+          "expiresAt": "2026-11-11T17:25:19.412Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",

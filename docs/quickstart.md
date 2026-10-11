@@ -103,14 +103,15 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 ## Start from a scaffold instead
 
+<!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@0.1.7 my-map -- --sdk-version 0.1.14
+npm create honua-app@latest my-map -- --sdk-version 0.1.14 # x-release-please-version
 cd my-map
 npm install
 npm run dev
 ```
 
-The starter already contains the code above, served against a committed fixture
+The explicit SDK version matches this documentation release. The starter already contains the code above, served against a committed fixture
 so it works with no third-party network call; set `VITE_HONUA_ENDPOINT` to run it
 against a live endpoint. See [Scaffold a new app](create-honua-app.md), or open
 the same starters in a browser from [Zero-install playgrounds](playgrounds.md).

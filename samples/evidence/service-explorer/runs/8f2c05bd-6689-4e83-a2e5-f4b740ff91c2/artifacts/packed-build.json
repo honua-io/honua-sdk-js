@@ -1,0 +1,124 @@
+{
+  "format": "honua.sdk.sample-packed-build-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "048ee38fc8f68141e3965fde4e6fb7fd4b277d5f",
+  "command": [
+    "npm",
+    "run",
+    "demo:service-explorer:build"
+  ],
+  "sdkMode": "packed",
+  "packageTarballSha256": "a05c24e72372db4e7eecfd71299c1cd4d12e7cf7ec3734fabf48684cf9f0f32d",
+  "packageTarball": "samples/evidence/service-explorer/runs/8f2c05bd-6689-4e83-a2e5-f4b740ff91c2/artifacts/honua-sdk-js-0.1.14.tgz",
+  "packageTarballBytes": 3635383,
+  "sampleDistRoot": "samples/evidence/service-explorer/runs/8f2c05bd-6689-4e83-a2e5-f4b740ff91c2/artifacts/packed-sample-dist",
+  "resolution": {
+    "format": "honua.sdk.sample-resolution.v1",
+    "schemaVersion": 1,
+    "mode": "packed",
+    "package": {
+      "name": "@honua/sdk-js",
+      "version": "0.1.14"
+    },
+    "entrypoints": [
+      {
+        "specifier": "@honua/sdk-js/contract",
+        "exportTarget": "./dist/src/contract/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "eb9a6c745c4d3b059847e0fd6fb864919557a2973edf9dfb819f49de12f49708"
+      },
+      {
+        "specifier": "@honua/sdk-js/runtime",
+        "exportTarget": "./dist/src/runtime/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "9712af10bff49ce32f0403ae9d7aea884becff0a6543676ec33a63cea1fa367b"
+      },
+      {
+        "specifier": "@honua/sdk-js/map",
+        "exportTarget": "./dist/src/map/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "5acb1b806b80a8e21873973c99b41624dc6db185039cda22ba38d8c487102250"
+      },
+      {
+        "specifier": "@honua/sdk-js",
+        "exportTarget": "./dist/src/index.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "8008748993d823bcc238ac3401fbe63efaff0cb6d8a1803f7429f4c36e610661"
+      }
+    ],
+    "bundle": [
+      {
+        "fileName": "assets/index-uu-0LAoX.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1802923,
+        "sha256": "517f583f3a8acde1dd89fa6a4390ae2ec626772b3ca400eab4e745238cc27fd1"
+      },
+      {
+        "fileName": "assets/dist-CFawQUBH.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 124920,
+        "sha256": "1fecd1df434434a77a9c017a4d423b2ee1c5a44e25dc23289ffdbde9f792d943"
+      },
+      {
+        "fileName": "assets/odata-write-codec-DRNF6rYa.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 18695,
+        "sha256": "602ed4f12574312865b001ecb0332abeaa16ddfc1087ae085101696e0a0fc30f"
+      },
+      {
+        "fileName": "assets/index-Cctmk29s.css",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 120568,
+        "sha256": "536b2a1dc9f8efe609c6f4fefe326c651045fcef7fb05d85205025c603394c50"
+      },
+      {
+        "fileName": "assets/maplibre-gl-worker-CRiIRpYb.js",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 509702,
+        "sha256": "096f3b4deeeaa7ed1372a96978bea3495b78250041df835fada34f12320e11d2"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "assets/dist-CFawQUBH.js",
+      "bytes": 124920,
+      "sha256": "1fecd1df434434a77a9c017a4d423b2ee1c5a44e25dc23289ffdbde9f792d943"
+    },
+    {
+      "path": "assets/index-Cctmk29s.css",
+      "bytes": 120568,
+      "sha256": "536b2a1dc9f8efe609c6f4fefe326c651045fcef7fb05d85205025c603394c50"
+    },
+    {
+      "path": "assets/index-uu-0LAoX.js",
+      "bytes": 1802923,
+      "sha256": "517f583f3a8acde1dd89fa6a4390ae2ec626772b3ca400eab4e745238cc27fd1"
+    },
+    {
+      "path": "assets/maplibre-gl-worker-CRiIRpYb.js",
+      "bytes": 509702,
+      "sha256": "096f3b4deeeaa7ed1372a96978bea3495b78250041df835fada34f12320e11d2"
+    },
+    {
+      "path": "assets/odata-write-codec-DRNF6rYa.js",
+      "bytes": 18695,
+      "sha256": "602ed4f12574312865b001ecb0332abeaa16ddfc1087ae085101696e0a0fc30f"
+    },
+    {
+      "path": "honua-sample-sdk-resolution.json",
+      "bytes": 2398,
+      "sha256": "508f9feca180f9c7a56ec9e6786eb89115b8de10ebb2dc60e0d5599cb366691c"
+    },
+    {
+      "path": "index.html",
+      "bytes": 11330,
+      "sha256": "b3af982ec2e8a42b64a1bfa92ac900a26b110e7940a3cb41e523ea4fdfe09aee"
+    }
+  ]
+}

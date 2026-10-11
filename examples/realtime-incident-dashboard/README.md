@@ -126,10 +126,14 @@ other error payload, timeout, and response that does not match the protocol is
 never a skip; they remain recorded failures. The taxonomy is documented in
 [`docs/benchmark-methodology.md`](../../docs/benchmark-methodology.md).
 
-### Keyboard focus during live updates
+## Keyboard focus during live updates
 
 Background updates refresh the selected incident's popup in place without moving
 keyboard focus. A dismissed popup stays closed until selection changes. If a
 focused editing control becomes unavailable, focus moves to the status message
 explaining why editing paused. Recovery leaves focus where the user put it;
 Tab from the message reaches the editing controls once they are available again.
+
+## Live basemap policy
+
+Live maps use free, keyless OpenFreeMap styles with source attribution; dark mode changes the basemap while preserving operational data and selection. Set `VITE_HONUA_BASEMAP_STYLE` to a custom/self-hosted style URL. Asset failures show an actionable status and leave operational controls usable. The committed fixture lane stays network-independent. See [shared basemap policy](../../docs/sample-basemaps.md) for provider terms, exceptions and export credits.

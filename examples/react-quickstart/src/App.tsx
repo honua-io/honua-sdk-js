@@ -1,3 +1,4 @@
+import { mountSampleOnlineBasemap } from "../../shared/online-basemap.js";
 import "../../shared/maplibre-vite-worker.js";
 
 import * as maplibregl from "maplibre-gl";
@@ -72,12 +73,18 @@ function useExternalMap() {
       style: BACKGROUND_STYLE,
       center: INITIAL_VIEW.center,
       zoom: INITIAL_VIEW.zoom,
-      attributionControl: false,
+      attributionControl: { compact: true },
     });
+    const disposeBasemap = config.baseUrl
+      ? mountSampleOnlineBasemap(created, {
+          styleUrl: import.meta.env.VITE_HONUA_BASEMAP_STYLE?.trim() || undefined,
+        })
+      : () => {};
     created.on("load", () => patchStatus({ mapReady: true }));
     setMap(created);
     return () => {
       setMap(null);
+      disposeBasemap();
       created.remove();
     };
   }, []);

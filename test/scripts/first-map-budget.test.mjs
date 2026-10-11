@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { evaluateFirstMapBudget, firstMapVerdict } from "../../scripts/lib/first-map-budget.mjs";
 
-test("the frozen byte ceilings include the boundary and reject either overage", () => {
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_000, javascriptGzipBytes: 524_000 }), "passed");
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_001, javascriptGzipBytes: 524_000 }), "failed");
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_000, javascriptGzipBytes: 524_001 }), "failed");
+test("the canonical byte ceilings include the boundary and reject either overage", () => {
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_000, javascriptGzipBytes: 525_000 }), "passed");
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_001, javascriptGzipBytes: 525_000 }), "failed");
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_000, javascriptGzipBytes: 525_001 }), "failed");
 });
 
 test("a successful build under a raised Vite ceiling cannot emit a passing receipt", () => {

@@ -479,7 +479,6 @@ honua tiles maui-parcels 12/912/1809 -o tile.png
 
 Render a map image of a bounding box:
 
-<!-- doc-run: blocked https://github.com/honua-io/honua-sdk-js/issues/1899 -->
 ```bash
 honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o maui.png
 ```
