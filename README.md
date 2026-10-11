@@ -487,7 +487,13 @@ The CLI's `--where` takes the *source-native* filter grammar by design (SQL for
 GeoServices, CQL2 for OGC) — it is a command-line convenience, not the
 deprecated protocol-neutral `Query.where`; `honua explain` shows exactly what
 any query compiles to before it runs. Authentication resolves from
-`--api-key`, `HONUA_API_KEY`, or a saved `honua login`. Run `honua --help` for
+`--api-key`, `HONUA_API_KEY`, or a saved `honua login`. For an existing OAuth/operator
+bearer, set `HONUA_BEARER_TOKEN`; the CLI sends that caller token through its normal
+SDK adapters and never saves it. Credentials supplied explicitly take precedence
+over the environment. An environment bearer replaces saved API/Admin keys and
+`HONUA_ADMIN_KEY`; a rejected bearer never falls back to those keys. Set only one
+of `HONUA_API_KEY` and `HONUA_BEARER_TOKEN`. `honua whoami` reports the selected
+authentication scheme without printing the credential. Run `honua --help` for
 the full command surface. This is the recommended command surface for docs and
 demos.
 

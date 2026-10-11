@@ -13,7 +13,7 @@
  * This helper mirrors `HonuaClient.fetchWithSafeRedirects` /
  * `HonuaGeocodingClient.fetchWithSafeRedirects`: it (a) resolves a relative
  * href against the configured base URL before the first request, (b) only
- * attaches the API key when that hop's origin equals the configured server
+ * attaches the selected credential when that hop's origin equals the configured server
  * origin, and (c) issues `redirect: "manual"` so every hop recomputes the
  * decision, including relative and protocol-relative `Location` values.
  * Absolute URLs are requested exactly as given. Cross-origin hops remain
@@ -86,7 +86,7 @@ function resolveDownloadUrl(url: string, baseUrl: string | undefined): string {
 
 /**
  * Download `url` and return the response body as bytes. A relative `url` is
- * resolved against `baseUrl` first. The API key is only sent when the current
+ * resolved against `baseUrl` first. The selected credential is only sent when the current
  * hop is same-origin with `baseUrl`; redirects are followed manually and the
  * credential decision is recomputed for every hop.
  *
@@ -94,17 +94,24 @@ function resolveDownloadUrl(url: string, baseUrl: string | undefined): string {
  */
 export async function downloadCredentialedResource(
   url: string,
-  options: { baseUrl?: string; apiKey?: string },
+  options: { baseUrl?: string; apiKey?: string; bearerToken?: string },
 ): Promise<Buffer> {
   const baseOrigin = originOf(options.baseUrl);
   let currentUrl = resolveDownloadUrl(url, options.baseUrl);
   for (let redirects = 0; ; redirects += 1) {
     // Only attach the credential when the request stays on the configured
-    // server origin, so a cross-origin href never receives the API key.
+    // server origin, so a cross-origin href never receives the credential.
     const sameOrigin = baseOrigin !== undefined && originOf(currentUrl) === baseOrigin;
+    const headers: Record<string, string> | undefined = sameOrigin
+      ? options.bearerToken
+        ? { Authorization: `Bearer ${options.bearerToken}` }
+        : options.apiKey
+          ? { "X-API-Key": options.apiKey }
+          : undefined
+      : undefined;
     const init: RequestInit = {
       redirect: "manual",
-      ...(sameOrigin && options.apiKey ? { headers: { "X-API-Key": options.apiKey } } : {}),
+      ...(headers ? { headers } : {}),
     };
     const res = await fetch(currentUrl, init);
 

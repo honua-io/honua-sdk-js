@@ -13,8 +13,8 @@ import { type ResolveOptions, resolveConnection } from "./config.js";
 
 /** Build a {@link HonuaClient} from CLI flags / env / saved config. */
 export function createClient(options: ResolveOptions = {}): HonuaClient {
-  const { baseUrl, apiKey } = resolveConnection(options);
-  return new HonuaClient({ baseUrl, apiKey });
+  const { baseUrl, apiKey, bearerToken } = resolveConnection(options);
+  return new HonuaClient({ baseUrl, apiKey, bearerToken });
 }
 
 /**
@@ -25,13 +25,13 @@ export function createClient(options: ResolveOptions = {}): HonuaClient {
  * an authority header of its own.
  */
 export function createCommandRuntime(options: ResolveOptions = {}): HonuaCommandRuntime {
-  const { baseUrl, apiKey } = resolveConnection(options);
+  const { baseUrl, apiKey, bearerToken } = resolveConnection(options);
   assertAdminBaseUrl(baseUrl);
-  return createHonuaCommandRuntime({ client: new HonuaClient({ baseUrl, apiKey }) });
+  return createHonuaCommandRuntime({ client: new HonuaClient({ baseUrl, apiKey, bearerToken }) });
 }
 
 /** Build a {@link HonuaGeocodingClient} from CLI flags / env / saved config. */
 export function createGeocodingClient(options: ResolveOptions & { locatorName?: string } = {}): HonuaGeocodingClient {
-  const { baseUrl, apiKey } = resolveConnection(options);
-  return new HonuaGeocodingClient({ baseUrl, apiKey, locatorName: options.locatorName });
+  const { baseUrl, apiKey, bearerToken } = resolveConnection(options);
+  return new HonuaGeocodingClient({ baseUrl, apiKey, bearerToken, locatorName: options.locatorName });
 }

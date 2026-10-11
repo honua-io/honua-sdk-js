@@ -211,9 +211,10 @@ ADMIN CONTROL PLANE
 
 GLOBAL OPTIONS
   --base-url <url>     Server base URL (or env HONUA_BASE_URL)
-  --api-key <key>      API key (or env HONUA_API_KEY; anonymous if omitted)
+  --api-key <key>      API key (or env HONUA_API_KEY)
   --admin-key <key>    Admin key (or env HONUA_ADMIN_KEY; admin commands only)
   --profile <name>     Named connection profile from the Honua config file
+  HONUA_BEARER_TOKEN   Ephemeral bearer credential; replaces saved API/Admin keys
   --json               Machine-readable JSON output
   -h, --help           Show help
   -V, --version        Show version
@@ -268,6 +269,7 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
   const ctx: CommandContext = {
     baseUrl: ctxOverride.baseUrl ?? getString(parsed, "base-url"),
     apiKey: ctxOverride.apiKey ?? getString(parsed, "api-key"),
+    bearerToken: ctxOverride.bearerToken,
     adminKey: ctxOverride.adminKey ?? getString(parsed, "admin-key"),
     profile: ctxOverride.profile ?? getString(parsed, "profile"),
   };

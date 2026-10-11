@@ -54,7 +54,7 @@ export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     throw new ArgError("Usage: honua query <service>/<layer> [--where ... --bbox ... --count]");
   }
   const { service, layer } = parseServiceLayer(ref);
-  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const featureLayer = client.featureLayer(service, layer);
 
   const where = getString(parsed, "where");
