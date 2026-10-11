@@ -12,7 +12,11 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createServer } from "../../src/index.js";
-import { controlPlaneCommandToolName, controlPlaneCommandToolSchema } from "../../src/tools/control-plane-command.js";
+import {
+  controlPlaneCommandToolName,
+  controlPlaneCommandToolSchema,
+  execute,
+} from "../../src/tools/control-plane-command.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -95,6 +99,21 @@ function payloadOf(result: ToolCallResult): Record<string, unknown> {
 }
 
 describe("control-plane command tools are a projection of the shared catalog", () => {
+  it("passes cancellation to the command runtime", async () => {
+    const controller = new AbortController();
+    const runtime = createHonuaCommandRuntime({ client: new HonuaClient({ baseUrl: "https://example.test" }) });
+    const invoked = vi.spyOn(runtime, "execute").mockRejectedValue(new DOMException("Cancelled", "AbortError"));
+    controller.abort();
+    await expect(execute({ runtime }, importCreateCommand, { input: {} }, controller.signal)).rejects.toThrow(
+      /Cancelled/,
+    );
+    expect(invoked).toHaveBeenCalledWith(
+      importCreateCommand,
+      {},
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
   it("publishes one tool per catalog command, named and described from the command itself", async () => {
     const { mcp, close } = await connect(recorder().fetchFn);
     try {

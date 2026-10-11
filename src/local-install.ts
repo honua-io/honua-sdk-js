@@ -9,7 +9,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { HonuaAdminClient } from "./control-plane/admin-client.js";
@@ -214,7 +214,11 @@ export async function installHonuaLocal(
   const envFile = path.join(directory, ".env");
   const mcpConfigFile = path.join(directory, ".mcp.json");
   const claudeDesktopConfigFile = path.join(directory, "claude_desktop_config.json");
-  const existingEnv = await readEnv(envFile);
+  const originalEnvText = await readEnvText(envFile);
+  const existingEnv = await readEnv(envFile, originalEnvText);
+  validateManagedEnv(originalEnvText);
+  const bootstrapFile = path.join(directory, "postgis-bootstrap.sql");
+  await verifyInstallFiles(composeFile, bootstrapFile, existingEnv);
   const [hasMcpConfig, hasClaudeConfig] = await Promise.all([
     verifyPrivateFileIfPresent(mcpConfigFile),
     verifyPrivateFileIfPresent(claudeDesktopConfigFile),
@@ -228,12 +232,15 @@ export async function installHonuaLocal(
   const secret = runtime.randomSecret ?? ((bytes: number) => randomBytes(bytes).toString("hex"));
   const env: Record<string, string | undefined> & {
     HONUA_SERVER_IMAGE: string;
+    HONUA_COMPOSE_PROJECT: string;
     HONUA_HTTP_PORT: string;
     POSTGRES_PASSWORD: string;
     HONUA_ADMIN_PASSWORD: string;
     HONUA_CONNECTION_ENCRYPTION_MASTER_KEY: string;
     HONUA_ADMIN_KEY: string | undefined;
   } = {
+    ...existingEnv,
+    HONUA_COMPOSE_PROJECT: existingEnv.HONUA_COMPOSE_PROJECT ?? `honua-local-${randomBytes(12).toString("hex")}`,
     HONUA_SERVER_IMAGE: LOCAL_INSTALL_SERVER_IMAGE,
     HONUA_HTTP_PORT: String(httpPort),
     POSTGRES_PASSWORD: existingEnv.POSTGRES_PASSWORD ?? secret(24),
@@ -245,18 +252,80 @@ export async function installHonuaLocal(
   const dockerCommand = runtime.run
     ? "docker"
     : await resolveExecutableFromPath("docker", { excludedDirectory: directory });
-  await mkdir(directory, { recursive: true });
-  await writePrivateFileAtomic(envFile, renderEnv(env));
-  await writeFile(composeFile, renderLocalCompose({ profile }), "utf8");
-  await writeFile(path.join(directory, "postgis-bootstrap.sql"), LOCAL_POSTGIS_BOOTSTRAP_SQL, "utf8");
-
   const run = runtime.run ?? runCommand;
-  await requireCommand(run, dockerCommand, ["version", "--format", "{{.Server.Version}}"], directory, "Docker Engine");
-  await requireCommand(run, dockerCommand, ["compose", "version"], directory, "Docker Compose v2");
+  // Preflight from an existing directory, including when the destination is new.
   await requireCommand(
     run,
     dockerCommand,
-    ["compose", "--project-directory", directory, "--file", composeFile, "up", "-d", "--wait"],
+    ["version", "--format", "{{.Server.Version}}"],
+    process.cwd(),
+    "Docker Engine",
+  );
+  await requireCommand(run, dockerCommand, ["compose", "version"], process.cwd(), "Docker Compose v2");
+  if (
+    existingEnv.HONUA_SERVER_IMAGE &&
+    (!existingEnv.HONUA_COMPOSE_PROJECT || existingEnv.HONUA_COMPOSE_PROJECT === "honua-local")
+  ) {
+    if (
+      ![
+        existingEnv.POSTGRES_PASSWORD,
+        existingEnv.HONUA_ADMIN_PASSWORD,
+        existingEnv.HONUA_CONNECTION_ENCRYPTION_MASTER_KEY,
+      ].every(Boolean)
+    ) {
+      throw new Error(
+        "Legacy installer credentials are incomplete. Restore the original .env before reusing honua-local volumes.",
+      );
+    }
+    // Legacy installations used one global name. Keep their volumes and secrets,
+    // but refuse to take over containers belonging to another install directory.
+    const owners = await run(
+      dockerCommand,
+      [
+        "ps",
+        "-a",
+        "--filter",
+        "label=com.docker.compose.project=honua-local",
+        "--format",
+        '{{.ID}}\t{{.Label "com.docker.compose.project.working_dir"}}',
+      ],
+      process.cwd(),
+    );
+    const ownerRows = owners.stdout.split(/\r?\n/);
+    if (ownerRows.at(-1) === "") ownerRows.pop();
+    if (
+      owners.exitCode !== 0 ||
+      ownerRows.some((row) => {
+        const parts = row.split("\t");
+        return parts.length !== 2 || !parts[0] || !parts[1] || path.resolve(parts[1]) !== directory;
+      })
+    ) {
+      throw new Error(
+        "Legacy honua-local project belongs to another directory or could not be verified. Restore its original .env and directory before reinstalling.",
+      );
+    }
+    env.HONUA_COMPOSE_PROJECT = "honua-local";
+  }
+  await mkdir(directory, { recursive: true });
+  await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
+  await writeFile(composeFile, renderLocalCompose({ profile }), "utf8");
+  await writeFile(bootstrapFile, LOCAL_POSTGIS_BOOTSTRAP_SQL, "utf8");
+
+  await requireCommand(
+    run,
+    dockerCommand,
+    [
+      "compose",
+      "--project-name",
+      env.HONUA_COMPOSE_PROJECT,
+      "--project-directory",
+      directory,
+      "--file",
+      composeFile,
+      "up",
+      "-d",
+      "--wait",
+    ],
     directory,
     "Honua local stack",
   );
@@ -269,14 +338,14 @@ export async function installHonuaLocal(
     credential = await bootstrapAdminKey(baseUrl, env.HONUA_ADMIN_PASSWORD, runtime.fetchFn);
     try {
       env.HONUA_ADMIN_KEY = credential.material;
-      await writePrivateFileAtomic(envFile, renderEnv(env));
+      await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
       const mcpConfig = renderMcpConfig(baseUrl, credential.material);
       await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, mcpConfig);
     } catch (error) {
       env.HONUA_ADMIN_KEY = undefined;
       const client = new HonuaAdminClient({ baseUrl, adminKey: env.HONUA_ADMIN_PASSWORD, fetchFn: runtime.fetchFn });
       await revokeIssuedAdminKey(client, credential.id, error, async () => {
-        await writePrivateFileAtomic(envFile, renderEnv(env));
+        await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
       });
     }
   } else {
@@ -348,6 +417,8 @@ export async function getHonuaLocalStatus(
       dockerCommand,
       [
         "compose",
+        "--project-name",
+        env.HONUA_COMPOSE_PROJECT ?? "honua-local",
         "--project-directory",
         resolved,
         "--file",
@@ -418,7 +489,8 @@ ON CONFLICT (parcel_id) DO NOTHING;
 
 export function renderLocalCompose(options: { readonly profile: LocalInstallProfile }): string {
   const gpEdition = options.profile === "gp-dev" ? "Pro" : "";
-  return `name: honua-local
+  return `# Generated by @honua/sdk-js local installer
+name: \${HONUA_COMPOSE_PROJECT:?Missing installer project identity}
 services:
   postgres:
     image: pgrouting/pgrouting:17-3.5-3.7.3
@@ -623,18 +695,19 @@ async function reissueLegacyAdminKey(args: {
   readonly fetchFn: typeof fetch | undefined;
 }): Promise<ProvisionedAdminCredential> {
   const { baseUrl, env, legacyId, envFile, mcpConfigFile, claudeDesktopConfigFile, fetchFn } = args;
+  const originalEnvText = await readEnvText(envFile);
   const previousMaterial = env.HONUA_ADMIN_KEY;
   if (!previousMaterial) throw new Error("Legacy local-agent credential re-issue requires the existing key material.");
   const credential = await bootstrapAdminKey(baseUrl, env.HONUA_ADMIN_PASSWORD, fetchFn);
   const root = new HonuaAdminClient({ baseUrl, adminKey: env.HONUA_ADMIN_PASSWORD, fetchFn });
   const restorePrevious = async () => {
     env.HONUA_ADMIN_KEY = previousMaterial;
-    await writePrivateFileAtomic(envFile, renderEnv(env));
+    await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
     await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, renderMcpConfig(baseUrl, previousMaterial));
   };
   try {
     env.HONUA_ADMIN_KEY = credential.material;
-    await writePrivateFileAtomic(envFile, renderEnv(env));
+    await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
     await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, renderMcpConfig(baseUrl, credential.material));
   } catch (error) {
     return await revokeIssuedAdminKey(root, credential.id, error, restorePrevious);
@@ -855,25 +928,124 @@ export async function runLocalInstallCommand(
   return runCommand(command, args, cwd);
 }
 
-async function readEnv(filePath: string): Promise<Record<string, string>> {
+async function verifyInstallFiles(
+  composeFile: string,
+  bootstrapFile: string,
+  env: Record<string, string>,
+): Promise<void> {
+  if (Object.keys(env).length > 0 && !env.HONUA_SERVER_IMAGE) {
+    throw new Error(
+      "Refusing to overwrite an existing .env not owned by the Honua installer. Choose a new install directory.",
+    );
+  }
+  for (const [file, expected] of [
+    [composeFile, renderLocalCompose({ profile: "quickstart" })],
+    [bootstrapFile, LOCAL_POSTGIS_BOOTSTRAP_SQL],
+  ] as const) {
+    try {
+      const info = await lstat(file);
+      if (!info.isFile() || info.isSymbolicLink()) throw new Error("not a regular file");
+      const content = await readFile(file, "utf8");
+      const known =
+        file === bootstrapFile
+          ? content === expected
+          : ["quickstart", "gp-dev"].some((profile) => {
+              const current = renderLocalCompose({ profile: profile as LocalInstallProfile });
+              const legacy = current.replace(
+                "# Generated by @honua/sdk-js local installer\nname: ${HONUA_COMPOSE_PROJECT:?Missing installer project identity}",
+                "name: honua-local",
+              );
+              return content === current || content === legacy;
+            });
+      if (!env.HONUA_SERVER_IMAGE || !known) throw new Error("unrecognized installer content");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw new Error(
+        `Refusing to overwrite existing ${file}: ${errorMessage(error)}. Choose a new install directory or restore the installer-owned file.`,
+      );
+    }
+  }
+  if (env.HONUA_COMPOSE_PROJECT && !/^honua-local(?:-[a-f0-9]{24})?$/.test(env.HONUA_COMPOSE_PROJECT)) {
+    throw new Error("Invalid installer compose project identity in .env.");
+  }
+}
+
+async function readEnvText(filePath: string): Promise<string> {
   try {
     await verifyPrivateFile(filePath);
-    const raw = await readFile(filePath, "utf8");
-    return Object.fromEntries(
-      raw
-        .split(/\r?\n/)
-        .filter((line) => line && !line.startsWith("#"))
-        .map((line) => {
-          const separator = line.indexOf("=");
-          return separator > 0 ? [line.slice(0, separator), line.slice(separator + 1)] : [line, ""];
-        }),
-    );
+    return await readFile(filePath, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
     throw new Error(
       `Refusing to read local credentials from an unverified private file ${filePath}: ${errorMessage(error)}`,
     );
   }
+}
+
+async function readEnv(filePath: string, original?: string): Promise<Record<string, string>> {
+  const raw = original ?? (await readEnvText(filePath));
+  return Object.fromEntries(
+    raw
+      .split(/\r?\n/)
+      .filter((line) => line && !line.startsWith("#"))
+      .map((line) => {
+        const separator = line.indexOf("=");
+        return separator > 0 ? [line.slice(0, separator), line.slice(separator + 1)] : [line, ""];
+      }),
+  );
+}
+
+const MANAGED_ENV_KEYS = [
+  "HONUA_SERVER_IMAGE",
+  "HONUA_COMPOSE_PROJECT",
+  "HONUA_HTTP_PORT",
+  "POSTGRES_PASSWORD",
+  "HONUA_ADMIN_PASSWORD",
+  "HONUA_CONNECTION_ENCRYPTION_MASTER_KEY",
+  "HONUA_ADMIN_KEY",
+] as const;
+
+function validateManagedEnv(raw: string): void {
+  const seen = new Set<string>();
+  let quote: string | undefined;
+  let continued = false;
+  const lines = raw.split(/\r?\n/);
+  if (lines.at(-1) === "") lines.pop();
+  for (const line of lines) {
+    const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
+    if (match && MANAGED_ENV_KEYS.some((key) => key === match[1])) {
+      const key = match[1];
+      const value = line.slice(line.indexOf("=") + 1);
+      if (quote || continued || seen.has(key) || !line.startsWith(`${key}=`) || /[\s"'`\\$#]/.test(value)) {
+        throw new Error(
+          `Refusing ambiguous installer-managed .env key ${key}. Restore one plain single-line assignment before reinstalling.`,
+        );
+      }
+      seen.add(key);
+    }
+    // Track only leading quoted values and continuations to avoid rewriting a
+    // managed-looking line inside unrelated multiline text.
+    let start = 0;
+    if (!quote) {
+      const assignment = /^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=\s*(["'])/.exec(line);
+      if (assignment) {
+        quote = assignment[1];
+        start = assignment[0].length;
+      }
+    }
+    if (quote) {
+      for (let index = start; index < line.length; index += 1) {
+        if (line[index] === "\\" && quote === '"') index += 1;
+        else if (line[index] === quote) {
+          quote = undefined;
+          break;
+        }
+      }
+    }
+    continued = !quote && (line.match(/\\+$/)?.[0].length ?? 0) % 2 === 1;
+  }
+  if (quote || continued)
+    throw new Error("Refusing ambiguous unterminated .env multiline value before appending installer keys.");
 }
 
 async function verifyPrivateFileIfPresent(filePath: string): Promise<boolean> {
@@ -888,11 +1060,25 @@ async function verifyPrivateFileIfPresent(filePath: string): Promise<boolean> {
   }
 }
 
-function renderEnv(env: Record<string, string | undefined>): string {
-  return `${Object.entries(env)
-    .filter((entry): entry is [string, string] => entry[1] !== undefined)
-    .map(([name, value]) => `${name}=${value}`)
-    .join("\n")}\n`;
+function renderEnv(env: Record<string, string | undefined>, original: string): string {
+  const seen = new Set<string>();
+  let content = original
+    .split(/(?<=\n)/)
+    .map((line) => {
+      const key = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(line)?.[1];
+      if (!key || !MANAGED_ENV_KEYS.some((managed) => managed === key)) return line;
+      seen.add(key);
+      return env[key] === undefined
+        ? ""
+        : `${key}=${env[key]}${line.endsWith("\r\n") ? "\r\n" : line.endsWith("\n") ? "\n" : ""}`;
+    })
+    .join("");
+  for (const key of MANAGED_ENV_KEYS) {
+    if (seen.has(key) || env[key] === undefined) continue;
+    if (content && !content.endsWith("\n")) content += "\n";
+    content += `${key}=${env[key]}\n`;
+  }
+  return content;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

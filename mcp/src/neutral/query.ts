@@ -75,7 +75,7 @@ export const queryShapeFields = {
     .describe('Sort order as [{"field":"NAME","direction":"desc"}], or the legacy string form "NAME DESC,VALUE ASC".'),
   limit: z.number().int().positive().optional().describe("Max features to return (default 100, max 2000)."),
   offset: z.number().int().nonnegative().optional().describe("Number of features to skip (for pagination)."),
-  returnGeometry: z.boolean().optional().default(false).describe("Include geometry in results (default: false)."),
+  returnGeometry: z.boolean().optional().default(true).describe("Include geometry in results (default: true)."),
   geometryFormat: z
     .enum(["geojson", "esri-json"])
     .optional()

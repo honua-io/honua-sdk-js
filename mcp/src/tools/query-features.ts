@@ -15,18 +15,33 @@ import { resolveSource, sourceRefFields } from "../neutral/source-ref.js";
  * same call means the same thing against GeoServices, OGC API Features, STAC,
  * WFS, and OData. The deprecated `serviceId` + `layerId` pair is still accepted.
  */
-export const schema = z.object({
-  ...sourceRefFields,
-  ...queryFilterFields,
-  ...queryShapeFields,
-});
+export const schema = z
+  .object({
+    ...sourceRefFields,
+    ...queryFilterFields,
+    ...queryShapeFields,
+    returnCountOnly: z
+      .literal(false)
+      .optional()
+      .describe("Only false is supported here; use honua_count_features for count-only requests."),
+    resultOffset: z.number().int().nonnegative().optional().describe("Standard alias for offset; pass only one."),
+    outSrid: z.number().int().optional().describe("Standard alias for outSr; pass only one."),
+  })
+  .strict();
 
 export type Input = z.infer<typeof schema>;
 
 export async function execute(client: HonuaClient, input: Input, signal?: AbortSignal) {
   return withCapabilityHonesty(async () => {
+    if (input.offset !== undefined && input.resultOffset !== undefined)
+      throw new Error("Pass either offset or resultOffset, not both.");
+    if (input.outSr !== undefined && input.outSrid !== undefined)
+      throw new Error("Pass either outSr or outSrid, not both.");
     const resolved = resolveSource(client, input);
-    const query = toQuery(input, { protocol: resolved.descriptor.protocol });
+    const query = toQuery(
+      { ...input, offset: input.resultOffset ?? input.offset, outSr: input.outSrid ?? input.outSr },
+      { protocol: resolved.descriptor.protocol },
+    );
     query.signal = signal;
     const result = await resolved.source.query(query);
 
@@ -34,7 +49,7 @@ export async function execute(client: HonuaClient, input: Input, signal?: AbortS
     // serviceId/layerId also still expects Esri-JSON geometry. Neutral
     // addressing gets the neutral encoding.
     const geometryFormat = input.geometryFormat ?? (resolved.legacyAddressing ? "esri-json" : "geojson");
-    const returnGeometry = input.returnGeometry ?? false;
+    const returnGeometry = input.returnGeometry ?? true;
     const degraded = projectDegraded(result.degraded);
 
     return jsonText({
