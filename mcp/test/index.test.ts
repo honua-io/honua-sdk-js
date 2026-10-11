@@ -52,6 +52,7 @@ describe("MCP server setup", () => {
 
   it("registers all tools and resources with executable handlers", async () => {
     const toolSpy = vi.spyOn(McpServer.prototype, "tool");
+    const registerToolSpy = vi.spyOn(McpServer.prototype, "registerTool");
     const resourceSpy = vi.spyOn(McpServer.prototype, "resource");
 
     const listSpy = vi.spyOn(listServices, "execute").mockResolvedValue({ content: [{ type: "text", text: "[]" }] });
@@ -80,7 +81,11 @@ describe("MCP server setup", () => {
     const client = asClient(createMockClient());
     createServer(client);
 
-    expect(toolSpy.mock.calls.map((call) => call[0])).toEqual([
+    const registrations = [
+      ...toolSpy.mock.calls.map((call, index) => ({ call, order: toolSpy.mock.invocationCallOrder[index] })),
+      ...registerToolSpy.mock.calls.map((call, index) => ({ call, order: registerToolSpy.mock.invocationCallOrder[index] })),
+    ].sort((left, right) => left.order - right.order).map(({ call }) => call);
+    expect(registrations.map((call) => call[0])).toEqual([
       "honua_list_sources",
       "honua_list_services",
       "honua_describe_layer",
@@ -116,7 +121,7 @@ describe("MCP server setup", () => {
 
     const abort = new AbortController();
     for (const [name, args] of Object.entries(toolInputs)) {
-      const registration = toolSpy.mock.calls.find((call) => call[0] === name);
+      const registration = registrations.find((call) => call[0] === name);
       const handler = registration?.at(-1) as (input: unknown, extra: { signal: AbortSignal }) => Promise<unknown>;
       await handler(args, { signal: abort.signal });
     }
