@@ -1,3 +1,9 @@
+---
+type: reference
+title: gRPC candidate query regression evidence for issue 1952
+description: Source SDK integration evidence for object IDs, REST parity, and large gRPC streams against the pinned release candidate.
+---
+
 # gRPC candidate query regression evidence
 
 On 2026-10-11, the source-built SDK passed all 13 tests in
