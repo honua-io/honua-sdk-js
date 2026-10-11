@@ -27,7 +27,8 @@ const work = await mkdtemp(path.join(root, "test-results", "honua-installed-firs
 const outputIndex = process.argv.indexOf("--output");
 const output = path.resolve(root, outputIndex < 0 ? "test-results/installed-quickstart-budget.json" : process.argv[outputIndex + 1]);
 const proveRegression = process.argv.includes("--prove-regression");
-const measureExecution = process.argv.includes("--measure-execution");
+const enforceExecution = process.argv.includes("--enforce-execution-budget");
+const measureExecution = enforceExecution || process.argv.includes("--measure-execution");
 const fixtureDefines = measureExecution ? Object.fromEntries(Object.entries(
   (await import("../examples/maplibre-quickstart/mock-server.mjs")).FIXTURE_BUILD_ENV
 ).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])) : {};
@@ -156,6 +157,12 @@ try {
       Object.assign(fixture, firstMapVerdict(fixture));
       execution = { status: "pending", buildMode: "canonical fixture", bundle: fixture };
       Object.assign(execution, await measureFirstMapExecution(path.join(work, "execution-fixture")), { status: "measured" });
+      if (enforceExecution) {
+        const { firstMapExecutionVerdict } = await import("./lib/first-map-execution-budget.mjs");
+        const executionBudget = JSON.parse(await readFile(path.join(root, "config/first-map-execution-budget.v1.json"), "utf8"));
+        execution.verdict = firstMapExecutionVerdict(execution, executionBudget);
+        assert.equal(execution.verdict.status, "passed", execution.verdict.violations.join("; "));
+      }
     } catch (error) { execution = { ...execution, status: "failed", diagnostic: error.message }; }
   }
   const budget = INSTALLED_FIRST_MAP_BUDGET;
@@ -170,7 +177,7 @@ try {
     sourceSha, sourceDirty,
     ...(previousLockBytes ? { comparisonLockSha256: sha256(previousLockBytes), comparisonRenderer: { version: previousRenderer.version, integrity: previousRenderer.integrity } } : {}),
     inputDigests: Object.fromEntries(await Promise.all(["package-lock.json", "scripts/installed-quickstart-budget.mjs",
-      "scripts/lib/first-map-execution.mjs", "examples/maplibre-quickstart/mock-server.mjs", "examples/maplibre-quickstart/vite.config.ts"]
+      "scripts/lib/first-map-execution.mjs", "scripts/lib/first-map-execution-budget.mjs", "config/first-map-execution-budget.v1.json", "examples/maplibre-quickstart/mock-server.mjs", "examples/maplibre-quickstart/vite.config.ts"]
       .map(async (file) => [file, sha256(await readFile(path.join(root, file)))]))),
     budget, minifier: corrected.minifier, buildMode: "default public endpoint", measurementScope: "emitted JavaScript chunks, as defined by the canonical First Map budget",
     node: process.version, ...(execution ? { execution } : {}), status: execution?.status === "failed" ? "failed" : corrected.status, ...(baseline ? { baseline, runtimeOnly } : {}), corrected };

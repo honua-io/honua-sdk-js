@@ -145,3 +145,21 @@ two independent checkouts of the same immutable source, requires identical
 archive bytes and receipts, and retains that separate artifact for 90 days.
 A source checkout can regenerate it after that retention window. This is a
 sample-content artifact, not a new npm registry package.
+
+## Focused validation graph reduction
+
+The PROJJSON validator shares referenced schemas instead of repeatedly inlining
+them. Differential validation against the pinned official schema preserves both
+acceptance and useful failure diagnostics across 972 valid and mutated CRS
+cases. Exact-head compiled artifact measurements with esbuild 0.28.1 reduced
+`/source-schema` from 901,833 to 833,853 minified bytes and from 201,663 to
+196,387 gzip bytes. The 880,000 / 200,000 byte ceilings deliberately preserve
+that improvement: the previous graph fails both ceilings.
+
+[Recorded comparisons](./evidence/distribution-1413/) include producer fingerprints,
+toolchain and external-peer options. The generic First Map does not retain this
+validator, so this change makes no hero-path reduction claim. Its byte and CPU
+budgets are recorded in the [installed First Map report](./installed-first-map-budget.md).
+The bundle gate separately checks the actual generated validator path is absent
+from focused HonuaClient, connect, createHonua and FeatureLayerCompat consumers;
+existing optional renderer and RPC exclusion guards remain enforced.

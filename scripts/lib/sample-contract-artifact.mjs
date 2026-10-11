@@ -28,10 +28,11 @@ export async function packSampleContractArtifact({ projectRoot, outputDirectory 
       license: sdk.license, files: [...SAMPLE_CONTRACT_PATHS, "source.json", "LICENSE"],
     }, null, 2)}\n`);
     await writeFile(path.join(staging, "source.json"), `${JSON.stringify({ sourceRevision, sourceDirty, sdkVersion: sdk.version }, null, 2)}\n`);
-    const npmArguments = ["pack", "--json", "--ignore-scripts", "--pack-destination", outputDirectory];
-    const command = process.env.npm_execpath ? process.execPath : "npm";
-    const args = process.env.npm_execpath ? [process.env.npm_execpath, ...npmArguments] : npmArguments;
-    const [packed] = JSON.parse(execFileSync(command, args, { cwd: staging, encoding: "utf8", maxBuffer: 32 * 1024 * 1024, windowsHide: true }));
+    const packOptions = { cwd: staging, encoding: "utf8", maxBuffer: 32 * 1024 * 1024, windowsHide: true };
+    const packedJson = process.env.npm_execpath
+      ? execFileSync(process.execPath, [process.env.npm_execpath, "pack", "--json", "--ignore-scripts", "--pack-destination", outputDirectory], packOptions)
+      : execFileSync("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", outputDirectory], packOptions);
+    const [packed] = JSON.parse(packedJson);
     const archive = await readFile(path.join(outputDirectory, packed.filename));
     const sha256 = createHash("sha256").update(archive).digest("hex");
     const integrity = `sha512-${createHash("sha512").update(archive).digest("base64")}`;

@@ -1,6 +1,7 @@
 {
  "$comment": [
   "Per-entrypoint bundle-size budgets for @honua/sdk-js (issue #350).",
+  "/source-schema uses narrower regression headroom for #1413: measured 833853 minified / 196387 gzip versus audited 901833 / 201663. Ceilings 880000 / 200000 preserve the achieved PROJJSON graph reduction; the prior graph fails both metrics.",
   "Each budget is a hard byte ceiling for a single public entrypoint bundled the",
   "way a real consumer would build it: esbuild --bundle --minify, target es2020,",
   "runtime peers (maplibre-gl, cesium, @bufbuild/*, @connectrpc/*) kept external.",
@@ -126,8 +127,8 @@
    "gzip": 110609
   },
   "/source-schema": {
-   "min": 947680,
-   "gzip": 232765
+   "min": 880000,
+   "gzip": 200000
   },
   "/source-capabilities": {
    "min": 263724,
