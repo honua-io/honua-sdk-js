@@ -517,7 +517,7 @@ jobs:
           npm run build:browser --silent
           node scripts/sample-contract.mjs artifacts
           npm run prepare:test-sdk:adopt --silent
-          node --test test/scripts/publish-surface-docs.test.mjs test/scripts/first-map-execution-budget.test.mjs
+          node --test test/scripts/publish-surface-docs.test.mjs test/scripts/first-map-execution-budget.test.mjs test/scripts/installed-consumer-lock.test.mjs
           npm run verify:publish-surface
           npm run test:runtime-tarball
           npm run verify:runtime-tarball
