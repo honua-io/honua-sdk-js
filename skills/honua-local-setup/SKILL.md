@@ -35,6 +35,13 @@ Create `.honua-zero-to-map` outside the git repository you are editing.
 pass another one (`--http-port 18081`). `--dry-run` prints the compose file
 and does not start containers. `--yes` is required before Docker starts.
 
+Both local profiles use `Licensing__Mode=Disabled` for 2026.1, following the
+[release licensing policy](https://github.com/honua-io/honua-release/issues/338).
+No license file or development edition grant is required; authentication and
+authorization remain enforced. Re-running the installer updates an existing
+local Compose file to this policy. Qualification must verify that the Admin
+license status reports `mode: disabled` on the running candidate.
+
 `honua admin` is the control-plane CLI shipped by `@honua/sdk-js`. If `honua`
 on `PATH` fails before Docker starts with `ModuleNotFoundError` for the Python
 SDK, that `PATH` entry is the Python data-plane console script and its

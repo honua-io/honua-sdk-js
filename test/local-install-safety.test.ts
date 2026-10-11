@@ -66,6 +66,42 @@ describe("local installer file and project safety", () => {
     expect(next).toContain(original);
   });
 
+  it.each(["quickstart", "gp-dev"] as const)(
+    "upgrades the known %s edition-grant compose on retry",
+    async (profile) => {
+      const directory = temporaryDirectory();
+      await expect(installHonuaLocal({ directory, profile }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+      const composeFile = path.join(directory, "compose.yaml");
+      const current = readFileSync(composeFile, "utf8");
+      const originalEnv = readFileSync(path.join(directory, ".env"), "utf8");
+      writeFileSync(
+        composeFile,
+        current.replace(
+          'Licensing__Mode: "Disabled"',
+          `Licensing__DevGrantEdition: "${profile === "gp-dev" ? "Pro" : ""}"`,
+        ),
+      );
+      await expect(installHonuaLocal({ directory, profile }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+      expect(readFileSync(composeFile, "utf8")).toBe(current);
+      expect(readFileSync(path.join(directory, ".env"), "utf8")).toBe(originalEnv);
+    },
+  );
+
+  it.each(['Licensing__Mode: "Enabled"', 'Licensing__DevGrantEdition: "Enterprise"'])(
+    "preserves an unrecognized licensing configuration: %s",
+    async (setting) => {
+      const directory = temporaryDirectory();
+      await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+      const composeFile = path.join(directory, "compose.yaml");
+      const custom = readFileSync(composeFile, "utf8").replace('Licensing__Mode: "Disabled"', setting);
+      writeFileSync(composeFile, custom);
+      const run = vi.fn(failAtUp);
+      await expect(installHonuaLocal({ directory }, { run })).rejects.toThrow(/Refusing to overwrite/);
+      expect(run).not.toHaveBeenCalled();
+      expect(readFileSync(composeFile, "utf8")).toBe(custom);
+    },
+  );
+
   it.each(["POSTGRES_PASSWORD=duplicate\n", "export HONUA_ADMIN_KEY=ambiguous\n", 'HONUA_ADMIN_KEY="multi\nline"\n'])(
     "refuses ambiguous managed assignments without changing files: %s",
     async (extra) => {
