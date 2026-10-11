@@ -33,6 +33,8 @@
  *
  * To select a reviewed, published compatible patch instead of the default
  * exact-version preference, add `--mcp-version 0.1.16` to either command.
+ * Subsequent default runs retain a newer recorded pin while it stays published
+ * and compatible, so synchronization never silently undoes that selection.
  * This never admits an unpublished version or bypasses peer/integrity checks.
  *
  * This lane queries the public npm registry and is never part of PR CI.
@@ -85,11 +87,13 @@ function sameTuple(left, right) {
  * rule, so an unknown release is never treated as compatible.
  *
  * The SDK's exact version is preferred when that release qualifies. Otherwise
- * the newest qualifying release wins. A release whose range excludes the SDK
+ * the newest qualifying release wins. A newer recorded pin is retained when
+ * still published and compatible; an explicit version can deliberately replace it.
+ * A release whose range excludes the SDK
  * (for example a later MCP cut that requires a newer SDK) is never chosen, so
  * the pin cannot run ahead into an uninstallable pair.
  */
-export function selectCoordinatedRelease(packument, sdkVersion, mcpName, sdkName = "@honua/sdk-js", requestedVersion) {
+export function selectCoordinatedRelease(packument, sdkVersion, mcpName, sdkName = "@honua/sdk-js", requestedVersion, currentVersion) {
   if (requestedVersion !== undefined) {
     parsePackagePin(`${mcpName}@${requestedVersion}`);
     invariant(
@@ -122,7 +126,9 @@ export function selectCoordinatedRelease(packument, sdkVersion, mcpName, sdkName
       "the pin to a version the registry does not serve.",
   );
   const exact = candidates.find((version) => version === sdkVersion);
-  return exact ?? candidates[candidates.length - 1];
+  const preferred = exact ?? candidates[candidates.length - 1];
+  if (candidates.includes(currentVersion) && compareVersions(currentVersion, preferred) > 0) return currentVersion;
+  return preferred;
 }
 
 async function fetchPackument(name, fetchFn) {
@@ -314,7 +320,7 @@ async function main(argv) {
   const { LOCAL_INSTALL_MCP_PACKAGE_NAME } = await import(pathToFileURL(path.join(PROJECT_ROOT, "dist/src/local-install.js")).href);
 
   const packument = await fetchPackument(LOCAL_INSTALL_MCP_PACKAGE_NAME, fetch);
-  const version = selectCoordinatedRelease(packument, sdk.version, LOCAL_INSTALL_MCP_PACKAGE_NAME, sdk.name, requestedVersion);
+  const version = selectCoordinatedRelease(packument, sdk.version, LOCAL_INSTALL_MCP_PACKAGE_NAME, sdk.name, requestedVersion, current.version);
   const manifest = packument.versions[version];
   const integrity = manifest?.dist?.integrity;
   invariant(

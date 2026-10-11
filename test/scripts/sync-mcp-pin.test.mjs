@@ -424,6 +424,14 @@ test("CLI explicit check is read-only and its write advances source, integrity a
       const current = invoke(["--mcp-version", "0.1.16", "--check"]);
       assert.equal(current.status, 0, current.stderr);
       assert.deepEqual(snapshot(), afterWrite);
+      for (const args of [["--check"], []]) {
+        const retained = invoke(args);
+        assert.equal(retained.status, 0, retained.stderr);
+        assert.deepEqual(snapshot(), afterWrite);
+      }
+      const downgrade = invoke(["--mcp-version", "0.1.15"]);
+      assert.equal(downgrade.status, 0, downgrade.stderr);
+      assert.equal(readPin(fs.readFileSync(path.join(root, "src/local-install.ts"), "utf8")).version, "0.1.15");
     });
 });
 
@@ -483,4 +491,20 @@ test("live verifier refuses an incompatible or missing published peer despite a 
         assert.doesNotMatch(result.stdout, /published pair co-installable/);
       });
   }
+});
+
+test("default selection retains only a published compatible newer current pin", () => {
+  const published = { versions: {
+    "0.1.15": { peerDependencies: { "@honua/sdk-js": "^0.1.15" } },
+    "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" } },
+    "0.1.17": { peerDependencies: { "@honua/sdk-js": "^0.2.0" } },
+    "0.1.18": {},
+  } };
+  const choose = (current, explicit) => selectCoordinatedRelease(published, "0.1.15", "@honua/mcp-server", "@honua/sdk-js", explicit, current);
+  assert.equal(choose("0.1.16"), "0.1.16");
+  assert.equal(choose("0.1.14"), "0.1.15");
+  assert.equal(choose("0.1.17"), "0.1.15");
+  assert.equal(choose("0.1.18"), "0.1.15");
+  assert.equal(choose("0.1.19"), "0.1.15");
+  assert.equal(choose("0.1.16", "0.1.15"), "0.1.15");
 });
