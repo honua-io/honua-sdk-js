@@ -20,6 +20,8 @@ Renderer protocol loading now preserves tree shaking, basemap private state is c
 
 The same receipt preserves a **failed local CPU-profile check**: this WSL Intel Core Ultra 7 host has no `ubuntu24` runner-image identity and is not the calibrated GitHub Actions AMD EPYC runner. Its three cold-context, 4x-throttled measurements have medians of 465.364 ms script CPU and 161.633 ms parse/compile, above the calibrated limits of 175/110 ms. The receipt's overall failed status must not be presented as a CPU pass. The PR's calibrated CI execution lane supplies that separate required verdict; the local emitted-byte and installed-peer checks pass.
 
+The [packed starter receipt](pr2010-create-app-sdk-pair.json) records both vanilla and React templates typechecking and building under default peer resolution against the development tarball and published SDK 0.1.14. The older SDK executes the actionable upgrade-message path. Both the deterministic basemap browser test and the opt-in live OpenFreeMap availability test passed on this implementation.
+
 ## Historical failed measurement
 
 Source `5d64e59832e0174a071170843c05dfb288d017e8` was also measured from a clean worktree. Its SDK build was admitted from [producer run 38141546837](https://github.com/honua-io/honua-sdk-js/actions/runs/38141546837), artifact `11703565016`, with source and build-input identities verified.

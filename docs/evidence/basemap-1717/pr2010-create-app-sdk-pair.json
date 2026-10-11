@@ -1,0 +1,291 @@
+{
+  "observedAt": "2026-10-11T16:35:58.951Z",
+  "sdkVersion": "0.1.14",
+  "scaffoldVersion": "0.1.7",
+  "bundleBaselineCommit": "70ee1708e9fe4f69c5bd9611e1118f3676fe37fe",
+  "defaultPeerResolution": true,
+  "templates": [
+    {
+      "template": "vanilla-ts",
+      "candidate": "packed",
+      "sdkVersion": "0.1.14",
+      "sdkIntegrity": "sha512-fRkUyrUplk1Ifpefy4QdBnx0/M1sIMnyjDSyaoVHH1jXWa3JswWOaR2/qBnnhLT1nFy9/5z0hkT8vEJjcaz85A==",
+      "fixtureBundleBytes": {
+        "javascriptBytes": 2213752,
+        "javascriptGzipBytes": 584000,
+        "chunks": 4,
+        "files": [
+          {
+            "path": "assets/index-DbjtVMvH.js",
+            "bytes": 1724462,
+            "gzipBytes": 448120
+          },
+          {
+            "path": "assets/maplibre-gl-worker-CIBYen3B.js",
+            "bytes": 470516,
+            "gzipBytes": 130107
+          },
+          {
+            "path": "assets/odata-write-codec-CFCMYMBZ.js",
+            "bytes": 18685,
+            "gzipBytes": 5671
+          },
+          {
+            "path": "assets/sdk-js-BKVLOYmV.js",
+            "bytes": 89,
+            "gzipBytes": 102
+          }
+        ]
+      },
+      "liveBundleComparison": {
+        "baselineCommit": "70ee1708e9fe4f69c5bd9611e1118f3676fe37fe",
+        "sameInstalledSdk": true,
+        "allJavaScriptChunks": true,
+        "baseline": {
+          "javascriptBytes": 2213611,
+          "javascriptGzipBytes": 582072,
+          "chunks": 4,
+          "files": [
+            {
+              "path": "assets/index-BdM7nYCL.js",
+              "bytes": 1724321,
+              "gzipBytes": 446193
+            },
+            {
+              "path": "assets/maplibre-gl-worker-CIBYen3B.js",
+              "bytes": 470516,
+              "gzipBytes": 130107
+            },
+            {
+              "path": "assets/odata-write-codec-nwWQXC7V.js",
+              "bytes": 18685,
+              "gzipBytes": 5670
+            },
+            {
+              "path": "assets/sdk-js-BKVLOYmV.js",
+              "bytes": 89,
+              "gzipBytes": 102
+            }
+          ]
+        },
+        "current": {
+          "javascriptBytes": 2350990,
+          "javascriptGzipBytes": 617877,
+          "chunks": 5,
+          "files": [
+            {
+              "path": "assets/dist-xzinIzEQ.js",
+              "bytes": 124915,
+              "gzipBytes": 29595
+            },
+            {
+              "path": "assets/index-fWkq4M3V.js",
+              "bytes": 1736785,
+              "gzipBytes": 452403
+            },
+            {
+              "path": "assets/maplibre-gl-worker-CIBYen3B.js",
+              "bytes": 470516,
+              "gzipBytes": 130107
+            },
+            {
+              "path": "assets/odata-write-codec-DQdlOumK.js",
+              "bytes": 18685,
+              "gzipBytes": 5670
+            },
+            {
+              "path": "assets/sdk-js-BKVLOYmV.js",
+              "bytes": 89,
+              "gzipBytes": 102
+            }
+          ]
+        },
+        "delta": {
+          "javascriptBytes": 137379,
+          "javascriptGzipBytes": 35805
+        }
+      },
+      "typecheck": "pass",
+      "build": "pass",
+      "installedRuntimeExport": "pass"
+    },
+    {
+      "template": "react-ts",
+      "candidate": "packed",
+      "sdkVersion": "0.1.14",
+      "sdkIntegrity": "sha512-fRkUyrUplk1Ifpefy4QdBnx0/M1sIMnyjDSyaoVHH1jXWa3JswWOaR2/qBnnhLT1nFy9/5z0hkT8vEJjcaz85A==",
+      "fixtureBundleBytes": {
+        "javascriptBytes": 2404917,
+        "javascriptGzipBytes": 641283,
+        "chunks": 4,
+        "files": [
+          {
+            "path": "assets/index-DSEHs6xP.js",
+            "bytes": 1915627,
+            "gzipBytes": 505404
+          },
+          {
+            "path": "assets/maplibre-gl-worker-CIBYen3B.js",
+            "bytes": 470516,
+            "gzipBytes": 130107
+          },
+          {
+            "path": "assets/odata-write-codec-Cm5SJ10Y.js",
+            "bytes": 18685,
+            "gzipBytes": 5670
+          },
+          {
+            "path": "assets/sdk-js-BKVLOYmV.js",
+            "bytes": 89,
+            "gzipBytes": 102
+          }
+        ]
+      },
+      "liveBundleComparison": {
+        "baselineCommit": "70ee1708e9fe4f69c5bd9611e1118f3676fe37fe",
+        "sameInstalledSdk": true,
+        "allJavaScriptChunks": true,
+        "baseline": {
+          "javascriptBytes": 2404847,
+          "javascriptGzipBytes": 641247,
+          "chunks": 4,
+          "files": [
+            {
+              "path": "assets/index-CQIZ00xZ.js",
+              "bytes": 1915557,
+              "gzipBytes": 505367
+            },
+            {
+              "path": "assets/maplibre-gl-worker-CIBYen3B.js",
+              "bytes": 470516,
+              "gzipBytes": 130107
+            },
+            {
+              "path": "assets/odata-write-codec-DqaOksL0.js",
+              "bytes": 18685,
+              "gzipBytes": 5671
+            },
+            {
+              "path": "assets/sdk-js-BKVLOYmV.js",
+              "bytes": 89,
+              "gzipBytes": 102
+            }
+          ]
+        },
+        "current": {
+          "javascriptBytes": 2542144,
+          "javascriptGzipBytes": 674967,
+          "chunks": 5,
+          "files": [
+            {
+              "path": "assets/dist-xzinIzEQ.js",
+              "bytes": 124915,
+              "gzipBytes": 29595
+            },
+            {
+              "path": "assets/index-bLO6igNp.js",
+              "bytes": 1927939,
+              "gzipBytes": 509493
+            },
+            {
+              "path": "assets/maplibre-gl-worker-CIBYen3B.js",
+              "bytes": 470516,
+              "gzipBytes": 130107
+            },
+            {
+              "path": "assets/odata-write-codec-Bc0guZ3D.js",
+              "bytes": 18685,
+              "gzipBytes": 5670
+            },
+            {
+              "path": "assets/sdk-js-BKVLOYmV.js",
+              "bytes": 89,
+              "gzipBytes": 102
+            }
+          ]
+        },
+        "delta": {
+          "javascriptBytes": 137297,
+          "javascriptGzipBytes": 33720
+        }
+      },
+      "typecheck": "pass",
+      "build": "pass",
+      "installedRuntimeExport": "pass"
+    },
+    {
+      "template": "vanilla-ts",
+      "candidate": "registry-compat",
+      "sdkVersion": "0.1.14",
+      "sdkIntegrity": "sha512-4AZPZ/505HVTnk7hdEK8820BevUf6qtAHPK2DFASmdsCrYjJxELUMIZgoy4KxkqOwh/440zf8tdirSoLsM9jfg==",
+      "fixtureBundleBytes": {
+        "javascriptBytes": 2209670,
+        "javascriptGzipBytes": 582869,
+        "chunks": 4,
+        "files": [
+          {
+            "path": "assets/index-DlmVF09t.js",
+            "bytes": 1720350,
+            "gzipBytes": 446966
+          },
+          {
+            "path": "assets/maplibre-gl-worker-CIBYen3B.js",
+            "bytes": 470516,
+            "gzipBytes": 130107
+          },
+          {
+            "path": "assets/odata-write-codec-OS5M05MH.js",
+            "bytes": 18685,
+            "gzipBytes": 5670
+          },
+          {
+            "path": "assets/sdk-js-Dz3fKGzE.js",
+            "bytes": 119,
+            "gzipBytes": 126
+          }
+        ]
+      },
+      "typecheck": "pass",
+      "build": "pass",
+      "installedRuntimeExport": "actionable-upgrade-pass"
+    },
+    {
+      "template": "react-ts",
+      "candidate": "registry-compat",
+      "sdkVersion": "0.1.14",
+      "sdkIntegrity": "sha512-4AZPZ/505HVTnk7hdEK8820BevUf6qtAHPK2DFASmdsCrYjJxELUMIZgoy4KxkqOwh/440zf8tdirSoLsM9jfg==",
+      "fixtureBundleBytes": {
+        "javascriptBytes": 2400835,
+        "javascriptGzipBytes": 640095,
+        "chunks": 4,
+        "files": [
+          {
+            "path": "assets/index-hMWfw6ts.js",
+            "bytes": 1911515,
+            "gzipBytes": 504192
+          },
+          {
+            "path": "assets/maplibre-gl-worker-CIBYen3B.js",
+            "bytes": 470516,
+            "gzipBytes": 130107
+          },
+          {
+            "path": "assets/odata-write-codec-6m3AynMh.js",
+            "bytes": 18685,
+            "gzipBytes": 5670
+          },
+          {
+            "path": "assets/sdk-js-Dz3fKGzE.js",
+            "bytes": 119,
+            "gzipBytes": 126
+          }
+        ]
+      },
+      "typecheck": "pass",
+      "build": "pass",
+      "installedRuntimeExport": "actionable-upgrade-pass"
+    }
+  ],
+  "sdkIntegrity": "sha512-fRkUyrUplk1Ifpefy4QdBnx0/M1sIMnyjDSyaoVHH1jXWa3JswWOaR2/qBnnhLT1nFy9/5z0hkT8vEJjcaz85A==",
+  "scaffoldIntegrity": "sha512-QCrK1dETf8Ypd/NnFf27gLooXsS5rCRP7lXzM/SGibu2dFUAuaZfEosGoxYI8xvzLLihOPLwfnNLN6lh1y4QYA=="
+}
