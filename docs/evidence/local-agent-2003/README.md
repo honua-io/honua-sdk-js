@@ -17,7 +17,8 @@ Docker's running image identity and OCI revision were checked. The server carrie
 the S2 wildcard implementation from
 [server PR 5740](https://github.com/honua-io/honua-server/pull/5740).
 MCP initialization identified `honua.operator.mcp` version `v1`, protocol
-`2025-03-26`, served directly over HTTP. The npm MCP bridge was not part of this run.
+`2025-03-26`, served directly over HTTP. A subsequent run exercised the exact
+generated stdio proxy configuration from the npm registry, as described below.
 
 The installer minted `honua-local-agent` with effective grants
 `admin:read`, `admin:write`, and `read:*`. After replacing that credential with an
@@ -36,6 +37,15 @@ The authenticated HTTP artifact download produced
 Raw MCP results, all three installer receipts, and the lifecycle assertions are
 preserved in the JSON. Historical `/temp/` artifact references expire after one
 hour; the PNG here preserves the downloaded bytes.
+
+The generated `.mcp.json` was also executed exactly as written:
+`npx -y --package @honua/mcp-server@0.1.14 honua-mcp-proxy`, under Node 20.19.0.
+An MCP SDK stdio client initialized the proxy, discovered both tools, listed the
+same ten fixture publications, and rendered the same image. Its authenticated
+artifact download matched the archived PNG hash. The installed registry package
+integrity matched the installer pin, and its resolved SDK peer identity is
+recorded in `generatedProxy`. This verifies the generated client path as well as
+the direct HTTP path; it does not compare the complete bounded catalogs.
 
 ## Procedure and scope
 
@@ -76,5 +86,5 @@ installer return value. The separate inspected image identity records the
 explicit development override actually executed. These fixture preparations and
 overrides do not qualify a clean customer install or advance the supported pin.
 The returned image was fetched over HTTP; MCP `resources/read` returned
-`Unknown resource` for it. Full catalog parity, style/resource behavior, the npm
-bridge, and the broader release qualification in issue 1401 remain separate.
+`Unknown resource` for it. Full catalog parity, style/resource behavior, and the broader release
+qualification in issue 1401 remain separate.
