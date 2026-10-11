@@ -3,7 +3,7 @@
  *
  * Precedence (highest first):
  *   1. Explicit `--base-url` / `--api-key` flags.
- *   2. Environment variables `HONUA_BASE_URL` / `HONUA_API_KEY`.
+ *   2. Environment variables `HONUA_BASE_URL` / `HONUA_API_KEY` / `HONUA_BEARER_TOKEN`.
  *   3. A saved config file written by `honua login` (`~/.config/honua/config.json`,
  *      overridable with `HONUA_CONFIG_HOME`).
  *
@@ -35,6 +35,8 @@ export interface HonuaCliConfig {
 export interface ResolvedConnection {
   baseUrl: string;
   apiKey?: string;
+  /** Ephemeral caller credential; never written to saved CLI configuration. */
+  bearerToken?: string;
   /** Where `baseUrl` came from, for diagnostics. */
   source: "flag" | "env" | "config";
 }
@@ -106,12 +108,13 @@ export async function writeConfig(config: HonuaCliConfig, env: NodeJS.ProcessEnv
 export interface ResolveOptions {
   baseUrl?: string;
   apiKey?: string;
+  bearerToken?: string;
   profile?: string;
   env?: NodeJS.ProcessEnv;
 }
 
 /**
- * Resolve the base URL + API key from flags, env, then saved config.
+ * Resolve the base URL and one caller credential from options, env, then saved config.
  *
  * @throws {Error} when no base URL can be determined.
  */
@@ -149,13 +152,28 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
     !options.profile &&
     typeof saved.baseUrl === "string" &&
     stripTrailingSlashes(saved.baseUrl) === stripTrailingSlashes(baseUrl);
-  const apiKey =
-    (options.apiKey && options.apiKey.trim() !== "" ? options.apiKey : undefined) ??
-    (env.HONUA_API_KEY && env.HONUA_API_KEY.trim() !== "" ? env.HONUA_API_KEY : undefined) ??
-    (profile?.apiKey && profile.apiKey.trim() !== "" ? profile.apiKey : undefined) ??
-    (savedKeyIsBoundToBaseUrl && saved.apiKey && saved.apiKey.trim() !== "" ? saved.apiKey : undefined);
+  const explicit = credentialPair(options.apiKey, options.bearerToken);
+  const selected = explicit ?? credentialPair(env.HONUA_API_KEY, env.HONUA_BEARER_TOKEN);
+  const apiKey = selected
+    ? selected.apiKey
+    : ((profile?.apiKey && profile.apiKey.trim() !== "" ? profile.apiKey : undefined) ??
+      (savedKeyIsBoundToBaseUrl && saved.apiKey && saved.apiKey.trim() !== "" ? saved.apiKey : undefined));
 
-  return { baseUrl: stripTrailingSlashes(baseUrl), apiKey, source };
+  return {
+    baseUrl: stripTrailingSlashes(baseUrl),
+    apiKey,
+    ...(selected?.bearerToken ? { bearerToken: selected.bearerToken } : {}),
+    source,
+  };
+}
+
+function credentialPair(apiKey: string | undefined, bearerToken: string | undefined) {
+  const key = apiKey?.trim() ? apiKey : undefined;
+  const token = bearerToken?.trim() ? bearerToken : undefined;
+  if (key && token) {
+    throw new Error("Choose one credential: an API key or a bearer token, not both.");
+  }
+  return key || token ? { apiKey: key, bearerToken: token } : undefined;
 }
 
 export interface ResolvedAdminConnection extends ResolvedConnection {
@@ -167,7 +185,16 @@ export function resolveAdminConnection(options: ResolveOptions & { adminKey?: st
   const env = options.env ?? process.env;
   const saved = readConfig(env);
   const profile = options.profile ? saved.profiles?.[options.profile] : undefined;
-  const connection = resolveConnection(options);
+  if (options.adminKey?.trim() && options.bearerToken?.trim()) {
+    throw new Error("Choose one credential: an Admin key or a bearer token, not both.");
+  }
+  const connection = resolveConnection({
+    ...options,
+    apiKey: options.adminKey?.trim() ? options.adminKey : options.apiKey,
+  });
+  // Never replace a selected caller token with a more privileged saved or
+  // environment key. A rejected token must remain a rejected invocation.
+  if (connection.bearerToken) return connection;
   const adminKey =
     (options.adminKey && options.adminKey.trim() !== "" ? options.adminKey : undefined) ??
     (env.HONUA_ADMIN_KEY && env.HONUA_ADMIN_KEY.trim() !== "" ? env.HONUA_ADMIN_KEY : undefined) ??

@@ -1,0 +1,112 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { configPath, resolveAdminConnection, resolveConnection, writeConfig } from "../src/cli/config.js";
+import { run } from "../src/cli/main.js";
+
+const bearer = "caller-operator-token";
+const rootKey = "saved-root-key";
+const scopedKey = "saved-scoped-key";
+let directory: string;
+let output: string[];
+
+beforeEach(async () => {
+  directory = mkdtempSync(path.join(tmpdir(), "honua-cli-bearer-"));
+  vi.stubEnv("HONUA_CONFIG_HOME", directory);
+  vi.stubEnv("HONUA_BASE_URL", "http://127.0.0.1:8080");
+  vi.stubEnv("HONUA_API_KEY", undefined);
+  vi.stubEnv("HONUA_ADMIN_KEY", rootKey);
+  vi.stubEnv("HONUA_BEARER_TOKEN", bearer);
+  await writeConfig({
+    baseUrl: "http://127.0.0.1:8080",
+    apiKey: scopedKey,
+    profiles: { release: { baseUrl: "http://127.0.0.1:8080", apiKey: scopedKey, adminKey: rootKey } },
+  });
+  output = [];
+  for (const stream of [process.stdout, process.stderr]) {
+    vi.spyOn(stream, "write").mockImplementation((chunk) => {
+      output.push(String(chunk));
+      return true;
+    });
+  }
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  rmSync(directory, { recursive: true, force: true });
+});
+
+describe("CLI caller bearer identity", () => {
+  it.each([
+    ["shared command", ["connection", "test", "00000000-0000-4000-8000-000000000001", "--yes", "--json"]],
+    ["generated Admin command", ["admin", "api", "getConnections", "--json"]],
+  ])("keeps a rejected bearer on the %s path without retrying saved privileged keys", async (_name, args) => {
+    const before = readFileSync(configPath(), "utf8");
+    const requests: Headers[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: unknown, init?: RequestInit) => {
+        requests.push(new Headers(init?.headers));
+        return new Response(JSON.stringify({ message: "Denied for this caller" }), {
+          status: 403,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    expect(await run([...args, "--profile", "release"])).toBe(2);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.get("Authorization")).toBe(`Bearer ${bearer}`);
+    expect(requests[0]?.get("X-API-Key")).toBeNull();
+    expect(readFileSync(configPath(), "utf8")).toBe(before);
+    for (const credential of [bearer, rootKey, scopedKey]) expect(output.join("")).not.toContain(credential);
+  });
+
+  it("reports the bearer scheme without printing or persisting the token", async () => {
+    expect(await run(["whoami"])).toBe(0);
+    expect(output.join("")).toContain("bearer");
+    expect(output.join("")).not.toContain(bearer);
+    expect(readFileSync(configPath(), "utf8")).not.toContain(bearer);
+  });
+
+  it("gives an explicitly selected credential precedence over environment credentials", () => {
+    expect(resolveConnection({ apiKey: "explicit-key" })).toMatchObject({ apiKey: "explicit-key" });
+    expect(resolveConnection({ apiKey: "explicit-key" }).bearerToken).toBeUndefined();
+    vi.stubEnv("HONUA_API_KEY", "environment-key");
+    expect(resolveConnection({ bearerToken: "explicit-token" })).toMatchObject({ bearerToken: "explicit-token" });
+    expect(resolveConnection({ bearerToken: "explicit-token" }).apiKey).toBeUndefined();
+    expect(resolveAdminConnection({ adminKey: "explicit-admin" }).adminKey).toBe("explicit-admin");
+  });
+
+  it("refuses ambiguous credentials at the same precedence without exposing them", () => {
+    vi.stubEnv("HONUA_API_KEY", "environment-key");
+    expect(() => resolveConnection()).toThrow("Choose one credential");
+    expect(() => resolveConnection({ apiKey: "explicit-key", bearerToken: "explicit-token" })).toThrow(
+      "Choose one credential",
+    );
+    expect(() => resolveAdminConnection({ adminKey: "explicit-admin", bearerToken: "explicit-token" })).toThrow(
+      "Choose one credential",
+    );
+  });
+
+  it("passes an embedded CLI caller token through the shared runtime", async () => {
+    vi.stubEnv("HONUA_BEARER_TOKEN", undefined);
+    vi.stubEnv("HONUA_API_KEY", "environment-key");
+    const requests: Headers[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: unknown, init?: RequestInit) => {
+        requests.push(new Headers(init?.headers));
+        return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });
+      }),
+    );
+    expect(await run(["connection", "test", "connection-a", "--yes", "--json"], { bearerToken: bearer })).toBe(0);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.get("Authorization")).toBe(`Bearer ${bearer}`);
+    expect(requests[0]?.get("X-API-Key")).toBeNull();
+  });
+});

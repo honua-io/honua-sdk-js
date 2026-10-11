@@ -43,13 +43,13 @@ export async function logoutCommand(_parsed: ParsedArgs, _ctx: CommandContext): 
 }
 
 export async function whoamiCommand(_parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const conn = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, profile: ctx.profile });
+  const conn = resolveConnection(ctx);
   printLine(
     renderDetail(
       {
         baseUrl: conn.baseUrl,
         source: conn.source,
-        auth: conn.apiKey ? "api-key" : "anonymous",
+        auth: conn.bearerToken ? "bearer" : conn.apiKey ? "api-key" : "anonymous",
       },
       { title: "Current connection" },
     ),

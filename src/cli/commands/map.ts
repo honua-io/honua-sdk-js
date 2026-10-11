@@ -165,7 +165,7 @@ async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void>
   const format = getString(parsed, "format") ?? "png";
   const outPath = getString(parsed, "output");
 
-  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const client = createClient(connection);
   const result = await client.exportMap({
     serviceId: service,
@@ -229,7 +229,7 @@ export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const [z, x, y] = parts;
   const format = (getString(parsed, "format") ?? "png") as "png" | "jpg" | "jpeg" | "tif" | "tiff";
 
-  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const client = createClient(connection);
   // Esri tile addressing is level/row/col == z/y/x.
   const url = client.imageService(service).tileUrl(z, y, x, format);

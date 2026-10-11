@@ -106,7 +106,7 @@ export async function runCommandVerb<TInput, TOutput>(options: RunCommandVerbOpt
   if (options.confirm && !invocation.dryRun && !getBoolean(parsed, "yes")) {
     throw new ArgError(options.confirm);
   }
-  const runtime = createCommandRuntime({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, profile: ctx.profile });
+  const runtime = createCommandRuntime(ctx);
   const receipt = await runtime.execute(command, input, invocation);
 
   if (getBoolean(parsed, "json")) {
