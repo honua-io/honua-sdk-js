@@ -21,7 +21,7 @@
  * This is the same shape as the packed-SDK certification (#1531): assert
  * against the bytes about to be published, from the publish workflow.
  *
- * Two lanes:
+ * Three lanes:
  *
  * - `--sdk-source packed` (default): `npm pack` this tree and install that
  *   tarball beside the pinned registry MCP artifact. Runs pre-publish, so a
@@ -29,6 +29,10 @@
  * - `--sdk-source registry`: install both halves from the public registry.
  *   Answers "is the pair a customer can fetch today installable?", which is the
  *   question the scheduled pin lane exists to keep answering.
+ * - `--sdk-source registry --mcp-source packed`: pack the MCP candidate and
+ *   install it beside the exact public SDK. Gates MCP publication while the
+ *   coordinated SDK release may still be resealing; retry the same immutable
+ *   MCP tag after SDK publication if the public peer is not yet available.
  */
 
 import fs from "node:fs";
@@ -74,23 +78,30 @@ export function coInstallArgs(specifiers) {
 }
 
 export function parseArgs(argv) {
-  const options = { sdkSource: "packed" };
+  const options = { sdkSource: "packed", mcpSource: "registry" };
+  const seen = new Set();
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--sdk-source") {
+    if (arg === "--sdk-source" || arg === "--mcp-source") {
+      invariant(!seen.has(arg), `${arg} may only be supplied once`);
+      seen.add(arg);
       const value = argv[index + 1];
-      invariant(value === "packed" || value === "registry", "--sdk-source must be 'packed' or 'registry'");
-      options.sdkSource = value;
+      invariant(value === "packed" || value === "registry", `${arg} must be 'packed' or 'registry'`);
+      options[arg === "--sdk-source" ? "sdkSource" : "mcpSource"] = value;
       index += 1;
       continue;
     }
     invariant(false, `unrecognised argument ${arg}`);
   }
+  invariant(
+    options.mcpSource !== "packed" || options.sdkSource === "registry",
+    "packed MCP admission requires the registry SDK",
+  );
   return options;
 }
 
 function run(label, args, options = {}) {
-  const result = runNpmSync(args, {
+  const result = (options.runNpm ?? runNpmSync)(args, {
     cwd: options.cwd ?? PROJECT_ROOT,
     encoding: "utf8",
     env: options.env ?? process.env,
@@ -104,8 +115,10 @@ function run(label, args, options = {}) {
   return result.stdout ?? "";
 }
 
-function packSdk(destination) {
-  const output = run("npm pack", ["pack", "--json", "--ignore-scripts", "--pack-destination", destination, PROJECT_ROOT], {
+function packPackage(packageRoot, destination, options) {
+  const output = run("npm pack", ["pack", "--json", "--ignore-scripts", "--pack-destination", destination, packageRoot], {
+    ...options,
+    cwd: packageRoot,
     timeout: 300_000,
   });
   const packed = JSON.parse(output);
@@ -120,36 +133,68 @@ function installedVersion(consumerRoot, name) {
   return JSON.parse(fs.readFileSync(manifest, "utf8"));
 }
 
-async function main(argv) {
-  const { sdkSource } = parseArgs(argv);
-  const sdk = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
-  const { LOCAL_INSTALL_MCP_PACKAGE, LOCAL_INSTALL_MCP_PACKAGE_NAME, LOCAL_INSTALL_MCP_PACKAGE_VERSION } =
-    await import(path.join(PROJECT_ROOT, "dist/src/local-install.js"));
+/** Ignore caller npm configuration so a publication gate cannot inherit relaxed peers or a private registry. */
+export function publicResolverEnv(baseEnv, tempRoot) {
+  const env = Object.fromEntries(Object.entries(baseEnv).filter(([key]) => !key.toLowerCase().startsWith("npm_config_")));
+  const userConfig = path.join(tempRoot, "empty-user.npmrc");
+  const globalConfig = path.join(tempRoot, "empty-global.npmrc");
+  fs.writeFileSync(userConfig, "");
+  fs.writeFileSync(globalConfig, "");
+  return {
+    ...env,
+    npm_config_userconfig: userConfig,
+    npm_config_globalconfig: globalConfig,
+    npm_config_registry: "https://registry.npmjs.org",
+  };
+}
 
+export async function verifyPair(argv, { projectRoot = PROJECT_ROOT, runNpm = runNpmSync, env = process.env } = {}) {
+  const { sdkSource, mcpSource } = parseArgs(argv);
+  const sdk = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
+  invariant(sdk.name === "@honua/sdk-js", "SDK package identity is invalid");
+  let mcp;
+  if (mcpSource === "packed") {
+    mcp = JSON.parse(fs.readFileSync(path.join(projectRoot, "mcp/package.json"), "utf8"));
+    invariant(mcp.name === "@honua/mcp-server", "packed MCP package identity is invalid");
+  } else {
+    const pin = await import(path.join(projectRoot, "dist/src/local-install.js"));
+    mcp = { name: pin.LOCAL_INSTALL_MCP_PACKAGE_NAME, version: pin.LOCAL_INSTALL_MCP_PACKAGE_VERSION };
+  }
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-client-pair-"));
   const consumerRoot = path.join(tempRoot, "consumer");
   const packRoot = path.join(tempRoot, "pack");
   fs.mkdirSync(consumerRoot, { recursive: true });
   fs.mkdirSync(packRoot, { recursive: true });
   try {
+    const runOptions = { runNpm, env: publicResolverEnv(env, tempRoot) };
     fs.writeFileSync(
       path.join(consumerRoot, "package.json"),
       `${JSON.stringify({ name: "honua-client-pair-smoke", version: "0.0.0", private: true, type: "module" }, null, 2)}\n`,
     );
 
-    const sdkSpecifier = sdkSource === "packed" ? packSdk(packRoot) : `${sdk.name}@${sdk.version}`;
-    const args = coInstallArgs([sdkSpecifier, LOCAL_INSTALL_MCP_PACKAGE]);
-    run(`pinned client pair co-install (${sdkSource} SDK)`, args, { cwd: consumerRoot });
+    const sdkSpecifier = sdkSource === "packed" ? packPackage(projectRoot, packRoot, runOptions) : `${sdk.name}@${sdk.version}`;
+    const mcpSpecifier = mcpSource === "packed"
+      ? packPackage(path.join(projectRoot, "mcp"), packRoot, runOptions)
+      : `${mcp.name}@${mcp.version}`;
+    const args = coInstallArgs([sdkSpecifier, mcpSpecifier]);
+    const retryHint = mcpSource === "packed"
+      ? "; if the SDK is not yet published, retry the same MCP tag after SDK publication"
+      : "";
+    run(`pinned client pair co-install (${sdkSource} SDK, ${mcpSource} MCP)${retryHint}`, args, {
+      ...runOptions,
+      cwd: consumerRoot,
+    });
 
     const installedSdk = installedVersion(consumerRoot, sdk.name);
-    const installedMcp = installedVersion(consumerRoot, LOCAL_INSTALL_MCP_PACKAGE_NAME);
+    const installedMcp = installedVersion(consumerRoot, mcp.name);
+    invariant(installedSdk.name === sdk.name && installedMcp.name === mcp.name, "installed package name mismatch");
     invariant(
       installedSdk.version === sdk.version,
       `installed ${sdk.name}@${installedSdk.version} is not the ${sdk.version} this tree ships`,
     );
     invariant(
-      installedMcp.version === LOCAL_INSTALL_MCP_PACKAGE_VERSION,
-      `installed ${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${installedMcp.version} is not the pinned ${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`,
+      installedMcp.version === mcp.version,
+      `installed ${mcp.name}@${installedMcp.version} is not the expected ${mcp.version}`,
     );
     // npm resolved the tree, so the pair installs; re-deciding it against the
     // *installed* manifest's own peer range catches a future npm that resolves
@@ -157,14 +202,14 @@ async function main(argv) {
     verifyClientPairCoInstallable({
       sdkName: sdk.name,
       sdkVersion: installedSdk.version,
-      mcpName: LOCAL_INSTALL_MCP_PACKAGE_NAME,
+      mcpName: mcp.name,
       mcpVersion: installedMcp.version,
       peerRange: installedMcp.peerDependencies?.[sdk.name],
     });
 
     process.stdout.write(
-      `clientPair=ok sdkSource=${sdkSource} ${sdk.name}@${installedSdk.version} + ` +
-        `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${installedMcp.version} ` +
+      `clientPair=ok sdkSource=${sdkSource} mcpSource=${mcpSource} ${sdk.name}@${installedSdk.version} + ` +
+        `${mcp.name}@${installedMcp.version} ` +
         `peer="${installedMcp.peerDependencies?.[sdk.name]}" defaultPeerResolution=true relaxingFlags=none\n`,
     );
   } finally {
@@ -173,7 +218,7 @@ async function main(argv) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main(process.argv.slice(2)).catch((error) => {
+  verifyPair(process.argv.slice(2)).catch((error) => {
     process.stderr.write(
       `Pinned client pair co-install FAILED:\n  - ${error instanceof Error ? error.message : String(error)}\n`,
     );

@@ -114,6 +114,12 @@ jobs:
             exit 1
           fi
 
+      # The tag push can precede the coordinated SDK's strict reseal/publication.
+      # Refuse to promote an MCP whose public SDK peer is not installable yet.
+      # Retry this workflow on the same immutable MCP tag after SDK publication.
+      - name: Prove packed MCP installs with its published SDK peer
+        run: node ../scripts/verify-client-pair-install.mjs --sdk-source registry --mcp-source packed
+
       - name: Publish package
         run: |
           flags=""
