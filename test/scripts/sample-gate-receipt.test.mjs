@@ -19,6 +19,7 @@ import {
   captureGateSourceSnapshot,
   createGateReceipt,
   evidenceNeutralSourceDigest,
+  legacyPackedBuildContract,
   readCanonicalBoundedFile,
   requiredReceiptGates,
   validateGateReceipt,
@@ -966,6 +967,9 @@ test("packed receipt re-reads the final dist tree instead of trusting its invent
     await writePackedReport({ ...resolution, bundle: [resolution.bundle[0], resolution.bundle[0]] });
     await assert.rejects(createGateReceipt(packedReceiptOptions()), /does not exactly cover the final Vite bundle/);
 
+    await writePackedReport({ ...resolution, entrypoints: [] });
+    await assert.rejects(createGateReceipt(packedReceiptOptions()), /entrypoint set does not match/);
+
     await writePackedReport(resolution);
     const receipt = await createGateReceipt(packedReceiptOptions());
     await writeFile(bundlePath, "export const packed = false;\n");
@@ -1814,4 +1818,20 @@ test("canonical evidence root and sample ancestors cannot be external symlinks",
     await removeTemporaryRepository(repository);
     await rm(external, { recursive: true, force: true });
   }
+});
+
+test("frozen packed contracts are source and content bound independently of the current kit", async () => {
+  const bytes = await readFile("samples/contract/v2/consumer-fixtures/honua-sample-kit.legacy.v1.json");
+  const sourceRevision = "79127ec58e7397c5615eb4682a7314232e43048f";
+  const historical = legacyPackedBuildContract(bytes, sourceRevision, "service-explorer");
+  const current = JSON.parse(await readFile("examples/_kit/manifest.v1.json", "utf8"))
+    .samples.find((sample) => sample.id === "service-explorer");
+  assert.equal(historical.sdkEntrypoints.includes("@honua/sdk-js/runtime"), false);
+  assert.equal(current.sdkEntrypoints.includes("@honua/sdk-js/runtime"), true);
+  assert.throws(() => legacyPackedBuildContract(bytes, "0".repeat(40), "service-explorer"), /pinned historical/);
+  assert.throws(
+    () => legacyPackedBuildContract(Buffer.concat([bytes, Buffer.from(" ")]), sourceRevision, "service-explorer"),
+    /snapshot digest mismatch/,
+  );
+  assert.throws(() => legacyPackedBuildContract(bytes, sourceRevision, "unknown-sample"), /no historical/);
 });

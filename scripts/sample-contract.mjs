@@ -41,6 +41,7 @@ import {
   requiredReceiptGates,
   validateGateReceipt,
   validateGateReceiptStructure,
+  validateLegacyGateReceipt,
   validateQualificationReceiptSet,
 } from "./sample-gate-receipt.mjs";
 
@@ -5251,7 +5252,7 @@ export async function validateLegacyVisualReceiptArchive(archive, handoff) {
   const materializedRoot = await materializeLegacyVisualArtifacts(expectedFiles, blobs);
   try {
     for (const { claim, receipt, producerBytes } of records) {
-      await validateGateReceipt(receipt, {
+      await validateLegacyGateReceipt(receipt, {
         sampleId: claim.sampleId,
         gate: claim.gate,
         sourceRevision: claim.sourceRevision,
