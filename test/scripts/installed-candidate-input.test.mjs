@@ -127,7 +127,10 @@ test("workflow preserves the scheduled legacy regression and gates immutable sel
   const denominator = steps.findIndex((step) => step.name === "Validate the complete SDK package denominator before execution");
   const firstMap = steps.findIndex((step) => step.id === "quickstart");
   assert.ok(admission < verifier && verifier < denominator && denominator < firstMap);
-  assert.match(steps[verifier].run, /pip install -r \.tmp\/honua-release-input\/tools\/requirements-nightly\.txt/);
+  assert.match(steps[verifier].run, /verify-candidate-python-requirements\.mjs \.tmp\/honua-release-input\/tools\/requirements-nightly\.txt/);
+  assert.match(steps[verifier].run, /pip install --require-hashes --only-binary=:all: -r config\/installed-candidate-python-requirements\.txt/);
+  assert.match(steps[verifier].run, /python3 -m venv "\$verifier_env"/);
+  assert.match(steps[verifier].run, /"\$verifier_env\/bin\/python" \.tmp\/honua-release-input\/tools\/verify_client_artifacts/);
   assert.match(steps[verifier].run, /verify_client_artifacts\.py[\s\S]*--ecosystem npm/);
   assert.ok(steps.findIndex((step) => step.name === "Remove receipts retained from previous candidates") < admission);
 });

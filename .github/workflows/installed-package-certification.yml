@@ -77,6 +77,10 @@ jobs:
             echo "HONUA_RELEASE_MANIFEST_SHA256=$MANIFEST_SHA256"
             echo "HONUA_RELEASE_MATRIX_SHA256=$MATRIX_SHA256"
           } >> "$GITHUB_ENV"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20.19.0
+          registry-url: https://registry.npmjs.org
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         if: inputs.candidate_mode == 'release-snapshot'
         with:
@@ -87,15 +91,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 -m pip install -r .tmp/honua-release-input/tools/requirements-nightly.txt
+          node scripts/verify-candidate-python-requirements.mjs .tmp/honua-release-input/tools/requirements-nightly.txt
+          verifier_env="$(mktemp -d "$RUNNER_TEMP/honua-release-verifier.XXXXXX")"
+          python3 -m venv "$verifier_env"
+          "$verifier_env/bin/python" -m pip install --require-hashes --only-binary=:all: -r config/installed-candidate-python-requirements.txt
           mkdir -p test-results
-          python3 .tmp/honua-release-input/tools/verify_client_artifacts.py \
+          "$verifier_env/bin/python" .tmp/honua-release-input/tools/verify_client_artifacts.py \
             --manifest .tmp/honua-release-input/platform-manifest.yaml --ecosystem npm \
             | tee test-results/release-npm-artifact-verification.txt
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 20.19.0
-          registry-url: https://registry.npmjs.org
       - name: Install locked test tooling
         run: npm ci
       - name: Validate the complete SDK package denominator before execution
