@@ -17,6 +17,40 @@ count, MapLibre module origins, and actual byte measurements. The existing
 budget counts Rollup/Vite chunks; worker assets stay in the sample's final-byte
 inventory and are not silently added to or removed from that budget's scope.
 
+`npm run test:installed-quickstart -- --measure-execution` additionally runs the
+installed production bundle with the canonical fixture build environment in
+three cold Chromium contexts. The ordinary public-endpoint byte measurement
+remains the top-level verdict; the separately built fixture graph and its bytes
+are recorded under `execution.bundle`. It disables the network cache, blocks external HTTP
+requests, applies a fixed 4× CPU throttle, and requires the first usable map frame
+before recording costs. The receipt records page main-thread script CPU time separately from
+parse/compile trace spans, including browser, CPU, operating system, Node, source
+input hashes and whether the checkout was dirty. Parse/compile spans are merged
+per thread to avoid nested-event double counting; they are elapsed spans, while
+script duration uses Chromium thread CPU ticks and excludes worker script CPU.
+These costs are measurements,
+with status `measured`; no execution-time pass is claimed without an independently
+established outcome budget. Existing chunk and peer-identity limits still apply.
+The module inventory also reports the largest rendered SDK modules to guide
+actual graph reductions.
+
+The default registry lane measures the declared legacy `0.1.9-beta.0` candidate
+in the certification config; it is not the current `0.1.14` distribution baseline.
+Compare current-source optimizations using packed-development runs under one lock.
+
+`--local-tarball` packs the current prepared SDK build, verifies archive integrity,
+and really installs it under default peer resolution. It refuses stale or missing
+prepared-build provenance; run `npm run build`, `npm run build:browser`, and
+`npm run prepare:test-sdk:adopt` first. Its receipt explicitly says
+`inputMode: "packed-development"` and binds the source SHA, dirty status, source
+input digest, dist digest and tarball integrity. This is development evidence,
+not a registry or candidate-certification result.
+
+Each run saves its consumer lock beside the receipt as `*.consumer-lock.json`.
+Pass `--consumer-lock <path>` to reuse that resolution for before/after comparisons;
+the runner fails if the installed renderer version or integrity changes. The SDK
+input can change while the exact MapLibre peer remains fixed.
+
 `npm run test:installed-quickstart -- --prove-regression` additionally removes
 only the runtime-peer alias from the loaded configuration and requires the
 historical failure: two MapLibre runtime modules and an over-budget build. The

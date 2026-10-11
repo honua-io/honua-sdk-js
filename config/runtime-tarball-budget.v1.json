@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "baseline": {
+    "package": "@honua/sdk-js@0.1.14",
+    "sourceRevision": "984425f9d88b3c699cbd4766538ba311b48790aa",
+    "integrity": "sha512-4AZPZ/505HVTnk7hdEK8820BevUf6qtAHPK2DFASmdsCrYjJxELUMIZgoy4KxkqOwh/440zf8tdirSoLsM9jfg==",
+    "compressedBytes": 12581417,
+    "unpackedBytes": 39118106,
+    "fileCount": 2189
+  },
+  "ceiling": {
+    "compressedBytes": 7000000,
+    "unpackedBytes": 24000000
+  },
+  "metadata": [
+    "package.json",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "dist/config/raster-source-registry.v1.json",
+    "scripts/run-legacy-migration-cli.mjs",
+    "config/public-surface.json",
+    "config/support-manifest.v1.json",
+    "config/support-manifest.schema.json",
+    "config/root-surface.json",
+    "docs/root-surface-migration.md",
+    "docs/migration-tool-transition.md",
+    "schemas/diagnostic-bundle.v1.json",
+    "schemas/diagnostic-bundle.v1.provenance.json",
+    "schemas/projjson-v0.7.schema.json",
+    "schemas/projjson-v0.7.provenance.json",
+    "schemas/honua-map-package.v1.json",
+    "support/projections/sdk-support.v1.json",
+    "support/projections/connect-discovery-inventory.v1.json",
+    "support/contract/v1/schemas/support-projection.schema.json"
+  ]
+}

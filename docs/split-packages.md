@@ -12,6 +12,34 @@ an opt-in build target that produces five focused npm packages from the
 same source tree, for downstream packagers and organizations that only want a
 subset of the surface.
 
+## Runtime tarball ownership and limits
+
+The main SDK tarball ships compiled runtime modules and declarations, the two
+browser bundles, licenses, package metadata, the raster registry, supported-surface
+metadata, public contract schemas, and migration compatibility guidance. Migration
+implementation ships in `@honua/honua-migrate`; the legacy SDK subpath and command
+forward to that package. Sample catalogs and consumer evidence
+stay in the repository and independently published [sample bundles](./sample-bundles.md).
+Gallery consumers resolve their handoff projections from commit-pinned source
+URLs; sample archives carry their own content hashes and publication attestations.
+Browser source maps remain build artifacts and are excluded from the runtime package.
+
+Run `npm run build`, `npm run build:browser`, then
+`npm run verify:runtime-tarball` to audit the real packed artifact. CI and publishing
+run the same gate. `test-results/runtime-tarball-budget.json` records packed and
+unpacked bytes, file ownership, tarball integrity, package version and Node/npm
+versions. CI retains this receipt as the `runtime-tarball-budget` artifact.
+The gate rejects unexpected content and missing runtime, license or
+metadata files as well as size regressions.
+
+The audited npm `@honua/sdk-js@0.1.14` baseline is 12,581,417 packed bytes,
+39,118,106 unpacked bytes and 2,189 files. Its sample material alone occupies
+11,272,832 unpacked bytes. The reduced ceilings are 7,000,000 packed and 24,000,000
+unpacked bytes, declared with the immutable baseline identity in
+`config/runtime-tarball-budget.v1.json`. Bundle execution costs are measured
+separately by the [First Map installed-consumer gate](./installed-first-map-budget.md);
+tarball reduction does not imply a faster endpoint-to-map journey.
+
 ## Packages produced by the split build
 
 | Package | Subpath equivalent | What it contains |

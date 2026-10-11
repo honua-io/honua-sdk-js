@@ -516,6 +516,16 @@ jobs:
           node scripts/sample-contract.mjs artifacts
           npm run prepare:test-sdk:adopt --silent
           npm run verify:publish-surface
+          npm run test:runtime-tarball
+          npm run verify:runtime-tarball
+
+      - name: Upload runtime tarball budget receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runtime-tarball-budget
+          path: test-results/runtime-tarball-budget.json
+          if-no-files-found: ignore
 
       - name: Installed packed-SDK smoke
         run: npm run verify:packed-sdk
