@@ -10,7 +10,7 @@ The optimized source is `97c6bb6e60c32bdf61edca6e5b77c72c7d2e083a`, measured fro
 
 All 121 non-SDK dependency identities remain fixed against the historical lock, including MapLibre 6.13.0 and its integrity. Runtime, worker and stylesheet resolve inside the isolated consumer; the bundle contains one MapLibre runtime.
 
-| Measurement | Actual bytes | Ceiling bytes | Headroom bytes |
+| Measurement | Actual bytes | Ceiling at measurement | Headroom bytes |
 | --- | ---: | ---: | ---: |
 | First Map emitted JavaScript | 1,969,286 | 1,990,000 | 20,714 |
 | First Map emitted JavaScript gzip | 523,861 | 524,000 | 139 |
@@ -21,6 +21,14 @@ Renderer protocol loading now preserves tree shaking, basemap private state is c
 The same receipt preserves a **failed local CPU-profile check**: this WSL Intel Core Ultra 7 host has no `ubuntu24` runner-image identity and is not the calibrated GitHub Actions AMD EPYC runner. Its three cold-context, 4x-throttled measurements have medians of 465.364 ms script CPU and 161.633 ms parse/compile, above the calibrated limits of 175/110 ms. The receipt's overall failed status must not be presented as a CPU pass. The PR's calibrated CI execution lane supplies that separate required verdict; the local emitted-byte and installed-peer checks pass.
 
 The [packed starter receipt](pr2010-create-app-sdk-pair.json) records both vanilla and React templates typechecking and building under default peer resolution against the development tarball and published SDK 0.1.14. The older SDK executes the actionable upgrade-message path. Both the deterministic basemap browser test and the opt-in live OpenFreeMap availability test passed on this implementation.
+
+## Calibrated CI and current renderer
+
+[CI run 38156018856](https://github.com/honua-io/honua-sdk-js/actions/runs/38156018856), artifact `11708705909`, measured the same clean source on the calibrated Linux/Chromium 145 profile. Its [raw receipt](ci-97c6/installed-quickstart-budget.json) and [consumer lock](ci-97c6/installed-quickstart-budget.consumer-lock.json) preserve the fresh registry resolution. The only changed non-SDK dependency is MapLibre 6.14.0, replacing 6.13.0.
+
+The emitted JavaScript measures **1,968,771 raw / 524,289 gzip bytes**. CPU passes at **93.110 ms script / 54.858 ms parse-compile**, within the unchanged 175/110 ms limits. The receipt correctly retains its overall failed status because gzip exceeded the then-current 524,000 ceiling by 289 bytes.
+
+With the bundle optimized and the renderer change isolated, the approved gzip ceiling is now **525,000 bytes**, an explicit 1,000-byte adjustment leaving 711 bytes of headroom for this measurement. The 1,990,000 raw-byte limit, CPU limits, installed-peer identity, and measured chunk scope are unchanged. Subsequent CI must enforce the updated canonical budget; this historical receipt has not been rewritten to claim a pass.
 
 ## Historical failed measurement
 
