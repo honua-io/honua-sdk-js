@@ -70,6 +70,12 @@ glyph template must agree with any operational glyph template already on the map
 otherwise the binding reports an actionable error and preserves the current base.
 Image, GeoJSON, video, glyph, sprite and tile URLs resolve relative to their style.
 
+Custom sprite expressions preserve string/image `coalesce` fallback behavior and lexical
+`let`/`var` bindings. A `case`, `match`, `step`, or `interpolate` branch directly inside
+`coalesce` must use an explicit `image` expression; otherwise activation reports an
+unsupported expression without replacing the current basemap. Variable expansion is
+limited to 10,000 visited nodes and 64 levels to keep pathological styles bounded.
+
 Online views keep operational source/layer objects, filters, feature state,
 selection, camera, imported bindings and popups during theme changes. Asset
 failures leave local operational rendering and controls available and show a

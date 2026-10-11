@@ -344,7 +344,21 @@ function spriteImage(value: unknown, prefix: string, resolvedOutput = true): unk
       const rewritten = value.map((part, index) =>
         outputs.includes(index) ? spriteImage(part, prefix, resolvedOutput && value[0] !== "coalesce") : part,
       );
-      return value[0] === "coalesce" && resolvedOutput ? ["image", ["to-string", rewritten]] : rewritten;
+      if (value[0] === "coalesce") {
+        if (
+          value
+            .slice(1)
+            .some((part) => Array.isArray(part) && part[0] !== "coalesce" && imageOutputIndices(part).length)
+        )
+          throw new Error(
+            "Basemap coalesce branches with case, match, step or interpolate need an explicit image expression.",
+          );
+        // Keep each branch's runtime Value type. Otherwise a leading image or
+        // string changes how later branches are coerced before fallback selection.
+        rewritten.splice(1, 0, ["get", "", ["literal", {}]]);
+        return resolvedOutput ? ["image", ["to-string", rewritten]] : rewritten;
+      }
+      return rewritten;
     }
   }
   return spriteName(value, prefix, true);
