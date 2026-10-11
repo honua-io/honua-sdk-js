@@ -67,6 +67,8 @@ const crsSchema = {
   definitions: officialSchema.definitions,
 };
 const ajv = new Ajv({
+  // Share referenced validators instead of repeating their code at each use.
+  inlineRefs: false,
   allErrors: true,
   strict: false,
   code: { esm: true, optimize: true, source: true },
