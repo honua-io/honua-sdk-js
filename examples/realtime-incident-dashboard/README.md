@@ -125,3 +125,11 @@ which superseded
 other error payload, timeout, and response that does not match the protocol is
 never a skip; they remain recorded failures. The taxonomy is documented in
 [`docs/benchmark-methodology.md`](../../docs/benchmark-methodology.md).
+
+### Keyboard focus during live updates
+
+Background updates refresh the selected incident's popup in place without moving
+keyboard focus. A dismissed popup stays closed until selection changes. If a
+focused editing control becomes unavailable, focus moves to the status message
+explaining why editing paused. Recovery leaves focus where the user put it;
+Tab from the message reaches the editing controls once they are available again.
