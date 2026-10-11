@@ -41,6 +41,21 @@ afterEach(() => {
 });
 
 describe("CLI caller bearer identity", () => {
+  it.each(["synthetic\nprivate-token", "synthetic\rprivate-token", "synthetic\u0100private-token", "   "])(
+    "refuses malformed bearer credentials without leaking or falling back",
+    async (malformed) => {
+      vi.stubEnv("HONUA_BEARER_TOKEN", malformed);
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      const before = readFileSync(configPath(), "utf8");
+      expect(await run(["admin", "api", "getConnections", "--json"])).toBe(2);
+      expect(output.join("")).toContain("Bearer token must be a single printable ASCII value.");
+      if (malformed.trim()) expect(output.join("")).not.toContain("private-token");
+      expect(fetch).not.toHaveBeenCalled();
+      expect(readFileSync(configPath(), "utf8")).toBe(before);
+    },
+  );
+
   it.each([
     ["shared command", ["connection", "test", "00000000-0000-4000-8000-000000000001", "--yes", "--json"]],
     ["generated Admin command", ["admin", "api", "getConnections", "--json"]],

@@ -169,9 +169,14 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
 
 function credentialPair(apiKey: string | undefined, bearerToken: string | undefined) {
   const key = apiKey?.trim() ? apiKey : undefined;
-  const token = bearerToken?.trim() ? bearerToken : undefined;
+  const token = bearerToken?.length ? bearerToken : undefined;
   if (key && token) {
     throw new Error("Choose one credential: an API key or a bearer token, not both.");
+  }
+  // Headers reports invalid values verbatim. Reject them before construction
+  // so command diagnostics cannot expose the caller credential.
+  if (token && /[^\x21-\x7e]/.test(token)) {
+    throw new Error("Bearer token must be a single printable ASCII value.");
   }
   return key || token ? { apiKey: key, bearerToken: token } : undefined;
 }
