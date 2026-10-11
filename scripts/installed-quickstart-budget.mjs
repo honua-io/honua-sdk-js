@@ -16,6 +16,8 @@ const root = path.resolve(import.meta.dirname, "..");
 const sourceSha = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim();
 const sourceDirty = spawnSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).stdout.trim().length > 0;
 const localTarball = process.argv.includes("--local-tarball");
+const baselineDefault = process.argv.includes("--baseline-default");
+assert.ok(!baselineDefault || localTarball, "baseline minifier override is only available for packed-development comparisons");
 const consumerLockIndex = process.argv.indexOf("--consumer-lock");
 if (consumerLockIndex >= 0) assert.ok(process.argv[consumerLockIndex + 1] && !process.argv[consumerLockIndex + 1].startsWith("--"), "--consumer-lock requires a path");
 const previousLockBytes = consumerLockIndex < 0 ? undefined : await readFile(path.resolve(root, process.argv[consumerLockIndex + 1]));
@@ -87,7 +89,9 @@ try {
     const moduleIds = new Set();
     const renderedModules = new Map();
     let failure;
-    const moduleProof = () => ({ name: "installed-first-map-module-proof", generateBundle(_options, bundle) {
+    let effectiveMinifier;
+    const moduleProof = () => ({ name: "installed-first-map-module-proof",
+      configResolved(config) { effectiveMinifier ??= config.build.minify; }, generateBundle(_options, bundle) {
       for (const id of this.getModuleIds()) moduleIds.add(normalizePath(id));
       for (const chunk of Object.values(bundle).filter((entry) => entry.type === "chunk")) {
         for (const [id, module] of Object.entries(chunk.modules)) {
@@ -95,6 +99,8 @@ try {
         }
       }
     } });
+    const buildOptions = { ...loaded.config.build };
+    if (baselineDefault) { delete buildOptions.minify; delete buildOptions.terserOptions; }
     try {
       await build({ ...loaded.config, configFile: false, logLevel: "warn",
         define: { ...loaded.config.define, ...(fixtureBuild ? fixtureDefines : {}) },
@@ -104,7 +110,7 @@ try {
           .filter((alias) => !removePeerSubpaths || !(alias.find instanceof RegExp && alias.find.test("maplibre-gl/dist/maplibre-gl-worker.mjs"))) },
         plugins: [...loaded.config.plugins, moduleProof()],
         worker: { ...loaded.config.worker, plugins: () => [moduleProof()] },
-        build: { ...loaded.config.build, outDir, emptyOutDir: true },
+        build: { ...buildOptions, outDir, emptyOutDir: true },
       });
     } catch (error) { failure = error.message; }
     const resolution = JSON.parse(await readFile(path.join(outDir, "honua-sample-sdk-resolution.json"), "utf8"));
@@ -122,7 +128,7 @@ try {
     assert.ok(sdkModules.length > 0, "bundle must execute installed SDK modules");
     assert.ok(sdkModules.every((id) => id.startsWith(normalizePath(process.env.HONUA_SAMPLE_SDK_DIR) + "/")), "SDK modules must belong to the isolated install");
     assert.ok(![...moduleIds].some((id) => id.startsWith(normalizePath(root) + "/src/")), "repository SDK source must not enter the bundle");
-    return { buildStatus: failure ? "failed" : "passed", ...(failure ? { diagnostic: failure } : {}),
+    return { minifier: effectiveMinifier, buildStatus: failure ? "failed" : "passed", ...(failure ? { diagnostic: failure } : {}),
       measurement: { javascriptBytes, javascriptGzipBytes },
       maplibreModules: [...moduleIds].filter((id) => /maplibre-gl\/dist\/maplibre-gl\.(mjs|js)$/.test(id))
         .map((id) => id.replace(normalizePath(work), "$CONSUMER").replace(normalizePath(root), "$REPOSITORY")),
@@ -170,7 +176,7 @@ try {
     inputDigests: Object.fromEntries(await Promise.all(["package-lock.json", "scripts/installed-quickstart-budget.mjs",
       "scripts/lib/first-map-execution.mjs", "examples/maplibre-quickstart/mock-server.mjs", "examples/maplibre-quickstart/vite.config.ts"]
       .map(async (file) => [file, sha256(await readFile(path.join(root, file)))]))),
-    budget, buildMode: "default public endpoint", measurementScope: "emitted JavaScript chunks, as defined by the canonical First Map budget",
+    budget, minifier: corrected.minifier, minifierSelection: baselineDefault ? "original-default" : "canonical-config", buildMode: "default public endpoint", measurementScope: "emitted JavaScript chunks, as defined by the canonical First Map budget",
     node: process.version, ...(execution ? { execution } : {}), status: execution?.status === "failed" ? "failed" : corrected.status, ...(baseline ? { baseline, runtimeOnly } : {}), corrected };
   await mkdir(path.dirname(output), { recursive: true });
   const lockOutput = output.endsWith(".json") ? output.slice(0, -5) + ".consumer-lock.json" : output + ".consumer-lock.json";

@@ -296,8 +296,9 @@ test("the generated public surface preserves package export parity", () => {
   for (const publishedPath of [
     "config/support-manifest.v1.json",
     "config/support-manifest.schema.json",
-    "support/projections",
-    "support/contract/v1/schemas",
+    "support/projections/sdk-support.v1.json",
+    "support/projections/connect-discovery-inventory.v1.json",
+    "support/contract/v1/schemas/support-projection.schema.json",
   ]) {
     assert.ok(packageJson.files.includes(publishedPath), `package.json must publish ${publishedPath}`);
   }
