@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -96,6 +96,85 @@ describe("local installer file and project safety", () => {
     const recreated = readFileSync(path.join(directory, ".env"), "utf8").match(/^HONUA_COMPOSE_PROJECT=(.+)$/m)?.[1];
     expect(original).toMatch(/^honua-local-[a-f0-9]{24}$/);
     expect(recreated).not.toBe(original);
+  });
+
+  it.each([
+    "foreign",
+    "missing",
+    "mixed",
+    "ambiguous",
+    "volumes-only",
+    "volume-probe-failure",
+    "container-probe-failure",
+    "ambiguous-volume-output",
+  ])("refuses copied persisted project identity with %s ownership before changing files", async (scenario) => {
+    const originalDirectory = temporaryDirectory();
+    await expect(installHonuaLocal({ directory: originalDirectory }, { run: failAtUp })).rejects.toThrow();
+    const directory = temporaryDirectory();
+    for (const file of readdirSync(originalDirectory)) {
+      copyFileSync(path.join(originalDirectory, file), path.join(directory, file));
+    }
+    chmodSync(path.join(directory, ".env"), 0o600);
+    const before = Object.fromEntries(
+      readdirSync(directory).map((file) => [file, readFileSync(path.join(directory, file), "utf8")]),
+    );
+    const project = before[".env"].match(/^HONUA_COMPOSE_PROJECT=(.+)$/m)?.[1];
+    const rows: Record<string, string> = {
+      foreign: `container-a\t${originalDirectory}\n`,
+      missing: "container-a\t\n",
+      mixed: `container-a\t${directory}\ncontainer-b\t\n`,
+      ambiguous: `container-a\t${directory}\tunexpected\n`,
+    };
+    const run = vi.fn(async (command: string, args: readonly string[]) => {
+      if (args[0] === "ps")
+        return {
+          exitCode: scenario === "container-probe-failure" ? 1 : 0,
+          stdout: rows[scenario] ?? "",
+          stderr: "private daemon detail",
+        };
+      if (args[0] === "volume")
+        return {
+          exitCode: scenario === "volume-probe-failure" ? 1 : 0,
+          stdout:
+            scenario === "volume-probe-failure"
+              ? ""
+              : scenario === "ambiguous-volume-output"
+                ? " \n"
+                : "orphaned-volume\n",
+          stderr: "private daemon detail",
+        };
+      return failAtUp(command, args);
+    });
+    await expect(installHonuaLocal({ directory }, { run })).rejects.toThrow(
+      /ownership could not be verified|another directory or could not be verified/,
+    );
+    expect(run).toHaveBeenCalledWith(
+      "docker",
+      expect.arrayContaining([`label=com.docker.compose.project=${project}`]),
+      process.cwd(),
+    );
+    expect(run.mock.calls.some(([, args]) => args.includes("up"))).toBe(false);
+    expect(
+      Object.fromEntries(
+        readdirSync(directory).map((file) => [file, readFileSync(path.join(directory, file), "utf8")]),
+      ),
+    ).toEqual(before);
+  });
+
+  it("reuses a persisted generated identity when all containers belong to the same directory", async () => {
+    const directory = temporaryDirectory();
+    await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow();
+    const original = readFileSync(path.join(directory, ".env"), "utf8");
+    const project = original.match(/^HONUA_COMPOSE_PROJECT=(.+)$/m)?.[1];
+    const run = vi.fn(async (command: string, args: readonly string[]) =>
+      args[0] === "ps"
+        ? { exitCode: 0, stdout: `container-a\t${directory}\ncontainer-b\t${directory}\n`, stderr: "" }
+        : failAtUp(command, args),
+    );
+    await expect(installHonuaLocal({ directory }, { run })).rejects.toThrow(/deliberate stop/);
+    expect(run.mock.calls.some(([, args]) => args[0] === "volume")).toBe(false);
+    expect(run).toHaveBeenCalledWith("docker", expect.arrayContaining(["--project-name", project, "up"]), directory);
+    expect(readFileSync(path.join(directory, ".env"), "utf8")).toBe(original);
   });
 
   it("retains legacy volumes only when containers belong to this directory", async () => {
