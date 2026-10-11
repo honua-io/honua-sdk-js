@@ -247,6 +247,20 @@ export class HonuaOnlineBasemapBinding {
   }
 
   #install(prepared: PreparedBasemap): void {
+    // Another SDK module instance or host may already own a generated ID.
+    // Check before mutation so rollback can never remove foreign resources.
+    for (const id of Object.keys(prepared.definition.sources)) {
+      if (this.#map.getSource(id)) throw new Error(`Basemap source namespace collides with an existing source: ${id}.`);
+    }
+    for (const layer of prepared.definition.layers) {
+      if (this.#map.getLayer(layer.id))
+        throw new Error(`Basemap layer namespace collides with an existing layer: ${layer.id}.`);
+    }
+    const installedSprites = new Set(this.#map.getSprite().map((sprite) => sprite.id));
+    for (const sprite of prepared.sprites) {
+      if (installedSprites.has(sprite.id))
+        throw new Error(`Basemap sprite namespace collides with an existing sprite: ${sprite.id}.`);
+    }
     const previousGlyphs = object(this.#map.getStyle?.())?.glyphs;
     try {
       this.#map.setGlyphs(prepared.glyphs ?? this.#hostGlyphs ?? null);

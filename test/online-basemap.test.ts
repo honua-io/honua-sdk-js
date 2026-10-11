@@ -213,6 +213,43 @@ describe("explicit online basemap policy", () => {
     binding.dispose();
   });
 
+  it.each(["source", "layer", "sprite"])(
+    "preserves foreign %s resources when another owner occupies a generated namespace",
+    async (collision) => {
+      const map = mapFixture();
+      const foreign = { owner: "another SDK module instance" };
+      let namespace = "";
+      const getSource = map.getSource;
+      map.getSource = (id: string) => {
+        if (id.startsWith("honua-online-basemap-")) {
+          namespace = id.slice(0, id.lastIndexOf("-") + 1);
+          if (collision === "source") return foreign;
+        }
+        return getSource(id);
+      };
+      const getLayer = map.getLayer;
+      map.getLayer = (id: string) =>
+        collision === "layer" && id.startsWith("honua-online-basemap-") ? foreign : getLayer(id);
+      const getSprite = map.getSprite;
+      map.getSprite = () =>
+        collision === "sprite" && namespace
+          ? [{ id: `${namespace}default`, url: "https://host.example/sprite" }]
+          : getSprite();
+      const removals = [vi.spyOn(map, "removeSource"), vi.spyOn(map, "removeLayer"), vi.spyOn(map, "removeSprite")];
+      const before = { sources: [...map.sources], layers: [...map.layers] };
+      const onError = vi.fn();
+      const binding = new HonuaOnlineBasemapBinding(map, { fetch: vi.fn(async () => styleResponse()), onError });
+      expect(await binding.activate({ styleUrl: "https://fixtures.example/style.json" })).toBe(false);
+      expect({ sources: [...map.sources], layers: map.layers }).toEqual(before);
+      expect(map.setGlyphs).not.toHaveBeenCalled();
+      expect(map.addSprite).not.toHaveBeenCalled();
+      expect(map.addLayer).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.stringContaining("namespace collides"));
+      binding.dispose();
+      for (const remove of removals) expect(remove).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["sprite", "layer"])("rolls back a renderer that throws during %s installation", async (failure) => {
     const map = mapFixture();
     const onError = vi.fn();
