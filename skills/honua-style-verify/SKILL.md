@@ -112,18 +112,25 @@ refuses any other value.
 
 ## Verify the rendered artifact (stage `artifact`)
 
-The journey's final gate is deliberately dumb and therefore honest: HTTP 200
-from each share URL captured on `honua_studio_propose_publication`
-(`mcp/release/zero-to-map/journey.v1.json`, stages `console` and `artifact`).
+The bounded release gate follows an actual separate-principal approval of the
+saved 2D map. Follow `honua-map-composition` for the proposer/human boundary.
+An immediate admin publication is a different supported policy outcome and
+cannot be recorded as evidence of human approval.
 
-- An admin publish returns `shareUrl` in the same session. Do not wait for a
-  second principal, and do not treat a missing `shareUrl` on an admin result as
-  success.
-- A 200 proves reachability. It does not prove the map looks right. For visual
-  confirmation, load the returned map package in a MapLibre runtime and
-  inspect it, or hand the URL to the human.
-- A 401/403 usually means the service access policy was never set — see
+- Retain the durable proposal, terminal approval, and server-issued identity
+  joins to the saved item, immutable version, and content hash.
+- Read the authorized final map and compare those identities **and its actual
+  body** with the saved content. HTTP 200 alone proves only reachability.
+- Load the resulting map package in the MapLibre runtime to check the visible
+  layers, intended style, view, and basic controls. Preserve the published-layer
+  PNG proof separately; a successful package read does not prove rendered pixels.
+- A 401/403 is a failed access check to investigate through the intended service
+  policy, not a reason to broaden permissions automatically. See
   `honua-publish-layers`.
+
+The legacy repository driver checks immediate map/app/dashboard share URLs.
+Those receipts remain broader engineering evidence and do not satisfy this
+release's separate-human approval gate.
 
 ## Verify
 

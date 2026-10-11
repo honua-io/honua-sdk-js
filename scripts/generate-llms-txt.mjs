@@ -276,6 +276,11 @@ const SECTIONS = [
         description: "Agent skills for Claude Code / compatible agents and how to install them.",
       },
       {
+        path: "docs/zero-to-map-release-journey.md",
+        description:
+          "Bounded 2026.1 install, geometry.buffer, saved 2D map, separate human approval, and exact candidate receipt boundaries.",
+      },
+      {
         path: "docs/coding-agent-evals.md",
         description: "Coding-agent evaluation harness: objective first-try correctness scoring of generated SDK code.",
       },
