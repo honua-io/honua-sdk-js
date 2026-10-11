@@ -253,3 +253,7 @@ This machine runs many agents concurrently (**Codex + Claude**, often via agentf
 source commit of the npm package and refuses `honua-sdk-js` when it is missing or invalid. Any PR
 that bumps a contract version (for example `connect-parity`) or a schema version (for example the
 diagnostic bundle `schemaVersion` in `src/diagnostics/schema.ts`) must update this file in the same PR.
+
+## SDK capability baseline
+
+`release/sdk-capability-baseline.json` (`honua.sdk-capability-baseline/v1`, defined by honua-release `schemas/sdk-capability-baseline.v1.schema.json` and `docs/SDK-SERVER-BASELINE-RULE.md`) declares the honua-server capabilities this repository requires and the `minimumServerVersion` derived from them. The honua-release nightly resolver reads it at the source revision of every published npm package (`@honua/sdk-js` and its companion `@honua/mcp-server`), and refuses the component when it is missing, invalid, or when those revisions declare different `minimumServerVersion` values. It takes effect only after a release-please publication contains it. Every required capability must be a key in honua-server `docs/gis/data/capability-keys.v1.json`, and `capabilities` must hold exactly one introduction entry per required capability. Add or remove a required capability in the same PR that starts or stops depending on it.
