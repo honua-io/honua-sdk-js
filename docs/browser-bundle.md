@@ -24,7 +24,10 @@ consumers.
 | `dist/browser/honua-sdk.min.js` | minified IIFE (`globalName: HonuaSDK`) | `<script>` tags, unpkg, jsDelivr |
 | `dist/browser/honua-sdk.esm.js` | minified ESM | `<script type="module">`, esm.sh, native CDN imports |
 
-Both ship with `.map` sourcemaps. The bundle targets `es2020`.
+The bundle targets `es2020`. External `.map` sourcemaps are generated as
+separate debug build artifacts; they are excluded from the runtime npm package
+and its CDN file inventory. The browser integrity manifest lists the two shipped
+JavaScript bundles.
 
 The `package.json` `browser`, `unpkg`, and `jsdelivr` fields point at the IIFE
 build, and the `./browser` subpath export points at the ESM build, so ESM CDNs
