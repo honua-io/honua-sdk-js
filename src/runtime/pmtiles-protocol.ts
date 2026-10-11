@@ -58,7 +58,8 @@ export interface EnsurePmtilesProtocolDeps {
 export const PMTILES_PROTOCOL_SCHEME = "pmtiles";
 
 async function loadPmtilesModule(): Promise<PmtilesProtocolModuleLike> {
-  return (await import("pmtiles")) as unknown as PmtilesProtocolModuleLike;
+  const { Protocol } = await import("pmtiles");
+  return { Protocol } as unknown as PmtilesProtocolModuleLike;
 }
 
 /**

@@ -591,7 +591,12 @@ async function bootstrap(): Promise<void> {
       getElement<HTMLElement>("#workflow-code").textContent = createFirstMapCode(config);
       const result = await runFirstMapWorkflow(config, {
         map,
-        maplibre: maplibregl,
+        // Inject only the renderer operations used by the adapter.
+        maplibre: {
+          Map: maplibregl.Map,
+          addProtocol: maplibregl.addProtocol,
+          removeProtocol: maplibregl.removeProtocol,
+        },
         ...(launch.mode === "fixture" && isPackagedFixtureEndpoint(launch.endpoint)
           ? { fetchFn: createFirstMapFixtureFetch(launch.endpoint) }
           : {}),
