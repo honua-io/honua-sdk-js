@@ -1,3 +1,4 @@
+import { mountSampleOnlineBasemap } from "../../shared/online-basemap.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../shared/maplibre-vite-worker.js";
 
@@ -780,6 +781,12 @@ async function bootstrap(): Promise<void> {
     const incidentTransport = createIncidentDashboardTransport(resolvedTransportConfig);
     lifecycle.own(() => incidentTransport.controls.dispose());
     const lane = incidentTransport.controls.mode;
+    if (lane === "live")
+      lifecycle.own(
+        mountSampleOnlineBasemap(map, {
+          styleUrl: import.meta.env.VITE_HONUA_BASEMAP_STYLE?.trim() || undefined,
+        }),
+      );
     let diagnostics = initialIncidentRealtimeDiagnostics(lane);
     runtime.lane = lane;
     const context = createExplorationContext({

@@ -125,3 +125,7 @@ which superseded
 other error payload, timeout, and response that does not match the protocol is
 never a skip; they remain recorded failures. The taxonomy is documented in
 [`docs/benchmark-methodology.md`](../../docs/benchmark-methodology.md).
+
+## Live basemap policy
+
+Live maps use free, keyless OpenFreeMap styles with source attribution; dark mode changes the basemap while preserving operational data and selection. Set `VITE_HONUA_BASEMAP_STYLE` to a custom/self-hosted style URL. Asset failures show an actionable status and leave operational controls usable. The committed fixture lane stays network-independent. See [shared basemap policy](../../docs/sample-basemaps.md) for provider terms, exceptions and export credits.
