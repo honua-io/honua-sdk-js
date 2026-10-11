@@ -48,7 +48,7 @@ describe("CLI caller bearer identity", () => {
       const fetch = vi.fn();
       vi.stubGlobal("fetch", fetch);
       const before = readFileSync(configPath(), "utf8");
-      expect(await run(["admin", "api", "getConnections", "--json"])).toBe(2);
+      expect(await run(["admin", "api", "getConnections", "--json"])).toBe(1);
       expect(output.join("")).toContain("Bearer token must be a single printable ASCII value.");
       if (malformed.trim()) expect(output.join("")).not.toContain("private-token");
       expect(fetch).not.toHaveBeenCalled();
@@ -57,9 +57,9 @@ describe("CLI caller bearer identity", () => {
   );
 
   it.each([
-    ["shared command", ["connection", "test", "00000000-0000-4000-8000-000000000001", "--yes", "--json"]],
-    ["generated Admin command", ["admin", "api", "getConnections", "--json"]],
-  ])("keeps a rejected bearer on the %s path without retrying saved privileged keys", async (_name, args) => {
+    ["shared command", ["connection", "test", "00000000-0000-4000-8000-000000000001", "--yes", "--json"], 2],
+    ["generated Admin command", ["admin", "api", "getConnections", "--json"], 1],
+  ])("keeps a rejected bearer on the %s path without retrying saved privileged keys", async (_name, args, exitCode) => {
     const before = readFileSync(configPath(), "utf8");
     const requests: Headers[] = [];
     vi.stubGlobal(
@@ -73,7 +73,7 @@ describe("CLI caller bearer identity", () => {
       }),
     );
 
-    expect(await run([...args, "--profile", "release"])).toBe(2);
+    expect(await run([...args, "--profile", "release"])).toBe(exitCode);
     expect(requests).toHaveLength(1);
     expect(requests[0]?.get("Authorization")).toBe(`Bearer ${bearer}`);
     expect(requests[0]?.get("X-API-Key")).toBeNull();
