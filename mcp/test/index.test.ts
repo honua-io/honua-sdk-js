@@ -83,8 +83,13 @@ describe("MCP server setup", () => {
 
     const registrations = [
       ...toolSpy.mock.calls.map((call, index) => ({ call, order: toolSpy.mock.invocationCallOrder[index] })),
-      ...registerToolSpy.mock.calls.map((call, index) => ({ call, order: registerToolSpy.mock.invocationCallOrder[index] })),
-    ].sort((left, right) => left.order - right.order).map(({ call }) => call);
+      ...registerToolSpy.mock.calls.map((call, index) => ({
+        call,
+        order: registerToolSpy.mock.invocationCallOrder[index],
+      })),
+    ]
+      .sort((left, right) => left.order - right.order)
+      .map(({ call }) => call);
     expect(registrations.map((call) => call[0])).toEqual([
       "honua_list_sources",
       "honua_list_services",
