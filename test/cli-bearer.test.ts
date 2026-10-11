@@ -41,6 +41,38 @@ afterEach(() => {
 });
 
 describe("CLI caller bearer identity", () => {
+  it.each([
+    ["map", "export", "venues", "--bbox", "0,0,1,1"],
+    ["tiles", "venues", "1/0/0"],
+  ])("preserves caller identity for %s downloads and strips it on foreign redirects", async (...args) => {
+    const requests: { url: URL; headers: Headers }[] = [];
+    const bytes = [0x89, 0x50, 0x4e, 0x47];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      requests.push({ url, headers: new Headers(init?.headers) });
+      if (url.pathname.endsWith("/export")) {
+        return Response.json({ href: "/temp/map.png", width: 800, height: 600 });
+      }
+      if (url.origin === "http://127.0.0.1:8080") {
+        return new Response(null, { status: 302, headers: { location: "https://cdn.test/map.png" } });
+      }
+      return new Response(new Uint8Array(bytes));
+    });
+    const destination = path.join(directory, "map.png");
+    expect(await run([...args, "--output", destination])).toBe(0);
+    expect([...readFileSync(destination)]).toEqual(bytes);
+    const local = requests.filter(({ url }) => url.origin === "http://127.0.0.1:8080");
+    expect(local.length).toBeGreaterThan(0);
+    for (const { headers } of local) {
+      expect(headers.get("Authorization")).toBe(`Bearer ${bearer}`);
+      expect(headers.get("X-API-Key")).toBeNull();
+    }
+    const foreign = requests.filter(({ url }) => url.origin === "https://cdn.test");
+    expect(foreign).toHaveLength(1);
+    expect(foreign[0]?.headers.get("Authorization")).toBeNull();
+    expect(foreign[0]?.headers.get("X-API-Key")).toBeNull();
+  });
+
   it.each(["synthetic\nprivate-token", "synthetic\rprivate-token", "synthetic\u0100private-token", "   "])(
     "refuses malformed bearer credentials without leaking or falling back",
     async (malformed) => {
