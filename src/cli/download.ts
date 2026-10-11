@@ -102,7 +102,7 @@ export async function downloadCredentialedResource(
     // Only attach the credential when the request stays on the configured
     // server origin, so a cross-origin href never receives the credential.
     const sameOrigin = baseOrigin !== undefined && originOf(currentUrl) === baseOrigin;
-    const headers = sameOrigin
+    const headers: Record<string, string> | undefined = sameOrigin
       ? options.bearerToken
         ? { Authorization: `Bearer ${options.bearerToken}` }
         : options.apiKey
