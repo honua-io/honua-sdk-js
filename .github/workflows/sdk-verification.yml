@@ -398,7 +398,9 @@ jobs:
         run: npm run verify:contract-v2-design
 
       - name: Verify pinned PROJJSON validator
-        run: npm run verify:projjson-validator
+        run: |
+          npm run verify:projjson-validator
+          node --test test/scripts/projjson-validator-semantics.test.mjs
 
       - name: Verify generated MapPackage schema validator
         run: npm run verify:map-package-schema
@@ -625,7 +627,7 @@ jobs:
     name: "Verify: package, publish surface, bundles"
     needs: [admission, build]
     if: needs.admission.outputs.enabled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
@@ -704,7 +706,47 @@ jobs:
           npm run build:browser --silent
           node scripts/sample-contract.mjs artifacts
           npm run prepare:test-sdk:adopt --silent
+          node --test test/scripts/publish-surface-docs.test.mjs test/scripts/first-map-execution-budget.test.mjs test/scripts/installed-consumer-lock.test.mjs
           npm run verify:publish-surface
+          npm run test:runtime-tarball
+          npm run verify:runtime-tarball
+
+      - name: Upload runtime tarball budget receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runtime-tarball-budget-graph
+          path: test-results/runtime-tarball-budget.json
+          if-no-files-found: ignore
+
+      - name: Pack independent sample-consumer contracts
+        run: npm run samples:contract:pack
+
+      - name: Upload independent sample-consumer contract archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sample-contract-graph-${{ needs.admission.outputs.head_sha || github.sha }}
+          path: .artifacts/sample-contract/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Enforce packed First Map execution budget on the CI runner
+        id: packed-first-map
+        run: |
+          # The checkout includes a historical registry receipt used by tests.
+          # Only this invocation may supply the uploaded packed-development evidence.
+          rm -f test-results/packed-first-map-execution/installed-quickstart-budget.json test-results/packed-first-map-execution/installed-quickstart-budget.consumer-lock.json
+          npm run test:installed-quickstart -- --local-tarball --enforce-execution-budget --output test-results/packed-first-map-execution/installed-quickstart-budget.json
+
+      - name: Upload packed First Map execution calibration
+        if: always() && (steps.packed-first-map.outcome == 'success' || steps.packed-first-map.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: packed-first-map-execution-graph
+          path: |
+            test-results/packed-first-map-execution/installed-quickstart-budget.json
+            test-results/packed-first-map-execution/installed-quickstart-budget.consumer-lock.json
+          if-no-files-found: ignore
 
       - name: Installed packed-SDK smoke
         run: npm run verify:packed-sdk

@@ -310,6 +310,7 @@ const TARGETS = [
     entry: "scripts/bundle-size-fixtures/tree-shake-honua-client.mjs",
     label: "tree-shake guard (`{ HonuaClient }` only)",
     forbiddenInputs: [
+      "dist/src/contract/generated/projjson-v0.7-crs-validator.js",
       "dist/src/core/grpc-adapter.js",
       "dist/src/gen/geospatial/",
       "node_modules/@bufbuild/",
@@ -323,6 +324,7 @@ const TARGETS = [
     label: "tree-shake guard (`{ connect }` from root, source-schema runtime excluded)",
     forbiddenInputs: [
       "dist/src/cog/",
+      "dist/src/contract/generated/projjson-v0.7-crs-validator.js",
       "dist/src/core/grpc-adapter.js",
       "dist/src/gen/geospatial/",
       "node_modules/@bufbuild/",
@@ -335,7 +337,7 @@ const TARGETS = [
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-source-capabilities-evaluate.mjs",
     label: "tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded)",
-    forbiddenInputs: ["dist/src/contract/schema.js", "dist/src/gen/projjson/"],
+    forbiddenInputs: ["dist/src/contract/schema.js", "dist/src/contract/generated/projjson-v0.7-crs-validator.js"],
   },
   {
     key: "tree-shake:error-leaf",
@@ -360,6 +362,7 @@ const TARGETS = [
       "dist/src/app-controller/",
       "dist/src/app-workspace/",
       "dist/src/cog/",
+      "dist/src/contract/generated/projjson-v0.7-crs-validator.js",
       "dist/src/core/grpc-adapter.js",
       "dist/src/deckgl/",
       "dist/src/gen/geospatial/",
@@ -382,6 +385,7 @@ const TARGETS = [
     entry: "scripts/bundle-size-fixtures/tree-shake-client-compat-feature-layer.mjs",
     label: "tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`)",
     forbiddenInputs: [
+      "dist/src/contract/generated/projjson-v0.7-crs-validator.js",
       "dist/src/core/grpc-adapter.js",
       "dist/src/gen/geospatial/",
       "node_modules/@bufbuild/",

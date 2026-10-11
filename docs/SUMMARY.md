@@ -104,3 +104,7 @@
 * [WFS 2.0 adapter](wfs.md)
 * [ArcGIS widget-removal survival guide](widget-survival-guide.md)
 * [Zarr client](zarr.md)
+
+## Other
+
+* [evidence/distribution-1413/README.md](evidence/distribution-1413/README.md)

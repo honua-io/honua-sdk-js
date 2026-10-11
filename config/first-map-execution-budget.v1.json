@@ -1,0 +1,20 @@
+{
+  "schema": "honua.first-map-execution-budget/v1",
+  "profile": "ubuntu24-x64-chromium145-cold4x",
+  "platform": "linux",
+  "architecture": "x64",
+  "browserMajor": 145,
+  "cpuThrottle": 4,
+  "repetitions": 3,
+  "medianScriptCpuMs": 175,
+  "medianParseCompileMs": 110,
+  "calibration": {
+    "sourceSha": "8b5b0a0580c9bc95561a2eee4709fc94be0775ca",
+    "workflowRunId": "38130548203",
+    "artifactId": "11698283813",
+    "medianScriptCpuMs": 134.518,
+    "medianParseCompileMs": 80.796,
+    "cpu": "AMD EPYC 7763 64-Core Processor"
+  },
+  "runnerImage": "ubuntu24"
+}
