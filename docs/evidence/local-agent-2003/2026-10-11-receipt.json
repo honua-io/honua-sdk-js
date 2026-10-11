@@ -1,0 +1,658 @@
+{
+  "schemaVersion": 1,
+  "issue": "https://github.com/honua-io/honua-sdk-js/issues/2003",
+  "recordedAt": "2026-10-11T16:56:41.364636+00:00",
+  "scope": "Development candidate proof of installer credential lifecycle and live MCP list/render; not clean customer-install or release certification.",
+  "identity": {
+    "sdkSourceSha": "1733904b813f02d43743b036da0d3785c9a1e922",
+    "sdkExecution": "Node 24.19.0 native TypeScript with .js-to-.ts source resolution hook; no mocked HTTP or installer logic",
+    "serverSourceSha": "93cad86ec4fb28fba3ff0b9358059d86aa55dde5",
+    "containerImageId": "sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "containerImageReference": "ghcr.io/honua-io/honua-server@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "imageOciRevisionVerified": true,
+    "mcpInitialize": {
+      "protocolVersion": "2025-03-26",
+      "capabilities": {
+        "tools": {
+          "listChanged": true
+        },
+        "resources": {
+          "listChanged": true
+        },
+        "prompts": {
+          "listChanged": false
+        }
+      },
+      "serverInfo": {
+        "name": "honua.operator.mcp",
+        "version": "v1"
+      }
+    },
+    "mcpTransport": "HTTP /mcp server-native honua.operator.mcp; @honua/mcp-server npm bridge not used",
+    "baseUrl": "http://127.0.0.1:19803",
+    "composeProject": "honua-local-e0658ca7ca00dda867ed29c8",
+    "profile": "quickstart",
+    "environment": "Development",
+    "wildcardImplementation": {
+      "pullRequest": "https://github.com/honua-io/honua-server/pull/5740",
+      "mergeSha": "95d78b5fdabe9a5691ef7c50fc87982d02d7923d",
+      "candidateAncestry": {
+        "status": "ahead",
+        "aheadBy": 42,
+        "behindBy": 0
+      }
+    }
+  },
+  "fixture": {
+    "source": "test/integration/seed/places-roads-v1.sql",
+    "sourceSha256": "cd80b91beae596208962e0e40089768743ec758def8bc0388b9116519d6f99d1",
+    "adaptations": [
+      "Create postgis_raster extension explicitly WITH SCHEMA public to match installer PostGIS schema.",
+      "Set all default allowAnonymous policies to false before executing seed.",
+      "Enable only PNG in postgis.gdal_enabled_drivers using ALTER SYSTEM and pg_reload_conf after initial raster-render diagnostic.",
+      "Delete isolated fixture raster_data row for layer 0 to exercise vector fallback and produce visible points."
+    ],
+    "serviceId": "svc-test-service-feature",
+    "layerId": 0
+  },
+  "initialInstall": {
+    "status": "ready",
+    "profile": "quickstart",
+    "directory": "/tmp/honua-installer2003-20261011",
+    "baseUrl": "http://127.0.0.1:19803",
+    "readyUrl": "http://127.0.0.1:19803/healthz/ready",
+    "composeFile": "/tmp/honua-installer2003-20261011/compose.yaml",
+    "envFile": "/tmp/honua-installer2003-20261011/.env",
+    "mcpConfigFile": "/tmp/honua-installer2003-20261011/.mcp.json",
+    "claudeDesktopConfigFile": "/tmp/honua-installer2003-20261011/claude_desktop_config.json",
+    "adminKeyWritten": true,
+    "accessCredential": {
+      "id": "2c19ba84-7bbe-462c-85e3-2b2c554e32a0",
+      "name": "honua-local-agent",
+      "status": "active",
+      "requestedGrants": [
+        "admin:read",
+        "admin:write",
+        "read:*"
+      ],
+      "effectiveGrants": [
+        "admin:read",
+        "admin:write",
+        "read:*"
+      ],
+      "canAuthenticate": true,
+      "referenceType": "private-env-file",
+      "referenceDigestSha256": "fac53023986e9acc4edb69bcfee4a65139852709d2cfccf6b2d95ef19b882b25",
+      "provisioned": true
+    },
+    "serverImage": "ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
+    "reused": false,
+    "credentialReissued": false
+  },
+  "legacyControl": {
+    "note": "Legacy admin:read bypass also permits these tools on this candidate; this is an observed control, not a denial assertion.",
+    "legacyId": "112ad326-069a-4b0c-8a74-928d8b6c077c",
+    "grants": [
+      "admin:read",
+      "admin:write"
+    ],
+    "list": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Structured result (2,983 chars) returned in structuredContent; text summary elided to conserve context."
+        }
+      ],
+      "isError": false,
+      "structuredContent": {
+        "layerCount": 10,
+        "totalCount": 10,
+        "offset": 0,
+        "hasMore": false,
+        "layers": [
+          {
+            "serviceId": "svc-test-service-feature",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-image",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "RasterDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-map",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-ogc",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-stac",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-feature",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          },
+          {
+            "serviceId": "svc-test-service-image",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "RasterDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          },
+          {
+            "serviceId": "svc-test-service-map",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          },
+          {
+            "serviceId": "svc-test-service-ogc",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          },
+          {
+            "serviceId": "svc-test-service-stac",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          }
+        ]
+      }
+    },
+    "render": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Rendered 1 layer at 512x512 px over bbox [-122.5, 37.7, -122.35, 37.84] (SRID 4326) (image/png, 3,816 bytes). Fetch the image at /temp/06325fa420f84226b82c1a6b33a82b94.png (expires in 1h); returned as an artifact reference to conserve context. Pass maxInlineBytes >= 3816 to inline it instead."
+        },
+        {
+          "type": "resource_link",
+          "mimeType": "image/png",
+          "uri": "/temp/06325fa420f84226b82c1a6b33a82b94.png",
+          "name": "rendered-map"
+        }
+      ],
+      "isError": false,
+      "structuredContent": {
+        "format": "image/png",
+        "width": 512,
+        "height": 512,
+        "byteLength": 3816,
+        "bbox": [
+          -122.5,
+          37.7,
+          -122.35,
+          37.84
+        ],
+        "bboxSrid": 4326,
+        "layers": [
+          {
+            "serviceId": "svc-test-service-feature",
+            "layerId": 0,
+            "styleRendering": "default"
+          }
+        ],
+        "image": {
+          "format": "image/png",
+          "width": 512,
+          "height": 512,
+          "byteLength": 3816,
+          "uri": "/temp/06325fa420f84226b82c1a6b33a82b94.png",
+          "inlined": false
+        }
+      }
+    }
+  },
+  "reissueInstall": {
+    "status": "ready",
+    "profile": "quickstart",
+    "directory": "/tmp/honua-installer2003-20261011",
+    "baseUrl": "http://127.0.0.1:19803",
+    "readyUrl": "http://127.0.0.1:19803/healthz/ready",
+    "composeFile": "/tmp/honua-installer2003-20261011/compose.yaml",
+    "envFile": "/tmp/honua-installer2003-20261011/.env",
+    "mcpConfigFile": "/tmp/honua-installer2003-20261011/.mcp.json",
+    "claudeDesktopConfigFile": "/tmp/honua-installer2003-20261011/claude_desktop_config.json",
+    "adminKeyWritten": true,
+    "accessCredential": {
+      "id": "f4cae518-3863-4ce1-8a12-38ac746a8035",
+      "name": "honua-local-agent",
+      "status": "active",
+      "requestedGrants": [
+        "admin:read",
+        "admin:write",
+        "read:*"
+      ],
+      "effectiveGrants": [
+        "admin:read",
+        "admin:write",
+        "read:*"
+      ],
+      "canAuthenticate": true,
+      "referenceType": "private-env-file",
+      "referenceDigestSha256": "fac53023986e9acc4edb69bcfee4a65139852709d2cfccf6b2d95ef19b882b25",
+      "provisioned": true
+    },
+    "serverImage": "ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
+    "reused": true,
+    "credentialReissued": true,
+    "reason": "legacy-grants"
+  },
+  "idempotentInstall": {
+    "status": "ready",
+    "profile": "quickstart",
+    "directory": "/tmp/honua-installer2003-20261011",
+    "baseUrl": "http://127.0.0.1:19803",
+    "readyUrl": "http://127.0.0.1:19803/healthz/ready",
+    "composeFile": "/tmp/honua-installer2003-20261011/compose.yaml",
+    "envFile": "/tmp/honua-installer2003-20261011/.env",
+    "mcpConfigFile": "/tmp/honua-installer2003-20261011/.mcp.json",
+    "claudeDesktopConfigFile": "/tmp/honua-installer2003-20261011/claude_desktop_config.json",
+    "adminKeyWritten": true,
+    "accessCredential": {
+      "id": "f4cae518-3863-4ce1-8a12-38ac746a8035",
+      "name": "honua-local-agent",
+      "status": "active",
+      "requestedGrants": [
+        "admin:read",
+        "admin:write",
+        "read:*"
+      ],
+      "effectiveGrants": [
+        "admin:read",
+        "admin:write",
+        "read:*"
+      ],
+      "canAuthenticate": true,
+      "referenceType": "private-env-file",
+      "referenceDigestSha256": "fac53023986e9acc4edb69bcfee4a65139852709d2cfccf6b2d95ef19b882b25",
+      "provisioned": false
+    },
+    "serverImage": "ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
+    "reused": true,
+    "credentialReissued": false
+  },
+  "lifecycleAssertions": {
+    "initialCredentialId": "2c19ba84-7bbe-462c-85e3-2b2c554e32a0",
+    "legacyCredentialId": "112ad326-069a-4b0c-8a74-928d8b6c077c",
+    "legacyStatus": "revoked",
+    "reissuedCredentialId": "f4cae518-3863-4ce1-8a12-38ac746a8035",
+    "reissueReason": "legacy-grants",
+    "idempotentCredentialId": "f4cae518-3863-4ce1-8a12-38ac746a8035",
+    "activeLocalAgentCount": 1,
+    "files": [
+      {
+        "name": ".env",
+        "mode": "0600",
+        "matchesActiveCredential": true
+      },
+      {
+        "name": ".mcp.json",
+        "mode": "0600",
+        "matchesActiveCredential": true
+      },
+      {
+        "name": "claude_desktop_config.json",
+        "mode": "0600",
+        "matchesActiveCredential": true
+      }
+    ],
+    "assertionsPassed": true
+  },
+  "liveAfterReissue": {
+    "toolNames": [
+      "honua_list_layers",
+      "honua_render_map"
+    ],
+    "listLayers": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Structured result (2,983 chars) returned in structuredContent; text summary elided to conserve context."
+        }
+      ],
+      "isError": false,
+      "structuredContent": {
+        "layerCount": 10,
+        "totalCount": 10,
+        "offset": 0,
+        "hasMore": false,
+        "layers": [
+          {
+            "serviceId": "svc-test-service-feature",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-image",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "RasterDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-map",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-ogc",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-stac",
+            "serviceName": "test_service",
+            "layerId": 0,
+            "name": "Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Point",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Default layer for integration tests"
+          },
+          {
+            "serviceId": "svc-test-service-feature",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          },
+          {
+            "serviceId": "svc-test-service-image",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "RasterDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          },
+          {
+            "serviceId": "svc-test-service-map",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          },
+          {
+            "serviceId": "svc-test-service-ogc",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          },
+          {
+            "serviceId": "svc-test-service-stac",
+            "serviceName": "test_service",
+            "layerId": 1,
+            "name": "Mixed Geometry Test Layer",
+            "type": "FeatureDataset",
+            "geometryType": "Mixed",
+            "srid": 4326,
+            "extent": {
+              "minX": -122.5,
+              "minY": 37.7,
+              "maxX": -122.35,
+              "maxY": 37.84
+            },
+            "description": "Heterogeneous-geometry layer for JS round-trip tests"
+          }
+        ]
+      }
+    },
+    "renderMap": {
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Rendered 1 layer at 512x512 px over bbox [-122.5, 37.7, -122.35, 37.84] (SRID 4326) (image/png, 3,816 bytes). Fetch the image at /temp/9c5ddc1b31c04f10b75ee5fdd3cdbbcb.png (expires in 1h); returned as an artifact reference to conserve context. Pass maxInlineBytes >= 3816 to inline it instead."
+          },
+          {
+            "type": "resource_link",
+            "mimeType": "image/png",
+            "uri": "/temp/9c5ddc1b31c04f10b75ee5fdd3cdbbcb.png",
+            "name": "rendered-map"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "format": "image/png",
+          "width": 512,
+          "height": 512,
+          "byteLength": 3816,
+          "bbox": [
+            -122.5,
+            37.7,
+            -122.35,
+            37.84
+          ],
+          "bboxSrid": 4326,
+          "layers": [
+            {
+              "serviceId": "svc-test-service-feature",
+              "layerId": 0,
+              "styleRendering": "default"
+            }
+          ],
+          "image": {
+            "format": "image/png",
+            "width": 512,
+            "height": 512,
+            "byteLength": 3816,
+            "uri": "/temp/9c5ddc1b31c04f10b75ee5fdd3cdbbcb.png",
+            "inlined": false
+          }
+        }
+      },
+      "artifact": {
+        "byteLength": 3816,
+        "sha256": "37a2da5d5324f0832f0819f1fbbad557435f0d0a1659a5924ca3f76eaa07c7d3",
+        "signature": "89504e470d0a1a0a",
+        "width": 512,
+        "height": 512
+      }
+    },
+    "artifactFile": "2026-10-11-render.png"
+  },
+  "limitations": [
+    "Compose HONUA_SERVER_IMAGE was explicitly overridden for subprocesses to the immutable development image; installer return serverImage remains the supported older customer pin and is not the executed image.",
+    "Legacy two-grant key also succeeded in list/render on this later candidate; this control does not demonstrate data denial.",
+    "Returned image was downloaded from its HTTP artifact URI using the same scoped key; MCP resources/read returned Unknown resource and is not qualified.",
+    "No full catalog parity, style/resource lifecycle, customer manifest, packaged npm bridge, or issue #1401 qualification is claimed."
+  ]
+}
