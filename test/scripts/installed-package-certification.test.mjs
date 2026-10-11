@@ -88,6 +88,20 @@ const withStaleReceipt = async (run) => {
   try { return await run(output); } finally { await rm(dir, { recursive: true, force: true }); }
 };
 
+test("snapshot input refusal removes the previous package receipt before admission", async () => {
+  const previous = process.env.HONUA_INSTALLED_CANDIDATE_MODE;
+  process.env.HONUA_INSTALLED_CANDIDATE_MODE = "invalid-input-mode";
+  try {
+    await withStaleReceipt(async (output) => {
+      await assert.rejects(certify({ output }), /unknown installed candidate input mode/);
+      assert.equal(existsSync(output), false);
+    });
+  } finally {
+    if (previous === undefined) delete process.env.HONUA_INSTALLED_CANDIDATE_MODE;
+    else process.env.HONUA_INSTALLED_CANDIDATE_MODE = previous;
+  }
+});
+
 test("a drifted denominator cannot leave the previous candidate's receipt in place", async () => {
   await withStaleReceipt(async (output) => {
     const receipt = await certify({ output, freeze: () => { throw new Error("certification denominator has drifted"); } });
