@@ -28,7 +28,11 @@ complete dependency/peer resolution, lock digest, provenance results and exact
 Node/npm/platform/architecture. No SDK is built or repacked by this lane.
 
 `--execute-fixture` starts the exact candidate image with isolated PostGIS and
-Redis. It verifies the running container's image ID before executing a standalone
+Redis. It provisions PostGIS and raster extensions, boots the candidate against an
+empty database, waits for readiness, applies the fixture data, and waits for
+readiness again after restarting the server. The server owns its migrations and
+journal; the fixture never approves the migration safety gate. It verifies the
+running container's image ID before executing a standalone
 consumer with public `@honua/sdk-js` imports. The FeatureServer fixture proves:
 
 - Layer ID, name, geometry type, CRS and field metadata.
