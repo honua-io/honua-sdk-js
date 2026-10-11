@@ -15,12 +15,11 @@
  * - it must name a version the registry actually serves (#1401 -- a pin that
  *   exists only in this repository's release lineage cannot install on a clean
  *   machine), and
- * - it must sit on the same `major.minor.patch` tuple as the SDK shipping
- *   beside it (#1529 -- `@honua/mcp-server` peer-depends on `@honua/sdk-js`,
- *   and a caret range over a prerelease admits exactly one tuple, so a lagging
- *   pin makes the pair fail `npm install` with ERESOLVE).
+ * - its SDK peer range must admit the SDK under default npm resolution.
+ *   Stable 0.x patches can share a compatible MCP cut; the earlier prerelease
+ *   scheme required the same tuple (#1529).
  *
- * Only a real coordinated publish satisfies both, which is why the pin cannot
+ * Only a verified registry publication satisfies both, which is why the pin cannot
  * be a release-please `extra-files` bump: release-please would advance the
  * version at release-PR time, before either half is published, and it cannot
  * compute the tarball integrity recorded next to it. So the pin advances here
@@ -31,6 +30,14 @@
  *
  *     npm run sync:mcp-pin           # rewrite the pin and its integrity
  *     npm run sync:mcp-pin -- --check  # report drift without writing
+ *
+ * To select a reviewed, published compatible patch instead of the default
+ * exact-version preference, add `--mcp-version 0.1.16` to either command.
+ * Subsequent default runs retain a newer recorded pin while it stays published
+ * and compatible, so synchronization never silently undoes that selection.
+ * This never admits an unpublished version or bypasses peer/integrity checks.
+ * Scaffold templates retain the independently certified fallback declared in
+ * templates.manifest.json; publishing an MCP patch does not certify a new starter SDK.
  *
  * This lane queries the public npm registry and is never part of PR CI.
  */
@@ -44,6 +51,7 @@ import {
   ZERO_TO_MAP_CONFIGS,
   compareVersions,
   parseSemver,
+  parsePackagePin,
   readCreateAppSdkPin,
   satisfiesUnderNpmDefaults,
   verifyClientPairCoInstallable,
@@ -81,11 +89,25 @@ function sameTuple(left, right) {
  * rule, so an unknown release is never treated as compatible.
  *
  * The SDK's exact version is preferred when that release qualifies. Otherwise
- * the newest qualifying release wins. A release whose range excludes the SDK
+ * the newest qualifying release wins. A newer recorded pin is retained when
+ * still published and compatible; an explicit version can deliberately replace it.
+ * A release whose range excludes the SDK
  * (for example a later MCP cut that requires a newer SDK) is never chosen, so
  * the pin cannot run ahead into an uninstallable pair.
  */
-export function selectCoordinatedRelease(packument, sdkVersion, mcpName, sdkName = "@honua/sdk-js") {
+export function selectCoordinatedRelease(packument, sdkVersion, mcpName, sdkName = "@honua/sdk-js", requestedVersion, currentVersion) {
+  if (requestedVersion !== undefined) {
+    parsePackagePin(`${mcpName}@${requestedVersion}`);
+    invariant(
+      Object.hasOwn(packument?.versions ?? {}, requestedVersion),
+      `${mcpName}@${requestedVersion} is not published in the registry; publish it before selecting this pin.`,
+    );
+    verifyClientPairCoInstallable({
+      sdkName, sdkVersion, mcpName, mcpVersion: requestedVersion,
+      peerRange: packument.versions[requestedVersion]?.peerDependencies?.[sdkName],
+    });
+    return requestedVersion;
+  }
   const target = parseSemver(sdkVersion);
   const candidates = Object.entries(packument?.versions ?? {})
     .filter(([version, manifest]) => {
@@ -106,7 +128,9 @@ export function selectCoordinatedRelease(packument, sdkVersion, mcpName, sdkName
       "the pin to a version the registry does not serve.",
   );
   const exact = candidates.find((version) => version === sdkVersion);
-  return exact ?? candidates[candidates.length - 1];
+  const preferred = exact ?? candidates[candidates.length - 1];
+  if (candidates.includes(currentVersion) && compareVersions(currentVersion, preferred) > 0) return currentVersion;
+  return preferred;
 }
 
 async function fetchPackument(name, fetchFn) {
@@ -271,21 +295,40 @@ function readCreateAppPinSites(sdkName, expectedVersion) {
   });
 }
 
-async function main(argv) {
-  const check = argv.includes("--check");
-  for (const arg of argv) {
-    invariant(arg === "--check", `unrecognised argument ${arg}`);
+export function parseSyncArguments(argv) {
+  let check = false;
+  let requestedVersion;
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--check") {
+      check = true;
+    } else if (arg === "--mcp-version") {
+      invariant(requestedVersion === undefined, "--mcp-version must be supplied at most once");
+      requestedVersion = argv[++index];
+      invariant(typeof requestedVersion === "string", "--mcp-version requires an exact version");
+      parsePackagePin(`@honua/mcp-server@${requestedVersion}`);
+    } else {
+      throw new Error(`unrecognised argument ${arg}`);
+    }
   }
+  return { check, requestedVersion };
+}
+
+async function main(argv) {
+  const { check, requestedVersion } = parseSyncArguments(argv);
   const sdk = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
   const source = fs.readFileSync(PIN_SOURCE, "utf8");
   const current = readPin(source);
   const { LOCAL_INSTALL_MCP_PACKAGE_NAME } = await import(pathToFileURL(path.join(PROJECT_ROOT, "dist/src/local-install.js")).href);
 
   const packument = await fetchPackument(LOCAL_INSTALL_MCP_PACKAGE_NAME, fetch);
-  const version = selectCoordinatedRelease(packument, sdk.version, LOCAL_INSTALL_MCP_PACKAGE_NAME, sdk.name);
+  const version = selectCoordinatedRelease(packument, sdk.version, LOCAL_INSTALL_MCP_PACKAGE_NAME, sdk.name, requestedVersion, current.version);
   const manifest = packument.versions[version];
   const integrity = manifest?.dist?.integrity;
-  invariant(typeof integrity === "string", `registry served no tarball integrity for ${version}`);
+  invariant(
+    typeof integrity === "string" && /^sha512-[A-Za-z0-9+/]{86}==$/.test(integrity),
+    `registry served no valid sha512 tarball integrity for ${version}`,
+  );
 
   // Never write a pin that does not solve the problem it exists to solve.
   verifyClientPairCoInstallable({
@@ -304,7 +347,13 @@ async function main(argv) {
   const expectedPin = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${version}`;
   const configs = readPinSites(expectedPin);
   const staleConfigs = configs.filter((config) => config.stale);
-  const createAppPins = readCreateAppPinSites(sdk.name, sdk.version);
+  const starterManifestPath = CREATE_APP_PIN_SITES.find((site) => site.endsWith("templates.manifest.json"));
+  const certifiedStarterVersion = readCreateAppSdkPin(
+    JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, starterManifestPath), "utf8")),
+    starterManifestPath,
+    sdk.name,
+  );
+  const createAppPins = readCreateAppPinSites(sdk.name, certifiedStarterVersion);
   const staleCreateAppPins = createAppPins.filter((site) => site.stale);
   const sourceStale = current.version !== version || current.integrity !== integrity;
 
@@ -325,10 +374,10 @@ async function main(argv) {
     }
     for (const site of staleCreateAppPins) {
       process.stderr.write(
-        `mcp pin is stale: ${site.relativePath} pins ${sdk.name}@${site.version}, coordinated cut is ${sdk.name}@${sdk.version}.\n`,
+        `mcp pin is stale: ${site.relativePath} pins ${sdk.name}@${site.version}, certified starter fallback is ${sdk.name}@${certifiedStarterVersion}.\n`,
       );
     }
-    process.stderr.write("Run `npm run sync:mcp-pin`.\n");
+    process.stderr.write(`Run \`npm run sync:mcp-pin${requestedVersion ? ` -- --mcp-version ${requestedVersion}` : ""}\`.\n`);
     process.exitCode = 1;
     return;
   }
@@ -338,7 +387,7 @@ async function main(argv) {
     source,
     sourceStale,
     version,
-    sdkVersion: sdk.version,
+    sdkVersion: certifiedStarterVersion,
     integrity,
     staleConfigs,
     expectedPin,
@@ -349,7 +398,7 @@ async function main(argv) {
   // Same discipline as the pre-write co-install check: prove the bytes just
   // written actually satisfy the gate rather than trusting the edit.
   verifyZeroToMapConfigPins({ expectedPin });
-  verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: sdk.version });
+  verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: certifiedStarterVersion });
 
   const advanced = [
     sourceStale ? `src/local-install.ts ${current.version} -> ${version}` : null,
