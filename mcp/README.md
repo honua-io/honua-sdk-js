@@ -269,7 +269,7 @@ Embedding the server in your own Node.js host needs the packages as local
 dependencies of that host project:
 
 ```bash
-npm install @honua/mcp-server@0.1.13 @honua/sdk-js@0.1.13
+npm install @honua/mcp-server @honua/sdk-js
 ```
 
 The map runtime, model callback, approval verifier, receipt signer, and
