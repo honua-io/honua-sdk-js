@@ -277,15 +277,18 @@ export async function installHonuaLocal(
         "Legacy installer credentials are incomplete. Restore the original .env before reusing honua-local volumes.",
       );
     }
-    // Legacy installations used one global name. Keep their volumes and secrets,
-    // but refuse to take over containers belonging to another install directory.
+    env.HONUA_COMPOSE_PROJECT = "honua-local";
+  }
+  // A copied .env must never let another directory operate the original project.
+  if (existingEnv.HONUA_COMPOSE_PROJECT || existingEnv.HONUA_SERVER_IMAGE) {
+    const project = env.HONUA_COMPOSE_PROJECT;
     const owners = await run(
       dockerCommand,
       [
         "ps",
         "-a",
         "--filter",
-        "label=com.docker.compose.project=honua-local",
+        `label=com.docker.compose.project=${project}`,
         "--format",
         '{{.ID}}\t{{.Label "com.docker.compose.project.working_dir"}}',
       ],
@@ -301,10 +304,23 @@ export async function installHonuaLocal(
       })
     ) {
       throw new Error(
-        "Legacy honua-local project belongs to another directory or could not be verified. Restore its original .env and directory before reinstalling.",
+        "Installer project belongs to another directory or could not be verified. Restore its original .env and directory before reinstalling.",
       );
     }
-    env.HONUA_COMPOSE_PROJECT = "honua-local";
+    if (ownerRows.length === 0) {
+      // Compose volumes do not carry the container working-directory label. A
+      // project with only volumes therefore cannot prove directory ownership.
+      const volumes = await run(
+        dockerCommand,
+        ["volume", "ls", "--filter", `label=com.docker.compose.project=${project}`, "--format", "{{.Name}}"],
+        process.cwd(),
+      );
+      if (volumes.exitCode !== 0 || volumes.stdout.length > 0) {
+        throw new Error(
+          "Installer project volume ownership could not be verified. Start the existing project from its original directory before reinstalling; do not copy its .env to another directory.",
+        );
+      }
+    }
   }
   await mkdir(directory, { recursive: true });
   await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
