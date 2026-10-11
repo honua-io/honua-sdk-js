@@ -199,6 +199,130 @@ describe("explicit online basemap policy", () => {
     binding.dispose();
   });
 
+  it.each([
+    ["mixed image/string coalesce", ["coalesce", ["image", ["get", "icon"]], "fallback"]],
+    ["nullable string/image coalesce", ["coalesce", ["get", "icon"], ["image", "fallback"]]],
+    [
+      "parallel binding scopes",
+      ["let", "icon", ["image", "airport"], ["let", "icon", "fallback", "second", ["var", "icon"], ["var", "second"]]],
+    ],
+    [
+      "image variable used in a condition",
+      [
+        "let",
+        "icon",
+        ["image", "airport"],
+        ["case", ["==", ["to-string", ["var", "icon"]], "airport"], ["var", "icon"], "fallback"],
+      ],
+    ],
+    [
+      "image variable converted back to a name",
+      ["let", "icon", ["image", "airport"], ["image", ["to-string", ["var", "icon"]]]],
+    ],
+    ["null variable", ["let", "icon", null, ["case", ["==", ["var", "icon"], null], "airport", "fallback"]]],
+    ["literal match labels", ["let", "x", "airport", ["match", ["get", "kind"], ["var", "x"], "airport", "fallback"]]],
+    [
+      "collator options",
+      [
+        "let",
+        "sensitive",
+        true,
+        ["case", ["==", "a", "A", ["collator", { "case-sensitive": ["var", "sensitive"] }]], "airport", "fallback"],
+      ],
+    ],
+    ["nested mixed coalesce", ["coalesce", ["coalesce", ["image", "missing"], "airport"], ["image", "fallback"]]],
+    ["image variable", ["let", "icon", ["image", "airport"], ["var", "icon"]]],
+    ["string variable", ["let", "icon", "airport", ["image", ["var", "icon"]]]],
+    ["nested variable scope", ["let", "icon", ["image", "airport"], ["let", "icon", "fallback", ["var", "icon"]]]],
+    [
+      "conditional image variable",
+      ["let", "icon", ["case", ["has", "icon"], ["image", "airport"], "fallback"], ["var", "icon"]],
+    ],
+  ])("preserves %s semantics while namespacing image results", async (_name, value) => {
+    const style = fixtureStyle();
+    const layer = style.layers.find((entry) => entry.id === "optional-icon")!;
+    layer.layout = { "icon-image": value } as typeof layer.layout;
+    const map = mapFixture();
+    const onError = vi.fn();
+    const binding = new HonuaOnlineBasemapBinding(map, {
+      fetch: vi.fn(async () => new Response(JSON.stringify(style))),
+      onError,
+    });
+    expect(
+      await binding.activate({ styleUrl: "https://fixtures.example/style.json" }),
+      JSON.stringify(onError.mock.calls),
+    ).toBe(true);
+    const rewritten = map.layers.find((entry) => String(entry.id).endsWith("-optional-icon"))?.layout as Record<
+      string,
+      unknown
+    >;
+    const before = createExpression(value, v8.layout_symbol["icon-image"]);
+    const after = createExpression(rewritten["icon-image"], v8.layout_symbol["icon-image"]);
+    expect(before.result).toBe("success");
+    expect(after.result).toBe("success");
+    if (before.result === "error" || after.result === "error") throw new Error("Invalid expression");
+    const spritePrefix = `${[...map.sprites.keys()][0]}:`;
+    for (const available of [[], ["fallback"], ["airport", "fallback"]]) {
+      for (const properties of [
+        { icon: "airport" },
+        {},
+        { icon: 42 },
+        { icon: false },
+        { icon: {} },
+        { kind: "var" },
+      ]) {
+        let expected: { name: string };
+        try {
+          expected = before.value.evaluateWithoutErrorHandling(
+            { zoom: 1 },
+            { type: 1, properties },
+            {},
+            undefined,
+            available,
+          );
+        } catch {
+          expect(() =>
+            after.value.evaluateWithoutErrorHandling(
+              { zoom: 1 },
+              { type: 1, properties },
+              {},
+              undefined,
+              available.map((name) => spritePrefix + name),
+            ),
+          ).toThrow();
+          continue;
+        }
+        const actual = after.value.evaluateWithoutErrorHandling(
+          { zoom: 1 },
+          { type: 1, properties },
+          {},
+          undefined,
+          available.map((name) => spritePrefix + name),
+        );
+        expect(actual.name).toBe(spritePrefix + expected.name);
+      }
+    }
+    binding.dispose();
+  });
+
+  it("bounds variable expansion before installing an oversized image expression", async () => {
+    let value: unknown = "airport";
+    for (let i = 0; i < 18; i++) value = ["let", `v${i}`, value, ["concat", ["var", `v${i}`], ["var", `v${i}`]]];
+    const style = fixtureStyle();
+    const layer = style.layers.find((entry) => entry.id === "optional-icon")!;
+    layer.layout = { "icon-image": value } as typeof layer.layout;
+    const map = mapFixture();
+    const onError = vi.fn();
+    const binding = new HonuaOnlineBasemapBinding(map, {
+      fetch: vi.fn(async () => new Response(JSON.stringify(style))),
+      onError,
+    });
+    expect(await binding.activate({ styleUrl: "https://fixtures.example/style.json" })).toBe(false);
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining("expansion limits"));
+    expect(map.layers).toHaveLength(2);
+    binding.dispose();
+  });
+
   it("reports owned asset failures without relabeling operational failures on the same server", async () => {
     const map = mapFixture();
     const onError = vi.fn();

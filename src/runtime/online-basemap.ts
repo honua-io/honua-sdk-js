@@ -316,50 +316,91 @@ function absoluteAsset(value: string, baseUrl: string): string {
   return new URL(value, baseUrl).href.replaceAll("%7B", "{").replaceAll("%7D", "}");
 }
 
-function spriteName(value: unknown, prefix: string): unknown {
+function spriteName(value: unknown, prefix: string, coerce = false): unknown {
   if (typeof value === "string") return value === "" ? "" : `${prefix}${value.includes(":") ? "" : "default:"}${value}`;
+  const name = coerce ? ["to-string", value] : value;
   // Complete provider styles use an empty name to intentionally hide icons.
   // Preserve that sentinel rather than requesting a nonexistent sprite.
+  // Keep a nullable string result null so mixed coalesce expressions can try their next branch.
   return [
     "case",
-    ["==", value, ""],
+    ["==", ["typeof", value], "null"],
+    value,
+    ["==", name, ""],
     "",
-    [">=", ["index-of", ":", value], 0],
-    ["concat", prefix, value],
-    ["concat", `${prefix}default:`, value],
+    [">=", ["index-of", ":", name], 0],
+    ["concat", prefix, name],
+    ["concat", `${prefix}default:`, name],
   ];
 }
 
-function spriteImage(value: unknown, prefix: string): unknown {
+function spriteImage(value: unknown, prefix: string, resolvedOutput = true): unknown {
   if (!Array.isArray(value)) return spriteName(value, prefix);
   if (value[0] === "image") return ["image", spriteName(value[1], prefix), ...value.slice(2)];
-  // Keep zoom-based step/interpolate expressions at the root: MapLibre rejects
-  // wrapping their zoom input inside a case/concat expression. Rewrite only
-  // result branches, retaining condition inputs and match labels verbatim.
-  const outputIndices = new Set<number>();
-  if (value[0] === "step") {
-    for (let index = 2; index < value.length; index += 2) outputIndices.add(index);
-  } else if (value[0] === "interpolate" || value[0] === "interpolate-hcl" || value[0] === "interpolate-lab") {
-    for (let index = 4; index < value.length; index += 2) outputIndices.add(index);
-  } else if (value[0] === "case") {
-    for (let index = 2; index < value.length - 1; index += 2) outputIndices.add(index);
-    outputIndices.add(value.length - 1);
-  } else if (value[0] === "match") {
-    for (let index = 3; index < value.length - 1; index += 2) outputIndices.add(index);
-    outputIndices.add(value.length - 1);
-  } else if (value[0] === "coalesce" && value.slice(1).every(isResolvedImageExpression)) {
-    for (let index = 1; index < value.length; index++) outputIndices.add(index);
+  // Keep zoom expressions at the root and leave condition inputs and match labels intact.
+  const outputs = imageOutputIndices(value);
+  if (value[0] !== "coalesce" || isResolvedImageExpression(value)) {
+    if (outputs.length) {
+      const rewritten = value.map((part, index) =>
+        outputs.includes(index) ? spriteImage(part, prefix, resolvedOutput && value[0] !== "coalesce") : part,
+      );
+      return value[0] === "coalesce" && resolvedOutput ? ["image", ["to-string", rewritten]] : rewritten;
+    }
   }
-  if (outputIndices.size > 0)
-    return value.map((part, index) => (outputIndices.has(index) ? spriteImage(part, prefix) : part));
-  return spriteName(value, prefix);
+  return spriteName(value, prefix, true);
+}
+
+function imageOutputIndices(value: unknown[]): number[] {
+  const op = value[0];
+  const first =
+    op === "coalesce"
+      ? 1
+      : op === "match"
+        ? 3
+        : op === "case" || op === "step"
+          ? 2
+          : typeof op === "string" && op.startsWith("interpolate")
+            ? 4
+            : 0;
+  const indices: number[] = [];
+  if (first) for (let i = first; i < value.length; i += op === "coalesce" ? 1 : 2) indices.push(i);
+  if (op === "case" || op === "match") indices.push(value.length - 1);
+  return indices;
 }
 
 function isResolvedImageExpression(value: unknown): boolean {
   return (
     Array.isArray(value) &&
-    (value[0] === "image" || (value[0] === "coalesce" && value.slice(1).every(isResolvedImageExpression)))
+    (value[0] === "image" || imageOutputIndices(value).some((index) => isResolvedImageExpression(value[index])))
   );
+}
+
+function inlineImageVariables(value: unknown): unknown {
+  let remaining = 10000;
+  const visit = (value: unknown, bindings: ReadonlyMap<string, unknown>, depth: number): unknown => {
+    if (--remaining < 0 || depth > 64) throw new Error("Basemap image expression exceeds expansion limits.");
+    if (!Array.isArray(value)) {
+      const record = object(value);
+      return record
+        ? Object.fromEntries(Object.entries(record).map(([key, part]) => [key, visit(part, bindings, depth + 1)]))
+        : value;
+    }
+    if (value[0] === "literal") return value;
+    if (value[0] === "var") return bindings.has(value[1]) ? visit(bindings.get(value[1]), new Map(), depth + 1) : value;
+    if (value[0] === "let") {
+      const scope = new Map(bindings);
+      // RHS values use the outer scope, never sibling bindings. Resolve every
+      // reference before moving the expression into its result's lexical scope.
+      for (let i = 1; i < value.length - 1; i += 2) scope.set(value[i], visit(value[i + 1], bindings, depth + 1));
+      return visit(value[value.length - 1], scope, depth + 1);
+    }
+    return value.map((part, index) =>
+      value[0] === "match" && index >= 2 && index < value.length - 1 && index % 2 === 0
+        ? part
+        : visit(part, bindings, depth + 1),
+    );
+  };
+  return visit(value, new Map(), 0);
 }
 
 interface PreparedBasemap {
@@ -389,7 +430,7 @@ function rewriteImageProperties(
       key === "line-pattern" ||
       key === "background-pattern" ||
       key === "fill-extrusion-pattern"
-        ? spriteImage(value, prefix)
+        ? spriteImage(inlineImageVariables(value), prefix)
         : value,
     ]),
   );
