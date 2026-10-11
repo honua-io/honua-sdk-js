@@ -262,10 +262,13 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     async (args) => describeLayer.execute(client, describeLayer.schema.parse(args)),
   );
 
-  server.tool(
+  server.registerTool(
     "honua_query_features",
-    "Query features from any supported protocol. Address the source with `source`; filter with the typed protocol-neutral `filter`, a GeoJSON `geometry` or `bbox` plus `spatialRel`, and `temporal`. returnGeometry defaults to false to save tokens. A construct the backing protocol cannot express returns a structured capability error, never a silently empty result.",
-    queryFeatures.schema.shape,
+    {
+      description:
+        "Query features from any supported protocol. Address the source with source; use the typed filter, GeoJSON geometry or bbox, and temporal. returnGeometry defaults to true. resultOffset/outSrid alias offset/outSr; use honua_count_features for count-only requests. Unsupported inputs fail explicitly.",
+      inputSchema: queryFeatures.schema,
+    },
     async (args, extra) => queryFeatures.execute(client, queryFeatures.schema.parse(args), extra?.signal),
   );
 
@@ -304,10 +307,13 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     async (args) => getStyle.execute(client, getStyle.schema.parse(args)),
   );
 
-  server.tool(
+  server.registerTool(
     "honua_apply_style_preset",
-    "Resolve a style preset and its MapLibre stylesheet for client-side application. Read-only: returns the stylesheet to apply locally; it does not mutate server state. Degrades gracefully on a target with no styling surface.",
-    applyStylePreset.schema.shape,
+    {
+      description:
+        "Resolve a style preset for client-side application. Returns its stylesheet without persisting a layer binding; serviceId/layerId targets are unsupported.",
+      inputSchema: applyStylePreset.schema,
+    },
     async (args) => applyStylePreset.execute(client, applyStylePreset.schema.parse(args)),
   );
 

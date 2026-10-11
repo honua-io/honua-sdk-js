@@ -19,10 +19,8 @@ import {
   SpatialFilterSchema,
   SpatialReferenceSchema,
   SpatialRelationship,
-  StatisticDefinitionSchema,
-  StatisticType,
 } from "../gen/geospatial/v1/index.js";
-import { HonuaGrpcError } from "./errors.js";
+import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import type {
   HonuaCountResponse,
@@ -108,16 +106,6 @@ const ESRI_TO_PROTO_DISTANCE_UNIT_MAP: Record<string, DistanceUnit> = {
   mi: DistanceUnit.MILES,
 };
 
-const STATISTIC_TYPE_MAP: Record<string, StatisticType> = {
-  count: StatisticType.COUNT,
-  sum: StatisticType.SUM,
-  min: StatisticType.MIN,
-  max: StatisticType.MAX,
-  avg: StatisticType.AVG,
-  stddev: StatisticType.STDDEV,
-  var: StatisticType.VAR,
-};
-
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
 const MIN_PROTO_INT64 = -(1n << 63n);
@@ -146,6 +134,14 @@ function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: nu
  * Converts a SDK QueryFeaturesRequest into a proto QueryFeaturesRequest message.
  */
 export function toProtoQueryRequest(request: QueryFeaturesRequest) {
+  if (
+    request.outStatistics !== undefined ||
+    request.groupByFieldsForStatistics !== undefined ||
+    request.extraParams?.outStatistics !== undefined ||
+    request.extraParams?.groupByFieldsForStatistics !== undefined
+  ) {
+    throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", `${request.serviceId}/${request.layerId}`);
+  }
   const msg = create(QueryFeaturesRequestSchema);
   msg.serviceId = request.serviceId;
   msg.layerId = request.layerId;
@@ -196,17 +192,6 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   if (request.returnDistinctValues !== undefined) {
     msg.returnDistinct = request.returnDistinctValues;
   }
-  if (request.groupByFieldsForStatistics !== undefined) {
-    msg.groupBy = request.groupByFieldsForStatistics
-      .split(",")
-      .map((field) => field.trim())
-      .filter(Boolean);
-  }
-
-  if (request.outStatistics !== undefined) {
-    msg.outStatistics = toProtoStatistics(request.outStatistics);
-  }
-
   if (request.geometry !== undefined) {
     const filter = create(SpatialFilterSchema);
     const { geometry, spatialReference } = toProtoGeometry(request.geometry);
@@ -402,55 +387,6 @@ function parseExtraString(params: Record<string, string | number | boolean>, key
   }
 
   return String(value);
-}
-
-function toProtoStatistics(
-  value: string | readonly Record<string, unknown>[],
-): ReturnType<typeof create<typeof StatisticDefinitionSchema>>[] {
-  const raw: readonly Record<string, unknown>[] = typeof value === "string" ? parseStatisticsString(value) : value;
-
-  return raw.map((item, index) => {
-    const statisticTypeValue = item.statisticType;
-    if (typeof statisticTypeValue !== "string") {
-      throw new Error(`Invalid outStatistics[${index}].statisticType`);
-    }
-
-    const statisticType = STATISTIC_TYPE_MAP[statisticTypeValue.toLowerCase()];
-    if (!statisticType) {
-      throw new Error(`Unsupported statisticType for gRPC transport: ${statisticTypeValue}`);
-    }
-
-    const onStatisticFieldValue = item.onStatisticField;
-    if (typeof onStatisticFieldValue !== "string" || onStatisticFieldValue.trim().length === 0) {
-      throw new Error(`Invalid outStatistics[${index}].onStatisticField`);
-    }
-
-    const outStatisticFieldNameValue = item.outStatisticFieldName;
-    const outStatisticFieldName =
-      typeof outStatisticFieldNameValue === "string" && outStatisticFieldNameValue.trim().length > 0
-        ? outStatisticFieldNameValue.trim()
-        : `${statisticTypeValue}_${onStatisticFieldValue}`;
-
-    const definition = create(StatisticDefinitionSchema);
-    definition.onStatisticField = onStatisticFieldValue;
-    definition.statisticType = statisticType;
-    definition.outStatisticFieldName = outStatisticFieldName;
-    return definition;
-  });
-}
-
-function parseStatisticsString(value: string): readonly Record<string, unknown>[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error("Invalid outStatistics JSON for gRPC transport.");
-  }
-
-  if (!Array.isArray(parsed)) {
-    throw new Error("outStatistics JSON must be an array for gRPC transport.");
-  }
-  return parsed as readonly Record<string, unknown>[];
 }
 
 function toProtoGeometry(geometryValue: string | Record<string, unknown>): {

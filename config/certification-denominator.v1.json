@@ -157,8 +157,8 @@
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 82225,
-      "sha256": "sha256:436b1f6e33ecd28f08299797b76b3bddac3b3027cdbc0fb14d4e1decf1d563e6"
+      "bytes": 82207,
+      "sha256": "sha256:8b7167e3ed2efcc75dc2dd2787f34a9a23596f6eb27e6d0aa641b09f74c6d325"
     }
   ],
   "profiles": {
@@ -408,7 +408,6 @@
       "protocols": {
         "grpc": {
           "query": "supported",
-          "queryAggregate": "supported",
           "queryExtent": "supported",
           "queryObjectIds": "supported",
           "applyEdits": "supported",
@@ -526,20 +525,20 @@
     }
   },
   "digests": {
-    "inputs": "sha256:96599f422f6698604b1c9188147c37cad432dcbfb0eb73a394d787b6577bc6cc",
+    "inputs": "sha256:f9152cd8f19b468a63de80fe383cc1e1948e8680269b05f1fc361662ba5d014a",
     "capabilityProfile": "sha256:b39f35595f99d6b11e87c0bdf5752a09a34eae8cc01006c0d67d654afdf079f3",
-    "supportProfile": "sha256:7aaa73ac15c045a52c790ca0fb6a27f4ec9665fe71b5051389a676da2c85be90",
-    "rows": "sha256:c82824fea4d29259c8686a289494ef25a28e680a7df2f06a6c8291646a51c42a"
+    "supportProfile": "sha256:34fd82c2521ae222ed7e14c7c9eed42486938d1b9424962d2b3592036df8fa9a",
+    "rows": "sha256:893f40bd5683a3c35152652644ee9ae245702aa4ad030019ee2f2cd73b997e92"
   },
   "summary": {
-    "rows": 295,
-    "counting": 223,
+    "rows": 294,
+    "counting": 222,
     "visibleNonCounting": 72,
     "renderer": 2,
     "portableMapArtifact": 48,
     "rendererFromPortableMapArtifact": 2,
     "byTier": {
-      "supported": 229,
+      "supported": 228,
       "beta": 24,
       "experimental": 28,
       "facade-required": 5,
@@ -548,7 +547,7 @@
     },
     "byFamily": {
       "protocol-certification": 67,
-      "protocol-operation": 73,
+      "protocol-operation": 72,
       "sdk-operation": 89,
       "terminal-journey": 66
     }
@@ -3098,32 +3097,6 @@
       "subject": "grpc",
       "label": "gRPC",
       "operation": "query",
-      "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/protocols/0/operationClaims/0/status",
-      "protocol": "grpc",
-      "environment": "honua-facade",
-      "executionMode": "native",
-      "renderer": false,
-      "portableMapArtifact": false,
-      "portableMapArtifactBindings": [],
-      "source": {
-        "path": "config/support-manifest.v1.json",
-        "pointer": "/protocols/0/operationClaims/0"
-      },
-      "evidence": [
-        "contract-conformance",
-        "grpc-conformance"
-      ],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "protocol-operation:grpc:queryAggregate",
-      "family": "protocol-operation",
-      "subject": "grpc",
-      "label": "gRPC",
-      "operation": "queryAggregate",
       "tier": "supported",
       "tierSource": "config/support-manifest.v1.json#/protocols/0/operationClaims/0/status",
       "protocol": "grpc",

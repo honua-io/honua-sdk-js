@@ -28,6 +28,7 @@ import {
   withoutHonuaCacheState,
 } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
+import { HonuaHttpError } from "./errors.js";
 import { encodeOdataKeyPredicatePath } from "./odata-key-path.js";
 import { trimTrailingSlashes } from "./path-utils.js";
 import type { HonuaFieldInfo } from "./types.js";
@@ -418,6 +419,7 @@ export class HonuaOdataEntitySet {
     let totalCount: number | undefined;
     let next: string | undefined;
     let firstPageParams: HonuaOdataQueryParams | undefined = params;
+    const seenLinks = new Set<string>();
     while (true) {
       const page: HonuaOdataPage<T> = next
         ? await this.followNextLink<T>(next, params.signal)
@@ -433,6 +435,7 @@ export class HonuaOdataEntitySet {
       }
       if (cap !== undefined && collected.length >= cap) break;
       if (!page.nextLink) break;
+      this.checkNextLink(page.nextLink, seenLinks);
       next = page.nextLink;
     }
     return totalCount === undefined ? { rows: collected } : { rows: collected, totalCount };
@@ -444,7 +447,9 @@ export class HonuaOdataEntitySet {
   ): AsyncGenerator<HonuaOdataPage<T>, void, undefined> {
     let page: HonuaOdataPage<T> = await this.query<T>(params);
     yield page;
+    const seenLinks = new Set<string>();
     while (page.nextLink) {
+      this.checkNextLink(page.nextLink, seenLinks);
       page = await this.followNextLink<T>(page.nextLink, params.signal);
       yield page;
     }
@@ -571,7 +576,9 @@ export class HonuaOdataEntitySet {
       ...(page.nextLink ? { nextLink: page.nextLink } : {}),
       ...(page.deltaLink ? { deltaLink: page.deltaLink } : {}),
     };
+    const seenLinks = new Set<string>();
     while (page.nextLink) {
+      this.checkNextLink(page.nextLink, seenLinks);
       page = await this.followNextLink<T>(page.nextLink, options.signal);
       yield {
         rows: page.rows,
@@ -640,6 +647,15 @@ export class HonuaOdataEntitySet {
       ...(validator ? { validator } : {}),
       ...(sourceUpdatedAt ? { sourceUpdatedAt } : {}),
     };
+  }
+
+  private checkNextLink(nextLink: string, seen: Set<string>): void {
+    const { path, query } = parseNextLink(nextLink, this.client.serverBaseUrl, this.basePath);
+    const normalized = JSON.stringify([path, Object.entries(query ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
+    if (seen.has(normalized)) {
+      throw new HonuaHttpError(200, "OData paging returned a repeated nextLink.", { reason: "repeated-next-link" });
+    }
+    seen.add(normalized);
   }
 
   private async followNextLink<T>(nextLink: string, signal?: AbortSignal): Promise<HonuaOdataPage<T>> {

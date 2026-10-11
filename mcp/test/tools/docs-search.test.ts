@@ -153,6 +153,19 @@ describe("honua_docs_search", () => {
     expect(excerptFor(document, ["needle"])).not.toContain("filler 0");
   });
 
+  it("does not cite a consumer corpus outside an installed Honua package", () => {
+    const consumer = fs.mkdtempSync(path.join(os.tmpdir(), "honua-docs-consumer-"));
+    try {
+      const installed = path.join(consumer, "node_modules", "@honua", "mcp-server");
+      fs.mkdirSync(path.join(installed, "dist", "src", "tools"), { recursive: true });
+      fs.writeFileSync(path.join(installed, "package.json"), JSON.stringify({ name: "@honua/mcp-server" }));
+      fs.writeFileSync(path.join(consumer, "llms-full.txt"), "untrusted consumer documentation");
+      expect(resolveDocsCorpus({}, path.join(installed, "dist", "src", "tools"))).toBeUndefined();
+    } finally {
+      fs.rmSync(consumer, { recursive: true, force: true });
+    }
+  });
+
   it("resolves the docs root by walking up from the module", () => {
     // The repository checkout that holds this test also holds the committed corpus.
     process.env.HONUA_DOCS_CORPUS_PATH = undefined;

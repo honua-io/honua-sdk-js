@@ -113,6 +113,15 @@ The tool requires `confirm: true`. Stop and remove this bootstrap server from
 the MCP client configuration after installation; the normal platform-free
 server remains read-only and cannot invoke the installer.
 
+Choose a new directory for each installation. The installer checks Docker Engine
+and Compose before writing files, refuses existing compose/bootstrap files it
+cannot recognize, and preserves unrelated keys in an installer-owned private
+`.env`. New installations keep an isolated Compose project identity in that file;
+keep `.env` with the installation to retain its credentials and volumes. Existing
+legacy installations keep their original project after verifying that its
+containers belong to the chosen directory. Restore the original files when that
+check refuses a conflicting or incomplete legacy installation.
+
 ## Environment Variables
 
 - `HONUA_BASE_URL` (required in normal mode): absolute base URL — a public ArcGIS folder
@@ -136,12 +145,12 @@ All read-only:
 - `honua_list_sources` — **protocol-neutral discovery.** Returns `<protocol>:<address>` source references plus each source's real capabilities. Every protocol family degrades independently with a reason.
 - `honua_list_services` — GeoServices-specific service catalog (prefer `honua_list_sources`)
 - `honua_describe_layer` — source schema, protocol, and advertised capabilities
-- `honua_query_features`
+- `honua_query_features` — includes geometry by default; `resultOffset` and `outSrid` are aliases for `offset` and `outSr`. Pass one spelling of each field. Count-only and geometry-precision inputs are refused; use `honua_count_features` for counts.
 - `honua_count_features`
 - `honua_get_extent`
 - `honua_statistics`
 - `honua_explain_capability_gap`
-- `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
+- `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer. Preset resolution is read-only and returns a stylesheet for client-side application; persisted `serviceId`/`layerId` binding arguments are refused.
 - `honua_docs_search` — answer a Honua documentation question from the local versioned docs corpus (`llms-full.txt`), with a source-file and release-version citation per hit. Each citation is pinned to the exact commit the corpus bytes come from, so it keeps naming the text that was searched after `trunk` moves; when that commit cannot be established (an installed package with no checkout, or a locally regenerated corpus) the citation reports `sourceRevision: null` and links to `trunk` rather than claiming a pin it cannot back. Offline: reads committed files, never the network, and reports structured-unavailable when the corpus is not present in the installation. Point `HONUA_DOCS_CORPUS_PATH` at a corpus file (any name) or at a directory holding `llms-full.txt` to supply the corpus explicitly; `HONUA_SOURCE_REVISION` declares the commit when git is unavailable.
 
 ### Protocol-neutral tool contract
@@ -260,7 +269,7 @@ Embedding the server in your own Node.js host needs the packages as local
 dependencies of that host project:
 
 ```bash
-npm install @honua/mcp-server@0.1.13 @honua/sdk-js@0.1.13
+npm install @honua/mcp-server @honua/sdk-js
 ```
 
 The map runtime, model callback, approval verifier, receipt signer, and

@@ -1009,16 +1009,15 @@ describe("Honua native API surfaces", () => {
     const seenRequests: unknown[] = [];
     const signal = new AbortController().signal;
 
-    (
-      client as unknown as {
-        queryFeaturesStream: (request: unknown) => AsyncGenerator<unknown[], void, undefined>;
-      }
-    ).queryFeaturesStream = async function* (request: unknown) {
+    vi.spyOn(client, "queryFeatures").mockImplementation(async (request) => {
       seenRequests.push(request);
-      yield [{ id: 1 }];
-      yield [{ id: 2 }];
-      yield [{ id: 3 }];
-    } as (request: unknown) => AsyncGenerator<unknown[], void, undefined>;
+      return {
+        features: [
+          { attributes: { OBJECTID: request.resultOffset } },
+          { attributes: { OBJECTID: (request.resultOffset ?? 0) + 1 } },
+        ],
+      };
+    });
 
     const layer = client.featureLayer("transport", 4);
     const pages: unknown[][] = [];
@@ -1039,18 +1038,22 @@ describe("Honua native API surfaces", () => {
       returnDistance: true,
       returnDistinctValues: true,
       returnCentroid: true,
-      groupByFieldsForStatistics: "STATUS",
-      outStatistics: [{ statisticType: "count", onStatisticField: "OBJECTID", outStatisticFieldName: "cnt" }],
       resultOffset: 4,
       extraParams: { foo: "bar" },
       signal,
+      resultRecordCount: 1,
       pageSize: 2,
       maxPages: 2,
     })) {
       pages.push(page);
     }
 
-    expect(pages).toEqual([[{ id: 1 }], [{ id: 2 }]]);
+    expect(pages).toEqual([
+      [{ attributes: { OBJECTID: 4 } }, { attributes: { OBJECTID: 5 } }],
+      [{ attributes: { OBJECTID: 6 } }, { attributes: { OBJECTID: 7 } }],
+    ]);
+    expect(seenRequests).toHaveLength(2);
+    expect((seenRequests[1] as Record<string, unknown>).resultOffset).toBe(6);
 
     const request = seenRequests[0] as Record<string, unknown>;
     expect(request.serviceId).toBe("transport");
@@ -1071,16 +1074,10 @@ describe("Honua native API surfaces", () => {
     expect(request.returnDistance).toBe(true);
     expect(request.returnDistinctValues).toBe(true);
     expect(request.returnCentroid).toBe(true);
-    expect(request.groupByFieldsForStatistics).toBe("STATUS");
-    expect(request.outStatistics).toEqual([
-      { statisticType: "count", onStatisticField: "OBJECTID", outStatisticFieldName: "cnt" },
-    ]);
     expect(request.resultOffset).toBe(4);
     expect(request.resultRecordCount).toBe(2);
     expect(request.extraParams).toEqual({ foo: "bar" });
     expect(request.signal).toBe(signal);
-    expect(request.pageSize).toBeUndefined();
-    expect(request.maxPages).toBeUndefined();
   });
 
   it("queryFeaturesStream stops on empty page", async () => {

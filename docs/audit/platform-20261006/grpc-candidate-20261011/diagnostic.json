@@ -1,0 +1,18 @@
+{
+  "scope": "source-built SDK diagnostic; not installed release certification",
+  "sourceSha": "7b6ad4daaadb7b35a8e1fbf202e404f9fc66668d",
+  "builtSourceSha": "9a28ecafa",
+  "releaseManifestCommit": "e0a5bb8a",
+  "generatedOnlyFollowups": [
+    "80200be0c",
+    "7b6ad4daa"
+  ],
+  "serverSha": "93cad86ec4fb28fba3ff0b9358059d86aa55dde5",
+  "image": "ghcr.io/honua-io/honua-server@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+  "imageId": "sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+  "seedSha256": "0b79e754c99ee08fa24569a29b8fdef5450651157d0b62d55be9f4f38753140c",
+  "extension": "INSERT INTO features(layer_id,geometry,attributes) SELECT 0, geometry, jsonb_set(attributes,'{name}',to_jsonb('stream-row-' || n)) FROM (SELECT geometry,attributes FROM features WHERE layer_id=0 ORDER BY objectid LIMIT 1) exemplar CROSS JOIN generate_series(1,2500) n;",
+  "command": "npm run test:integration -- test/integration/surfaces/grpc.integration.ts",
+  "exitCode": 0,
+  "log": "/tmp/honua-sdk1952-QSw51W/integration.log"
+}

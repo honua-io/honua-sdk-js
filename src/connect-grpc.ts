@@ -46,22 +46,12 @@ import type { HonuaLayerMetadata, HonuaQueryResponse } from "./core/types.js";
 /** The full capability surface Honua gRPC discovery may ever advertise. */
 const GRPC_LAYER_SCOPE: readonly Capability[] = Object.freeze([...PROTOCOL_DEFAULT_CAPABILITIES.grpc]);
 
-/**
- * The capabilities that require a successful live `QueryFeatures` parity
- * probe before being advertised — the two operations that actually exercise
- * the gRPC read path (`queryObjectIds`, `queryAggregate`, `queryExtent`, and
- * `applyEdits` are trusted from metadata alone, exactly as raw GeoServices
- * REST discovery trusts them without probing).
- */
-// Every capability that executes through the grpc-web `client.queryFeatures` path must be
-// narrowed when the live probe fails, not just `query`/`stream`: `queryExtent`,
-// `queryObjectIds`, and `queryAggregate` hit the identical transport.
+/** Read capabilities require a successful live QueryFeatures parity probe. */
 const GRPC_PROBE_GATED_CAPABILITIES: readonly Capability[] = Object.freeze([
   "query",
   "stream",
   "queryExtent",
   "queryObjectIds",
-  "queryAggregate",
 ]);
 
 /** Bounded row count for the parity probe — enough to populate schema metadata without pulling a working set. */
@@ -190,7 +180,7 @@ async function layerEvidenceWithGrpcProbe(
 
   // Reuses the same algorithm raw GeoServices REST discovery uses, so the
   // capability truth is identical wherever the two adapters overlap; only
-  // `query` / `stream` are then narrowed by the live gRPC probe below.
+  // read capabilities are then narrowed by the live gRPC probe below.
   const metadataCapabilities = capabilitiesFromMetadata("geoservices-feature-service", metadata).filter((capability) =>
     GRPC_LAYER_SCOPE.includes(capability),
   );
