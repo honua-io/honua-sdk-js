@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { chmod, copyFile, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
-export async function executeCandidateFixture({ candidate, work, root, spawn = spawnSync }) {
+export async function executeCandidateFixture({ candidate, work, root, spawn = spawnSync, fetch = globalThis.fetch }) {
   const prefix = `honua-sdk39-${randomBytes(6).toString("hex")}`;
   const postgres = `${prefix}-pg`;
   const server = `${prefix}-server`;
@@ -52,8 +52,8 @@ export async function executeCandidateFixture({ candidate, work, root, spawn = s
       await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
     assert.ok(ready, "fixture PostgreSQL did not become ready");
-    docker("exec", ["-i", postgres, "psql", "-U", "postgres", "-d", "certification", "-v", "ON_ERROR_STOP=1"],
-      { input: await readFile(path.join(root, "test/integration/seed/places-roads-v1.sql"), "utf8") });
+    docker("exec", [postgres, "psql", "-U", "postgres", "-d", "certification", "-v", "ON_ERROR_STOP=1",
+      "-c", "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS postgis_raster;"]);
     const connection = `Server=${postgres};Port=5432;Database=certification;User Id=postgres;Password=${password};`;
     const baseServerEnv = [
       "ASPNETCORE_ENVIRONMENT=Production", "ASPNETCORE_URLS=http://+:8080",
@@ -65,22 +65,12 @@ export async function executeCandidateFixture({ candidate, work, root, spawn = s
       `Operations__SecretChannel__KeyRingCertificatePassword=${keyRingPassword}`,
       "HostValidation__AllowedHosts__0=127.0.0.1",
     ];
-    // Mirrors MigrationSafetyClassifier.ComputeContractApprovalNonce: this fixture's seed
-    // pre-journals the schema-floor migrations it adopts (see the seed's "Schema-floor guard
-    // adoption" section), which makes the journal non-empty and therefore trips the unrelated
-    // journal-scoped contract-apply gate (honua-server#2565/#2812) for older contract-annotated
-    // migrations (import staging, etc.) this fixture has no use for. The candidate's rejection
-    // names the exact pending set and the one-shot approval env var it needs; extract and supply
-    // it rather than pre-computing a list that would drift as migrations are added.
-    const contractApprovalNonce = (pendingScripts) =>
-      createHash("sha256").update([...pendingScripts].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join("\n"), "utf8").digest("hex").slice(0, 16);
     const startServer = (env) => docker("run", ["-d", "--name", server, "--network", prefix, "-p", "127.0.0.1::8080",
       "-v", `${keyRingP12}:/app/keyring.p12:ro`, ...env.flatMap((value) => ["-e", value]), candidate.server.image]);
     const expectedImageId = docker("image", ["inspect", candidate.server.image, "--format", "{{.Id}}"]);
-    let serverEnv = baseServerEnv;
-    startServer(serverEnv);
+    startServer(baseServerEnv);
     assert.equal(docker("inspect", [server, "--format", "{{.Image}}"]), expectedImageId, "running candidate image mismatch");
-    let baseUrl = `http://${docker("port", [server, "8080/tcp"])}`;
+    const baseUrl = `http://${docker("port", [server, "8080/tcp"])}`;
     const waitReady = async () => {
       for (let attempt = 0; attempt < 90; attempt++) {
         const state = JSON.parse(docker("inspect", [server, "--format", "{{json .State}}"]));
@@ -93,23 +83,18 @@ export async function executeCandidateFixture({ candidate, work, root, spawn = s
       }
       return { ready: false, timedOut: true };
     };
-    let outcome = await waitReady();
-    if (!outcome.ready && !outcome.timedOut) {
-      const startupLogs = spawn("docker", ["logs", server], { encoding: "utf8", timeout: 10_000 });
-      const gateMatch = /Migration safety gate blocked pending contract-phase migration\(s\) on an existing database: ([\s\S]*?)\. These reviewed \(annotated\) contract migrations/.exec(
-        `${startupLogs.stdout ?? ""}\n${startupLogs.stderr ?? ""}`);
-      if (gateMatch) {
-        const pendingScripts = gateMatch[1].split(",").map((name) => name.trim());
-        serverEnv = [...baseServerEnv, `HONUA_APPROVE_CONTRACT_MIGRATIONS=${contractApprovalNonce(pendingScripts)}`];
-        docker("rm", ["-f", server]);
-        startServer(serverEnv);
-        assert.equal(docker("inspect", [server, "--format", "{{.Image}}"]), expectedImageId, "running candidate image mismatch");
-        baseUrl = `http://${docker("port", [server, "8080/tcp"])}`;
-        outcome = await waitReady();
-      }
-    }
-    assert.ok(!outcome.timedOut, "exact candidate did not become ready within 90 polls");
-    assert.ok(outcome.ready, `exact candidate exited before readiness: exit=${outcome.exitCode}, oom=${outcome.oomKilled}`);
+    const requireReady = async (phase) => {
+      const outcome = await waitReady();
+      assert.ok(!outcome.timedOut, `exact candidate did not become ready within 90 polls (${phase})`);
+      assert.ok(outcome.ready, `exact candidate exited before readiness (${phase}): exit=${outcome.exitCode}, oom=${outcome.oomKilled}`);
+    };
+    // The candidate owns schema creation and its migration journal. Seed only after
+    // every migration has run against the empty database, then verify a clean restart.
+    await requireReady("first boot");
+    docker("exec", ["-i", postgres, "psql", "-U", "postgres", "-d", "certification", "-v", "ON_ERROR_STOP=1"],
+      { input: await readFile(path.join(root, "test/integration/seed/places-roads-v1.sql"), "utf8") });
+    docker("restart", [server]);
+    await requireReady("seeded restart");
     await copyFile(path.join(root, "scripts/fixtures/installed-features.mjs"), path.join(work, "installed-features.mjs"));
     const output = path.join(work, "observations.json");
     const runConsumer = async () => {
