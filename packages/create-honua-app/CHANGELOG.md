@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.8](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.7...create-honua-app-v0.1.8) (2026-10-11)
+
+
+### Features
+
+* add configurable free basemaps to samples and starters ([467bc1c](https://github.com/honua-io/honua-sdk-js/commit/467bc1cb1ebc0ed376cb51a63a76582c19a17ae9))
+* share configurable free basemaps across live samples ([7cdd6a1](https://github.com/honua-io/honua-sdk-js/commit/7cdd6a1a51b20569364eabe34fe7418d1f571248))
+
+
+### Bug Fixes
+
+* keep scaffold documentation aligned with SDK releases ([#2017](https://github.com/honua-io/honua-sdk-js/issues/2017)) ([4cc0b31](https://github.com/honua-io/honua-sdk-js/commit/4cc0b319d75f7bf96e36d9364ffa5c545180ac39))
+* retain pending basemap themes and narrow compatibility lookup ([cda8245](https://github.com/honua-io/honua-sdk-js/commit/cda824587bc5fa489f8e407c956244f0bef9410c))
+
+
+### Performance
+
+* slim SDK distribution and synchronize published client pins ([#2012](https://github.com/honua-io/honua-sdk-js/issues/2012)) ([eeab917](https://github.com/honua-io/honua-sdk-js/commit/eeab917d13241069937dd8a609de9fdc03aafcb7))
+
 ## [0.1.7](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.6...create-honua-app-v0.1.7) (2026-10-06)
 
 
