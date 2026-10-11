@@ -1,3 +1,7 @@
+---
+type: index
+---
+
 # Distribution measurements
 
 Receipts and consumer locks are preserved as recorded; temporary archive URLs
