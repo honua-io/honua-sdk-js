@@ -168,7 +168,7 @@ The installer mints one key, `honua-local-agent`, with exactly
   administer the server but every layer read would be forbidden.
 
 It deliberately carries no `write:` data grant (no feature edits) and no
-`admin:approve` (it cannot approve its own proposals). Approvals and data edits
+`admin:approve` (it cannot approve proposals). Approvals and data edits
 stay with the human.
 
 A directory installed before `read:*` was added holds a key with only the two

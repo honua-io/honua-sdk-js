@@ -101,19 +101,30 @@ A separate human with the required approval authority reviews the actual
 proposal and runs the typed CLI under their own authenticated profile:
 
 ```bash
-honua admin operate approveOperationProposal --path id=<proposal-id> --profile approver --yes
-honua admin operate getOperationProposal --path id=<proposal-id> --profile approver --json
+(
+  unset HONUA_ADMIN_KEY HONUA_API_KEY HONUA_BEARER_TOKEN HONUA_BASE_URL
+  honua admin operate approveOperationProposal --path id=<proposal-id> --profile approver --yes
+  honua admin operate getOperationProposal --path id=<proposal-id> --profile approver --json
+)
 ```
 
 Approval takes no request body. The profile name alone does not change identity:
-configure it with the approver's own credential and avoid inherited proposer
-credentials. API keys need full admin or `admin:approve`; operator bearers need
+configure it with the approver's own credential and target base URL. The subshell
+clears the environment credentials and base URL that would override the profile. API keys need full admin or `admin:approve`; operator bearers need
 RBAC approval authority. Do not mint, reuse, or impersonate that human credential
 from the proposing agent session. `--yes` permits the CLI mutation; it does not
 establish separate human approval.
 
-Require the proposing principal's self-approval attempt to be refused without
-changing the proposal. After actual human approval, poll the authoritative
+A separation-of-duties control must use a proposer that independently has
+approval authority, under a supported qualification policy that still requires
+review. Retain that effective authority, require HTTP 403 with
+`Separation of duties: the requester of a proposal cannot approve it.`, and
+verify that the same proposal remains pending with unchanged state. The default
+local key lacks `admin:approve`; its generic refusal proves limited permissions,
+not separation of duties. If an approval-capable proposer cannot be established,
+retain that control as blocked instead of claiming a pass.
+
+After actual human approval, poll the authoritative
 proposal to terminal success and retain the server-issued approval identity,
 requester/resolver identities, and operation/audit/correlation joins. Read the
 final published map and compare its item, version, hash, and content with the

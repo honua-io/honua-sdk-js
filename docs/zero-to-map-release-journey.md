@@ -42,17 +42,28 @@ not an immutable evidence pin.
    version, and content hash. See
    [map composition](../skills/honua-map-composition/SKILL.md).
 7. Propose publication of that exact saved version under the supported proposer
-   policy. Require a durable pending proposal and refusal of proposer
-   self-approval without mutation. An immediate admin publication does not
-   establish this approval boundary.
+   policy. Require a durable pending proposal. Prove separation of duties with
+   an independently approval-capable proposer under a supported policy that
+   still requires review: retain its effective approval authority, then require
+   HTTP 403 with `Separation of duties: the requester of a proposal cannot approve it.`
+   and unchanged pending proposal state. A refusal of the default local key,
+   which lacks `admin:approve`, proves only its limited permissions. If the
+   candidate cannot establish the approval-capable control, report it blocked.
+   An immediate admin publication does not establish this approval boundary.
 8. A separate human approver reviews the proposal and uses the typed CLI with
    their own authenticated profile. Approval takes no request body:
 
    ```bash
-   honua admin operate approveOperationProposal --path id=<proposal-id> --profile approver --yes
-   honua admin operate getOperationProposal --path id=<proposal-id> --profile approver --json
+   (
+     unset HONUA_ADMIN_KEY HONUA_API_KEY HONUA_BEARER_TOKEN HONUA_BASE_URL
+     honua admin operate approveOperationProposal --path id=<proposal-id> --profile approver --yes
+     honua admin operate getOperationProposal --path id=<proposal-id> --profile approver --json
+   )
    ```
 
+   The human must configure `approver` with their own credential and the target
+   base URL. The subshell clears environment overrides that otherwise take
+   precedence over that profile; its name alone does not prove identity.
    `--yes` is CLI mutation consent, not proof of human identity. Poll the actual
    proposal to terminal success, retain server-issued approval and audit joins,
    and read the authorized final map. Compare its item, version, hash, and body
