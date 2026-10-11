@@ -7,6 +7,7 @@ export default createSampleViteConfig(import.meta.url, {
     "@honua/sdk-js/honua",
     "@honua/sdk-js/interactions",
     "@honua/sdk-js/realtime",
+    "@honua/sdk-js/runtime",
     "@honua/sdk-js/style",
   ],
 });

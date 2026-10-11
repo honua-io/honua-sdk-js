@@ -1,5 +1,6 @@
 {
  "$comment": [
+  "/runtime gzip was reset for configurable online basemaps (#1717) after renderer tree-shaking, private-state consolidation, and generated-validator optimization. The compiled entrypoint measures 184,885 gzip bytes, 186 above its previous ceiling; the new ceiling is 203,374 bytes, ceil(actual * 1.1). Only the exceeded runtime entrypoint metric changes. The separate installed First Map gzip ceiling is explicitly adjusted by 1,000 bytes for MapLibre 6.14.0; its evidence and unchanged raw-byte and CPU ceilings are documented in docs/installed-first-map-budget.md.",
   "Per-entrypoint bundle-size budgets for @honua/sdk-js (issue #350).",
   "/source-schema uses narrower regression headroom for #1413: measured 833853 minified / 196387 gzip versus audited 901833 / 201663. Ceilings 880000 / 200000 preserve the achieved PROJJSON graph reduction; the prior graph fails both metrics.",
   "Each budget is a hard byte ceiling for a single public entrypoint bundled the",
@@ -164,7 +165,7 @@
   },
   "/runtime": {
    "min": 770607,
-   "gzip": 184699
+   "gzip": 203374
   },
   "/realtime": {
    "min": 88268,
