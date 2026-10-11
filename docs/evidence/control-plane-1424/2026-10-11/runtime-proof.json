@@ -1,0 +1,19 @@
+{
+  "image": "ghcr.io/honua-io/honua-server:nightly-93cad86@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+  "imageId": "sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+  "environment": "Production",
+  "licensing": {
+    "mode": "disabled",
+    "status": "pass",
+    "surface": "/api/v1/admin/license"
+  },
+  "durableRedisAttested": true,
+  "keyRingCertificateConfigured": true,
+  "productionOverlaySha256": "cca18327972caebc1a592363d8140716caa5c272595922b1de80d4526b0d5966",
+  "auditChainKeyConfigured": true,
+  "auditIntegrity": {
+    "verified": true,
+    "rowsChecked": 82,
+    "unhashedRows": 0
+  }
+}

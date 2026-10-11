@@ -1,0 +1,225 @@
+{
+  "sourceSha": "70566967348b3a78f6abc107c205538cad67e3b3",
+  "principals": {
+    "owner": {
+      "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+      "tenantId": "tenant-a"
+    },
+    "otherTenant": {
+      "actor": "2e3b4896-a706-496c-a57e-fce5d9b72709",
+      "tenantId": "tenant-b"
+    }
+  },
+  "scope": "Real tenant-owned Studio draft enforcement across shared SDK/Studio/MCP command adapters. No equivalent terminal draft verb exists; this is not four-surface journey certification.",
+  "results": [
+    {
+      "surface": "sdk",
+      "error": {
+        "kind": "honua.command.error.v1",
+        "errorKind": "transport",
+        "commandId": "studio.draft.saveVersion",
+        "retryable": true,
+        "correlationId": "honua-corr-9c56cb2342fd1b9d24b1d9fc886b3fcf",
+        "idempotencyKey": "honua-cmd-981b4e34641d8a83dbb1dceb01017f2b",
+        "statusCode": 404,
+        "message": "Command studio.draft.saveVersion failed with HTTP 404."
+      }
+    },
+    {
+      "surface": "studio",
+      "error": {
+        "kind": "honua.command.error.v1",
+        "errorKind": "transport",
+        "commandId": "studio.draft.saveVersion",
+        "retryable": true,
+        "correlationId": "honua-corr-9c56cb2342fd1b9d24b1d9fc886b3fcf",
+        "idempotencyKey": "honua-cmd-981b4e34641d8a83dbb1dceb01017f2b",
+        "statusCode": 404,
+        "message": "Command studio.draft.saveVersion failed with HTTP 404."
+      }
+    },
+    {
+      "surface": "mcp",
+      "isError": true,
+      "error": {
+        "kind": "honua.command.error.v1",
+        "errorKind": "transport",
+        "commandId": "studio.draft.saveVersion",
+        "retryable": true,
+        "correlationId": "honua-corr-9c56cb2342fd1b9d24b1d9fc886b3fcf",
+        "idempotencyKey": "honua-cmd-981b4e34641d8a83dbb1dceb01017f2b",
+        "statusCode": 404,
+        "message": "Command studio.draft.saveVersion failed with HTTP 404."
+      }
+    }
+  ],
+  "draft": {
+    "draftId": "ae452bd7-2a6a-492a-89c6-7e3f36857fa1",
+    "itemId": "ad2e6b7f-ae3a-4e4b-a706-9ee8886f59ec",
+    "packageKey": "sdk1424-30cad6e5-b0dd-4292-a025-473beadeca72",
+    "ownerId": "subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac@tenant:tenant-a",
+    "family": "map",
+    "envelope": {
+      "family": "map",
+      "schemaVersion": "1.0",
+      "format": "studio_map_package.v1",
+      "bindings": [
+        {
+          "key": "flood-zones",
+          "kind": "content",
+          "ref": "content.flood-zones",
+          "crs": "EPSG:4326",
+          "srid": 4326
+        }
+      ],
+      "dependencies": [],
+      "validation": {
+        "status": "invalid",
+        "diagnostics": [
+          {
+            "code": "studio.format.unsupported",
+            "severity": "error",
+            "path": "/format",
+            "message": "format must be 'honua_map_package.v1'."
+          },
+          {
+            "code": "studio.binding.permissions.array",
+            "severity": "error",
+            "path": "/bindings/0/requiredPermissions",
+            "message": "requiredPermissions must be an array."
+          }
+        ],
+        "unsupportedCapabilities": [],
+        "generatedAt": "2026-10-11T18:55:01.8889929+00:00"
+      },
+      "publicationIntent": {
+        "route": "/studio/flood-zones",
+        "visibility": "public"
+      },
+      "provenance": [
+        {
+          "kind": "prompt",
+          "ref": "prompt-map-1",
+          "rel": "generated-by"
+        }
+      ],
+      "body": {
+        "mapPackageId": "pkg-map-1",
+        "format": "honua_map_package.v1",
+        "status": "Ready",
+        "sourceBindings": [
+          {
+            "sourceId": "flood-zones",
+            "protocol": "ogc_features",
+            "locator": {
+              "url": "https://example.test/collections/flood-zones"
+            }
+          }
+        ],
+        "mapSpec": {
+          "version": 8,
+          "sources": {
+            "flood-zones": {
+              "type": "geojson",
+              "data": {
+                "type": "FeatureCollection",
+                "features": []
+              }
+            }
+          },
+          "layers": [
+            {
+              "id": "flood-fill",
+              "type": "fill",
+              "source": "flood-zones"
+            }
+          ]
+        }
+      }
+    },
+    "validation": {
+      "status": "invalid",
+      "diagnostics": [
+        {
+          "code": "studio.format.unsupported",
+          "severity": "error",
+          "path": "/format",
+          "message": "format must be 'honua_map_package.v1'."
+        },
+        {
+          "code": "studio.binding.permissions.array",
+          "severity": "error",
+          "path": "/bindings/0/requiredPermissions",
+          "message": "requiredPermissions must be an array."
+        }
+      ],
+      "unsupportedCapabilities": [],
+      "generatedAt": "2026-10-11T18:55:01.8889929+00:00"
+    },
+    "generation": 1,
+    "createdBy": "subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac@tenant:tenant-a",
+    "updatedBy": "subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac@tenant:tenant-a",
+    "createdAt": "2026-10-11T18:55:01.8887618+00:00",
+    "updatedAt": "2026-10-11T18:55:01.8887618+00:00"
+  },
+  "audit": [
+    {
+      "correlationId": "honua-corr-9c56cb2342fd1b9d24b1d9fc886b3fcf",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "auditId": 140,
+            "timestamp": "2026-10-11T18:55:02.901332+00:00",
+            "eventType": "Authorization",
+            "actor": "operatorbearer:subject:honua-operator-bearer:2e3b4896-a706-496c-a57e-fce5d9b72709",
+            "actorType": "UserId",
+            "resourceType": "studio-package-draft",
+            "resourceId": "ae452bd7-2a6a-492a-89c6-7e3f36857fa1",
+            "action": "studio.read_draft",
+            "outcome": "Denied",
+            "correlationId": "honua-corr-9c56cb2342fd1b9d24b1d9fc886b3fcf",
+            "remoteIp": "::ffff:172.28.0.1",
+            "userAgent": "node",
+            "details": "{\"code\":\"studio_authorization/cross_tenant_denied\"}"
+          },
+          {
+            "auditId": 139,
+            "timestamp": "2026-10-11T18:55:02.398615+00:00",
+            "eventType": "Authorization",
+            "actor": "operatorbearer:subject:honua-operator-bearer:2e3b4896-a706-496c-a57e-fce5d9b72709",
+            "actorType": "UserId",
+            "resourceType": "studio-package-draft",
+            "resourceId": "ae452bd7-2a6a-492a-89c6-7e3f36857fa1",
+            "action": "studio.read_draft",
+            "outcome": "Denied",
+            "correlationId": "honua-corr-9c56cb2342fd1b9d24b1d9fc886b3fcf",
+            "remoteIp": "::ffff:172.28.0.1",
+            "userAgent": "node",
+            "details": "{\"code\":\"studio_authorization/cross_tenant_denied\"}"
+          },
+          {
+            "auditId": 138,
+            "timestamp": "2026-10-11T18:55:02.238199+00:00",
+            "eventType": "Authorization",
+            "actor": "operatorbearer:subject:honua-operator-bearer:2e3b4896-a706-496c-a57e-fce5d9b72709",
+            "actorType": "UserId",
+            "resourceType": "studio-package-draft",
+            "resourceId": "ae452bd7-2a6a-492a-89c6-7e3f36857fa1",
+            "action": "studio.read_draft",
+            "outcome": "Denied",
+            "correlationId": "honua-corr-9c56cb2342fd1b9d24b1d9fc886b3fcf",
+            "remoteIp": "::ffff:172.28.0.1",
+            "userAgent": "node",
+            "details": "{\"code\":\"studio_authorization/cross_tenant_denied\"}"
+          }
+        ]
+      }
+    }
+  ],
+  "ownerAfter": {
+    "draftId": "ae452bd7-2a6a-492a-89c6-7e3f36857fa1",
+    "generation": 1
+  },
+  "status": "bounded-cross-tenant-passed"
+}

@@ -1,0 +1,192 @@
+[
+  {
+    "audit_id": 97,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.accepted",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-93d51d3b5bf6ae4bc07f99b63451589a",
+    "details": "operationId=studio.draft.create;status=Accepted",
+    "entry_hash": "0e23575fe49ec4b9d9f6e625519c9984c5642e1ec0c7f884ca32f8af0edb2d51"
+  },
+  {
+    "audit_id": 98,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.completed",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-93d51d3b5bf6ae4bc07f99b63451589a",
+    "details": "operationId=studio.draft.create;status=Completed",
+    "entry_hash": "e4ec05d814bbcb8b092388c1bc6961659b8f9962761c72c79bdbcd8bcbc4d7ad"
+  },
+  {
+    "audit_id": 99,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.accepted",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-0350cd1032f6179f83ab845c111aff1d",
+    "details": "operationId=studio.draft.save-version;status=Accepted",
+    "entry_hash": "7177a38f12c66bbae78950a5bc212339c5e2a2f6b745e7f6545d7fa9bb5aa28c"
+  },
+  {
+    "audit_id": 100,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.completed",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-0350cd1032f6179f83ab845c111aff1d",
+    "details": "operationId=studio.draft.save-version;status=Completed",
+    "entry_hash": "cdcbfec9cb52384989b98b658e482b12d40c0d7e13c45573c5ba048e4de984c1"
+  },
+  {
+    "audit_id": 101,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.accepted",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+    "details": "operationId=studio.content.create-publication-request;status=Accepted",
+    "entry_hash": "c57c1b2b5130c8ab742ee61c4cff3f49654c7b1b78a296d9a25c42b998501a77"
+  },
+  {
+    "audit_id": 102,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.proposed",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "proposal-353eef2a24bd634d39bc0b0d5ab2cfb5",
+    "details": "{\"kind\":\"StudioDraftMutation\",\"status\":\"Planned\",\"rule\":\"\",\"findingId\":\"\",\"actionDiscriminator\":\"\"}",
+    "entry_hash": "7d43941c8089a8b45701aa0a40a70e94227ed4a693cced43de12b23cd480b259"
+  },
+  {
+    "audit_id": 103,
+    "actor": "operatorbearer:subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "admin.post",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":202,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "05596a05b009937100994c440262f918b7a9e22ba223d30433a4f637fc1d1d2b"
+  },
+  {
+    "audit_id": 104,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-93d51d3b5bf6ae4bc07f99b63451589a",
+    "details": "operationId=studio.draft.create;idempotencyKey=d6f6548bf668a1dd348337d4f0488ac352f0a40f9c771acf93a92374180f60e4",
+    "entry_hash": "21eed4786777e3eec2251403a0e3b4048dd47fc2278f04e6b9106775cb26772f"
+  },
+  {
+    "audit_id": 105,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-0350cd1032f6179f83ab845c111aff1d",
+    "details": "operationId=studio.draft.save-version;idempotencyKey=b6ac4e857b8a3f7a331272b2e39b197d5945b1659842205beca1ae63fb6ff369",
+    "entry_hash": "45a8d6cbd6fb3c01f450e18c5193b567e0af4ed8661f2632112ebe9b1f8568b7"
+  },
+  {
+    "audit_id": 106,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+    "details": "operationId=studio.content.create-publication-request;idempotencyKey=82506a6a06b598d6a04012c1fb1c9eac9eb56a9327a52a9b33603ca2989d60c4",
+    "entry_hash": "953d4561d444c33cd0026df376099b574bfe8ffbc557b3a4605bf0a10b4c4b7d"
+  },
+  {
+    "audit_id": 107,
+    "actor": "operatorbearer:subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "admin.post",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":202,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "cf566edcd652e7f2abba2564ef90fa8ba3ca07d1923d68d4b26df67732b93b62"
+  },
+  {
+    "audit_id": 108,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-93d51d3b5bf6ae4bc07f99b63451589a",
+    "details": "operationId=studio.draft.create;idempotencyKey=d6f6548bf668a1dd348337d4f0488ac352f0a40f9c771acf93a92374180f60e4",
+    "entry_hash": "9f1dcef0358b8482a5372e84fc8a11fc8886461aaa56ca1adf20cbd43d3a1d4f"
+  },
+  {
+    "audit_id": 109,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-0350cd1032f6179f83ab845c111aff1d",
+    "details": "operationId=studio.draft.save-version;idempotencyKey=b6ac4e857b8a3f7a331272b2e39b197d5945b1659842205beca1ae63fb6ff369",
+    "entry_hash": "1d116211f118269356575128e168cf71baf6f893cc1137ecee50f1097f0786a6"
+  },
+  {
+    "audit_id": 110,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+    "details": "operationId=studio.content.create-publication-request;idempotencyKey=82506a6a06b598d6a04012c1fb1c9eac9eb56a9327a52a9b33603ca2989d60c4",
+    "entry_hash": "07d2cd838c2d97989097b11d0debbe1ea555384bddc7f21f834d2c15d7146ef4"
+  },
+  {
+    "audit_id": 111,
+    "actor": "operatorbearer:subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "admin.post",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":202,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "32c5f1ba334a08a08df6915efa645f11de04c45ac52bf85b0fa0ddf6bcf98a16"
+  },
+  {
+    "audit_id": 112,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-93d51d3b5bf6ae4bc07f99b63451589a",
+    "details": "operationId=studio.draft.create;idempotencyKey=d6f6548bf668a1dd348337d4f0488ac352f0a40f9c771acf93a92374180f60e4",
+    "entry_hash": "b0184867631ecdf4c530a26ffc64e5f02f1cd13433422f430a44bd7e18d139ba"
+  },
+  {
+    "audit_id": 113,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-0350cd1032f6179f83ab845c111aff1d",
+    "details": "operationId=studio.draft.save-version;idempotencyKey=b6ac4e857b8a3f7a331272b2e39b197d5945b1659842205beca1ae63fb6ff369",
+    "entry_hash": "34d044437ce0076ed8e1d8b1a5f094f36649182a58a394a46c95f4ee5848c3b4"
+  },
+  {
+    "audit_id": 114,
+    "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "operation.retry",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+    "details": "operationId=studio.content.create-publication-request;idempotencyKey=82506a6a06b598d6a04012c1fb1c9eac9eb56a9327a52a9b33603ca2989d60c4",
+    "entry_hash": "8dc7a6705e358c3e1b82547bef3194de7647907d18028037dbd326fc458f89e7"
+  },
+  {
+    "audit_id": 115,
+    "actor": "operatorbearer:subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "admin.post",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":202,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "d75c26ad97f19075ba31187da5bca1cc1181577b6e443d3bbf9cb01c4bc96fb4"
+  }
+]

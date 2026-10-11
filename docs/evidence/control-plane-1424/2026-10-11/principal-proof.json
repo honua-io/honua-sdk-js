@@ -1,0 +1,173 @@
+{
+  "authentication": "real Keycloak authorization code + PKCE; server session-derived operator bearer",
+  "principals": [
+    {
+      "user": "admin-a",
+      "provider": "oidc",
+      "claims": [
+        {
+          "type": "sub",
+          "value": "580a5725-f230-4866-bed0-56e4a8d0d6ac"
+        },
+        {
+          "type": "tenant_id",
+          "value": "tenant-a"
+        },
+        {
+          "type": "roles",
+          "value": "admin"
+        },
+        {
+          "type": "roles",
+          "value": "user"
+        },
+        {
+          "type": "preferred_username",
+          "value": "admin-a"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "admin"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "user"
+        }
+      ],
+      "bearerExpiresAt": "2026-10-11T20:27:30+00:00",
+      "connectionsStatus": 200,
+      "crossTenantOverrideStatus": 403
+    },
+    {
+      "user": "viewer-a",
+      "provider": "oidc",
+      "claims": [
+        {
+          "type": "sub",
+          "value": "1f346d4e-bc18-4d52-9ec4-23b9ab778022"
+        },
+        {
+          "type": "tenant_id",
+          "value": "tenant-a"
+        },
+        {
+          "type": "roles",
+          "value": "user"
+        },
+        {
+          "type": "preferred_username",
+          "value": "viewer-a"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "user"
+        }
+      ],
+      "bearerExpiresAt": "2026-10-11T20:27:30+00:00",
+      "connectionsStatus": 403,
+      "crossTenantOverrideStatus": 403
+    },
+    {
+      "user": "admin-b",
+      "provider": "oidc",
+      "claims": [
+        {
+          "type": "sub",
+          "value": "2e3b4896-a706-496c-a57e-fce5d9b72709"
+        },
+        {
+          "type": "tenant_id",
+          "value": "tenant-b"
+        },
+        {
+          "type": "roles",
+          "value": "admin"
+        },
+        {
+          "type": "roles",
+          "value": "user"
+        },
+        {
+          "type": "preferred_username",
+          "value": "admin-b"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "admin"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "user"
+        }
+      ],
+      "bearerExpiresAt": "2026-10-11T20:27:31+00:00",
+      "connectionsStatus": 200,
+      "crossTenantOverrideStatus": 403
+    },
+    {
+      "user": "admin-read-a",
+      "provider": "oidc",
+      "claims": [
+        {
+          "type": "sub",
+          "value": "8eacdab9-ce2f-40b2-bfa0-210c04509ff7"
+        },
+        {
+          "type": "tenant_id",
+          "value": "tenant-a"
+        },
+        {
+          "type": "scp",
+          "value": "honua.mcp.read"
+        },
+        {
+          "type": "roles",
+          "value": "offline_access"
+        },
+        {
+          "type": "roles",
+          "value": "admin"
+        },
+        {
+          "type": "roles",
+          "value": "uma_authorization"
+        },
+        {
+          "type": "roles",
+          "value": "default-roles-honua"
+        },
+        {
+          "type": "roles",
+          "value": "user"
+        },
+        {
+          "type": "preferred_username",
+          "value": "admin-read-a"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "offline_access"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "admin"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "uma_authorization"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "default-roles-honua"
+        },
+        {
+          "type": "http://schemas.microsoft.com/ws/2008/06/identity/claims/role",
+          "value": "user"
+        }
+      ],
+      "bearerExpiresAt": "2026-10-11T20:27:32+00:00",
+      "connectionsStatus": 200,
+      "crossTenantOverrideStatus": 403
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+[
+  {
+    "surface": "cli",
+    "exitCode": 1,
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "transport",
+      "commandId": "map-package.publish",
+      "retryable": true,
+      "correlationId": "honua-corr-61862d735f0ccfdcb4bf01447843e90c",
+      "idempotencyKey": "honua-cmd-1a75370f3ce4d00c5f79488432c6a46c",
+      "statusCode": 500,
+      "message": "Command map-package.publish failed with HTTP 500."
+    }
+  },
+  {
+    "surface": "mcp",
+    "isError": true,
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "transport",
+      "commandId": "map-package.publish",
+      "retryable": true,
+      "correlationId": "honua-corr-61862d735f0ccfdcb4bf01447843e90c",
+      "idempotencyKey": "honua-cmd-1a75370f3ce4d00c5f79488432c6a46c",
+      "statusCode": 500,
+      "message": "Command map-package.publish failed with HTTP 500."
+    }
+  },
+  {
+    "surface": "studio",
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "transport",
+      "commandId": "map-package.publish",
+      "retryable": true,
+      "correlationId": "honua-corr-61862d735f0ccfdcb4bf01447843e90c",
+      "idempotencyKey": "honua-cmd-1a75370f3ce4d00c5f79488432c6a46c",
+      "statusCode": 500,
+      "message": "Command map-package.publish failed with HTTP 500."
+    }
+  },
+  {
+    "surface": "sdk",
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "transport",
+      "commandId": "map-package.publish",
+      "retryable": true,
+      "correlationId": "honua-corr-61862d735f0ccfdcb4bf01447843e90c",
+      "idempotencyKey": "honua-cmd-1a75370f3ce4d00c5f79488432c6a46c",
+      "statusCode": 500,
+      "message": "Command map-package.publish failed with HTTP 500."
+    }
+  }
+]

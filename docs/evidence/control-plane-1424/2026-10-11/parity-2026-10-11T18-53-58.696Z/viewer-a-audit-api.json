@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "auditId": 119,
+      "timestamp": "2026-10-11T18:54:06.90219+00:00",
+      "eventType": "Authorization",
+      "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+      "actorType": "UserId",
+      "resourceType": "http",
+      "resourceId": "/api/v1/admin/packages",
+      "action": "auth.denied",
+      "outcome": "Denied",
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "remoteIp": "::ffff:172.28.0.1",
+      "userAgent": "node",
+      "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}"
+    },
+    {
+      "auditId": 118,
+      "timestamp": "2026-10-11T18:54:06.809162+00:00",
+      "eventType": "Authorization",
+      "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+      "actorType": "UserId",
+      "resourceType": "http",
+      "resourceId": "/api/v1/admin/packages",
+      "action": "auth.denied",
+      "outcome": "Denied",
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "remoteIp": "::ffff:172.28.0.1",
+      "userAgent": "node",
+      "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}"
+    },
+    {
+      "auditId": 117,
+      "timestamp": "2026-10-11T18:54:06.713668+00:00",
+      "eventType": "Authorization",
+      "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+      "actorType": "UserId",
+      "resourceType": "http",
+      "resourceId": "/api/v1/admin/packages",
+      "action": "auth.denied",
+      "outcome": "Denied",
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "remoteIp": "::ffff:172.28.0.1",
+      "userAgent": "node",
+      "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}"
+    },
+    {
+      "auditId": 116,
+      "timestamp": "2026-10-11T18:54:06.182116+00:00",
+      "eventType": "Authorization",
+      "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+      "actorType": "UserId",
+      "resourceType": "http",
+      "resourceId": "/api/v1/admin/packages",
+      "action": "auth.denied",
+      "outcome": "Denied",
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "remoteIp": "::ffff:172.28.0.1",
+      "userAgent": "node",
+      "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}"
+    }
+  ]
+}

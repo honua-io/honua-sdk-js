@@ -1,0 +1,459 @@
+{
+  "sourceRoot": "/home/mike/honua-io/sdk-1424-bearer-20261011",
+  "sourceSha": "70566967348b3a78f6abc107c205538cad67e3b3",
+  "server": {
+    "image": "ghcr.io/honua-io/honua-server:nightly-93cad86@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "imageId": "sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "environment": "Production",
+    "licensing": {
+      "mode": "disabled",
+      "status": "pass",
+      "surface": "/api/v1/admin/license"
+    },
+    "durableRedisAttested": true,
+    "keyRingCertificateConfigured": true,
+    "productionOverlaySha256": "cca18327972caebc1a592363d8140716caa5c272595922b1de80d4526b0d5966",
+    "auditChainKeyConfigured": true,
+    "auditIntegrity": {
+      "verified": true,
+      "rowsChecked": 82,
+      "unhashedRows": 0
+    }
+  },
+  "commandId": "map-package.publish",
+  "scope": "Real MCP protocol roundtrip, actual CLI executable, Studio adapter and direct SDK for the declared command. Persisted actor/tenant audit and negative-control diagnostics; each run is one bounded journey stage, not full release certification.",
+  "cases": [
+    {
+      "user": "admin-a",
+      "identity": {
+        "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+        "tenantId": "tenant-a"
+      },
+      "connectionId": "caf28679-74c9-4527-8bb9-24b630766aab",
+      "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+      "auditApiRows": 19,
+      "persistedRows": 19,
+      "results": [
+        {
+          "surface": "cli",
+          "exitCode": 0,
+          "value": {
+            "kind": "honua.command.receipt.v1",
+            "commandId": "map-package.publish",
+            "mode": "action",
+            "status": "ok",
+            "idempotencyKey": "honua-cmd-55da2fca363e3c1f30220ea501ea8fef",
+            "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+            "identity": {
+              "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+              "tenantId": "tenant-a"
+            },
+            "authorization": "server-enforced",
+            "plan": {
+              "method": "POST",
+              "path": "/packages",
+              "summary": "Publish a package version for map sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+              "resourceRef": {
+                "type": "map-package"
+              }
+            },
+            "resourceRef": {
+              "type": "map-package",
+              "id": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab"
+            },
+            "output": {
+              "packageId": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+              "itemId": "6f97d70c-ba7a-45d3-8a38-006ddef37a90",
+              "versionId": "d5fef871-b4f9-456d-9109-926d39bb8bbb",
+              "contentHash": "4f623077b86163f2cdea366cd58ac07c4c6f0ced8b3e99c30111349ec84f2686",
+              "package": {
+                "mapPackageId": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+                "format": "honua_map_package.v1",
+                "status": "Ready",
+                "sourceBindings": [],
+                "mapSpec": {
+                  "version": 8,
+                  "sources": {
+                    "fixture": {
+                      "type": "geojson",
+                      "data": {
+                        "type": "FeatureCollection",
+                        "features": [
+                          {
+                            "type": "Feature",
+                            "id": 1,
+                            "properties": {
+                              "name": "SDK1424 owned fixture"
+                            },
+                            "geometry": {
+                              "type": "Point",
+                              "coordinates": [
+                                -157.8583,
+                                21.3069
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "layers": [
+                    {
+                      "id": "fixture-points",
+                      "type": "circle",
+                      "source": "fixture"
+                    }
+                  ]
+                },
+                "createdAt": "2026-10-11T18:54:01.656+00:00",
+                "updatedAt": "2026-10-11T18:54:02.346735+00:00"
+              },
+              "publicationStatus": "AwaitingApproval",
+              "proposalId": "proposal-353eef2a24bd634d39bc0b0d5ab2cfb5",
+              "operationInstanceId": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+              "auditId": "102",
+              "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32"
+            },
+            "transport": "cli",
+            "auditKey": "dd4197a824a4a967ca5d0b5bb085fa63"
+          }
+        },
+        {
+          "surface": "mcp",
+          "isError": false,
+          "value": {
+            "kind": "honua.command.receipt.v1",
+            "commandId": "map-package.publish",
+            "mode": "action",
+            "status": "ok",
+            "idempotencyKey": "honua-cmd-55da2fca363e3c1f30220ea501ea8fef",
+            "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+            "identity": {
+              "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+              "tenantId": "tenant-a"
+            },
+            "authorization": "server-enforced",
+            "plan": {
+              "method": "POST",
+              "path": "/packages",
+              "summary": "Publish a package version for map sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+              "resourceRef": {
+                "type": "map-package"
+              }
+            },
+            "resourceRef": {
+              "type": "map-package",
+              "id": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab"
+            },
+            "output": {
+              "packageId": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+              "itemId": "6f97d70c-ba7a-45d3-8a38-006ddef37a90",
+              "versionId": "d5fef871-b4f9-456d-9109-926d39bb8bbb",
+              "contentHash": "4f623077b86163f2cdea366cd58ac07c4c6f0ced8b3e99c30111349ec84f2686",
+              "package": {
+                "mapPackageId": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+                "format": "honua_map_package.v1",
+                "status": "Ready",
+                "sourceBindings": [],
+                "mapSpec": {
+                  "version": 8,
+                  "sources": {
+                    "fixture": {
+                      "type": "geojson",
+                      "data": {
+                        "type": "FeatureCollection",
+                        "features": [
+                          {
+                            "type": "Feature",
+                            "id": 1,
+                            "properties": {
+                              "name": "SDK1424 owned fixture"
+                            },
+                            "geometry": {
+                              "type": "Point",
+                              "coordinates": [
+                                -157.8583,
+                                21.3069
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "layers": [
+                    {
+                      "id": "fixture-points",
+                      "type": "circle",
+                      "source": "fixture"
+                    }
+                  ]
+                },
+                "createdAt": "2026-10-11T18:54:01.656+00:00",
+                "updatedAt": "2026-10-11T18:54:02.346735+00:00"
+              },
+              "publicationStatus": "AwaitingApproval",
+              "proposalId": "proposal-353eef2a24bd634d39bc0b0d5ab2cfb5",
+              "operationInstanceId": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+              "auditId": "102",
+              "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32"
+            },
+            "transport": "mcp",
+            "auditKey": "dd4197a824a4a967ca5d0b5bb085fa63"
+          }
+        },
+        {
+          "surface": "studio",
+          "value": {
+            "kind": "honua.command.receipt.v1",
+            "commandId": "map-package.publish",
+            "mode": "action",
+            "status": "ok",
+            "idempotencyKey": "honua-cmd-55da2fca363e3c1f30220ea501ea8fef",
+            "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+            "identity": {
+              "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+              "tenantId": "tenant-a"
+            },
+            "authorization": "server-enforced",
+            "plan": {
+              "method": "POST",
+              "path": "/packages",
+              "summary": "Publish a package version for map sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+              "resourceRef": {
+                "type": "map-package"
+              }
+            },
+            "resourceRef": {
+              "type": "map-package",
+              "id": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab"
+            },
+            "output": {
+              "packageId": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+              "itemId": "6f97d70c-ba7a-45d3-8a38-006ddef37a90",
+              "versionId": "d5fef871-b4f9-456d-9109-926d39bb8bbb",
+              "contentHash": "4f623077b86163f2cdea366cd58ac07c4c6f0ced8b3e99c30111349ec84f2686",
+              "package": {
+                "mapPackageId": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+                "format": "honua_map_package.v1",
+                "status": "Ready",
+                "sourceBindings": [],
+                "mapSpec": {
+                  "version": 8,
+                  "sources": {
+                    "fixture": {
+                      "type": "geojson",
+                      "data": {
+                        "type": "FeatureCollection",
+                        "features": [
+                          {
+                            "type": "Feature",
+                            "id": 1,
+                            "properties": {
+                              "name": "SDK1424 owned fixture"
+                            },
+                            "geometry": {
+                              "type": "Point",
+                              "coordinates": [
+                                -157.8583,
+                                21.3069
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "layers": [
+                    {
+                      "id": "fixture-points",
+                      "type": "circle",
+                      "source": "fixture"
+                    }
+                  ]
+                },
+                "createdAt": "2026-10-11T18:54:01.656+00:00",
+                "updatedAt": "2026-10-11T18:54:02.346735+00:00"
+              },
+              "publicationStatus": "AwaitingApproval",
+              "proposalId": "proposal-353eef2a24bd634d39bc0b0d5ab2cfb5",
+              "operationInstanceId": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+              "auditId": "102",
+              "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32"
+            },
+            "transport": "studio",
+            "auditKey": "dd4197a824a4a967ca5d0b5bb085fa63"
+          }
+        },
+        {
+          "surface": "sdk",
+          "value": {
+            "kind": "honua.command.receipt.v1",
+            "commandId": "map-package.publish",
+            "mode": "action",
+            "status": "ok",
+            "idempotencyKey": "honua-cmd-55da2fca363e3c1f30220ea501ea8fef",
+            "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32",
+            "identity": {
+              "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+              "tenantId": "tenant-a"
+            },
+            "authorization": "server-enforced",
+            "plan": {
+              "method": "POST",
+              "path": "/packages",
+              "summary": "Publish a package version for map sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+              "resourceRef": {
+                "type": "map-package"
+              }
+            },
+            "resourceRef": {
+              "type": "map-package",
+              "id": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab"
+            },
+            "output": {
+              "packageId": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+              "itemId": "6f97d70c-ba7a-45d3-8a38-006ddef37a90",
+              "versionId": "d5fef871-b4f9-456d-9109-926d39bb8bbb",
+              "contentHash": "4f623077b86163f2cdea366cd58ac07c4c6f0ced8b3e99c30111349ec84f2686",
+              "package": {
+                "mapPackageId": "sdk1424-caf28679-74c9-4527-8bb9-24b630766aab",
+                "format": "honua_map_package.v1",
+                "status": "Ready",
+                "sourceBindings": [],
+                "mapSpec": {
+                  "version": 8,
+                  "sources": {
+                    "fixture": {
+                      "type": "geojson",
+                      "data": {
+                        "type": "FeatureCollection",
+                        "features": [
+                          {
+                            "type": "Feature",
+                            "id": 1,
+                            "properties": {
+                              "name": "SDK1424 owned fixture"
+                            },
+                            "geometry": {
+                              "type": "Point",
+                              "coordinates": [
+                                -157.8583,
+                                21.3069
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "layers": [
+                    {
+                      "id": "fixture-points",
+                      "type": "circle",
+                      "source": "fixture"
+                    }
+                  ]
+                },
+                "createdAt": "2026-10-11T18:54:01.656+00:00",
+                "updatedAt": "2026-10-11T18:54:02.346735+00:00"
+              },
+              "publicationStatus": "AwaitingApproval",
+              "proposalId": "proposal-353eef2a24bd634d39bc0b0d5ab2cfb5",
+              "operationInstanceId": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+              "auditId": "102",
+              "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32"
+            },
+            "transport": "sdk",
+            "auditKey": "dd4197a824a4a967ca5d0b5bb085fa63"
+          }
+        }
+      ],
+      "governedJoin": {
+        "itemId": "6f97d70c-ba7a-45d3-8a38-006ddef37a90",
+        "versionId": "d5fef871-b4f9-456d-9109-926d39bb8bbb",
+        "contentHash": "4f623077b86163f2cdea366cd58ac07c4c6f0ced8b3e99c30111349ec84f2686",
+        "proposalId": "proposal-353eef2a24bd634d39bc0b0d5ab2cfb5",
+        "operationInstanceId": "opinst-1a8d2af09c4bc4967516b88d6791e9a9",
+        "auditId": "102",
+        "correlationId": "honua-corr-cb28ca059d128bb27d6cfd1e3c069a32"
+      }
+    },
+    {
+      "user": "viewer-a",
+      "identity": {
+        "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+        "tenantId": "tenant-a"
+      },
+      "connectionId": "caf28679-74c9-4527-8bb9-24b630766aab",
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "status": 403,
+      "errorKind": "authorization",
+      "auditApiRows": 4,
+      "persistedRows": 4,
+      "results": [
+        {
+          "surface": "cli",
+          "exitCode": 2,
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "map-package.publish",
+            "retryable": false,
+            "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+            "idempotencyKey": "honua-cmd-7f695cff5042c0f8ea2fd58cb776cecc",
+            "statusCode": 403,
+            "message": "Command map-package.publish failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "mcp",
+          "isError": true,
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "map-package.publish",
+            "retryable": false,
+            "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+            "idempotencyKey": "honua-cmd-7f695cff5042c0f8ea2fd58cb776cecc",
+            "statusCode": 403,
+            "message": "Command map-package.publish failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "studio",
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "map-package.publish",
+            "retryable": false,
+            "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+            "idempotencyKey": "honua-cmd-7f695cff5042c0f8ea2fd58cb776cecc",
+            "statusCode": 403,
+            "message": "Command map-package.publish failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "sdk",
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "map-package.publish",
+            "retryable": false,
+            "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+            "idempotencyKey": "honua-cmd-7f695cff5042c0f8ea2fd58cb776cecc",
+            "statusCode": 403,
+            "message": "Command map-package.publish failed with HTTP 403."
+          }
+        }
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "user": "admin-read-a",
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n500 !== 403\n"
+    }
+  ],
+  "status": "failed"
+}
