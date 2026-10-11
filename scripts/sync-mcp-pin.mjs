@@ -36,6 +36,8 @@
  * Subsequent default runs retain a newer recorded pin while it stays published
  * and compatible, so synchronization never silently undoes that selection.
  * This never admits an unpublished version or bypasses peer/integrity checks.
+ * Scaffold templates retain the independently certified fallback declared in
+ * templates.manifest.json; publishing an MCP patch does not certify a new starter SDK.
  *
  * This lane queries the public npm registry and is never part of PR CI.
  */
@@ -345,7 +347,13 @@ async function main(argv) {
   const expectedPin = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${version}`;
   const configs = readPinSites(expectedPin);
   const staleConfigs = configs.filter((config) => config.stale);
-  const createAppPins = readCreateAppPinSites(sdk.name, sdk.version);
+  const starterManifestPath = CREATE_APP_PIN_SITES.find((site) => site.endsWith("templates.manifest.json"));
+  const certifiedStarterVersion = readCreateAppSdkPin(
+    JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, starterManifestPath), "utf8")),
+    starterManifestPath,
+    sdk.name,
+  );
+  const createAppPins = readCreateAppPinSites(sdk.name, certifiedStarterVersion);
   const staleCreateAppPins = createAppPins.filter((site) => site.stale);
   const sourceStale = current.version !== version || current.integrity !== integrity;
 
@@ -366,7 +374,7 @@ async function main(argv) {
     }
     for (const site of staleCreateAppPins) {
       process.stderr.write(
-        `mcp pin is stale: ${site.relativePath} pins ${sdk.name}@${site.version}, coordinated cut is ${sdk.name}@${sdk.version}.\n`,
+        `mcp pin is stale: ${site.relativePath} pins ${sdk.name}@${site.version}, certified starter fallback is ${sdk.name}@${certifiedStarterVersion}.\n`,
       );
     }
     process.stderr.write(`Run \`npm run sync:mcp-pin${requestedVersion ? ` -- --mcp-version ${requestedVersion}` : ""}\`.\n`);
@@ -379,7 +387,7 @@ async function main(argv) {
     source,
     sourceStale,
     version,
-    sdkVersion: sdk.version,
+    sdkVersion: certifiedStarterVersion,
     integrity,
     staleConfigs,
     expectedPin,
@@ -390,7 +398,7 @@ async function main(argv) {
   // Same discipline as the pre-write co-install check: prove the bytes just
   // written actually satisfy the gate rather than trusting the edit.
   verifyZeroToMapConfigPins({ expectedPin });
-  verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: sdk.version });
+  verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: certifiedStarterVersion });
 
   const advanced = [
     sourceStale ? `src/local-install.ts ${current.version} -> ${version}` : null,

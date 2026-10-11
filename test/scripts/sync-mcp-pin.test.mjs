@@ -393,7 +393,6 @@ throw new Error("Unexpected registry URL");
 export const LOCAL_INSTALL_MCP_PACKAGE = "@honua/mcp-server@0.1.16";
 export const LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY = ${JSON.stringify(integrity)};`);
       for (const site of ZERO_TO_MAP_CONFIGS) fs.writeFileSync(path.join(root, site), applyConfigPin(fs.readFileSync(path.join(root, site), "utf8"), "@honua/mcp-server@0.1.16", site));
-      for (const site of CREATE_APP_PIN_SITES) fs.writeFileSync(path.join(root, site), applyCreateAppPin(fs.readFileSync(path.join(root, site), "utf8"), "@honua/sdk-js", "0.1.15", site));
       return spawnSync(process.execPath, ["--import", preload, path.join(root, "scripts/verify-mcp-pin.mjs")], {
         encoding: "utf8", env: { ...process.env, HONUA_MCP_PIN_LIVE_ENABLED: live ? "true" : "false" },
       });
@@ -421,6 +420,8 @@ test("CLI explicit check is read-only and its write advances source, integrity a
         assert.equal(readConfigPin(fs.readFileSync(path.join(root, site), "utf8"), site), "@honua/mcp-server@0.1.16");
       }
       const afterWrite = snapshot();
+      assert.deepEqual(afterWrite.slice(1 + ZERO_TO_MAP_CONFIGS.length), original.slice(1 + ZERO_TO_MAP_CONFIGS.length),
+        "an independently published MCP patch must not advance the certified scaffold fallback");
       const current = invoke(["--mcp-version", "0.1.16", "--check"]);
       assert.equal(current.status, 0, current.stderr);
       assert.deepEqual(snapshot(), afterWrite);
@@ -507,4 +508,27 @@ test("default selection retains only a published compatible newer current pin", 
   assert.equal(choose("0.1.18"), "0.1.15");
   assert.equal(choose("0.1.19"), "0.1.15");
   assert.equal(choose("0.1.16", "0.1.15"), "0.1.15");
+});
+
+
+test("CLI repairs template drift to the certified fallback without advancing its manifest", () => {
+  const integrity = `sha512-${"B".repeat(86)}==`;
+  withSyncCliFixture({ "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity } } },
+    ({ root, invoke }) => {
+      const manifestSite = CREATE_APP_PIN_SITES.find((site) => site.endsWith("templates.manifest.json"));
+      const manifestPath = path.join(root, manifestSite);
+      const originalManifest = fs.readFileSync(manifestPath, "utf8");
+      const certifiedVersion = readCreateAppSdkPin(JSON.parse(originalManifest), manifestSite, "@honua/sdk-js");
+      const templateSite = CREATE_APP_PIN_SITES.find((site) => site.endsWith("vanilla-ts/package.json"));
+      const templatePath = path.join(root, templateSite);
+      fs.writeFileSync(templatePath, applyCreateAppPin(fs.readFileSync(templatePath, "utf8"), "@honua/sdk-js", "0.1.12", templateSite));
+      const check = invoke(["--mcp-version", "0.1.16", "--check"]);
+      assert.equal(check.status, 1);
+      assert.match(check.stderr, /certified starter fallback/);
+      assert.equal(readCreateAppSdkPin(JSON.parse(fs.readFileSync(templatePath, "utf8")), templateSite, "@honua/sdk-js"), "0.1.12");
+      const write = invoke(["--mcp-version", "0.1.16"]);
+      assert.equal(write.status, 0, write.stderr);
+      assert.equal(fs.readFileSync(manifestPath, "utf8"), originalManifest);
+      assert.equal(readCreateAppSdkPin(JSON.parse(fs.readFileSync(templatePath, "utf8")), templateSite, "@honua/sdk-js"), certifiedVersion);
+    });
 });
