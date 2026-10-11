@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.15...mcp-server-v0.1.16) (2026-10-11)
+
+
+### Bug Fixes
+
+* align local installer and bounded qualification with 2026.1 contracts ([#2020](https://github.com/honua-io/honua-sdk-js/issues/2020)) ([16074c4](https://github.com/honua-io/honua-sdk-js/commit/16074c49635c3cf8d84c2a90a57fbfd96dac509b))
+
 ## [0.1.15](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.14...mcp-server-v0.1.15) (2026-10-11)
 
 
