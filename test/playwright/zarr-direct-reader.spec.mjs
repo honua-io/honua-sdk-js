@@ -229,6 +229,11 @@ test("reads reviewed Zarr chunks from static HTTP without a server facade", asyn
     expect(during.some((pathname) => pathname === "/grid/temperature/0.0")).toBe(true);
     expect(during.filter((pathname) => pathname === "/grid/temperature/0.1")).toEqual([]);
   } finally {
-    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    // The page fixture otherwise outlives this finally block and can keep HTTP connections open.
+    await page.close();
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+      server.closeAllConnections();
+    });
   }
 });
