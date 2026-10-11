@@ -441,5 +441,39 @@
   "productionBackgroundReplay": false,
   "selectedCandidateQualification": false,
   "scope": "Actual hosted Core and synchronous Kestrel/PostGIS test results; not a Production background or selected immutable candidate replay.",
-  "remaining": "Normal broad PR checks and genuine signed Production replay on a supported immutable candidate."
+  "remaining": "Genuine signed Production background replay on a supported immutable candidate; selected release qualification remains separate.",
+  "merge": {
+    "pullRequest": "https://github.com/honua-io/honua-server/pull/5879",
+    "commit": "a916167ee777e8ec0f732fc64ea8f8cfb772807d",
+    "mergedAt": "2026-10-11T22:17:23Z",
+    "method": "normal protected squash auto-merge"
+  },
+  "normalPrGate": {
+    "run": "https://github.com/honua-io/honua-server/actions/runs/38177753558",
+    "status": "success",
+    "fastServer": {
+      "passed": 5732,
+      "failed": 0,
+      "skipped": 0
+    },
+    "architecture": {
+      "passed": 363,
+      "failed": 0,
+      "skipped": 0
+    },
+    "aiFast": {
+      "passed": 69,
+      "failed": 0,
+      "skipped": 0
+    },
+    "affectedShards": {
+      "passed": 6,
+      "failed": 0
+    },
+    "buildLogSha256": "158b550e0eb7d85a2312348236333365cbdae842d54d19966d60175a29a193ca",
+    "format": "passed",
+    "ciRouter": "passed",
+    "productionHttpGdalPdalAndBoot": "passed",
+    "reviewGate": "passed"
+  }
 }
