@@ -120,9 +120,11 @@ function stripAnnotationsFromSchemaMap(node) {
 }
 
 const ajv = new Ajv2020({
+  // Emit one required-property loop per object without changing validation diagnostics.
+  loopRequired: 0,
   allErrors: true,
   strict: false,
-  code: { esm: true, optimize: true, source: true },
+  code: { esm: true, optimize: 2, source: true },
 });
 const validate = ajv.compile(stripAnnotations(schema));
 const standalone = inlineAjvRuntime(standaloneCode(ajv, validate));

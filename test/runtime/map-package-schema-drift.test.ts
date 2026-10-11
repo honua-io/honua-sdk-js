@@ -25,6 +25,7 @@
  */
 
 import fs from "node:fs";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
@@ -33,6 +34,7 @@ import {
   HONUA_MAP_PACKAGE_SCHEMA_PROTOCOLS,
   HONUA_MAP_PACKAGE_SCHEMA_STATUSES,
 } from "../../src/runtime/generated/map-package-schema-meta.js";
+import validateAgainstSchema from "../../src/runtime/generated/map-package-schema-validator.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, validateMapPackage } from "../../src/runtime/index.js";
 
 const SCHEMA_URL = new URL("../../schemas/honua-map-package.v1.json", import.meta.url);
@@ -192,6 +194,27 @@ describe("honua-map-package.v1 schema ↔ TypeScript drift", () => {
     const generated = fs.readFileSync(VALIDATOR_URL, "utf8");
     expect(generated).not.toMatch(/require\(/);
     expect(generated).not.toMatch(/from\s*["']ajv/);
+  });
+
+  test("compact code generation preserves canonical verdicts and complete diagnostic records", () => {
+    const canonical = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+    const valid = packageWithPopupTitle("Parcel detail");
+    const cases = [
+      null,
+      {},
+      valid,
+      { ...valid, sourceBindings: [{}], widgets: [{}], labelBindings: [{}], dependencies: [{}] },
+      { ...valid, mapSpec: { sources: { parcels: {} }, layers: [{}] } },
+      { ...valid, status: "unknown", widgets: [{ widgetId: "legend", type: "legend", position: "center" }] },
+      { ...valid, initialView: { bbox: [0, 1, 2], center: [0, "invalid"] } },
+      packageWithPopupTitle("😀".repeat(512)),
+      packageWithPopupTitle("😀".repeat(513)),
+      packageWithPopupTitle(42),
+    ];
+    for (const value of cases) {
+      expect(validateAgainstSchema(value)).toBe(canonical(value));
+      expect(validateAgainstSchema.errors).toEqual(canonical.errors);
+    }
   });
 
   test("a property named like an annotation keyword still constrains the generated validator", () => {
