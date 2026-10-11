@@ -38,6 +38,7 @@
 * [Safe agent plan boundary](agent-safety.md)
 * [Honua AI Map Kit](ai-map-kit.md)
 * [HonuaController Application API](app-controller.md)
+* [gRPC candidate query regression evidence for issue 1952](audit/platform-20261006/issue-1952.md)
 * [Query correctness audit record for issue 1985](audit/platform-20261006/issue-1985.md)
 * [Authentication layer](auth.md)
 * [Prebuilt browser bundle (CDN / build-less)](browser-bundle.md)

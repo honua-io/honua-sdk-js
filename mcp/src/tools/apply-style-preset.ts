@@ -8,9 +8,11 @@ const STYLE_GUIDANCE =
   "This target is a plain FeatureServer/OGC endpoint with no style presets. " +
   "Build a MapLibre style client-side from the layer's fields, or use a Honua deployment for managed presets.";
 
-export const schema = z.object({
-  styleId: z.string().describe("Stable style identifier of the preset to resolve."),
-});
+export const schema = z
+  .object({
+    styleId: z.string().describe("Stable style identifier of the preset to resolve."),
+  })
+  .strict();
 
 export type Input = z.infer<typeof schema>;
 

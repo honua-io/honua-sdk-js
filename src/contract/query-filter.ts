@@ -11,9 +11,9 @@
  *   contract uses (`SpatialFilter`-shaped `geometry` + `geometryType`, produced
  *   by `envelope()` / `point()` / `polygon()`), so a filter composes with
  *   `Query.spatialFilter` without a second geometry vocabulary.
- * - Compilation is schema-free. The planner's semantic compilers verify a
- *   `SourceSchemaV2` before emitting; the canonical surface has no verified
- *   schema at query time, so literals are typed by the value the caller wrote.
+ * - Compilation accepts optional source field types. Without schema evidence,
+ *   scalar strings stay strings; known temporal fields receive typed literals.
+ *   Explicit temporal nodes carry instants independently of schema evidence.
  *
  * Every compiler in this module fails closed: a construct the target protocol
  * cannot express exactly throws `HonuaCapabilityNotSupportedError` naming the
@@ -340,6 +340,8 @@ export interface QueryFilterContext {
   readonly sourceId?: string;
   /** Geometry property name, when the dialect must reference it explicitly. */
   readonly geometryProperty?: string;
+  /** Optional schema field types; only known temporal fields coerce RFC3339 strings. */
+  readonly fieldTypes?: Readonly<Record<string, string>>;
   /**
    * Operator allow list evaluated for this source. When present, an operator
    * outside it is refused even if the protocol could express it — the source's
@@ -687,17 +689,36 @@ function sqlTimestamp(instant: string): string {
   return `TIMESTAMP ${sqlText(instant)}`;
 }
 
-function isTemporalLike(value: QueryFilterScalar): value is string {
-  return typeof value === "string" && RFC3339_PATTERN.test(value) && value.length >= 10 && value.includes("-");
+function isTemporalField(ctx: QueryFilterContext, field: string): boolean {
+  const type = ctx.fieldTypes?.[field];
+  return (
+    typeof type === "string" &&
+    [
+      "esrifieldtypedate",
+      "esrifieldtypedateonly",
+      "esrifieldtypetimestampoffset",
+      "edm.date",
+      "edm.datetimeoffset",
+      "date",
+      "date-time",
+      "datetime",
+      "timestamp",
+      "timestamptz",
+    ].includes(type.toLowerCase())
+  );
 }
 
-/** SQL-92 / DuckDB scalar literal. Temporal-shaped strings become timestamps. */
+function isTemporalString(value: QueryFilterScalar): value is string {
+  return typeof value === "string" && RFC3339_PATTERN.test(value);
+}
+
+/** Scalar strings stay strings unless the source declares a temporal field. */
 function sqlLiteral(node: QueryFilterLiteralNode, temporal: boolean): string {
   const value = node.value;
   if (value === null) return "NULL";
   if (typeof value === "boolean") return value ? "1" : "0";
   if (typeof value === "number") return String(value);
-  return temporal && isTemporalLike(value) ? sqlTimestamp(value) : sqlText(value);
+  return temporal && isTemporalString(value) ? sqlTimestamp(value) : sqlText(value);
 }
 
 const SQL_COMPARISON: Record<QueryFilterComparisonOperator, string> = {
@@ -874,15 +895,12 @@ function emitSql(filter: QueryFilterExpression, ctx: QueryFilterContext, dialect
             ? `${left} IS NOT NULL`
             : refuseQueryFilterConstruct(`filter.comparison.${filter.operator}.null`, ctx);
       }
-      return `${left} ${SQL_COMPARISON[filter.operator]} ${sqlLiteral(filter.right, true)}`;
+      return `${left} ${SQL_COMPARISON[filter.operator]} ${sqlLiteral(filter.right, isTemporalField(ctx, filter.left.name))}`;
     }
     case "list":
-      return `${field(filter.operand.name)} IN (${filter.values.map((value) => sqlLiteral(value, true)).join(", ")})`;
+      return `${field(filter.operand.name)} IN (${filter.values.map((value) => sqlLiteral(value, isTemporalField(ctx, filter.operand.name))).join(", ")})`;
     case "range":
-      return `${field(filter.operand.name)} BETWEEN ${sqlLiteral(filter.lower, true)} AND ${sqlLiteral(
-        filter.upper,
-        true,
-      )}`;
+      return `${field(filter.operand.name)} BETWEEN ${sqlLiteral(filter.lower, isTemporalField(ctx, filter.operand.name))} AND ${sqlLiteral(filter.upper, isTemporalField(ctx, filter.operand.name))}`;
     case "null":
       return `${field(filter.operand.name)} IS ${filter.operator === "is-null" ? "NULL" : "NOT NULL"}`;
     case "pattern": {
@@ -992,12 +1010,12 @@ export function compileQueryFilterToCql2Text(
               ? `${node.left.name} IS NOT NULL`
               : refuseQueryFilterConstruct(`filter.comparison.${node.operator}.null`, ctx);
         }
-        return `${node.left.name} ${SQL_COMPARISON[node.operator]} ${cql2Literal(node.right)}`;
+        return `${node.left.name} ${SQL_COMPARISON[node.operator]} ${cql2Literal(node.right, isTemporalField(ctx, node.left.name))}`;
       }
       case "list":
-        return `${node.operand.name} IN (${node.values.map(cql2Literal).join(", ")})`;
+        return `${node.operand.name} IN (${node.values.map((value) => cql2Literal(value, isTemporalField(ctx, node.operand.name))).join(", ")})`;
       case "range":
-        return `${node.operand.name} BETWEEN ${cql2Literal(node.lower)} AND ${cql2Literal(node.upper)}`;
+        return `${node.operand.name} BETWEEN ${cql2Literal(node.lower, isTemporalField(ctx, node.operand.name))} AND ${cql2Literal(node.upper, isTemporalField(ctx, node.operand.name))}`;
       case "null":
         return `${node.operand.name} IS ${node.operator === "is-null" ? "NULL" : "NOT NULL"}`;
       case "pattern":
@@ -1035,12 +1053,12 @@ export function compileQueryFilterToCql2Text(
   return emit(filter);
 }
 
-function cql2Literal(node: QueryFilterLiteralNode): string {
+function cql2Literal(node: QueryFilterLiteralNode, temporal: boolean): string {
   const value = node.value;
   if (value === null) return "NULL";
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
   if (typeof value === "number") return String(value);
-  return isTemporalLike(value) ? cql2Instant(value) : sqlText(value);
+  return temporal && isTemporalString(value) ? cql2Instant(value) : sqlText(value);
 }
 
 function cql2Instant(instant: string): string {
@@ -1063,13 +1081,11 @@ export function compileQueryFilterToOData(
   const emit = (node: QueryFilterExpression): string => {
     switch (node.kind) {
       case "comparison":
-        return `${node.left.name} ${ODATA_COMPARISON[node.operator]} ${odataLiteral(node.right)}`;
+        return `${node.left.name} ${ODATA_COMPARISON[node.operator]} ${odataLiteral(node.right, isTemporalField(ctx, node.left.name))}`;
       case "list":
-        return `${node.operand.name} in (${node.values.map(odataLiteral).join(",")})`;
+        return `${node.operand.name} in (${node.values.map((value) => odataLiteral(value, isTemporalField(ctx, node.operand.name))).join(",")})`;
       case "range":
-        return `(${node.operand.name} ge ${odataLiteral(node.lower)} and ${node.operand.name} le ${odataLiteral(
-          node.upper,
-        )})`;
+        return `(${node.operand.name} ge ${odataLiteral(node.lower, isTemporalField(ctx, node.operand.name))} and ${node.operand.name} le ${odataLiteral(node.upper, isTemporalField(ctx, node.operand.name))})`;
       case "null":
         return `${node.operand.name} ${node.operator === "is-null" ? "eq" : "ne"} null`;
       case "pattern":
@@ -1100,13 +1116,13 @@ export function compileQueryFilterToOData(
   return emit(filter);
 }
 
-function odataLiteral(node: QueryFilterLiteralNode): string {
+function odataLiteral(node: QueryFilterLiteralNode, temporal: boolean): string {
   const value = node.value;
   if (value === null) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number") return String(value);
-  // Edm.DateTimeOffset literals are unquoted; every other string is quoted.
-  return isTemporalLike(value) && value.length > 10 ? value : sqlText(value);
+  // Schema-known temporal fields use EDM literals; other scalar strings stay quoted.
+  return temporal && isTemporalString(value) ? value : sqlText(value);
 }
 
 /**

@@ -724,6 +724,7 @@ async function bootstrap(): Promise<void> {
 
   const editStatus = getElement<HTMLSelectElement>("#edit-status");
   const editAssigned = getElement<HTMLInputElement>("#edit-assigned");
+  const editGuardReason = getElement<HTMLElement>("#edit-guard-reason");
 
   const runtime: IncidentRuntime = {
     ready: false,
@@ -848,6 +849,8 @@ async function bootstrap(): Promise<void> {
     let latestProjection: LinkedViewQueryProjection | undefined;
     let selectedIncidentId: string | undefined;
     let activePopup: maplibregl.Popup | undefined;
+    let popupIncidentId: string | undefined;
+    let popupContent: HTMLElement | undefined;
     lifecycle.own(() => activePopup?.remove());
     let latestAuthority = authorityForLane(store.state, lane);
     let latestMutationGuard: IncidentMutationGuard = {
@@ -916,13 +919,22 @@ async function bootstrap(): Promise<void> {
       );
       setText("#edit-guard-reason", latestMutationGuard.reason);
       setText("#edit-revision", incident?.revision === undefined ? "-" : String(incident.revision));
-      setControlDisabled(editStatus, !latestMutationGuard.enabled);
-      setControlDisabled(editAssigned, !latestMutationGuard.enabled);
-      setControlDisabled(stageEditButton, !latestMutationGuard.enabled);
-      setControlDisabled(submitEditButton, !latestMutationGuard.enabled || !stagedEdit);
-      setControlDisabled(repeatEditButton, !latestMutationGuard.enabled || !lastSubmittedEdit);
-      setControlDisabled(simulateConflictButton, !latestMutationGuard.enabled || !stagedEdit);
-      setControlDisabled(resetEditButton, !latestMutationGuard.enabled);
+      const updateControl = (control: HTMLInputElement | HTMLSelectElement | HTMLButtonElement, disabled: boolean) => {
+        // Move focus before disabling its owner. Recovery never takes focus back:
+        // the user can Tab from this explanation when editing becomes available.
+        if (disabled && document.activeElement === control) {
+          const destination = latestMutationGuard.enabled ? stageEditButton : editGuardReason;
+          destination.focus({ preventScroll: true });
+        }
+        setControlDisabled(control, disabled);
+      };
+      updateControl(editStatus, !latestMutationGuard.enabled);
+      updateControl(editAssigned, !latestMutationGuard.enabled);
+      updateControl(stageEditButton, !latestMutationGuard.enabled);
+      updateControl(submitEditButton, !latestMutationGuard.enabled || !stagedEdit);
+      updateControl(repeatEditButton, !latestMutationGuard.enabled || !lastSubmittedEdit);
+      updateControl(simulateConflictButton, !latestMutationGuard.enabled || !stagedEdit);
+      updateControl(resetEditButton, !latestMutationGuard.enabled);
     }
 
     function stageEdit(): string | null {
@@ -1048,17 +1060,29 @@ async function bootstrap(): Promise<void> {
         editAssigned.value = incident.assignedTo;
       }
       updateEditPanel();
-      activePopup?.remove();
-      activePopup = undefined;
-      if (incident) {
+      if (popupIncidentId !== incident?.id) {
+        activePopup?.remove();
+        activePopup = undefined;
+        popupContent = undefined;
+        popupIncidentId = incident?.id;
+      }
+      if (incident && !activePopup) {
+        popupContent = document.createElement("div");
         activePopup = new maplibregl.Popup({
           closeButton: true,
           closeOnClick: false,
+          focusAfterOpen: false,
           maxWidth: "320px",
         })
           .setLngLat([...incident.coordinate] as [number, number])
-          .setHTML(createPopupHtml(incident))
+          .setDOMContent(popupContent)
           .addTo(map);
+      }
+      if (incident && activePopup && popupContent) {
+        // Preserve the popup and its close button across background updates.
+        // A popup dismissed by the user stays dismissed until selection changes.
+        popupContent.innerHTML = createPopupHtml(incident);
+        activePopup.setLngLat([...incident.coordinate] as [number, number]);
       }
     }
 

@@ -315,6 +315,9 @@ without touching this file.
 `grpc` is a canonical protocol id for the shared FeatureService transport
 and fixture pack; it is consumed through the client gRPC-Web transport
 rather than a `Source.protocol("grpc")` adapter handle in this package.
+Its default capabilities exclude `queryAggregate`, which has no representation
+in the FeatureService wire contract. Aggregate requests fail with
+`HonuaCapabilityNotSupportedError` before transport dispatch.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 declare module "@honua/sdk-js/contract" {

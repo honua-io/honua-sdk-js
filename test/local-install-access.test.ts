@@ -76,7 +76,7 @@ describe("local installer access handoff", () => {
       {
         fetchFn,
         randomSecret: (bytes) => `generated-${bytes}`,
-        run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+        run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
         wait: async () => undefined,
       },
     );
@@ -106,7 +106,7 @@ describe("local installer access handoff", () => {
       {
         fetchFn,
         randomSecret: (bytes) => `unused-${bytes}`,
-        run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+        run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
         wait: async () => undefined,
       },
     );
@@ -171,7 +171,7 @@ describe("local installer access handoff", () => {
         {
           fetchFn,
           randomSecret: (bytes) => `unused-${bytes}`,
-          run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+          run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
           wait: async () => undefined,
         },
       ),
@@ -234,7 +234,7 @@ describe("local installer access handoff", () => {
           {
             fetchFn,
             randomSecret: (bytes) => `generated-${bytes}`,
-            run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+            run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
             wait: async () => undefined,
           },
         ),
@@ -296,7 +296,7 @@ describe("local installer access handoff", () => {
         {
           fetchFn,
           randomSecret: (bytes) => `generated-${bytes}`,
-          run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+          run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
           wait: async () => undefined,
         },
       ),
@@ -361,7 +361,7 @@ describe("local installer access handoff", () => {
         { directory, timeoutMs: 1_000 },
         {
           fetchFn,
-          run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+          run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
           wait: async () => undefined,
         },
       ),
@@ -393,6 +393,7 @@ describe("local installer access handoff", () => {
     });
     expect(scenario.created).toEqual([{ name: "honua-local-agent", permissions: CURRENT_GRANTS }]);
     expect(scenario.revoked).toEqual([LEGACY_ID]);
+    expect(readFileSync(path.join(directory, ".env"), "utf8")).toContain(UNRELATED_ENV_TEXT);
     for (const file of [".env", ".mcp.json", "claude_desktop_config.json"]) {
       const content = readFileSync(path.join(directory, file), "utf8");
       expect(content).toContain(NEW_MATERIAL);
@@ -424,6 +425,7 @@ describe("local installer access handoff", () => {
     );
 
     expect(scenario.revoked).toEqual([NEW_ID]);
+    expect(readFileSync(path.join(directory, ".env"), "utf8")).toContain(UNRELATED_ENV_TEXT);
     for (const file of [".env", ".mcp.json", "claude_desktop_config.json"]) {
       const content = readFileSync(path.join(directory, file), "utf8");
       expect(content).toContain(LEGACY_MATERIAL);
@@ -479,7 +481,7 @@ describe("local installer access handoff", () => {
         { directory, timeoutMs: 1_000 },
         {
           randomSecret: (bytes) => `generated-${bytes}`,
-          run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+          run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
           wait: async () => undefined,
         },
       ),
@@ -489,6 +491,7 @@ describe("local installer access handoff", () => {
 });
 
 const CURRENT_GRANTS = ["admin:read", "admin:write", "read:*"];
+const UNRELATED_ENV_TEXT = '# consumer configuration\nexport CONSUMER_SECRET="retain=exactly"\n';
 const LEGACY_GRANTS = ["admin:read", "admin:write"];
 const LEGACY_ID = "55555555-5555-4555-8555-555555555555";
 const NEW_ID = "66666666-6666-4666-8666-666666666666";
@@ -508,7 +511,7 @@ async function legacyInstallDirectory(prefix: string): Promise<string> {
       "HONUA_ADMIN_PASSWORD=root",
       "HONUA_CONNECTION_ENCRYPTION_MASTER_KEY=master",
       `HONUA_ADMIN_KEY=${LEGACY_MATERIAL}`,
-      "",
+      UNRELATED_ENV_TEXT,
     ].join("\n"),
   );
   const legacyConfig = JSON.stringify({ mcpServers: { honua: { env: { HONUA_ADMIN_KEY: LEGACY_MATERIAL } } } });
@@ -587,7 +590,7 @@ function runtimeFor(fetchFn: typeof fetch) {
   return {
     fetchFn,
     randomSecret: (bytes: number) => `unused-${bytes}`,
-    run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+    run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
     wait: async () => undefined,
   };
 }

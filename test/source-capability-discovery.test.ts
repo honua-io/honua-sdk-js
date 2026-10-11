@@ -477,8 +477,8 @@ describe("connectWithSourceCapabilities", () => {
       effective: "supported",
     });
     expect(capability(source, "queryAggregate")).toMatchObject({
-      claimed: "supported",
-      observed: "unsupported",
+      claimed: "unsupported",
+      observed: "not-observed",
       effective: "unsupported",
     });
     expect(capability(source, "applyEdits")).toMatchObject({
