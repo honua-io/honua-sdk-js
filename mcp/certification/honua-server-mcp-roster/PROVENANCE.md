@@ -2,24 +2,26 @@
 
 `mcp-tool-roster.v1.json` in this directory is a verbatim copy of
 `docs/gis/data/mcp-tool-roster.v1.json` from honua-server, read at the commit
-the pinned candidate image was built from.
+the working-candidate contract is pinned to.
 
 - **Source repo:** https://github.com/honua-io/honua-server
 - **Source path:** `docs/gis/data/mcp-tool-roster.v1.json`
-- **Server commit:** `87966c3f7b6c840ffc4d4da0b451714ab717b18a`
-  (`ADMIN_RELEASE_SERVER_SHA` in `src/control-plane/generated/admin-operations.ts`,
-  the build of `ADMIN_LOCAL_SERVER_IMAGE`)
+- **Server commit:** `93cad86ec4fb28fba3ff0b9358059d86aa55dde5`
+  (`ADMIN_RELEASE_SERVER_SHA` in `src/control-plane/generated/admin-operations.ts`)
 
-## Status: blocked
+The customer installer image (`ADMIN_LOCAL_SERVER_IMAGE`) follows the separate
+immutable customer-install manifest; it may lag this working-candidate contract.
 
-The roster file does not exist at the pinned server commit yet. The server
-change that generates it (`mcp-tool-roster-and-parity-gates`, unit S4) has not
-reached the pinned image. Until it does:
+## Status: vendored
 
-- the `roster-parity` certification contract reports `blocked` (never `passed`)
-  against a live `/mcp`, which keeps the certification from passing;
-- the offline catalog-parity unit test (`test/certification/roster.test.ts`)
-  asserts this blocked state instead of skipping silently.
+The roster is present at the pinned working-candidate commit and is copied
+byte-for-byte from that commit. Its embedded `serverSha` records the server's
+roster-generation input; it is preserved as upstream metadata rather than
+rewritten to the fetch commit.
+
+The offline catalog-parity test can now compare advertised tools with this
+roster. This does not establish live transport, authorization, durable audit,
+or release-candidate qualification.
 
 ## Refreshing
 
