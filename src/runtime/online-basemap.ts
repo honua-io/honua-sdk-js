@@ -81,8 +81,7 @@ export class HonuaOnlineBasemapBinding {
     active?: PreparedBasemap;
     request?: AbortController;
     disposed: boolean;
-    hostGlyphs?: string;
-    hostGlyphsCaptured: boolean;
+    glyphs?: { host: string | undefined; installed: string | undefined };
   };
 
   constructor(map: HonuaOnlineBasemapMap, options: HonuaOnlineBasemapBindingOptions) {
@@ -94,7 +93,6 @@ export class HonuaOnlineBasemapBinding {
       assetPrefixes: new Set(),
       installationId: 0,
       disposed: false,
-      hostGlyphsCaptured: false,
     };
     map.on("error", this.#onMapError);
   }
@@ -109,11 +107,6 @@ export class HonuaOnlineBasemapBinding {
     let styleUrl = "";
     try {
       styleUrl = resolveHonuaOnlineBasemapStyle(options);
-      if (!state.hostGlyphsCaptured) {
-        const hostGlyphs = object(state.map.getStyle())?.glyphs;
-        state.hostGlyphs = typeof hostGlyphs === "string" ? hostGlyphs : undefined;
-        state.hostGlyphsCaptured = true;
-      }
       let downloaded = state.styles.get(styleUrl);
       if (!downloaded) {
         const response = await (state.options.fetch ?? globalThis.fetch)(styleUrl, { signal: request.signal });
@@ -145,7 +138,9 @@ export class HonuaOnlineBasemapBinding {
     state.map.off("error", this.#onMapError);
     if (state.active) {
       this.#remove(state.active);
-      state.map.setGlyphs(state.hostGlyphs ?? null);
+      if (state.glyphs && glyphTemplate(state.map) === state.glyphs.installed) {
+        state.map.setGlyphs(state.glyphs.host ?? null);
+      }
     }
     state.active = undefined;
   }
@@ -179,9 +174,6 @@ export class HonuaOnlineBasemapBinding {
     if (invalid) throw new Error(`Invalid basemap style: ${invalid.message}`);
     const id = `${state.prefix}${++state.installationId}-`;
     const glyphs = typeof style.glyphs === "string" ? absoluteAsset(style.glyphs, baseUrl) : undefined;
-    if (glyphs && state.hostGlyphs !== undefined && state.hostGlyphs !== glyphs) {
-      throw new Error("Basemap glyphs conflict; use the host glyph template.");
-    }
     const spriteDefinitions =
       typeof style.sprite === "string"
         ? [{ id: "default", url: style.sprite }]
@@ -273,9 +265,16 @@ export class HonuaOnlineBasemapBinding {
       if (installedSprites.has(sprite.id))
         throw new Error(`Basemap sprite namespace collides with an existing sprite: ${sprite.id}.`);
     }
-    const previousGlyphs = object(state.map.getStyle())?.glyphs;
+    // The host can change its style or glyph template while a style downloads.
+    // Capture ownership at mutation time, and retain changes we did not make.
+    const previousGlyphs = glyphTemplate(state.map);
+    const hostGlyphs = state.glyphs && previousGlyphs === state.glyphs.installed ? state.glyphs.host : previousGlyphs;
+    if (prepared.glyphs && hostGlyphs !== undefined && hostGlyphs !== prepared.glyphs) {
+      throw new Error("Basemap glyphs conflict; use the host glyph template.");
+    }
+    const installedGlyphs = prepared.glyphs ?? hostGlyphs;
     try {
-      state.map.setGlyphs(prepared.glyphs ?? state.hostGlyphs ?? null);
+      state.map.setGlyphs(installedGlyphs ?? null);
       for (const sprite of prepared.sprites) {
         state.map.addSprite(sprite.id, sprite.url);
       }
@@ -295,11 +294,12 @@ export class HonuaOnlineBasemapBinding {
       // A renderer can throw after inserting a resource. The unique namespace
       // lets rollback find even resources it did not return successfully.
       this.#remove(prepared);
-      state.map.setGlyphs(typeof previousGlyphs === "string" ? previousGlyphs : null);
+      if (glyphTemplate(state.map) === installedGlyphs) state.map.setGlyphs(previousGlyphs ?? null);
       throw error;
     }
     if (state.active) this.#remove(state.active);
     state.active = prepared;
+    state.glyphs = { host: hostGlyphs, installed: installedGlyphs };
     state.assetPrefixes.clear();
     const track = (url: string) => {
       state.assetPrefixes.add(url.split("{")[0]);
@@ -320,6 +320,11 @@ export class HonuaOnlineBasemapBinding {
       }
     }
   }
+}
+
+function glyphTemplate(map: HonuaOnlineBasemapMap): string | undefined {
+  const glyphs = object(map.getStyle())?.glyphs;
+  return typeof glyphs === "string" ? glyphs : undefined;
 }
 
 function object(value: unknown): Record<string, unknown> | undefined {

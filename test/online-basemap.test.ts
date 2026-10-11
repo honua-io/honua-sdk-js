@@ -199,6 +199,88 @@ describe("explicit online basemap policy", () => {
     binding.dispose();
   });
 
+  it.each([true, false])("preserves a later host glyph template with basemap glyphs=%s", async (withGlyphs) => {
+    const map = mapFixture();
+    const hostGlyphs = "https://host.example/fonts/{fontstack}/{range}.pbf";
+    const fetch = vi.fn(async () => styleResponse());
+    const binding = new HonuaOnlineBasemapBinding(map, { fetch, onError: vi.fn() });
+    expect(await binding.activate()).toBe(true);
+    map.setGlyphs(hostGlyphs);
+    fetch.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            version: 8,
+            sources: {},
+            layers: [{ id: "background", type: "background" }],
+            ...(withGlyphs ? { glyphs: hostGlyphs } : {}),
+          }),
+        ),
+    );
+    expect(await binding.activate({ theme: "dark" })).toBe(true);
+    expect(map.getStyle().glyphs).toBe(hostGlyphs);
+    binding.dispose();
+    expect(map.getStyle().glyphs).toBe(hostGlyphs);
+    expect(map.layers).toContain(map.operational);
+  });
+
+  it("does not restore stale glyphs when the host changes them before disposal", async () => {
+    const map = mapFixture();
+    const binding = new HonuaOnlineBasemapBinding(map, { fetch: vi.fn(async () => styleResponse()), onError: vi.fn() });
+    expect(await binding.activate()).toBe(true);
+    map.setGlyphs("https://host.example/new/{fontstack}/{range}.pbf");
+    map.setGlyphs.mockClear();
+    binding.dispose();
+    expect(map.getStyle().glyphs).toBe("https://host.example/new/{fontstack}/{range}.pbf");
+    expect(map.setGlyphs).not.toHaveBeenCalled();
+  });
+
+  it("rechecks host glyph ownership after an asynchronous style download", async () => {
+    const map = mapFixture();
+    const onError = vi.fn();
+    let respond: (value: Response) => void = () => {};
+    const response = new Promise<Response>((resolve) => {
+      respond = resolve;
+    });
+    const binding = new HonuaOnlineBasemapBinding(map, { fetch: vi.fn(() => response), onError });
+    const pending = binding.activate();
+    map.setGlyphs("https://host.example/new/{fontstack}/{range}.pbf");
+    map.setGlyphs.mockClear();
+    respond(styleResponse());
+    expect(await pending).toBe(false);
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining("glyphs conflict"));
+    expect(map.getStyle().glyphs).toBe("https://host.example/new/{fontstack}/{range}.pbf");
+    expect(map.setGlyphs).not.toHaveBeenCalled();
+    expect(map.layers).toEqual([{ id: "host-background", type: "background" }, map.operational]);
+    binding.dispose();
+  });
+
+  it("captures a host glyph removal before installing another theme", async () => {
+    const map = mapFixture();
+    map.setGlyphs("https://fixtures.example/light/fonts/{fontstack}/{range}.pbf");
+    const binding = new HonuaOnlineBasemapBinding(map, { fetch: vi.fn(async () => styleResponse()), onError: vi.fn() });
+    expect(await binding.activate({ styleUrl: "https://fixtures.example/light/style.json" })).toBe(true);
+    map.setGlyphs(null);
+    expect(await binding.activate({ styleUrl: "https://fixtures.example/dark/style.json" })).toBe(true);
+    binding.dispose();
+    expect(map.getStyle().glyphs).toBeUndefined();
+  });
+
+  it("preserves a host glyph change triggered during a failed installation", async () => {
+    const map = mapFixture();
+    const binding = new HonuaOnlineBasemapBinding(map, { fetch: vi.fn(async () => styleResponse()), onError: vi.fn() });
+    expect(await binding.activate()).toBe(true);
+    const hostGlyphs = "https://host.example/new/{fontstack}/{range}.pbf";
+    map.addLayer.mockImplementationOnce(() => {
+      map.setGlyphs(hostGlyphs);
+      throw new Error("renderer rejected the basemap layer");
+    });
+    expect(await binding.activate({ theme: "dark" })).toBe(false);
+    expect(map.getStyle().glyphs).toBe(hostGlyphs);
+    binding.dispose();
+    expect(map.getStyle().glyphs).toBe(hostGlyphs);
+  });
+
   it.each([
     ["mixed image/string coalesce", ["coalesce", ["image", ["get", "icon"]], "fallback"]],
     ["nullable string/image coalesce", ["coalesce", ["get", "icon"], ["image", "fallback"]]],
