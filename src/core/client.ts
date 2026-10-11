@@ -1188,6 +1188,8 @@ export class HonuaClient {
    * `.text()`, or `.arrayBuffer()`. Non-2xx responses still throw the
    * normalized `HonuaHttpError` (and trigger retries) so error handling
    * matches every other client method.
+   * The request deadline and caller cancellation remain active while consuming
+   * the response body. Consume or cancel the body to release that lifecycle.
    */
   public async pipelineFetch(
     method: QueryMethod,
@@ -1249,7 +1251,8 @@ export class HonuaClient {
       ...(options.redirect ? { redirect: options.redirect } : {}),
       ...(options.beforeAttempt ? { beforeAttempt: options.beforeAttempt } : {}),
       ...(options.beforeReplay ? { beforeReplay: options.beforeReplay } : {}),
-      ...(options.prepareResponse || options.errorBody ? { deadlineThroughFinalize: true } : {}),
+      deadlineThroughFinalize: true,
+      streamResponse: options.prepareResponse === undefined,
       ...(options.errorBody
         ? { errorBody: options.errorBody }
         : options.discardErrorBody
@@ -1317,6 +1320,7 @@ export class HonuaClient {
 
     return this.executeRequest<T>(request, {
       callerSignal: metadataOptions.signal,
+      deadlineThroughFinalize: true,
       // stale-if-error fallback on a terminal network or HTTP failure.
       onTerminalError: (error) => this.staleMetadataFallback(cached, metadataOptions, error),
       // 304 Not Modified: revalidate the cached entry without re-parsing a body.
@@ -1345,10 +1349,11 @@ export class HonuaClient {
           ),
         };
       },
-      finalize: async (response, durationMs, currentRequest, runAfter) => {
+      finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
         const body = await parseSuccessfulJsonBody(
           this.hasAfterInterceptors() ? response.clone() : response,
           metadataOptions.maxResponseBytes,
+          deadlineSignal,
         );
 
         // GeoServices reports metadata failures (layer not found, invalid token
@@ -1894,23 +1899,25 @@ export class HonuaClient {
 
     return this.executeRequest<unknown>(request, {
       callerSignal,
-      finalize: async (response, durationMs, currentRequest, runAfter) => {
+      deadlineThroughFinalize: true,
+      finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
         await runAfter();
 
         // If the server returned PBF, decode it; on decode failure (including
         // Z/M geometry the fast path can't handle) retry as f=json.
         if (isPbfResponse(response)) {
           try {
-            const buffer = await response.arrayBuffer();
+            const buffer = await readBoundedResponseBytes(response, Number.MAX_SAFE_INTEGER, deadlineSignal);
             return decodePbfQueryResponse(buffer);
-          } catch {
+          } catch (error) {
+            if (deadlineSignal?.aborted) throw error;
             params.set("f", "json");
             const jsonPath = `${stripQuery(path)}?${params.toString()}`;
             return this.requestJson(
               "GET",
               jsonPath,
               undefined,
-              callerSignal ?? currentRequest.init.signal ?? undefined,
+              deadlineSignal ?? callerSignal ?? currentRequest.init.signal ?? undefined,
             );
           }
         }
@@ -1921,7 +1928,7 @@ export class HonuaClient {
         // even when f=pbf was requested. Detect the `{error}` envelope here so
         // preferBinary callers throw a normalized HonuaHttpError exactly like
         // the JSON path instead of receiving the failure envelope as success.
-        const body = await parseSuccessfulJsonBody(response);
+        const body = await parseSuccessfulJsonBody(response, undefined, deadlineSignal);
         const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
           await this.applyErrorInterceptors({
@@ -1979,12 +1986,12 @@ export class HonuaClient {
 
     return this.executeRequest<{ text: string; contentType: string; status: number }>(request, {
       callerSignal: options?.signal,
-      deadlineThroughFinalize: options?.maxResponseBytes !== undefined,
+      deadlineThroughFinalize: true,
       errorBody: async (response, deadlineSignal) => {
         const clone = response.clone();
         const text =
           options?.maxResponseBytes === undefined
-            ? await clone.text()
+            ? new TextDecoder().decode(await readBoundedResponseBytes(clone, Number.MAX_SAFE_INTEGER, deadlineSignal))
             : new TextDecoder().decode(await readBoundedResponseBytes(clone, options.maxResponseBytes, deadlineSignal));
         const contentType = response.headers.get("content-type") ?? acceptHeader;
         return text ? { raw: text, contentType } : {};
@@ -1992,7 +1999,9 @@ export class HonuaClient {
       finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
         if (options?.maxResponseBytes === undefined) {
           await runAfter();
-          const text = await response.text();
+          const text = new TextDecoder().decode(
+            await readBoundedResponseBytes(response, Number.MAX_SAFE_INTEGER, deadlineSignal),
+          );
           const contentType = response.headers.get("content-type") ?? acceptHeader;
           return { text, contentType, status: response.status };
         }
@@ -2033,10 +2042,10 @@ export class HonuaClient {
 
     return this.executeRequest<{ bytes: Uint8Array; contentType: string; empty: boolean }>(request, {
       callerSignal,
-      finalize: async (response, _durationMs, _request, runAfter) => {
+      deadlineThroughFinalize: true,
+      finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
         await runAfter();
-        const buffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
+        const bytes = await readBoundedResponseBytes(response, Number.MAX_SAFE_INTEGER, deadlineSignal);
         return {
           bytes,
           contentType: response.headers.get("content-type") ?? acceptHeader,
@@ -2083,6 +2092,7 @@ export class HonuaClient {
         reason: "authentication" | "retry",
       ) => void | Promise<void>;
       deadlineThroughFinalize?: boolean;
+      streamResponse?: boolean;
       errorBody?: (response: Response, deadlineSignal: AbortSignal | undefined) => Promise<unknown>;
       shortCircuit?: (
         response: Response,
@@ -2152,6 +2162,8 @@ export class HonuaClient {
       }
       const durationMs = performance.now() - startTime;
       const currentRequest = request;
+      let bodyOwnsDeadline = false;
+      let cancelDeadlineResponse: (() => void) | undefined;
       let terminalErrorNotification:
         | {
             readonly completion: Promise<void>;
@@ -2174,6 +2186,9 @@ export class HonuaClient {
       };
       const awaitDeadlineOwned = async <R>(operation: Promise<R>): Promise<R> => {
         const owned = operation.catch(async (error: unknown) => {
+          // The outer deadline catch decides retry, stale fallback, and the
+          // normalized terminal error. A discarded attempt must not notify.
+          if (timeout.signal?.aborted) throw error;
           const notification = beginTerminalErrorNotification(error, performance.now() - startTime);
           if (notification.claimed) {
             await notification.completion;
@@ -2199,7 +2214,8 @@ export class HonuaClient {
 
       try {
         if (options.shortCircuit) {
-          const shorted = await options.shortCircuit(response, durationMs, currentRequest, runAfter);
+          const pending = options.shortCircuit(response, durationMs, currentRequest, runAfter);
+          const shorted = await (options.deadlineThroughFinalize ? awaitDeadlineOwned(pending) : pending);
           if (shorted) return shorted.value;
         }
 
@@ -2245,8 +2261,20 @@ export class HonuaClient {
           throw httpError;
         }
 
-        const finalized = options.finalize(response, durationMs, currentRequest, runAfter, timeout.signal);
-        return await (options.deadlineThroughFinalize ? awaitDeadlineOwned(finalized) : finalized);
+        const ownedResponse = options.streamResponse
+          ? responseWithDeadline(
+              response,
+              timeout.signal,
+              () => timeout.dispose(),
+              () => (timeout.didTimeout ? new HonuaTimeoutError(this.timeoutMs ?? 0) : new HonuaAbortError()),
+            )
+          : undefined;
+        const preparedResponse = ownedResponse?.response ?? response;
+        cancelDeadlineResponse = ownedResponse?.cancel;
+        const finalized = options.finalize(preparedResponse, durationMs, currentRequest, runAfter, timeout.signal);
+        const result = await (options.deadlineThroughFinalize ? awaitDeadlineOwned(finalized) : finalized);
+        bodyOwnsDeadline = options.streamResponse === true && response.body !== null;
+        return result;
       } catch (error) {
         if (!options.deadlineThroughFinalize || !timeout.signal?.aborted) throw error;
         const terminalError = timeout.didTimeout ? new HonuaTimeoutError(this.timeoutMs ?? 0) : new HonuaAbortError();
@@ -2262,10 +2290,17 @@ export class HonuaClient {
           await this.sleepBeforeRetry(attempt, undefined, retrySignal);
           continue;
         }
+        if (timeout.didTimeout) {
+          const fallback = options.onTerminalError?.(terminalError);
+          if (fallback !== undefined) return fallback;
+        }
         beginTerminalErrorNotification(terminalError, performance.now() - startTime);
         throw terminalError;
       } finally {
-        if (options.deadlineThroughFinalize) timeout.dispose();
+        if (options.deadlineThroughFinalize && !bodyOwnsDeadline) {
+          timeout.dispose();
+          cancelDeadlineResponse?.();
+        }
       }
     }
   }
@@ -2410,8 +2445,18 @@ async function parseResponseBody(response: Response, maxResponseBytes?: number, 
   }
 }
 
-async function parseSuccessfulJsonBody(response: Response, maxResponseBytes?: number): Promise<unknown> {
-  return parseResponseBody(response, maxResponseBytes, true);
+async function parseSuccessfulJsonBody(
+  response: Response,
+  maxResponseBytes?: number,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const prepared = signal
+    ? bufferedResponse(
+        response,
+        await readBoundedResponseBytes(response, maxResponseBytes ?? Number.MAX_SAFE_INTEGER, signal),
+      )
+    : response;
+  return parseResponseBody(prepared, maxResponseBytes, true);
 }
 
 async function readBoundedResponseBytes(
@@ -2780,4 +2825,66 @@ function isGrpcAdapterModule(value: unknown): value is GrpcAdapterModule {
     typeof value.wrapConnectError === "function" &&
     typeof value.streamProtoPages === "function"
   );
+}
+
+/** Keep raw response consumption inside the original request deadline without buffering. */
+function responseWithDeadline(
+  response: Response,
+  signal: AbortSignal | undefined,
+  dispose: () => void,
+  abortError: () => Error,
+): { response: Response; cancel: () => void } {
+  if (!response.body) return { response, cancel: dispose };
+  const reader = response.body.getReader();
+  let finished = false;
+  let controller: ReadableStreamDefaultController<Uint8Array>;
+  const cleanup = () => {
+    if (finished) return;
+    finished = true;
+    signal?.removeEventListener("abort", abort);
+    dispose();
+  };
+  const abort = () => {
+    if (finished) return;
+    cleanup();
+    controller.error(abortError());
+    void reader.cancel().catch(() => undefined);
+  };
+  const body = new ReadableStream<Uint8Array>({
+    start(value) {
+      controller = value;
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    },
+    async pull(value) {
+      if (finished) return;
+      try {
+        const next = await reader.read();
+        if (finished) return;
+        if (next.done) {
+          cleanup();
+          value.close();
+        } else value.enqueue(next.value);
+      } catch (error) {
+        if (finished) return;
+        cleanup();
+        value.error(error);
+      }
+    },
+    async cancel(reason) {
+      cleanup();
+      await reader.cancel(reason);
+    },
+  });
+  const prepared = preserveResponseSemantics(
+    new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    }),
+    response,
+  );
+  // Cancel the original reader directly: cancelling one cloned Response branch
+  // alone waits forever when an interceptor leaves the other tee branch unread.
+  return { response: prepared, cancel: abort };
 }
