@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { checkServerImagePin, generatedServerImage, parseDigestRef } from "../../scripts/check-server-image-pin.mjs";
+import { checkServerImagePin, generatedServerImage, generatedServerSha, parseDigestRef } from "../../scripts/check-server-image-pin.mjs";
 
 const fixture = JSON.parse(
   await readFile(new URL("./fixtures/server-image-pin/customer-install-manifest.json", import.meta.url), "utf8"),
@@ -9,9 +9,10 @@ const fixture = JSON.parse(
 const DIGEST = "sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a";
 const OTHER = `sha256:${"a".repeat(64)}`;
 const pin = { repository: "honua-io/honua-release", ref: "1005313e839be6f3248cd946e228d1cd303ce28d", path: "customer-install-manifest.json" };
-const generated = (image) => `export const ADMIN_LOCAL_SERVER_IMAGE = ${JSON.stringify(image)} as const;\n`;
+const SHA = fixture.server.sourceSha;
+const generated = (image, sha = SHA) => `export const ADMIN_LOCAL_SERVER_IMAGE = ${JSON.stringify(image)} as const;\nexport const ADMIN_LOCAL_SERVER_SHA = "${sha}" as const;\n`;
 const run = (serverImage, generatedImage = serverImage, releaseManifest = fixture, releaseManifestPin = pin) =>
-  checkServerImagePin({ source: { serverImage, releaseManifestPin }, generatedText: generated(generatedImage), releaseManifest });
+  checkServerImagePin({ source: { serverImage, localServerSourceSha: SHA, releaseManifestPin }, generatedText: generated(generatedImage), releaseManifest });
 
 test("the installer pin matches the release server image", () => {
   assert.match(run(`ghcr.io/honua-io/honua-server@${DIGEST}`), /matches honua-io\/honua-release@1005313e/);
@@ -52,4 +53,18 @@ test("parsing helpers", () => {
   assert.deepEqual(parseDigestRef(`ghcr.io/honua-io/honua-server:2026.1-rc@${DIGEST}`, "x"),
     { repository: "ghcr.io/honua-io/honua-server", digest: DIGEST });
   assert.throws(() => generatedServerImage("export const OTHER = 1;"), /does not export ADMIN_LOCAL_SERVER_IMAGE/);
+});
+
+
+test("local binary SHA is checked independently of the working compatibility SHA", () => {
+  const image = fixture.server.image;
+  const source = { serverImage: image, localServerSourceSha: SHA, releaseManifestPin: pin, releaseManifestServerSha: "9".repeat(40) };
+  assert.doesNotThrow(() => checkServerImagePin({ source, generatedText: generated(image), releaseManifest: fixture }));
+  assert.throws(() => checkServerImagePin({ source: { ...source, localServerSourceSha: "9".repeat(40) }, generatedText: generated(image), releaseManifest: fixture }), /localServerSourceSha is .*but the release installs source/);
+  assert.throws(() => checkServerImagePin({ source, generatedText: generated(image, "9".repeat(40)), releaseManifest: fixture }), /ADMIN_LOCAL_SERVER_SHA is .*but the release installs source/);
+});
+
+test("missing or malformed image source provenance fails closed", () => {
+  assert.throws(() => run(fixture.server.image, undefined, { server: { image: fixture.server.image } }), /server.sourceSha must be a full commit SHA/);
+  assert.throws(() => generatedServerSha('export const ADMIN_LOCAL_SERVER_SHA = "trunk" as const;'), /does not export a full ADMIN_LOCAL_SERVER_SHA/);
 });

@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
  * longer linger here after the server drops it.
  *
  * The roster is read BY SERVER SHA: the same honua-server commit the pinned
- * candidate image was built from (`ADMIN_RELEASE_SERVER_SHA`). When the file does
+ * candidate image was built from (`ADMIN_LOCAL_SERVER_SHA` in the installer lane). When the file does
  * not exist at that sha (the server change that adds it has not reached the pin
  * yet), the check reports `blocked` with the reason. It never passes without a
  * roster to compare against.
@@ -143,7 +143,8 @@ export interface ResolveRosterOptions {
  * Resolve the roster a live certification compares against:
  *   1. `HONUA_MCP_ROSTER_FILE` — an explicit local roster file;
  *   2. the server sha `HONUA_MCP_ROSTER_SERVER_SHA` (the candidate's
- *      `ADMIN_RELEASE_SERVER_SHA`), defaulting to the vendored provenance pin:
+ *      `ADMIN_LOCAL_SERVER_SHA` in the installer lane), defaulting to the vendored
+ *      working-contract provenance pin for offline certification:
  *      the vendored copy when it is pinned to that sha, otherwise the raw file
  *      fetched from honua-server at that sha.
  * Any failure resolves to `blocked` with the reason, never to a pass.

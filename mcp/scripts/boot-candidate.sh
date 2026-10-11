@@ -38,9 +38,13 @@ fi
 read -r server_image server_sha < <(
   node --input-type=module -e '
     const m = await import(process.argv[1]);
-    process.stdout.write(`${m.ADMIN_LOCAL_SERVER_IMAGE} ${m.ADMIN_RELEASE_SERVER_SHA}\n`);
+    process.stdout.write(`${m.ADMIN_LOCAL_SERVER_IMAGE} ${m.ADMIN_LOCAL_SERVER_SHA}\n`);
   ' "$(node -e 'console.log(require("node:url").pathToFileURL(process.argv[1]).href)' "$GENERATED")"
 )
+if [[ ! "$server_sha" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "boot-candidate: build the SDK with a valid ADMIN_LOCAL_SERVER_SHA before installing." >&2
+  exit 2
+fi
 echo "Booting pinned candidate ${server_image} (honua-server@${server_sha}) into ${dir}"
 
 mkdir -p "$(dirname "$dir")"
@@ -59,6 +63,19 @@ node -e '
   console.log(`Installed: status=${r.status} image=${r.serverImage} baseUrl=${r.baseUrl}`);
   console.log(`Admin key: id=${c.id} grants=${(c.effectiveGrants ?? []).join(",")} provisioned=${c.provisioned}`);
 ' "$receipt"
+
+# Bind certification provenance to the binary actually booted, not the separate
+# working-candidate compatibility contract. Missing or mismatched identity is fatal.
+container_id="$(docker compose --project-directory "$dir" --file "$dir/compose.yaml" ps -q honua)"
+if [[ -z "$container_id" || "$container_id" == *$'\n'* ]]; then
+  echo "boot-candidate: expected exactly one running honua container." >&2
+  exit 1
+fi
+actual_sha="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")"
+if [[ "$actual_sha" != "$server_sha" ]]; then
+  echo "boot-candidate: running server revision ${actual_sha} does not match installer pin ${server_sha}." >&2
+  exit 1
+fi
 
 key="$(sed -n 's/^HONUA_ADMIN_KEY=//p' "$dir/.env")"
 if [[ -z "$key" ]]; then

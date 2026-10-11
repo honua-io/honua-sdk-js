@@ -16,7 +16,8 @@ name: MCP scheduled live certification
 # ran anonymously: every read-only round trip returned AuthorizationDenied and the
 # lane was red on every run since 2026-07-05 for a reason that said nothing about
 # the release. The roster-parity contract compares tools/list with honua-server's
-# docs/gis/data/mcp-tool-roster.v1.json at the candidate's server sha; until that
+# docs/gis/data/mcp-tool-roster.v1.json at the installed binary's verified
+# ADMIN_LOCAL_SERVER_SHA, not the separate ADMIN_RELEASE_SERVER_SHA contract; until that
 # file exists at the pinned sha the contract reports `blocked`, which is not a pass.
 #
 # The certifier runs in --artifact-only mode so the report is always published;
