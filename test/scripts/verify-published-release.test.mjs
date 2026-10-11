@@ -182,7 +182,7 @@ function fakeRegistry(targets, mutate = () => {}) {
   };
 }
 
-async function verify(mutate = () => {}, planOverrides = {}) {
+async function verify(mutate = () => {}, planOverrides = {}, selection = "release-channel") {
   const { targets, errors } = planReal(planOverrides);
   return await verifyPublishedRelease({
     targets,
@@ -192,6 +192,7 @@ async function verify(mutate = () => {}, planOverrides = {}) {
     fetchImpl: fakeRegistry(targets, mutate),
     planningErrors: errors,
     now: NOW,
+    selection,
   });
 }
 
@@ -337,6 +338,28 @@ test("a stale dist-tag fails the cut", async () => {
   });
   assert.equal(receipt.status, "failed");
   assert.match(failedCheck(receipt, "@honua/sdk-js", "dist-tag").detail, /points at 0\.0\.6/u);
+});
+
+test("an immutable candidate may verify an older exact version while the publication channel gate still fails", async () => {
+  const newerChannel = (registry) => {
+    registry.packuments.get(packumentUrl(DEFAULT_REGISTRY, "@honua/sdk-js"))["dist-tags"].latest = "0.2.0";
+  };
+  assert.equal((await verify(newerChannel)).status, "failed");
+  const exact = await verify(newerChannel, {}, "exact-version");
+  assert.equal(exact.status, "verified", JSON.stringify(exact.failures));
+  assert.equal(exact.selection, "exact-version");
+  assert.ok(exact.artifacts.every((artifact) => !artifact.checks.some((entry) => entry.id === "dist-tag")));
+  assert.ok(exact.artifacts.every((artifact) => artifact.checks.some((entry) => entry.id === "source-revision")));
+});
+
+test("exact-version selection still refuses corrupted tarball bytes and unknown selection modes", async () => {
+  const corrupted = await verify((registry) => {
+    const url = [...registry.tarballs.keys()][0];
+    registry.tarballs.set(url, Buffer.from("corrupted"));
+  }, {}, "exact-version");
+  assert.equal(corrupted.status, "failed");
+  assert.ok(corrupted.failures.some((failure) => failure.includes("integrity")));
+  await assert.rejects(verify(() => {}, {}, "latest"), /unknown publication selection mode/);
 });
 
 test("a tarball whose bytes do not match the advertised integrity fails the cut", async () => {

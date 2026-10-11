@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Basemap development bundle evidence"
+description: "Reproducible installed-package measurements for the free basemap implementation."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Basemap development bundle evidence
 
 Measured source: `5d64e59832e0174a071170843c05dfb288d017e8`, clean worktree.

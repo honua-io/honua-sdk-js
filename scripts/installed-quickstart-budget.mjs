@@ -13,6 +13,7 @@ import { runNpmSync } from "./lib/npm-cli.mjs";
 import { verifyPreparedSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
 import { packedSdkFilename, assertComparisonDependencies, assertInstalledConsumerModules } from "./lib/installed-consumer-lock.mjs";
 import { INSTALLED_FIRST_MAP_BUDGET, firstMapVerdict } from "./lib/first-map-budget.mjs";
+import { readInstalledCandidateInput } from "./installed-candidate-input.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const sourceSha = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim();
@@ -23,11 +24,14 @@ if (consumerLockIndex >= 0) assert.ok(process.argv[consumerLockIndex + 1] && !pr
 const previousLockBytes = consumerLockIndex < 0 ? undefined : await readFile(path.resolve(root, process.argv[consumerLockIndex + 1]));
 const previousRenderer = previousLockBytes ? JSON.parse(previousLockBytes).packages?.["node_modules/maplibre-gl"] : undefined;
 if (previousLockBytes) assert.ok(previousRenderer?.version && previousRenderer?.integrity, "comparison lock must bind the installed MapLibre version and integrity");
-const candidate = JSON.parse(await readFile(path.join(root, "config/installed-package-certification.v1.json"), "utf8"));
 await mkdir(path.join(root, "test-results"), { recursive: true });
-const work = await mkdtemp(path.join(tmpdir(), "honua-installed-first-map-"));
 const outputIndex = process.argv.indexOf("--output");
 const output = path.resolve(root, outputIndex < 0 ? "test-results/installed-quickstart-budget.json" : process.argv[outputIndex + 1]);
+await rm(output, { force: true });
+assert.ok(!(localTarball && process.env.HONUA_INSTALLED_CANDIDATE_MODE === "release-snapshot"),
+  "release-snapshot cannot be combined with --local-tarball");
+const candidate = await readInstalledCandidateInput();
+const work = await mkdtemp(path.join(tmpdir(), "honua-installed-first-map-"));
 const proveRegression = process.argv.includes("--prove-regression");
 const enforceExecution = process.argv.includes("--enforce-execution-budget");
 const measureExecution = enforceExecution || process.argv.includes("--measure-execution");
@@ -182,6 +186,7 @@ try {
     scope: localTarball ? "packed-development bundle benchmark; no registry, candidate or release certification claim" : `declared ${candidate.package.version === "0.1.9-beta.0" ? "legacy " : ""}registry candidate bundle regression; current release lineage and certification not asserted`,
     inputMode: localTarball ? "packed-development" : "declared-registry-candidate",
     ...(prepared ? { packedDevelopment: { sourceSha, sourceDirty, inputsSha256: prepared.inputs.sha256, distSha256: prepared.dist.sha256 } } : {}),
+    ...(candidate.releaseInput ? { releaseInput: candidate.releaseInput } : {}),
     package: { ...packageIdentity, resolved: localTarball ? "$PACKED_DEVELOPMENT_TARBALL" : installed.resolved },
     consumerLockSha256: sha256(lockBytes),
     dependencies: Object.fromEntries(Object.entries(lock.packages).filter(([key]) => key).map(([key, value]) =>
