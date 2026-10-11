@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -11,6 +12,7 @@ import {
   applyConfigPin,
   applyPin,
   planPinWrites,
+  parseSyncArguments,
   readConfigPin,
   readPin,
   selectCoordinatedRelease,
@@ -328,5 +330,115 @@ test("a refusal on a later config leaves no file written at all", (t) => {
   // Planning is pure: the earlier, perfectly valid configs are untouched.
   staleConfigs.forEach((config, index) => {
     assert.equal(fs.readFileSync(config.file, "utf8"), before[index], `${config.relativePath} must not have been written`);
+  });
+});
+
+test("explicit selection overrides exact-version preference only for a published compatible peer", () => {
+  const published = { versions: {
+    "0.1.15": { peerDependencies: { "@honua/sdk-js": "^0.1.15" } },
+    "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" } },
+  } };
+  assert.equal(selectCoordinatedRelease(published, "0.1.15", "@honua/mcp-server"), "0.1.15");
+  assert.equal(selectCoordinatedRelease(published, "0.1.15", "@honua/mcp-server", "@honua/sdk-js", "0.1.16"), "0.1.16");
+  assert.throws(() => selectCoordinatedRelease(published, "0.1.15", "@honua/mcp-server", "@honua/sdk-js", "0.1.17"), /not published/);
+  assert.throws(() => selectCoordinatedRelease(stablePackument, "0.1.15", "@honua/mcp-server", "@honua/sdk-js", "0.2.0"), /does NOT consider satisfied/);
+  assert.throws(() => selectCoordinatedRelease(packument, "0.1.9-beta.0", "@honua/mcp-server", "@honua/sdk-js", "0.1.9-beta.0"), /must declare/);
+});
+
+test("explicit selection accepts --check in either order and refuses ambiguous or floating versions", () => {
+  const expected = { check: true, requestedVersion: "0.1.16" };
+  assert.deepEqual(parseSyncArguments(["--check", "--mcp-version", "0.1.16"]), expected);
+  assert.deepEqual(parseSyncArguments(["--mcp-version", "0.1.16", "--check"]), expected);
+  for (const args of [
+    ["--mcp-version"], ["--mcp-version", "latest"], ["--mcp-version", "^0.1.16"],
+    ["--mcp-version", "--check"], ["--mcp-version", "0.1.16", "--mcp-version", "0.1.17"],
+    ["--unknown"],
+  ]) assert.throws(() => parseSyncArguments(args));
+});
+
+/** Run the actual CLI in an isolated tree with an explicitly mocked registry. */
+function withSyncCliFixture(manifest, run) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "honua-sync-cli-"));
+  try {
+    const sites = ["src/local-install.ts", ...ZERO_TO_MAP_CONFIGS, ...CREATE_APP_PIN_SITES];
+    for (const relativePath of ["scripts/sync-mcp-pin.mjs", "scripts/verify-mcp-pin.mjs", ...sites]) {
+      const destination = path.join(root, relativePath);
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(path.join(projectRoot, relativePath), destination);
+    }
+    fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ type: "module", name: "@honua/sdk-js", version: "0.1.15" }));
+    fs.mkdirSync(path.join(root, "dist/src"), { recursive: true });
+    fs.writeFileSync(path.join(root, "dist/src/local-install.js"), 'export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";');
+    const preload = path.join(root, "registry-fixture.mjs");
+    const response = { versions: {
+      "0.1.15": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: `sha512-${"A".repeat(86)}==` } },
+      ...manifest,
+    } };
+    fs.writeFileSync(preload, `globalThis.fetch = async (url) => {
+if (url !== "https://registry.npmjs.org/%40honua%2Fmcp-server") throw new Error("Unexpected registry URL");
+return { ok: true, json: async () => (${JSON.stringify(response)}) };
+};`);
+    const invoke = (args) => spawnSync(process.execPath,
+      ["--import", preload, path.join(root, "scripts/sync-mcp-pin.mjs"), ...args], { encoding: "utf8" });
+    const snapshot = () => sites.map((site) => fs.readFileSync(path.join(root, site), "utf8"));
+    run({ root, invoke, snapshot });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("CLI explicit check is read-only and its write advances source, integrity and every shipped config", () => {
+  const integrity = `sha512-${"B".repeat(86)}==`;
+  withSyncCliFixture({ "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity } } },
+    ({ root, invoke, snapshot }) => {
+      const original = snapshot();
+      const check = invoke(["--check", "--mcp-version", "0.1.16"]);
+      assert.equal(check.status, 1, check.stderr);
+      assert.match(check.stderr, /coordinated cut is 0.1.16/);
+      assert.match(check.stderr, /sync:mcp-pin -- --mcp-version 0.1.16/);
+      assert.deepEqual(snapshot(), original);
+      const write = invoke(["--mcp-version", "0.1.16"]);
+      assert.equal(write.status, 0, write.stderr);
+      assert.deepEqual(readPin(fs.readFileSync(path.join(root, "src/local-install.ts"), "utf8")), { version: "0.1.16", integrity });
+      for (const site of ZERO_TO_MAP_CONFIGS) {
+        assert.equal(readConfigPin(fs.readFileSync(path.join(root, site), "utf8"), site), "@honua/mcp-server@0.1.16");
+      }
+      const afterWrite = snapshot();
+      const current = invoke(["--mcp-version", "0.1.16", "--check"]);
+      assert.equal(current.status, 0, current.stderr);
+      assert.deepEqual(snapshot(), afterWrite);
+    });
+});
+
+test("CLI refuses unpublished, incompatible and invalid-integrity explicit selections without any writes", () => {
+  const fixtures = [
+    [{}, /not published/],
+    [{ peerDependencies: { "@honua/sdk-js": "^0.2.0" }, dist: { integrity: `sha512-${"B".repeat(86)}==` } }, /does NOT consider satisfied/],
+    [{ peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: {} }, /valid sha512/],
+    [{ peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: "sha512-not-a-digest" } }, /valid sha512/],
+  ];
+  for (const [manifest, error] of fixtures) {
+    withSyncCliFixture(Object.keys(manifest).length ? { "0.1.16": manifest } : {}, ({ invoke, snapshot }) => {
+      const original = snapshot();
+      const result = invoke(["--mcp-version", "0.1.16"]);
+      assert.equal(result.status, 1, result.stderr);
+      assert.match(result.stderr, error);
+      assert.deepEqual(snapshot(), original);
+    });
+  }
+});
+
+test("CLI rejects missing, duplicate and unknown selection arguments before changing files", () => {
+  withSyncCliFixture({}, ({ invoke, snapshot }) => {
+    const original = snapshot();
+    for (const args of [
+      ["--mcp-version"], ["--mcp-version", "latest"], ["--mcp-version", "--check"],
+      ["--mcp-version", "0.1.16", "--mcp-version", "0.1.17"], ["--unknown"],
+    ]) {
+      const result = invoke(args);
+      assert.equal(result.status, 1, result.stderr);
+      assert.match(result.stderr, /requires an exact version|must name an exact version|at most once|unrecognised argument/);
+      assert.deepEqual(snapshot(), original);
+    }
   });
 });
