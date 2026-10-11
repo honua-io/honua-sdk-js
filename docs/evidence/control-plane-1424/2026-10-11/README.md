@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Terminal control-plane diagnostic evidence"
+description: "Retained failed candidate receipts and subsequent source validation for the 2026.1 command journey."
+---
+
 # Terminal control-plane diagnostics, 2026-10-11
 
 These are retained execution results for [SDK issue #1424](https://github.com/honua-io/honua-sdk-js/issues/1424)'s bounded 2026.1 command journey. The overall qualification **failed**. They prove successful and denied individual stages and preserve the server defects that block a complete release claim.
