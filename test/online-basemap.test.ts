@@ -1,4 +1,4 @@
-import { createPropertyExpression, v8 } from "@maplibre/maplibre-gl-style-spec";
+import { createExpression, v8 } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it, vi } from "vitest";
 import {
   HONUA_ONLINE_BASEMAP_STYLES,
@@ -186,7 +186,7 @@ describe("explicit online basemap policy", () => {
     expect(await binding.activate({ styleUrl: "https://fixtures.example/style.json" })).toBe(true);
     const layer = map.layers.find((entry) => String(entry.id).endsWith("-optional-icon"));
     const value = (layer?.layout as Record<string, unknown>)["icon-image"];
-    const expression = createPropertyExpression(value, v8.layout_symbol["icon-image"]);
+    const expression = createExpression(value, v8.layout_symbol["icon-image"]);
     expect(expression.result, JSON.stringify(expression.value)).toBe("success");
     if (expression.result === "error") throw new Error(JSON.stringify(expression.value));
     const missing = expression.value.evaluateWithoutErrorHandling({ zoom: 1 }, { type: 1, properties: {} });
