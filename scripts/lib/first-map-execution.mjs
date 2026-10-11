@@ -80,7 +80,7 @@ export async function measureFirstMapExecution(staticRoot, { repetitions = 3, cp
       }
     }
     return { scope: "closed fixture; cold browser contexts through first usable map frame", browser: browser.version(), node: process.version,
-      host: { platform: process.platform, architecture: process.arch, cpu: os.cpus()[0]?.model }, cpuThrottle, repetitions,
+      runnerImage: process.env.ImageOS ?? null, host: { platform: process.platform, architecture: process.arch, cpu: os.cpus()[0]?.model }, cpuThrottle, repetitions,
       metrics: { scriptCpuMs: "page main-thread Chromium Performance ScriptDuration in threadTicks; includes mount execution, excludes worker script CPU",
         parseCompileMs: "union of parse/compile trace intervals per thread, including background compilation, excluding named waiting spans; elapsed span time" }, samples };
   } finally {

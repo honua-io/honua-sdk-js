@@ -28,9 +28,10 @@ parse/compile trace spans, including browser, CPU, operating system, Node, sourc
 input hashes and whether the checkout was dirty. Parse/compile spans are merged
 per thread to avoid nested-event double counting; they are elapsed spans, while
 script duration uses Chromium thread CPU ticks and excludes worker script CPU.
-These costs are measurements,
-with status `measured`; no execution-time pass is claimed without an independently
-established outcome budget. Existing chunk and peer-identity limits still apply.
+With `--measure-execution`, costs have status `measured`. The CI lane uses
+`--enforce-execution-budget` to additionally require the calibrated runner profile
+and explicit median ceilings described below. Any execution failure also fails
+the top-level receipt. Existing chunk and peer-identity limits still apply.
 The module inventory also reports the largest rendered SDK modules to guide
 actual graph reductions.
 
@@ -133,14 +134,28 @@ producer artifact, build the browser artifacts, and run the packed-development
 command with `--baseline-default --measure-execution`. Then repeat without
 `--baseline-default`, passing the first receipt's saved `--consumer-lock`.
 That experimental flag and Terser dependency exist at the recorded commit;
-they are deliberately absent from the current configuration. CPU regression
-ceilings still require calibration on the controlled CI execution lane.
+they are deliberately absent from the current configuration. The current execution gate uses the subsequent controlled CI calibration below.
 
 The package-verification CI job measures the packed generic First Map on its
 provisioned Chromium runner and uploads `packed-first-map-execution` receipts
 (with a `-graph` suffix in SDK Verification), including the exact consumer lock.
-This calibration lane fails missing execution evidence and existing byte-budget
-regressions. CPU values remain measurements until runner calibration establishes
-explicit regression ceilings. Current trace aggregation excludes named waiting
-spans from parse/compile time; historical receipts preserve their original
-recorded event names and measurement implementation.
+The execution gate requires Ubuntu 24.04 x64, Chromium major 145, three cold
+contexts and 4× CPU throttling. It enforces median script CPU ≤175 ms and median
+parse/compile spans ≤110 ms. The first controlled CI calibration, run
+`38130548203` at source `8b5b0a0580c9bc95561a2eee4709fc94be0775ca`, measured
+134.518 ms and 80.796 ms respectively on an AMD EPYC 7763. The ceilings give
+approximately 30% and 36% headroom over those observed medians. CPU models are
+recorded rather than promised by GitHub's runner label; this initial CI regression
+gate is not a universal device-performance guarantee. A second run (`38130548207`,
+GitHub test-merge source `b304bef78d2d14be3242bbe51c308775e699da48`) recorded
+105.291 ms script and 47.329 ms parse medians on an AMD EPYC 9V45; the raw
+merge receipt is recorded separately from the exact-head producer receipt. A changed runner image,
+browser major, throttle, missing sample or exceeded ceiling fails admission and
+requires fresh calibration. Local machines can still use measurement-only mode.
+
+[The calibration receipt and consumer lock](./evidence/distribution-1413/)
+preserve the packed identity and dependency resolution. The live/default graph
+passed the unchanged 1,990,000 JavaScript / 524,000 gzip byte ceilings at
+1,887,373 / 503,941 bytes. The separate fixture graph is used for execution,
+never substituted for the ordinary byte verdict. Current trace aggregation
+excludes named waiting spans; historical receipts retain their original events.

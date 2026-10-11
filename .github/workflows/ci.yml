@@ -178,7 +178,7 @@ jobs:
 
   js-sdk:
     name: JS SDK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
       HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -517,7 +517,7 @@ jobs:
           npm run build:browser --silent
           node scripts/sample-contract.mjs artifacts
           npm run prepare:test-sdk:adopt --silent
-          node --test test/scripts/publish-surface-docs.test.mjs
+          node --test test/scripts/publish-surface-docs.test.mjs test/scripts/first-map-execution-budget.test.mjs
           npm run verify:publish-surface
           npm run test:runtime-tarball
           npm run verify:runtime-tarball
@@ -541,8 +541,8 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Calibrate packed First Map execution on the CI runner
-        run: npm run test:installed-quickstart -- --local-tarball --measure-execution
+      - name: Enforce packed First Map execution budget on the CI runner
+        run: npm run test:installed-quickstart -- --local-tarball --enforce-execution-budget
 
       - name: Upload packed First Map execution calibration
         if: always()

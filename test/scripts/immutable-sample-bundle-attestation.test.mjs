@@ -47,8 +47,9 @@ test("derives a visible action-pin record update from the workflow", async () =>
   const source = await readFile(path.join(ROOT, "scripts/immutable-sample-bundle-attestation.mjs"), "utf8");
   const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
   const replacement = "f".repeat(40);
-  workflow.jobs["build-and-smoke"].steps.find((step) => step.uses === ACTIONS.uploadArtifact).uses =
-    `actions/upload-artifact@${replacement}`;
+  for (const step of workflow.jobs["build-and-smoke"].steps.filter((step) => step.uses === ACTIONS.uploadArtifact)) {
+    step.uses = `actions/upload-artifact@${replacement}`;
+  }
 
   const synchronized = synchronizeActionPins(source, workflow);
 
