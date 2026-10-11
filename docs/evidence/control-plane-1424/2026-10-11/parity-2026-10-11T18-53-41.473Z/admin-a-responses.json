@@ -1,0 +1,172 @@
+[
+  {
+    "surface": "cli",
+    "exitCode": 0,
+    "value": {
+      "kind": "honua.command.receipt.v1",
+      "commandId": "connection.test",
+      "mode": "read",
+      "status": "ok",
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "identity": {
+        "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+        "tenantId": "tenant-a"
+      },
+      "authorization": "server-enforced",
+      "plan": {
+        "method": "POST",
+        "path": "/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+        "summary": "Probe connection a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+        "resourceRef": {
+          "type": "connection",
+          "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+        }
+      },
+      "resourceRef": {
+        "type": "connection",
+        "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+      },
+      "output": {
+        "success": true,
+        "data": {
+          "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+          "connectionName": "sdk1424-private-postgis",
+          "isHealthy": true,
+          "testedAt": "2026-10-11T18:53:44.3099942+00:00",
+          "message": "Connection is healthy"
+        },
+        "message": null,
+        "timestamp": "2026-10-11T18:53:44.4007613+00:00"
+      },
+      "transport": "cli",
+      "auditKey": "097a0e00f34578fce09f0ecf34a0f0b2"
+    }
+  },
+  {
+    "surface": "mcp",
+    "isError": false,
+    "value": {
+      "kind": "honua.command.receipt.v1",
+      "commandId": "connection.test",
+      "mode": "read",
+      "status": "ok",
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "identity": {
+        "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+        "tenantId": "tenant-a"
+      },
+      "authorization": "server-enforced",
+      "plan": {
+        "method": "POST",
+        "path": "/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+        "summary": "Probe connection a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+        "resourceRef": {
+          "type": "connection",
+          "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+        }
+      },
+      "resourceRef": {
+        "type": "connection",
+        "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+      },
+      "output": {
+        "success": true,
+        "data": {
+          "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+          "connectionName": "sdk1424-private-postgis",
+          "isHealthy": true,
+          "testedAt": "2026-10-11T18:53:45.4142146+00:00",
+          "message": "Connection is healthy"
+        },
+        "message": null,
+        "timestamp": "2026-10-11T18:53:45.4288522+00:00"
+      },
+      "transport": "mcp",
+      "auditKey": "71eee11ab4c4359e8119dc9d4f245ddc"
+    }
+  },
+  {
+    "surface": "studio",
+    "value": {
+      "kind": "honua.command.receipt.v1",
+      "commandId": "connection.test",
+      "mode": "read",
+      "status": "ok",
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "identity": {
+        "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+        "tenantId": "tenant-a"
+      },
+      "authorization": "server-enforced",
+      "plan": {
+        "method": "POST",
+        "path": "/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+        "summary": "Probe connection a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+        "resourceRef": {
+          "type": "connection",
+          "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+        }
+      },
+      "resourceRef": {
+        "type": "connection",
+        "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+      },
+      "output": {
+        "success": true,
+        "data": {
+          "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+          "connectionName": "sdk1424-private-postgis",
+          "isHealthy": true,
+          "testedAt": "2026-10-11T18:53:45.6445669+00:00",
+          "message": "Connection is healthy"
+        },
+        "message": null,
+        "timestamp": "2026-10-11T18:53:45.7216884+00:00"
+      },
+      "transport": "studio",
+      "auditKey": "d2fa37034edeca1946f8727c7d23d463"
+    }
+  },
+  {
+    "surface": "sdk",
+    "value": {
+      "kind": "honua.command.receipt.v1",
+      "commandId": "connection.test",
+      "mode": "read",
+      "status": "ok",
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "identity": {
+        "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+        "tenantId": "tenant-a"
+      },
+      "authorization": "server-enforced",
+      "plan": {
+        "method": "POST",
+        "path": "/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+        "summary": "Probe connection a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+        "resourceRef": {
+          "type": "connection",
+          "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+        }
+      },
+      "resourceRef": {
+        "type": "connection",
+        "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+      },
+      "output": {
+        "success": true,
+        "data": {
+          "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+          "connectionName": "sdk1424-private-postgis",
+          "isHealthy": true,
+          "testedAt": "2026-10-11T18:53:45.9013878+00:00",
+          "message": "Connection is healthy"
+        },
+        "message": null,
+        "timestamp": "2026-10-11T18:53:45.9182287+00:00"
+      },
+      "transport": "sdk",
+      "auditKey": "2d8d9166a8891b1a8bde0c31ce8fae48"
+    }
+  }
+]

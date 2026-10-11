@@ -1,0 +1,41 @@
+{
+  "method": "POST",
+  "path": "/api/v1/admin/import/upload-url",
+  "headers": {
+    "Authorization": "Bearer <server-issued OIDC operator JWT>",
+    "Content-Type": "application/json",
+    "Idempotency-Key": "honua-cmd-26d9c909b74076c98a13971ea761902b",
+    "X-Correlation-ID": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3"
+  },
+  "claims": {
+    "sub": "8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+    "tenant_id": "tenant-a",
+    "roles": [
+      "admin",
+      "user"
+    ],
+    "scp": "honua.mcp.read"
+  },
+  "body": {
+    "sourceUrl": "<private-presigned-GET for owned one-feature application/geo+json fixture>",
+    "fileName": "fixture.geojson",
+    "tableName": "sdk1424_ef3cc3c6c1ad4e23b56a659e3df2504b",
+    "targetSchema": "public",
+    "targetSrid": 4326,
+    "overwriteExisting": false,
+    "forceBackground": true,
+    "trackProgress": true
+  },
+  "evidence": {
+    "sourceSha": "70566967348b3a78f6abc107c205538cad67e3b3",
+    "sameIdempotencyKeyOnAllFourReceipts": true,
+    "headerSource": "src/control-plane/commands/runtime.ts requestOptions; src/control-plane/client.ts jsonHeaders",
+    "serverAuditStatus": 202,
+    "scopePrincipalCompletedJobs": 4,
+    "scopePrincipalPersistedRows": 4,
+    "adminCompletedJobs": 4,
+    "adminPersistedRows": 4,
+    "scopePrincipalTable": "public.imported_sdk1424_ef3cc3c6c1_e739edd4819d",
+    "adminTable": "public.imported_sdk1424_ed1209e750_e0a5fc9fabc8"
+  }
+}

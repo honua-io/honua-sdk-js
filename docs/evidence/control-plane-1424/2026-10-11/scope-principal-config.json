@@ -1,0 +1,25 @@
+{
+  "username": "admin-read-a",
+  "tenant": "tenant-a",
+  "roles": [
+    "admin",
+    "user"
+  ],
+  "issuerSuppliedScope": "honua.mcp.read",
+  "mapper": {
+    "name": "sdk1424-per-user-oauth-ceiling",
+    "protocol": "openid-connect",
+    "protocolMapper": "oidc-usermodel-attribute-mapper",
+    "consentRequired": false,
+    "config": {
+      "user.attribute": "honua_scopes",
+      "claim.name": "scp",
+      "jsonType.label": "String",
+      "id.token.claim": "true",
+      "access.token.claim": "true",
+      "userinfo.token.claim": "true"
+    }
+  },
+  "claim": "scp",
+  "status": "verified in actual server session and operator bearer"
+}

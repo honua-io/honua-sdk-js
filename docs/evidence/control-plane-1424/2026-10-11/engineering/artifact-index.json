@@ -1,0 +1,41 @@
+{
+  "source": "actual local diagnostics copied byte-for-byte; no successful corrected runtime claim",
+  "files": [
+    {
+      "path": "initial-production-build.json",
+      "sha256": "49f9af00d5aec752c9df99438776fedeff1760b9e9803b8dd3b4716f6ac5893a",
+      "originalSha256": "49f9af00d5aec752c9df99438776fedeff1760b9e9803b8dd3b4716f6ac5893a",
+      "redactedPaths": []
+    },
+    {
+      "path": "initial-production-build.log",
+      "sha256": "244e82c9826918deec4bf7f6b9f6157d656ff920fccc0cccde7e84cc1ba8aec5",
+      "originalSha256": "244e82c9826918deec4bf7f6b9f6157d656ff920fccc0cccde7e84cc1ba8aec5",
+      "redactedPaths": []
+    },
+    {
+      "path": "default-probe.jsonl",
+      "sha256": "e64325d1624be27d6fd553c4b8853654c73164529cf7f6e1ed818d8da8a5659a",
+      "originalSha256": "e64325d1624be27d6fd553c4b8853654c73164529cf7f6e1ed818d8da8a5659a",
+      "redactedPaths": []
+    },
+    {
+      "path": "default-probe.cs",
+      "sha256": "ac4c39b507a47145796b07781a836018a561b396a9fde4d04fd8e736fa6e7e2f",
+      "originalSha256": "ac4c39b507a47145796b07781a836018a561b396a9fde4d04fd8e736fa6e7e2f",
+      "redactedPaths": []
+    },
+    {
+      "path": "warm-repair.log",
+      "sha256": "7226946ba63293be1af44cc6c1885dedb0950579857d90aa847ec6ea93cded16",
+      "originalSha256": "7226946ba63293be1af44cc6c1885dedb0950579857d90aa847ec6ea93cded16",
+      "redactedPaths": []
+    },
+    {
+      "path": "reviewed-source.patch",
+      "sha256": "c60dde6c188596da710f37160672eb150e1a281885efa7e7249059ed6620f8b0",
+      "originalSha256": "c60dde6c188596da710f37160672eb150e1a281885efa7e7249059ed6620f8b0",
+      "redactedPaths": []
+    }
+  ]
+}

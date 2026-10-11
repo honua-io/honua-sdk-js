@@ -1,0 +1,56 @@
+[
+  {
+    "surface": "cli",
+    "exitCode": 2,
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "map-package.publish",
+      "retryable": false,
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "idempotencyKey": "honua-cmd-7f695cff5042c0f8ea2fd58cb776cecc",
+      "statusCode": 403,
+      "message": "Command map-package.publish failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "mcp",
+    "isError": true,
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "map-package.publish",
+      "retryable": false,
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "idempotencyKey": "honua-cmd-7f695cff5042c0f8ea2fd58cb776cecc",
+      "statusCode": 403,
+      "message": "Command map-package.publish failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "studio",
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "map-package.publish",
+      "retryable": false,
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "idempotencyKey": "honua-cmd-7f695cff5042c0f8ea2fd58cb776cecc",
+      "statusCode": 403,
+      "message": "Command map-package.publish failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "sdk",
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "map-package.publish",
+      "retryable": false,
+      "correlationId": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+      "idempotencyKey": "honua-cmd-7f695cff5042c0f8ea2fd58cb776cecc",
+      "statusCode": 403,
+      "message": "Command map-package.publish failed with HTTP 403."
+    }
+  }
+]

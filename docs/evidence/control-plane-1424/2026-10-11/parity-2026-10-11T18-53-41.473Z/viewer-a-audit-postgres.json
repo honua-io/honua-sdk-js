@@ -1,0 +1,122 @@
+[
+  {
+    "audit_id": 85,
+    "actor": "S4 Operator",
+    "action": "connection.test",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+    "details": "{\"name\":\"sdk1424-private-postgis\",\"host\":\"db\",\"port\":5432,\"provider\":\"postgis\",\"usesSecretReference\":false,\"healthy\":true}",
+    "entry_hash": "8402ace709dd1fe5c41cfdc348c020c49ab8873728d319bc7f2d3da1eb9d4dfd"
+  },
+  {
+    "audit_id": 86,
+    "actor": "operatorbearer:subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "admin.post",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "/api/v1/admin/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+    "details": "{\"status\":200,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "d30f921c814b7c278828486abf35cc3a90aea77f37b0bb57eebef8f68a709eb9"
+  },
+  {
+    "audit_id": 87,
+    "actor": "S4 Operator",
+    "action": "connection.test",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+    "details": "{\"name\":\"sdk1424-private-postgis\",\"host\":\"db\",\"port\":5432,\"provider\":\"postgis\",\"usesSecretReference\":false,\"healthy\":true}",
+    "entry_hash": "bf0dd1a8cb4a02285498577a060001314db0f0787095e63e6e8a5da8515d5f3e"
+  },
+  {
+    "audit_id": 88,
+    "actor": "operatorbearer:subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "admin.post",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "/api/v1/admin/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+    "details": "{\"status\":200,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "4dec85c9fcda01b285e033472a041a25f77bc7039b8ecce988575574a4f33957"
+  },
+  {
+    "audit_id": 89,
+    "actor": "S4 Operator",
+    "action": "connection.test",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+    "details": "{\"name\":\"sdk1424-private-postgis\",\"host\":\"db\",\"port\":5432,\"provider\":\"postgis\",\"usesSecretReference\":false,\"healthy\":true}",
+    "entry_hash": "57e2644d13f1e3dd1819ae1c6b07b5302440cfd18010fe33dd9a8e31670e7c34"
+  },
+  {
+    "audit_id": 90,
+    "actor": "operatorbearer:subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "admin.post",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "/api/v1/admin/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+    "details": "{\"status\":200,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "2c64a638335f166712b06d9eb62019831c8460703e875809781bfa59243835e9"
+  },
+  {
+    "audit_id": 91,
+    "actor": "S4 Operator",
+    "action": "connection.test",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+    "details": "{\"name\":\"sdk1424-private-postgis\",\"host\":\"db\",\"port\":5432,\"provider\":\"postgis\",\"usesSecretReference\":false,\"healthy\":true}",
+    "entry_hash": "3ba36d9d549aff3fcb8cec83a3f052b63fc15e6facc7e804efb3a582c1d2d018"
+  },
+  {
+    "audit_id": 92,
+    "actor": "operatorbearer:subject:honua-operator-bearer:580a5725-f230-4866-bed0-56e4a8d0d6ac",
+    "action": "admin.post",
+    "outcome": "Success",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "/api/v1/admin/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+    "details": "{\"status\":200,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "1b502686ed1678199bf3c3df6ba9a446402e0047d61ad8c99825ee894e8ee9b8"
+  },
+  {
+    "audit_id": 93,
+    "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+    "action": "auth.denied",
+    "outcome": "Denied",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "/api/v1/admin/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+    "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}",
+    "entry_hash": "4995cfa5d616fdb9418c141dc1b80a8db9ac5e8e80751eb66f42ebd692ba0f5e"
+  },
+  {
+    "audit_id": 94,
+    "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+    "action": "auth.denied",
+    "outcome": "Denied",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "/api/v1/admin/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+    "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}",
+    "entry_hash": "afbea22fa1364435ded2bf2d4f744f29ccc74f50b5dd02799a65d6a45e9d8016"
+  },
+  {
+    "audit_id": 95,
+    "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+    "action": "auth.denied",
+    "outcome": "Denied",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "/api/v1/admin/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+    "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}",
+    "entry_hash": "2741aefa38bfb26f4d3091984391f1e59bd7e3c16e71b3e12246ffda920fa2ec"
+  },
+  {
+    "audit_id": 96,
+    "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+    "action": "auth.denied",
+    "outcome": "Denied",
+    "correlation_id": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+    "resource_id": "/api/v1/admin/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+    "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}",
+    "entry_hash": "b171737013c703c7778719142ef38b5f8f2dd831175929291133fd19cea4739c"
+  }
+]

@@ -1,0 +1,30 @@
+# Terminal control-plane diagnostics, 2026-10-11
+
+These are retained execution results for [SDK issue #1424](https://github.com/honua-io/honua-sdk-js/issues/1424)'s bounded 2026.1 command journey. The overall qualification **failed**. They prove successful and denied individual stages and preserve the server defects that block a complete release claim.
+
+The CLI ran its real executable with a private `HONUA_BEARER_TOKEN`. MCP used a real MCP client/tool roundtrip against `createServer` with the control-plane runtime explicitly composed. Studio used its command adapter; JavaScript used the shared SDK runtime. The local SDK and MCP build came from `70566967348b3a78f6abc107c205538cad67e3b3`; its package metadata still said 0.1.14. These are source-build results, not evidence about published 0.1.14 registry bytes.
+
+The server was the immutable `nightly-93cad86` image, digest `sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db`, in an isolated Production stack with PostGIS, Redis persistence, an encrypted keyring, and a configured audit-chain key. Real OIDC sign-in issued the authenticated tenant principals; no fabricated tenant header supplied their identity. `runtime-proof.json`, `principal-proof.json`, `scope-principal-config.json`, and `audit-integrity-proof.json` identify that setup. The audit-integrity check covers its stated 82 rows and was captured before the subsequent command calls; the stage-specific audit exports retain those later calls separately.
+
+| Stage | Result | Evidence |
+| --- | --- | --- |
+| `connection.test` | All four surfaces returned healthy for the same owned connection; ordinary viewer denials were 403. Actual audit API and PostgreSQL rows retain authenticated actor/tenant joins. | `parity-2026-10-11T18-53-41.473Z/` |
+| `map-package.publish` | All four admin calls reused one pending-approval proposal/operation; no approved publication actuation is claimed. Ordinary viewer denials were 403. An admin narrowed to `honua.mcp.read` received 500 instead of the required 403. | `parity-2026-10-11T18-53-58.696Z/` |
+| `import.create` | Failed: the same key created four distinct jobs and persisted four copies of the single fixture feature. A read-scoped admin also created four jobs. Ordinary viewer denials were 403. | `parity-2026-10-11T18-54-20.139Z/` |
+| Tenant-owned Studio draft | SDK, Studio, and MCP denied another authenticated tenant with 404 and left the owner's generation unchanged. There is no corresponding terminal draft command, so this is a separate three-adapter control. | `studio-tenants-2026-10-11T18-54-59.923Z/` |
+| Numeric import status | SDK source `9e53e6736bbbd45141c1ca290f7d023173aeb917` correctly normalized a real completed server job through get, poll, and list. | `import-status-live-proof.json` |
+
+The package fixture was an independently owned inline one-point package, not a package assembled from the imported table. This run therefore does not prove the complete connection→import→published-map journey, approval completion, full terminal/Studio equivalence, or release certification.
+
+[Server issue #5872](https://github.com/honua-io/honua-server/issues/5872) tracks durable URL-import idempotency. [Server issue #5877](https://github.com/honua-io/honua-server/issues/5877) tracks the scoped Studio refusal response. The read-scope URL-import guard already landed in [server PR #5823](https://github.com/honua-io/honua-server/pull/5823), but it is absent from the selected 93cad86 image. A later supported combined build and, separately, the selected immutable release candidate must be exercised before issue #1424 can close.
+
+The temporary fixture object was deleted after all eight background jobs finished; `owned-import-cleanup.json` records HTTP 204 followed by HEAD 404. The retained object identity and content hash identify the input without retaining its signed URL. The original private diagnostics remain untouched. `artifact-index.json` records each copied file's original and retained hashes and the exact JSON paths where a signed URL or truncated signed-URL summary was removed. Tokens, passwords, certificates, cookies, environment files, and signed URLs are excluded.
+
+
+## Engineering follow-up outcomes
+
+`engineering/` retains the subsequent local diagnostics without replacing the failed candidate receipts above. The actual .NET 10 source-generated import DTO parsed an omitted `targetSrid` as zero, while explicit 4326, 3857 and zero remained distinct. `default-probe.jsonl` records those four outputs. [Server commit ff44ded979](https://github.com/honua-io/honua-server/commit/ff44ded979e40d348ab258e5b2290d767686e02b) corrects that initializer behavior and adds direct-context and retry-conflict regressions.
+
+The local integration source was commit `072ed2781f33135670f073802135bdd95c3510af`, combining the reviewed import and Studio repairs. Its initial production Server target completed; the pending local test invocation was cancelled at that boundary. The retained receipt records its actual Server DLL hash. After applying the reviewed default repair, a second normal production rebuild used separate compiler processes and a 900-second bound. It exited 124 before producing a completed corrected runtime. No local tests, corrected-runtime behavior, or candidate certification are claimed for that attempt. `reviewed-source.patch` and its SHA-256 bind the attempted source precisely.
+
+[Hosted checks for ff44ded979](https://github.com/honua-io/honua-server/actions/runs/38174022686) passed all 5,716 FastServer tests. The architecture gate then correctly found that the newly added real import integration test was missing from the shard roster. [The roster follow-up](https://github.com/honua-io/honua-server/commit/38590f602b423845c5b2fff967fb9af1fa419934) registers it in the existing Cloud and Streaming Import shard; its checks and the supported immutable-candidate replay remain separate requirements. [Studio repair PR 5880](https://github.com/honua-io/honua-server/pull/5880) has merged, but a real signed Production refusal and no-actuation receipt remains necessary for server issue 5877.

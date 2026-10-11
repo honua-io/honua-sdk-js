@@ -1,0 +1,42 @@
+[
+  {
+    "audit_id": 116,
+    "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+    "action": "auth.denied",
+    "outcome": "Denied",
+    "correlation_id": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}",
+    "entry_hash": "29042991d8715b0849b204167b832a2a2504daa4c0ceb712c688245a57d8fa75"
+  },
+  {
+    "audit_id": 117,
+    "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+    "action": "auth.denied",
+    "outcome": "Denied",
+    "correlation_id": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}",
+    "entry_hash": "d3133a43cde62b2f3802680909f64bd506a920898920852f292fa2fa0630dde0"
+  },
+  {
+    "audit_id": 118,
+    "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+    "action": "auth.denied",
+    "outcome": "Denied",
+    "correlation_id": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}",
+    "entry_hash": "310f5ba3228ebb0471b60e842624b710d5003b28addd1e4b004b3d2530b95a75"
+  },
+  {
+    "audit_id": 119,
+    "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+    "action": "auth.denied",
+    "outcome": "Denied",
+    "correlation_id": "honua-corr-c140ff6862d79c6113901c630f7c6f55",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":403,\"method\":\"POST\",\"tenantId\":null}",
+    "entry_hash": "518b4a82f2edba1f8022362c071e32b97580d8a1e1886bc20393c234d1a77e71"
+  }
+]
