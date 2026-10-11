@@ -231,6 +231,16 @@ describe("explicit online basemap policy", () => {
       ],
     ],
     ["nested mixed coalesce", ["coalesce", ["coalesce", ["image", "missing"], "airport"], ["image", "fallback"]]],
+    ["string-first mixed coalesce", ["coalesce", "airport", ["image", "fallback"]]],
+    ["image-first dynamic coalesce", ["coalesce", ["image", "fallback"], ["get", "icon"]]],
+    [
+      "nested string-first mixed coalesce",
+      ["coalesce", ["coalesce", "airport", ["image", "fallback"]], ["image", "missing"]],
+    ],
+    [
+      "nested image-first dynamic coalesce",
+      ["coalesce", ["coalesce", ["image", "fallback"], ["get", "icon"]], ["image", "missing"]],
+    ],
     ["image variable", ["let", "icon", ["image", "airport"], ["var", "icon"]]],
     ["string variable", ["let", "icon", "airport", ["image", ["var", "icon"]]]],
     ["nested variable scope", ["let", "icon", ["image", "airport"], ["let", "icon", "fallback", ["var", "icon"]]]],
@@ -271,7 +281,7 @@ describe("explicit online basemap policy", () => {
         { icon: {} },
         { kind: "var" },
       ]) {
-        let expected: { name: string };
+        let expected: { name: string } | null;
         try {
           expected = before.value.evaluateWithoutErrorHandling(
             { zoom: 1 },
@@ -299,11 +309,36 @@ describe("explicit online basemap policy", () => {
           undefined,
           available.map((name) => spritePrefix + name),
         );
-        expect(actual.name).toBe(spritePrefix + expected.name);
+        if (expected === null) expect(actual).toBeNull();
+        else expect(actual.name).toBe(spritePrefix + expected.name);
       }
     }
     binding.dispose();
   });
+
+  it.each(["case", "match"])(
+    "refuses contextual %s coercion inside coalesce without changing the map",
+    async (operator) => {
+      const branch =
+        operator === "case"
+          ? ["case", ["has", "kind"], "airport", "airport"]
+          : ["match", ["get", "kind"], "port", "airport", "airport"];
+      const style = fixtureStyle();
+      const layer = style.layers.find((entry) => entry.id === "optional-icon")!;
+      layer.layout = { "icon-image": ["coalesce", branch, ["image", "fallback"]] } as typeof layer.layout;
+      expect(createExpression(layer.layout!["icon-image"], v8.layout_symbol["icon-image"]).result).toBe("success");
+      const map = mapFixture();
+      const onError = vi.fn();
+      const binding = new HonuaOnlineBasemapBinding(map, {
+        fetch: vi.fn(async () => new Response(JSON.stringify(style))),
+        onError,
+      });
+      expect(await binding.activate({ styleUrl: "https://fixtures.example/style.json" })).toBe(false);
+      expect(onError).toHaveBeenCalledWith(expect.stringContaining("need an explicit image expression"));
+      expect(map.layers).toHaveLength(2);
+      binding.dispose();
+    },
+  );
 
   it("bounds variable expansion before installing an oversized image expression", async () => {
     let value: unknown = "airport";
