@@ -13,3 +13,9 @@ export function assertComparisonDependencies(previous, current, sdkCoordinate) {
   assert.deepEqual(identities(current), identities(previous),
     "comparison must preserve every dependency version and integrity except the SDK under test");
 }
+
+export function assertInstalledConsumerModules(moduleIds, consumerRoot) {
+  const dependencies = moduleIds.filter((id) => id.includes("/node_modules/"));
+  assert.ok(dependencies.every((id) => id.startsWith(`${consumerRoot}/node_modules/`)),
+    "installed bundle runtime dependencies must belong to the isolated consumer, never repository node_modules");
+}

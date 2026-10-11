@@ -4,13 +4,14 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 import { build, loadConfigFromFile, normalizePath } from "vite";
 import { runNpmSync } from "./lib/npm-cli.mjs";
 import { verifyPreparedSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
-import { packedSdkFilename, assertComparisonDependencies } from "./lib/installed-consumer-lock.mjs";
+import { packedSdkFilename, assertComparisonDependencies, assertInstalledConsumerModules } from "./lib/installed-consumer-lock.mjs";
 import { INSTALLED_FIRST_MAP_BUDGET, firstMapVerdict } from "./lib/first-map-budget.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -24,7 +25,7 @@ const previousRenderer = previousLockBytes ? JSON.parse(previousLockBytes).packa
 if (previousLockBytes) assert.ok(previousRenderer?.version && previousRenderer?.integrity, "comparison lock must bind the installed MapLibre version and integrity");
 const candidate = JSON.parse(await readFile(path.join(root, "config/installed-package-certification.v1.json"), "utf8"));
 await mkdir(path.join(root, "test-results"), { recursive: true });
-const work = await mkdtemp(path.join(root, "test-results", "honua-installed-first-map-"));
+const work = await mkdtemp(path.join(tmpdir(), "honua-installed-first-map-"));
 const outputIndex = process.argv.indexOf("--output");
 const output = path.resolve(root, outputIndex < 0 ? "test-results/installed-quickstart-budget.json" : process.argv[outputIndex + 1]);
 const proveRegression = process.argv.includes("--prove-regression");
@@ -92,14 +93,16 @@ try {
     const outDir = path.join(work, label);
     const moduleIds = new Set();
     const renderedModules = new Map();
+    const workerRenderedModules = new Map();
     let failure;
     let effectiveMinifier;
-    const moduleProof = () => ({ name: "installed-first-map-module-proof",
+    const moduleProof = (worker = false) => ({ name: "installed-first-map-module-proof",
       configResolved(config) { effectiveMinifier ??= config.build.minify; }, generateBundle(_options, bundle) {
       for (const id of this.getModuleIds()) moduleIds.add(normalizePath(id));
       for (const chunk of Object.values(bundle).filter((entry) => entry.type === "chunk")) {
         for (const [id, module] of Object.entries(chunk.modules)) {
-          renderedModules.set(normalizePath(id), (renderedModules.get(normalizePath(id)) ?? 0) + module.renderedLength);
+          const inventory = worker ? workerRenderedModules : renderedModules;
+          inventory.set(normalizePath(id), (inventory.get(normalizePath(id)) ?? 0) + module.renderedLength);
         }
       }
     } });
@@ -111,7 +114,7 @@ try {
             (alias.find.test("maplibre-gl") || alias.find.test("maplibre-gl/dist/maplibre-gl-worker.mjs"))))
           .filter((alias) => !removePeerSubpaths || !(alias.find instanceof RegExp && alias.find.test("maplibre-gl/dist/maplibre-gl-worker.mjs"))) },
         plugins: [...loaded.config.plugins, moduleProof()],
-        worker: { ...loaded.config.worker, plugins: () => [moduleProof()] },
+        worker: { ...loaded.config.worker, plugins: () => [moduleProof(true)] },
         build: { ...loaded.config.build, outDir, emptyOutDir: true },
       });
     } catch (error) { failure = error.message; }
@@ -132,6 +135,10 @@ try {
     assert.ok(![...moduleIds].some((id) => id.startsWith(normalizePath(root) + "/src/")), "repository SDK source must not enter the bundle");
     return { minifier: effectiveMinifier, buildStatus: failure ? "failed" : "passed", ...(failure ? { diagnostic: failure } : {}),
       measurement: { javascriptBytes, javascriptGzipBytes },
+      runtimeDependencyModules: [...renderedModules].filter(([id, bytes]) => bytes > 0 && id.includes("/node_modules/"))
+        .map(([id]) => id.replace(normalizePath(work), "$CONSUMER")),
+      workerRuntimeDependencyModules: [...workerRenderedModules].filter(([id, bytes]) => bytes > 0 && id.includes("/node_modules/"))
+        .map(([id]) => id.replace(normalizePath(work), "$CONSUMER")),
       maplibreModules: [...moduleIds].filter((id) => /maplibre-gl\/dist\/maplibre-gl\.(mjs|js)$/.test(id))
         .map((id) => id.replace(normalizePath(work), "$CONSUMER").replace(normalizePath(root), "$REPOSITORY")),
       maplibreFiles: [...moduleIds].filter((id) => id.includes("/node_modules/maplibre-gl/"))
@@ -207,7 +214,7 @@ try {
     "runtime, worker and CSS must all come from the installed peer");
   assert.ok(observed.maplibreFiles.some((id) => id.endsWith("/maplibre-gl-worker.mjs")), "the installed worker must be built");
   assert.ok(observed.maplibreFiles.some((id) => id.endsWith("/maplibre-gl.css")), "the installed stylesheet must be built");
-
+  assertInstalledConsumerModules([...observed.runtimeDependencyModules, ...observed.workerRuntimeDependencyModules], "$CONSUMER");
   }
   if (runtimeOnly) {
     assert.equal(runtimeOnly.buildStatus, "passed", "the runtime-only build illustrates why the byte budget is insufficient");

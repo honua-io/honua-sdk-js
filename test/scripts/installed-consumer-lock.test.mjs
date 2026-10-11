@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { packedSdkFilename, assertComparisonDependencies } from "../../scripts/lib/installed-consumer-lock.mjs";
+import { packedSdkFilename, assertComparisonDependencies, assertInstalledConsumerModules } from "../../scripts/lib/installed-consumer-lock.mjs";
 
 test("packed SDK filenames bind bytes even when the package version is unchanged", () => {
   const first = packedSdkFilename(Buffer.from("first SDK 0.1.14"));
@@ -76,4 +76,31 @@ test("npm refreshes same-version packed bytes with a seeded comparison lock", as
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("installed bundle modules cannot inherit repository or other consumer dependencies", () => {
+  const modules = ["/tmp/consumer/node_modules/@honua/sdk-js/dist/src/index.js",
+    "/tmp/consumer/node_modules/maplibre-gl/dist/maplibre-gl.mjs",
+    "/repo/examples/maplibre-quickstart/src/main.ts", "\0vite/modulepreload-polyfill.js"];
+  assertInstalledConsumerModules(modules, "/tmp/consumer");
+  for (const leaked of ["/repo/node_modules/pmtiles/dist/esm/index.js",
+    "/tmp/other/node_modules/maplibre-gl/dist/maplibre-gl.mjs"]) {
+    assert.throws(() => assertInstalledConsumerModules([...modules, leaked], "/tmp/consumer"), /isolated consumer/);
+  }
+});
+
+test("wrong peer control records isolation failure while corrected output enforces isolation", async () => {
+  const { firstMapVerdict } = await import("../../scripts/lib/first-map-budget.mjs");
+  const control = { buildStatus: "passed", measurement: { javascriptBytes: 100, javascriptGzipBytes: 50 } };
+  const shippedModules = ["$REPOSITORY/node_modules/maplibre-gl/dist/maplibre-gl.mjs"];
+  try {
+    assertInstalledConsumerModules(shippedModules, "$CONSUMER");
+    control.peerIdentityStatus = "passed";
+  } catch {
+    control.peerIdentityStatus = "failed";
+  }
+  assert.equal(firstMapVerdict(control).status, "failed");
+  assert.equal(control.peerIdentityStatus, "failed");
+  assert.throws(() => assertInstalledConsumerModules(shippedModules, "$CONSUMER"), /isolated consumer/);
+  assertInstalledConsumerModules(["$CONSUMER/node_modules/maplibre-gl/dist/maplibre-gl.mjs"], "$CONSUMER");
 });
