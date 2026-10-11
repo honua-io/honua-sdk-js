@@ -30,6 +30,8 @@ The emitted JavaScript measures **1,968,771 raw / 524,289 gzip bytes**. CPU pass
 
 With the bundle optimized and the renderer change isolated, the approved gzip ceiling is now **525,000 bytes**, an explicit 1,000-byte adjustment leaving 711 bytes of headroom for this measurement. The 1,990,000 raw-byte limit, CPU limits, installed-peer identity, and measured chunk scope are unchanged. Subsequent CI must enforce the updated canonical budget; this historical receipt has not been rewritten to claim a pass.
 
+[CI run 38157129023](https://github.com/honua-io/honua-sdk-js/actions/runs/38157129023), artifact `11709755929`, subsequently passed on clean source `fea7b41fccda160f43ad558dfe81da8baf519ecb`. Its unmodified [passing receipt](ci-fea7/installed-quickstart-budget.json) and [consumer lock](ci-fea7/installed-quickstart-budget.consumer-lock.json) record **1,968,771 raw / 524,289 gzip bytes** and calibrated CPU medians of **139.768 ms script / 82.224 ms parse-compile**. The overall result passes the approved byte ceilings, unchanged CPU limits, and installed-peer identity checks. This remains a packed-development benchmark, not certification of a published release.
+
 ## Historical failed measurement
 
 Source `5d64e59832e0174a071170843c05dfb288d017e8` was also measured from a clean worktree. Its SDK build was admitted from [producer run 38141546837](https://github.com/honua-io/honua-sdk-js/actions/runs/38141546837), artifact `11703565016`, with source and build-input identities verified.
