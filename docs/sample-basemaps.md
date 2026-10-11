@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Sample basemap policy and inventory"
+description: "Shared free online basemaps, explicit overrides, sample exceptions, attribution, offline behavior and SDK/scaffold publication order."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Basemap inventory
 
 Source inventory at SDK commit 9f63b4c3b; 34 catalog entries. Each generated playground inherits its source sample policy.

@@ -5,6 +5,13 @@ import { createServer } from "vite";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
+async function showAttribution(page) {
+  const credits = page.locator(".maplibregl-ctrl-attrib-inner");
+  if (!(await credits.isVisible())) await page.locator(".maplibregl-ctrl-attrib-button").click();
+  await expect(credits).toBeVisible();
+  return credits;
+}
+
 test("basemap themes preserve live map state and attribution with offline fixture assets", async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   const server = await createServer({ root, configFile: false, server: { host: "127.0.0.1", port: 0 } });
@@ -21,10 +28,11 @@ test("basemap themes preserve live map state and attribution with offline fixtur
     await page.setViewportSize({ width: 390, height: 720 });
     await page.goto(`${origin}/test/fixtures/online-basemap/index.html`);
     await expect(page.locator("#status")).toHaveText("ready");
-    await page.locator(".maplibregl-ctrl-attrib-button").click();
+    await showAttribution(page);
     await expect(page.locator(".maplibregl-ctrl-attrib-inner")).toContainText("Basemap fixture © Example contributors");
     await expect(page.locator(".maplibregl-ctrl-attrib-inner")).toContainText("Operational fixture contributor");
     const credits = await page.locator(".maplibregl-ctrl-attrib-inner").boundingBox();
+    expect(credits).not.toBeNull();
     expect(credits.x).toBeGreaterThanOrEqual(0);
     expect(credits.x + credits.width).toBeLessThanOrEqual(390);
     await page.screenshot({ path: testInfo.outputPath("light-mobile-with-credits.png") });
@@ -39,12 +47,14 @@ test("basemap themes preserve live map state and attribution with offline fixtur
       };
     })).toEqual({ sameSource: true, selection: { selected: true }, filter: ["==", ["get", "priority"], "high"], popupOpen: true, zoom: 3 });
     await expect(page.locator(".maplibregl-ctrl-attrib-inner")).toContainText("Basemap fixture © Example contributors");
+    await showAttribution(page);
     await page.screenshot({ path: testInfo.outputPath("dark-mobile-with-credits.png") });
     expect(await page.evaluate(() => window.__HONUA_BASEMAP_FIXTURE__.activate("missing"))).toBe(false);
     await expect(page.locator("#status")).toContainText("Operational data and controls remain available");
     expect(await page.evaluate(() => window.__HONUA_BASEMAP_FIXTURE__.map.getSource("operational") !== undefined)).toBe(true);
     await expect(page.locator(".maplibregl-popup-content")).toContainText("Selected operational feature");
     expect(externalRequests).toEqual([]);
+    await showAttribution(page);
     await page.screenshot({ path: testInfo.outputPath("unavailable-basemap-with-operational-data.png") });
   } finally {
     await server.close();
@@ -74,8 +84,7 @@ test("bounded OpenFreeMap online availability smoke", async ({ page }, testInfo)
         return map.areTilesLoaded() && map.queryRenderedFeatures().some((feature) => feature.source.startsWith("honua-online-basemap-"));
       })).toBe(true);
       await expect(page.locator("#status")).toHaveText("ready");
-      const control = page.locator(".maplibregl-ctrl-attrib");
-      if (!(await control.getAttribute("class")).includes("maplibregl-compact-show")) await page.locator(".maplibregl-ctrl-attrib-button").click();
+      await showAttribution(page);
       await expect(page.locator(".maplibregl-ctrl-attrib-inner")).toContainText("OpenStreetMap");
       await page.screenshot({ path: testInfo.outputPath(`online-${theme}-with-credits.png`) });
     }
