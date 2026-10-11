@@ -1,5 +1,5 @@
 {
-  "source": "actual local diagnostics retained byte-for-byte, with the exact source patch base64-encoded to preserve its whitespace; no successful corrected runtime claim",
+  "source": "Copied local diagnostics retain original byte hashes; authored outcome summaries retain their own content hashes and identify the original hosted artifacts. No successful corrected local runtime claim.",
   "files": [
     {
       "path": "initial-production-build.json",
@@ -37,6 +37,30 @@
       "originalSha256": "c60dde6c188596da710f37160672eb150e1a281885efa7e7249059ed6620f8b0",
       "redactedPaths": [],
       "encoding": "base64"
+    },
+    {
+      "path": "hosted-ci-outcome.json",
+      "sha256": "f25a0a7d546d9bbc82c4b3f99c7a4b8693748090d1b511ed2ab8b5b0507b13e1",
+      "kind": "authored-outcome-summary",
+      "redactedPaths": []
+    },
+    {
+      "path": "hosted-synchronous-import.json",
+      "sha256": "d91287a37a079afea54c2f0d5f2d492c0eb8df5b034a0d8cbd5e5dd254f60d1e",
+      "kind": "authored-outcome-summary",
+      "redactedPaths": []
+    },
+    {
+      "path": "hosted-final-import.json",
+      "sha256": "a8d2a1a0da2698053875cf7f2f4ac4565864cd5fb3949c0f12fff589d4f610d7",
+      "kind": "authored-outcome-summary",
+      "redactedPaths": []
+    },
+    {
+      "path": "warm-repair-outcome.json",
+      "sha256": "9b3ae0d2e16b12c36c1294726f77026f3c070c6fe43b1442acb75222b1dd872c",
+      "kind": "authored-outcome-summary",
+      "redactedPaths": []
     }
   ]
 }
