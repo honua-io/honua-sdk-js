@@ -97,7 +97,20 @@ honua admin qualify --directory .honua-zero-to-map \
   --output qualification.json
 ```
 
-Produce `setup-catalog-receipt.json` with `npm --prefix mcp run certify:setup-parity`.
+In a source checkout, `npm --prefix mcp run certify:setup-parity` builds the MCP
+package first; that is a development command. For immutable candidate evidence,
+install the exact manifest-pinned published pair in a fresh consumer and invoke
+the certifier already shipped in that MCP package, without rebuilding it:
+
+```bash
+node node_modules/@honua/mcp-server/dist/src/certification/setup-parity.js \
+  reviewed-setup-manifest.json <independently-pinned-digest> setup-catalog-receipt.json
+```
+
+Provide the documented proxy endpoint and credential environment privately
+(see `mcp/certification/setup-parity.md`); never print them. A fresh install
+must pass default npm peer resolution. Do not use a local build, floating
+package, or peer-resolution override to turn a candidate failure into a pass.
 The manifest preserves the server-authored `revisionDigest`, `membershipDigest`,
 and `descriptorDigest` as `sha256:` followed by 64 lowercase hexadecimal
 characters. Unprefixed values were previously accepted by the local validator
@@ -155,7 +168,7 @@ The installer mints one key, `honua-local-agent`, with exactly
   administer the server but every layer read would be forbidden.
 
 It deliberately carries no `write:` data grant (no feature edits) and no
-`admin:approve` (it cannot approve its own proposals). Approvals and data edits
+`admin:approve` (it cannot approve proposals). Approvals and data edits
 stay with the human.
 
 A directory installed before `read:*` was added holds a key with only the two
