@@ -731,16 +731,21 @@ jobs:
           retention-days: 90
 
       - name: Enforce packed First Map execution budget on the CI runner
-        run: npm run test:installed-quickstart -- --local-tarball --enforce-execution-budget
+        id: packed-first-map
+        run: |
+          # The checkout includes a historical registry receipt used by tests.
+          # Only this invocation may supply the uploaded packed-development evidence.
+          rm -f test-results/packed-first-map-execution/installed-quickstart-budget.json test-results/packed-first-map-execution/installed-quickstart-budget.consumer-lock.json
+          npm run test:installed-quickstart -- --local-tarball --enforce-execution-budget --output test-results/packed-first-map-execution/installed-quickstart-budget.json
 
       - name: Upload packed First Map execution calibration
-        if: always()
+        if: always() && (steps.packed-first-map.outcome == 'success' || steps.packed-first-map.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: packed-first-map-execution-graph
           path: |
-            test-results/installed-quickstart-budget.json
-            test-results/installed-quickstart-budget.consumer-lock.json
+            test-results/packed-first-map-execution/installed-quickstart-budget.json
+            test-results/packed-first-map-execution/installed-quickstart-budget.consumer-lock.json
           if-no-files-found: ignore
 
       - name: Installed packed-SDK smoke
