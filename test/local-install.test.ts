@@ -69,6 +69,17 @@ describe("local Honua installer", () => {
     expect(environment.HONUA_ADMIN_PASSWORD).toBe("${HONUA_ADMIN_PASSWORD}");
   });
 
+  it.each(["quickstart", "gp-dev"] as const)("waits for TCP PostgreSQL before bootstrapping %s", (profile) => {
+    const compose = parse(renderLocalCompose({ profile }));
+    expect(compose.services.postgres.healthcheck.test).toEqual([
+      "CMD-SHELL",
+      "pg_isready -h 127.0.0.1 -U honua -d honua",
+    ]);
+    expect(compose.services["postgis-bootstrap"].environment.PGHOST).toBe("postgres");
+    expect(compose.services["postgis-bootstrap"].depends_on.postgres.condition).toBe("service_healthy");
+    expect(compose.services.honua.depends_on["postgis-bootstrap"].condition).toBe("service_completed_successfully");
+  });
+
   it("fails before Docker when the immutable release image regresses the generated Admin contract", async () => {
     const directory = tempDirectory();
     const commands: Array<{ command: string; args: readonly string[] }> = [];
