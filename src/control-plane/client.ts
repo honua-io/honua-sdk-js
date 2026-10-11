@@ -358,7 +358,7 @@ interface HonuaImportJobResponse {
   readonly statusUrl?: string;
   readonly cancelUrl?: string;
   readonly id?: string;
-  readonly status?: string;
+  readonly status?: string | number;
   readonly links?: HonuaControlPlaneLinks;
   readonly [extra: string]: unknown;
 }
@@ -379,7 +379,26 @@ function normalizeImportJob(value: HonuaImportJobResponse): HonuaControlPlaneJob
   };
 }
 
-function normalizeImportJobStatus(status: string | undefined): HonuaControlPlaneJobStatus {
+function normalizeImportJobStatus(status: string | number | undefined): HonuaControlPlaneJobStatus {
+  // ImportProgress uses the canonical ImportStatus enum on the live server.
+  // Its numeric JSON representation is distinct from the string job states
+  // returned by older deployments and must never turn an unknown value into success.
+  if (typeof status === "number") {
+    switch (status) {
+      case 0:
+        return "queued";
+      case 1:
+        return "running";
+      case 2:
+        return "succeeded";
+      case 3:
+        return "failed";
+      case 4:
+        return "cancelled";
+      default:
+        throw new TypeError(`Unknown numeric import job status: ${status}`);
+    }
+  }
   switch (status?.toLowerCase()) {
     case "processing":
     case "running":

@@ -136,6 +136,54 @@ describe("control-plane client", () => {
     expect(requests).toBe(0);
   });
 
+  it.each([
+    [0, "queued"],
+    [1, "running"],
+    [2, "succeeded"],
+    [3, "failed"],
+    [4, "cancelled"],
+  ])("normalizes canonical ImportStatus %s across job reads to %s", async (status, expected) => {
+    const contract = fixture("import-job-status.candidate-93cad86.v1.json");
+    const job: Record<string, unknown> = { ...(contract.response.body as Record<string, unknown>), status };
+    const controlPlane = clientFor(({ url }) =>
+      Response.json(url.pathname.endsWith("/import/jobs") ? { jobs: [job] } : job),
+    );
+
+    for (const result of [
+      await controlPlane.imports.getJob(String(job.jobId)),
+      await controlPlane.imports.job(String(job.jobId)).poll(),
+    ]) {
+      expect(result).toMatchObject({
+        supported: true,
+        value: {
+          id: job.jobId,
+          type: "import",
+          status: expected,
+          featuresProcessed: 1,
+          correlationId: job.correlationId,
+        },
+      });
+    }
+    expect(await controlPlane.imports.listJobs()).toMatchObject({
+      supported: true,
+      value: { items: [{ id: job.jobId, status: expected }] },
+    });
+  });
+
+  it.each([-1, 5, 1.5])("refuses unknown numeric import status %s on every job read", async (status) => {
+    const controlPlane = clientFor(({ url }) => {
+      const job = { jobId: "job-1", status };
+      return Response.json(url.pathname.endsWith("/import/jobs") ? { jobs: [job] } : job);
+    });
+    for (const read of [
+      () => controlPlane.imports.getJob("job-1"),
+      () => controlPlane.imports.job("job-1").poll(),
+      () => controlPlane.imports.listJobs(),
+    ]) {
+      await expect(read()).rejects.toThrow(`Unknown numeric import job status: ${status}`);
+    }
+  });
+
   it("does not emit empty conditional headers for refreshes without validators", async () => {
     let headers: HeadersInit | undefined;
     const controlPlane = clientFor(({ init }) => {
