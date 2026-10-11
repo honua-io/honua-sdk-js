@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "serverCommit": "93cad86",
+    "serverImageDigest": "sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "capturedAt": "2026-10-11",
+    "notes": "Real Production URL import of one owned GeoJSON feature; credential-bearing sourceUrl omitted. ImportStatus enum: Queued=0, Processing=1, Completed=2, Failed=3, Cancelled=4."
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/import/jobs/066bceeb082d4d53a18db64e57462405"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "jobId": "066bceeb082d4d53a18db64e57462405",
+      "correlationId": "00-62d35e8540cae12952649bca59eb88f3-5ac8ed99c0e31ba9-00",
+      "status": 2,
+      "featuresProcessed": 1,
+      "batchesCommitted": 1,
+      "failedFeatures": 0,
+      "repairedFeatures": 0,
+      "bytesRead": 179,
+      "totalBytes": 179,
+      "percentComplete": 100,
+      "tableName": "sdk1424_owned_import_preflight",
+      "fileName": "fixture.geojson",
+      "sourceKind": "cloud-file",
+      "cloudFileId": "b3a45c9b246a4b30bbaec8aa3573ad14",
+      "uploadId": "43b42273-588a-49aa-a918-2c2e78f27e62",
+      "detectedSrid": 4326,
+      "format": "GeoJson",
+      "startedAt": "2026-10-11T18:33:59.510856+00:00",
+      "completedAt": "2026-10-11T18:33:59.5763218+00:00",
+      "duration": "00:00:00.0654658",
+      "warnings": [],
+      "currentPhase": "Import completed"
+    }
+  }
+}
