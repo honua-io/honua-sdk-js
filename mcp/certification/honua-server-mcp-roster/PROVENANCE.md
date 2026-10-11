@@ -11,6 +11,9 @@ the working-candidate contract is pinned to.
 
 The customer installer image (`ADMIN_LOCAL_SERVER_IMAGE`) follows the separate
 immutable customer-install manifest; it may lag this working-candidate contract.
+Scheduled live certification uses that image's `ADMIN_LOCAL_SERVER_SHA`, verified
+against the running container's OCI revision, for its remote roster fetch. It
+never labels the older installed binary with this newer compatibility SHA.
 
 ## Status: vendored
 
