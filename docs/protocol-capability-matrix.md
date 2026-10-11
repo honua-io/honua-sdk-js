@@ -31,7 +31,7 @@ already run. The per-capability line lives in the generated
 | Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON | OGC API Coverages | WCS 2.0.1 |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — | — | — |
-| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | — | ◇ | — | — | — | — | — |
+| `queryAggregate` | — | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | — | ◇ | — | — | — | — | — |
 | `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
 | `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
@@ -55,7 +55,7 @@ policy in the manifest.
 
 | Protocol | Operations | Status | Environment | Execution mode | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| `grpc` | `query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `honua-facade` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) |
+| `grpc` | `query`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `honua-facade` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) |
 | `geoservices-feature-service` | `query`, `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts) |
 | `geoservices-feature-service` | `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
 | `geoservices-feature-service` | `sql` | `supported` | `protocol-adapter` | `native` | [fixture: core-client-fixtures](../test/core-client.test.ts) |
@@ -208,7 +208,7 @@ evidence; observed evidence only ever narrows them.
 ### gRPC FeatureService
 Canonical transport shared across the SDKs and generated from the
 `geospatial-grpc` FeatureService definitions. The default capability set is
-`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `applyEdits`, and
+`query`, `queryExtent`, `queryObjectIds`, `applyEdits`, and
 `stream`. In JS, gRPC-Web is selected on `HonuaClient` with
 `transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
 adapter handle — `buildBuiltInSource` resolves a `protocol: "grpc"`
@@ -229,12 +229,18 @@ by `protocol: "auto"` (the identical URL is ambiguous between REST and gRPC
 transport intent) and only resolves against FeatureServer semantics —
 MapServer / ImageServer have no gRPC query surface.
 
+The gRPC FeatureService has no aggregate result shape; aggregate requests are
+refused with `HonuaCapabilityNotSupportedError`. Layer and canonical source
+streams page unary gRPC queries to preserve per-batch limits and avoid native
+RPC total limits. `HonuaClient.queryFeaturesStream` remains the native
+server-streaming escape hatch and follows the server's total-limit semantics.
+
 ### GeoServices Feature Service
 First-class. Aggregations set `outStatistics`, `groupByFieldsForStatistics`,
 and `returnGeometry=false` as top-level fields on the translated
-`QueryFeaturesRequest` so both the REST serializer and the gRPC-Web
-adapter pick them up (they are not stashed in `extraParams`, which the
-gRPC path would silently drop). Pagination uses `resultOffset` /
+`QueryFeaturesRequest` for the REST serializer. The gRPC-Web transport refuses
+aggregation because its response contract cannot represent aggregate rows.
+Pagination uses `resultOffset` /
 `resultRecordCount`. Streaming wraps
 `HonuaFeatureLayer.queryFeaturesStream`; the adapter derives `pageSize`
 from `Query.pagination.limit` so `source.stream({ pagination: { limit } })`

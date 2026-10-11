@@ -278,14 +278,8 @@ describe("Honua gRPC discovery (connect-grpc.ts)", () => {
       // gRPC's capability truth must be a verified subset of REST's — never a
       // superset — and must agree exactly wherever the gRPC capability
       // surface (PROTOCOL_DEFAULT_CAPABILITIES.grpc) overlaps REST's.
-      const grpcSurface = new Set<Capability>([
-        "query",
-        "queryAggregate",
-        "queryExtent",
-        "queryObjectIds",
-        "applyEdits",
-        "stream",
-      ]);
+      const grpcSurface = new Set<Capability>(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream"]);
+      expect(grpcCapabilities.has("queryAggregate")).toBe(false);
       for (const capability of grpcCapabilities) expect(restCapabilities.has(capability)).toBe(true);
       for (const capability of grpcSurface) {
         if (restCapabilities.has(capability)) expect(grpcCapabilities.has(capability)).toBe(true);

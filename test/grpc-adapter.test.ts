@@ -1,6 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { describe, expect, it } from "vitest";
+import { HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
 import { fromProtoQueryResponse, streamProtoPages, toProtoQueryRequest } from "../src/core/grpc-adapter.js";
+import type { QueryFeaturesRequest } from "../src/core/types.js";
 import {
   AttributeValueSchema,
   CoordinateSchema,
@@ -22,7 +24,6 @@ import {
   QueryFeaturesResponseSchema,
   SpatialReferenceSchema,
   SpatialRelationship,
-  StatisticType,
 } from "../src/gen/geospatial/v1/index.js";
 
 describe("toProtoQueryRequest", () => {
@@ -152,25 +153,15 @@ describe("toProtoQueryRequest", () => {
     expect(result.returnIdsOnly).toBe(false);
   });
 
-  it("maps outStatistics and groupByFieldsForStatistics", () => {
-    const result = toProtoQueryRequest({
-      serviceId: "test",
-      layerId: 0,
-      outStatistics: [
-        {
-          statisticType: "count",
-          onStatisticField: "OBJECTID",
-          outStatisticFieldName: "cnt",
-        },
-      ],
-      groupByFieldsForStatistics: "STATE, COUNTY",
-    });
-
-    expect(result.groupBy).toEqual(["STATE", "COUNTY"]);
-    expect(result.outStatistics).toHaveLength(1);
-    expect(result.outStatistics[0].statisticType).toBe(StatisticType.COUNT);
-    expect(result.outStatistics[0].onStatisticField).toBe("OBJECTID");
-    expect(result.outStatistics[0].outStatisticFieldName).toBe("cnt");
+  it.each<Partial<QueryFeaturesRequest>>([
+    { outStatistics: [{ statisticType: "count", onStatisticField: "OBJECTID" }] },
+    { groupByFieldsForStatistics: "STATE" },
+    { extraParams: { outStatistics: "[]" } },
+    { extraParams: { groupByFieldsForStatistics: "STATE" } },
+  ])("refuses unsupported aggregation before sending a gRPC request: %j", (aggregation) => {
+    expect(() => toProtoQueryRequest({ serviceId: "test", layerId: 0, ...aggregation })).toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
   });
 
   it("maps spatial filter from Esri geometry + spatialRel", () => {
