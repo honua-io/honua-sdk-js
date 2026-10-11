@@ -69,6 +69,7 @@ test("public admission ignores inherited npm relaxation and configuration files"
     assert.equal(env.npm_config_strict_peer_deps, undefined);
     assert.equal(env.NPM_CONFIG_USERCONFIG, undefined);
     assert.equal(env.npm_config_registry, "https://registry.npmjs.org");
+    assert.equal(env.npm_config_cache, path.join(root, "npm-cache"));
     assert.equal(fs.readFileSync(env.npm_config_userconfig, "utf8"), "");
     assert.equal(fs.readFileSync(env.npm_config_globalconfig, "utf8"), "");
     assert.notEqual(env.npm_config_userconfig, env.npm_config_globalconfig);

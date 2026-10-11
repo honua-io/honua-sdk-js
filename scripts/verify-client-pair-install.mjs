@@ -145,6 +145,7 @@ export function publicResolverEnv(baseEnv, tempRoot) {
     npm_config_userconfig: userConfig,
     npm_config_globalconfig: globalConfig,
     npm_config_registry: "https://registry.npmjs.org",
+    npm_config_cache: path.join(tempRoot, "npm-cache"),
   };
 }
 
