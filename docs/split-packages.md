@@ -34,11 +34,18 @@ metadata files as well as size regressions.
 
 The audited npm `@honua/sdk-js@0.1.14` baseline is 12,581,417 packed bytes,
 39,118,106 unpacked bytes and 2,189 files. Its sample material alone occupies
-11,272,832 unpacked bytes. The reduced ceilings are 7,000,000 packed and 24,000,000
+11,272,832 unpacked bytes. The reduced ceilings are 4,500,000 packed and 22,000,000
 unpacked bytes, declared with the immutable baseline identity in
 `config/runtime-tarball-budget.v1.json`. Bundle execution costs are measured
 separately by the [First Map installed-consumer gate](./installed-first-map-budget.md);
 tarball reduction does not imply a faster endpoint-to-map journey.
+
+The clean packed-development measurement at source `5aac8654325f20845dc37a386f0f8999d683bb83`
+was 4,039,866 packed bytes and 19,606,974 unpacked bytes across 2,074 files: a
+67.9% packed and 49.9% unpacked reduction from the audited registry baseline.
+[The receipt](./evidence/distribution-1413/2026-10-11-runtime-tarball.json) records
+owner inventory, integrity and toolchain identity. Ceilings leave approximately
+11–12% headroom over this measured result.
 
 ## Packages produced by the split build
 
@@ -122,3 +129,19 @@ The monolithic package root is a reviewed common workflow, not an alias for all
 split-package surfaces. Advanced imports use the focused subpaths in
 [`INSTALL.md`](../INSTALL.md); every transition-era root symbol has an exact
 replacement in the generated [`root import migration table`](./root-surface-migration.md).
+
+`npm run samples:contract:pack` independently packs `samples/dist`, the versioned
+sample-consumer schemas, and self-contained consumer fixtures and archived
+receipts. Its private staging manifest derives its version from the SDK;
+there is no second release version to maintain. The output under
+`.artifacts/sample-contract/` uses the tarball SHA-256 in its filename and
+records the source commit, dirty state, SHA-512 integrity and file inventory.
+The runtime SDK does not depend on this artifact. The existing sample app
+bundles still carry the runnable applications separately.
+
+PR CI retains the contract archive as a downloadable artifact for 90 days.
+The content-addressed sample-bundle publication workflow also builds it from
+two independent checkouts of the same immutable source, requires identical
+archive bytes and receipts, and retains that separate artifact for 90 days.
+A source checkout can regenerate it after that retention window. This is a
+sample-content artifact, not a new npm registry package.
