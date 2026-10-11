@@ -4,7 +4,7 @@ Scaffold a [Honua JavaScript SDK](https://github.com/honua-io/honua-sdk-js) map 
 pinned to the certified SDK release, running a map on the first `npm run dev`.
 
 ```bash
-npm create honua-app@0.1.6 my-map
+npm create honua-app@0.1.7 my-map
 cd my-map
 npm install
 npm run dev
@@ -27,7 +27,7 @@ create-honua-app [directory] [options]
 With `npm create`, pass CLI options after `--`:
 
 ```bash
-npm create honua-app@0.1.6 my-react-map -- --template react-ts
+npm create honua-app@0.1.7 my-react-map -- --template react-ts
 ```
 
 ## Which SDK version a scaffold pins
@@ -42,7 +42,7 @@ version this release of `create-honua-app` ships with. The default path never pi
 yourself, pass `--sdk-version`:
 
 ```bash
-npm create honua-app@0.1.6 my-pinned-map -- --sdk-version 0.1.13
+npm create honua-app@0.1.7 my-pinned-map -- --sdk-version 0.1.14
 ```
 
 ## Templates
