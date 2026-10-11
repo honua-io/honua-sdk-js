@@ -762,6 +762,7 @@
     "demo:coverages-wcs:preview": "vite preview --config examples/coverages-wcs-basic/vite.config.ts --host 127.0.0.1",
     "demo:coverages-wcs:typecheck": "tsc -p examples/coverages-wcs-basic/tsconfig.json --noEmit",
     "verify:runtime-tarball": "node scripts/verify-runtime-tarball.mjs",
+    "samples:contract:pack": "node scripts/pack-sample-contract.mjs",
     "test:runtime-tarball": "node --test test/scripts/runtime-tarball.test.mjs"
   },
   "dependencies": {
@@ -820,7 +821,6 @@
     "react-dom": "19.2.7",
     "terra-draw": "^1.32.0",
     "terra-draw-maplibre-gl-adapter": "^1.4.1",
-    "terser": "^5.51.2",
     "typescript": "^5.9.2",
     "uplot": "^1.6.32",
     "vega-lite": "^6.4.3",

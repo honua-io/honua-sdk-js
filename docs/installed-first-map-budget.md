@@ -102,3 +102,45 @@ them through `test:installed-package-certification`.
 The clean-consumer run exits nonzero and writes `status: "failed"`; the #39
 historical failed row remains unchanged. Compatible corrected published bytes
 and a passing rerun under the original limits remain required to close #1584.
+
+### Measured packed-development comparison (2026-10-11)
+
+[Recorded receipts and consumer locks](./evidence/distribution-1413/) bind this
+comparison to source `5aac8654325f20845dc37a386f0f8999d683bb83` and its admitted
+SDK Verification producer artifact from run `38128568010`. Both installs used
+identical dependency versions and integrities, including MapLibre 6.13.0, and
+identical packed SDK integrity. The lockfile hashes differ because each local
+archive has its own temporary file URL. These are development measurements;
+they do not replace the declared legacy registry candidate or certify a release.
+
+| Minifier | Public-path JavaScript | Public-path gzip | Median script CPU | Median parse/compile spans |
+| --- | ---: | ---: | ---: | ---: |
+| Vite 8 default Oxc | 1,887,373 bytes | 503,941 bytes | 864.0 ms | 648.1 ms |
+| Safe Terser, two passes | 1,883,654 bytes | 504,620 bytes | 772.6 ms | 322.4 ms |
+
+CPU measurements used the separate canonical fixture build, Chromium
+145.0.7632.6 on Linux x64 / Intel Core Ultra 7 165H, three cold browser contexts
+and fourfold CPU throttling. Terser parse/compile samples ranged from 264.6 to
+868.7 ms, so the median does not establish a stable performance improvement.
+Its public and fixture builds took 122.6 and 130.6 seconds. Terser was rejected:
+gzip grew by 679 bytes and build cost rose substantially. The canonical
+configuration therefore retains Vite's default minifier. Both measured public
+bundles passed the unchanged installed byte ceilings; both fixture executions
+reached the first usable map without page errors.
+
+To reproduce the historical experiment, use that source commit, admit its exact
+producer artifact, build the browser artifacts, and run the packed-development
+command with `--baseline-default --measure-execution`. Then repeat without
+`--baseline-default`, passing the first receipt's saved `--consumer-lock`.
+That experimental flag and Terser dependency exist at the recorded commit;
+they are deliberately absent from the current configuration. CPU regression
+ceilings still require calibration on the controlled CI execution lane.
+
+The package-verification CI job measures the packed generic First Map on its
+provisioned Chromium runner and uploads `packed-first-map-execution` receipts
+(with a `-graph` suffix in SDK Verification), including the exact consumer lock.
+This calibration lane fails missing execution evidence and existing byte-budget
+regressions. CPU values remain measurements until runner calibration establishes
+explicit regression ceilings. Current trace aggregation excludes named waiting
+spans from parse/compile time; historical receipts preserve their original
+recorded event names and measurement implementation.

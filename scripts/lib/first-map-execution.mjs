@@ -54,7 +54,7 @@ export async function measureFirstMapExecution(staticRoot, { repetitions = 3, cp
         assert.ok(Number.isFinite(scriptMs) && scriptMs > 0, "Chromium did not report script CPU time");
         // Record named compile/parse spans separately. Nested spans are merged per
         // thread so the parse measure does not double-count compiler internals.
-        const compile = events.filter((event) => event.ph === "X" && /^v8[.:]/i.test(event.name) && /(?:compile|parse)/i.test(event.name) && event.dur > 0);
+        const compile = events.filter((event) => event.ph === "X" && /^v8[.:]/i.test(event.name) && /(?:compile|parse)/i.test(event.name) && !/waiting/i.test(event.name) && event.dur > 0);
         const threads = new Map();
         for (const event of compile) {
           const key = `${event.pid}:${event.tid}`;
@@ -82,7 +82,7 @@ export async function measureFirstMapExecution(staticRoot, { repetitions = 3, cp
     return { scope: "closed fixture; cold browser contexts through first usable map frame", browser: browser.version(), node: process.version,
       host: { platform: process.platform, architecture: process.arch, cpu: os.cpus()[0]?.model }, cpuThrottle, repetitions,
       metrics: { scriptCpuMs: "page main-thread Chromium Performance ScriptDuration in threadTicks; includes mount execution, excludes worker script CPU",
-        parseCompileMs: "union of parse/compile trace intervals per thread, including background compilation; elapsed span time" }, samples };
+        parseCompileMs: "union of parse/compile trace intervals per thread, including background compilation, excluding named waiting spans; elapsed span time" }, samples };
   } finally {
     await browser?.close();
     await fixture.close();

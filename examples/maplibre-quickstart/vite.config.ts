@@ -77,13 +77,5 @@ const shared = createSampleViteConfig(import.meta.url, {
 
 export default defineConfig({
   ...shared,
-  build: {
-    ...shared.build,
-    minify: "terser",
-    terserOptions: {
-      compress: { passes: 2, unsafe: false, pure_getters: false },
-      mangle: { properties: false },
-    },
-  },
   plugins: [bundleBudget, ...(shared.plugins ?? [])],
 });
