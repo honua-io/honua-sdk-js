@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url";
 import { build, loadConfigFromFile, normalizePath } from "vite";
 import { runNpmSync } from "./lib/npm-cli.mjs";
 import { verifyPreparedSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
+import { packedSdkFilename, assertComparisonDependencies } from "./lib/installed-consumer-lock.mjs";
 import { INSTALLED_FIRST_MAP_BUDGET, firstMapVerdict } from "./lib/first-map-budget.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -49,8 +50,11 @@ try {
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const [packed] = JSON.parse(result.stdout);
     assert.equal(packed.name, candidate.package.coordinate, "development tarball must be the SDK package");
-    const tarball = path.join(destination, packed.filename);
-    const integrity = `sha512-${createHash("sha512").update(await readFile(tarball)).digest("base64")}`;
+    const originalTarball = path.join(destination, packed.filename);
+    const bytes = await readFile(originalTarball);
+    const tarball = path.join(destination, packedSdkFilename(bytes));
+    await rename(originalTarball, tarball);
+    const integrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
     assert.equal(integrity, packed.integrity, "packed bytes must match reported integrity");
     packageIdentity = { coordinate: packed.name, version: packed.version, integrity };
     packageSpec = pathToFileURL(tarball).href;
@@ -71,6 +75,7 @@ try {
   const installed = lock.packages[`node_modules/${candidate.package.coordinate}`];
   assert.equal(installed.version, packageIdentity.version, "installed version must match candidate");
   assert.equal(installed.integrity, packageIdentity.integrity, "installed tarball integrity must match candidate");
+  if (previousLockBytes) assertComparisonDependencies(JSON.parse(previousLockBytes), lock, candidate.package.coordinate);
   if (previousRenderer) {
     const renderer = lock.packages["node_modules/maplibre-gl"];
     assert.equal(renderer.version, previousRenderer.version, "comparison must preserve installed renderer version");
