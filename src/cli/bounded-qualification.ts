@@ -62,9 +62,9 @@ export interface StyleRenderCapture {
   readonly discoveredStyleId: string;
   readonly applied: boolean;
   readonly appliedStyleId: string;
-  readonly appliedStyleVersion: string;
+  readonly appliedStyleVersion: number;
   readonly confirmedStyleId: string;
-  readonly confirmedStyleVersion: string;
+  readonly confirmedStyleVersion: number;
   readonly renderedStyleId: string;
   readonly width: number;
   readonly height: number;
@@ -189,8 +189,8 @@ export function parseBoundedManifest(bytes: string, expectedSha256: string): Bou
     throw new Error("Manifest requires an immutable server image digest");
   }
   for (const key of ["revisionDigest", "membershipDigest", "descriptorDigest"] as const) {
-    if (typeof value[key] !== "string" || !/^[a-f0-9]{64}$/.test(value[key])) {
-      throw new Error(`Manifest requires server-authored ${key}`);
+    if (typeof value[key] !== "string" || !/^sha256:[a-f0-9]{64}$/.test(value[key])) {
+      throw new Error(`Manifest requires canonical sha256: server-authored ${key}`);
     }
   }
   if (
@@ -359,6 +359,9 @@ export function assembleBoundedQualification(evidence: BoundedQualificationEvide
     if (style.appliedStyleId !== style.discoveredStyleId || style.confirmedStyleId !== style.discoveredStyleId) {
       differences.push("style read-back does not match the discovered preset");
     }
+    if (!isStyleVersion(style.appliedStyleVersion) || !isStyleVersion(style.confirmedStyleVersion)) {
+      differences.push("style apply/read-back must report integer style versions");
+    }
     if (style.confirmedStyleVersion !== style.appliedStyleVersion) {
       differences.push("style read-back version does not match the apply result");
     }
@@ -429,7 +432,7 @@ export interface QualifyBoundedSetupOptions {
   readonly catalogReceiptPath: string;
   readonly outputPath?: string;
   readonly serviceId?: string;
-  readonly layerId?: string;
+  readonly layerId?: number;
   readonly bbox?: readonly [number, number, number, number];
   readonly styleEvidencePath?: string;
   readonly stylePngPath?: string;
@@ -441,6 +444,12 @@ export async function qualifyBoundedSetup(
   options: QualifyBoundedSetupOptions,
   runtime: LocalInstallRuntime = {},
 ): Promise<BoundedQualificationReceipt> {
+  if (
+    options.layerId !== undefined &&
+    (!Number.isInteger(options.layerId) || options.layerId < 0 || options.layerId > 2_147_483_647)
+  ) {
+    throw new Error("layerId must be an integer between 0 and 2147483647");
+  }
   const directory = path.resolve(options.directory);
   const manifestBytes = await readFile(options.manifestPath, "utf8");
   const manifest = parseBoundedManifest(manifestBytes, options.manifestSha256);
@@ -502,7 +511,7 @@ export async function qualifyBoundedSetup(
         pages: listing.pages,
       };
       if (options.executeStyle) {
-        if (!options.serviceId || !options.layerId || !options.bbox) {
+        if (!options.serviceId || options.layerId === undefined || !options.bbox) {
           style = { error: "style/render requires --service-id, --layer-id, and --bbox" };
         } else {
           try {
@@ -553,11 +562,15 @@ export async function qualifyBoundedSetup(
   return receipt;
 }
 
+function isStyleVersion(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 2_147_483_647;
+}
+
 async function runStyleRender(
   client: McpClient,
   target: {
     readonly serviceId: string;
-    readonly layerId: string;
+    readonly layerId: number;
     readonly bbox: readonly [number, number, number, number];
   },
 ): Promise<StyleRenderCapture | { readonly error: string }> {
@@ -568,7 +581,8 @@ async function runStyleRender(
       includeStylesheet: true,
     }),
   );
-  if (typeof baseline.styleVersion !== "string") return { error: "honua_get_style did not return a styleVersion" };
+  if (!isStyleVersion(baseline.styleVersion))
+    return { error: "honua_get_style did not return an integer styleVersion" };
   const catalog = structured(await client.callTool("honua_get_style", {}));
   const styles = Array.isArray(catalog.styles) ? catalog.styles : [];
   const first = styles.find((entry) => isRecord(entry) && typeof entry.styleId === "string");
@@ -586,6 +600,9 @@ async function runStyleRender(
   const confirmed = structured(
     await client.callTool("honua_get_style", { serviceId: target.serviceId, layerId: target.layerId }),
   );
+  if (!isStyleVersion(applied.styleVersion) || !isStyleVersion(confirmed.styleVersion)) {
+    return { error: "style apply/read-back did not return an integer styleVersion" };
+  }
   const rendered = structured(
     await client.callTool("honua_render_map", {
       layers: [{ serviceId: target.serviceId, layerId: target.layerId }],
@@ -606,9 +623,9 @@ async function runStyleRender(
     discoveredStyleId,
     applied: applied.applied === true,
     appliedStyleId: typeof applied.styleId === "string" ? applied.styleId : "",
-    appliedStyleVersion: typeof applied.styleVersion === "string" ? applied.styleVersion : "",
+    appliedStyleVersion: applied.styleVersion,
     confirmedStyleId: typeof confirmed.styleId === "string" ? confirmed.styleId : "",
-    confirmedStyleVersion: typeof confirmed.styleVersion === "string" ? confirmed.styleVersion : "",
+    confirmedStyleVersion: confirmed.styleVersion,
     renderedStyleId: isRecord(layer) && typeof layer.styleId === "string" ? layer.styleId : "",
     width: image.width,
     height: image.height,
@@ -629,15 +646,16 @@ async function readStyleEvidence(
   const required = [
     "discoveredStyleId",
     "appliedStyleId",
-    "appliedStyleVersion",
     "confirmedStyleId",
-    "confirmedStyleVersion",
     "renderedStyleId",
     "mediaType",
     "uri",
   ] as const;
   for (const key of required) {
     if (typeof parsed[key] !== "string") return { error: `style evidence requires ${key}` };
+  }
+  if (!isStyleVersion(parsed.appliedStyleVersion) || !isStyleVersion(parsed.confirmedStyleVersion)) {
+    return { error: "style evidence requires integer appliedStyleVersion and confirmedStyleVersion" };
   }
   if (typeof parsed.applied !== "boolean" || typeof parsed.width !== "number" || typeof parsed.height !== "number") {
     return { error: "style evidence requires applied, width, and height" };
@@ -646,9 +664,9 @@ async function readStyleEvidence(
     discoveredStyleId: parsed.discoveredStyleId as string,
     applied: parsed.applied,
     appliedStyleId: parsed.appliedStyleId as string,
-    appliedStyleVersion: parsed.appliedStyleVersion as string,
+    appliedStyleVersion: parsed.appliedStyleVersion,
     confirmedStyleId: parsed.confirmedStyleId as string,
-    confirmedStyleVersion: parsed.confirmedStyleVersion as string,
+    confirmedStyleVersion: parsed.confirmedStyleVersion,
     renderedStyleId: parsed.renderedStyleId as string,
     width: parsed.width,
     height: parsed.height,

@@ -66,8 +66,8 @@ export function parseSetupCatalogManifest(bytes: string, expectedSha256: string)
     throw new Error("Manifest requires an immutable server image digest");
   }
   for (const key of ["revisionDigest", "membershipDigest", "descriptorDigest"]) {
-    if (typeof value[key] !== "string" || !/^[a-f0-9]{64}$/.test(value[key])) {
-      throw new Error(`Manifest requires server-authored ${key}`);
+    if (typeof value[key] !== "string" || !/^sha256:[a-f0-9]{64}$/.test(value[key])) {
+      throw new Error(`Manifest requires canonical sha256: server-authored ${key}`);
     }
   }
   if (

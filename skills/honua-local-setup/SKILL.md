@@ -35,6 +35,18 @@ Create `.honua-zero-to-map` outside the git repository you are editing.
 pass another one (`--http-port 18081`). `--dry-run` prints the compose file
 and does not start containers. `--yes` is required before Docker starts.
 
+Both local profiles use `Licensing__Mode=Disabled` for 2026.1, following the
+[release licensing policy](https://github.com/honua-io/honua-release/issues/338).
+No license file or development edition grant is required; authentication and
+authorization remain enforced. Re-running the installer updates an existing
+installer-owned Compose file to this policy. An older Community installation
+may have held its API keys only in memory; restarting it with the release policy
+can leave the saved key invalid. The installer refuses that credential rather
+than silently replacing it. A fresh directory and unused HTTP port create an
+independent installation while preserving the old project's data. Qualification
+must verify that the Admin license status reports `mode: disabled` on the
+running candidate.
+
 `honua admin` is the control-plane CLI shipped by `@honua/sdk-js`. If `honua`
 on `PATH` fails before Docker starts with `ModuleNotFoundError` for the Python
 SDK, that `PATH` entry is the Python data-plane console script and its
@@ -60,7 +72,10 @@ problem, and retrying downstream calls will only produce misleading errors.
 The installer creates the PostGIS and pgRouting extensions in the `public`
 schema before the server migrates, then seeds `public.zero_to_map_parcels`
 (one polygon, `parcel_id`, SRID 4326). It also sets `HONUA_LOCAL_DB_PASSWORD`
-on the server to the full `Host=postgres;...` connection string. Re-run the
+on the server to the full `Host=postgres;...` connection string and permits
+that single variable in the request-secret reference allowlist, so
+`env:HONUA_LOCAL_DB_PASSWORD` can connect the bundled database without
+copying a password into a request. Other environment references remain denied. Re-run the
 same install command after a compose change; it reuses the directory and does
 not print the admin key. `honua` on PATH must be this control-plane CLI.
 `honua admin`, `honua map`, and `honua services` are the same program. A
@@ -83,8 +98,18 @@ honua admin qualify --directory .honua-zero-to-map \
 ```
 
 Produce `setup-catalog-receipt.json` with `npm --prefix mcp run certify:setup-parity`.
+The manifest preserves the server-authored `revisionDigest`, `membershipDigest`,
+and `descriptorDigest` as `sha256:` followed by 64 lowercase hexadecimal
+characters. Unprefixed values were previously accepted by the local validator
+but cannot match the server metadata and are rejected. The independent
+`--manifest-sha256` file hash remains 64 lowercase hexadecimal characters
+without a prefix.
+
 A live apply uses `--service-id`, `--layer-id`, `--bbox`, and `--yes` instead
-of the replay files. The receipt is redacted. It is not a pass when the
+of the replay files. `--layer-id` is a decimal integer from 0 through 2147483647,
+serialized as a JSON number for the server map tools. Style replay evidence
+also retains the integer `appliedStyleVersion` and `confirmedStyleVersion`
+from the server, rather than converting them to strings. The receipt is redacted. It is not a pass when the
 bounded view omits `geometry.buffer`, when HTTP and stdio descriptor hashes
 differ, or when the rendered PNG is empty or flat.
 
