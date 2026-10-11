@@ -131,6 +131,12 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     adminKey: ctx.adminKey,
     profile: ctx.profile,
   });
+  if (
+    connection.bearerToken &&
+    Object.keys(request.headers).some((name) => ["authorization", "x-api-key", "cookie"].includes(name.toLowerCase()))
+  ) {
+    throw new ArgError("Credential headers cannot be combined with a selected bearer token.");
+  }
   const client = new HonuaAdminClient({
     baseUrl: connection.baseUrl,
     apiKey: connection.apiKey,

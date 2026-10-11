@@ -41,6 +41,32 @@ afterEach(() => {
 });
 
 describe("CLI caller bearer identity", () => {
+  it.each(["Authorization", "aUtHoRiZaTiOn", "X-API-Key", "x-api-key", "Cookie"])(
+    "rejects a %s request credential before sending an Admin request",
+    async (header) => {
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      expect(await run(["admin", "api", "getConnections", "--header", `${header}=other-private-credential`])).toBe(2);
+      expect(fetch).not.toHaveBeenCalled();
+      expect(output.join("")).toContain("Credential headers cannot be combined with a selected bearer token.");
+      expect(output.join("")).not.toContain("other-private-credential");
+      expect(output.join("")).not.toContain(bearer);
+    },
+  );
+
+  it("preserves the selected bearer alongside ordinary Admin request headers", async () => {
+    const requests: Headers[] = [];
+    vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+      requests.push(new Headers(init?.headers));
+      return Response.json({ connections: [] });
+    });
+    expect(await run(["admin", "api", "getConnections", "--header", "X-Correlation-ID=caller-request"])).toBe(0);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.get("Authorization")).toBe(`Bearer ${bearer}`);
+    expect(requests[0]?.get("X-Correlation-ID")).toBe("caller-request");
+    expect(requests[0]?.get("X-API-Key")).toBeNull();
+  });
+
   it.each([
     ["map", "export", "venues", "--bbox", "0,0,1,1"],
     ["tiles", "venues", "1/0/0"],
