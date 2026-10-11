@@ -213,7 +213,9 @@ describe("honua-map-package.v1 schema ↔ TypeScript drift", () => {
     ];
     for (const value of cases) {
       expect(validateAgainstSchema(value)).toBe(canonical(value));
-      expect(validateAgainstSchema.errors).toEqual(canonical.errors);
+      expect((validateAgainstSchema as typeof validateAgainstSchema & { readonly errors?: unknown }).errors).toEqual(
+        canonical.errors,
+      );
     }
   });
 
