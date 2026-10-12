@@ -26,7 +26,7 @@ export const EXPECTED_LOCKFILE_SHA256 =
   "c61f3f4186776c157085229742a2c24ef7fa4330d75a4d2713c5c29de228ab74";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-  setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+  setupNode: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
   uploadArtifact:
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
   downloadArtifact:
