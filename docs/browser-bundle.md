@@ -75,8 +75,8 @@ from `src/index.ts`). Its stable-core runtime dependency,
 other bounded direct dependencies: `@honua/honua-migrate` backs deprecated
 migration forwarders outside the browser graph, and
 `@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's
-existing parser so its new Node 22 engine metadata does not reject the
-published Node 20 contract.
+existing parser. That pin originated with the earlier Node 20 compatibility
+work and remains unchanged under the current Node 22.12+ runtime requirement.
 
 The heavy runtime *peers* are kept **external** so the artifact stays small and
 does not inline multi-megabyte map/protobuf runtimes:
