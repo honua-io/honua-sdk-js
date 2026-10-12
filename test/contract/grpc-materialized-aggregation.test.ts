@@ -353,13 +353,11 @@ describe("gRPC whole-set client-side aggregation", () => {
   );
   it("retains COUNT(*) over nullable values", async () => {
     const { source, query } = fixture();
-    query
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({
-        fields,
-        objectIdFieldName: "OBJECTID",
-        features: [{ attributes: { OBJECTID: 1, VALUE: null } }],
-      });
+    query.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({
+      fields,
+      objectIdFieldName: "OBJECTID",
+      features: [{ attributes: { OBJECTID: 1, VALUE: null } }],
+    });
     const result = await source.queryAggregate({ aggregation: { metrics: [{ fn: "count", field: "*", alias: "n" }] } });
     expect(result.aggregateRows).toEqual([{ n: 1 }]);
   });
