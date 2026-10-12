@@ -171,9 +171,10 @@ Production refuses the placeholder connection-encryption key/salt and
 needs an operation key-ring certificate. The step mints both per run;
 they never leave the runner.
 
-### Server pin and repo-variable override
+### Reviewed self-contained server pin
 
-The workflow pins the candidate at workflow level:
+The workflow pins the reviewed candidate at workflow level for both the Community
+fixture and the dedicated single-tenant Pro alerts off/on fixture:
 
 | Env | Default |
 | --- | --- |
@@ -181,12 +182,15 @@ The workflow pins the candidate at workflow level:
 | `HONUA_INTEGRATION_SERVER_COMMIT` | `ff5f5671903e96e13cffac7b73546c3ed0f853c5` |
 | `HONUA_CANDIDATE_CUT_AT` | `2026-10-04T08:09:54Z` |
 
-Repo variables with the same three names **replace** these defaults.
-They must be set together (the job fails otherwise), and the image must
-be an `@sha256:` digest. While they are set, CI runs the variable image,
-not the pin in the workflow file. Check `gh variable list` before
-treating a run as evidence for the pinned candidate. To run the pin,
-delete all three variables. To certify another image, update all three.
+These literal values are authoritative for self-contained runs; repository
+variables cannot replace them. Advance the image, source, cut, and compatible
+seed together through a reviewed change. The current identity was selected in
+[PR #1956](https://github.com/honua-io/honua-sdk-js/pull/1956) and published by
+[successful server run 37188030565](https://github.com/honua-io/honua-server/actions/runs/37188030565).
+It includes the Preview alerts opt-in gate that the former August repository
+variable image did not enforce. This selection is integration evidence, not a
+claim of complete release qualification. External mode still accepts the
+explicit target inputs and variables below.
 
 ### External mode configuration
 

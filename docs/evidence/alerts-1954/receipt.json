@@ -1,0 +1,50 @@
+{
+  "schema": "honua.sdk.alerts-fixture-evidence/v1",
+  "scope": "Preview alert draft validation on the selected immutable single-tenant Pro integration fixture; not release-wide qualification",
+  "runs": [
+    {
+      "runId": 38314349221,
+      "url": "https://github.com/honua-io/honua-sdk-js/actions/runs/38314349221",
+      "producerSourceSha": "6c2052a5182c2d691392544198fa6294706d1804",
+      "serverSourceSha": "e3ab87cebb7bf2d32c4e8cdb145f8d626b864d8e",
+      "serverImage": "ghcr.io/honua-io/honua-server@sha256:d7a45c871bf318b4882ec8e1c32004803e6d0210246be30120751f05dee1a14d",
+      "candidateCutAt": "2026-08-21T15:13:36Z",
+      "conclusion": "failure",
+      "off": {
+        "testStatus": "failed",
+        "observedHttpStatus": 200,
+        "expectedHttpStatus": 404,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0
+      },
+      "on": {
+        "testStatus": "passed",
+        "observedHttpStatus": 200,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "artifact": {
+        "id": 11775613469,
+        "name": "integration-meta",
+        "digest": "sha256:d25b6b48dd54d627d583add83c02264f4383ecc8ade9765af199f639dcf87dbf"
+      },
+      "retainedFiles": {
+        "38314349221-integration-alerts-false-vitest.json": {
+          "sha256": "2438a7428895f7b9954aaa750f3668e277add3b07bca9b95d7242803f662735a",
+          "bytes": 1956
+        },
+        "38314349221-integration-alerts-true-vitest.json": {
+          "sha256": "39b804a7b3c2d80f2ca061738a08d3444c19f88129882200ffc866a0f8feeb8e",
+          "bytes": 1146
+        },
+        "38314349221-integration-meta.json": {
+          "sha256": "6ae117718ef24e98fc68b247a876c19d7a2d56668081817954f94f656b08f316",
+          "bytes": 1497
+        }
+      },
+      "diagnosis": "The historical server source declares alerts.geofence Implemented, so its capability resolver does not apply the Experimental flag. Actual off/on HTTP 200 responses are retained as a failed negative control, not passing qualification."
+    }
+  ]
+}

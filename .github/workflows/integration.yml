@@ -65,22 +65,14 @@ permissions:
 
 env:
   NODE_VERSION: "22.23.3"
-  # Pinned self-contained server image + fixtures. A repo variable overrides the
-  # pin so it can be advanced without a code change; advancing it is a
-  # deliberate, reviewable change. The vendored seed
-  # (test/integration/seed/places-roads-v1.sql) is refreshed 1:1 with this pin.
-  #
-  # Pinned to the current nightly candidate identity (R21: SDKs certify against
-  # the candidate): honua-server ff5f567, built by Nightly Container Build run
-  # 37188030565, which started (cut) at 2026-10-04T08:09:54Z. Repository
-  # overrides must also be immutable digest references so evidence cannot drift
-  # between runs. NOTE: the HONUA_INTEGRATION_SERVER_IMAGE / _SERVER_COMMIT /
-  # HONUA_CANDIDATE_CUT_AT repo variables, when set, replace this pin — see
-  # docs/integration-tests.md.
-  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39' }}
-  HONUA_INTEGRATION_SERVER_COMMIT: ${{ vars.HONUA_INTEGRATION_SERVER_COMMIT || 'ff5f5671903e96e13cffac7b73546c3ed0f853c5' }}
-  HONUA_CANDIDATE_CUT_AT: ${{ vars.HONUA_CANDIDATE_CUT_AT || '2026-10-04T08:09:54Z' }}
-  HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID: ${{ (vars.HONUA_INTEGRATION_SERVER_IMAGE != '' || vars.HONUA_INTEGRATION_SERVER_COMMIT != '' || vars.HONUA_CANDIDATE_CUT_AT != '') && !(vars.HONUA_INTEGRATION_SERVER_IMAGE != '' && vars.HONUA_INTEGRATION_SERVER_COMMIT != '' && vars.HONUA_CANDIDATE_CUT_AT != '') }}
+  # Reviewed self-contained candidate identity: SDK #1956 / commit 8ac7abbc.
+  # Nightly Container Build 37188030565 produced and attested this immutable
+  # image from ff5f567 at the recorded cut. Keep image, source, cut, and seed
+  # coherent in version control; stale repository variables must not replace it.
+  # External mode retains its explicit dispatch/environment overrides below.
+  HONUA_INTEGRATION_SERVER_IMAGE: 'ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39'
+  HONUA_INTEGRATION_SERVER_COMMIT: 'ff5f5671903e96e13cffac7b73546c3ed0f853c5'
+  HONUA_CANDIDATE_CUT_AT: '2026-10-04T08:09:54Z'
   HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.2.0-alpha.1' }}
   # Deterministic container passwords for the self-contained stack. These are
   # NOT secrets (the stack is ephemeral and never exposed off the runner). The
@@ -257,10 +249,6 @@ jobs:
           NET=honua-integration
           PG_DB=honua_integration
 
-          if [ "${HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID}" = "true" ]; then
-            echo "::error::HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together"
-            exit 1
-          fi
           node --input-type=module -e \
             'import { validateIdentityOverrideEnvironment } from "./scripts/protocol-certification-fragment.mjs"; validateIdentityOverrideEnvironment(process.env);'
 

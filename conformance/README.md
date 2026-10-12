@@ -122,12 +122,13 @@ The lane pins and records the server under test into
 
 The pin is set at workflow level in `.github/workflows/integration.yml`
 (`HONUA_INTEGRATION_SERVER_IMAGE` / `HONUA_INTEGRATION_SERVER_COMMIT` /
-`HONUA_CANDIDATE_CUT_AT` / `HONUA_CONFORMANCE_FIXTURES_VERSION`) and overridable
-via repo variables of the same names. The first three move together: set all of
-them or none. While they are set they replace the pin above, so check
-`gh variable list` before reading a run as evidence for this pin. The
-vendored seed is kept 1:1 with the image pin. Advancing the pin (and refreshing
-the seed alongside it) is a deliberate, reviewable change.
+`HONUA_CANDIDATE_CUT_AT` / `HONUA_CONFORMANCE_FIXTURES_VERSION`). The image,
+server source, and cut are literal reviewed values for self-contained runs;
+repository variables do not replace them. Both the Community and Preview Pro
+alerts fixtures use that same image. The fixtures version can still be selected
+through its existing dispatch input or variable. External target configuration
+is unchanged. The vendored seed is kept 1:1 with the image pin. Advancing the
+candidate identity and refreshing its seed is a deliberate, reviewable change.
 
 ## Known, already-tracked server gaps (xfail)
 

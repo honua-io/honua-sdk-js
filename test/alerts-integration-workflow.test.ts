@@ -104,6 +104,21 @@ describe("Preview alerts integration fixture", () => {
     );
   });
 
+  it("uses the reviewed literal identity for both fixtures while preserving external target overrides", () => {
+    expect(workflow.env.HONUA_INTEGRATION_SERVER_IMAGE).toBe(
+      "ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39",
+    );
+    expect(workflow.env.HONUA_INTEGRATION_SERVER_COMMIT).toBe("ff5f5671903e96e13cffac7b73546c3ed0f853c5");
+    expect(workflow.env.HONUA_CANDIDATE_CUT_AT).toBe("2026-10-04T08:09:54Z");
+    const environment = workflow.jobs.integration.env;
+    expect(environment.HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE).toContain("github.event.inputs.server_commit");
+    expect(environment.HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE).toContain("github.event.inputs.server_image");
+    expect(environment.HONUA_CANDIDATE_CUT_AT_OVERRIDE).toContain("github.event.inputs.candidate_cut_at");
+    const community = steps.find((step) => step.name === "Start self-contained Honua Server")?.run;
+    expect(community).toContain('"$HONUA_INTEGRATION_SERVER_IMAGE"');
+    expect(alerts?.run).toContain('"$HONUA_INTEGRATION_SERVER_IMAGE"');
+  });
+
   it("keeps the Community fixture separate and requires both raw reports in the merge", () => {
     const community = steps.find((step) => step.name === "Start self-contained Honua Server")?.run;
     expect(community).toBeDefined();
