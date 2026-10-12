@@ -99,6 +99,7 @@ export type {
   HonuaImportCreateRequest,
   HonuaMapPackageSummary,
   HonuaProblemDetails,
+  HonuaMapPublicationIntent,
   HonuaPublishMapPackageRequest,
   HonuaPublishMapPackageResponse,
   HonuaShareRequest,
