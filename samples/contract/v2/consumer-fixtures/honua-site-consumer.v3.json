@@ -13,8 +13,8 @@
     "schemaPath": "samples/contract/v2/schemas/site-consumer-handoff.schema.json",
     "format": "honua.site.sdk-sample-consumer-handoff.v1",
     "schemaVersion": 1,
-    "bytes": 387235,
-    "sha256": "62f38f832f3fdfe5abc00487a53ede85406e28e335a281cc1d0fc7b107b6c722",
+    "bytes": 387382,
+    "sha256": "29bf70eb88c0184a66f3a3e840df79d7f7644e449cb0ac80bd76e18bebcd0301",
     "schemaBytes": 28368,
     "schemaSha256": "669043ca11eb2913fa4ba7bf743fb1c933e5d9b174a4e9b383c241b1822eb21d"
   },
@@ -97,6 +97,7 @@
         "protocol": "geoparquet"
       },
       "expectedSampleIds": [
+        "nl-map-control",
         "overture-geoparquet"
       ]
     },
