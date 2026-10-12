@@ -714,6 +714,29 @@ const review = workflow.preflight();
 if (!review.ready) console.warn(review.blockers, review.validation.errors);
 ```
 
+`editor.fieldPresentation` can select the displayed attribute controls, set their
+order, and override their labels without altering the workflow's source metadata:
+
+```ts doc-test=compile
+import type { HonuaFeatureEditorElement } from "@honua/sdk-js/web-components";
+
+const editor = document.querySelector<HonuaFeatureEditorElement>("honua-feature-editor")!;
+editor.fieldPresentation = [
+  { name: "status", label: "Permit status" },
+  { name: "permit_no", label: "Permit number" },
+];
+```
+
+Names match fields exactly; a name absent from the current form renders no
+control. Set the property to `undefined` to restore the complete schema form.
+The element copies the configuration and escapes labels. Omitted fields keep
+their original required, nullable, default, domain and read-only constraints;
+their validation errors remain visible in the alert summary, and a missing
+required value still blocks submission without transport. This property does
+not interpret WebMap formInfo or Arcade, change permissions, or change which
+attributes the workflow validates and commits. Hosts must review and translate
+any external presentation definition separately.
+
 What the element derives, and what it refuses:
 
 - **Form from metadata.** Controls, labels, coded-value choices, numeric range
