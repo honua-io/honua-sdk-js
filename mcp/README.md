@@ -131,6 +131,10 @@ check refuses a conflicting or incomplete legacy installation.
   isolated local-install catalog instead of the ordinary read-only server.
 - `HONUA_TRANSPORT` (optional): `grpc-web` (default, Honua deployments) or `rest`.
   Use `rest` for plain public ArcGIS/OGC endpoints.
+  Feature counts use the selected transport's count operation. With `grpc-web`,
+  statistics materialize the complete matching set through feature RPCs and
+  report client-side execution as `degraded`; they fail rather than return a
+  partial aggregate when the 100-page / 200,000-feature budget is exceeded.
 - `HONUA_API_KEY` (optional): API key when your deployment requires it. Public
   endpoints need none.
 - `HONUA_TIMEOUT_MS` (optional): request timeout in milliseconds (default `30000`)

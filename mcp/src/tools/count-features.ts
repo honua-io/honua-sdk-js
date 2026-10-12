@@ -15,7 +15,8 @@ import { resolveSource, sourceRefFields } from "../neutral/source-ref.js";
  * from whichever canonical path the source's declared capabilities support:
  *
  *  1. `queryExtent` (GeoServices, WFS, gRPC) returns an exact server count
- *     alongside the envelope in one round trip.
+ *     alongside the envelope. gRPC uses a second count RPC when its extent
+ *     response omits the count.
  *  2. otherwise a single-record `query` reports `totalCount`, which is where
  *     OGC API Features / STAC / OData carry `numberMatched`.
  *

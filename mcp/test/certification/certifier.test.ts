@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type CertificationReport, certify, isReadOnlyTool } from "../../src/certification/certifier.js";
 import { checkConformance, checkWellFormed } from "../../src/certification/json-schema.js";
 import { renderMarkdown } from "../../src/certification/report.js";
@@ -29,8 +29,14 @@ describe("MCP certification harness — offline operator upstream", () => {
   let report: CertificationReport;
 
   beforeAll(async () => {
-    target = await openCertificationTarget({ HONUA_MCP_CERT_TARGET: "offline" } as NodeJS.ProcessEnv);
+    // Model the live server CI environment without allowing it to select the
+    // offline mock's service/layer. Both stages must use the same explicit env.
+    vi.stubEnv("HONUA_MCP_SERVICE_ID", "test_service_mcp");
+    vi.stubEnv("HONUA_MCP_LAYER_ID", "10");
+    const env = { HONUA_MCP_CERT_TARGET: "offline" } as NodeJS.ProcessEnv;
+    target = await openCertificationTarget(env);
     report = await certify({
+      env,
       client: target.client,
       targetMode: target.mode,
       backend: target.backend,
@@ -40,6 +46,7 @@ describe("MCP certification harness — offline operator upstream", () => {
   }, 30_000);
 
   afterAll(async () => {
+    vi.unstubAllEnvs();
     await target.close();
     for (const dir of tmpDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
