@@ -45,6 +45,68 @@
         }
       },
       "diagnosis": "The historical server source declares alerts.geofence Implemented, so its capability resolver does not apply the Experimental flag. Actual off/on HTTP 200 responses are retained as a failed negative control, not passing qualification."
+    },
+    {
+      "runId": 38315406627,
+      "url": "https://github.com/honua-io/honua-sdk-js/actions/runs/38315406627",
+      "producerSourceSha": "cd48c5e752f52be3deebc7b85d151dd3a84558cb",
+      "serverSourceSha": "ff5f5671903e96e13cffac7b73546c3ed0f853c5",
+      "serverImage": "ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39",
+      "candidateCutAt": "2026-10-04T08:09:54Z",
+      "conclusion": "success",
+      "off": {
+        "testStatus": "passed",
+        "observedHttpStatus": 404,
+        "expectedHttpStatus": 404,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "on": {
+        "testStatus": "passed",
+        "observedHttpStatus": 200,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "combinedIntegration": {
+        "passed": 58,
+        "failed": 0,
+        "skipped": 7
+      },
+      "conformance": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 4
+      },
+      "artifact": {
+        "id": 11776253645,
+        "name": "integration-meta",
+        "digest": "sha256:61cf8274e1628f3906bd24dc1925c756a050acfa84863d3ef0168130a2f627f1"
+      },
+      "retainedFiles": {
+        "38315406627-integration-alerts-false-vitest.json": {
+          "sha256": "c405f8eac7552326b0803d86071967237e238b21e605c4c1c1baea5c0d7f9808",
+          "bytes": 1102
+        },
+        "38315406627-integration-alerts-true-vitest.json": {
+          "sha256": "b13884c9c5612720e650419c6363497cd64f8e4369ca5d63f285e3cb987fc119",
+          "bytes": 1147
+        },
+        "38315406627-integration-meta.json": {
+          "sha256": "3976602fadf3ce0b8a502fc520a3ea3f6e5e41323494a3b712ef652e459acf99",
+          "bytes": 1500
+        }
+      },
+      "fixtureSourceFiles": {
+        ".github/workflows/integration.yml": "7584f23e9a52bec7a3d56f5f41e79eb7b76d32cae214fc6a648743789527abc3",
+        "test/integration/surfaces/alerts-evaluation.integration.ts": "a66fc3e3a3dfb1ea5c18db5ccd46b904600e9e425eb0cd0ab21867a528a7b90b",
+        "test/integration/harness.ts": "6e6f6130c4adcb965cbe986d103c2226d148502fdbe5a06d5f10093bd8d6cbb2",
+        "test/integration/setup.ts": "385b13555f2c4b36dc675c252f798f0807f1eb33a170cdbf1b1c915f99460796",
+        "src/operate/client.ts": "124154b989789ef6b78d7c9ac10109a6c835afe789fdf1f607058c4a2a7ac713",
+        "src/operate/types.ts": "0a378d217ffbea64e021a83fa5aede6fce296603882bec6bba9e50287a674ea8"
+      },
+      "scopeNote": "Both alert phases executed without skips. Other existing integration/conformance skips remain visible and are not claimed as qualified."
     }
   ]
 }

@@ -27,4 +27,14 @@ identity and compatible seed. Successful [server run 37188030565](https://github
 built that exact source; its [AOT publisher](https://github.com/honua-io/honua-server/actions/runs/37188030565/job/111404621228)
 records the image revision and attestation subject digest. That source explicitly
 [gates the alerts routes](https://github.com/honua-io/honua-server/blob/ff5f5671903e96e13cffac7b73546c3ed0f853c5/src/Honua.Server/Program.cs#L1690).
-The reviewed-candidate replay is pending; the historical failed run is not a pass.
+The reviewed-candidate [run 38315406627](https://github.com/honua-io/honua-sdk-js/actions/runs/38315406627)
+passed at SDK source `cd48c5e752f52be3deebc7b85d151dd3a84558cb`: the off phase
+returned typed HTTP 404, and the on phase validated the draft. Each phase ran
+one test with no skips. Both workflow jobs succeeded; the combined integration
+report has 58 passed / 0 failed / 7 existing skips, and conformance has
+2 passed / 0 failed / 4 existing skips. Those skips are not claimed as qualified.
+The original phase reports and metadata are retained byte-for-byte; `receipt.json`
+binds their hashes, the immutable artifact, exact evaluated source, and relevant
+fixture/client source hashes. The subsequent evidence commit changes only this
+evidence directory; evaluated executable inputs are unchanged. The historical
+failed run remains a failure.
