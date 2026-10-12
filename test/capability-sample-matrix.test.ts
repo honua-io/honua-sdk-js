@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { readReleaseMatrixLaneRegistry } from "../scripts/lib/release-matrix-receipt.mjs";
 import {
   collectQualificationEvidence,
   generateCapabilitySampleMatrix,
@@ -34,11 +33,18 @@ async function canonicalInputs() {
 }
 
 async function copyEstablishedMatrixSidecars(receiptRoot: string) {
-  const established = await readReleaseMatrixLaneRegistry();
+  let established;
+  try {
+    // canonicalInputs already validated this registry and its real sidecars.
+    established = await readJson("samples/contract/v2/release-matrix-lanes.v1.json");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
+    throw error;
+  }
   // Keep the canonical registry authoritative. Satisfy its sealed sidecar input
   // with the actual bytes so orphan tests reach inventory validation instead of
   // accidentally testing a missing release-matrix prerequisite.
-  for (const lane of established?.registry.lanes ?? []) {
+  for (const lane of established.lanes) {
     const sampleRoot = path.join(receiptRoot, lane.sampleId);
     await mkdir(sampleRoot, { recursive: true });
     const copied = path.join(sampleRoot, path.basename(lane.receiptPath));
