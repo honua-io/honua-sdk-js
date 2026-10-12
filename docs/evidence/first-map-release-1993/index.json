@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "issue": "https://github.com/honua-io/honua-sdk-js/issues/1993",
+  "qualifiedSource": "7768fa900a9d02c2045d15a116cfcb8fab6fdd95",
+  "tag": "js-sdk-v0.1.18",
+  "prefixFixMerge": "c1b66b3fd84fbb72f02138069921a44ad953046d",
+  "readinessFixNotInQualifiedTag": "10a3bb69a9f552b90cb70cc0db9dd4234dc8b631",
+  "workflowRunId": "38319843060",
+  "workflowConclusion": "success",
+  "artifact": {
+    "id": 11779056003,
+    "name": "honua-sdk-first-map-release-matrix",
+    "archiveSha256": "2a6ac0f21c4d41b05f05972e1c4ebac8186fe3bbfe348d8d7e299167e9f1aca5"
+  },
+  "configuredRetries": 1,
+  "rawStats": {
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 1
+  },
+  "files": [
+    {
+      "path": "sdk-017/release-matrix.v1.json",
+      "bytes": 2168,
+      "sha256": "d3ca33ba1eb46c650496ef2a824a3ab930341a4ab8052abc3366cdfb1669536a"
+    },
+    {
+      "path": "sdk-017/playwright-report.json",
+      "bytes": 45466,
+      "sha256": "4efa1aba527714113b67f45a69db2be35ad6756bff250f79b00ebc9f1d138df4"
+    },
+    {
+      "path": "sdk-018/release-matrix.v1.json",
+      "bytes": 2169,
+      "sha256": "b56580138a077bea114a4c39eecb9d2aad391a5becb8b21845bc2abc1369538b"
+    },
+    {
+      "path": "sdk-018/playwright-report.json",
+      "bytes": 44008,
+      "sha256": "9c2a5f466c1afedbcd4c4e59d3a803758634e2a35bfacc9a2ff7fb3385afe2ef"
+    }
+  ]
+}
