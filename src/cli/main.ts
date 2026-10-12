@@ -81,6 +81,7 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "style-evidence" },
   { name: "style-png" },
   { name: "package" },
+  { name: "intent" },
   { name: "message" },
   { name: "generation" },
   { name: "source-kind" },
@@ -185,6 +186,7 @@ MAPS
   honua map publish [<mapId>] --package <json|@file> [options]
       Publish a map package through the shared control-plane command layer.
       --package <json|@file>     honua_map_package.v1 document (required)
+      --intent <json|@file>      Requested publication route and visibility; server approval still required
       --workspace <id>           Owning workspace
       --message <text>           Publication message recorded with the version
       --if-match <etag>          Optimistic-concurrency validator
