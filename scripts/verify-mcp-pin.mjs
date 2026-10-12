@@ -34,6 +34,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { MCP_PEER_RECEIPT_PATH, verifyMcpPeerArtifact, verifyRecordedMcpPeer } from "./lib/mcp-peer-artifact.mjs";
+
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NETWORK_GATE = "HONUA_MCP_PIN_LIVE_ENABLED";
 const REGISTRY = "https://registry.npmjs.org";
@@ -525,22 +527,24 @@ async function main() {
     `source pair co-installable: ${mcpManifest.name}@${mcpManifest.version} + ${sdkName}@${sdkVersion}\n`,
   );
 
-  // A separately published MCP patch can retain an older compatible SDK peer.
-  // In the live lane the registry is authoritative; never fabricate its peer
-  // from the MCP version before querying it. Offline, use the source declaration
-  // only for the same MCP version, and retain the conservative historical bound
-  // for an older pin whose manifest is not available in this checkout.
+  // The recorded peer comes from integrity-verified package bytes, never an
+  // inferred caret on the independently versioned MCP release.
+  const recordedPeer = readJson(MCP_PEER_RECEIPT_PATH);
+  const pinnedPeerRange = verifyRecordedMcpPeer(recordedPeer, {
+    pin: LOCAL_INSTALL_MCP_PACKAGE,
+    integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
+  });
   const published = isMcpPinLiveVerificationEnabled()
     ? await verifyMcpPinPublication({
         pin: LOCAL_INSTALL_MCP_PACKAGE,
         integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
       })
     : undefined;
-  const pinnedPeerRange = published
-    ? published.peerDependencies[sdkName]
-    : lineage.version === mcpManifest.version
-      ? mcpManifest.peerDependencies?.[sdkName]
-      : `^${lineage.version}`;
+  if (published) {
+    const actual = await verifyMcpPeerArtifact(published);
+    invariant(JSON.stringify(actual) === JSON.stringify(recordedPeer),
+      "MCP peer receipt differs from the verified public tarball; run canonical sync:mcp-pin");
+  }
   verifyClientPairCoInstallable({
     sdkName,
     sdkVersion,

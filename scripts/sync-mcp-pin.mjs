@@ -55,9 +55,12 @@ import {
   readCreateAppSdkPin,
   satisfiesUnderNpmDefaults,
   verifyClientPairCoInstallable,
+  verifyMcpPinPublication,
   verifyCreateAppPins,
   verifyZeroToMapConfigPins,
 } from "./verify-mcp-pin.mjs";
+
+import { MCP_PEER_RECEIPT_PATH, verifyMcpPeerArtifact, verifyRecordedMcpPeer } from "./lib/mcp-peer-artifact.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PIN_SOURCE_RELATIVE = "src/local-install.ts";
@@ -345,6 +348,21 @@ async function main(argv) {
   // them to name the identical pin, so advancing only the source constant would
   // leave the tree failing its own gate the moment this command succeeded.
   const expectedPin = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${version}`;
+  const published = await verifyMcpPinPublication({ pin: expectedPin, integrity });
+  const peerReceipt = await verifyMcpPeerArtifact(published);
+  verifyRecordedMcpPeer(peerReceipt, { pin: expectedPin, integrity });
+  // Selection metadata can change independently. The bytes actually verified
+  // must also admit this SDK before any source, config, or receipt is written.
+  verifyClientPairCoInstallable({
+    sdkName: sdk.name,
+    sdkVersion: sdk.version,
+    mcpName: published.name,
+    mcpVersion: published.version,
+    peerRange: peerReceipt.sdkPeerRange,
+  });
+  const peerReceiptFile = path.join(PROJECT_ROOT, MCP_PEER_RECEIPT_PATH);
+  const peerContents = `${JSON.stringify(peerReceipt, null, 2)}\n`;
+  const peerStale = !fs.existsSync(peerReceiptFile) || fs.readFileSync(peerReceiptFile, "utf8") !== peerContents;
   const configs = readPinSites(expectedPin);
   const staleConfigs = configs.filter((config) => config.stale);
   const starterManifestPath = CREATE_APP_PIN_SITES.find((site) => site.endsWith("templates.manifest.json"));
@@ -357,13 +375,14 @@ async function main(argv) {
   const staleCreateAppPins = createAppPins.filter((site) => site.stale);
   const sourceStale = current.version !== version || current.integrity !== integrity;
 
-  if (!sourceStale && staleConfigs.length === 0 && staleCreateAppPins.length === 0) {
+  if (!sourceStale && !peerStale && staleConfigs.length === 0 && staleCreateAppPins.length === 0) {
     process.stdout.write(
       `mcp pin already current: ${expectedPin} in src/local-install.ts, ${configs.length} shipped configs, and ${createAppPins.length} create-app sites\n`,
     );
     return;
   }
   if (check) {
+    if (peerStale) process.stderr.write(`mcp peer receipt is stale: ${MCP_PEER_RECEIPT_PATH}\n`);
     if (sourceStale) {
       process.stderr.write(
         `mcp pin is stale: src/local-install.ts records ${current.version}, coordinated cut is ${version}.\n`,
@@ -394,6 +413,7 @@ async function main(argv) {
     sdkName: sdk.name,
     staleCreateAppPins,
   });
+  if (peerStale) writes.push({ relativePath: MCP_PEER_RECEIPT_PATH, file: peerReceiptFile, contents: peerContents });
   writePinPlan(writes);
   // Same discipline as the pre-write co-install check: prove the bytes just
   // written actually satisfy the gate rather than trusting the edit.
@@ -401,6 +421,7 @@ async function main(argv) {
   verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: certifiedStarterVersion });
 
   const advanced = [
+    peerStale ? MCP_PEER_RECEIPT_PATH : null,
     sourceStale ? `src/local-install.ts ${current.version} -> ${version}` : null,
     staleConfigs.length > 0 ? `${staleConfigs.length} shipped config${staleConfigs.length === 1 ? "" : "s"}` : null,
     staleCreateAppPins.length > 0
