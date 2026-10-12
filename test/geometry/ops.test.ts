@@ -103,6 +103,66 @@ describe("@honua/geometry ops", () => {
     expect(booleanIntersects(outer, disjoint)).toBe(false);
   });
 
+  it("requires an interior point when a multipoint lies on a polygon boundary", () => {
+    const boundary = {
+      type: "MultiPoint" as const,
+      coordinates: [
+        [0, 0],
+        [1, 0],
+      ],
+    };
+    const mixed = {
+      type: "MultiPoint" as const,
+      coordinates: [
+        [0, 0],
+        [0.5, 0.5],
+      ],
+    };
+    expect(booleanWithin(boundary, unitSquare)).toBe(false);
+    expect(booleanWithin(mixed, unitSquare)).toBe(true);
+  });
+
+  it("checks polygon edges as well as vertices for concave containment", () => {
+    const outer: GeoJsonPolygon = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [4, 0],
+          [4, 1],
+          [1, 1],
+          [1, 4],
+          [0, 4],
+          [0, 0],
+        ],
+      ],
+    };
+    // Each triangle vertex is inside the L; the diagonal crosses its missing corner.
+    const crossing: GeoJsonPolygon = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0.5, 0.5],
+          [3.5, 0.5],
+          [0.5, 3.5],
+          [0.5, 0.5],
+        ],
+      ],
+    };
+    expect(booleanWithin(crossing, outer)).toBe(false);
+    expect(booleanWithin(box(0.25, 0.25, 0.75, 3), outer)).toBe(true);
+  });
+
+  it("finds points in either component of a multipolygon without filling the gap", () => {
+    const outer = {
+      type: "MultiPolygon" as const,
+      coordinates: [box(0, 0, 2, 2).coordinates, box(4, 0, 6, 2).coordinates],
+    };
+    expect(booleanWithin({ type: "Point", coordinates: [1, 1] }, outer)).toBe(true);
+    expect(booleanWithin({ type: "Point", coordinates: [5, 1] }, outer)).toBe(true);
+    expect(booleanWithin({ type: "Point", coordinates: [3, 1] }, outer)).toBe(false);
+  });
+
   it("union / intersect / difference combine polygons", () => {
     const a = box(0, 0, 2, 2);
     const b = box(1, 1, 3, 3);
