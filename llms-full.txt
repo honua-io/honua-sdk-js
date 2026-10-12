@@ -242,7 +242,7 @@ Runtime support, stated up front:
 
 | Peer / runtime | Supported range |
 |----------------|-----------------|
-| Node.js | `>=20.19` |
+| Node.js | `>=22.12` |
 | `maplibre-gl` (optional peer) | **6.4.1 or newer within major 6** (`^6.4.1`). The next SDK release drops affected 5.x and early 6.x peers; published older SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
 | `cesium` (optional peer, scene surface) | `^1.139.0` |
 | `react` / `react-dom` (optional peer, `/react`) | `^18.2.0 \|\| ^19.0.0` |
@@ -419,7 +419,7 @@ const { features } = await geoServicesClient.queryFeatures({
 ```
 
 Run the complete First Map app locally — public endpoint in, inspected MapLibre map out. The
-app lives in this repository, so clone it first (Node.js `>=20.19` and git):
+app lives in this repository, so clone it first (Node.js `>=22.12` and git):
 
 ```bash
 git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git
@@ -961,7 +961,7 @@ entrypoint was removed outright (its projection helpers are owned by the
 
 ## Prerequisites
 
-- Node.js 20 or later
+- Node.js 22.12 or later
 - A Honua Server instance only for capabilities marked `facade-required`; standalone protocol clients do not require one
 
 ## Install
@@ -1391,7 +1391,7 @@ the same starters in a browser from [Zero-install playgrounds](playgrounds.md).
 the complete version of this page: endpoint input, a table and filter over the
 bounded result, popup selection, the accepted plan and its degradation reasons,
 copyable code, and managed cleanup. It runs from a clone of the repository
-(Node.js `>=20.19` and git):
+(Node.js `>=22.12` and git):
 
 ```bash
 git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git
@@ -1841,7 +1841,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-12 at commit `719b801ea`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-12 at commit `f1843345d`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -8615,7 +8615,7 @@ decision PR intentionally does not edit `honua-site`.
 
 | Environment | Supported kernel operations | Constraints |
 | --- | --- | --- |
-| Node 20+ | `connect`, `inspect`, `explain`, `query`, streaming, agent planning | No DOM `mount`; a headless adapter must explicitly advertise Node support. Browser auth stores are unavailable. |
+| Node 22.12+ | `connect`, `inspect`, `explain`, `query`, streaming, agent planning | No DOM `mount`; a headless adapter must explicitly advertise Node support. Browser auth stores are unavailable. |
 | Browser ESM/bundler | All operations | Renderer/analytics peers are explicit imports; workers obey CSP and are disposable. |
 | Web Worker | `connect`, `inspect`, `explain`, `query`, columnar processing | No element/selector mount. `OffscreenCanvas` requires an adapter that advertises worker support. Auth/cache implementations are injected. |
 | React 18/19 | Same kernel through `HonuaProvider` and hooks | StrictMode cannot duplicate connections/subscriptions; component unmount disposes only resources it owns. |
@@ -8627,7 +8627,8 @@ budgets. `createHonua()` and built-in lightweight discovery must preserve the
 one-lightweight-stable-core-capability posture established by #357. The other
 direct dependencies are bounded compatibility plumbing:
 `@honua/honua-migrate` backs deprecated migration forwarders, and the temporary
-style-spec parser pin preserves Node 20 engine compatibility.
+style-spec parser pin originated with the earlier Node 20 compatibility baseline.
+The current runtime minimum is Node 22.12.
 
 ## Mapping to the current SDK
 
@@ -11608,7 +11609,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-12 at commit `719b801ea`._
+_Generated 2026-10-12 at commit `f1843345d`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11737,7 +11738,7 @@ contracts, live-query narrowing rules, preprocessing rules, and browser diagnost
 Deterministic local review flows from this repo:
 
 ```bash
-# Node.js 20.19.0+ at the repo root
+# Node.js 22.12.0+ at the repo root
 npm install
 
 # Run either mock server in its own terminal/session.
@@ -14290,12 +14291,11 @@ GeoJSON updates, events, controls, and PMTiles registration are covered on both
 renderer majors; v6-only style extensions should use `renderer-deferred`
 validation for now.
 
-MapLibre 6 itself declares Node `>=16.14.0`, and the compatibility checks pass
-under this repository's Node 20.19.0 baseline. The SDK pins
-`@mapbox/jsonlint-lines-primitives` 2.0.2 so its direct style-spec 24.x validator
-continues to honor that Node baseline. MapLibre 6's style-spec 26.x dependency
-declares no engine constraint as of 26.2.1 (observed 2026-08-03), so an
-`engine-strict=true` install no longer rejects v6 on Node 20.
+The SDK requires Node `>=22.12.0`; repository checks use Node `22.23.3` LTS.
+The existing `@mapbox/jsonlint-lines-primitives` 2.0.2 pin remains in place for
+the direct style-spec 24.x validator. It originated with the earlier Node 20
+compatibility work; moving the runtime baseline does not independently upgrade
+that parser or change which renderer features the SDK validates.
 
 ## Standalone data-to-map bridge
 
@@ -15466,8 +15466,8 @@ from `src/index.ts`). Its stable-core runtime dependency,
 other bounded direct dependencies: `@honua/honua-migrate` backs deprecated
 migration forwarders outside the browser graph, and
 `@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's
-existing parser so its new Node 22 engine metadata does not reject the
-published Node 20 contract.
+existing parser. That pin originated with the earlier Node 20 compatibility
+work and remains unchanged under the current Node 22.12+ runtime requirement.
 
 The heavy runtime *peers* are kept **external** so the artifact stays small and
 does not inline multi-megabyte map/protobuf runtimes:
@@ -16670,7 +16670,7 @@ Two modes:
 
 ## Requirements
 
-- Node.js `>=20.19`
+- Node.js `>=22.12`
 - Any reachable FeatureServer/OGC endpoint (public or Honua)
 
 ## Install
@@ -16991,7 +16991,7 @@ It emits a stable machine-readable JSON report plus a human-readable Markdown
 summary, and exits non-zero on any conformance/round-trip failure.
 
 The certification and eval scripts in this section and the next run from a clone
-of this repository (Node.js `>=20.19` and git). `mcp/` links to the SDK at the
+of this repository (Node.js `>=22.12` and git). `mcp/` links to the SDK at the
 repository root, so build the SDK first:
 
 ```bash
