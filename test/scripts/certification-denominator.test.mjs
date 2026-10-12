@@ -677,3 +677,15 @@ test("a supported row that failed from installed bytes fails the run", () => {
     ),
   );
 });
+
+
+test("Preview alert draft evaluation stays visible without counting as GA support", () => {
+  const row = frozen.rows.find((entry) => entry.id === "protocol-certification:alerts:evaluation");
+  assert.ok(row);
+  assert.equal(row.tier, "experimental");
+  assert.equal(row.counts, false);
+  assert.equal(row.coverage, "partial");
+  const claim = inputs.supportManifest.supportClaims.find((entry) => entry.id === "alerts-draft-evaluation-preview");
+  assert.deepEqual(claim.operations, ["alert-draft-validation"]);
+  assert.match(claim.backendNeeded, /Single-tenant.*Pro.*alerts.geofence/);
+});

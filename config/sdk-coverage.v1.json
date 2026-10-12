@@ -65,6 +65,19 @@
       "note": "Tool definitions and JSON schemas (HONUA_AGENT_TOOL_NAMES) are local and discoverable client-side; discovery and execution against a live Honua MCP server requires the Honua facade (agent-tools-facade in config/support-manifest.v1.json)."
     },
     {
+      "key": "alerts.evaluation",
+      "status": "partial",
+      "sinceVersion": "0.1.9-beta.0",
+      "entrypoints": [
+        "createHonuaOperate({ client }).alertRules.test()"
+      ],
+      "evidence": [
+        "test/integration/surfaces/alerts-evaluation.integration.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Preview/experimental only. The dedicated single-tenant Pro integration fixture executes the same immutable selected candidate with alerts.geofence disabled and enabled. Disabled must return typed unsupported HTTP 404; enabled validates an unpersisted rule and zone. This claim covers draft validation only, not alert evaluation workers, delivery, multi-tenant use, Community availability, or GA support."
+    },
+    {
       "key": "collaboration.map-sessions",
       "status": "partial",
       "sinceVersion": "0.1.0-beta.0",

@@ -69,6 +69,7 @@ HONUA_INTEGRATION_BASE_URL=http://localhost:8080 \
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `HONUA_INTEGRATION_ALERTS_ENABLED` | _(unset: positive draft validation)_ | Dedicated Pro alerts fixture selects `false` for the capability-off negative control and `true` for the enabled positive control. This selects assertions only; the workflow configures the server opt-in separately. |
 | `HONUA_INTEGRATION_BASE_URL` | _(required)_ | Server URL the lane connects to. Suite skips when absent. |
 | `HONUA_INTEGRATION_SERVICE_ID` | `test_service_gw0` | GeoServices service ID (FeatureServer / MapServer / WMS / WMTS). |
 | `HONUA_INTEGRATION_LAYER_ID` | `1000` | FeatureServer / MapServer layer ID. |
@@ -112,6 +113,7 @@ The lane exercises the following surfaces against the seed profile.
 | WMS | Exercised | capabilities, GetMap |
 | WMTS | Exercised | capabilities, GetTile |
 | OData | Exercised | metadata, bounded entity query |
+| Alert draft evaluation | Preview / experimental | Dedicated single-tenant Pro fixture only; explicit `alerts.geofence` off returns typed HTTP 404, on validates an unpersisted rule and zone. Both runs use the same resolved immutable candidate. |
 | Geocoding | Configured | forwardGeocode when `HONUA_INTEGRATION_GEOCODING_LOCATOR` is set; otherwise recorded skipped |
 
 Skipped surfaces are recorded in `test-results/integration-meta.json`

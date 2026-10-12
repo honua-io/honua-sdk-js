@@ -5,6 +5,7 @@
   "source": "Maps config/support-manifest.v1.json protocol and supportClaim ids to canonical capability keys consumed from honua-io/honua-server capability-keys.v1.json (KEY_LIST_URL override; config/capability-keys.fixture.json pinned fallback). Also carries a small set of hand-specified `extras` entries for SDK feature areas support-manifest.v1.json does not model as protocols/supportClaims (geocoding, routing, offline, plugin, cog, style, esri-compat portal, auth, diagnostics, agent-safety). scripts/sdk-coverage.mjs is the only consumer.",
   "trackingIssue": "https://github.com/honua-io/honua-sdk-js/issues/618",
   "introductionVersions": {
+    "alerts.evaluation": "0.1.9-beta.0",
     "ai.agent-operations": "0.1.0-beta.0",
     "ai.approval-workflows": "0.1.0-beta.0",
     "ai.mcp-discovery": "0.1.0-beta.0",
@@ -74,6 +75,7 @@
     "compatibility-gate-facade": { "capabilityKeys": ["discovery.capability-manifest"] },
     "map-package-facade": { "internalOnly": true, "reason": "Composite server-authored-content facade (styles + layer order + metadata); no single discrete canonical key covers this composite concept." },
     "scene-workspace-cesium": { "internalOnly": true, "reason": "Client-side 3D scene state and the Cesium renderer adapter; a rendering-pipeline surface like the other renderer adapters, not a platform capability. serve.3d-tiles-scene stays a serving capability of Honua Server, which this surface consumes rather than provides." },
+    "alerts-draft-evaluation-preview": { "capabilityKeys": ["alerts.evaluation"] },
     "realtime-facade": { "capabilityKeys": ["streaming.feature-subscriptions"] },
     "collaboration-deprecated": { "capabilityKeys": ["collaboration.map-sessions"], "extraEvidence": ["test/collaboration.test.ts"] },
     "agent-tools-facade": { "capabilityKeys": ["ai.mcp-discovery", "ai.agent-operations"] },

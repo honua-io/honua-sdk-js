@@ -139,13 +139,13 @@
     },
     {
       "path": "config/sdk-coverage-crosswalk.v1.json",
-      "bytes": 14174,
-      "sha256": "sha256:38d38f0f8438b1dd1762134f4a7389610ebe9e6d0adf61b22ab2913ec55ac84a"
+      "bytes": 14299,
+      "sha256": "sha256:6e15c00823504164f184213745a401914e62a7a63602d1243bc672020d333fa0"
     },
     {
       "path": "config/sdk-coverage.v1.json",
-      "bytes": 20685,
-      "sha256": "sha256:a7b8e037fdfb1c33d9152873d6eda68df427ef733a4c04b821abda4e63542625",
+      "bytes": 21442,
+      "sha256": "sha256:4e748e8a6ab72c76ac55b73bc3d996f0a42842fd903bf475545dcb88ff763bb6",
       "releaseManagedFields": [
         "sdk.version"
       ]
@@ -157,8 +157,8 @@
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 82207,
-      "sha256": "sha256:8b7167e3ed2efcc75dc2dd2787f34a9a23596f6eb27e6d0aa641b09f74c6d325"
+      "bytes": 83451,
+      "sha256": "sha256:dd94e03163dec90ef264510b8791a2ef88a984a55b43b7cdb6622e6222f0762a"
     }
   ],
   "profiles": {
@@ -183,6 +183,13 @@
           "mcp",
           "typed-agent-tools"
         ]
+      },
+      "alerts.evaluation": {
+        "tier": "experimental",
+        "contributors": [
+          "supportClaims/alerts-draft-evaluation-preview"
+        ],
+        "documentationSlugs": []
       },
       "collaboration.map-sessions": {
         "tier": "deprecated",
@@ -401,6 +408,7 @@
         "ogc-processes-execution-standalone": "experimental",
         "compatibility-gate-facade": "facade-required",
         "map-package-facade": "facade-required",
+        "alerts-draft-evaluation-preview": "experimental",
         "realtime-facade": "facade-required",
         "collaboration-deprecated": "deprecated",
         "agent-tools-facade": "beta"
@@ -525,30 +533,30 @@
     }
   },
   "digests": {
-    "inputs": "sha256:dfd4fb4af7778f4d1e7545e573d4ee15dd32dc376eea8859436d8dfa28f2fecf",
-    "capabilityProfile": "sha256:b39f35595f99d6b11e87c0bdf5752a09a34eae8cc01006c0d67d654afdf079f3",
-    "supportProfile": "sha256:34fd82c2521ae222ed7e14c7c9eed42486938d1b9424962d2b3592036df8fa9a",
-    "rows": "sha256:893f40bd5683a3c35152652644ee9ae245702aa4ad030019ee2f2cd73b997e92"
+    "inputs": "sha256:08f27d97363f24e74118d86ed6e838c09919ec88aade1b0e89688bb485dfe68e",
+    "capabilityProfile": "sha256:8ec47abd5e265148bf79e3d549ba999cc053ef3ca1321f75df37ea5aad23fda9",
+    "supportProfile": "sha256:d3895d1d7e715617556946d80e8c25c30c756699f02fa3b6642676ba4be3e0c3",
+    "rows": "sha256:4a00caff999edf56f8e8e145b582d49050f537dae0d25e54bd9410784719738f"
   },
   "summary": {
-    "rows": 294,
+    "rows": 295,
     "counting": 222,
-    "visibleNonCounting": 72,
+    "visibleNonCounting": 73,
     "renderer": 2,
     "portableMapArtifact": 48,
     "rendererFromPortableMapArtifact": 2,
     "byTier": {
       "supported": 228,
       "beta": 24,
-      "experimental": 28,
+      "experimental": 30,
       "facade-required": 5,
       "deprecated": 1,
-      "unmapped": 8
+      "unmapped": 7
     },
     "byFamily": {
       "protocol-certification": 67,
       "protocol-operation": 72,
-      "sdk-operation": 89,
+      "sdk-operation": 90,
       "terminal-journey": 66
     }
   },
@@ -560,10 +568,10 @@
       "subject": "alerts",
       "label": "alerts.evaluation",
       "operation": "evaluation",
-      "tier": "unmapped",
-      "tierSource": "config/protocol-certification.v1.json declares capability key \"alerts.evaluation\", which no config/support-manifest.v1.json claim tiers",
+      "tier": "experimental",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/alerts-draft-evaluation-preview",
       "capabilityKey": "alerts.evaluation",
-      "coverage": "absent",
+      "coverage": "partial",
       "documentationSlugs": [],
       "scenarioFacets": [
         "positive",
@@ -4198,16 +4206,38 @@
       "label": "MCP tools and agent operations",
       "operation": "agent-tools",
       "tier": "beta",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/34/status",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/35/status",
       "protocol": null,
       "environment": "standalone",
       "executionMode": "native",
       "source": {
         "path": "config/support-manifest.v1.json",
-        "pointer": "/supportClaims/34"
+        "pointer": "/supportClaims/35"
       },
       "evidence": [
         "agent-tools-fixtures"
+      ],
+      "counts": false,
+      "environmentSkipAllowed": true
+    },
+    {
+      "cappedBy": null,
+      "id": "sdk-operation:alerts-draft-evaluation-preview:alert-draft-validation",
+      "family": "sdk-operation",
+      "subject": "alerts-draft-evaluation-preview",
+      "label": "Alert draft evaluation (Preview)",
+      "operation": "alert-draft-validation",
+      "tier": "experimental",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/32/status",
+      "protocol": null,
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "source": {
+        "path": "config/support-manifest.v1.json",
+        "pointer": "/supportClaims/32"
+      },
+      "evidence": [
+        "alerts-evaluation-integration"
       ],
       "counts": false,
       "environmentSkipAllowed": true
@@ -4220,13 +4250,13 @@
       "label": "Collaboration and saved maps compatibility shim",
       "operation": "collaboration",
       "tier": "deprecated",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/33/status",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/34/status",
       "protocol": null,
       "environment": "honua-facade",
       "executionMode": "facade",
       "source": {
         "path": "config/support-manifest.v1.json",
-        "pointer": "/supportClaims/33"
+        "pointer": "/supportClaims/34"
       },
       "evidence": [],
       "counts": false,
@@ -5727,13 +5757,13 @@
       "label": "Realtime subscriptions",
       "operation": "realtime",
       "tier": "facade-required",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/32/status",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/33/status",
       "protocol": null,
       "environment": "honua-facade",
       "executionMode": "transport",
       "source": {
         "path": "config/support-manifest.v1.json",
-        "pointer": "/supportClaims/32"
+        "pointer": "/supportClaims/33"
       },
       "evidence": [
         "realtime-cross-transport-fixtures",
