@@ -1,0 +1,55 @@
+{
+  "reviewedSource": "63c46a901351d1269f788eb4b8a08b49c563ea6b",
+  "canonicalMergedSource": "bbe667857f7701c0144e63a127a469abc1f65679",
+  "identity": [
+    {
+      "path": "platform-manifest.yaml",
+      "reviewedGitObject": "8fc3d5950f84cdef098ff97a709a0c4488e64940",
+      "mergedGitObject": "8fc3d5950f84cdef098ff97a709a0c4488e64940",
+      "identical": true
+    },
+    {
+      "path": ".github/workflows/gate-executable-docs.yml",
+      "reviewedGitObject": "dc29b344e58926361ce28aaf83066a2444d1a9e4",
+      "mergedGitObject": "dc29b344e58926361ce28aaf83066a2444d1a9e4",
+      "identical": true
+    },
+    {
+      "path": "certification/sdk-publication-replay",
+      "reviewedGitObject": "3c885dcd1257dbf17e66cbdb460643a254af3566",
+      "mergedGitObject": "3c885dcd1257dbf17e66cbdb460643a254af3566",
+      "identical": true
+    },
+    {
+      "path": "certification/executable-docs",
+      "reviewedGitObject": "c8f698de8c23e7af53e3a6d51ca4095f0be0a7b0",
+      "mergedGitObject": "c8f698de8c23e7af53e3a6d51ca4095f0be0a7b0",
+      "identical": true
+    }
+  ],
+  "initialAttempt": {
+    "runId": 38203954406,
+    "attempt": 1,
+    "failedJobId": 114663206141,
+    "classification": "registry HTTP429 before consumer or documentation commands executed",
+    "publicArtifactPreparation": "passed eight exact artifacts",
+    "generalDocumentJob": "cancelled after diagnostic failure to enable only failed-job retry"
+  },
+  "retainedFiles": [
+    {
+      "path": "sdk-publication-candidate/platform-manifest.yaml",
+      "sha256": "2c0b5a70f3df1ca180692898bb2f4df92ff3ac8d1e964e52da8ac89bff5b0045",
+      "bytes": 83166
+    },
+    {
+      "path": "sdk-publication-candidate/preparation.json",
+      "sha256": "d5948dbab76dcd1d2f4ec8fd066b94d2f0007b35e29e8978085c31f16717f5e4",
+      "bytes": 673
+    },
+    {
+      "path": "sdk-publication-candidate/registry-observations.json",
+      "sha256": "3f0016aacc15483e9b0721167f3a704b7a1a39a57fd92eb7b8367e041bd95f9a",
+      "bytes": 2697
+    }
+  ]
+}
