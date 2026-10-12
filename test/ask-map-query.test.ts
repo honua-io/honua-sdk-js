@@ -48,7 +48,11 @@ describe("Grounded sample query admission", () => {
     };
     const previousQuery = compile({ ...SEMANTIC_QUERY_FORMS.aggregate, filter: base }).query;
     const snapshot = { ...context, previousQuery };
-    const call = (semanticQuery: unknown, kind = "categories") => ({ sourceId: "incidents", kind, semanticQuery });
+    const call = (semanticQuery: unknown, kind: HonuaAgentWidgetQueryRequest["kind"] = "categories") => ({
+      sourceId: "incidents",
+      kind,
+      semanticQuery,
+    });
     const retained = { kind: "boolean", operator: "and", args: [base, SEMANTIC_QUERY_FORMS.filters.distance] };
     expect(() => reviewQuery(call({ ...SEMANTIC_QUERY_FORMS.aggregate, filter: retained }), snapshot)).not.toThrow();
     expect(() =>
