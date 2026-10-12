@@ -1,0 +1,1606 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-12T04:59:15.572858Z",
+  "release": "2026.1-rc.2",
+  "server": {
+    "sourceSha": "93cad86ec4fb28fba3ff0b9358059d86aa55dde5",
+    "image": "ghcr.io/honua-io/honua-server:nightly-93cad86@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db"
+  },
+  "fixtureRevision": "installed-client-fixture-v1",
+  "configRevision": "installed-client-config-v2",
+  "authPolicyRevision": "installed-client-auth-v1",
+  "evidenceUri": "https://github.com/honua-io/honua-release/actions/runs/38205709419",
+  "status": "blocked",
+  "results": [
+    {
+      "cell": "npm-node-geoservices-error",
+      "operationId": "geoservices-error-surfacing",
+      "target": "npm",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact npm archive sha512 and installed lock integrity matched"
+    },
+    {
+      "cell": "npm-mcp-tools-list",
+      "operationId": "mcp-tools-list",
+      "target": "npm-mcp",
+      "package": "@honua/mcp-server",
+      "version": "0.1.16",
+      "integrity": "sha512-7yeZUReqE0x6Rdb6Kh7/+3o0CXjCVP/ObPtG5Ay78XkqZgUb9mmguvQ1y4xjNm7YfSp4mW308Ol6ecdRZP3MBg==",
+      "sourceSha": "46ecd25a32ee2bfb7741ccc14ee5842c8824dd19",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact npm archive sha512 and installed lock integrity matched, package executables verified, MCP stdio/proxy executables answered a live tools/list"
+    },
+    {
+      "cell": "npm-mcp-setup-view-tools-list",
+      "operationId": "mcp-setup-view-tools-list",
+      "target": "npm-mcp-setup-view",
+      "package": "@honua/mcp-server",
+      "version": "0.1.16",
+      "integrity": "sha512-7yeZUReqE0x6Rdb6Kh7/+3o0CXjCVP/ObPtG5Ay78XkqZgUb9mmguvQ1y4xjNm7YfSp4mW308Ol6ecdRZP3MBg==",
+      "sourceSha": "46ecd25a32ee2bfb7741ccc14ee5842c8824dd19",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "installed proxy preserved the initialize-bound 'setup' view (setup.v3) with 37 tools"
+    },
+    {
+      "cell": "pypi-python-geoservices-error",
+      "operationId": "geoservices-error-surfacing",
+      "target": "pypi",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact PyPI wheel installed in an isolated target and sha256 matched"
+    },
+    {
+      "cell": "pypi-admin-clean-install",
+      "operationId": "clean-install-import",
+      "target": "pypi-admin",
+      "package": "honua-admin",
+      "version": "0.1.10",
+      "integrity": "sha256:74c067b4e175c91907e27284d84612bf93e51d2620f2b601a70e46b2380b5b9a",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact PyPI wheel installed in an isolated target and sha256 matched"
+    },
+    {
+      "cell": "nuget-net10-geoservices-error",
+      "operationId": "geoservices-error-surfacing",
+      "target": "nuget",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact nuget.org package sha256 matched in an isolated restore, live GeoServices error probe passed"
+    },
+    {
+      "cell": "nuget-service-layer-import-fidelity",
+      "operationId": "service-layer-import-fidelity",
+      "target": "nuget-import-fidelity",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "blocked",
+      "status": "blocked",
+      "detail": "blocked by https://github.com/honua-io/honua-release/issues/418: no published-.NET-SDK consumer receipt; missing evidence is not a pass",
+      "blockedBy": "https://github.com/honua-io/honua-release/issues/418"
+    },
+    {
+      "cell": "npm-sdk-auth",
+      "operationId": "sdk-auth",
+      "target": "npm-sdk",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "@honua/sdk-js 0.1.16: 4 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "api-key-query",
+          "api": "HonuaClient({apiKey}).featureLayer().queryFeatures",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "bearer-admin-list",
+          "api": "HonuaAdminClient({headers: Authorization}).call(listServices)",
+          "status": "pass",
+          "oracle": "service 'sdkreg-sites' is among 19 listed services"
+        },
+        {
+          "step": "bearer-query",
+          "api": "HonuaClient({bearerToken}).featureLayer().queryFeatures",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "anonymous-refused",
+          "api": "HonuaClient({}).featureLayer().queryFeatures",
+          "status": "pass",
+          "oracle": "raised HonuaHttpError (status 499); expected an authentication refusal ([401, 403, 499])"
+        }
+      ]
+    },
+    {
+      "cell": "npm-sdk-admin-lifecycle",
+      "operationId": "sdk-admin-lifecycle",
+      "target": "npm-sdk",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "@honua/sdk-js 0.1.16: 7 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "create-datasource",
+          "api": "HonuaAdminClient.call(createConnection)",
+          "status": "pass",
+          "oracle": "datasource created with an id"
+        },
+        {
+          "step": "test-datasource",
+          "api": "HonuaAdminClient.call(testConnection)",
+          "status": "pass",
+          "oracle": "datasource test success=True"
+        },
+        {
+          "step": "publish",
+          "api": "HonuaAdminClient.call(publishLayer)",
+          "status": "pass",
+          "oracle": "published service/layer/enabled/id ('sdkreg-lifecycle-js', 'lifecycle', True) (integer id: True), fixture expects ('sdkreg-lifecycle-js', 'lifecycle', True)"
+        },
+        {
+          "step": "list",
+          "api": "HonuaAdminClient.call(getPublishedLayers)",
+          "status": "pass",
+          "oracle": "published layer 19 listed 1 time(s), enabled=True"
+        },
+        {
+          "step": "served",
+          "api": "HonuaClient.featureLayer().queryFeatures",
+          "status": "pass",
+          "oracle": "count 2, fixture expects 2"
+        },
+        {
+          "step": "unpublish",
+          "api": "HonuaAdminClient.call(setLayerEnabled)",
+          "status": "pass",
+          "oracle": "layer 19 enabled=False after unpublish"
+        },
+        {
+          "step": "unpublished-refused",
+          "api": "HonuaClient.featureLayer().queryFeatures",
+          "status": "pass",
+          "oracle": "raised HonuaHttpError (status 404); expected not found (404)"
+        }
+      ]
+    },
+    {
+      "cell": "npm-sdk-geoservices",
+      "operationId": "sdk-geoservices",
+      "target": "npm-sdk",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "blocked",
+      "status": "blocked",
+      "detail": "8 steps pass; blocked as declared: apply-edits-update (https://github.com/honua-io/honua-server/issues/5407), edits-state (https://github.com/honua-io/honua-server/issues/5407)",
+      "steps": [
+        {
+          "step": "query",
+          "api": "HonuaFeatureLayer.queryFeatures",
+          "status": "pass",
+          "oracle": "filtered query: 4 features equal the fixture (gids [3, 4, 5, 6]) with exact ordinates"
+        },
+        {
+          "step": "ids",
+          "api": "HonuaFeatureLayer.queryObjectIds",
+          "status": "pass",
+          "oracle": "ids [3, 4, 5, 6], fixture expects [3, 4, 5, 6]"
+        },
+        {
+          "step": "count",
+          "api": "HonuaFeatureLayer.queryFeatureCount",
+          "status": "pass",
+          "oracle": "count 4, fixture expects 4"
+        },
+        {
+          "step": "resolve-edit-ids",
+          "api": "HonuaFeatureLayer.queryFeatures",
+          "status": "pass",
+          "oracle": "3 managed features resolved to unique object ids for fixture gids [1, 2, 3]"
+        },
+        {
+          "step": "apply-edits-add",
+          "api": "HonuaFeatureLayer.applyEdits(adds)",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "apply-edits-update",
+          "api": "HonuaFeatureLayer.applyEdits(updates)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-server/issues/5407",
+          "oracle": "raised HonuaHttpError (status 500)"
+        },
+        {
+          "step": "apply-edits-delete",
+          "api": "HonuaFeatureLayer.applyEdits(deletes)",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "edits-state",
+          "api": "HonuaFeatureLayer.queryFeatures",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-server/issues/5407",
+          "oracle": "edits layer: attributes {'gid': 2, 'name': 'south', 'rank': 2} differ from fixture {'gid': 2, 'name': 'south', 'rank': 20}"
+        },
+        {
+          "step": "add-attachment",
+          "api": "HonuaFeatureLayer.addAttachment",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "query-attachments",
+          "api": "HonuaFeatureLayer.queryAttachments",
+          "status": "pass",
+          "oracle": "attachments [('sdk-regression.txt', 'text/plain', 32)], fixture expects [('sdk-regression.txt', 'text/plain', 32)]"
+        }
+      ],
+      "blockedBy": [
+        "https://github.com/honua-io/honua-server/issues/5407"
+      ]
+    },
+    {
+      "cell": "npm-sdk-ogc-features",
+      "operationId": "sdk-ogc-features",
+      "target": "npm-sdk",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "@honua/sdk-js 0.1.16: 2 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "items-bbox",
+          "api": "HonuaClient.listOgcItems",
+          "status": "pass",
+          "oracle": "bbox: items ['3', '4'] equal the fixture with exact ordinates"
+        },
+        {
+          "step": "item",
+          "api": "HonuaClient.getOgcItem",
+          "status": "pass",
+          "oracle": "item 3 equals the fixture row with exact ordinates"
+        }
+      ]
+    },
+    {
+      "cell": "npm-sdk-ogc-tiles",
+      "operationId": "sdk-ogc-tiles",
+      "target": "npm-sdk",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "@honua/sdk-js 0.1.16: 3 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "vector-tile",
+          "api": "HonuaClient.fetchOgcTile",
+          "status": "pass",
+          "oracle": "one polygon in layer 'layer'; bounds (0, 662, 2048, 4096) vs projected fixture (0, 662, 2048, 4096) (max deviation 0, tolerance 32 of extent 4096)"
+        },
+        {
+          "step": "raster-tile",
+          "api": "HonuaClient.fetchOgcTile(extraParams f=png)",
+          "status": "pass",
+          "oracle": "3 painted and 3 transparent sample pixels match the fixture polygon"
+        },
+        {
+          "step": "empty-tile",
+          "api": "HonuaClient.fetchOgcTile",
+          "status": "pass",
+          "oracle": "empty=True, 0 bytes; the fixture has no feature in this tile"
+        }
+      ]
+    },
+    {
+      "cell": "npm-sdk-ogc-processes",
+      "operationId": "sdk-ogc-processes",
+      "target": "npm-sdk",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "@honua/sdk-js 0.1.16: 3 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "submit",
+          "api": "HonuaClient.executeOgcProcess(mode async)",
+          "status": "pass",
+          "oracle": "job submitted asynchronously with status 'accepted'"
+        },
+        {
+          "step": "poll",
+          "api": "HonuaClient.getOgcProcessJob",
+          "status": "pass",
+          "oracle": "terminal job status 'successful'"
+        },
+        {
+          "step": "result",
+          "api": "HonuaClient.getOgcProcessJobResults",
+          "status": "pass",
+          "oracle": "32-vertex closed ring: max radius error 1.55e-15 (tolerance 1e-06), centroid offset 0.00e+00 from fixture point (10.0, 20.0)"
+        }
+      ]
+    },
+    {
+      "cell": "npm-sdk-stac",
+      "operationId": "sdk-stac",
+      "target": "npm-sdk",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "@honua/sdk-js 0.1.16: 1 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "search",
+          "api": "HonuaStacSearch.search",
+          "status": "pass",
+          "oracle": "bbox: items ['3', '4'] equal the fixture with exact ordinates"
+        }
+      ]
+    },
+    {
+      "cell": "pypi-sdk-auth",
+      "operationId": "sdk-auth",
+      "target": "pypi-sdk",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "honua-sdk 0.1.13: 4 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "api-key-query",
+          "api": "honua_sdk.HonuaClient(api_key=).feature_server(...).query",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "bearer-admin-list",
+          "api": "honua_admin.HonuaAdminClient(auth_provider=StaticAuthProvider).list_services",
+          "status": "pass",
+          "oracle": "service 'sdkreg-sites' is among 23 listed services"
+        },
+        {
+          "step": "bearer-query",
+          "api": "honua_sdk.HonuaClient(auth_provider=StaticAuthProvider).feature_server(...).query",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "anonymous-refused",
+          "api": "honua_sdk.HonuaClient().feature_server(...).query",
+          "status": "pass",
+          "oracle": "raised HonuaAuthError (status 499); expected an authentication refusal ([401, 403, 499])"
+        }
+      ]
+    },
+    {
+      "cell": "pypi-sdk-admin-lifecycle",
+      "operationId": "sdk-admin-lifecycle",
+      "target": "pypi-sdk",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "honua-sdk 0.1.13: 7 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "create-datasource",
+          "api": "honua_admin.HonuaAdminClient.create_connection",
+          "status": "pass",
+          "oracle": "datasource created with an id"
+        },
+        {
+          "step": "test-datasource",
+          "api": "honua_admin.HonuaAdminClient.test_connection",
+          "status": "pass",
+          "oracle": "datasource test success=True"
+        },
+        {
+          "step": "publish",
+          "api": "honua_admin.HonuaAdminClient.publish_layer",
+          "status": "pass",
+          "oracle": "published service/layer/enabled/id ('sdkreg-lifecycle-python', 'lifecycle', True) (integer id: True), fixture expects ('sdkreg-lifecycle-python', 'lifecycle', True)"
+        },
+        {
+          "step": "list",
+          "api": "honua_admin.HonuaAdminClient.list_layers",
+          "status": "pass",
+          "oracle": "published layer 23 listed 1 time(s), enabled=True"
+        },
+        {
+          "step": "served",
+          "api": "honua_sdk.HonuaClient.feature_server(...).query",
+          "status": "pass",
+          "oracle": "count 2, fixture expects 2"
+        },
+        {
+          "step": "unpublish",
+          "api": "honua_admin.HonuaAdminClient.set_layer_enabled(False)",
+          "status": "pass",
+          "oracle": "layer 23 enabled=False after unpublish"
+        },
+        {
+          "step": "unpublished-refused",
+          "api": "honua_sdk.HonuaClient.feature_server(...).query",
+          "status": "pass",
+          "oracle": "raised HonuaHttpError (status 404); expected not found (404)"
+        }
+      ]
+    },
+    {
+      "cell": "pypi-sdk-geoservices",
+      "operationId": "sdk-geoservices",
+      "target": "pypi-sdk",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "blocked",
+      "status": "blocked",
+      "detail": "7 steps pass; blocked as declared: count (https://github.com/honua-io/honua-sdk-python/issues/236), apply-edits-update (https://github.com/honua-io/honua-server/issues/5407), edits-state (https://github.com/honua-io/honua-server/issues/5407)",
+      "steps": [
+        {
+          "step": "query",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.query",
+          "status": "pass",
+          "oracle": "filtered query: 4 features equal the fixture (gids [3, 4, 5, 6]) with exact ordinates"
+        },
+        {
+          "step": "ids",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.query(extra_params returnIdsOnly)",
+          "status": "pass",
+          "oracle": "ids [3, 4, 5, 6], fixture expects [3, 4, 5, 6]"
+        },
+        {
+          "step": "count",
+          "api": "honua_sdk.HonuaClient.query(return_count_only=True)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-python/issues/236",
+          "oracle": "the SDK returned no integer count"
+        },
+        {
+          "step": "resolve-edit-ids",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.query",
+          "status": "pass",
+          "oracle": "3 managed features resolved to unique object ids for fixture gids [1, 2, 3]"
+        },
+        {
+          "step": "apply-edits-add",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.apply_edits(adds)",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "apply-edits-update",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.apply_edits(updates)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-server/issues/5407",
+          "oracle": "raised HonuaHttpError (status 500)"
+        },
+        {
+          "step": "apply-edits-delete",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.apply_edits(deletes)",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "edits-state",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.query",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-server/issues/5407",
+          "oracle": "edits layer: attributes {'gid': 2, 'name': 'south', 'rank': 2} differ from fixture {'gid': 2, 'name': 'south', 'rank': 20}"
+        },
+        {
+          "step": "add-attachment",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.add_attachment",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "query-attachments",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.list_attachments",
+          "status": "pass",
+          "oracle": "attachments [('sdk-regression.txt', 'text/plain', 32)], fixture expects [('sdk-regression.txt', 'text/plain', 32)]"
+        }
+      ],
+      "blockedBy": [
+        "https://github.com/honua-io/honua-sdk-python/issues/236",
+        "https://github.com/honua-io/honua-server/issues/5407"
+      ]
+    },
+    {
+      "cell": "pypi-sdk-ogc-features",
+      "operationId": "sdk-ogc-features",
+      "target": "pypi-sdk",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "honua-sdk 0.1.13: 2 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "items-bbox",
+          "api": "honua_sdk.HonuaOgcFeatures.items(bbox=)",
+          "status": "pass",
+          "oracle": "bbox: items ['3', '4'] equal the fixture with exact ordinates"
+        },
+        {
+          "step": "item",
+          "api": "honua_sdk.HonuaOgcFeatures.item",
+          "status": "pass",
+          "oracle": "item 3 equals the fixture row with exact ordinates"
+        }
+      ]
+    },
+    {
+      "cell": "pypi-sdk-ogc-tiles",
+      "operationId": "sdk-ogc-tiles",
+      "target": "pypi-sdk",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "blocked",
+      "status": "blocked",
+      "detail": "2 steps pass; blocked as declared: raster-tile (https://github.com/honua-io/honua-sdk-python/issues/255)",
+      "steps": [
+        {
+          "step": "vector-tile",
+          "api": "honua_sdk.OgcTilesClient.tile",
+          "status": "pass",
+          "oracle": "one polygon in layer 'layer'; bounds (0, 662, 2048, 4096) vs projected fixture (0, 662, 2048, 4096) (max deviation 0, tolerance 32 of extent 4096)"
+        },
+        {
+          "step": "raster-tile",
+          "api": "honua_sdk.OgcTilesClient.tile",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-python/issues/255",
+          "oracle": "unsupported: the published client has no API for this step (OgcTilesClient.tile has no format/extra_params selector; only the default (vector) encoding is reachable)"
+        },
+        {
+          "step": "empty-tile",
+          "api": "honua_sdk.OgcTilesClient.tile",
+          "status": "pass",
+          "oracle": "empty=True, 0 bytes; the fixture has no feature in this tile"
+        }
+      ],
+      "blockedBy": [
+        "https://github.com/honua-io/honua-sdk-python/issues/255"
+      ]
+    },
+    {
+      "cell": "pypi-sdk-ogc-processes",
+      "operationId": "sdk-ogc-processes",
+      "target": "pypi-sdk",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "honua-sdk 0.1.13: 3 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "submit",
+          "api": "honua_sdk.HonuaGeoprocessing.submit_geometry",
+          "status": "pass",
+          "oracle": "job submitted asynchronously with status 'accepted'"
+        },
+        {
+          "step": "poll",
+          "api": "honua_sdk.HonuaGeoprocessing.job",
+          "status": "pass",
+          "oracle": "terminal job status 'successful'"
+        },
+        {
+          "step": "result",
+          "api": "honua_sdk.HonuaGeoprocessing.results",
+          "status": "pass",
+          "oracle": "32-vertex closed ring: max radius error 1.55e-15 (tolerance 1e-06), centroid offset 0.00e+00 from fixture point (10.0, 20.0)"
+        }
+      ]
+    },
+    {
+      "cell": "pypi-sdk-stac",
+      "operationId": "sdk-stac",
+      "target": "pypi-sdk",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "honua-sdk 0.1.13: 1 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "search",
+          "api": "honua_sdk.StacClient.search(json_body)",
+          "status": "pass",
+          "oracle": "bbox: items ['3', '4'] equal the fixture with exact ordinates"
+        }
+      ]
+    },
+    {
+      "cell": "nuget-sdk-auth",
+      "operationId": "sdk-auth",
+      "target": "nuget-sdk",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "Honua.Sdk 1.10.4: 4 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "api-key-query",
+          "api": "IHonuaFeatureServerClient.QueryAsync (HonuaSdkOptions.ApiKey)",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "bearer-admin-list",
+          "api": "IHonuaAdminClient.ListServicesAsync (HonuaSdkOptions.BearerToken)",
+          "status": "pass",
+          "oracle": "service 'sdkreg-sites' is among 20 listed services"
+        },
+        {
+          "step": "bearer-query",
+          "api": "IHonuaFeatureServerClient.QueryAsync (HonuaSdkOptions.BearerToken)",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "anonymous-refused",
+          "api": "IHonuaFeatureServerClient.QueryAsync (no credential)",
+          "status": "pass",
+          "oracle": "raised HonuaFeatureServerException (status 499); expected an authentication refusal ([401, 403, 499])"
+        }
+      ]
+    },
+    {
+      "cell": "nuget-sdk-admin-lifecycle",
+      "operationId": "sdk-admin-lifecycle",
+      "target": "nuget-sdk",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "Honua.Sdk 1.10.4: 7 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "create-datasource",
+          "api": "IHonuaAdminClient.CreateConnectionAsync",
+          "status": "pass",
+          "oracle": "datasource created with an id"
+        },
+        {
+          "step": "test-datasource",
+          "api": "IHonuaAdminClient.TestConnectionAsync",
+          "status": "pass",
+          "oracle": "datasource test success=True"
+        },
+        {
+          "step": "publish",
+          "api": "IHonuaAdminClient.PublishLayerAsync",
+          "status": "pass",
+          "oracle": "published service/layer/enabled/id ('sdkreg-lifecycle-dotnet', 'lifecycle', True) (integer id: True), fixture expects ('sdkreg-lifecycle-dotnet', 'lifecycle', True)"
+        },
+        {
+          "step": "list",
+          "api": "IHonuaAdminClient.ListLayersAsync",
+          "status": "pass",
+          "oracle": "published layer 20 listed 1 time(s), enabled=True"
+        },
+        {
+          "step": "served",
+          "api": "IHonuaFeatureServerClient.QueryAsync",
+          "status": "pass",
+          "oracle": "count 2, fixture expects 2"
+        },
+        {
+          "step": "unpublish",
+          "api": "IHonuaAdminClient.SetLayerEnabledAsync(false)",
+          "status": "pass",
+          "oracle": "layer 20 enabled=False after unpublish"
+        },
+        {
+          "step": "unpublished-refused",
+          "api": "IHonuaFeatureServerClient.QueryAsync",
+          "status": "pass",
+          "oracle": "raised HonuaFeatureServerException (status 404); expected not found (404)"
+        }
+      ]
+    },
+    {
+      "cell": "nuget-sdk-geoservices",
+      "operationId": "sdk-geoservices",
+      "target": "nuget-sdk",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "blocked",
+      "status": "blocked",
+      "detail": "8 steps pass; blocked as declared: apply-edits-update (https://github.com/honua-io/honua-server/issues/5407), edits-state (https://github.com/honua-io/honua-server/issues/5407)",
+      "steps": [
+        {
+          "step": "query",
+          "api": "IHonuaFeatureServerClient.QueryAsync",
+          "status": "pass",
+          "oracle": "filtered query: 4 features equal the fixture (gids [3, 4, 5, 6]) with exact ordinates"
+        },
+        {
+          "step": "ids",
+          "api": "IHonuaFeatureServerClient.QueryIdsAsync",
+          "status": "pass",
+          "oracle": "ids [3, 4, 5, 6], fixture expects [3, 4, 5, 6]"
+        },
+        {
+          "step": "count",
+          "api": "IHonuaFeatureServerClient.QueryCountAsync",
+          "status": "pass",
+          "oracle": "count 4, fixture expects 4"
+        },
+        {
+          "step": "resolve-edit-ids",
+          "api": "IHonuaFeatureServerClient.QueryAsync",
+          "status": "pass",
+          "oracle": "3 managed features resolved to unique object ids for fixture gids [1, 2, 3]"
+        },
+        {
+          "step": "apply-edits-add",
+          "api": "IHonuaFeatureServerEditClient.ApplyEditsAsync(adds)",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "apply-edits-update",
+          "api": "IHonuaFeatureServerEditClient.ApplyEditsAsync(updates)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-server/issues/5407",
+          "oracle": "raised HonuaFeatureServerException (status 500)"
+        },
+        {
+          "step": "apply-edits-delete",
+          "api": "IHonuaFeatureServerEditClient.ApplyEditsAsync(deletes)",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "edits-state",
+          "api": "IHonuaFeatureServerClient.QueryAsync",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-server/issues/5407",
+          "oracle": "edits layer: attributes {'gid': 2, 'name': 'south', 'rank': 2} differ from fixture {'gid': 2, 'name': 'south', 'rank': 20}"
+        },
+        {
+          "step": "add-attachment",
+          "api": "IHonuaFeatureAttachmentClient.AddAttachmentAsync",
+          "status": "pass",
+          "oracle": "1 edit result(s), all successful"
+        },
+        {
+          "step": "query-attachments",
+          "api": "IHonuaFeatureServerClient.QueryAttachmentsAsync",
+          "status": "pass",
+          "oracle": "attachments [('sdk-regression.txt', 'text/plain', 32)], fixture expects [('sdk-regression.txt', 'text/plain', 32)]"
+        }
+      ],
+      "blockedBy": [
+        "https://github.com/honua-io/honua-server/issues/5407"
+      ]
+    },
+    {
+      "cell": "nuget-sdk-ogc-features",
+      "operationId": "sdk-ogc-features",
+      "target": "nuget-sdk",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "Honua.Sdk 1.10.4: 2 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "items-bbox",
+          "api": "IHonuaOgcFeaturesClient.GetItemsAsync(OgcItemsParams.Bbox)",
+          "status": "pass",
+          "oracle": "bbox: items ['3', '4'] equal the fixture with exact ordinates"
+        },
+        {
+          "step": "item",
+          "api": "IHonuaOgcFeaturesClient.GetItemAsync",
+          "status": "pass",
+          "oracle": "item 3 equals the fixture row with exact ordinates"
+        }
+      ]
+    },
+    {
+      "cell": "nuget-sdk-ogc-tiles",
+      "operationId": "sdk-ogc-tiles",
+      "target": "nuget-sdk",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "blocked",
+      "status": "blocked",
+      "detail": "0 steps pass; blocked as declared: vector-tile (https://github.com/honua-io/honua-sdk-dotnet/issues/405), raster-tile (https://github.com/honua-io/honua-sdk-dotnet/issues/405), empty-tile (https://github.com/honua-io/honua-sdk-dotnet/issues/405)",
+      "steps": [
+        {
+          "step": "vector-tile",
+          "api": "(no OGC API Tiles client in Honua.Sdk)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-dotnet/issues/405",
+          "oracle": "unsupported: the published client has no API for this step (Honua.Sdk has no OGC API Tiles client (no tile fetch API in any Honua.Sdk.* package))"
+        },
+        {
+          "step": "raster-tile",
+          "api": "(no OGC API Tiles client in Honua.Sdk)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-dotnet/issues/405",
+          "oracle": "unsupported: the published client has no API for this step (Honua.Sdk has no OGC API Tiles client (no tile fetch API in any Honua.Sdk.* package))"
+        },
+        {
+          "step": "empty-tile",
+          "api": "(no OGC API Tiles client in Honua.Sdk)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-dotnet/issues/405",
+          "oracle": "unsupported: the published client has no API for this step (Honua.Sdk has no OGC API Tiles client (no tile fetch API in any Honua.Sdk.* package))"
+        }
+      ],
+      "blockedBy": [
+        "https://github.com/honua-io/honua-sdk-dotnet/issues/405"
+      ]
+    },
+    {
+      "cell": "nuget-sdk-ogc-processes",
+      "operationId": "sdk-ogc-processes",
+      "target": "nuget-sdk",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "Honua.Sdk 1.10.4: 3 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "submit",
+          "api": "IHonuaProcessesClient.SubmitJobAsync",
+          "status": "pass",
+          "oracle": "job submitted asynchronously with status 'accepted'"
+        },
+        {
+          "step": "poll",
+          "api": "IHonuaProcessesClient.GetJobAsync",
+          "status": "pass",
+          "oracle": "terminal job status 'successful'"
+        },
+        {
+          "step": "result",
+          "api": "IHonuaProcessesClient.GetJobResultsAsync",
+          "status": "pass",
+          "oracle": "32-vertex closed ring: max radius error 1.55e-15 (tolerance 1e-06), centroid offset 0.00e+00 from fixture point (10.0, 20.0)"
+        }
+      ]
+    },
+    {
+      "cell": "nuget-sdk-stac",
+      "operationId": "sdk-stac",
+      "target": "nuget-sdk",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "Honua.Sdk 1.10.4: 1 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "search",
+          "api": "IHonuaStacClient.PostSearchAsync",
+          "status": "pass",
+          "oracle": "bbox: items ['3', '4'] equal the fixture with exact ordinates"
+        }
+      ]
+    },
+    {
+      "cell": "npm-cli-workflow",
+      "operationId": "cli-workflow",
+      "target": "npm-cli",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "@honua/sdk-js 0.1.16: 14 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "discover",
+          "api": "honua services --json",
+          "status": "pass",
+          "oracle": "service 'sdkreg-sites' is among 19 listed services"
+        },
+        {
+          "step": "create-datasource",
+          "api": "honua admin connect createConnection --yes",
+          "status": "pass",
+          "oracle": "datasource created with an id"
+        },
+        {
+          "step": "test-datasource",
+          "api": "honua connection test --yes",
+          "status": "pass",
+          "oracle": "datasource test success=True"
+        },
+        {
+          "step": "publish",
+          "api": "honua admin publish publishLayer --yes",
+          "status": "pass",
+          "oracle": "published service/layer/enabled/id ('sdkreg-lifecycle-clijs', 'lifecycle', True) (integer id: True), fixture expects ('sdkreg-lifecycle-clijs', 'lifecycle', True)"
+        },
+        {
+          "step": "list",
+          "api": "honua admin publish getPublishedLayers",
+          "status": "pass",
+          "oracle": "published layer 17 listed 1 time(s), enabled=True"
+        },
+        {
+          "step": "query",
+          "api": "honua query --where --format geojson",
+          "status": "pass",
+          "oracle": "filtered query: 4 features equal the fixture (gids [3, 4, 5, 6]) with exact ordinates"
+        },
+        {
+          "step": "served",
+          "api": "honua query --count",
+          "status": "pass",
+          "oracle": "count 2, fixture expects 2"
+        },
+        {
+          "step": "propose-publication",
+          "api": "honua-mcp-proxy tools/list {view: setup} + tools/call honua_publish_service (proposer)",
+          "status": "pass",
+          "oracle": "publication recorded as a proposal awaiting approval (status 'RequiresApproval'), not served before approval"
+        },
+        {
+          "step": "self-approval-refused",
+          "api": "honua admin operate approveOperationProposal --profile proposer --yes",
+          "status": "pass",
+          "oracle": "raised CommandFailed (exit 1) (status 403); the proposal is 'AwaitingApproval' afterwards (expected 403 and 'AwaitingApproval')"
+        },
+        {
+          "step": "approve",
+          "api": "honua admin operate approveOperationProposal --profile approver --yes",
+          "status": "pass",
+          "oracle": "approval returned proposal status 'Succeeded'"
+        },
+        {
+          "step": "proposal-resolved",
+          "api": "honua admin operate getOperationProposal --profile approver (until terminal)",
+          "status": "pass",
+          "oracle": "proposal succeeded, requested by the proposer and resolved by the separate approver"
+        },
+        {
+          "step": "approved-served",
+          "api": "honua query --format geojson",
+          "status": "pass",
+          "oracle": "approved publication: 2 features equal the fixture (gids [1, 2]) with exact ordinates"
+        },
+        {
+          "step": "unpublish",
+          "api": "honua admin publish setLayerEnabled --yes",
+          "status": "pass",
+          "oracle": "layer 17 enabled=False after unpublish"
+        },
+        {
+          "step": "unpublished-refused",
+          "api": "honua query --format geojson",
+          "status": "pass",
+          "oracle": "raised CommandFailed (exit 1) (status 404); expected not found (404)"
+        }
+      ]
+    },
+    {
+      "cell": "pypi-cli-workflow",
+      "operationId": "cli-workflow",
+      "target": "pypi-cli",
+      "package": "honua-sdk",
+      "version": "0.1.13",
+      "integrity": "sha256:c6cae3674d255b77f82a1ba2a6f52c52e0cb6b16820596ef7d861914233884b6",
+      "sourceSha": "a9cd320a1d330e758e1dd6c186f62a922d259cef",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "honua-sdk 0.1.13: 14 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "discover",
+          "api": "honua services --format json",
+          "status": "pass",
+          "oracle": "service 'sdkreg-sites' is among 23 listed services"
+        },
+        {
+          "step": "create-datasource",
+          "api": "honua datasource create --password-env",
+          "status": "pass",
+          "oracle": "datasource created with an id"
+        },
+        {
+          "step": "test-datasource",
+          "api": "honua datasource test",
+          "status": "pass",
+          "oracle": "datasource test success=True"
+        },
+        {
+          "step": "publish",
+          "api": "honua layer publish",
+          "status": "pass",
+          "oracle": "published service/layer/enabled/id ('sdkreg-lifecycle-clipy', 'lifecycle', True) (integer id: True), fixture expects ('sdkreg-lifecycle-clipy', 'lifecycle', True)"
+        },
+        {
+          "step": "list",
+          "api": "honua layer list --service-name",
+          "status": "pass",
+          "oracle": "published layer 21 listed 1 time(s), enabled=True"
+        },
+        {
+          "step": "query",
+          "api": "honua query <service> <layer> --where",
+          "status": "pass",
+          "oracle": "filtered query: 4 features equal the fixture (gids [3, 4, 5, 6]) with exact ordinates"
+        },
+        {
+          "step": "served",
+          "api": "honua query <service> <layer> --count --json",
+          "status": "pass",
+          "oracle": "count 2, fixture expects 2"
+        },
+        {
+          "step": "propose-publication",
+          "api": "honua-mcp-proxy tools/list {view: setup} + tools/call honua_publish_service (proposer)",
+          "status": "pass",
+          "oracle": "publication recorded as a proposal awaiting approval (status 'RequiresApproval'), not served before approval"
+        },
+        {
+          "step": "self-approval-refused",
+          "api": "honua proposal approve (proposer key)",
+          "status": "pass",
+          "oracle": "raised CommandFailed (exit 1) (status 403); the proposal is 'AwaitingApproval' afterwards (expected 403 and 'AwaitingApproval')"
+        },
+        {
+          "step": "approve",
+          "api": "honua proposal approve (approver key)",
+          "status": "pass",
+          "oracle": "approval returned proposal status 'Succeeded'"
+        },
+        {
+          "step": "proposal-resolved",
+          "api": "honua proposal read --wait (approver key)",
+          "status": "pass",
+          "oracle": "proposal succeeded, requested by the proposer and resolved by the separate approver"
+        },
+        {
+          "step": "approved-served",
+          "api": "honua query <service> <layer>",
+          "status": "pass",
+          "oracle": "approved publication: 2 features equal the fixture (gids [1, 2]) with exact ordinates"
+        },
+        {
+          "step": "unpublish",
+          "api": "honua layer unpublish --service-name",
+          "status": "pass",
+          "oracle": "layer 21 enabled=False after unpublish"
+        },
+        {
+          "step": "unpublished-refused",
+          "api": "honua query <service> <layer>",
+          "status": "pass",
+          "oracle": "raised CommandFailed (exit 1) (status 404); expected not found (404)"
+        }
+      ]
+    },
+    {
+      "cell": "npm-mcp-workflow",
+      "operationId": "mcp-workflow",
+      "target": "npm-mcp-workflow",
+      "package": "@honua/mcp-server",
+      "version": "0.1.16",
+      "integrity": "sha512-7yeZUReqE0x6Rdb6Kh7/+3o0CXjCVP/ObPtG5Ay78XkqZgUb9mmguvQ1y4xjNm7YfSp4mW308Ol6ecdRZP3MBg==",
+      "sourceSha": "46ecd25a32ee2bfb7741ccc14ee5842c8824dd19",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "@honua/mcp-server 0.1.16: 10 steps pass against the fixture oracles",
+      "steps": [
+        {
+          "step": "initialize-setup",
+          "api": "honua-mcp-proxy initialize (workflow-view setup)",
+          "status": "pass",
+          "oracle": "protocol '2025-06-18' (fixture '2025-06-18'), server identity present: True"
+        },
+        {
+          "step": "setup-tools-list",
+          "api": "honua-mcp-proxy tools/list (selector-free, setup session)",
+          "status": "pass",
+          "oracle": "selector-free tools/list returned view 'setup' (setup.v3) with 37 tools (metadata 37); the fixture expects the complete 'setup' view with 37"
+        },
+        {
+          "step": "default-tools-list",
+          "api": "honua-mcp-proxy initialize + tools/list (no selector)",
+          "status": "pass",
+          "oracle": "selector-free tools/list returned view 'default' (default.v1) with 12 tools (metadata 12); the fixture expects the complete 'default' view with 12, equal to the pinned default.v1 roster"
+        },
+        {
+          "step": "full-catalog-refused",
+          "api": "honua-mcp-proxy tools/list {view: full} (anonymous)",
+          "status": "pass",
+          "oracle": "anonymous full-view request refused with 'permission_denied' (expected 'permission_denied')"
+        },
+        {
+          "step": "full-catalog",
+          "api": "honua-mcp-proxy tools/list {view: full} (HONUA_API_KEY)",
+          "status": "pass",
+          "oracle": "full catalog drained over 11 pages: 129 tools; equals the 129-tool pinned roster, includes the default view, view restored"
+        },
+        {
+          "step": "read",
+          "api": "honua-mcp-proxy tools/call honua_query_features",
+          "status": "pass",
+          "oracle": "filtered query: 4 features equal the fixture (gids [3, 4, 5, 6]) with exact ordinates"
+        },
+        {
+          "step": "render",
+          "api": "honua-mcp-proxy tools/call honua_render_map",
+          "status": "pass",
+          "oracle": "3 painted and 5 transparent sample pixels match the fixture polygon"
+        },
+        {
+          "step": "buffer-submit",
+          "api": "honua-mcp-proxy tools/call honua_execute_plan (geometry.buffer)",
+          "status": "pass",
+          "oracle": "job submitted with status 'Queued'"
+        },
+        {
+          "step": "buffer-poll",
+          "api": "honua-mcp-proxy resources/read honua://jobs/{jobId}",
+          "status": "pass",
+          "oracle": "terminal job status 'Succeeded'"
+        },
+        {
+          "step": "buffer-result",
+          "api": "honua-mcp-proxy resources/read honua://jobs/{jobId}/results",
+          "status": "pass",
+          "oracle": "32-vertex closed ring: max radius error 1.55e-15 (tolerance 1e-06), centroid offset 0.00e+00 from fixture point (10.0, 20.0)"
+        }
+      ]
+    },
+    {
+      "cell": "interop-publish-query-edit",
+      "operationId": "interop-publish-query-edit",
+      "target": "interop",
+      "package": "Honua.Sdk",
+      "version": "1.10.4",
+      "integrity": "sha256:60253476b6a1be98e1cbd989c3fbcdcf3c148b11c16e57e4336c90160ba0b2b3",
+      "sourceSha": "66413fe30f09533a008cf1552def8a2d05cc4fde",
+      "matrixStatus": "blocked",
+      "status": "blocked",
+      "detail": "3 steps pass; blocked as declared: count (https://github.com/honua-io/honua-sdk-python/issues/236), edit (https://github.com/honua-io/honua-sdk-dotnet/issues/410), read-back (https://github.com/honua-io/honua-sdk-dotnet/issues/410)",
+      "steps": [
+        {
+          "step": "publish",
+          "client": "Honua.Sdk 1.10.4",
+          "api": "IHonuaAdminClient.PublishLayerAsync",
+          "status": "pass",
+          "oracle": "published service/layer/enabled ('sdkreg-interop-handoff-60e180', 'handoff', True) (integer id: True), fixture expects ('sdkreg-interop-handoff-60e180', 'handoff', True)"
+        },
+        {
+          "step": "query",
+          "client": "honua-sdk 0.1.13",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.query",
+          "status": "pass",
+          "oracle": "published layer: 3 features equal the fixture (gids [1, 2, 3]) with exact ordinates"
+        },
+        {
+          "step": "ids",
+          "client": "honua-sdk 0.1.13",
+          "api": "honua_sdk.GeoServicesFeatureServerClient.query(extra_params returnIdsOnly)",
+          "status": "pass",
+          "oracle": "ids [1, 2, 3], fixture expects [1, 2, 3]"
+        },
+        {
+          "step": "count",
+          "client": "honua-sdk 0.1.13",
+          "api": "honua_sdk.HonuaClient.query(return_count_only=True)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-python/issues/236",
+          "oracle": "seam layer from Honua.Sdk 1.10.4 `IHonuaAdminClient.PublishLayerAsync` (publish) -> honua-sdk 0.1.13 `honua_sdk.HonuaClient.query(return_count_only=True)`: the SDK returned no integer count"
+        },
+        {
+          "step": "edit",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "HonuaFeatureLayer.applyEdits(updates)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-dotnet/issues/410",
+          "oracle": "seam layer from Honua.Sdk 1.10.4 `IHonuaAdminClient.PublishLayerAsync` (publish) and object ids from honua-sdk 0.1.13 `honua_sdk.GeoServicesFeatureServerClient.query` (query) -> @honua/sdk-js 0.1.16 `HonuaFeatureLayer.applyEdits(updates)`: raised HonuaHttpError (status 400)"
+        },
+        {
+          "step": "read-back",
+          "client": "Honua.Sdk 1.10.4",
+          "api": "IHonuaFeatureServerClient.QueryAsync",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-dotnet/issues/410",
+          "oracle": "seam edit from @honua/sdk-js 0.1.16 `HonuaFeatureLayer.applyEdits(updates)` (edit) -> Honua.Sdk 1.10.4 `IHonuaFeatureServerClient.QueryAsync`: edited layer: attributes {'gid': 2, 'name': 'ridge', 'rank': 20} differ from fixture {'gid': 2, 'name': 'ridge-moved', 'rank': 25}"
+        }
+      ],
+      "blockedBy": [
+        "https://github.com/honua-io/honua-sdk-dotnet/issues/410",
+        "https://github.com/honua-io/honua-sdk-python/issues/236"
+      ]
+    },
+    {
+      "cell": "interop-import-render-buffer",
+      "operationId": "interop-import-render-buffer",
+      "target": "interop",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "7 steps pass across @honua/mcp-server 0.1.16, @honua/sdk-js 0.1.16, honua-sdk 0.1.13 against the fixture oracles",
+      "steps": [
+        {
+          "step": "import",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "honua admin import uploadImportFile --yes",
+          "status": "pass",
+          "oracle": "import reported success=True, 1 features into a named table: True; fixture has 1"
+        },
+        {
+          "step": "publish",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "honua admin publish publishLayer --yes",
+          "status": "pass",
+          "oracle": "published service/layer/enabled ('sdkreg-interop-area-60e180', 'area', True) (integer id: True, geometry 'Polygon'), fixture expects ('sdkreg-interop-area-60e180', 'area', True)"
+        },
+        {
+          "step": "read",
+          "client": "@honua/mcp-server 0.1.16",
+          "api": "honua-mcp-proxy tools/call honua_query_features",
+          "status": "pass",
+          "oracle": "1 polygon(s) preserve the fixture envelope ring; gid and name equal the fixture (block)"
+        },
+        {
+          "step": "render",
+          "client": "@honua/mcp-server 0.1.16",
+          "api": "honua-mcp-proxy tools/call honua_render_map",
+          "status": "pass",
+          "oracle": "3 painted and 5 transparent sample pixels match the fixture polygon"
+        },
+        {
+          "step": "buffer-submit",
+          "client": "@honua/mcp-server 0.1.16",
+          "api": "honua-mcp-proxy tools/call honua_execute_plan (geometry.buffer)",
+          "status": "pass",
+          "oracle": "job submitted with status 'Queued'"
+        },
+        {
+          "step": "job-status",
+          "client": "honua-sdk 0.1.13",
+          "api": "honua_sdk.HonuaGeoprocessing.job",
+          "status": "pass",
+          "oracle": "terminal job status 'successful'"
+        },
+        {
+          "step": "job-result",
+          "client": "honua-sdk 0.1.13",
+          "api": "honua_sdk.HonuaGeoprocessing.results",
+          "status": "pass",
+          "oracle": "36-vertex closed ring: max offset error 5.33e-15 from the fixture polygon at distance 2.0 (tolerance 1e-06); bounds equal the polygon expanded by 2.0; edges follow the offset"
+        }
+      ]
+    },
+    {
+      "cell": "interop-proposal-approval",
+      "operationId": "interop-proposal-approval",
+      "target": "interop",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "blocked",
+      "status": "blocked",
+      "detail": "7 steps pass; blocked as declared: publication-url (https://github.com/honua-io/honua-server/issues/5788), published-content (https://github.com/honua-io/honua-server/issues/5449), published-url (https://github.com/honua-io/honua-sdk-dotnet/issues/411)",
+      "steps": [
+        {
+          "step": "create-draft",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "HonuaStudioLifecycleClient.drafts.create",
+          "status": "pass",
+          "oracle": "draft family 'map', validation 'valid', ids present: True"
+        },
+        {
+          "step": "save-version",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "HonuaStudioLifecycleClient.drafts.createContentVersion",
+          "status": "pass",
+          "oracle": "immutable version saved: version id present True, sha-256 content hash True, same item as the draft True"
+        },
+        {
+          "step": "request-publication",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "HonuaStudioLifecycleClient.publicationRequests.create",
+          "status": "pass",
+          "oracle": "publication recorded as proposal (id present: True), published before approval: None"
+        },
+        {
+          "step": "self-approval-refused",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "honua admin operate approveOperationProposal --profile proposer --yes",
+          "status": "pass",
+          "oracle": "raised CommandFailed (exit 1) (status 403); the proposal is 'AwaitingApproval' afterwards (expected 403 and 'AwaitingApproval')"
+        },
+        {
+          "step": "approve",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "honua admin operate approveOperationProposal --profile approver --yes",
+          "status": "pass",
+          "oracle": "approval returned proposal status 'Succeeded'"
+        },
+        {
+          "step": "proposal-resolved",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "honua admin operate getOperationProposal --profile approver (until terminal)",
+          "status": "pass",
+          "oracle": "proposal succeeded, requested by the proposer and resolved by the separate approver"
+        },
+        {
+          "step": "publication-url",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "HonuaStudioLifecycleClient.publicationRequests.poll",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-server/issues/5788",
+          "oracle": "publication request polled to 'Active' (server status 'accepted'), but the read carries no final publication URL"
+        },
+        {
+          "step": "published-pointer",
+          "client": "Honua.Sdk 1.10.4",
+          "api": "IHonuaStudioPackageClient.GetContentItemPointersAsync",
+          "status": "pass",
+          "oracle": "published pointer is the version the JS SDK saved"
+        },
+        {
+          "step": "published-content",
+          "client": "Honua.Sdk 1.10.4",
+          "api": "IHonuaStudioPackageClient.GetVersionAsync",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-server/issues/5449",
+          "oracle": "published version agrees across clients: family map, the content hash the JS SDK saved, and the fixture map body; the content hash is not recomputed from the approved content: no canonical content-hash input from the reader, so the digest cannot be recomputed (honua-server#5449)"
+        },
+        {
+          "step": "published-url",
+          "client": "Honua.Sdk 1.10.4",
+          "api": "(no published Studio route reader in Honua.Sdk)",
+          "status": "blocked",
+          "blockedBy": "https://github.com/honua-io/honua-sdk-dotnet/issues/411",
+          "oracle": "seam publication URL from @honua/sdk-js 0.1.16 `HonuaStudioLifecycleClient.publicationRequests.poll` (publication-url) -> Honua.Sdk 1.10.4 `(no published Studio route reader in Honua.Sdk)`: unsupported: the published client has no API for this step (Honua.Sdk has no reader for a published Studio route (no published-content API in any Honua.Sdk.* package))"
+        }
+      ],
+      "blockedBy": [
+        "https://github.com/honua-io/honua-sdk-dotnet/issues/411",
+        "https://github.com/honua-io/honua-server/issues/5449",
+        "https://github.com/honua-io/honua-server/issues/5788"
+      ]
+    },
+    {
+      "cell": "interop-api-key-revocation",
+      "operationId": "interop-api-key-revocation",
+      "target": "interop",
+      "package": "@honua/sdk-js",
+      "version": "0.1.16",
+      "integrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "10 steps pass across @honua/mcp-server 0.1.16, @honua/sdk-js 0.1.16, Honua.Sdk 1.10.4, honua-sdk 0.1.13 against the fixture oracles",
+      "steps": [
+        {
+          "step": "mint",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "honua admin secure createAdminApiKey --secret-output --yes",
+          "status": "pass",
+          "oracle": "key minted with permissions ['admin:write'], secret only in a private file"
+        },
+        {
+          "step": "python-use",
+          "client": "honua-sdk 0.1.13",
+          "api": "honua_sdk.HonuaClient(api_key).feature_server(...).query",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "js-use",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "HonuaClient({apiKey}).featureLayer().queryFeatures",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "dotnet-use",
+          "client": "Honua.Sdk 1.10.4",
+          "api": "IHonuaFeatureServerClient.QueryAsync (HonuaSdkOptions.ApiKey)",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "mcp-use",
+          "client": "@honua/mcp-server 0.1.16",
+          "api": "honua-mcp-proxy tools/call honua_query_features (HONUA_API_KEY)",
+          "status": "pass",
+          "oracle": "count 6, fixture expects 6"
+        },
+        {
+          "step": "revoke",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "honua admin secure revokeAdminApiKey --yes",
+          "status": "pass",
+          "oracle": "key status 'revoked' after revoke, revokedAt present: True"
+        },
+        {
+          "step": "python-revoked",
+          "client": "honua-sdk 0.1.13",
+          "api": "honua_sdk.HonuaClient(api_key).feature_server(...).query",
+          "status": "pass",
+          "oracle": "refused (499) after 0 successful call(s) at 0.01s (within the 30s observation bound; documented window 0s: the first call must be refused before the observation bound); 2 of 2 confirmation calls refused with an authentication status"
+        },
+        {
+          "step": "js-revoked",
+          "client": "@honua/sdk-js 0.1.16",
+          "api": "HonuaClient({apiKey}).featureLayer().queryFeatures",
+          "status": "pass",
+          "oracle": "refused (499) after 0 successful call(s) at 0.013s (within the 30s observation bound; documented window 0s: the first call must be refused before the observation bound); 2 of 2 confirmation calls refused with an authentication status"
+        },
+        {
+          "step": "dotnet-revoked",
+          "client": "Honua.Sdk 1.10.4",
+          "api": "IHonuaFeatureServerClient.QueryAsync (HonuaSdkOptions.ApiKey)",
+          "status": "pass",
+          "oracle": "refused (499) after 0 successful call(s) at 0.035s (within the 30s observation bound; documented window 0s: the first call must be refused before the observation bound); 2 of 2 confirmation calls refused with an authentication status"
+        },
+        {
+          "step": "mcp-revoked",
+          "client": "@honua/mcp-server 0.1.16",
+          "api": "honua-mcp-proxy tools/call honua_query_features (HONUA_API_KEY)",
+          "status": "pass",
+          "oracle": "refused ('permission_denied') after 0 successful call(s) at 0.014s (within the 30s observation bound; documented window 0s: the first call must be refused before the observation bound); 2 of 2 confirmation calls refused with an authentication status"
+        }
+      ]
+    },
+    {
+      "cell": "npm-honua-sdk-installed-runtime",
+      "operationId": "installed-companion-runtime",
+      "target": "npm-companion",
+      "package": "@honua/sdk",
+      "version": "0.1.16",
+      "integrity": "sha512-sV+XpwhO6ajwArp3n3mwM5wtZ4uxHLUHRBrMBlExluIKVKxZ/ABc3uUAyMkCWkc8J/vTfzSUPsqn5egoszzU+Q==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact npm archive sha512 and installed lock integrity matched; installed @honua/sdk runtime contract passed"
+    },
+    {
+      "cell": "npm-honua-sdk-esri-compat-installed-runtime",
+      "operationId": "installed-companion-runtime",
+      "target": "npm-companion",
+      "package": "@honua/sdk-esri-compat",
+      "version": "0.1.16",
+      "integrity": "sha512-26X/sGEhyDq8qZ6/eS01VBfdAXj2iHjWZ5dJ3OD/iny0CdYQmohaGkLQGD7CVAJQbJSBnF/xBoh085Ne4nQ9BQ==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact npm archive sha512 and installed lock integrity matched; installed @honua/sdk-esri-compat runtime contract passed"
+    },
+    {
+      "cell": "npm-honua-react-installed-runtime",
+      "operationId": "installed-companion-runtime",
+      "target": "npm-companion",
+      "package": "@honua/react",
+      "version": "0.1.16",
+      "integrity": "sha512-wNuU95vKD+le38lBYyhyCi14aKR7RWRpEYaL5XXfaww31rD5rCKM40Ze5mew4Y0yS0JQ4AlV66TbWIW5MVPnFA==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact npm archive sha512 and installed lock integrity matched; installed @honua/react runtime contract passed"
+    },
+    {
+      "cell": "npm-honua-geometry-installed-runtime",
+      "operationId": "installed-companion-runtime",
+      "target": "npm-companion",
+      "package": "@honua/geometry",
+      "version": "0.1.16",
+      "integrity": "sha512-gBrEIfQ9afIvCaUkOoP2sMWejZef8fE6B3mR+a3kjWd8vUD+R3oTfFDyZYVnWBHm4dLApvGoTEaXKGweWGp+1w==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact npm archive sha512 and installed lock integrity matched; installed @honua/geometry runtime contract passed"
+    },
+    {
+      "cell": "npm-honua-app-platform-installed-runtime",
+      "operationId": "installed-companion-runtime",
+      "target": "npm-companion",
+      "package": "@honua/app-platform",
+      "version": "0.1.16",
+      "integrity": "sha512-2zO9qSyG2m0QDUygIxSBRD4T49TJiWKvHeHs03G/2xN7A4wlE4mqZCgDFPoXovPOrJ+emSKae89garsQL9NL2A==",
+      "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact npm archive sha512 and installed lock integrity matched; installed @honua/app-platform runtime contract passed"
+    },
+    {
+      "cell": "npm-create-honua-app-installed-runtime",
+      "operationId": "installed-companion-runtime",
+      "target": "npm-companion",
+      "package": "create-honua-app",
+      "version": "0.1.9",
+      "integrity": "sha512-rsAIuboBuqoWuqFvzSpV7l4RV60HXpQOdaQTItp3+tu6fXfXIPBf1mFtNGxw8co1wDwgmy1aSUjVGYD/EwkoMw==",
+      "sourceSha": "4ded33a5ee77cc3b289f85740f315d5f4a122fae",
+      "matrixStatus": "active",
+      "status": "pass",
+      "detail": "exact npm archive sha512 and installed lock integrity matched, package executables verified; installed create-honua-app runtime contract passed"
+    }
+  ]
+}
