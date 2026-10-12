@@ -34,6 +34,12 @@ npm create honua-app@latest my-react-map -- --template react-ts --sdk-version 0.
 
 ## Which SDK version a scaffold pins
 
+The scaffold and SDK publish independently. `npm create honua-app@latest` selects the scaffold;
+`--sdk-version` selects the SDK installed in the generated application. The explicit
+SDK versions in this published README describe this scaffold release, even when a
+newer SDK has shipped. Keep the flag when reproducing these examples, or select
+another published SDK version deliberately.
+
 The scaffold resolves `@honua/sdk-js` when it runs, from the `release-2026.1` npm dist-tag. Only a Honua release
 promotion moves that tag, so a newly promoted SDK reaches fresh scaffolds without a new `create-honua-app`. The
 generated `package.json` still records one exact version, so the app stays reproducible.
