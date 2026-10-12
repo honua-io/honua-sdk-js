@@ -7,6 +7,62 @@ import {
 import { CRS, SCHEMA } from "./fixture.js";
 import { type QueryContext, viewportFilter } from "./query.js";
 
+/** Syntax examples only: models must resolve values from the user's captured context. */
+export const SEMANTIC_QUERY_FORMS = {
+  features: {
+    kind: "features",
+    geometry: "omit",
+    select: ["id", "status", "kind"],
+    page: { kind: "first", limit: 100 },
+  },
+  aggregate: {
+    kind: "aggregate",
+    groupBy: ["kind"],
+    metrics: [{ fn: "count", as: "count" }],
+    page: { kind: "first", limit: 100 },
+  },
+  filters: {
+    comparison: {
+      kind: "comparison",
+      operator: "eq",
+      left: { kind: "property", name: "status" },
+      right: { kind: "literal", value: "literal user value" },
+    },
+    viewport: {
+      kind: "spatial",
+      operator: "bbox-intersects",
+      bbox: { box: { layout: "xy", bounds: [0, 0, 1, 1] }, crs: CRS },
+    },
+    distance: {
+      kind: "spatial",
+      operator: "within-distance",
+      geometry: { state: "present", layout: "xy", crs: CRS, geometry: { type: "Point", coordinates: [0, 0] } },
+      distance: { value: 1, unit: "metre", mode: "planar" },
+    },
+    polygon: {
+      kind: "spatial",
+      operator: "intersects",
+      geometry: {
+        state: "present",
+        layout: "xy",
+        crs: CRS,
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [0, 0],
+              [1, 0],
+              [1, 1],
+              [0, 1],
+              [0, 0],
+            ],
+          ],
+        },
+      },
+    },
+  },
+} as const;
+
 export const SUGGESTIONS = [
   "Show open incidents in this view",
   "Group them by type",
@@ -174,7 +230,7 @@ export function groundedModel(context: QueryContext, callback: NlLlmCallback): N
     callback(
       {
         ...request,
-        system: `${request.system}\nAdmitted public incident schema and captured query context (all coordinates are EPSG:3857):\n${JSON.stringify({ schema: SCHEMA, context })}`,
+        system: `${request.system}\nAdmitted public incident schema and captured query context (all coordinates are EPSG:3857):\n${JSON.stringify({ schema: SCHEMA, context })}\nSDK semanticQuery syntax examples, not query defaults or answers:\n${JSON.stringify(SEMANTIC_QUERY_FORMS)}\nChoose a features or aggregate form and put the resolved predicate in its filter property. Combine predicates with {kind:"boolean",operator:"and",args:[predicate,predicate]}. Use runWidgetQuery kind:"count" for features and kind:"categories" for aggregate. Replace every example coordinate, distance and literal with explicitly requested or captured values. Never use example coordinates as a missing selectedLocation. Viewport bounds order is minX,minY,maxX,maxY. Grouping preserves the previous query filter; refinements add to it. A missing location, distance or intended prior query requires clarification. No fixture results or expected answers are provided.`,
       },
       options,
     );
