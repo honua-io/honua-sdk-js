@@ -30,7 +30,7 @@ export const ACTIONS = Object.freeze({
   uploadArtifact:
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
   downloadArtifact:
-    "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
   attestBuildProvenance:
     "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 });
@@ -62,7 +62,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "c0ec65afda78cbdab5988de2e18dfd513c9dde35c899fd29c8ac7094fb512a60",
+    "3ef71ccbaf06295b7d430177cc6d74fe1085df078bb46c9b752f1bd87448d648",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":
