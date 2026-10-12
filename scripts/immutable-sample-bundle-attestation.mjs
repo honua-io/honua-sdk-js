@@ -30,7 +30,7 @@ export const ACTIONS = Object.freeze({
   uploadArtifact:
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
   downloadArtifact:
-    "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
   attestBuildProvenance:
     "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 });
