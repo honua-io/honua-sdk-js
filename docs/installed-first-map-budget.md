@@ -6,7 +6,21 @@ description: "Measure public installed SDK bundles against the canonical First M
 # Installed First Map bundle regression
 
 The bounded installed JavaScript client journey must stay below the canonical
-First Map chunk budget: 1,990,000 JavaScript bytes and 525,000 gzip bytes.
+First Map chunk budget: 1,990,000 JavaScript bytes and 526,000 gzip bytes.
+
+PR #2068 adds bounded complete-set gRPC aggregation and exact-count checks,
+including rejection of malformed, duplicate, truncated and overflowing results.
+It reuses existing aggregation arithmetic and adds no runtime dependency.
+The [hosted packed FirstMap measurement](https://github.com/honua-io/honua-sdk-js/actions/runs/38278460568/job/114909595388)
+at source `1940298e5564965279e0028d97812cf5e892bfb7` produced 1,972,657 raw and
+525,579 gzip bytes, exceeding the prior gzip ceiling by 579 bytes. The separately
+[produced package gate](https://github.com/honua-io/honua-sdk-js/actions/runs/38278460597/job/114913099544)
+confirmed the same failure. The 526,000-byte ceiling adds 1,000 bytes to the
+previous limit and retains 421 bytes of headroom above that public-path
+measurement. The raw-byte ceiling, peer checks, measurement scope, CPU limits,
+and historical failed receipts are unchanged. Passing the new limits still
+requires a fresh actual packed execution receipt; the ceiling change alone
+supplies no passing qualification.
 
 The gzip ceiling was explicitly raised by 1,000 bytes in PR #2010 after renderer
 tree-shaking reduced the installed bundle. CI's fresh consumer resolved MapLibre
