@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Published documentation qualification for SDK issue 1897"
+description: "Immutable command replay evidence and explicit qualification limits for five published SDK documents."
+---
 # Published documentation qualification for SDK issue 1897
 
 The five SDK-owned documents pass against the reviewed release inputs in
