@@ -425,7 +425,10 @@ describe("versioned sample fixture packs", () => {
     const fixturesRoot = introduceRefreshDrift(root);
     const manifestPath = path.join(root, "manifest.json");
     const realReadFileSync = fs.readFileSync.bind(fs);
-    const readSpy = vi.spyOn(fs, "readFileSync").mockImplementation(((file, options) => {
+    const readSpy = vi.spyOn(fs, "readFileSync").mockImplementation(((
+      file: Parameters<typeof fs.readFileSync>[0],
+      options?: Parameters<typeof fs.readFileSync>[1],
+    ) => {
       if (path.resolve(String(file)) === manifestPath) throw new Error("unsafe manifest path reopen");
       return realReadFileSync(file, options as never);
     }) as typeof fs.readFileSync);
