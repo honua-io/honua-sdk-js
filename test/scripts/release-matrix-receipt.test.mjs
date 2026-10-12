@@ -429,9 +429,14 @@ test("lane establishment is recorded idempotently in reviewed contract source", 
 });
 
 test("the lane registry is schema-bound and rejects orphan or drifted entries", async () => {
-  // The canonical registry is absent on trunk today; absence must read as
-  // "no lane established", never as an error.
-  assert.equal(await readReleaseMatrixLaneRegistry({ projectRoot }), undefined);
+  // Pre-establishment is an explicit isolated input, independent of whether a
+  // real release has since established the canonical lane.
+  const { directory, releaseMatrixLaneRegistryPath } = await isolatedReleaseMatrixEvidence("honua-matrix-registry-");
+  try {
+    assert.equal(await readReleaseMatrixLaneRegistry({ projectRoot, registryPath: releaseMatrixLaneRegistryPath }), undefined);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
   assert.equal(releaseMatrixLaneEstablished(undefined, sampleId), false);
   assert.equal(RELEASE_MATRIX_LANES_PATH, "samples/contract/v2/release-matrix-lanes.v1.json");
 
@@ -528,20 +533,30 @@ test("the published projection is clock-free and binds the receipt bytes", async
 });
 
 test("the generated catalog is the only projection that carries the lane", async () => {
-  // collectReleaseMatrixLanes is what feeds the generated catalog. With no
-  // receipt and no establishment it yields nothing, so docs/generated stays
-  // byte-identical until the first release smoke lands.
   const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
-  assert.deepEqual(await collectReleaseMatrixLanes(catalog), []);
+  const { directory, receiptRoot, releaseMatrixLaneRegistryPath } = await isolatedReleaseMatrixEvidence("honua-matrix-projection-");
+  try {
+    // Both the receipt and registry are absent in this pre-establishment fixture.
+    assert.deepEqual(await collectReleaseMatrixLanes(catalog, { receiptRoot, releaseMatrixLaneRegistryPath }), []);
 
-  const established = await collectReleaseMatrixLanes(catalog, {
-    releaseMatrixLaneRegistryPath: "test/fixtures/release-matrix/established-lanes.v1.json",
-  });
-  assert.equal(established.length, 1);
-  assert.equal(established[0].sampleId, sampleId);
-  assert.equal(established[0].established, true);
-  // Established with no receipt on disk: surfaced, not silently dropped.
-  assert.equal(established[0].projection, undefined);
+    const options = {
+      receiptRoot,
+      releaseMatrixLaneRegistryPath: "test/fixtures/release-matrix/established-lanes.v1.json",
+    };
+    const established = await collectReleaseMatrixLanes(catalog, options);
+    assert.equal(established.length, 1);
+    assert.equal(established[0].sampleId, sampleId);
+    assert.equal(established[0].established, true);
+    // Established with no receipt: surfaced, not silently dropped.
+    assert.equal(established[0].projection, undefined);
+
+    await writeFile(path.join(receiptRoot, sampleId, "release-matrix.v1.json"), `${JSON.stringify(await receipt(), null, 2)}\n`);
+    const sealed = await collectReleaseMatrixLanes(catalog, options);
+    assert.equal(sealed[0].projection.status, "passed");
+    assert.equal(sealed[0].projection.run.runId, "42");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("the seal CLI refuses to run outside the release matrix", async () => {
@@ -572,14 +587,19 @@ test("the seal CLI refuses to run outside the release matrix", async () => {
 });
 
 async function isolatedReleaseMatrixEvidence(label) {
-  const directory = await mkdtemp(path.join(os.tmpdir(), label));
+  const temporaryRoot = path.join(projectRoot, ".tmp");
+  await mkdir(temporaryRoot, { recursive: true });
+  const directory = await mkdtemp(path.join(temporaryRoot, label));
+  // The schema disallows an empty registry. A unique absent file models the
+  // pre-establishment state without reading or mutating the real registry.
+  const releaseMatrixLaneRegistryPath = path.relative(projectRoot, path.join(directory, "unestablished-lanes.json"));
   const receiptRoot = path.join(directory, "evidence");
   // These tests bootstrap-exempt the ordinary qualification receipt set and
   // exercise only the independently enforced release-matrix sidecar. Build an
   // empty sample root rather than copying canonical receipts/runs: regeneration
   // legitimately rolls those run directories forward and prunes the old IDs.
   await mkdir(path.join(receiptRoot, sampleId), { recursive: true });
-  return { directory, receiptRoot };
+  return { directory, receiptRoot, releaseMatrixLaneRegistryPath };
 }
 
 test("release-matrix fault injection is independent of canonical evidence rollover", async () => {
@@ -609,12 +629,13 @@ for (const derivedRelax of [false, true]) {
   test(`a failing release-matrix receipt turns golden qualification validation red (derived relax: ${derivedRelax})`, async () => {
     const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
     const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-    const { directory, receiptRoot } = await isolatedReleaseMatrixEvidence("honua-release-matrix-evidence-");
+    const { directory, receiptRoot, releaseMatrixLaneRegistryPath } = await isolatedReleaseMatrixEvidence("honua-release-matrix-evidence-");
     const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
     const options = {
       receiptRoot,
+      releaseMatrixLaneRegistryPath,
       verifyCheckout: false,
-      // These fixtures copy reviewed receipts but intentionally validate
+      // These fixtures synthesize matrix receipts but intentionally validate
       // feature-branch source. Isolate that expected producer drift so every
       // assertion below reaches the independent release-matrix gate.
       qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
@@ -682,7 +703,7 @@ for (const derivedRelax of [false, true]) {
   test(`deleting an established release-matrix receipt turns golden qualification validation red (derived relax: ${derivedRelax})`, async () => {
     const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
     const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-    const { directory, receiptRoot } = await isolatedReleaseMatrixEvidence("honua-release-matrix-laundering-");
+    const { directory, receiptRoot, releaseMatrixLaneRegistryPath } = await isolatedReleaseMatrixEvidence("honua-release-matrix-laundering-");
     try {
       const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
       const established = {
@@ -736,10 +757,10 @@ for (const derivedRelax of [false, true]) {
         /is missing; deleting sealed cross-browser evidence/u,
       );
 
-      // Without the establishment record the same deletion is only a note, which
-      // is exactly today's pre-first-receipt trunk state.
+      // In the isolated pre-establishment state the same absence is only a note.
       await validate({
         receiptRoot,
+        releaseMatrixLaneRegistryPath,
         verifyCheckout: false,
         qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
       });
