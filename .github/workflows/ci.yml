@@ -55,6 +55,35 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  first-map-webkit:
+    name: First Map WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HONUA_FIRST_MAP_RELEASE_MATRIX: "true"
+      PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/first-map-webkit/report.json
+      HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR: test-results/first-map-webkit/output
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      # Reuse the release matrix's complete fixture journey and assertions.
+      # This source check does not replace the sealed release-tag matrix.
+      - name: Exercise the First Map journey in WebKit
+        run: npm run test:playwright:quickstart -- --project=webkit --reporter=json
+      - name: Retain WebKit result and readiness diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: first-map-webkit
+          path: test-results/first-map-webkit/
+          if-no-files-found: warn
+          retention-days: 30
+
   pr-fast:
     name: PR Fast (under 2 minutes)
     if: github.event_name == 'pull_request'

@@ -138,29 +138,65 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     );
     expect(undersizedAuthoredTargets).toEqual([]);
 
-    const clickedFeature = await page.evaluate(() => {
-      const map = window.__HONUA_QUICKSTART_MAP__;
-      const layers = window.__HONUA_QUICKSTART_RUNTIME__?.layerIds;
-      if (!map || !layers?.length) throw new Error("First Map click regression requires the mounted map layers.");
-      const rect = map.getCanvas().getBoundingClientRect();
-      for (let y = 12; y < rect.height - 12; y += 8) {
-        for (let x = 12; x < rect.width - 12; x += 8) {
-          const target = document.elementFromPoint(rect.left + x, rect.top + y);
-          if (!(target instanceof Element) || !target.closest("#map")) continue;
-          const [feature] = map.queryRenderedFeatures([x, y], { layers });
-          if (!feature) continue;
-          const lngLat = map.unproject([x, y]);
-          return {
-            clientX: rect.left + x,
-            clientY: rect.top + y,
-            lng: lngLat.lng,
-            lat: lngLat.lat,
-            featureId: String(feature.id ?? feature.properties?.OBJECTID ?? ""),
-          };
-        }
-      }
-      throw new Error("No unobscured rendered First Map feature was available for the click regression.");
-    });
+    // The workflow's first render precedes the app's fit/filter updates. Keep
+    // the original load-budget assertions above; click readiness is a separate
+    // real rendered-feature check under the existing expect timeout.
+    let clickedFeature;
+    try {
+      await expect
+        .poll(
+          async () => {
+            clickedFeature = await page.evaluate(() => {
+              const map = window.__HONUA_QUICKSTART_MAP__;
+              const layers = window.__HONUA_QUICKSTART_RUNTIME__?.layerIds;
+              if (!map || !layers?.length) throw new Error("First Map click regression requires the mounted map layers.");
+              const rect = map.getCanvas().getBoundingClientRect();
+              for (let y = 12; y < rect.height - 12; y += 8) {
+                for (let x = 12; x < rect.width - 12; x += 8) {
+                  const target = document.elementFromPoint(rect.left + x, rect.top + y);
+                  if (!(target instanceof Element) || !target.closest("#map")) continue;
+                  const [feature] = map.queryRenderedFeatures([x, y], { layers });
+                  if (!feature) continue;
+                  const lngLat = map.unproject([x, y]);
+                  return {
+                    clientX: rect.left + x,
+                    clientY: rect.top + y,
+                    lng: lngLat.lng,
+                    lat: lngLat.lat,
+                    featureId: String(feature.id ?? feature.properties?.OBJECTID ?? ""),
+                  };
+                }
+              }
+              return null;
+            });
+            return clickedFeature !== null;
+          },
+          { message: "An unobscured rendered First Map feature must be available for the click regression." },
+        )
+        .toBe(true);
+    } catch (error) {
+      const readiness = await page.evaluate(() => {
+        const map = window.__HONUA_QUICKSTART_MAP__;
+        if (!map) return { mounted: false };
+        const rect = map.getCanvas().getBoundingClientRect();
+        const layers = window.__HONUA_QUICKSTART_RUNTIME__?.layerIds ?? [];
+        return {
+          mounted: true,
+          loaded: map.loaded(),
+          moving: map.isMoving(),
+          tilesLoaded: map.areTilesLoaded(),
+          canvas: { width: rect.width, height: rect.height },
+          layerCount: layers.length,
+          mountedLayerCount: layers.filter((id) => map.getLayer(id)).length,
+          renderedFeatureCount: map.queryRenderedFeatures({ layers }).length,
+        };
+      }).catch(() => ({ observationUnavailable: true }));
+      await testInfo.attach("first-map-click-readiness", {
+        body: JSON.stringify(readiness),
+        contentType: "application/json",
+      });
+      throw error;
+    }
     await page.mouse.click(clickedFeature.clientX, clickedFeature.clientY);
     await expect(page.locator(".maplibregl-popup")).toBeVisible();
     await expect.poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.selectedFeatureId)).toBe(
