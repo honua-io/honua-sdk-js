@@ -41,6 +41,7 @@ import type {
   HonuaControlPlaneJob,
   HonuaControlPlaneResult,
   HonuaEntityValidators,
+  HonuaMapPublicationIntent,
   HonuaPublishMapPackageResponse,
 } from "../types.js";
 import { HonuaCommandError } from "./errors.js";
@@ -251,6 +252,8 @@ export interface MapPackagePublishInput {
   readonly workspaceId?: string;
   /** The `honua_map_package.v1` document to publish. */
   readonly package: HonuaMapPackage;
+  /** Requested destination and audience, subject to server approval. */
+  readonly intent?: HonuaMapPublicationIntent;
   /** Publication message recorded with the version. */
   readonly message?: string;
 }
@@ -270,9 +273,24 @@ export const mapPackagePublishCommand: HonuaCommand<MapPackagePublishInput, Honu
       workspaceId: { type: "string", minLength: 1, description: "Owning workspace." },
       package: { type: "object", description: "The `honua_map_package.v1` document." },
       message: { type: "string", description: "Publication message recorded with the version." },
+      intent: {
+        type: "object",
+        description: "Requested publication route and audience; never an approval grant.",
+        properties: {
+          route: { type: "string", minLength: 1, description: "Absolute publication route, starting with /." },
+          visibility: { type: "string", enum: ["personal", "team", "organization", "public"] },
+        },
+        additionalProperties: false,
+      },
     },
     required: ["package"],
     additionalProperties: false,
+  },
+  validate(input) {
+    if (typeof input?.intent?.route === "string" && !input.intent.route.startsWith("/")) {
+      return [{ path: "intent.route", message: "publication route must start with /" }];
+    }
+    return [];
   },
   plan(context) {
     const { input } = context;
@@ -291,6 +309,7 @@ export const mapPackagePublishCommand: HonuaCommand<MapPackagePublishInput, Honu
     const result = await context.controlPlane.packages.publish(
       {
         package: input.package,
+        ...(input.intent ? { intent: input.intent } : {}),
         ...(input.mapId ? { mapId: input.mapId } : {}),
         ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
         ...(input.message ? { message: input.message } : {}),

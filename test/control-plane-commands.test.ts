@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { connectionTestInvocation, importCreateInvocation } from "../src/cli/commands/control-plane.js";
@@ -21,7 +25,7 @@ import {
 } from "../src/control-plane/index.js";
 import { HonuaClient } from "../src/index.js";
 import type { HonuaMapPackage } from "../src/runtime/index.js";
-import { HonuaStudioLifecycleClient } from "../src/studio/index.js";
+import { HonuaStudioLifecycleClient, createHonuaStudioCommandAdapter } from "../src/studio/index.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -36,6 +40,8 @@ interface CapturedRequest {
 }
 
 const MAP_PACKAGE = { id: "pkg-ops", version: "1.0.0", layers: [] } as unknown as HonuaMapPackage;
+
+const PUBLICATION_INTENT = { route: "/maps/operations", visibility: "team" } as const;
 
 const PUBLISH_RESPONSE = {
   packageId: "pkg-ops-42",
@@ -432,6 +438,8 @@ describe("transports adapt input and output only", () => {
       "map-ops",
       "--package",
       packageJson,
+      "--intent",
+      JSON.stringify(PUBLICATION_INTENT),
       "--workspace",
       "ws-1",
       "--message",
@@ -453,7 +461,7 @@ describe("transports adapt input and output only", () => {
     const js = recorder();
     const jsReceipt = await runtimeFor(js.fetchFn).execute(
       mapPackagePublishCommand,
-      { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it" },
+      { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it", intent: PUBLICATION_INTENT },
       { transport: "sdk", identity: { actor: "user-1", tenantId: "acme" } },
     );
 
@@ -468,6 +476,7 @@ describe("transports adapt input and output only", () => {
     expect(cli.requests[0].method).toBe(js.requests[0].method);
     expect(cli.requests[0].path).toBe(js.requests[0].path);
     expect(cli.requests[0].body).toEqual(js.requests[0].body);
+    expect(cli.requests[0].body).toMatchObject({ intent: PUBLICATION_INTENT });
     expect(cli.requests[0].headers["idempotency-key"]).toBe(js.requests[0].headers["idempotency-key"]);
     expect(cli.requests[0].headers["x-correlation-id"]).toBe(cliReceipt.correlationId);
     expect(js.requests[0].headers["x-correlation-id"]).toBe(jsReceipt.correlationId);
@@ -885,5 +894,73 @@ describe("the terminal release journey runs on the shared command layer", () => 
       correlationId: (direct as HonuaCommandError).correlationId,
     });
     expect(denied.requests[0]?.headers["x-correlation-id"]).toBe(cliError.correlationId);
+  });
+});
+
+describe("map publication intent", () => {
+  it("reads an intent file without changing its requested route or audience", () => {
+    const directory = mkdtempSync(join(tmpdir(), "honua-publication-intent-"));
+    try {
+      const file = join(directory, "intent.json");
+      writeFileSync(file, JSON.stringify(PUBLICATION_INTENT));
+      const { input } = mapPublishInvocation({
+        positionals: [],
+        flags: { package: JSON.stringify(MAP_PACKAGE), intent: `@${file}` },
+      });
+      expect(input.intent).toEqual(PUBLICATION_INTENT);
+      for (const intent of ["null", "[]", "42", "not-json"]) {
+        expect(() => mapPublishInvocation({ positionals: [], flags: { package: "{}", intent } })).toThrow("--intent");
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves intent through the actual Studio adapter and changes identity when the destination changes", async () => {
+    const studio = recorder();
+    const adapter = createHonuaStudioCommandAdapter({
+      client: new HonuaClient({ baseUrl: "https://example.test", fetchFn: studio.fetchFn }),
+    });
+    const input = { package: MAP_PACKAGE, intent: PUBLICATION_INTENT };
+    const receipt = await adapter.execute(mapPackagePublishCommand, input);
+    const js = recorder();
+    const direct = await runtimeFor(js.fetchFn).execute(mapPackagePublishCommand, input, { transport: "sdk" });
+    expect(studio.requests[0].body).toEqual(js.requests[0].body);
+    expect(studio.requests[0].body).toMatchObject({ intent: PUBLICATION_INTENT });
+    expect(receipt.idempotencyKey).toBe(direct.idempotencyKey);
+    const preview = await adapter.execute(
+      mapPackagePublishCommand,
+      {
+        ...input,
+        intent: { ...PUBLICATION_INTENT, route: "/maps/another" },
+      },
+      { dryRun: true },
+    );
+    expect(preview.status).toBe("dry-run");
+    expect(preview.idempotencyKey).not.toBe(receipt.idempotencyKey);
+    expect(studio.requests).toHaveLength(1);
+  });
+
+  it("refuses malformed or authority-bearing intent before any request, including dry run", async () => {
+    for (const intent of [
+      { route: "relative" },
+      { route: 42 },
+      { route: "" },
+      { visibility: "private" },
+      { route: "/maps/operations", approved: true },
+      { approvedBy: "self" },
+      null,
+      [],
+    ]) {
+      for (const dryRun of [false, true]) {
+        const side = recorder();
+        const error = await runtimeFor(side.fetchFn)
+          .execute(mapPackagePublishCommand, { package: MAP_PACKAGE, intent } as never, { dryRun, transport: "sdk" })
+          .catch((value: unknown) => value);
+        expect(error).toBeInstanceOf(HonuaCommandError);
+        expect((error as HonuaCommandError).kind).toBe("validation");
+        expect(side.requests).toHaveLength(0);
+      }
+    }
   });
 });
