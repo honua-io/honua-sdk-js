@@ -417,7 +417,8 @@
     "compatibility",
     "realtime",
     "collaboration",
-    "agent-tools"
+    "agent-tools",
+    "alert-draft-validation"
   ],
   "claimOnlyProtocols": [
     "ogc-processes"
@@ -941,6 +942,12 @@
       "kind": "fixture",
       "path": "test/realtime-cross-transport-conformance.test.ts",
       "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "alerts-evaluation-integration",
+      "kind": "integration",
+      "path": "test/integration/surfaces/alerts-evaluation.integration.ts",
+      "freshnessPolicy": "nightly"
     },
     {
       "id": "realtime-integration",
@@ -2463,6 +2470,26 @@
       "notes": "Loads server-authored styles, layer order, and metadata.",
       "evidence": [
         "map-package-fixtures"
+      ]
+    },
+    {
+      "id": "alerts-draft-evaluation-preview",
+      "label": "Alert draft evaluation (Preview)",
+      "operations": [
+        "alert-draft-validation"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "experimental",
+      "backendNeeded": "Single-tenant Honua Server Pro with experimental alerts.geofence explicitly enabled",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "Draft validation uses Honua Server's administrative alerts contract and its Pro entitlement; it is unavailable on a generic open endpoint."
+      },
+      "api": "createHonuaOperate({ client }).alertRules.test()",
+      "notes": "Preview/experimental only. The dedicated single-tenant Pro integration fixture executes the same immutable selected candidate with alerts.geofence disabled and enabled. Disabled must return typed unsupported HTTP 404; enabled validates an unpersisted rule and zone. This claim covers draft validation only, not alert evaluation workers, delivery, multi-tenant use, Community availability, or GA support.",
+      "evidence": [
+        "alerts-evaluation-integration"
       ]
     },
     {

@@ -159,12 +159,13 @@ describe("capability-to-sample matrix contract", () => {
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
-    // 35 = 30 pre-existing claims + two columnar workflow claims
-    // + the dynamic STAC workflow, direct COG raster, and managed PMTiles claims.
-    // Support claims are a different vocabulary from samples - 35 of them since
-    // 2026-08, none named kepler-analytics. #1681 corrected the sample count
-    // after the Kepler retirement and swept this adjacent line along with it.
-    expect(matrix.supportClaims).toHaveLength(35);
+    // The 35 existing claims plus Preview alert draft validation. Adding this
+    // experimental surface must not invent a qualified sample or GA support.
+    expect(matrix.supportClaims).toHaveLength(36);
+    expect(matrix.supportClaims.find((claim) => claim.id === "alerts-draft-evaluation-preview")).toMatchObject({
+      supportStatus: "experimental",
+      coverage: { qualifyingSampleIds: [] },
+    });
     // 67 = 59 original package entrypoints + the experimental STAC, raster,
     // PMTiles, zarr, and the experimental declarative-interactions compiler
     // and Studio agent session, plus the experimental local installer, plus

@@ -170,10 +170,10 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 28 of the 35 generated support
+**Two deployment tiers, named up front.** 28 of the 36 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
-7 are `server-attach` and execute only after attaching to a Honua Server facade;
+8 are `server-attach` and execute only after attaching to a Honua Server facade;
 1 of those link a roadmap issue for an open-endpoint path and the rest state why the
 server dependency is inherent, in the generated
 [capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
