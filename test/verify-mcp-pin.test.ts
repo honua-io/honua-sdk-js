@@ -15,6 +15,7 @@ import {
   satisfiesUnderNpmDefaults,
   verifyClientPairCoInstallable,
   verifyCreateAppPins,
+  verifyManagedMcpPeerPolicy,
   verifyMcpPinLineage,
   verifyMcpPinPublication,
   verifyZeroToMapConfigPins,
@@ -44,6 +45,58 @@ async function readManifest(relativePath: string) {
     peerDependencies?: Record<string, string>;
   };
 }
+
+describe("managed MCP minor-line bridge", () => {
+  async function inputs() {
+    const read = async (name: string) => JSON.parse(await readFile(path.join(projectRoot, name), "utf8"));
+    return {
+      policy: await read("config/mcp-sdk-peer-policy.v1.json"),
+      releaseConfig: await read("release-please-config.json"),
+      sdk: await read("package.json"),
+      mcp: await read("mcp/package.json"),
+      mcpLock: await read("mcp/package-lock.json"),
+    };
+  }
+
+  it("keeps the actual managed package and lockfile on the reviewed bridge", async () => {
+    expect(verifyManagedMcpPeerPolicy(await inputs()).peerRange).toBe("^0.1.17 || ^0.2.0");
+  });
+
+  it.each(["0.1.17", "0.1.99", "0.2.0", "0.2.99"])("admits stable SDK %s", async (version) => {
+    const value = await inputs();
+    value.sdk.version = version;
+    expect(() => verifyManagedMcpPeerPolicy(value)).not.toThrow();
+  });
+
+  it.each(["0.1.16", "0.0.99", "0.3.0", "1.0.0", "0.2.0-beta.1"])("refuses SDK %s", async (version) => {
+    const value = await inputs();
+    value.sdk.version = version;
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/outside the reviewed/);
+  });
+
+  it("refuses managed narrowing, absent metadata, or an unrelated policy", async () => {
+    const value = await inputs();
+    value.releaseConfig.plugins[0].updatePeerDependencies = true;
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/preserve the reviewed/);
+    value.releaseConfig.plugins[0].updatePeerDependencies = false;
+    value.mcp.peerDependencies[value.policy.sdk] = "^0.2.0";
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/package and lockfile/);
+    value.mcp.peerDependencies[value.policy.sdk] = value.policy.range;
+    delete value.mcpLock.packages[""].peerDependencies;
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/package and lockfile/);
+    value.policy.sdk = "unrelated-sdk";
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/supported schema and SDK/);
+  });
+
+  it.each(["*", ">=0.1.17", "^0.1.17 || ^0.3.0", "^0.1.17 || ^0.2.0-beta.1"])(
+    "refuses unreviewable range %s",
+    async (range) => {
+      const value = await inputs();
+      value.policy.range = range;
+      expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/bound two adjacent/);
+    },
+  );
+});
 
 describe("generated MCP client configuration pin", () => {
   it("keeps every create-honua-app SDK pin on the certified manifest fallback", async () => {

@@ -386,7 +386,12 @@ throw new Error("Unexpected registry URL");
     const verify = ({ live = true } = {}) => {
       const integrity = response.versions["0.1.16"].dist.integrity;
       fs.mkdirSync(path.join(root, "mcp"), { recursive: true });
-      fs.writeFileSync(path.join(root, "mcp/package.json"), JSON.stringify({ name: "@honua/mcp-server", version: "0.1.16", peerDependencies: { "@honua/sdk-js": "^0.1.15" } }));
+      const peerRange = "^0.1.15 || ^0.2.0";
+      fs.mkdirSync(path.join(root, "config"), { recursive: true });
+      fs.writeFileSync(path.join(root, "config/mcp-sdk-peer-policy.v1.json"), JSON.stringify({ schema: "honua.mcp-sdk-peer-policy/v1", sdk: "@honua/sdk-js", range: peerRange }));
+      fs.writeFileSync(path.join(root, "release-please-config.json"), JSON.stringify({ plugins: [{ type: "node-workspace", updatePeerDependencies: false }] }));
+      fs.writeFileSync(path.join(root, "mcp/package.json"), JSON.stringify({ name: "@honua/mcp-server", version: "0.1.16", peerDependencies: { "@honua/sdk-js": peerRange } }));
+      fs.writeFileSync(path.join(root, "mcp/package-lock.json"), JSON.stringify({ packages: { "": { peerDependencies: { "@honua/sdk-js": peerRange } } } }));
       fs.writeFileSync(path.join(root, "mcp/CHANGELOG.md"), "## [0.1.16]\n");
       fs.writeFileSync(path.join(root, "dist/src/local-install.js"),
         `export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";

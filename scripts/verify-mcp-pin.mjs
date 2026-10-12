@@ -58,6 +58,38 @@ export const CREATE_APP_PIN_SITES = [
   "packages/create-honua-app/templates/react-ts/package.json",
 ];
 
+/** A reviewed adjacent-minor bridge must survive managed version updates. */
+export function verifyManagedMcpPeerPolicy({ policy, releaseConfig, sdk, mcp, mcpLock }) {
+  invariant(
+    policy?.schema === "honua.mcp-sdk-peer-policy/v1" && policy.sdk === "@honua/sdk-js",
+    "MCP SDK peer policy must name the supported schema and SDK",
+  );
+  const range = /^\^0\.(\d+)\.\d+ \|\| \^0\.(\d+)\.0$/.exec(policy.range ?? "");
+  invariant(
+    range && Number(range[2]) === Number(range[1]) + 1,
+    "MCP SDK peer policy must bound two adjacent stable pre-1.0 minor lines",
+  );
+  const plugins = releaseConfig?.plugins?.filter((plugin) => plugin?.type === "node-workspace") ?? [];
+  invariant(
+    plugins.length === 1 && plugins[0].updatePeerDependencies === false,
+    "Release Please must preserve the reviewed MCP peer range instead of replacing it",
+  );
+  invariant(
+    sdk?.name === policy.sdk && mcp?.name === "@honua/mcp-server",
+    "MCP SDK peer policy package identity mismatch",
+  );
+  invariant(
+    mcp.peerDependencies?.[policy.sdk] === policy.range &&
+      mcpLock?.packages?.[""]?.peerDependencies?.[policy.sdk] === policy.range,
+    "MCP package and lockfile must declare the reviewed SDK peer range",
+  );
+  invariant(
+    satisfiesUnderNpmDefaults(sdk.version, policy.range),
+    `SDK ${sdk.version} falls outside the reviewed MCP peer policy; review compatibility before extending it`,
+  );
+  return { sdkVersion: sdk.version, peerRange: policy.range };
+}
+
 /** The dedicated live gate for the registry lane. Never enabled in PR CI. */
 export function isMcpPinLiveVerificationEnabled(env = process.env) {
   return /^(1|true|yes)$/i.test(String(env?.[NETWORK_GATE] ?? ""));
@@ -475,6 +507,13 @@ async function main() {
   // The pair this working tree would cut: mcp/package.json's declared peer
   // range against the SDK version sitting beside it.
   const mcpManifest = readJson("mcp/package.json");
+  verifyManagedMcpPeerPolicy({
+    policy: readJson("config/mcp-sdk-peer-policy.v1.json"),
+    releaseConfig: readJson("release-please-config.json"),
+    sdk: { name: sdkName, version: sdkVersion },
+    mcp: mcpManifest,
+    mcpLock: readJson("mcp/package-lock.json"),
+  });
   verifyClientPairCoInstallable({
     sdkName,
     sdkVersion,

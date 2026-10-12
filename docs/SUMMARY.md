@@ -20,6 +20,7 @@
 
 * [Honua App Bootstrap (`@honua/sdk-js/app`)](app-bootstrap.md)
 * [Scaffold a new app](create-honua-app.md)
+* [MCP compatibility across the Node 22 transition](mcp-minor-line-bridge.md)
 * [@honua/mcp-server: the standalone MCP server](mcp-server.md)
 * [`honua-maplibre` migration target](migration-honua-maplibre.md)
 * [JavaScript migration tool transition](migration-tool-transition.md)
