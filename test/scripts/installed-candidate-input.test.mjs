@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { parse, stringify } from "yaml";
 import { readInstalledCandidateInput } from "../../scripts/installed-candidate-input.mjs";
+import { selectInstalledCandidate } from "../../scripts/select-installed-candidate.mjs";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -115,12 +116,22 @@ test("the legacy config is not rewritten by snapshot selection", async () => {
   assert.equal(await readFile(path.join(root, "config/installed-package-certification.v1.json"), "utf8"), before);
 });
 
-test("workflow preserves the scheduled legacy regression and gates immutable selection before producers", async () => {
+test("workflow selects the approved current snapshot on schedule and gates admission before producers", async () => {
   const workflow = parse(await readFile(path.join(root, ".github/workflows/installed-package-certification.yml"), "utf8"));
   assert.equal(workflow.on.schedule[0].cron, "30 8 * * *");
-  assert.equal(workflow.on.workflow_dispatch.inputs.candidate_mode.default, "legacy-regression");
+  assert.equal(workflow.on.workflow_dispatch.inputs.candidate_mode.default, "current-release");
   const steps = workflow.jobs.certify.steps;
+  const selector = steps.findIndex((step) => step.id === "candidate");
   const admission = steps.findIndex((step) => step.id === "release_input");
+  assert.ok(selector >= 0 && selector < admission);
+  const nodeSetup = steps.findIndex((step) => step.uses?.startsWith("actions/setup-node@"));
+  assert.ok(nodeSetup >= 0 && nodeSetup < selector);
+  assert.equal(steps[nodeSetup].with["node-version"], "22.23.3");
+  assert.equal(steps[selector].run, "node scripts/select-installed-candidate.mjs");
+  assert.equal(steps[admission].if, "steps.candidate.outputs.mode == 'release-snapshot'");
+  assert.equal(steps[admission].with.candidate_ref, "${{ steps.candidate.outputs.candidate_ref }}");
+  assert.equal(steps[admission].with.reviewed_release_sha, "${{ steps.candidate.outputs.reviewed_release_sha }}");
+  assert.ok(workflow.on.workflow_dispatch.inputs.candidate_mode.options.includes("legacy-regression"));
   assert.match(steps[admission].uses, /^honua-io\/honua-release\/\.github\/actions\/candidate-input@[a-f0-9]{40}$/,
     "candidate admission must use the merged immutable upstream implementation");
   const verifier = steps.findIndex((step) => step.name === "Verify the selected release npm artifacts with the upstream verifier");
@@ -181,4 +192,69 @@ test("snapshot input cannot label a local tarball and removes a previous receipt
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+async function withCurrentSelection(selection, run) {
+  const directory = await mkdtemp(path.join(tmpdir(), "honua-current-installed-selection-"));
+  try {
+    await mkdir(path.join(directory, "config"));
+    if (selection !== undefined) await writeFile(path.join(directory, "config/installed-candidate-selection.v1.json"),
+      JSON.stringify(selection));
+    await run(directory);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+}
+const approvedSelection = { schema: "honua.installed-candidate-selection/v1",
+  reviewedReleaseSha: "a".repeat(40), candidateRef: "b".repeat(40) };
+
+test("scheduled and default dispatch routes bind the same approved immutable selection", async () => {
+  await withCurrentSelection(approvedSelection, async (repositoryRoot) => {
+    for (const eventName of ["schedule", "workflow_dispatch"]) {
+      const selected = await selectInstalledCandidate({ repositoryRoot, eventName });
+      assert.equal(selected.mode, "release-snapshot");
+      assert.equal(selected.source, "committed-current-selection");
+      assert.equal(selected.reviewedReleaseSha, approvedSelection.reviewedReleaseSha);
+      assert.equal(selected.candidateRef, approvedSelection.candidateRef);
+      assert.equal(selected.selectionSha256, digest(JSON.stringify(approvedSelection)));
+    }
+  });
+});
+
+test("missing current selection fails closed even when a schedule is offered a legacy fallback", async () => {
+  await withCurrentSelection(undefined, async (repositoryRoot) => {
+    for (const eventName of ["schedule", "workflow_dispatch"]) {
+      await assert.rejects(selectInstalledCandidate({ repositoryRoot, eventName }), /blocked.*no approved immutable/);
+    }
+    await assert.rejects(selectInstalledCandidate({ repositoryRoot, eventName: "schedule", mode: "legacy-regression" }),
+      /legacy fallback is forbidden/);
+    assert.deepEqual(await selectInstalledCandidate({ repositoryRoot, eventName: "workflow_dispatch", mode: "legacy-regression" }),
+      { mode: "legacy-regression", source: "explicit-legacy-dispatch" });
+  });
+});
+
+test("mutable, partial, unexpected and unsupported current pointers are rejected", async () => {
+  for (const selection of [
+    { ...approvedSelection, candidateRef: "trunk" },
+    { ...approvedSelection, reviewedReleaseSha: "a".repeat(39) },
+    { ...approvedSelection, candidateRef: "B".repeat(40) },
+    { ...approvedSelection, schema: "other/v1" },
+    { ...approvedSelection, packages: [] },
+    { schema: approvedSelection.schema, candidateRef: approvedSelection.candidateRef },
+  ]) {
+    await withCurrentSelection(selection, async (repositoryRoot) => {
+      await assert.rejects(selectInstalledCandidate({ repositoryRoot, eventName: "schedule" }));
+    });
+  }
+});
+
+test("explicit snapshot stays independent and cannot override current or legacy selections", async () => {
+  const refs = { reviewedReleaseSha: approvedSelection.reviewedReleaseSha, candidateRef: approvedSelection.candidateRef };
+  await withCurrentSelection(undefined, async (repositoryRoot) => {
+    assert.deepEqual(await selectInstalledCandidate({ repositoryRoot, eventName: "workflow_dispatch", mode: "release-snapshot", ...refs }),
+      { mode: "release-snapshot", source: "explicit-snapshot-dispatch", ...refs });
+    for (const mode of ["current-release", "legacy-regression", "unknown"]) {
+      await assert.rejects(selectInstalledCandidate({ repositoryRoot, eventName: "workflow_dispatch", mode, ...refs }));
+    }
+    await assert.rejects(selectInstalledCandidate({ repositoryRoot, eventName: "workflow_dispatch", mode: "release-snapshot", ...refs,
+      candidateRef: `refs/nightly-candidates/${refs.candidateRef}` }));
+  });
 });
