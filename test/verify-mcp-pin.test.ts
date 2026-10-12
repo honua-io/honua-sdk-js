@@ -439,7 +439,9 @@ describe("pinned client pair co-installability (#1529)", () => {
 
   it("either co-installs the pinned pair or is exactly the state the publish gate refuses", async () => {
     const sdk = await readManifest("package.json");
-    const receipt = await readManifest("config/mcp-pinned-peer.v1.json");
+    const receipt: { pin: string; integrity: string; sdkPeerRange: string } = JSON.parse(
+      await readFile(path.join(projectRoot, "config/mcp-pinned-peer.v1.json"), "utf8"),
+    );
     expect(receipt.pin).toBe(LOCAL_INSTALL_MCP_PACKAGE);
     expect(receipt.integrity).toBe(LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY);
     const pinned = {
