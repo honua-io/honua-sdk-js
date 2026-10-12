@@ -19,6 +19,13 @@ on:
         required: false
         default: ""
 
+      recover_sealed_source:
+        description: >-
+          Reviewed exact generated ancestor for a stranded draft after trunk advanced.
+          Requires a committed recovery record, successful exact-source CI and fresh strict seal.
+        required: false
+        default: ""
+
 permissions: read-all
 
 jobs:
@@ -77,6 +84,48 @@ jobs:
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
           owner: honua-io
 
+      - name: Checkout recovery policy
+        if: inputs.recover_sealed_source != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup recovery policy runtime
+        if: inputs.recover_sealed_source != ''
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22.23.3"
+
+      - name: Verify reviewed sealed ancestor
+        id: ancestor
+        if: inputs.recover_sealed_source != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_TAG: ${{ inputs.finish_stranded_draft }}
+          RECOVERY_SOURCE: ${{ inputs.recover_sealed_source }}
+        run: node scripts/verify-sealed-ancestor-recovery.mjs "$RECOVERY_TAG" "$RECOVERY_SOURCE"
+
+      - name: Setup exact candidate runtime
+        if: inputs.recover_sealed_source != ''
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ steps.ancestor.outputs.node_version }}
+
+      - name: Recheck exact ancestor release seal
+        id: ancestor-seal
+        if: inputs.recover_sealed_source != ''
+        timeout-minutes: 10
+        env:
+          RECOVERY_SOURCE: ${{ steps.ancestor.outputs.source }}
+          RECOVERY_VERSION: ${{ steps.ancestor.outputs.version }}
+        run: |
+          set -euo pipefail
+          git worktree add --detach .tmp/release-recovery/candidate "$RECOVERY_SOURCE"
+          cd .tmp/release-recovery/candidate
+          npm ci --ignore-scripts
+          node scripts/release-seal.mjs check --expect-version "$RECOVERY_VERSION"
+
       # Never run the release iterator during a draft recovery (#1337). A
       # stranded draft is by definition inside the draft-no-tag window this
       # job's concurrency comment describes: Release Please's release iterator
@@ -111,6 +160,9 @@ jobs:
           # with 401; App expiry is not supported by that run's evidence.
           GH_TOKEN: ${{ github.token }}
           FINISH_STRANDED_DRAFT: ${{ inputs.finish_stranded_draft }}
+          RECOVER_SEALED_SOURCE: ${{ inputs.recover_sealed_source }}
+          RECOVERY_VERIFIED_SOURCE: ${{ steps.ancestor.outputs.source }}
+          RECOVERY_SEAL_OUTCOME: ${{ steps.ancestor-seal.outcome }}
           JS_SDK_RELEASE_CREATED: ${{ steps.release.outputs.release_created || steps.release.outputs['.--release_created'] }}
           JS_SDK_TAG_NAME: ${{ steps.release.outputs.tag_name || steps.release.outputs['.--tag_name'] }}
           # The JS SDK release is cut as a DRAFT (release-please-config.json,
@@ -531,6 +583,31 @@ jobs:
             local release_version
             release_version="$(release_version_from_tag "${tag}")"
 
+            # A committed, reviewed recovery record can preserve an already
+            # qualified pre-breaking ancestor without publishing current trunk
+            # under its old patch version. This never selects an arbitrary SHA.
+            if [[ -n "${RECOVER_SEALED_SOURCE:-}" ]]; then
+              if [[ "${RECOVER_SEALED_SOURCE}" != "${RECOVERY_VERIFIED_SOURCE:-}" || "${RECOVERY_SEAL_OUTCOME:-}" != "success" ]]; then
+                fail "The exact ancestor did not pass policy and fresh strict release-seal verification."
+              fi
+              # Re-read CI, artifact, draft and ancestry immediately before the
+              # first write. A changed or failed prerequisite is a refusal.
+              node scripts/verify-sealed-ancestor-recovery.mjs "${tag}" "${RECOVER_SEALED_SOURCE}"
+              local recovery_existing_tag
+              recovery_existing_tag="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${tag}" --jq ".[] | select(.ref == \"refs/tags/${tag}\") | .object.sha")"
+              if [[ -z "${recovery_existing_tag}" ]]; then
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+                  -f ref="refs/tags/${tag}" -f sha="${RECOVER_SEALED_SOURCE}" >/dev/null
+              fi
+              local recovery_tag_sha
+              recovery_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
+              if [[ "${recovery_tag_sha}" != "${RECOVER_SEALED_SOURCE}" ]]; then
+                fail "Recovery tag ${tag} does not name the verified sealed ancestor; immutable tags may never be replaced."
+              fi
+              publish_sealed_draft "${tag}" "${release_id}" "${RECOVER_SEALED_SOURCE}" "${release_version}"
+              return 0
+            fi
+
             # Version anchor (#1337). On a normal cut GITHUB_SHA IS the version
             # bump commit, so "the tree carries this release's version" holds
             # structurally and needs no check. A recovery dispatch runs on
@@ -624,6 +701,16 @@ jobs:
               finish_stranded_draft_release "${FINISH_STRANDED_DRAFT}"
             fi
           fi
+
+
+      - name: Retain sealed-ancestor recovery verification
+        if: always() && inputs.recover_sealed_source != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: sealed-ancestor-recovery-verification
+          path: .tmp/release-recovery/verification.json
+          if-no-files-found: warn
+
 
   release-please-refresh:
     needs: release-please
