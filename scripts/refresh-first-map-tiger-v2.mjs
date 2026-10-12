@@ -341,7 +341,7 @@ async function buildFiles() {
       objectIdAssignment: "1-based index after ascending GEOID sort",
     },
     toolchain: {
-      node: "20.19.0 (.nvmrc)",
+      node: `${process.versions.node} (execution runtime)`,
       projection: "proj4@2.20.9 (package-lock.json)",
       archive: "node:zlib inflateRawSync",
       parser: "scripts/refresh-first-map-tiger-v2.mjs",

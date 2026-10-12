@@ -64,7 +64,7 @@ permissions:
   packages: read
 
 env:
-  NODE_VERSION: "20.19.0"
+  NODE_VERSION: "22.23.3"
   # Pinned self-contained server image + fixtures. A repo variable overrides the
   # pin so it can be advanced without a code change; advancing it is a
   # deliberate, reviewable change. The vendored seed

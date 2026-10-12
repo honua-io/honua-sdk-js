@@ -52,7 +52,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: 20.19.0
+          node-version: 22.23.3
           cache: npm
           cache-dependency-path: source-a/package-lock.json
 
@@ -227,7 +227,7 @@ jobs:
           # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
           # a release version bump rewrites those and nothing in CI is able
           # to move this constant (#1357).
-          EXPECTED_LOCKFILE_SHA256: 711e51be8a810a662f6fa8e4f74dbeb8509f64414bcc62c4c99e8339a959e74d
+          EXPECTED_LOCKFILE_SHA256: b7a40a99eb53d0621da6fda6238f4137208a6edc38af18c636812579472d555e
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -437,7 +437,7 @@ jobs:
           integer(source_epoch, 1, 4_102_444_800)
           validate_raw_smoke(smoke_raw, source_epoch)
           keys(deterministic["build"], ["node", "lockfileSha256", "workflow", "actions"])
-          assert deterministic["build"] == {"node": "20.19.0", "lockfileSha256": lock_sha, "workflow": ".github/workflows/publish-content-addressed-sample-bundles.yml", "actions": action_map}
+          assert deterministic["build"] == {"node": "22.23.3", "lockfileSha256": lock_sha, "workflow": ".github/workflows/publish-content-addressed-sample-bundles.yml", "actions": action_map}
           keys(deterministic["publication"], ["tag", "fileCount", "memberCount", "assets"])
           assert deterministic["publication"]["tag"] == f"sample-bundles-{source}"
           keys(deterministic["publication"]["assets"], ["sample-bundles.v2.json", "sample-bundles.tar.gz"])

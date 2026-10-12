@@ -67,7 +67,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  NODE_VERSION: "20.19.0"
+  NODE_VERSION: "22.23.3"
   # Same relaxation semantics as ci.yml (#677): committed generated artifacts
   # are re-bound on trunk by regenerate-derived-artifacts.yml, so trunk PRs and
   # the trunk push tolerate a lagging pin. Release branches stay strict.

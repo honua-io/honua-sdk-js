@@ -18,7 +18,7 @@ const version = rootPackageJson.version;
 const ROOT_LICENSE_PATH = path.join(PROJECT_ROOT, "LICENSE");
 // Keep published package install support aligned with the SDK runtime floor,
 // even when repo-only tooling or example dependencies need a newer Node patch.
-const publishedEngines = { node: ">=20.0.0" };
+const publishedEngines = { node: ">=22.12.0" };
 const OPTIONAL_GRPC_RUNTIME_PEERS = [
   "@bufbuild/protobuf",
   "@connectrpc/connect",

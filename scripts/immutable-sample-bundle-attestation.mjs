@@ -13,7 +13,7 @@ import { lockfileDependencyDigest } from "./lib/lockfile-pin.mjs";
 
 export const WORKFLOW_PATH =
   ".github/workflows/publish-content-addressed-sample-bundles.yml";
-export const NODE_VERSION = "20.19.0";
+export const NODE_VERSION = "22.23.3";
 // The dependency digest of `package-lock.json` that the privileged publish job
 // is allowed to publish for -- `lockfileDependencyDigest`, not a digest of the
 // file's bytes. This is the bound copy: the authoritative one is the
@@ -23,7 +23,7 @@ export const NODE_VERSION = "20.19.0";
 // it: nothing in CI can, because `GITHUB_TOKEN` cannot commit to
 // `.github/workflows/**` (#1357).
 export const EXPECTED_LOCKFILE_SHA256 =
-  "711e51be8a810a662f6fa8e4f74dbeb8509f64414bcc62c4c99e8339a959e74d";
+  "b7a40a99eb53d0621da6fda6238f4137208a6edc38af18c636812579472d555e";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   setupNode: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
@@ -62,7 +62,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "2426ff08532a6d0d174cb5a899d3881db003b88d32d2eab200189cc9c10b03fd",
+    "acfaf054dabfa026dfd160b2e52c6f22c06718d5022b0a7460410c87e1f11107",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":

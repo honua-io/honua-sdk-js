@@ -88,7 +88,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "20.19.0"
+  NODE_VERSION: "22.23.3"
   HONUA_REALTIME_LIVE_CONFORMANCE_ENABLED: "true"
   # A scheduled run has no inputs; the cron expression selects the lane.
   LANE: ${{ github.event_name == 'schedule' && (github.event.schedule == '40 5 * * *' && 'candidate' || 'deployment') || inputs.lane || 'deployment' }}
