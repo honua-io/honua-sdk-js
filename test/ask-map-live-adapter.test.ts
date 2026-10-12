@@ -169,7 +169,14 @@ describe("Authenticated server-side model adapter", () => {
       model: "fixture-model",
       fetchImpl,
     });
-    const result = await complete(requestBody, new AbortController().signal);
+    const correction = {
+      previousToolCalls: [{ name: "runWidgetQuery", arguments: { semanticQuery: "{}" } }],
+      issues: [{ code: "invalid-arguments", message: "semanticQuery must be an object" }],
+    };
+    const result = await complete(
+      { ...requestBody, purpose: "self-correct", attempt: 2, correction },
+      new AbortController().signal,
+    );
     expect(result).toEqual({
       clarification: "Which location?",
       modelIdentity: { provider: "https://model.example", model: "fixture-model" },
@@ -179,6 +186,12 @@ describe("Authenticated server-side model adapter", () => {
     expect(options.redirect).toBe("error");
     expect(options.headers).toMatchObject({ authorization: "Bearer test-server-model-key" });
     expect(String(options.body)).not.toContain("test-server-model-key");
+    const sent = JSON.parse(String(options.body));
+    expect(sent.messages.at(-1).role).toBe("user");
+    expect(sent.messages.at(-1).content).toContain("REJECTED and NEVER EXECUTED");
+    expect(sent.messages.at(-1).content).toContain("do not change the accepted context.previousQuery");
+    expect(sent.messages.at(-1).content).toContain(requestBody.instruction);
+    expect(sent.messages.at(-1).content).toContain(JSON.stringify(correction));
     expect(() =>
       openAiCompatibleCompletion({ endpoint: "http://model.example", apiKey: "key", model: "model" }),
     ).toThrow();
