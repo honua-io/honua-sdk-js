@@ -38,6 +38,9 @@ export async function studioCommand(parsed: ParsedArgs, ctx: CommandContext): Pr
     ctx,
     heading: studioSaveVersionHeading,
     confirm: "honua studio draft save-version mutates state. Re-run with --yes, or preview with --dry-run.",
-    detail: (receipt) => ({ draft: draftId, version: receipt.resourceRef?.id ?? "(not assigned)" }),
+    detail: (receipt) => ({
+      draft: draftId,
+      version: receipt.status === "ok" ? (receipt.resourceRef?.id ?? "(not assigned)") : "(not assigned)",
+    }),
   });
 }

@@ -174,6 +174,7 @@ describe("actual honua studio draft save-version terminal", () => {
     const preview = await terminal(["draft", "save-version", "draft-1", "--generation", "7", "--dry-run"]);
     expect(preview.code).toBe(0);
     expect(preview.stdout).toContain("dry run");
+    expect(preview.stdout).toContain("(not assigned)");
     expect(preview.stdout).not.toContain("version saved");
     expect(requests).toEqual([]);
   });
