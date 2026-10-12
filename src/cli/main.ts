@@ -80,6 +80,7 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "style-evidence" },
   { name: "style-png" },
   { name: "package" },
+  { name: "intent" },
   { name: "message" },
   { name: "source-kind" },
   { name: "source-url" },
