@@ -396,7 +396,7 @@ export class EditWorkflowSession<T = Record<string, unknown>> {
       const value = values[field.name];
       const serverAssignedOnCreate = this.kind === "create" && field.editable === false;
       const required = (field.required === true || field.nullable === false) && !serverAssignedOnCreate;
-      if (required && isEmptyValue(value) && field.defaultValue === undefined) {
+      if (required && isEmptyValue(value) && (value !== undefined || isEmptyValue(field.defaultValue))) {
         errors.push({
           fieldName: field.name,
           code: "required",

@@ -1,0 +1,56 @@
+{
+  "sdkVersion": "0.1.16",
+  "scope": "published workflow module; synthetic transport only, no server readback",
+  "untouched": {
+    "displayed": "Visible default",
+    "preflight": {
+      "ready": false,
+      "transported": false,
+      "mutationId": "6acb4a6d-c02e-4d39-850f-7cbfb19fb56f",
+      "source": {
+        "sourceId": "defaults-control",
+        "protocol": "geoservices-feature-service"
+      },
+      "operation": "create",
+      "identity": {
+        "sourceId": "defaults-control"
+      },
+      "draft": {
+        "dirty": true,
+        "changedFields": [
+          "category"
+        ],
+        "geometry": "unchanged",
+        "attachments": {
+          "add": 0,
+          "update": 0,
+          "delete": 0
+        }
+      },
+      "validation": {
+        "valid": false,
+        "errors": [
+          {
+            "code": "required",
+            "fieldName": "requiredText",
+            "message": "requiredText is required"
+          }
+        ]
+      },
+      "blockers": []
+    },
+    "submit": {
+      "status": "rejected",
+      "transported": false
+    },
+    "calls": []
+  },
+  "explicitSubtype": {
+    "requested": 2,
+    "observed": 1
+  },
+  "sourceSha": "a86b222878939a4c85abd1fe574303b60d81a3b5",
+  "packageIntegrity": "sha512-nAbF80YV+z/W+zj9xg+z9Ja9dGFdsp84FRF5X1+kKEyZMj4UTAIcQoj7pkl314Lhxhi38oBNoQ4pRfQRjWvZ8g==",
+  "moduleSha256": "2a0d70894ab446176a8191ddbab64225b0a21f187c5f994134dee1807944f72d",
+  "nodeVersion": "20.19.0"
+}

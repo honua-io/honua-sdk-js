@@ -863,3 +863,20 @@ clearing every gate.
 Gate definitions and per-cell evidence and notes live in
 [`config/component-qualification.v1.json`](../config/component-qualification.v1.json).
 <!-- component-qualification:end -->
+
+#### New feature default values
+
+Opening a create draft preserves explicitly supplied feature/template attributes,
+including `null`, `0`, `false`, and empty strings. For absent values, the workflow
+chooses the configured subtype `defaultCode` first, otherwise the subtype field's
+schema default. It then materializes writable field defaults from that resolved
+subtype, with subtype overrides taking precedence over schema defaults. Those
+values are part of the draft: displayed values, preflight and the mutation agree.
+Invalid defaults still fail normal validation before transport. Server-managed
+read-only fields receive no client-side default writes.
+
+`begin("create", feature)` accepts an explicit template's prototype attributes;
+the workflow does not parse WebMap template definitions itself. Initialization
+applies only to a new create draft. It does not fill missing values in updates or
+deletes, and changing a subtype after opening a draft does not overwrite edits
+with another template's values.
