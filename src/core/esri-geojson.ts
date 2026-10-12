@@ -259,9 +259,16 @@ export function esriGeometryToGeoJSON(
   const candidate = geometry as Record<string, unknown>;
 
   if (hasNumber(candidate, "x") && hasNumber(candidate, "y")) {
+    if (candidate.z !== undefined && !hasNumber(candidate, "z")) {
+      return null;
+    }
     return {
       type: "Point",
-      coordinates: [candidate.x as number, candidate.y as number],
+      coordinates: [
+        candidate.x as number,
+        candidate.y as number,
+        ...(candidate.z === undefined ? [] : [candidate.z as number]),
+      ],
     };
   }
 
@@ -416,7 +423,11 @@ export function geoJsonToEsriGeometry(
   switch (geometry.type) {
     case "Point": {
       const [x, y, z] = geometry.coordinates;
-      if (typeof x !== "number" || typeof y !== "number") {
+      if (
+        typeof x !== "number" ||
+        typeof y !== "number" ||
+        (z !== undefined && (typeof z !== "number" || !Number.isFinite(z)))
+      ) {
         return null;
       }
       // Keep the altitude of a 3D position: dropping it would hand back a
