@@ -30,7 +30,7 @@ not add tools of its own.
 npx -y -p @honua/mcp-server honua-mcp
 ```
 
-Needs Node.js `>=20.19` and `HONUA_BASE_URL`. Client configuration
+Needs Node.js `>=22.12` and `HONUA_BASE_URL`. Client configuration
 (`.mcp.json`, `claude_desktop_config.json`, Cursor):
 
 ```json

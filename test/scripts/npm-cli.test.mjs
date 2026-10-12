@@ -415,7 +415,7 @@ test("Windows Job Object assignment failure cannot reach the gated target launch
 
 test(
   "native Windows refuses to terminate a reused PID with a different creation identity",
-  { skip: process.platform !== "win32" || process.versions.node !== "20.19.0" },
+  { skip: process.platform !== "win32" },
   async () => {
     const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1_000)"], {
       stdio: "ignore",
@@ -446,8 +446,8 @@ test(
 );
 
 test(
-  "native Windows Node 20 preserves argv and drains orphaned inherited-handle leaves on timeout and maxBuffer",
-  { skip: process.platform !== "win32" || process.versions.node !== "20.19.0" },
+  "native Windows preserves argv and drains orphaned inherited-handle leaves on timeout and maxBuffer",
+  { skip: process.platform !== "win32" },
   async () => {
     const temporary = await mkdtemp(path.join(os.tmpdir(), "honua-npm-cli-"));
     const controlRoot = await mkdtemp(path.join(os.tmpdir(), "honua-npm-cli-control-"));

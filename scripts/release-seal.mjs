@@ -248,8 +248,8 @@ function readVersionStamps(root) {
   });
 }
 
-// `fs.globSync` is Node 22+ and this repository runs Node 20.19.0, so the
-// receipt set is enumerated with an explicit two-level directory read.
+// Enumerate the receipt set with an explicit two-level directory read so the
+// seal covers exactly the reviewed layout.
 export function receiptFiles(root = ROOT) {
   const evidenceRoot = path.join(root, EVIDENCE_ROOT);
   if (!fs.existsSync(evidenceRoot)) return [];

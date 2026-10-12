@@ -123,7 +123,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "20.19.0"
+          node-version: "22.23.3"
           registry-url: "https://registry.npmjs.org"
           cache: "npm"
           cache-dependency-path: package-lock.json
@@ -132,7 +132,7 @@ jobs:
         run: node scripts/check-docs-release.mjs publish
 
       - name: Prepare a hash-pinned npm for trusted publishing
-        # Node 20 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
+        # Node 22 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
         # The tarball's sha512 integrity hash (from the registry's own
         # dist.integrity field, recorded when this workflow was authored) is
         # pinned here and verified before use, so a re-published or tampered
@@ -412,7 +412,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "20.19.0"
+          node-version: "22.23.3"
 
       - name: Verify registry versions, integrity, provenance, and source SHA
         env:

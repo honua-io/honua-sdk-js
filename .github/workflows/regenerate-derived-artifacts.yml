@@ -97,7 +97,7 @@ concurrency:
 permissions: read-all
 
 env:
-  NODE_VERSION: "20.19.0"
+  NODE_VERSION: "22.23.3"
   REGEN_MARKER: "chore(evidence): regenerate derived artifacts"
 
 jobs:

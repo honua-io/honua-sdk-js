@@ -496,7 +496,7 @@ decision PR intentionally does not edit `honua-site`.
 
 | Environment | Supported kernel operations | Constraints |
 | --- | --- | --- |
-| Node 20+ | `connect`, `inspect`, `explain`, `query`, streaming, agent planning | No DOM `mount`; a headless adapter must explicitly advertise Node support. Browser auth stores are unavailable. |
+| Node 22.12+ | `connect`, `inspect`, `explain`, `query`, streaming, agent planning | No DOM `mount`; a headless adapter must explicitly advertise Node support. Browser auth stores are unavailable. |
 | Browser ESM/bundler | All operations | Renderer/analytics peers are explicit imports; workers obey CSP and are disposable. |
 | Web Worker | `connect`, `inspect`, `explain`, `query`, columnar processing | No element/selector mount. `OffscreenCanvas` requires an adapter that advertises worker support. Auth/cache implementations are injected. |
 | React 18/19 | Same kernel through `HonuaProvider` and hooks | StrictMode cannot duplicate connections/subscriptions; component unmount disposes only resources it owns. |
@@ -508,7 +508,8 @@ budgets. `createHonua()` and built-in lightweight discovery must preserve the
 one-lightweight-stable-core-capability posture established by #357. The other
 direct dependencies are bounded compatibility plumbing:
 `@honua/honua-migrate` backs deprecated migration forwarders, and the temporary
-style-spec parser pin preserves Node 20 engine compatibility.
+style-spec parser pin originated with the earlier Node 20 compatibility baseline.
+The current runtime minimum is Node 22.12.
 
 ## Mapping to the current SDK
 

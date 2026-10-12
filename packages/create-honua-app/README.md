@@ -12,6 +12,9 @@ npm install
 npm run dev
 ```
 
+Requires Node.js 22.12 or newer. Repository development uses the Node 22.23.3
+LTS version pinned in `.nvmrc`.
+
 ## Options
 
 ```text

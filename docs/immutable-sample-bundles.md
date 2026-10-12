@@ -23,7 +23,7 @@ true. Do not dispatch while either value is false.
 ## Build and trust boundaries
 
 The read-only build job checks out the exact SHA into three clean, credentialless trees: one governed
-workflow/tooling tree and two independent producer trees. It uses Node `20.19.0` and `npm ci`, runs
+workflow/tooling tree and two independent producer trees. It uses Node `22.23.3` and `npm ci`, runs
 the canonical bundle build and verification in both producer trees, and byte-compares both manifests,
 archives, and pack metadata. The packer snapshots each verified file once, sorts POSIX ustar paths
 using explicit UTF-8 byte order, uses the source commit timestamp, uid/gid zero, normalized
