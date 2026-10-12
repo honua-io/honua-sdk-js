@@ -33,7 +33,7 @@ async function canonicalInputs() {
 }
 
 async function copyEstablishedMatrixSidecars(receiptRoot: string) {
-  let established;
+  let established: { lanes: Array<{ sampleId: string; receiptPath: string }> };
   try {
     // canonicalInputs already validated this registry and its real sidecars.
     established = await readJson("samples/contract/v2/release-matrix-lanes.v1.json");
