@@ -28,7 +28,7 @@ export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   setupNode: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
   uploadArtifact:
-    "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
   downloadArtifact:
     "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
   attestBuildProvenance:
@@ -62,7 +62,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "3ef71ccbaf06295b7d430177cc6d74fe1085df078bb46c9b752f1bd87448d648",
+    "2426ff08532a6d0d174cb5a899d3881db003b88d32d2eab200189cc9c10b03fd",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":

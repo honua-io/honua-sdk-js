@@ -100,7 +100,7 @@ jobs:
 
       - name: Upload the sealed release-matrix receipt
         if: always() && steps.seal.outputs.sealed == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ env.RELEASE_MATRIX_ARTIFACT }}
           # Both paths are uploaded so the artifact root is the repository root
@@ -136,7 +136,7 @@ jobs:
 
       - name: Upload deterministic browser and bundle observations
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: honua-sdk-first-map-release-smoke
           path: |
