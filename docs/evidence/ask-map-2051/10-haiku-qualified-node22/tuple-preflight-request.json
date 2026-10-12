@@ -1,0 +1,566 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Provider schema preflight only: call runWidgetQuery with the existing aggregate unchanged. Accepted query: {\"kind\":\"aggregate\",\"filter\":{\"kind\":\"comparison\",\"operator\":\"eq\",\"left\":{\"kind\":\"property\",\"name\":\"status\"},\"right\":{\"kind\":\"literal\",\"value\":\"literal user value\"}},\"page\":{\"kind\":\"first\",\"limit\":100},\"groupBy\":[\"kind\"],\"metrics\":[{\"fn\":\"count\",\"as\":\"count\"}]}"
+    }
+  ],
+  "max_tokens": 1000,
+  "temperature": 0,
+  "tools": [
+    {
+      "function": {
+        "name": "runWidgetQuery",
+        "description": "Read structured incident query",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "sourceId",
+            "kind",
+            "semanticQuery"
+          ],
+          "properties": {
+            "sourceId": {
+              "type": "string",
+              "const": "incidents"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "categories"
+              ],
+              "description": "Use count for semanticQuery.kind=features; use categories for semanticQuery.kind=aggregate. The host rejects any mismatched pair."
+            },
+            "semanticQuery": {
+              "description": "A nested JSON object, never a string containing serialized JSON.",
+              "type": "object",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/aggregate"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "$defs": {
+            "crs": {
+              "const": {
+                "definition": {
+                  "kind": "authority",
+                  "authority": "EPSG",
+                  "code": "3857",
+                  "definitionAxisOrder": {
+                    "state": "known",
+                    "source": "crs-definition",
+                    "axes": [
+                      {
+                        "name": "easting",
+                        "direction": "east",
+                        "unit": "metre"
+                      },
+                      {
+                        "name": "northing",
+                        "direction": "north",
+                        "unit": "metre"
+                      }
+                    ]
+                  }
+                },
+                "coordinateOrder": {
+                  "state": "known",
+                  "source": "encoding",
+                  "axes": [
+                    {
+                      "name": "easting",
+                      "direction": "east",
+                      "unit": "metre"
+                    },
+                    {
+                      "name": "northing",
+                      "direction": "north",
+                      "unit": "metre"
+                    }
+                  ]
+                },
+                "provenance": {
+                  "method": "declared"
+                }
+              },
+              "description": "Copy this complete binding, including definitionAxisOrder; a short EPSG code is insufficient."
+            },
+            "page": {
+              "const": {
+                "kind": "first",
+                "limit": 100
+              }
+            },
+            "features": {
+              "type": "object",
+              "required": [
+                "kind",
+                "geometry",
+                "select",
+                "page",
+                "filter"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "features"
+                },
+                "geometry": {
+                  "const": "omit"
+                },
+                "select": {
+                  "const": [
+                    "id",
+                    "status",
+                    "kind"
+                  ]
+                },
+                "filter": {
+                  "description": "Retain the exact accepted filter, or AND it with one new supported predicate.",
+                  "oneOf": [
+                    {
+                      "const": {
+                        "kind": "comparison",
+                        "operator": "eq",
+                        "left": {
+                          "kind": "property",
+                          "name": "status"
+                        },
+                        "right": {
+                          "kind": "literal",
+                          "value": "literal user value"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "operator",
+                        "args"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "const": "boolean"
+                        },
+                        "operator": {
+                          "const": "and"
+                        },
+                        "args": {
+                          "type": "array",
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "prefixItems": [
+                            {
+                              "const": {
+                                "kind": "comparison",
+                                "operator": "eq",
+                                "left": {
+                                  "kind": "property",
+                                  "name": "status"
+                                },
+                                "right": {
+                                  "kind": "literal",
+                                  "value": "literal user value"
+                                }
+                              }
+                            },
+                            {
+                              "$ref": "#/$defs/filter"
+                            }
+                          ],
+                          "items": false
+                        }
+                      }
+                    }
+                  ]
+                },
+                "page": {
+                  "$ref": "#/$defs/page"
+                }
+              }
+            },
+            "aggregate": {
+              "type": "object",
+              "required": [
+                "kind",
+                "groupBy",
+                "metrics",
+                "page",
+                "filter"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "aggregate"
+                },
+                "groupBy": {
+                  "const": [
+                    "kind"
+                  ]
+                },
+                "metrics": {
+                  "const": [
+                    {
+                      "fn": "count",
+                      "as": "count"
+                    }
+                  ]
+                },
+                "filter": {
+                  "description": "Retain the exact accepted filter, or AND it with one new supported predicate.",
+                  "oneOf": [
+                    {
+                      "const": {
+                        "kind": "comparison",
+                        "operator": "eq",
+                        "left": {
+                          "kind": "property",
+                          "name": "status"
+                        },
+                        "right": {
+                          "kind": "literal",
+                          "value": "literal user value"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "operator",
+                        "args"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "const": "boolean"
+                        },
+                        "operator": {
+                          "const": "and"
+                        },
+                        "args": {
+                          "type": "array",
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "prefixItems": [
+                            {
+                              "const": {
+                                "kind": "comparison",
+                                "operator": "eq",
+                                "left": {
+                                  "kind": "property",
+                                  "name": "status"
+                                },
+                                "right": {
+                                  "kind": "literal",
+                                  "value": "literal user value"
+                                }
+                              }
+                            },
+                            {
+                              "$ref": "#/$defs/filter"
+                            }
+                          ],
+                          "items": false
+                        }
+                      }
+                    }
+                  ]
+                },
+                "page": {
+                  "$ref": "#/$defs/page"
+                }
+              }
+            },
+            "geometry": {
+              "type": "object",
+              "required": [
+                "state",
+                "layout",
+                "crs",
+                "geometry"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "state": {
+                  "const": "present"
+                },
+                "layout": {
+                  "const": "xy"
+                },
+                "crs": {
+                  "$ref": "#/$defs/crs"
+                },
+                "geometry": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "coordinates"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "Point"
+                        },
+                        "coordinates": {
+                          "$ref": "#/$defs/position"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "coordinates"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "Polygon"
+                        },
+                        "coordinates": {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "array",
+                            "minItems": 4,
+                            "items": {
+                              "$ref": "#/$defs/position"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "position": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number"
+              }
+            },
+            "filter": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "operator",
+                    "left",
+                    "right"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "comparison"
+                    },
+                    "operator": {
+                      "enum": [
+                        "eq",
+                        "ne",
+                        "lt",
+                        "lte",
+                        "gt",
+                        "gte"
+                      ]
+                    },
+                    "left": {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "name"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "const": "property"
+                        },
+                        "name": {
+                          "enum": [
+                            "id",
+                            "status",
+                            "kind"
+                          ]
+                        }
+                      }
+                    },
+                    "right": {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "value"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "const": "literal"
+                        },
+                        "value": {
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "operator",
+                    "args"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "boolean"
+                    },
+                    "operator": {
+                      "enum": [
+                        "and",
+                        "or"
+                      ]
+                    },
+                    "args": {
+                      "type": "array",
+                      "minItems": 2,
+                      "items": {
+                        "$ref": "#/$defs/filter"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "operator",
+                    "bbox"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "spatial"
+                    },
+                    "operator": {
+                      "const": "bbox-intersects"
+                    },
+                    "bbox": {
+                      "type": "object",
+                      "required": [
+                        "box",
+                        "crs"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "box": {
+                          "type": "object",
+                          "required": [
+                            "layout",
+                            "bounds"
+                          ],
+                          "additionalProperties": false,
+                          "properties": {
+                            "layout": {
+                              "const": "xy"
+                            },
+                            "bounds": {
+                              "type": "array",
+                              "minItems": 4,
+                              "maxItems": 4,
+                              "items": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        },
+                        "crs": {
+                          "$ref": "#/$defs/crs"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "operator",
+                    "geometry",
+                    "distance"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "spatial"
+                    },
+                    "operator": {
+                      "const": "within-distance"
+                    },
+                    "geometry": {
+                      "$ref": "#/$defs/geometry"
+                    },
+                    "distance": {
+                      "type": "object",
+                      "required": [
+                        "value",
+                        "unit",
+                        "mode"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "value": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "unit": {
+                          "const": "metre"
+                        },
+                        "mode": {
+                          "const": "planar"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "operator",
+                    "geometry"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "spatial"
+                    },
+                    "operator": {
+                      "const": "intersects"
+                    },
+                    "geometry": {
+                      "$ref": "#/$defs/geometry"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

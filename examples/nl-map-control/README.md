@@ -110,11 +110,17 @@ gate is independent of cooperative cancellation. This ten-case fixture gate is
 bounded sample acceptance, not statistically useful general natural-language
 accuracy qualification. Preserve failed runs and distinguish each provider/model.
 
-Actual authenticated provider qualification is still in progress; no live pass
-is claimed by the recorded results. Keep provider/model, fixture/schema, source
-commit, harness identity, latency, outcomes and failures in a separate sanitized
-receipt. An externally injected provider bridge must retain its source and hash
-alongside that receipt. Experimental API promotion stays with #1459.
+Actual authenticated qualification passed the bounded gate with Bedrock Haiku
+4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`, actual response model
+`anthropic.claude-haiku-4-5-20251001-v1:0`) on Node 22.23.3: 6/6 supported
+cases and 4/4 safety controls, zero unexpected executions, median 4.182 seconds
+and maximum 10.373 seconds. Distance refinement succeeded on its second bounded
+attempt. The exact source, corpus/harness, external bridge, provider request IDs,
+and all nine earlier failed attempts are retained in
+[the qualification evidence](../../docs/evidence/ask-map-2051/README.md).
+Earlier Haiku runs reached only 5/6 supported cases; Sonnet did not qualify.
+This is evidence for this configuration and ten-case sample only. Recorded replay
+is reported separately. Experimental API promotion stays with #1459.
 
 After committing the candidate and starting the app/adapter, opt in to the live
 corpus runner with the same server configuration plus `HONUA_NL_LIVE_EVIDENCE=true`

@@ -1,0 +1,130 @@
+{
+  "schema": "honua.ask-map-evaluation-result/v1",
+  "metrics": {
+    "supportedCorrect": 2,
+    "supportedTotal": 6,
+    "safeOutcomesCorrect": 4,
+    "safeOutcomesTotal": 4,
+    "unexpectedExecutions": 0,
+    "failures": [
+      "open-east-view",
+      "group-wide-view",
+      "distance-500",
+      "polygon"
+    ],
+    "latencyMs": {
+      "median": 3348.0999999940395,
+      "maximum": 12181
+    }
+  },
+  "mode": "live",
+  "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+  "identity": {
+    "provider": "https://bedrock-runtime.us-west-2.amazonaws.com",
+    "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+    "sourceCommit": "cff18ac31971150a97b8b3bda408f461b2ac85cf",
+    "sourceDirty": false,
+    "harnessSha256": "9a91396196872f8b33033988f233cf8c706bdc3eb204a68a6747fe503000fd9c"
+  },
+  "fixture": "ask-map-incidents-v1",
+  "engine": {
+    "name": "DuckDB-WASM",
+    "version": "v1.4.3"
+  },
+  "schemaFingerprint": "sha256:ef9e469826e0d2b0e36a7c044dbfb01d134fb37bae0537b9e8b2a352b985883c",
+  "results": [
+    {
+      "id": "open-wide-view",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        4,
+        5
+      ],
+      "elapsedMs": 3638.7999999821186,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:fd4c6c48b2ad17b8470a5709ccc4cbf93b594ad915d32b212fa83f28e08951c2",
+      "receiptDigest": "sha256:58eefd5bf819c29c7a4157283c4f068a1bee9634d49aaeb72a5f609538ac9b5b"
+    },
+    {
+      "id": "open-east-view",
+      "passed": false,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        4,
+        5
+      ],
+      "elapsedMs": 3283.2999999821186,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:fd4c6c48b2ad17b8470a5709ccc4cbf93b594ad915d32b212fa83f28e08951c2",
+      "receiptDigest": "sha256:739ff4725deafe051d743a5175ce084bf218cbc7d0058c7582a806f122595d8a"
+    },
+    {
+      "id": "group-wide-view",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 6644.4000000059605
+    },
+    {
+      "id": "distance-500",
+      "passed": false,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "elapsedMs": 8208.200000017881,
+      "modelAttempts": 2,
+      "planFingerprint": "sha256:3e66c128a3bbc528c376c2c26bda88a49eb0541789883de80325d7dc176e9f9b",
+      "receiptDigest": "sha256:ad49b62887ff6bb8abe7f3bfaa59ebdc1eec7afb319fbfa5542080a4dcecbcff"
+    },
+    {
+      "id": "polygon",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 12181
+    },
+    {
+      "id": "missing-location",
+      "passed": true,
+      "outcome": "clarification",
+      "elapsedMs": 1999.7999999821186
+    },
+    {
+      "id": "nearby",
+      "passed": true,
+      "outcome": "clarification",
+      "elapsedMs": 2372.899999976158
+    },
+    {
+      "id": "date-unavailable",
+      "passed": true,
+      "outcome": "refused",
+      "elapsedMs": 2385.5999999940395
+    },
+    {
+      "id": "sql-refused",
+      "passed": true,
+      "outcome": "refused",
+      "elapsedMs": 3348.0999999940395
+    },
+    {
+      "id": "quoted-literal",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [],
+      "elapsedMs": 3291.5,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:cd1edd87e8c5d1f2fb1c7d4323da2e2d5c166984aad13cec35587bdab702dc43",
+      "receiptDigest": "sha256:564f32ed800e21669fa0280323637b62693613b12ab41294a69402d958f8a949"
+    }
+  ],
+  "passed": false,
+  "liveModelEvidence": true
+}
