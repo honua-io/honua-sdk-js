@@ -54,6 +54,7 @@
 * [Discovery truth and cache identity](discovery-contract.md)
 * [Dynamic Query Tiles](dynamic-query-tiles.md)
 * [Error envelope](errors.md)
+* [Preview alerts fixture evidence](evidence/alerts-1954/README.md)
 * [Ask this map live qualification](evidence/ask-map-2051/README.md)
 * [Basemap development bundle evidence](evidence/basemap-1717/README.md)
 * [Terminal control-plane diagnostic evidence](evidence/control-plane-1424/2026-10-11/README.md)

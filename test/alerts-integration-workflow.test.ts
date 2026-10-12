@@ -26,7 +26,7 @@ import { basename } from "node:path";
 const name = basename(process.argv[1]);
 const args = process.argv.slice(2);
 const mode = process.env.HONUA_INTEGRATION_ALERTS_ENABLED;
-appendFileSync(process.env.COMMAND_LOG, JSON.stringify({name, args, mode}) + "\\n");
+appendFileSync(process.env.COMMAND_LOG, JSON.stringify({name, args, mode}) + "\n");
 if (name === "npx") {
   const output = args.find(arg => arg.startsWith("--outputFile=")).slice("--outputFile=".length);
   writeFileSync(output, JSON.stringify({success: mode !== process.env.FAILING_MODE}));
@@ -36,7 +36,9 @@ if (name === "npx") {
       { mode: 0o755 },
     );
     for (const name of ["docker", "curl", "npx"]) symlinkSync(stub, join(bin, name));
-    const result = spawnSync("bash", ["-c", alerts?.run ?? "exit 99"], {
+    const scriptPath = join(directory, "workflow.sh");
+    writeFileSync(scriptPath, alerts?.run ?? "exit 99");
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", scriptPath], {
       cwd: directory,
       encoding: "utf8",
       timeout: 10_000,
