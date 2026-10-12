@@ -73,6 +73,9 @@ export function validateRecoverySnapshot(record, snapshot) {
   assert.ok(snapshot.native.run_attempt >= record.minimumNativeAttempt);
   for (const [jobs, names] of [[snapshot.strictJobs, ["JS SDK", "MCP SDK", "Deterministic Benchmark Lab"]], [snapshot.nativeJobs, ["JS SDK", "MCP SDK", "Deterministic Benchmark Lab", "PR Fast (under 2 minutes)"]]]) {
     for (const name of names) assert.ok(jobs.some((job) => job.name === name && job.conclusion === "success"), `missing successful ${name}`);
+    const sdk = jobs.find((job) => job.name === "JS SDK");
+    for (const name of ["Unit tests with coverage", "Browser smoke suite", "Deterministic browser rendering benchmark"])
+      assert.ok(sdk.steps.some((step) => step.name === name && step.conclusion === "success"), `missing actual ${name}`);
   }
   const generation = snapshot.generation;
   assert.equal(generation.id, record.generationRunId);
