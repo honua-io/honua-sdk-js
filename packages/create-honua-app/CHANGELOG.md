@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.8...create-honua-app-v0.1.9) (2026-10-12)
+
+
+### Documentation
+
+* **create-app:** explain independent published SDK examples ([#2038](https://github.com/honua-io/honua-sdk-js/issues/2038)) ([c73318d](https://github.com/honua-io/honua-sdk-js/commit/c73318d94d604a8a28fe141d501d7efd77c37091))
+
 ## [0.1.8](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.7...create-honua-app-v0.1.8) (2026-10-11)
 
 
