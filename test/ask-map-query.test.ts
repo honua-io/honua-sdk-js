@@ -1,4 +1,4 @@
-import Ajv from "ajv";
+import Ajv from "ajv/dist/2020.js";
 import { describe, expect, it, vi } from "vitest";
 import { FIXTURE_VERSION, SCHEMA } from "../examples/nl-map-control/src/fixture.js";
 import { reviewQuery } from "../examples/nl-map-control/src/map-runtime.js";
@@ -7,6 +7,7 @@ import {
   SEMANTIC_QUERY_FORMS,
   SUGGESTIONS,
   groundedModel,
+  incidentToolSchema,
   recordedModel,
 } from "../examples/nl-map-control/src/model.js";
 import { type QueryContext, compile, describeQuery } from "../examples/nl-map-control/src/query.js";
@@ -79,6 +80,64 @@ describe("Grounded sample query admission", () => {
         previousQuery: compile({ ...SEMANTIC_QUERY_FORMS.features, filter: base }).query,
       }),
     ).not.toThrow();
+  });
+  it("advertises only the current refinement shape without rewriting model queries", async () => {
+    const previousQuery = compile({
+      ...SEMANTIC_QUERY_FORMS.aggregate,
+      filter: SEMANTIC_QUERY_FORMS.filters.viewport,
+    }).query;
+    const validate = new Ajv.default({ strict: false }).compile(incidentToolSchema({ ...context, previousQuery }));
+    const call = {
+      sourceId: "incidents",
+      kind: "categories",
+      semanticQuery: { ...SEMANTIC_QUERY_FORMS.aggregate, filter: previousQuery.filter },
+    };
+    expect(validate(call)).toBe(true);
+    expect(
+      validate({
+        ...call,
+        kind: "count",
+        semanticQuery: { ...SEMANTIC_QUERY_FORMS.features, filter: previousQuery.filter },
+      }),
+    ).toBe(false);
+    expect(
+      validate({ ...call, semanticQuery: { ...call.semanticQuery, filter: SEMANTIC_QUERY_FORMS.filters.distance } }),
+    ).toBe(false);
+    expect(
+      validate({
+        ...call,
+        semanticQuery: {
+          ...call.semanticQuery,
+          filter: {
+            kind: "boolean",
+            operator: "and",
+            args: [previousQuery.filter, SEMANTIC_QUERY_FORMS.filters.distance],
+          },
+        },
+      }),
+    ).toBe(true);
+    const snapshot: QueryContext = { ...context, previousQuery, selectedLocation: [0, 0] };
+    const recorded = createNlMapControl({
+      tools: { runtime: {}, tools: ["runWidgetQuery"] },
+      llm: recordedModel(snapshot),
+    });
+    const plan = await recorded.propose(SUGGESTIONS[2]);
+    expect(validate(plan.steps[0].call.args)).toBe(true);
+    const unfiltered = compile(SEMANTIC_QUERY_FORMS.aggregate).query;
+    const unfilteredSchema = new Ajv.default({ strict: false }).compile(
+      incidentToolSchema({ ...context, previousQuery: unfiltered }),
+    );
+    expect(
+      unfilteredSchema({ sourceId: "incidents", kind: "categories", semanticQuery: SEMANTIC_QUERY_FORMS.aggregate }),
+    ).toBe(true);
+    expect(
+      unfilteredSchema({
+        sourceId: "incidents",
+        kind: "categories",
+        semanticQuery: { ...SEMANTIC_QUERY_FORMS.aggregate, filter: SEMANTIC_QUERY_FORMS.filters.distance },
+      }),
+    ).toBe(true);
+    expect(incidentToolSchema(context)).toBe(INCIDENT_TOOL_SCHEMA);
   });
   it("self-corrects a rejected refinement without executing the widened first proposal", async () => {
     const previousQuery = compile({

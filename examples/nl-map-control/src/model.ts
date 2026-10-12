@@ -401,6 +401,66 @@ export function authenticatedLiveModel(
   };
 }
 
+/** Advertise the current admission boundary, including accepted refinement context. */
+export function incidentToolSchema(context: QueryContext) {
+  const previous = context.previousQuery;
+  if (!previous) return INCIDENT_TOOL_SCHEMA;
+  const filter = previous.filter
+    ? {
+        description: "Retain the exact accepted filter, or AND it with one new supported predicate.",
+        oneOf: [
+          { const: previous.filter },
+          {
+            type: "object",
+            required: ["kind", "operator", "args"],
+            additionalProperties: false,
+            properties: {
+              kind: { const: "boolean" },
+              operator: { const: "and" },
+              args: {
+                type: "array",
+                minItems: 2,
+                maxItems: 2,
+                prefixItems: [{ const: previous.filter }, { $ref: "#/$defs/filter" }],
+                items: false,
+              },
+            },
+          },
+        ],
+      }
+    : INCIDENT_TOOL_SCHEMA.$defs.features.properties.filter;
+  return {
+    ...INCIDENT_TOOL_SCHEMA,
+    properties: {
+      ...INCIDENT_TOOL_SCHEMA.properties,
+      kind:
+        previous.kind === "aggregate"
+          ? { ...INCIDENT_TOOL_SCHEMA.properties.kind, enum: ["categories"] }
+          : INCIDENT_TOOL_SCHEMA.properties.kind,
+      semanticQuery: {
+        ...INCIDENT_TOOL_SCHEMA.properties.semanticQuery,
+        oneOf:
+          previous.kind === "aggregate"
+            ? [{ $ref: "#/$defs/aggregate" }]
+            : INCIDENT_TOOL_SCHEMA.properties.semanticQuery.oneOf,
+      },
+    },
+    $defs: {
+      ...INCIDENT_TOOL_SCHEMA.$defs,
+      features: {
+        ...INCIDENT_TOOL_SCHEMA.$defs.features,
+        required: [...INCIDENT_TOOL_SCHEMA.$defs.features.required, ...(previous.filter ? ["filter"] : [])],
+        properties: { ...INCIDENT_TOOL_SCHEMA.$defs.features.properties, filter },
+      },
+      aggregate: {
+        ...INCIDENT_TOOL_SCHEMA.$defs.aggregate,
+        required: [...INCIDENT_TOOL_SCHEMA.$defs.aggregate.required, ...(previous.filter ? ["filter"] : [])],
+        properties: { ...INCIDENT_TOOL_SCHEMA.$defs.aggregate.properties, filter },
+      },
+    },
+  };
+}
+
 /** Explicit public fixture grounding preserves CRS authority keys that generic secret-redaction omits. */
 export function groundedModel(context: QueryContext, callback: NlLlmCallback): NlLlmCallback {
   return (request, options) =>
@@ -411,7 +471,7 @@ export function groundedModel(context: QueryContext, callback: NlLlmCallback): N
           ...tool,
           description:
             "Query the entire admitted incident source with an explicit semanticQuery. No implicit viewport or prior filter is applied. Legacy field/metric widget arguments are unavailable.",
-          inputSchema: INCIDENT_TOOL_SCHEMA,
+          inputSchema: incidentToolSchema(context),
         })),
         system: `${request.system}\nAdmitted public incident schema and captured query context (all coordinates are EPSG:3857):\n${JSON.stringify({ schema: SCHEMA, context, capturedViewportPredicate: viewportFilter(context) })}\nSDK semanticQuery syntax examples, not query defaults or answers:\n${JSON.stringify(SEMANTIC_QUERY_FORMS)}\nThe semanticQuery tool argument must be a nested JSON object, never a quoted/serialized JSON string. Choose a features or aggregate form and put the resolved predicate in its filter property. Combine predicates with {kind:"boolean",operator:"and",args:[predicate,predicate]}. Use runWidgetQuery kind:"count" for features and kind:"categories" for aggregate. Replace every example coordinate, distance and literal with explicitly requested or captured values. Never use example coordinates as a missing selectedLocation. Viewport bounds order is minX,minY,maxX,maxY. The runtime queries the ENTIRE source: map viewport and previous filters are NEVER implicit. When the question says in this view, include capturedViewportPredicate explicitly, ANDed with any attribute filter. For grouping, copy context.previousQuery.filter unchanged into the aggregate query; use kind:categories. When context.previousQuery exists the host is in explicit refinement mode: it rejects any loss of previous filter predicates or grouping. Preserve context.previousQuery kind, grouping and filter, ANDing the new predicate with the previous filter. Users must choose Start new question in the UI to clear this context. Copy the COMPLETE CRS object from the schema, including definition.definitionAxisOrder; never abbreviate it to an authority code. A missing location, distance or intended prior query requires clarification. No fixture results or expected answers are provided.\nAuthoritative accepted query for this refinement (null means no accepted prior query): ${JSON.stringify(context.previousQuery ?? null)}. This accepted query remains unchanged during self-correction; correction.previousToolCalls were rejected and never executed.`,
       },
