@@ -4721,21 +4721,26 @@ async function grpcExactCount<T>(
   return count;
 }
 
+function grpcAggregateError(
+  sourceId: string | undefined,
+  context?: Record<string, unknown>,
+): HonuaCapabilityNotSupportedError {
+  return new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", sourceId, { context });
+}
+
 async function grpcMaterializedAggregate<T>(
   layer: HonuaFeatureLayer<T>,
   request: Query<T> & { aggregation: AggregationSpec },
   descriptor: SourceDescriptor,
 ): Promise<Result<T>> {
   if (request.aggregation.histogram || request.aggregation.timeSeries) {
-    throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", descriptor.id);
+    throw grpcAggregateError(descriptor.id);
   }
   if (
     request.aggregation.groupBy?.includes("*") ||
     request.aggregation.metrics.some((metric) => metric.field === "*" && metric.fn !== "count")
   ) {
-    throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", descriptor.id, {
-      context: { reason: "Wildcard fields are supported only for COUNT(*)." },
-    });
+    throw grpcAggregateError(descriptor.id, { reason: "Wildcard fields are supported only for COUNT(*)." });
   }
   // Aggregate the whole matching set, independently of the caller's display
   // window. Never return a partial aggregate when the finite drain budget ends.
@@ -4744,8 +4749,9 @@ async function grpcMaterializedAggregate<T>(
   const pageSize = 2000;
   const maxPages = 100;
   if (expectedCount > pageSize * maxPages) {
-    throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", descriptor.id, {
-      context: { reason: "Matching set exceeds the 200000-feature client-side aggregation budget.", expectedCount },
+    throw grpcAggregateError(descriptor.id, {
+      reason: "Matching set exceeds the 200000-feature client-side aggregation budget.",
+      expectedCount,
     });
   }
   const features: HonuaTypedFeature<T>[] = [];
@@ -4764,15 +4770,16 @@ async function grpcMaterializedAggregate<T>(
     ].filter((field) => field !== "*");
     for (const field of requiredFields) {
       if (response.fields?.filter((definition) => definition.name.toLowerCase() === field.toLowerCase()).length !== 1) {
-        throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", descriptor.id, {
-          context: { reason: "Aggregate field is unknown or ambiguous in the server field schema.", field },
+        throw grpcAggregateError(descriptor.id, {
+          reason: "Aggregate field is unknown or ambiguous in the server field schema.",
+          field,
         });
       }
     }
     const rows = response.features ?? [];
     if (rows.length > pageSize) {
-      throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", descriptor.id, {
-        context: { reason: "gRPC response exceeded the requested materialization page budget." },
+      throw grpcAggregateError(descriptor.id, {
+        reason: "gRPC response exceeded the requested materialization page budget.",
       });
     }
     if (rows.length === 0) break;
@@ -4786,10 +4793,8 @@ async function grpcMaterializedAggregate<T>(
         id === "" ||
         ids.has(String(id))
       ) {
-        throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", descriptor.id, {
-          context: {
-            reason: "gRPC materialization returned a missing or repeated object ID; no aggregate was returned.",
-          },
+        throw grpcAggregateError(descriptor.id, {
+          reason: "gRPC materialization returned a missing or repeated object ID; no aggregate was returned.",
         });
       }
       ids.add(String(id));
@@ -4798,12 +4803,10 @@ async function grpcMaterializedAggregate<T>(
     if (features.length > expectedCount || (!response.exceededTransferLimit && rows.length < pageSize)) break;
   }
   if (features.length !== expectedCount) {
-    throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", descriptor.id, {
-      context: {
-        reason: "gRPC materialization did not match the exact count; no partial aggregate was returned.",
-        expectedCount,
-        actualCount: features.length,
-      },
+    throw grpcAggregateError(descriptor.id, {
+      reason: "gRPC materialization did not match the exact count; no partial aggregate was returned.",
+      expectedCount,
+      actualCount: features.length,
     });
   }
   return {
@@ -4853,15 +4856,15 @@ function grpcAggregateRows<T>(
     for (const metric of aggregation.metrics) {
       const values = rows
         .map((row) => grpcAggregateField(row.attributes, metric.field))
-        .filter((value) => value !== null && value !== undefined);
+        .filter((value) => value != null);
       const alias = metric.alias ?? `${metric.fn}_${metric.field}`;
       if (metric.fn === "count") {
         output[alias] = metric.field === "*" ? rows.length : values.length;
         continue;
       }
-      if (values.some((value) => typeof value !== "number" || !Number.isFinite(value))) {
-        throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", undefined, {
-          context: { reason: "Numeric client-side aggregation requires finite numeric field values." },
+      if (values.some((value) => !Number.isFinite(value))) {
+        throw grpcAggregateError(undefined, {
+          reason: "Numeric client-side aggregation requires finite numeric field values.",
         });
       }
       const numbers = values as number[];
@@ -4869,20 +4872,10 @@ function grpcAggregateRows<T>(
         output[alias] = null;
         continue;
       }
-      if (metric.fn === "stddev" || metric.fn === "var") {
-        const mean = numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
-        const variance = numbers.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (numbers.length - 1);
-        output[alias] = metric.fn === "var" ? variance : Math.sqrt(variance);
-      } else if (metric.fn === "min") {
-        output[alias] = numbers.reduce((value, next) => Math.min(value, next));
-      } else if (metric.fn === "max") {
-        output[alias] = numbers.reduce((value, next) => Math.max(value, next));
-      } else {
-        output[alias] = applyAggregation(metric.fn, numbers, rows.length);
-      }
+      output[alias] = applyAggregation(metric.fn, numbers, rows.length, true);
       if (typeof output[alias] === "number" && !Number.isFinite(output[alias])) {
-        throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", undefined, {
-          context: { reason: "Client-side aggregation overflowed; no nonfinite aggregate was returned." },
+        throw grpcAggregateError(undefined, {
+          reason: "Client-side aggregation overflowed; no nonfinite aggregate was returned.",
         });
       }
     }
@@ -4936,7 +4929,12 @@ function computeMetrics<T>(
   return out;
 }
 
-function applyAggregation(fn: AggregationFn, values: readonly number[], totalLength: number): number {
+function applyAggregation(
+  fn: AggregationFn,
+  values: readonly number[],
+  totalLength: number,
+  sampleVariance = false,
+): number {
   if (fn === "count") return totalLength;
   if (values.length === 0) return 0;
   switch (fn) {
@@ -4945,13 +4943,13 @@ function applyAggregation(fn: AggregationFn, values: readonly number[], totalLen
     case "avg":
       return values.reduce((a, b) => a + b, 0) / values.length;
     case "min":
-      return Math.min(...values);
+      return values.reduce((a, b) => Math.min(a, b));
     case "max":
-      return Math.max(...values);
+      return values.reduce((a, b) => Math.max(a, b));
     case "stddev":
     case "var": {
       const mean = values.reduce((a, b) => a + b, 0) / values.length;
-      const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+      const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - (sampleVariance ? 1 : 0));
       return fn === "var" ? variance : Math.sqrt(variance);
     }
     default:
