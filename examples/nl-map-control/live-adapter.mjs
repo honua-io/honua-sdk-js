@@ -3,15 +3,43 @@ import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
 
 const MAX_BODY = 64 * 1024;
-async function boundedBody(stream) {
+async function boundedBody(stream, signal) {
   const chunks = [];
   let size = 0;
-  for await (const chunk of stream) {
-    size += chunk.length;
-    if (size > MAX_BODY) throw new Error("body-limit");
-    chunks.push(chunk);
+  const abort = () => stream.destroy?.();
+  signal?.throwIfAborted();
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    for await (const chunk of stream) {
+      signal?.throwIfAborted();
+      size += chunk.length;
+      if (size > MAX_BODY) throw new Error("body-limit");
+      chunks.push(chunk);
+    }
+    signal?.throwIfAborted();
+    return Buffer.concat(chunks).toString("utf8");
+  } finally {
+    signal?.removeEventListener("abort", abort);
   }
-  return Buffer.concat(chunks).toString("utf8");
+}
+async function untilAborted(action, signal) {
+  signal.throwIfAborted();
+  let abort;
+  try {
+    return await Promise.race([
+      new Promise((_, reject) => {
+        abort = () => reject(new Error("request-cancelled"));
+        signal.addEventListener("abort", abort, { once: true });
+        if (signal.aborted) abort();
+      }),
+      Promise.resolve().then(() => {
+        signal.throwIfAborted();
+        return action();
+      }),
+    ]);
+  } finally {
+    signal.removeEventListener("abort", abort);
+  }
 }
 function equal(left, right) {
   const a = Buffer.from(left ?? "");
@@ -20,16 +48,18 @@ function equal(left, right) {
 }
 /** Authenticated server boundary; provider credentials stay inside complete(). */
 export function createLiveModelHandler({ authenticate, complete, origin, timeoutMs = 12000 }) {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 12000)
+    throw new Error("Adapter timeoutMs must be between 1 and 12000.");
   return async (request, response) => {
     response.setHeader("cache-control", "no-store");
     response.setHeader("content-type", "application/json");
     const send = (status, value) => {
+      if (response.destroyed || response.writableEnded) return;
       response.statusCode = status;
       response.end(JSON.stringify(value));
     };
     if (request.method !== "POST" || request.url !== "/api/ask-map/propose") return send(404, { error: "not-found" });
     if (request.headers.origin !== origin) return send(403, { error: "origin-refused" });
-    if (!(await authenticate(request))) return send(401, { error: "authentication-required" });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const close = () => {
@@ -37,30 +67,31 @@ export function createLiveModelHandler({ authenticate, complete, origin, timeout
     };
     response.on("close", close);
     try {
-      if (!request.headers["content-type"]?.startsWith("application/json"))
-        return send(415, { error: "json-required" });
-      const body = JSON.parse(await boundedBody(request));
-      if (
-        !["propose", "self-correct"].includes(body.purpose) ||
-        !Number.isInteger(body.attempt) ||
-        body.attempt < 1 ||
-        body.attempt > 3 ||
-        typeof body.instruction !== "string" ||
-        body.instruction.length > 2000 ||
-        typeof body.system !== "string" ||
-        !Array.isArray(body.tools) ||
-        body.tools.length !== 1 ||
-        body.tools[0]?.name !== "runWidgetQuery"
-      )
-        return send(400, { error: "invalid-request" });
-      const result = await Promise.race([
-        complete(body, controller.signal),
-        new Promise((_, reject) =>
-          controller.signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true }),
-        ),
-      ]);
-      if (Buffer.byteLength(JSON.stringify(result)) > MAX_BODY) return send(502, { error: "response-limit" });
-      return send(200, result);
+      return await untilAborted(async () => {
+        if (!(await authenticate(request, controller.signal))) return send(401, { error: "authentication-required" });
+        controller.signal.throwIfAborted();
+        if (!request.headers["content-type"]?.startsWith("application/json"))
+          return send(415, { error: "json-required" });
+        const body = JSON.parse(await boundedBody(request, controller.signal));
+        if (
+          !["propose", "self-correct"].includes(body.purpose) ||
+          !Number.isInteger(body.attempt) ||
+          body.attempt < 1 ||
+          body.attempt > 3 ||
+          typeof body.instruction !== "string" ||
+          body.instruction.length > 2000 ||
+          typeof body.system !== "string" ||
+          !Array.isArray(body.tools) ||
+          body.tools.length !== 1 ||
+          body.tools[0]?.name !== "runWidgetQuery"
+        )
+          return send(400, { error: "invalid-request" });
+        controller.signal.throwIfAborted();
+        const result = await complete(body, controller.signal);
+        controller.signal.throwIfAborted();
+        if (Buffer.byteLength(JSON.stringify(result)) > MAX_BODY) return send(502, { error: "response-limit" });
+        return send(200, result);
+      }, controller.signal);
     } catch {
       return send(controller.signal.aborted ? 504 : 502, { error: "model-request-failed" });
     } finally {
@@ -128,7 +159,7 @@ export function openAiCompatibleCompletion({ endpoint, apiKey, model, fetchImpl 
       }),
     });
     if (!result.ok) throw new Error("provider-failed");
-    const body = JSON.parse(await boundedBody(result.body));
+    const body = JSON.parse(await boundedBody(result.body, signal));
     if (typeof body.model !== "string" || !body.model || body.model.length > 256)
       throw new Error("provider-model-unidentified");
     const calls = body.choices?.[0]?.message?.tool_calls;

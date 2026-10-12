@@ -55,21 +55,34 @@ export function viewportFilter(context: QueryContext) {
 
 /** Human-readable review follows the parsed query, never the model's prose. */
 export function describeQuery(query: IncidentQuery): string {
+  const operand = (value: unknown): string => {
+    if (value && typeof value === "object") {
+      const node = value as Record<string, unknown>;
+      if (node.kind === "property") return String(node.name);
+      if (node.kind === "literal") return JSON.stringify(node.value);
+    }
+    return JSON.stringify(value);
+  };
+  const crsLabel = (value: unknown): string => {
+    const definition = (value as { definition?: { kind?: string; authority?: string; code?: string } })?.definition;
+    return definition?.kind === "authority" ? `${definition.authority}:${definition.code}` : "the reviewed CRS";
+  };
   const describe = (value: unknown): string => {
     if (!value || typeof value !== "object") return "all features";
     const node = value as Record<string, unknown>;
     if (node.kind === "boolean" && Array.isArray(node.args))
       return node.args.map(describe).join(node.operator === "and" ? " AND " : " OR ");
     if (node.kind === "comparison") {
-      const left = node.left as { name: string };
-      const right = node.right as { value: unknown };
-      return `${left.name} ${String(node.operator)} ${JSON.stringify(right.value)}`;
+      return `${operand(node.left)} ${String(node.operator)} ${operand(node.right)}`;
     }
-    if (node.kind === "spatial" && node.operator === "bbox-intersects") return "inside the captured viewport";
+    if (node.kind === "spatial" && node.operator === "bbox-intersects") {
+      const bbox = node.bbox as { box: { bounds: readonly number[] }; crs: unknown };
+      return `intersects ${crsLabel(bbox.crs)} bounds [${bbox.box.bounds.join(", ")}]`;
+    }
     if (node.kind === "spatial" && node.operator === "within-distance") {
       const distance = node.distance as { value: number; unit: string; mode: string };
-      const geometry = node.geometry as { geometry: { coordinates: readonly number[] } };
-      return `within ${distance.value} ${distance.unit} (${distance.mode}) of EPSG:3857 [${geometry.geometry.coordinates.join(", ")}]`;
+      const geometry = node.geometry as { geometry: { coordinates?: readonly number[] }; crs: unknown };
+      return `within ${distance.value} ${distance.unit} (${distance.mode}) of ${crsLabel(geometry.crs)} ${JSON.stringify(geometry.geometry)}`;
     }
     if (node.kind === "spatial") return `spatial ${String(node.operator)} against the reviewed geometry`;
     return `${String(node.kind)} ${String(node.operator ?? "condition")} (see query details)`;

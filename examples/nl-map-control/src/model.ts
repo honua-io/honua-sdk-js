@@ -63,6 +63,178 @@ export const SEMANTIC_QUERY_FORMS = {
   },
 } as const;
 
+/** Describe only the host's admitted subset, not the legacy widget runtime. */
+export const INCIDENT_TOOL_SCHEMA = {
+  type: "object",
+  required: ["sourceId", "kind", "semanticQuery"],
+  properties: {
+    sourceId: { const: "incidents" },
+    kind: { enum: ["count", "categories"] },
+    semanticQuery: { oneOf: [{ $ref: "#/$defs/features" }, { $ref: "#/$defs/aggregate" }] },
+  },
+  additionalProperties: false,
+  oneOf: [
+    { properties: { kind: { const: "count" }, semanticQuery: { $ref: "#/$defs/features" } } },
+    { properties: { kind: { const: "categories" }, semanticQuery: { $ref: "#/$defs/aggregate" } } },
+  ],
+  $defs: {
+    crs: {
+      const: CRS,
+      description: "Copy this complete binding, including definitionAxisOrder; a short EPSG code is insufficient.",
+    },
+    page: { const: { kind: "first", limit: 100 } },
+    features: {
+      type: "object",
+      required: ["kind", "geometry", "select", "page"],
+      additionalProperties: false,
+      properties: {
+        kind: { const: "features" },
+        geometry: { const: "omit" },
+        select: { const: ["id", "status", "kind"] },
+        filter: { $ref: "#/$defs/filter" },
+        page: { $ref: "#/$defs/page" },
+      },
+    },
+    aggregate: {
+      type: "object",
+      required: ["kind", "groupBy", "metrics", "page"],
+      additionalProperties: false,
+      properties: {
+        kind: { const: "aggregate" },
+        groupBy: { const: ["kind"] },
+        metrics: { const: [{ fn: "count", as: "count" }] },
+        filter: { $ref: "#/$defs/filter" },
+        page: { $ref: "#/$defs/page" },
+      },
+    },
+    geometry: {
+      type: "object",
+      required: ["state", "layout", "crs", "geometry"],
+      additionalProperties: false,
+      properties: {
+        state: { const: "present" },
+        layout: { const: "xy" },
+        crs: { $ref: "#/$defs/crs" },
+        geometry: {
+          oneOf: [
+            {
+              type: "object",
+              required: ["type", "coordinates"],
+              additionalProperties: false,
+              properties: { type: { const: "Point" }, coordinates: { $ref: "#/$defs/position" } },
+            },
+            {
+              type: "object",
+              required: ["type", "coordinates"],
+              additionalProperties: false,
+              properties: {
+                type: { const: "Polygon" },
+                coordinates: {
+                  type: "array",
+                  minItems: 1,
+                  items: { type: "array", minItems: 4, items: { $ref: "#/$defs/position" } },
+                },
+              },
+            },
+          ],
+        },
+      },
+    },
+    position: { type: "array", minItems: 2, maxItems: 2, items: { type: "number" } },
+    filter: {
+      oneOf: [
+        {
+          type: "object",
+          required: ["kind", "operator", "left", "right"],
+          additionalProperties: false,
+          properties: {
+            kind: { const: "comparison" },
+            operator: { enum: ["eq", "ne", "lt", "lte", "gt", "gte"] },
+            left: {
+              type: "object",
+              required: ["kind", "name"],
+              additionalProperties: false,
+              properties: { kind: { const: "property" }, name: { enum: ["id", "status", "kind"] } },
+            },
+            right: {
+              type: "object",
+              required: ["kind", "value"],
+              additionalProperties: false,
+              properties: { kind: { const: "literal" }, value: { type: ["string", "number"] } },
+            },
+          },
+        },
+        {
+          type: "object",
+          required: ["kind", "operator", "args"],
+          additionalProperties: false,
+          properties: {
+            kind: { const: "boolean" },
+            operator: { enum: ["and", "or"] },
+            args: { type: "array", minItems: 2, items: { $ref: "#/$defs/filter" } },
+          },
+        },
+        {
+          type: "object",
+          required: ["kind", "operator", "bbox"],
+          additionalProperties: false,
+          properties: {
+            kind: { const: "spatial" },
+            operator: { const: "bbox-intersects" },
+            bbox: {
+              type: "object",
+              required: ["box", "crs"],
+              additionalProperties: false,
+              properties: {
+                box: {
+                  type: "object",
+                  required: ["layout", "bounds"],
+                  additionalProperties: false,
+                  properties: {
+                    layout: { const: "xy" },
+                    bounds: { type: "array", minItems: 4, maxItems: 4, items: { type: "number" } },
+                  },
+                },
+                crs: { $ref: "#/$defs/crs" },
+              },
+            },
+          },
+        },
+        {
+          type: "object",
+          required: ["kind", "operator", "geometry", "distance"],
+          additionalProperties: false,
+          properties: {
+            kind: { const: "spatial" },
+            operator: { const: "within-distance" },
+            geometry: { $ref: "#/$defs/geometry" },
+            distance: {
+              type: "object",
+              required: ["value", "unit", "mode"],
+              additionalProperties: false,
+              properties: {
+                value: { type: "number", minimum: 0 },
+                unit: { const: "metre" },
+                mode: { const: "planar" },
+              },
+            },
+          },
+        },
+        {
+          type: "object",
+          required: ["kind", "operator", "geometry"],
+          additionalProperties: false,
+          properties: {
+            kind: { const: "spatial" },
+            operator: { const: "intersects" },
+            geometry: { $ref: "#/$defs/geometry" },
+          },
+        },
+      ],
+    },
+  },
+};
+
 export const SUGGESTIONS = [
   "Show open incidents in this view",
   "Group them by type",
@@ -230,7 +402,13 @@ export function groundedModel(context: QueryContext, callback: NlLlmCallback): N
     callback(
       {
         ...request,
-        system: `${request.system}\nAdmitted public incident schema and captured query context (all coordinates are EPSG:3857):\n${JSON.stringify({ schema: SCHEMA, context })}\nSDK semanticQuery syntax examples, not query defaults or answers:\n${JSON.stringify(SEMANTIC_QUERY_FORMS)}\nChoose a features or aggregate form and put the resolved predicate in its filter property. Combine predicates with {kind:"boolean",operator:"and",args:[predicate,predicate]}. Use runWidgetQuery kind:"count" for features and kind:"categories" for aggregate. Replace every example coordinate, distance and literal with explicitly requested or captured values. Never use example coordinates as a missing selectedLocation. Viewport bounds order is minX,minY,maxX,maxY. Grouping preserves the previous query filter; refinements add to it. A missing location, distance or intended prior query requires clarification. No fixture results or expected answers are provided.`,
+        tools: request.tools.map((tool) => ({
+          ...tool,
+          description:
+            "Query the entire admitted incident source with an explicit semanticQuery. No implicit viewport or prior filter is applied. Legacy field/metric widget arguments are unavailable.",
+          inputSchema: INCIDENT_TOOL_SCHEMA,
+        })),
+        system: `${request.system}\nAdmitted public incident schema and captured query context (all coordinates are EPSG:3857):\n${JSON.stringify({ schema: SCHEMA, context, capturedViewportPredicate: viewportFilter(context) })}\nSDK semanticQuery syntax examples, not query defaults or answers:\n${JSON.stringify(SEMANTIC_QUERY_FORMS)}\nChoose a features or aggregate form and put the resolved predicate in its filter property. Combine predicates with {kind:"boolean",operator:"and",args:[predicate,predicate]}. Use runWidgetQuery kind:"count" for features and kind:"categories" for aggregate. Replace every example coordinate, distance and literal with explicitly requested or captured values. Never use example coordinates as a missing selectedLocation. Viewport bounds order is minX,minY,maxX,maxY. The runtime queries the ENTIRE source: map viewport and previous filters are NEVER implicit. When the question says in this view, include capturedViewportPredicate explicitly, ANDed with any attribute filter. For grouping, copy context.previousQuery.filter unchanged into the aggregate query; use kind:categories. For refinements, preserve context.previousQuery kind, grouping and filter, ANDing the new predicate with the previous filter. Copy the COMPLETE CRS object from the schema, including definition.definitionAxisOrder; never abbreviate it to an authority code. A missing location, distance or intended prior query requires clarification. No fixture results or expected answers are provided.`,
       },
       options,
     );

@@ -99,13 +99,18 @@ through real plans and the actual spatial engine. The Playwright test attaches
 its report separately from UI checks. It never computes expected IDs through the
 implementation under test.
 
-The proposed live threshold is at least 90% correct supported cases, 100% safe
-clarifications/refusals, zero unsafe executions or credential leaks, and the
-15-second bound. Threshold approval and an actual authenticated provider run are
-still required. **No live semantic accuracy result is claimed yet**; issue #2051
-AC-005 and AC-007 remain open until those receipts exist. Keep provider/model,
-fixture/schema, source commit, harness identity, latency, outcomes and failures
-in that separate sanitized receipt. Experimental API promotion stays with #1459.
+The engineering-reviewed acceptance gate (2026-10-12) requires all six supported
+cases and all four clarification/refusal controls to pass, with zero unsafe
+executions or credential leaks and no case exceeding 15 seconds. The elapsed-time
+gate is independent of cooperative cancellation. This ten-case fixture gate is
+bounded sample acceptance, not statistically useful general natural-language
+accuracy qualification. Preserve failed runs and distinguish each provider/model.
+
+Actual authenticated provider qualification is still in progress; no live pass
+is claimed by the recorded results. Keep provider/model, fixture/schema, source
+commit, harness identity, latency, outcomes and failures in a separate sanitized
+receipt. An externally injected provider bridge must retain its source and hash
+alongside that receipt. Experimental API promotion stays with #1459.
 
 After committing the candidate and starting the app/adapter, opt in to the live
 corpus runner with the same server configuration plus `HONUA_NL_LIVE_EVIDENCE=true`

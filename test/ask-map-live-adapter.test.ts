@@ -1,5 +1,5 @@
 import { once } from "node:events";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { createLiveModelHandler, openAiCompatibleCompletion } from "../examples/nl-map-control/live-adapter.mjs";
 import type { NlCompletionRequest } from "../src/nl-map-control/index.js";
@@ -13,6 +13,86 @@ const requestBody: NlCompletionRequest = {
   tools: [{ name: "runWidgetQuery", description: "Read", inputSchema: { type: "object" } }],
 };
 describe("Authenticated server-side model adapter", () => {
+  it("bounds authentication and non-cooperative providers, and sanitizes authentication exceptions", async () => {
+    for (const scenario of ["authentication-hangs", "provider-hangs", "authentication-throws"]) {
+      const complete = vi.fn(() => new Promise<never>(() => {}));
+      const handler = createLiveModelHandler({
+        origin: "https://app.example",
+        timeoutMs: 50,
+        complete,
+        authenticate: () => {
+          if (scenario === "authentication-hangs") return new Promise<boolean>(() => {});
+          if (scenario === "authentication-throws") throw new Error("private-auth-service-detail");
+          return true;
+        },
+      });
+      const server = createServer(handler);
+      server.listen(0, "127.0.0.1");
+      await once(server, "listening");
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("bind failed");
+      try {
+        const started = performance.now();
+        const response = await fetch(`http://127.0.0.1:${address.port}/api/ask-map/propose`, {
+          method: "POST",
+          headers: { origin: "https://app.example", "content-type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: AbortSignal.timeout(1500),
+        });
+        expect(performance.now() - started).toBeLessThan(1000);
+        expect(response.status).toBe(scenario === "authentication-throws" ? 502 : 504);
+        expect(await response.json()).toEqual({ error: "model-request-failed" });
+        expect(complete).toHaveBeenCalledTimes(scenario === "provider-hangs" ? 1 : 0);
+      } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    }
+  });
+  it("terminates a slow request body before calling a provider that ignores cancellation", async () => {
+    const complete = vi.fn(() => new Promise<never>(() => {}));
+    const server = createServer(
+      createLiveModelHandler({
+        origin: "https://app.example",
+        authenticate: () => true,
+        complete,
+        timeoutMs: 50,
+      }),
+    );
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("bind failed");
+    const started = performance.now();
+    try {
+      const outcome = await new Promise<string>((resolve, reject) => {
+        const request = httpRequest(`http://127.0.0.1:${address.port}/api/ask-map/propose`, {
+          method: "POST",
+          headers: { origin: "https://app.example", "content-type": "application/json" },
+        });
+        const deadline = setTimeout(() => {
+          request.destroy();
+          reject(new Error("Adapter failed to bound upload"));
+        }, 1500);
+        request.once("error", () => {
+          clearTimeout(deadline);
+          resolve("connection-closed");
+        });
+        request.once("response", (response) => {
+          clearTimeout(deadline);
+          response.resume();
+          resolve(String(response.statusCode));
+        });
+        request.write("{"); // Deliberately never finish the body.
+      });
+      expect(["connection-closed", "504"]).toContain(outcome);
+      expect(performance.now() - started).toBeLessThan(1000);
+      expect(complete).not.toHaveBeenCalled();
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
   it("requires both authenticated session and same origin before touching the provider", async () => {
     const complete = vi.fn(async () => ({ refusal: "No date field" }));
     const server = createServer(

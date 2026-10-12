@@ -5,7 +5,7 @@ export type LiveModelResponse = NlCompletionResponse & {
   readonly modelIdentity?: { readonly provider: string; readonly model: string };
 };
 export function createLiveModelHandler(options: {
-  readonly authenticate: (request: IncomingMessage) => boolean | Promise<boolean>;
+  readonly authenticate: (request: IncomingMessage, signal: AbortSignal) => boolean | Promise<boolean>;
   readonly complete: (request: NlCompletionRequest, signal: AbortSignal) => Promise<LiveModelResponse>;
   readonly origin: string;
   readonly timeoutMs?: number;

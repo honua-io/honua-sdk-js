@@ -6,6 +6,12 @@ import { type QueryResult, createIncidentRuntime, initializeFixture, reviewQuery
 import { authenticatedLiveModel, groundedModel, recordedModel } from "./model.js";
 import type { IncidentQuery, QueryContext } from "./query.js";
 
+/** A semantically correct but late result does not meet the bounded sample gate. */
+export function enforceEvaluationDeadline<T extends { passed: boolean; elapsedMs: number }>(result: T) {
+  const latencyExceeded = !Number.isFinite(result.elapsedMs) || result.elapsedMs > corpus.bounds.elapsedMs;
+  return { ...result, passed: result.passed && !latencyExceeded, latencyExceeded };
+}
+
 /** Semantic oracles are committed IDs/counts, never recalculated by this harness. */
 export async function evaluateRecordedQueries(
   driver: DuckDbDriver,
@@ -160,10 +166,11 @@ export async function evaluateRecordedQueries(
       clearTimeout(timer);
     }
   }
-  const supported = results.filter(
+  const admitted = results.map(enforceEvaluationDeadline);
+  const supported = admitted.filter(
     (result) => corpus.cases.find((entry) => entry.id === result.id)?.expectedIds !== undefined,
   );
-  const guarded = results.filter(
+  const guarded = admitted.filter(
     (result) => corpus.cases.find((entry) => entry.id === result.id)?.expectedOutcome !== undefined,
   );
   const latencies = results.map((result) => result.elapsedMs).sort((a, b) => a - b);
@@ -175,7 +182,8 @@ export async function evaluateRecordedQueries(
       safeOutcomesCorrect: guarded.filter((result) => result.passed).length,
       safeOutcomesTotal: guarded.length,
       unexpectedExecutions: guarded.filter((result) => result.outcome === "succeeded").length,
-      failures: results.filter((result) => !result.passed).map((result) => result.id),
+      failures: admitted.filter((result) => !result.passed).map((result) => result.id),
+      latencyFailures: admitted.filter((result) => result.latencyExceeded).map((result) => result.id),
       latencyMs: { median: latencies[Math.floor(latencies.length / 2)], maximum: latencies.at(-1) },
     },
     mode: liveIdentity ? "live" : "recorded",
@@ -184,8 +192,8 @@ export async function evaluateRecordedQueries(
     fixture: FIXTURE_VERSION,
     engine: { name: "DuckDB-WASM", version: engine[0]?.version },
     schemaFingerprint: SCHEMA.fingerprint,
-    results,
-    passed: results.every((result) => result.passed),
+    results: admitted,
+    passed: admitted.every((result) => result.passed),
     liveModelEvidence: Boolean(liveIdentity),
   };
 }
