@@ -1023,7 +1023,7 @@ describe("<honua-feature-editor> presentation-only field selection", () => {
     expect(source.applyEdits).not.toHaveBeenCalled();
   });
 
-  it("preserves hidden subtype defaults in the actual accepted mutation", async () => {
+  it("preserves explicitly seeded subtype values in the actual accepted mutation", async () => {
     const source = makeSource();
     const workflow = createFeatureEditorWorkflow({
       source,
@@ -1041,7 +1041,11 @@ describe("<honua-feature-editor> presentation-only field selection", () => {
     });
     const element = mount(workflow);
     element.fieldPresentation = [{ name: "status" }];
-    workflow.begin("create");
+    workflow.begin("create", {
+      attributes: { permit_no: "P-DEFAULT", status: "open", permit_kind: 1 },
+      geometry: null,
+    });
+    expect(workflow.fields().find((field) => field.name === "permit_no")?.defaultValue).toBe("P-DEFAULT");
     expect(element.preflight()?.ready).toBe(true);
     const commit = await workflow.submit();
     expect(commit.status).toBe("committed");
