@@ -185,19 +185,19 @@
       "status": "eligible",
       "package": {
         "name": "cesium",
-        "version": "1.140.0",
-        "integrity": "sha512-3RvW0rvZWuXiS6regtNE5u9vt0uXohgpsRBIo6Qc922IIIamkitYiEdr4fg+u4qX4EoK9xS3BosCza7iPOExEQ==",
+        "version": "1.146.0",
+        "integrity": "sha512-hvKkURnmc8OZ8qKNrwawl/YijwAItaWLbpAdIVNAUXODCLMjpod4PbdLuwo8Ab6ETL915MUGV2NocHFCRCeqqA==",
         "lockfile": "package-lock.json"
       },
       "licenseEvidence": {
         "license": "Apache-2.0",
         "decision": "approved",
         "publication": "permitted-under-open-source-license",
-        "sourceUrl": "https://github.com/CesiumGS/cesium/blob/main/LICENSE.md",
+        "sourceUrl": "https://github.com/CesiumGS/cesium/blob/1.146/LICENSE.md",
         "termsUrl": null,
-        "retrievedAt": "2026-07-12",
+        "retrievedAt": "2026-10-12",
         "licensePath": "node_modules/cesium/LICENSE.md",
-        "licenseContentSha256": "5974ceb674dd305415efc34d999ea38a2535b55368475065dd7bfabb23ad026d",
+        "licenseContentSha256": "721844bc0cdaa9b1a9a145dbca1f981e2de15a7e200a5d1fd9f5f1eed8e5d030",
         "notes": "Reference is restricted to the local ellipsoid and synthetic entities; Cesium ion assets and services are excluded."
       },
       "taskIds": [
