@@ -30,10 +30,14 @@ The delivery order is:
    then complete the normal managed current-line SDK/MCP patch release. Verify
    the real public artifacts and default-resolver installation.
 2. Run canonical `sync:mcp-pin` against that published bridge. Record and verify
-   its actual registry peer range together with its version and integrity; an
-   inferred caret based on the MCP version cannot describe this bridge. The pin
-   metadata repair and actual synchronized pin are separate remaining delivery
-   work until the bridge is public.
+   its peer range from the actual integrity-verified tarball `package.json`,
+   require agreement with the registry manifest, and retain the package JSON
+   hash in `config/mcp-pinned-peer.v1.json`. The sync verifies all inputs before
+   writing this receipt and either pin home. Offline verification binds the
+   recorded peer to the exact pin and integrity; live verification downloads and
+   checks those bytes again. An inferred caret based on the independently
+   versioned MCP release cannot describe this bridge. Actual bridge publication
+   and the synchronized pin remain pending until those bytes exist.
 3. Merge the approved Node 22 breaking baseline and let Release Please compute
    the next minor versions. Preserve the public bridge pin until the next MCP
    artifact is actually published. The existing packed/public installation and

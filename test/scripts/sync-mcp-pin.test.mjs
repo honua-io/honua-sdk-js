@@ -26,6 +26,9 @@ import {
   verifyZeroToMapConfigPins,
 } from "../../scripts/verify-mcp-pin.mjs";
 
+import { mcpArtifact } from "./mcp-peer-artifact-fixture.mjs";
+import { MCP_PEER_RECEIPT_PATH } from "../../scripts/lib/mcp-peer-artifact.mjs";
+
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const pinSource = fs.readFileSync(path.join(projectRoot, "src", "local-install.ts"), "utf8");
 const readConfigSource = (relativePath) => fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
@@ -357,11 +360,11 @@ test("explicit selection accepts --check in either order and refuses ambiguous o
 });
 
 /** Run the actual CLI in an isolated tree with an explicitly mocked registry. */
-function withSyncCliFixture(manifest, run) {
+function withSyncCliFixture(manifest, run, versionOverrides = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "honua-sync-cli-"));
   try {
-    const sites = ["src/local-install.ts", ...ZERO_TO_MAP_CONFIGS, ...CREATE_APP_PIN_SITES];
-    for (const relativePath of ["scripts/sync-mcp-pin.mjs", "scripts/verify-mcp-pin.mjs", ...sites]) {
+    const sites = ["src/local-install.ts", ...ZERO_TO_MAP_CONFIGS, ...CREATE_APP_PIN_SITES, MCP_PEER_RECEIPT_PATH];
+    for (const relativePath of ["scripts/sync-mcp-pin.mjs", "scripts/verify-mcp-pin.mjs", "scripts/lib/mcp-peer-artifact.mjs", ...sites]) {
       const destination = path.join(root, relativePath);
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.copyFileSync(path.join(projectRoot, relativePath), destination);
@@ -371,13 +374,27 @@ function withSyncCliFixture(manifest, run) {
     fs.writeFileSync(path.join(root, "dist/src/local-install.js"), 'export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";');
     const preload = path.join(root, "registry-fixture.mjs");
     const response = { versions: {
-      "0.1.15": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: `sha512-${"A".repeat(86)}==` } },
+      "0.1.15": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: mcpArtifact("0.1.15").integrity } },
       ...manifest,
     } };
-    fs.writeFileSync(preload, `globalThis.fetch = async (url) => {
+    const versionResponses = { ...response.versions, ...versionOverrides };
+    const tarballs = {};
+    for (const [version, item] of Object.entries(versionResponses)) {
+      const artifact = mcpArtifact(version, item.peerDependencies?.["@honua/sdk-js"] ?? null);
+      if (item.dist) item.dist.tarball = artifact.tarball;
+      tarballs[artifact.tarball] = artifact.bytes.toString("base64");
+    }
+    fs.writeFileSync(preload, `globalThis.fetch = async (url, options) => {
 const packument = ${JSON.stringify(response)};
+const tarballs = ${JSON.stringify(tarballs)};
+const versionResponses = ${JSON.stringify(versionResponses)};
+if (tarballs[url]) {
+  if (options?.redirect !== "error") throw new Error("Tarball redirect policy missing");
+  return new Response(Buffer.from(tarballs[url], "base64"));
+}
 if (url === "https://registry.npmjs.org/%40honua%2Fmcp-server") return { ok: true, json: async () => packument };
-if (url === "https://registry.npmjs.org/%40honua%2Fmcp-server/0.1.16") return { ok: true, json: async () => ({ version: "0.1.16", ...packument.versions["0.1.16"] }) };
+const version = url.split("/").at(-1);
+if (versionResponses[version]) return { ok: true, json: async () => ({ name: "@honua/mcp-server", version, ...versionResponses[version] }) };
 throw new Error("Unexpected registry URL");
 };`);
     const invoke = (args) => spawnSync(process.execPath,
@@ -393,6 +410,8 @@ throw new Error("Unexpected registry URL");
       fs.writeFileSync(path.join(root, "mcp/package.json"), JSON.stringify({ name: "@honua/mcp-server", version: "0.1.16", peerDependencies: { "@honua/sdk-js": peerRange } }));
       fs.writeFileSync(path.join(root, "mcp/package-lock.json"), JSON.stringify({ packages: { "": { peerDependencies: { "@honua/sdk-js": peerRange } } } }));
       fs.writeFileSync(path.join(root, "mcp/CHANGELOG.md"), "## [0.1.16]\n");
+      const artifact = mcpArtifact();
+      fs.writeFileSync(path.join(root, MCP_PEER_RECEIPT_PATH), JSON.stringify({ schema: "honua.mcp-pinned-peer/v1", pin: "@honua/mcp-server@0.1.16", integrity, tarball: artifact.tarball, packageJsonSha256: artifact.packageJsonSha256, sdkPeerRange: "^0.1.15" }, null, 2) + "\n");
       fs.writeFileSync(path.join(root, "dist/src/local-install.js"),
         `export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";
 export const LOCAL_INSTALL_MCP_PACKAGE = "@honua/mcp-server@0.1.16";
@@ -402,14 +421,14 @@ export const LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY = ${JSON.stringify(integrity)};
         encoding: "utf8", env: { ...process.env, HONUA_MCP_PIN_LIVE_ENABLED: live ? "true" : "false" },
       });
     };
-    run({ root, invoke, snapshot, verify });
+    run({ root, invoke, snapshot, verify, preload });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 }
 
 test("CLI explicit check is read-only and its write advances source, integrity and every shipped config", () => {
-  const integrity = `sha512-${"B".repeat(86)}==`;
+  const integrity = mcpArtifact().integrity;
   withSyncCliFixture({ "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity } } },
     ({ root, invoke, snapshot }) => {
       const original = snapshot();
@@ -425,7 +444,7 @@ test("CLI explicit check is read-only and its write advances source, integrity a
         assert.equal(readConfigPin(fs.readFileSync(path.join(root, site), "utf8"), site), "@honua/mcp-server@0.1.16");
       }
       const afterWrite = snapshot();
-      assert.deepEqual(afterWrite.slice(1 + ZERO_TO_MAP_CONFIGS.length), original.slice(1 + ZERO_TO_MAP_CONFIGS.length),
+      assert.deepEqual(afterWrite.slice(1 + ZERO_TO_MAP_CONFIGS.length, -1), original.slice(1 + ZERO_TO_MAP_CONFIGS.length, -1),
         "an independently published MCP patch must not advance the certified scaffold fallback");
       const current = invoke(["--mcp-version", "0.1.16", "--check"]);
       assert.equal(current.status, 0, current.stderr);
@@ -444,7 +463,7 @@ test("CLI explicit check is read-only and its write advances source, integrity a
 test("CLI refuses unpublished, incompatible and invalid-integrity explicit selections without any writes", () => {
   const fixtures = [
     [{}, /not published/],
-    [{ peerDependencies: { "@honua/sdk-js": "^0.2.0" }, dist: { integrity: `sha512-${"B".repeat(86)}==` } }, /does NOT consider satisfied/],
+    [{ peerDependencies: { "@honua/sdk-js": "^0.2.0" }, dist: { integrity: mcpArtifact().integrity } }, /does NOT consider satisfied/],
     [{ peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: {} }, /valid sha512/],
     [{ peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: "sha512-not-a-digest" } }, /valid sha512/],
   ];
@@ -476,7 +495,7 @@ test("CLI rejects missing, duplicate and unknown selection arguments before chan
 
 
 test("live verifier accepts an independent MCP patch using its actual older compatible SDK peer", () => {
-  withSyncCliFixture({ "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: `sha512-${"B".repeat(86)}==` } } },
+  withSyncCliFixture({ "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: mcpArtifact().integrity } } },
     ({ verify }) => {
       const result = verify();
       assert.equal(result.status, 0, result.stderr);
@@ -489,11 +508,11 @@ test("live verifier accepts an independent MCP patch using its actual older comp
 
 test("live verifier refuses an incompatible or missing published peer despite a compatible source manifest", () => {
   for (const peerDependencies of [{ "@honua/sdk-js": "^0.1.16" }, {}]) {
-    withSyncCliFixture({ "0.1.16": { peerDependencies, dist: { integrity: `sha512-${"B".repeat(86)}==` } } },
+    withSyncCliFixture({ "0.1.16": { peerDependencies, dist: { integrity: mcpArtifact("0.1.16", peerDependencies["@honua/sdk-js"] ?? null).integrity } } },
       ({ verify }) => {
         const result = verify();
         assert.equal(result.status, 1, result.stderr);
-        assert.match(result.stderr, /does NOT consider satisfied|must declare/);
+        assert.match(result.stderr, /does NOT consider satisfied|must declare|differs from the verified public tarball/);
         assert.doesNotMatch(result.stdout, /published pair co-installable/);
       });
   }
@@ -517,7 +536,7 @@ test("default selection retains only a published compatible newer current pin", 
 
 
 test("CLI repairs template drift to the certified fallback without advancing its manifest", () => {
-  const integrity = `sha512-${"B".repeat(86)}==`;
+  const integrity = mcpArtifact().integrity;
   withSyncCliFixture({ "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity } } },
     ({ root, invoke }) => {
       const manifestSite = CREATE_APP_PIN_SITES.find((site) => site.endsWith("templates.manifest.json"));
@@ -536,4 +555,35 @@ test("CLI repairs template drift to the certified fallback without advancing its
       assert.equal(fs.readFileSync(manifestPath, "utf8"), originalManifest);
       assert.equal(readCreateAppSdkPin(JSON.parse(fs.readFileSync(templatePath, "utf8")), templateSite, "@honua/sdk-js"), certifiedVersion);
     });
+});
+
+
+test("CLI rejects altered tarball bytes before writing any pin or peer receipt", () => {
+  const artifact = mcpArtifact();
+  withSyncCliFixture({ "0.1.16": { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: artifact.integrity } } },
+    ({ preload, invoke, snapshot }) => {
+      const original = snapshot();
+      const before = fs.readFileSync(preload, "utf8");
+      const changed = before.replace(artifact.bytes.toString("base64"), Buffer.from("tampered").toString("base64"));
+      assert.notEqual(changed, before);
+      fs.writeFileSync(preload, changed);
+      const result = invoke(["--mcp-version", "0.1.16"]);
+      assert.equal(result.status, 1, result.stderr);
+      assert.match(result.stderr, /bytes do not match/);
+      assert.deepEqual(snapshot(), original);
+    });
+});
+
+
+test("CLI rejects a verified tarball peer that differs from compatible selection metadata", () => {
+  const artifact = mcpArtifact("0.1.16", "^0.2.0");
+  const selected = { peerDependencies: { "@honua/sdk-js": "^0.1.15" }, dist: { integrity: artifact.integrity } };
+  const actual = { peerDependencies: { "@honua/sdk-js": "^0.2.0" }, dist: { integrity: artifact.integrity } };
+  withSyncCliFixture({ "0.1.16": selected }, ({ invoke, snapshot }) => {
+    const original = snapshot();
+    const result = invoke(["--mcp-version", "0.1.16"]);
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /does NOT consider satisfied/);
+    assert.deepEqual(snapshot(), original);
+  }, { "0.1.16": actual });
 });

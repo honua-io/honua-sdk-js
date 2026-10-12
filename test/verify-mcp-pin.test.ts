@@ -439,22 +439,18 @@ describe("pinned client pair co-installability (#1529)", () => {
 
   it("either co-installs the pinned pair or is exactly the state the publish gate refuses", async () => {
     const sdk = await readManifest("package.json");
-    // release-please writes the peer range as a caret on the MCP version at the
-    // commit that cut it, so that is the range the pinned tarball carries; the
-    // live lane re-reads it from the registry rather than trusting this.
+    const receipt = await readManifest("config/mcp-pinned-peer.v1.json");
+    expect(receipt.pin).toBe(LOCAL_INSTALL_MCP_PACKAGE);
+    expect(receipt.integrity).toBe(LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY);
     const pinned = {
       sdkName: sdk.name,
       sdkVersion: sdk.version,
       mcpName: LOCAL_INSTALL_MCP_PACKAGE_NAME,
       mcpVersion: LOCAL_INSTALL_MCP_PACKAGE_VERSION,
-      peerRange: `^${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`,
+      peerRange: receipt.sdkPeerRange,
     };
-    // A pin that differs from the SDK version is not by itself uninstallable:
-    // with stable 0.x releases a caret range admits later patches, so sdk-js
-    // 0.1.12 co-installs beside a pinned mcp-server 0.1.11-beta.0
-    // (^0.1.11-beta.0). A pin whose range does not admit the SDK -- the
-    // prerelease case between a bump and the coordinated MCP publish -- still
-    // must not ship, so assert the gate fires exactly when npm would refuse.
+    // Independent MCP versions do not identify their SDK peer. Use the exact
+    // tarball-bound record, including a reviewed dual-minor bridge when present.
     if (satisfiesUnderNpmDefaults(sdk.version, pinned.peerRange)) {
       expect(() => verifyClientPairCoInstallable(pinned)).not.toThrow();
       return;
