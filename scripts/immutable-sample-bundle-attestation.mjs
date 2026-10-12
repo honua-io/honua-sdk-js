@@ -23,10 +23,10 @@ export const NODE_VERSION = "20.19.0";
 // it: nothing in CI can, because `GITHUB_TOKEN` cannot commit to
 // `.github/workflows/**` (#1357).
 export const EXPECTED_LOCKFILE_SHA256 =
-  "c61f3f4186776c157085229742a2c24ef7fa4330d75a4d2713c5c29de228ab74";
+  "711e51be8a810a662f6fa8e4f74dbeb8509f64414bcc62c4c99e8339a959e74d";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-  setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+  setupNode: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
   uploadArtifact:
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
   downloadArtifact:
@@ -62,7 +62,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "050cfd83d69a1165f0e9c8aa868a696e1f01b0f828dd9f66e8dcff8bcf15c6e9",
+    "3ef71ccbaf06295b7d430177cc6d74fe1085df078bb46c9b752f1bd87448d648",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":
