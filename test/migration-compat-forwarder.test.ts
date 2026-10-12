@@ -55,19 +55,19 @@ describe("legacy JavaScript migration forwarders", () => {
       >;
     };
 
-    expect(manifest.dependencies?.["@honua/honua-migrate"]).toBe("0.1.3-beta.0");
+    expect(manifest.dependencies?.["@honua/honua-migrate"]).toBe("0.2.0-beta.0");
     expect(manifest.files).toContain("scripts/run-legacy-migration-cli.mjs");
     expect(manifest.scripts?.["verify:migration-forwarder-tarball"]).toContain(
       "verify-migration-forwarder-tarball.mjs",
     );
-    expect(lock.packages?.[""]?.dependencies?.["@honua/honua-migrate"]).toBe("0.1.3-beta.0");
-    expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.version).toBe("0.1.3-beta.0");
+    expect(lock.packages?.[""]?.dependencies?.["@honua/honua-migrate"]).toBe("0.2.0-beta.0");
+    expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.version).toBe("0.2.0-beta.0");
     expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.bin).toEqual({
       "honua-js-migrate": "dist/migration/cli.js",
     });
     expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.engines?.node).toBe(">=20.19.0");
-    expect(lock.packages?.["node_modules/@honua/sdk"]?.version).toBe("0.1.2-beta.0");
-    expect(lock.packages?.["node_modules/@honua/sdk-esri-compat"]?.version).toBe("0.1.2-beta.0");
+    expect(lock.packages?.["node_modules/@honua/sdk"]?.version).toBe("0.1.15");
+    expect(lock.packages?.["node_modules/@honua/sdk-esri-compat"]?.version).toBe("0.1.15");
     for (const script of ["scan:arcgis", "scan:arcgis:widgets", "migrate:arcgis"]) {
       expect(manifest.scripts?.[script]).toContain("run-legacy-migration-cli.mjs");
     }
