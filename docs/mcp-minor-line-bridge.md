@@ -1,3 +1,8 @@
+---
+type: guide
+title: "MCP compatibility across the Node 22 transition"
+description: "Managed publication order and bounded peer policy for the SDK minor-line bridge."
+---
 # MCP compatibility across the Node 22 transition
 
 The generated installer pins a published MCP package. SDK publication proves
