@@ -8,6 +8,7 @@ import type {
   JobSnapshotListener,
   JobStatus,
 } from "../contract/jobs.js";
+import type { ErrorDetail } from "../gen/geospatial/v1/execution_types_pb.js";
 import { JobRunLifecycle } from "./job-run-lifecycle.js";
 import type { HonuaOgcProcesses } from "./ogc-processes.js";
 import type { HonuaGeoprocessingService } from "./surfaces.js";
@@ -168,7 +169,7 @@ export interface GeospatialGrpcJobProgress {
   readonly state?: unknown;
 }
 
-export interface GeospatialGrpcErrorDetail {
+export interface GeospatialGrpcErrorDetail extends Partial<Pick<ErrorDetail, "code" | "message" | "details">> {
   readonly errorCode?: string;
   readonly error_code?: string;
   readonly message?: string;
@@ -344,7 +345,10 @@ function geospatialGrpcError(response: GeospatialGrpcGetJobResultResponse): JobE
     (response.outcome?.case === "error" ? (response.outcome.value as GeospatialGrpcErrorDetail) : undefined);
   if (!candidate) return undefined;
   return {
-    code: candidate.errorCode ?? candidate.error_code ?? "GeospatialGrpcProcessError",
+    code:
+      candidate.code !== undefined
+        ? String(candidate.code)
+        : (candidate.errorCode ?? candidate.error_code ?? "GeospatialGrpcProcessError"),
     message: candidate.message ?? "geospatial-grpc process execution failed.",
     details: candidate.details,
   };

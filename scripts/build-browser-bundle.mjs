@@ -61,7 +61,9 @@ const SHARED_OPTIONS = {
   entryPoints: [ENTRY],
   bundle: true,
   minify: true,
-  sourcemap: true,
+  // Keep debug maps as build artifacts without making the runtime package
+  // advertise an unshipped sourceMappingURL.
+  sourcemap: "external",
   platform: "browser",
   target: ["es2020"],
   external: EXTERNAL,

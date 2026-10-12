@@ -25,7 +25,7 @@ export async function stacCommand(parsed: ParsedArgs, ctx: CommandContext): Prom
 }
 
 async function stacCollections(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const response = await client.stac().collections();
   const collections = response.collections ?? [];
 
@@ -54,7 +54,7 @@ async function stacCollections(parsed: ParsedArgs, ctx: CommandContext): Promise
 }
 
 async function stacSearch(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
 
   const request: StacSearchRequest = {};
   const bbox = getString(parsed, "bbox");

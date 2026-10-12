@@ -239,6 +239,14 @@ const PINNED_DEV_DEPENDENCIES = Object.freeze({
  */
 const COPYABLE_SHARED_SOURCES = new Map([
   [
+    "../../shared/online-basemap.js",
+    {
+      source: "examples/shared/online-basemap-compat.ts",
+      target: "src/online-basemap.ts",
+      rewrite: "./online-basemap.js",
+    },
+  ],
+  [
     "../../shared/maplibre-vite-worker.js",
     {
       source: "examples/shared/maplibre-vite-worker.ts",
@@ -296,6 +304,7 @@ export const PLAYGROUND_FIXTURE_ORIGINS = new Map([
         },
       ],
       env: {
+        VITE_HONUA_BASEMAP_STYLE: "",
         VITE_HONUA_REACT_BASE_URL: "",
         VITE_HONUA_REACT_LAYER_ID: "0",
         VITE_HONUA_REACT_SERVICE_ID: "natural-earth",

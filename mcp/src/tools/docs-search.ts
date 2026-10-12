@@ -239,8 +239,8 @@ export interface DocsCorpusLocation {
 
 /**
  * Locate the corpus: an explicit `HONUA_DOCS_CORPUS_PATH` (the corpus file
- * itself, or a directory holding one), otherwise the nearest ancestor directory
- * holding `llms-full.txt`.
+ * itself, or a directory holding one), otherwise the recognized Honua package root
+ * holding `llms-full.txt`, or the SDK root beside mcp/ in a source checkout.
  *
  * The override names the file to read, so it is read — its basename is not
  * assumed to be `llms-full.txt`. Discarding it and reading `<parent>/llms-full.txt`
@@ -259,7 +259,17 @@ export function resolveDocsCorpus(env: NodeJS.ProcessEnv = process.env, from?: s
   let dir = from ?? path.dirname(fileURLToPath(import.meta.url));
   for (let depth = 0; depth < 10; depth += 1) {
     const corpusPath = path.join(dir, CORPUS_FILE);
-    if (fs.existsSync(corpusPath)) return { corpusPath, root: dir };
+    const pkg = readJson(path.join(dir, "package.json"));
+    if (pkg?.name === "@honua/mcp-server" || pkg?.name === "@honua/sdk-js") {
+      if (fs.existsSync(corpusPath)) return { corpusPath, root: dir };
+      // In a source checkout, mcp/ shares the SDK's corpus one level up.
+      const sdkRoot = path.dirname(dir);
+      if (pkg.name === "@honua/mcp-server" && readJson(path.join(sdkRoot, "package.json"))?.name === "@honua/sdk-js") {
+        const sdkCorpus = path.join(sdkRoot, CORPUS_FILE);
+        if (fs.existsSync(sdkCorpus)) return { corpusPath: sdkCorpus, root: sdkRoot };
+      }
+      return undefined;
+    }
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;

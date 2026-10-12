@@ -185,6 +185,24 @@ jobs:
           retention-days: 1
           compression-level: 0
 
+      - name: Pack independent sample contracts twice
+        run: |
+          set -euo pipefail
+          npm run samples:contract:pack --prefix source-a
+          npm run samples:contract:pack --prefix source-b
+          cmp source-a/.artifacts/sample-contract/sample-contract-artifact.v1.json source-b/.artifacts/sample-contract/sample-contract-artifact.v1.json
+          for archive in source-a/.artifacts/sample-contract/*.tgz; do
+            cmp "$archive" "source-b/.artifacts/sample-contract/$(basename "$archive")"
+          done
+
+      - name: Retain independent sample-consumer contracts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sample-contract-${{ github.sha }}
+          path: source-a/.artifacts/sample-contract/
+          if-no-files-found: error
+          retention-days: 90
+
   attest-and-publish:
     name: Attest and publish immutable release
     needs: build-and-smoke
@@ -209,7 +227,7 @@ jobs:
           # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
           # a release version bump rewrites those and nothing in CI is able
           # to move this constant (#1357).
-          EXPECTED_LOCKFILE_SHA256: 31aea727305283c2a57ae2147ee6bf0986c51a548a59efb6da1eba04cc210d6b
+          EXPECTED_LOCKFILE_SHA256: c61f3f4186776c157085229742a2c24ef7fa4330d75a4d2713c5c29de228ab74
         run: |
           set -euo pipefail
           python3 - <<'PY'

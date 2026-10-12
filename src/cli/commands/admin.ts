@@ -127,13 +127,21 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const connection = resolveAdminConnection({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
+    bearerToken: ctx.bearerToken,
     adminKey: ctx.adminKey,
     profile: ctx.profile,
   });
+  if (
+    connection.bearerToken &&
+    Object.keys(request.headers).some((name) => ["authorization", "x-api-key", "cookie"].includes(name.toLowerCase()))
+  ) {
+    throw new ArgError("Credential headers cannot be combined with a selected bearer token.");
+  }
   const client = new HonuaAdminClient({
     baseUrl: connection.baseUrl,
     apiKey: connection.apiKey,
     adminKey: connection.adminKey,
+    headers: connection.bearerToken ? { Authorization: `Bearer ${connection.bearerToken}` } : undefined,
   });
   if (!oneTimeSecret) {
     const result = await callDynamic(client, operationId, compactRequest(request));
@@ -235,10 +243,11 @@ async function qualifyCommand(parsed: ParsedArgs): Promise<void> {
     );
   }
   const serviceId = getString(parsed, "service-id");
-  const layerId = getString(parsed, "layer-id");
+  const layerIdText = getString(parsed, "layer-id");
+  const layerId = layerIdText === undefined ? undefined : parseLayerId(layerIdText);
   const styleEvidencePath = getString(parsed, "style-evidence");
   const stylePngPath = getString(parsed, "style-png");
-  const liveStyle = Boolean(serviceId || layerId);
+  const liveStyle = Boolean(serviceId || layerId !== undefined);
   if (liveStyle && (styleEvidencePath || stylePngPath)) {
     throw new ArgError(
       "Pass either a live --service-id/--layer-id style run or --style-evidence with --style-png, not both.",
@@ -257,7 +266,7 @@ async function qualifyCommand(parsed: ParsedArgs): Promise<void> {
     catalogReceiptPath,
     ...(getString(parsed, "output") ? { outputPath: getString(parsed, "output") } : {}),
     ...(serviceId ? { serviceId } : {}),
-    ...(layerId ? { layerId } : {}),
+    ...(layerId !== undefined ? { layerId } : {}),
     ...(bbox ? { bbox } : {}),
     ...(styleEvidencePath ? { styleEvidencePath } : {}),
     ...(stylePngPath ? { stylePngPath } : {}),
@@ -267,6 +276,14 @@ async function qualifyCommand(parsed: ParsedArgs): Promise<void> {
   if (!receipt.pass) {
     throw new Error(receipt.differences.join("; "));
   }
+}
+
+function parseLayerId(value: string): number {
+  const layerId = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isInteger(layerId) || layerId > 2_147_483_647) {
+    throw new ArgError("--layer-id must be a decimal integer between 0 and 2147483647.");
+  }
+  return layerId;
 }
 
 function parseBbox(value: string | undefined): [number, number, number, number] {

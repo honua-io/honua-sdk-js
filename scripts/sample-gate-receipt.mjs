@@ -1263,8 +1263,8 @@ async function validateLiveEvidence(evidence, evidencePath, receipt, root) {
   }
 }
 
-async function validatePackedBuildReport(report, receipt, root) {
-  const contract = playwrightContracts.get(receipt.sampleId);
+async function validatePackedBuildReport(report, receipt, root, contractOverride) {
+  const contract = contractOverride ?? playwrightContracts.get(receipt.sampleId);
   invariant(contract, `${receipt.sampleId} has no declared packed-build contract`);
   invariant(report.sdkMode === "packed" && report.resolution?.mode === "packed", "packed build did not use packed SDK resolution");
   invariant(/^[a-f0-9]{64}$/.test(report.packageTarballSha256), "packed build tarball digest is missing");
@@ -1369,7 +1369,7 @@ async function validatePackedBuildReport(report, receipt, root) {
   }
 }
 
-async function validateGateSemantics(receipt, artifact, root) {
+async function validateGateSemantics(receipt, artifact, root, packedBuildContract) {
   const report = parseJsonReport(artifact, `${receipt.sampleId} ${receipt.gate} report`);
   invariant(report.sampleId === receipt.sampleId && report.sourceRevision === receipt.sourceRevision, `${receipt.gate} report source binding mismatch`);
   invariant(
@@ -1412,7 +1412,7 @@ async function validateGateSemantics(receipt, artifact, root) {
   if (receipt.gate === "packed-build") {
     invariant(report.format === "honua.sdk.sample-packed-build-gate.v1", "packed build report format is invalid");
     invariant(report.sampleId === receipt.sampleId && report.sourceRevision === receipt.sourceRevision, "packed build report binding mismatch");
-    return validatePackedBuildReport(report, receipt, root);
+    return validatePackedBuildReport(report, receipt, root, packedBuildContract);
   }
   if (receipt.gate === "screenshot") return validateScreenshotReport(report, receipt, root);
   if (receipt.gate === "performance") {
@@ -1562,6 +1562,36 @@ export function validateGateReceiptStructure(receipt, options = {}) {
 }
 
 export async function validateGateReceipt(receipt, options = {}) {
+  return validateGateReceiptWithPackedContract(receipt, options);
+}
+
+// Only frozen legacy archives use the historical kit; current receipts always
+// validate against the current manifest, including newly required entrypoints.
+// The snapshot is byte-for-byte examples/_kit/manifest.v1.json at the source
+// revision recorded in the immutable legacy archive; no Git/network is needed.
+export function legacyPackedBuildContract(bytes, sourceRevision, sampleId) {
+  invariant(
+    sourceRevision === "79127ec58e7397c5615eb4682a7314232e43048f",
+    "legacy receipt has no pinned historical sample contract",
+  );
+  invariant(
+    sha256(bytes) === "5b99a85fb8c8a4c2c8314896907f9940b3c27caab39d4c6adb3ed708a2768c02",
+    "legacy sample contract snapshot digest mismatch",
+  );
+  const contract = JSON.parse(bytes).samples.find((sample) => sample.id === sampleId);
+  invariant(contract, "legacy receipt has no historical sample contract");
+  return contract;
+}
+
+export async function validateLegacyGateReceipt(receipt, options = {}) {
+  const bytes = await readFile(
+    path.join(projectRoot, "samples/contract/v2/consumer-fixtures/honua-sample-kit.legacy.v1.json"),
+  );
+  const contract = legacyPackedBuildContract(bytes, receipt.sourceRevision, receipt.sampleId);
+  return validateGateReceiptWithPackedContract(receipt, options, contract);
+}
+
+async function validateGateReceiptWithPackedContract(receipt, options, packedBuildContract) {
   validateGateReceiptStructure(receipt, options);
 
   const now = Date.parse(options.now ?? new Date().toISOString());
@@ -1591,7 +1621,7 @@ export async function validateGateReceipt(receipt, options = {}) {
   const verified = await verifiedArtifact(artifact, root, receipt.sampleId, receipt.runRoot);
   invariant(verified.bytes === artifact.bytes, `gate receipt artifact byte count mismatch: ${artifact.path}`);
   invariant(verified.sha256 === artifact.sha256, `gate receipt artifact digest mismatch: ${artifact.path}`);
-  await validateGateSemantics(receipt, verified, root);
+  await validateGateSemantics(receipt, verified, root, packedBuildContract);
   return receipt;
 }
 

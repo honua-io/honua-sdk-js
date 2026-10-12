@@ -359,3 +359,15 @@ export type {
   TerraDrawSnapContext,
   TerraDrawSnapEvent,
 } from "./terra-draw-sketch.js";
+
+export {
+  HONUA_ONLINE_BASEMAP_STYLES,
+  HonuaOnlineBasemapBinding,
+  resolveHonuaOnlineBasemapStyle,
+} from "./online-basemap.js";
+export type {
+  HonuaOnlineBasemapTheme,
+  HonuaOnlineBasemapOptions,
+  HonuaOnlineBasemapMap,
+  HonuaOnlineBasemapBindingOptions,
+} from "./online-basemap.js";

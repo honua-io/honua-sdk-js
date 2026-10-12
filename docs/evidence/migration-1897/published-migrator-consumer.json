@@ -1,0 +1,37 @@
+{
+  "schema": "honua.javascript-migrator-consumer-proof/v1",
+  "observedAt": "2026-10-12T00:24:05.509486+00:00",
+  "scope": "Engineering SDK source consumer of the published migrator; not an SDK release qualification",
+  "migrator": {
+    "package": "@honua/honua-migrate",
+    "version": "0.2.0-beta.0",
+    "integrity": "sha512-UT23Y6kzMwCs2eKf2Y2eXJAjVFIjRX4fZ+oMiGQox+BiHZ3tTIS+YTwQ3cNni5+dd5VM1K7obsn2ouGqStyCqA==",
+    "tarball": "https://registry.npmjs.org/@honua/honua-migrate/-/honua-migrate-0.2.0-beta.0.tgz",
+    "registryGitHead": null,
+    "sourceCommit": "6fec271367e29df9b98cdb04b7a606c0d064f6c6",
+    "sourceRef": "refs/tags/javascript-v0.2.0-beta.0",
+    "publicationRun": "https://github.com/honua-io/honua-migrate/actions/runs/38186718406",
+    "signedPublisherProvenance": "verified with gh against package bytes, exact repository, source commit, tag, workflow and hosted runner"
+  },
+  "install": {
+    "command": "npm install --prefer-online --save-exact @honua/honua-migrate@0.2.0-beta.0",
+    "defaultPeerResolution": true,
+    "resolved": {
+      "@honua/honua-migrate": "0.2.0-beta.0",
+      "@honua/sdk": "0.1.15",
+      "@honua/sdk-esri-compat": "0.1.15"
+    }
+  },
+  "cli": {
+    "canonicalExitCode": 0,
+    "legacyExitCode": 0,
+    "stdoutEqual": true,
+    "stdoutSha256": "b1d5679f2ab2dc31868abc6d43e78026c22b63d5f086f26a831c638e0a86b57c",
+    "deprecationWarningPreserved": true
+  },
+  "remaining": [
+    "Current-head SDK CI and packed SDK consumer verification",
+    "Managed SDK release publication",
+    "Published executable-document replay"
+  ]
+}

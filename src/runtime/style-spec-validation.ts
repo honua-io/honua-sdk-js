@@ -230,14 +230,13 @@ async function loadMapLibreStyleSpecModule(): Promise<MapLibreStyleSpecModule | 
   if (loadedModule) return loadedModule;
   loadAttempted = true;
   loadPromise ??= import("@maplibre/maplibre-gl-style-spec")
-    .then((mod) => {
-      const candidate = mod as Partial<MapLibreStyleSpecModule>;
-      if (typeof candidate.validateStyleMin !== "function" || typeof candidate.createExpression !== "function") {
+    .then(({ validateStyleMin, createExpression }) => {
+      if (typeof validateStyleMin !== "function" || typeof createExpression !== "function") {
         throw new Error("@maplibre/maplibre-gl-style-spec does not expose the expected validator API.");
       }
       loadedModule = {
-        validateStyleMin: candidate.validateStyleMin,
-        createExpression: candidate.createExpression,
+        validateStyleMin: validateStyleMin as MapLibreStyleSpecModule["validateStyleMin"],
+        createExpression,
       };
       loadFailure = undefined;
       return loadedModule;

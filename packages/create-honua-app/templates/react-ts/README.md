@@ -62,3 +62,7 @@ npm run build
 ```
 
 The fixture data is synthetic demonstration data from the Honua SDK sample fixtures (Apache-2.0).
+
+## Live basemap
+
+The default fixture lane stays offline. When `VITE_HONUA_ENDPOINT` selects a live endpoint, the map uses keyless OpenFreeMap Positron (or Dark for the system theme) and keeps source attribution visible. Set `VITE_HONUA_BASEMAP_STYLE` to a custom/self-hosted style URL. A basemap asset failure leaves operational data and controls available with an actionable status. Keep the expanded source credits in screenshots and exports.

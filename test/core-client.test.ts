@@ -1992,13 +1992,15 @@ describe("HonuaClient", () => {
       fetchFn: async (_input, init) => {
         callCount += 1;
         if (callCount === 1) {
-          controller.abort();
           return new Response(new Uint8Array([0xff, 0xff, 0xff]), {
             status: 200,
             headers: { "Content-Type": "application/x-protobuf" },
           });
         }
 
+        // Cancel after fallback begins, so this tests forwarding rather than
+        // requiring an already-cancelled PBF request to start another fetch.
+        controller.abort();
         if (init?.signal?.aborted) {
           throw new DOMException("aborted", "AbortError");
         }

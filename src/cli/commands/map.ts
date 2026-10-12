@@ -8,7 +8,9 @@
  * `map publish` is the reference **thin transport adapter** for the shared
  * control-plane command layer (`src/control-plane/commands/`). It parses flags
  * into `MapPackagePublishInput` plus a `HonuaCommandInvocation` and hands both
- * to the shared `runCommandVerb` — nothing else. Idempotency, `If-Match`, dry
+ * to the shared `runCommandVerb` — nothing else. `--intent` accepts an object
+ * such as `{"route":"/maps/operations","visibility":"team"}`; requesting a
+ * destination never grants approval. Idempotency, `If-Match`, dry
  * run, cancellation, validation, the typed error taxonomy, and receipt
  * assembly all live on the command, so a `honua map publish …` call and the
  * equivalent `runtime.execute(mapPackagePublishCommand, …)` call from MCP,
@@ -25,7 +27,12 @@
  */
 
 import fs from "node:fs";
-import type { HonuaCommandInvocation, HonuaCommandStatus, MapPackagePublishInput } from "../../control-plane/index.js";
+import type {
+  HonuaCommandInvocation,
+  HonuaCommandStatus,
+  HonuaMapPublicationIntent,
+  MapPackagePublishInput,
+} from "../../control-plane/index.js";
 import { mapPackagePublishCommand } from "../../control-plane/index.js";
 import type { HonuaMapPackage } from "../../runtime/index.js";
 import type { ParsedArgs } from "../args.js";
@@ -44,7 +51,7 @@ export async function mapCommand(parsed: ParsedArgs, ctx: CommandContext): Promi
   if (sub === "publish") return mapPublish(rest, ctx);
   throw new Error(
     "Usage: honua map export <service>[/<layers>] --bbox ... --size WxH -o out.png\n" +
-      "       honua map publish [<mapId>] --package <json|@file> [--message <text>] [--dry-run]",
+      "       honua map publish [<mapId>] --package <json|@file> [--intent <json|@file>] [--message <text>] [--dry-run]",
   );
 }
 
@@ -67,9 +74,11 @@ export function mapPublishInvocation(parsed: ParsedArgs): {
   }
   const workspaceId = getString(parsed, "workspace");
   const message = getString(parsed, "message");
+  const intent = getString(parsed, "intent");
   return {
     input: {
-      package: readMapPackage(packageRaw),
+      package: readJsonObject(packageRaw, "package") as HonuaMapPackage,
+      ...(intent ? { intent: readJsonObject(intent, "intent") as HonuaMapPublicationIntent } : {}),
       ...(mapId ? { mapId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
       ...(message ? { message } : {}),
@@ -126,19 +135,19 @@ async function mapPublish(parsed: ParsedArgs, ctx: CommandContext): Promise<void
   });
 }
 
-/** `--package '<json>'` or `--package @file.json`. */
-function readMapPackage(value: string): HonuaMapPackage {
+/** Parse object-valued CLI inputs; the shared command validates their schema. */
+function readJsonObject(value: string, flag: string): object {
   const raw = value.startsWith("@") ? fs.readFileSync(value.slice(1), "utf8") : value;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new ArgError("--package must be JSON or @file containing JSON.");
+    throw new ArgError(`--${flag} must be JSON or @file containing JSON.`);
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new ArgError("--package must be a JSON object (an honua_map_package.v1 document).");
+    throw new ArgError(`--${flag} must be a JSON object.`);
   }
-  return parsed as HonuaMapPackage;
+  return parsed;
 }
 
 async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
@@ -165,7 +174,7 @@ async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void>
   const format = getString(parsed, "format") ?? "png";
   const outPath = getString(parsed, "output");
 
-  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const client = createClient(connection);
   const result = await client.exportMap({
     serviceId: service,
@@ -229,7 +238,7 @@ export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const [z, x, y] = parts;
   const format = (getString(parsed, "format") ?? "png") as "png" | "jpg" | "jpeg" | "tif" | "tiff";
 
-  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const client = createClient(connection);
   // Esri tile addressing is level/row/col == z/y/x.
   const url = client.imageService(service).tileUrl(z, y, x, format);

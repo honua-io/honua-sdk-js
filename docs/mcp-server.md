@@ -87,6 +87,10 @@ supported (honua-server ADR-0028), on either surface.
 
 The [package README](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/README.md)
 carries the full protocol-neutral addressing table, the typed filter grammar,
-the environment variables, and the bootstrap-only local-install mode. How well
+the environment variables, and the bootstrap-only local-install mode. The
+local installer hands MCP clients a `honua-local-agent` key carrying
+`admin:read`, `admin:write`, and `read:*`; `read:*` is what lets it list,
+query, and render layers, and a key minted before it was added is re-issued
+on the next `honua admin install local` (see the `honua-local-setup` skill). How well
 different client models actually drive this surface is measured, not claimed:
 see the [cross-model eval scorecard](generated/mcp-eval-scorecard.md).

@@ -2,6 +2,12 @@ import { createHash } from "node:crypto";
 
 export const AWS_ECS_PROVISION_BINDING_SCHEMA = "honua.aws-ecs.provision-binding/v1" as const;
 export const ZERO_TO_MAP_ACCESS_GRANTS = ["admin:read", "admin:write"] as const;
+/**
+ * Grants the local installer mints on `honua-local-agent` (`LOCAL_AGENT_GRANTS` in
+ * `@honua/sdk-js/local-install`). `read:*` is required since honua-server #5643:
+ * administrative grants alone no longer read layer data.
+ */
+export const ZERO_TO_MAP_LOCAL_ACCESS_GRANTS = ["admin:read", "admin:write", "read:*"] as const;
 
 export interface ProvisionedAccessCredentialReceipt {
   readonly id: string;

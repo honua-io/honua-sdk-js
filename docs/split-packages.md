@@ -12,6 +12,41 @@ an opt-in build target that produces five focused npm packages from the
 same source tree, for downstream packagers and organizations that only want a
 subset of the surface.
 
+## Runtime tarball ownership and limits
+
+The main SDK tarball ships compiled runtime modules and declarations, the two
+browser bundles, licenses, package metadata, the raster registry, supported-surface
+metadata, public contract schemas, and migration compatibility guidance. Migration
+implementation ships in `@honua/honua-migrate`; the legacy SDK subpath and command
+forward to that package. Sample catalogs and consumer evidence
+stay in the repository and independently published [sample bundles](./sample-bundles.md).
+Gallery consumers resolve their handoff projections from commit-pinned source
+URLs; sample archives carry their own content hashes and publication attestations.
+Browser source maps remain build artifacts and are excluded from the runtime package.
+
+Run `npm run build`, `npm run build:browser`, then
+`npm run verify:runtime-tarball` to audit the real packed artifact. CI and publishing
+run the same gate. `test-results/runtime-tarball-budget.json` records packed and
+unpacked bytes, file ownership, tarball integrity, package version and Node/npm
+versions. CI retains this receipt as the `runtime-tarball-budget` artifact.
+The gate rejects unexpected content and missing runtime, license or
+metadata files as well as size regressions.
+
+The audited npm `@honua/sdk-js@0.1.14` baseline is 12,581,417 packed bytes,
+39,118,106 unpacked bytes and 2,189 files. Its sample material alone occupies
+11,272,832 unpacked bytes. The reduced ceilings are 4,500,000 packed and 22,000,000
+unpacked bytes, declared with the immutable baseline identity in
+`config/runtime-tarball-budget.v1.json`. Bundle execution costs are measured
+separately by the [First Map installed-consumer gate](./installed-first-map-budget.md);
+tarball reduction does not imply a faster endpoint-to-map journey.
+
+The clean packed-development measurement at source `5aac8654325f20845dc37a386f0f8999d683bb83`
+was 4,039,866 packed bytes and 19,606,974 unpacked bytes across 2,074 files: a
+67.9% packed and 49.9% unpacked reduction from the audited registry baseline.
+[The receipt](./evidence/distribution-1413/2026-10-11-runtime-tarball.json) records
+owner inventory, integrity and toolchain identity. Ceilings leave approximately
+11–12% headroom over this measured result.
+
 ## Packages produced by the split build
 
 | Package | Subpath equivalent | What it contains |
@@ -94,3 +129,37 @@ The monolithic package root is a reviewed common workflow, not an alias for all
 split-package surfaces. Advanced imports use the focused subpaths in
 [`INSTALL.md`](../INSTALL.md); every transition-era root symbol has an exact
 replacement in the generated [`root import migration table`](./root-surface-migration.md).
+
+`npm run samples:contract:pack` independently packs `samples/dist`, the versioned
+sample-consumer schemas, and self-contained consumer fixtures and archived
+receipts. Its private staging manifest derives its version from the SDK;
+there is no second release version to maintain. The output under
+`.artifacts/sample-contract/` uses the tarball SHA-256 in its filename and
+records the source commit, dirty state, SHA-512 integrity and file inventory.
+The runtime SDK does not depend on this artifact. The existing sample app
+bundles still carry the runnable applications separately.
+
+PR CI retains the contract archive as a downloadable artifact for 90 days.
+The content-addressed sample-bundle publication workflow also builds it from
+two independent checkouts of the same immutable source, requires identical
+archive bytes and receipts, and retains that separate artifact for 90 days.
+A source checkout can regenerate it after that retention window. This is a
+sample-content artifact, not a new npm registry package.
+
+## Focused validation graph reduction
+
+The PROJJSON validator shares referenced schemas instead of repeatedly inlining
+them. Differential validation against the pinned official schema preserves both
+acceptance and useful failure diagnostics across 972 valid and mutated CRS
+cases. Exact-head compiled artifact measurements with esbuild 0.28.1 reduced
+`/source-schema` from 901,833 to 833,853 minified bytes and from 201,663 to
+196,387 gzip bytes. The 880,000 / 200,000 byte ceilings deliberately preserve
+that improvement: the previous graph fails both ceilings.
+
+[Recorded comparisons](./evidence/distribution-1413/) include producer fingerprints,
+toolchain and external-peer options. The generic First Map does not retain this
+validator, so this change makes no hero-path reduction claim. Its byte and CPU
+budgets are recorded in the [installed First Map report](./installed-first-map-budget.md).
+The bundle gate separately checks the actual generated validator path is absent
+from focused HonuaClient, connect, createHonua and FeatureLayerCompat consumers;
+existing optional renderer and RPC exclusion guards remain enforced.

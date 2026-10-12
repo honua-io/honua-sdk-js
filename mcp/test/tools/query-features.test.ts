@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
+import { createServer } from "../../src/index.js";
 import { execute, schema } from "../../src/tools/query-features.js";
 import { asClient, createMockClient } from "../test-helpers.js";
 
@@ -10,6 +14,78 @@ function parse(result: { content: Array<{ type: "text"; text: string }> }) {
 }
 
 describe("honua_query_features", () => {
+  it("rejects unsupported standard inputs over MCP without executing a query", async () => {
+    const mock = createMockClient();
+    const server = createServer(asClient(mock));
+    const client = new Client({ name: "schema-honesty", version: "1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    try {
+      const tools = (await client.listTools()).tools;
+      const advertised = tools.find((tool) => tool.name === "honua_query_features")?.inputSchema.properties as Record<
+        string,
+        Record<string, unknown>
+      >;
+      const standard = JSON.parse(
+        readFileSync(
+          new URL("../../certification/geospatial-mcp-schemas/tools/query_features.schema.json", import.meta.url),
+          "utf8",
+        ),
+      );
+      for (const field of ["resultOffset", "outSrid", "returnGeometry"]) {
+        expect(advertised[field].type).toBe(standard.properties[field].type);
+      }
+      expect(advertised.returnGeometry.default).toBe(standard.properties.returnGeometry.default);
+      for (const argument of [{ returnCountOnly: true }, { geometryPrecision: 2 }, { typoOffset: 100 }]) {
+        const result = await client.callTool({ name: "honua_query_features", arguments: { ...LEGACY, ...argument } });
+        expect(result.isError).toBe(true);
+      }
+      const style = await client.callTool({
+        name: "honua_apply_style_preset",
+        arguments: { styleId: "streets", ...LEGACY },
+      });
+      expect(style.isError).toBe(true);
+      expect(mock.queryFeatures).not.toHaveBeenCalled();
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("forwards standard paging and CRS aliases and defaults to geometry", async () => {
+    const mock = createMockClient();
+    await execute(
+      asClient(mock),
+      schema.parse({ ...LEGACY, resultOffset: 100, outSrid: 3857, returnCountOnly: false }),
+    );
+    expect(mock.queryFeatures).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resultOffset: 100,
+        outSr: 3857,
+        returnGeometry: true,
+      }),
+    );
+  });
+
+  it.each([{ returnCountOnly: true }, { geometryPrecision: 2 }, { typoOffset: 100 }])(
+    "rejects unsupported arguments instead of dropping %j",
+    (argument) => {
+      expect(() => schema.parse({ ...LEGACY, ...argument })).toThrow();
+    },
+  );
+
+  it("refuses ambiguous alias pairs before issuing a query", async () => {
+    const mock = createMockClient();
+    await expect(execute(asClient(mock), schema.parse({ ...LEGACY, offset: 10, resultOffset: 20 }))).rejects.toThrow(
+      /either offset/,
+    );
+    await expect(execute(asClient(mock), schema.parse({ ...LEGACY, outSr: 4326, outSrid: 3857 }))).rejects.toThrow(
+      /either outSr/,
+    );
+    expect(mock.queryFeatures).not.toHaveBeenCalled();
+  });
+
   it("returns features with returnedCount and the neutral source identity", async () => {
     const mock = createMockClient();
     const parsed = parse(await execute(asClient(mock), schema.parse(NEUTRAL)));

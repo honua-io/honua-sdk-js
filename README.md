@@ -82,7 +82,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.1.14`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.1.17`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 19 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -309,15 +309,15 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/expr` | 2.4 KiB |
 | `@honua/sdk-js/geocoding` | 9.2 KiB |
 | `@honua/sdk-js/webmap` | 10.7 KiB |
-| `@honua/sdk-js/style` | 16.4 KiB |
-| `@honua/sdk-js/map` | 54.9 KiB |
-| `@honua/sdk-js` (root) | 198.6 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 57.2 KiB |
-| `{ connect }` from the root (tree-shake guard) | 159.4 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 188.3 KiB |
+| `@honua/sdk-js/style` | 16.3 KiB |
+| `@honua/sdk-js/map` | 54.8 KiB |
+| `@honua/sdk-js` (root) | 199.9 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 57.8 KiB |
+| `{ connect }` from the root (tree-shake guard) | 160.7 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 189.6 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 159.4 KiB gzip and `{ createHonua }` 188.3 KiB against the 198.6 KiB root, so size-sensitive
+alone costs 160.7 KiB gzip and `{ createHonua }` 189.6 KiB against the 199.9 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -479,7 +479,6 @@ honua tiles maui-parcels 12/912/1809 -o tile.png
 
 Render a map image of a bounding box:
 
-<!-- doc-run: blocked https://github.com/honua-io/honua-sdk-js/issues/1899 -->
 ```bash
 honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o maui.png
 ```
@@ -488,7 +487,13 @@ The CLI's `--where` takes the *source-native* filter grammar by design (SQL for
 GeoServices, CQL2 for OGC) — it is a command-line convenience, not the
 deprecated protocol-neutral `Query.where`; `honua explain` shows exactly what
 any query compiles to before it runs. Authentication resolves from
-`--api-key`, `HONUA_API_KEY`, or a saved `honua login`. Run `honua --help` for
+`--api-key`, `HONUA_API_KEY`, or a saved `honua login`. For an existing OAuth/operator
+bearer, set `HONUA_BEARER_TOKEN`; the CLI sends that caller token through its normal
+SDK adapters and never saves it. Credentials supplied explicitly take precedence
+over the environment. An environment bearer replaces saved API/Admin keys and
+`HONUA_ADMIN_KEY`; a rejected bearer never falls back to those keys. Set only one
+of `HONUA_API_KEY` and `HONUA_BEARER_TOKEN`. `honua whoami` reports the selected
+authentication scheme without printing the credential. Run `honua --help` for
 the full command surface. This is the recommended command surface for docs and
 demos.
 

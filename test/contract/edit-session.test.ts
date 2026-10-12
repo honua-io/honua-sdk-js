@@ -84,6 +84,46 @@ describe("contract / edit workflow session", () => {
     expect(applyEdits).not.toHaveBeenCalled();
   });
 
+  it("does not let defaults excuse explicitly cleared required values or empty defaults", async () => {
+    for (const [value, defaultValue] of [
+      [null, "open"],
+      ["", "open"],
+      [undefined, null],
+      [undefined, ""],
+    ]) {
+      const applyEdits = vi.fn();
+      const session = createEditSession({
+        source: makeSource({ applyEdits }),
+        kind: "create",
+        feature: { attributes: { status: value, version: 1 } },
+        metadata: { fields: [{ name: "status", nullable: false, defaultValue }] },
+      });
+      expect((await session.submit()).status).toBe("validation-failed");
+      expect(session.validate().errors).toContainEqual(
+        expect.objectContaining({ fieldName: "status", code: "required" }),
+      );
+      expect(applyEdits).not.toHaveBeenCalled();
+    }
+  });
+
+  it("keeps valid absent defaults and explicit zero or false valid", () => {
+    for (const [value, defaultValue] of [
+      [undefined, "open"],
+      [undefined, 0],
+      [undefined, false],
+      [0, 5],
+      [false, true],
+    ]) {
+      const session = createEditSession({
+        source: makeSource(),
+        kind: "create",
+        feature: { attributes: { status: value, version: 1 } },
+        metadata: { fields: [{ name: "status", nullable: false, defaultValue }] },
+      });
+      expect(session.validate().errors.filter((error) => error.code === "required")).toEqual([]);
+    }
+  });
+
   it("submits feature edits and staged attachment mutations in one workflow", async () => {
     let observedEnvelope: EditEnvelope<ParcelDraft> | undefined;
     let observedAttachmentParent: unknown;

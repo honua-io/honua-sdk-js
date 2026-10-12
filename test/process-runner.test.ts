@@ -220,4 +220,31 @@ describe("HonuaProcessRunner unified geoprocessing API", () => {
       errorCode: "OverlayFailed",
     });
   });
+  it.each([0, 400])("preserves generated geospatial-grpc numeric error code %s", async (code) => {
+    const processClient: GeospatialGrpcProcessClient = {
+      async submitJob() {
+        return { jobId: "grpc-failed", state: "JOB_STATE_RUNNING" };
+      },
+      async getJob() {
+        return { jobId: "grpc-failed", state: "JOB_STATE_FAILED" };
+      },
+      async getJobResult() {
+        return {
+          jobId: "grpc-failed",
+          error: { code, errorCode: "legacy-code", message: "Overlay failed", details: { category: "overlay" } },
+        };
+      },
+      async cancelJob() {
+        return { jobId: "grpc-failed", state: "JOB_STATE_CANCELLED" };
+      },
+    };
+    const job = await createHonuaProcessRunner(createGeospatialGrpcProcessAdapter(processClient)).execute({
+      plan: { planId: "failing-plan" },
+    });
+    await expect(job.results({ pollIntervalMs: 0 })).rejects.toMatchObject({
+      name: "HonuaJobFailedError",
+      status: "failed",
+      errorCode: String(code),
+    });
+  });
 });

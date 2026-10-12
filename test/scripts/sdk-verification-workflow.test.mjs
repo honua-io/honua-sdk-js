@@ -608,6 +608,15 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
       .join("\n");
     assert.equal(/\bnpm publish\b/u.test(executedScripts), false, "the verification graph must never publish");
   });
+
+  it("runs the desktop-client containment gate once, with the source-tree gates", () => {
+    // The containment scan reads every tracked file, not dist/, so it belongs
+    // with the other source-tree gates in verify-core, which the aggregate
+    // already depends on (#1999).
+    const containment = "npm run security:desktop-client-containment";
+    const owners = Object.keys(graph.jobs).filter((jobId) => jobCommands(graph, jobId).has(containment));
+    assert.deepEqual(owners, ["verify-core"], "exactly one source-tree job must run the containment gate");
+  });
 });
 
 describe("the shadow graph cannot satisfy or block a required status context", () => {
@@ -671,4 +680,36 @@ describe("ci.yml stays the authoritative workflow while the graph runs in shadow
       }
     }
   });
+});
+
+
+describe("packed First Map evidence belongs to the current producer", () => {
+  it("ignores the dedicated current-producer directory without changing historical fixtures", () => {
+    const ignored = fs.readFileSync(path.join(root, ".gitignore"), "utf8").split("\n");
+    assert.ok(ignored.includes("test-results/packed-first-map-execution/"));
+    const historical = JSON.parse(fs.readFileSync(path.join(root, "test-results/installed-quickstart-budget.json"), "utf8"));
+    assert.equal(historical.scope, "installed-package bundle regression; no live-server or release certification claim");
+  });
+  for (const [workflow, jobId] of [[graph, "verify-package"], [ci, "js-sdk"]]) {
+    it(`${jobId} excludes checkout receipts when the producer is skipped`, () => {
+      const jobSteps = steps(workflow, jobId);
+      const producer = jobSteps.find((step) => step.id === "packed-first-map");
+      assert.ok(producer, "the packed measurement must have a stable outcome identity");
+      const script = stepScript(producer);
+      const clear = "rm -f test-results/packed-first-map-execution/installed-quickstart-budget.json test-results/packed-first-map-execution/installed-quickstart-budget.consumer-lock.json";
+      assert.ok(script.indexOf(clear) >= 0 && script.indexOf(clear) < script.indexOf("npm run test:installed-quickstart"),
+        "clear both current-producer outputs before attempting measurement");
+      assert.match(script, /--output test-results\/packed-first-map-execution\/installed-quickstart-budget\.json/u,
+        "write outside the tracked historical receipt path so source cleanliness stays truthful");
+      const upload = jobSteps.find((step) => step.with?.name?.startsWith("packed-first-map-execution"));
+      assert.ok(jobSteps.indexOf(producer) < jobSteps.indexOf(upload));
+      assert.deepEqual(upload.with.path.trim().split("\n"), [
+        "test-results/packed-first-map-execution/installed-quickstart-budget.json",
+        "test-results/packed-first-map-execution/installed-quickstart-budget.consumer-lock.json",
+      ]);
+      assert.equal(upload.if,
+        "always() && (steps.packed-first-map.outcome == 'success' || steps.packed-first-map.outcome == 'failure')",
+        "retain current failure evidence but never upload skipped/cancelled producer checkout files");
+    });
+  }
 });

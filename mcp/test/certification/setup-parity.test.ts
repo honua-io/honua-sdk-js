@@ -40,9 +40,9 @@ function manifest(): SetupCatalogManifest {
     serverInfo: { name: "honua", version: "2026.1" },
     view: "setup",
     revision: "setup.v2",
-    revisionDigest: digest,
-    membershipDigest: digest,
-    descriptorDigest: digest,
+    revisionDigest: `sha256:${digest}`,
+    membershipDigest: `sha256:${digest}`,
+    descriptorDigest: `sha256:${digest}`,
     tools: [structuredClone(tool)],
   };
 }
@@ -143,6 +143,29 @@ describe("pinned server manifest", () => {
     const bytes = JSON.stringify(value);
     return parseSetupCatalogManifest(bytes, createHash("sha256").update(bytes).digest("hex"));
   }
+
+  it.each(["revisionDigest", "membershipDigest", "descriptorDigest"] as const)(
+    "preserves canonical %s and rejects malformed server digest representations",
+    (key) => {
+      const pin = manifest();
+      const parse = (value: unknown) => {
+        const bytes = JSON.stringify(value);
+        return parseSetupCatalogManifest(bytes, createHash("sha256").update(bytes).digest("hex"));
+      };
+      expect(parse(pin)[key]).toBe(pin[key]);
+      for (const invalid of [
+        "a".repeat(64),
+        `sha512:${"a".repeat(64)}`,
+        `sha256:${"A".repeat(64)}`,
+        `sha256:${"a".repeat(63)}`,
+        `sha256:${"a".repeat(65)}`,
+        ` sha256:${"a".repeat(64)}`,
+        `sha256:${"a".repeat(64)} `,
+      ]) {
+        expect(() => parse({ ...pin, [key]: invalid })).toThrow(key);
+      }
+    },
+  );
 
   it("requires a digest supplied independently of the captured manifest", () => {
     expect(() => parseSetupCatalogManifest(JSON.stringify(manifest()), digest)).toThrow("independently pinned");

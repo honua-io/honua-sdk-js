@@ -23,7 +23,7 @@ export const NODE_VERSION = "20.19.0";
 // it: nothing in CI can, because `GITHUB_TOKEN` cannot commit to
 // `.github/workflows/**` (#1357).
 export const EXPECTED_LOCKFILE_SHA256 =
-  "31aea727305283c2a57ae2147ee6bf0986c51a548a59efb6da1eba04cc210d6b";
+  "c61f3f4186776c157085229742a2c24ef7fa4330d75a4d2713c5c29de228ab74";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
@@ -59,6 +59,8 @@ export const RUN_BODY_SHA256 = Object.freeze({
     "31c9adb88c3990cf2bb12d3fd0c237683cceb86f6092353aa7943c9e614230ff",
   "build-and-smoke/Stage transfer":
     "b6a12a3064dd6c7812fbd2aa8f6e24249e8766a230c8b098fe468e30f6603de9",
+  "build-and-smoke/Pack independent sample contracts twice":
+    "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
     "1123caba9863f93123a946ed9d03be4863a4c1f53ed8d30cb9e946d61cc09a31",
   "attest-and-publish/Gate current trunk and immutable releases":
@@ -1687,6 +1689,8 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     "Run governance tests and policy",
     "Stage transfer",
     "Upload governed publication",
+    "Pack independent sample contracts twice",
+    "Retain independent sample-consumer contracts",
   ];
   invariant(
     JSON.stringify(build.steps.map((step) => step.name)) ===
@@ -1765,6 +1769,9 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     ["name", "run"],
     ["name", "uses", "with"],
   ];
+  buildStepKeys.push(["name", "run"], ["name", "uses", "with"]);
+  action(build.steps[15].uses, ACTIONS.uploadArtifact, "sample-contract upload-artifact");
+  exactObject(build.steps[15].with, { name: "sample-contract-${{ github.sha }}", path: "source-a/.artifacts/sample-contract/", "if-no-files-found": "error", "retention-days": 90 }, "sample-contract upload inputs");
   build.steps.forEach((step, index) =>
     exactKeys(step, buildStepKeys[index], `build step ${index}`),
   );

@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.1.18](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.17...mcp-server-v0.1.18) (2026-10-12)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.17
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.16 to ^0.1.17
+
+## [0.1.17](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.16...mcp-server-v0.1.17) (2026-10-12)
+
+
+### Bug Fixes
+
+* **installer:** select and pin the published MCP 0.1.16 client ([#2026](https://github.com/honua-io/honua-sdk-js/issues/2026)) ([05fca2c](https://github.com/honua-io/honua-sdk-js/commit/05fca2c688f877baf433ef7a2bdd8885b04deb09))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.16
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.15 to ^0.1.16
+
+## [0.1.16](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.15...mcp-server-v0.1.16) (2026-10-11)
+
+
+### Bug Fixes
+
+* align local installer and bounded qualification with 2026.1 contracts ([#2020](https://github.com/honua-io/honua-sdk-js/issues/2020)) ([16074c4](https://github.com/honua-io/honua-sdk-js/commit/16074c49635c3cf8d84c2a90a57fbfd96dac509b))
+
+## [0.1.15](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.14...mcp-server-v0.1.15) (2026-10-11)
+
+
+### Bug Fixes
+
+* **ci:** resume release checks without polling and reduce reseal churn ([#1977](https://github.com/honua-io/honua-sdk-js/issues/1977)) ([b56b988](https://github.com/honua-io/honua-sdk-js/commit/b56b988cb498cd9417cf57a30073723990ba76e8))
+* complete query and installer audits and preserve dashboard focus ([#2008](https://github.com/honua-io/honua-sdk-js/issues/2008)) ([6db2a69](https://github.com/honua-io/honua-sdk-js/commit/6db2a6977807cfab654344f2965829af995186a0))
+* **install:** mint the local agent key with read:* and re-issue legacy keys ([#2002](https://github.com/honua-io/honua-sdk-js/issues/2002)) ([8037630](https://github.com/honua-io/honua-sdk-js/commit/80376300772df954b58b040988ee969241aef149))
+* **mcp-cert:** certify the pinned candidate with a real key; retire honua_propose_operation; add roster parity ([#2005](https://github.com/honua-io/honua-sdk-js/issues/2005)) ([164b32d](https://github.com/honua-io/honua-sdk-js/commit/164b32d5770aa7acea1fa0ece62e4a3aaa2031dd))
+* refresh Admin contract and bind installed MCP identity ([#2018](https://github.com/honua-io/honua-sdk-js/issues/2018)) ([f7bc500](https://github.com/honua-io/honua-sdk-js/commit/f7bc500120431d422cd36c5f5fbbf8db9a9e220b))
+
+
+### Performance
+
+* slim SDK distribution and synchronize published client pins ([#2012](https://github.com/honua-io/honua-sdk-js/issues/2012)) ([eeab917](https://github.com/honua-io/honua-sdk-js/commit/eeab917d13241069937dd8a609de9fdc03aafcb7))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.15
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.14 to ^0.1.15
+
 ## [0.1.14](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.13...mcp-server-v0.1.14) (2026-10-06)
 
 

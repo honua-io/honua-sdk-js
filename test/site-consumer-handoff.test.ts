@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 import { describe, expect, it, vi } from "vitest";
 
+import { SAMPLE_CONTRACT_PATHS, packSampleContractArtifact } from "../scripts/lib/sample-contract-artifact.mjs";
+
 import {
   collectQualificationEvidence,
   filterSiteConsumerCards,
@@ -301,13 +303,9 @@ describe("honua-site consumer handoff", () => {
     const fixtureBytes = await readFile("samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json", "utf8");
     const committedFixture = JSON.parse(fixtureBytes);
 
-    expect(inputs.packageJson.files).toEqual(
-      expect.arrayContaining([
-        "samples/dist",
-        "samples/contract/v2/schemas",
-        "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
-      ]),
-    );
+    for (const samplePath of SAMPLE_CONTRACT_PATHS) {
+      expect(inputs.packageJson.files).not.toContain(samplePath);
+    }
     expect(handoffBytes).toBe(`${JSON.stringify(committedHandoff, null, 2)}\n`);
     if (!derivedArtifactsRelaxed) {
       expect(committedHandoff).toEqual(inputs.handoff);
@@ -1019,18 +1017,18 @@ describe("honua-site consumer handoff", () => {
 
         const packed = path.join(root, "packed");
         await mkdir(packed, { recursive: true });
-        const npmCli = process.env.npm_execpath;
-        if (!npmCli) throw new Error("npm_execpath is unavailable for the packed archive fixture");
-        const packResult = JSON.parse(
-          execFileSync(process.execPath, [npmCli, "pack", "--json", "--ignore-scripts", "--pack-destination", packed], {
-            cwd: process.cwd(),
-            encoding: "utf8",
-            maxBuffer: 32 * 1024 * 1024,
-            windowsHide: true,
-          }),
-        );
-        const tarball = path.join(packed, packResult[0].filename);
+        const sampleContract = await packSampleContractArtifact({
+          projectRoot: process.cwd(),
+          outputDirectory: packed,
+        });
+        expect(sampleContract.sourceRevision).toMatch(/^[0-9a-f]{40}$/);
+        expect(sampleContract.integrity).toMatch(/^sha512-/);
+        const tarball = path.join(packed, sampleContract.filename);
         execFileSync("tar", ["-xf", tarball, "-C", packed], { stdio: "ignore", windowsHide: true });
+        const legacyEvidenceSchema = "samples/contract/v1/schemas/sample-evidence.schema.json";
+        expect(await readFile(path.join(packed, "package", legacyEvidenceSchema), "utf8")).toBe(
+          await readFile(legacyEvidenceSchema, "utf8"),
+        );
 
         const contexts = [extracted, shallow, path.join(packed, "package")];
         const originalPath = process.env.PATH;

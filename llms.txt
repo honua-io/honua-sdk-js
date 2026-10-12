@@ -73,6 +73,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 ## AI assistants and skills
 
 - [Honua SDK agent skills](https://github.com/honua-io/honua-sdk-js/blob/trunk/skills/README.md): Agent skills for Claude Code / compatible agents and how to install them.
+- [Zero-to-map release journey](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/zero-to-map-release-journey.md): Bounded 2026.1 install, geometry.buffer, saved 2D map, separate human approval, and exact candidate receipt boundaries.
 - [Coding-agent evaluation harness](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/coding-agent-evals.md): Coding-agent evaluation harness: objective first-try correctness scoring of generated SDK code.
 
 ## API entrypoints

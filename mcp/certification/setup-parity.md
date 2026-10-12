@@ -44,7 +44,12 @@ The placeholders above illustrate the shape and are deliberately invalid as
 qualification input. Discover the view from the server's capabilities; do not
 invent profile switches or assemble a replacement tool roster in the client.
 Retain complete descriptions, input/output schemas, annotations and `_meta`.
-The server's opaque digests are compared to the reviewed pin. The receipt also
+The server's opaque digests are compared exactly to the reviewed pin. The three
+server digest fields use `sha256:` followed by 64 lowercase hexadecimal
+characters. Do not strip the prefix: older local validation accepted bare
+digests that could never match the server's canonical metadata. The independent
+manifest-file SHA-256 argument remains 64 lowercase hexadecimal characters
+without a prefix. The receipt also
 computes independent normalized descriptor hashes for HTTP and stdio; these
 use a different serialization from the server and have distinct field names.
 

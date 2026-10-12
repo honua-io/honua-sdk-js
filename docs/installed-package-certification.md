@@ -28,7 +28,11 @@ complete dependency/peer resolution, lock digest, provenance results and exact
 Node/npm/platform/architecture. No SDK is built or repacked by this lane.
 
 `--execute-fixture` starts the exact candidate image with isolated PostGIS and
-Redis. It verifies the running container's image ID before executing a standalone
+Redis. It provisions PostGIS and raster extensions, boots the candidate against an
+empty database, waits for readiness, applies the fixture data, and waits for
+readiness again after restarting the server. The server owns its migrations and
+journal; the fixture never approves the migration safety gate. It verifies the
+running container's image ID before executing a standalone
 consumer with public `@honua/sdk-js` imports. The FeatureServer fixture proves:
 
 - Layer ID, name, geometry type, CRS and field metadata.
@@ -58,7 +62,7 @@ when package identity passes. PR CI runs the bounded identity regressions and th
 denominator drift check. Setup/identity failures emit `install.status: "failed"`
 and attribute the unexecuted rows to this issue, rather than reporting passes.
 
-## Current candidate blocker
+## Retained September candidate failure
 
 The 2026-09-06 clean installation resolves:
 
@@ -75,6 +79,15 @@ SDK set. The complete receipt in
 URLs/integrities, verified provenance and this mismatch. Verdict: **not-certified,
 0 passes, 228 blocked operations**. Fixing source or adding an npm override would
 not repair those published bytes; a compatible published package set is required.
+
+The current source dependency now uses the published migration engine
+`@honua/honua-migrate@0.2.0-beta.0`, whose stable SDK dependencies resolve to
+`0.1.15`. Its tarball integrity and signed publisher provenance were verified,
+and the installed canonical and SDK compatibility CLIs produce identical matrix
+output. The [consumer receipt](evidence/migration-1897/published-migrator-consumer.json)
+records that bounded proof. The September receipt above remains unchanged;
+this source update does not qualify a new SDK release or the complete operation
+matrix.
 
 For a non-certifying check of the fixture oracle while package-set admission is
 blocked, run `node scripts/diagnose-installed-fixture.mjs test-results/fixture-diagnostic.json`.

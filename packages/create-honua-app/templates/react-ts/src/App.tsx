@@ -4,6 +4,7 @@ import { maplibreRenderer } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
+import { mountSampleOnlineBasemap } from "./online-basemap.js";
 
 import { FIXTURE_LAYER_PATH } from "./fixture-endpoint.js";
 
@@ -54,11 +55,17 @@ function useExternalMap(): { containerRef: RefObject<HTMLDivElement | null>; map
       style: BASEMAP_STYLE,
       center: INITIAL_VIEW.center,
       zoom: INITIAL_VIEW.zoom,
-      attributionControl: false,
+      attributionControl: { compact: true },
     });
+    const disposeBasemap = configuredEndpoint
+      ? mountSampleOnlineBasemap(created, {
+          styleUrl: import.meta.env.VITE_HONUA_BASEMAP_STYLE?.trim() || undefined,
+        })
+      : () => {};
     setMap(created);
     return () => {
       setMap(null);
+      disposeBasemap();
       created.remove();
     };
   }, []);

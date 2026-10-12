@@ -714,6 +714,29 @@ const review = workflow.preflight();
 if (!review.ready) console.warn(review.blockers, review.validation.errors);
 ```
 
+`editor.fieldPresentation` can select the displayed attribute controls, set their
+order, and override their labels without altering the workflow's source metadata:
+
+```ts doc-test=compile
+import type { HonuaFeatureEditorElement } from "@honua/sdk-js/web-components";
+
+const editor = document.querySelector<HonuaFeatureEditorElement>("honua-feature-editor")!;
+editor.fieldPresentation = [
+  { name: "status", label: "Permit status" },
+  { name: "permit_no", label: "Permit number" },
+];
+```
+
+Names match fields exactly; a name absent from the current form renders no
+control. Set the property to `undefined` to restore the complete schema form.
+The element copies the configuration and escapes labels. Omitted fields keep
+their original required, nullable, default, domain and read-only constraints;
+their validation errors remain visible in the alert summary, and a missing
+required value still blocks submission without transport. This property does
+not interpret WebMap formInfo or Arcade, change permissions, or change which
+attributes the workflow validates and commits. Hosts must review and translate
+any external presentation definition separately.
+
 What the element derives, and what it refuses:
 
 - **Form from metadata.** Controls, labels, coded-value choices, numeric range
@@ -863,3 +886,20 @@ clearing every gate.
 Gate definitions and per-cell evidence and notes live in
 [`config/component-qualification.v1.json`](../config/component-qualification.v1.json).
 <!-- component-qualification:end -->
+
+#### New feature default values
+
+Opening a create draft preserves explicitly supplied feature/template attributes,
+including `null`, `0`, `false`, and empty strings. For absent values, the workflow
+chooses the configured subtype `defaultCode` first, otherwise the subtype field's
+schema default. It then materializes writable field defaults from that resolved
+subtype, with subtype overrides taking precedence over schema defaults. Those
+values are part of the draft: displayed values, preflight and the mutation agree.
+Invalid defaults still fail normal validation before transport. Server-managed
+read-only fields receive no client-side default writes.
+
+`begin("create", feature)` accepts an explicit template's prototype attributes;
+the workflow does not parse WebMap template definitions itself. Initialization
+applies only to a new create draft. It does not fill missing values in updates or
+deletes, and changing a subtype after opening a draft does not overwrite edits
+with another template's values.

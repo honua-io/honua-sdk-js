@@ -1,0 +1,56 @@
+[
+  {
+    "surface": "cli",
+    "exitCode": 2,
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "import.create",
+      "retryable": false,
+      "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+      "idempotencyKey": "honua-cmd-339f7684b3c30e76f2e5d40b4a48e874",
+      "statusCode": 403,
+      "message": "Command import.create failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "mcp",
+    "isError": true,
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "import.create",
+      "retryable": false,
+      "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+      "idempotencyKey": "honua-cmd-339f7684b3c30e76f2e5d40b4a48e874",
+      "statusCode": 403,
+      "message": "Command import.create failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "studio",
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "import.create",
+      "retryable": false,
+      "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+      "idempotencyKey": "honua-cmd-339f7684b3c30e76f2e5d40b4a48e874",
+      "statusCode": 403,
+      "message": "Command import.create failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "sdk",
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "import.create",
+      "retryable": false,
+      "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+      "idempotencyKey": "honua-cmd-339f7684b3c30e76f2e5d40b4a48e874",
+      "statusCode": 403,
+      "message": "Command import.create failed with HTTP 403."
+    }
+  }
+]

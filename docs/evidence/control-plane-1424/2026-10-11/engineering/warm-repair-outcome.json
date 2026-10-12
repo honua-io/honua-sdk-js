@@ -1,0 +1,16 @@
+{
+  "sourceCommit": "072ed2781f33135670f073802135bdd95c3510af",
+  "sourcePatchSha256": "c60dde6c188596da710f37160672eb150e1a281885efa7e7249059ed6620f8b0",
+  "productionRepairCommit": "ff44ded979e40d348ab258e5b2290d767686e02b",
+  "command": "timeout --signal=TERM --kill-after=15s 900s /tmp/server1424-warm-repair.sh",
+  "productionBuildCommand": "dotnet build src/Honua.Server/Honua.Server.csproj -c Release -m:1 -nodeReuse:false -p:UseSharedCompilation=false --nologo --verbosity minimal",
+  "exitCode": 124,
+  "timeLimitSeconds": 900,
+  "sourceIdentityCheck": "passed",
+  "changedFileFormatting": "passed",
+  "productionBuild": "incomplete at time limit",
+  "fixedDllProbe": "not reached",
+  "localTests": "not run",
+  "correctedRuntimeStarted": false,
+  "candidateQualification": "not performed"
+}

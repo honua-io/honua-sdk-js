@@ -41,6 +41,7 @@ import {
   requiredReceiptGates,
   validateGateReceipt,
   validateGateReceiptStructure,
+  validateLegacyGateReceipt,
   validateQualificationReceiptSet,
 } from "./sample-gate-receipt.mjs";
 
@@ -5251,7 +5252,7 @@ export async function validateLegacyVisualReceiptArchive(archive, handoff) {
   const materializedRoot = await materializeLegacyVisualArtifacts(expectedFiles, blobs);
   try {
     for (const { claim, receipt, producerBytes } of records) {
-      await validateGateReceipt(receipt, {
+      await validateLegacyGateReceipt(receipt, {
         sampleId: claim.sampleId,
         gate: claim.gate,
         sourceRevision: claim.sourceRevision,
@@ -8511,17 +8512,7 @@ async function main(argv) {
     }
     const defaults = [
       { path: "dist/browser/honua-sdk.esm.js", entrypoint: "./browser:import" },
-      {
-        path: "dist/browser/honua-sdk.esm.js.map",
-        entrypoint: "./browser:import:sourcemap",
-        mediaType: "application/json",
-      },
       { path: "dist/browser/honua-sdk.min.js", entrypoint: "browser" },
-      {
-        path: "dist/browser/honua-sdk.min.js.map",
-        entrypoint: "browser:sourcemap",
-        mediaType: "application/json",
-      },
     ];
     const manifest = await buildBrowserArtifactManifest({ artifacts: artifacts.length > 0 ? artifacts : defaults, gitCommit });
     await verifyBrowserArtifactManifest(manifest);

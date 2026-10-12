@@ -3340,7 +3340,11 @@ async function compileOdataQueryFilter<T>(
     ...(geomColumn ? { geometryColumn: geomColumn } : {}),
     ...(spatialFields.length > 0 ? { geometryFields: spatialFields } : {}),
   };
-  return compileQueryFilterToOData(expression, ctx, (node) => {
+  const fieldTypes = {
+    ...Object.fromEntries(spatialFields.map((field) => [field.name, field.type])),
+    ...ctx.fieldTypes,
+  };
+  return compileQueryFilterToOData(expression, { ...ctx, fieldTypes }, (node) => {
     const spatialRel = ODATA_SPATIAL_REL[node.operator];
     if (!spatialRel) {
       throw new HonuaCapabilityNotSupportedError(`filter.spatial.${node.operator}`, descriptor.protocol, descriptor.id);
@@ -4305,6 +4309,9 @@ function queryFilterContext(descriptor: SourceDescriptor, geometryProperty?: str
   return {
     protocol: descriptor.protocol,
     sourceId: descriptor.id,
+    ...(descriptor.schema?.fields
+      ? { fieldTypes: Object.fromEntries(descriptor.schema.fields.map((field) => [field.name, field.type])) }
+      : {}),
     ...(geometryProperty !== undefined ? { geometryProperty } : {}),
     ...descriptorQueryFilterConstraints(descriptor),
   };

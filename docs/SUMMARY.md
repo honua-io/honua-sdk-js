@@ -38,6 +38,7 @@
 * [Safe agent plan boundary](agent-safety.md)
 * [Honua AI Map Kit](ai-map-kit.md)
 * [HonuaController Application API](app-controller.md)
+* [gRPC candidate query regression evidence for issue 1952](audit/platform-20261006/issue-1952.md)
 * [Query correctness audit record for issue 1985](audit/platform-20261006/issue-1985.md)
 * [Authentication layer](auth.md)
 * [Prebuilt browser bundle (CDN / build-less)](browser-bundle.md)
@@ -52,6 +53,10 @@
 * [Discovery truth and cache identity](discovery-contract.md)
 * [Dynamic Query Tiles](dynamic-query-tiles.md)
 * [Error envelope](errors.md)
+* [Basemap development bundle evidence](evidence/basemap-1717/README.md)
+* [Terminal control-plane diagnostic evidence](evidence/control-plane-1424/2026-10-11/README.md)
+* [Local setup development qualification for issue 1401](evidence/local-setup-1401/README.md)
+* [Published documentation qualification for SDK issue 1897](evidence/published-commands-1897/README.md)
 * [ExplorationContext](exploration-context.md)
 * [Feature inspection](feature-inspection.md)
 * [Read multidimensional coverages with OGC API Coverages and WCS](features/coverages-wcs.md)
@@ -83,6 +88,7 @@
 * [Renderer objects and temporal playback](renderers.md)
 * [Disconnected replica sync](replica-sync.md)
 * [Runtime Parity Showcase](runtime-parity-showcase.md)
+* [Sample basemap policy and inventory](sample-basemaps.md)
 * [Saved-Map Collaboration](saved-map-collaboration.md)
 * [Scene Workspace Interop](scene-workspace.md)
 * [Share, Embed, and Open-Data Browser Contracts](share-embed-open-data-contracts.md)
@@ -103,3 +109,8 @@
 * [WFS 2.0 adapter](wfs.md)
 * [ArcGIS widget-removal survival guide](widget-survival-guide.md)
 * [Zarr client](zarr.md)
+
+## Other
+
+* [evidence/distribution-1413/README.md](evidence/distribution-1413/README.md)
+* [evidence/local-agent-2003/README.md](evidence/local-agent-2003/README.md)

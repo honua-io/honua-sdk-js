@@ -13,7 +13,7 @@ const sdkRoot = path.resolve(import.meta.dirname, "..");
 const migratePackageRoot = path.resolve(
   process.argv[2] ?? process.env.HONUA_MIGRATE_PACKAGE_ROOT ?? "../honua-migrate/packages/javascript",
 );
-const expectedMigrateVersion = "0.1.3-beta.0";
+const expectedMigrateVersion = "0.2.0-beta.0";
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {

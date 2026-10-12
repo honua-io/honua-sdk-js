@@ -977,3 +977,117 @@ describe("<honua-feature-editor> realtime, conflict, and commit states", () => {
     expect(query<HTMLButtonElement>(element, "[data-operation='update']").disabled).toBe(false);
   });
 });
+
+describe("<honua-feature-editor> presentation-only field selection", () => {
+  beforeEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("orders and relabels controls without altering the workflow snapshot or permitting markup", () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const element = mount(workflow);
+    workflow.begin("update", feature());
+    const before = workflow.snapshot();
+    element.fieldPresentation = [
+      { name: "priority", label: "<strong>First</strong>" },
+      { name: "permit_no", label: "Permit reference" },
+    ];
+    expect(
+      [...root(element).querySelectorAll("[data-field]")].map((control) => control.getAttribute("data-field")),
+    ).toEqual(["priority", "permit_no"]);
+    expect(root(element).querySelector("label[for='honua-field-priority']")?.textContent).toBe(
+      "<strong>First</strong>",
+    );
+    expect(root(element).querySelector("strong")).toBeNull();
+    expect(workflow.snapshot()).toEqual(before);
+    expect(query<HTMLInputElement>(element, "[data-field='permit_no']").maxLength).toBe(12);
+  });
+
+  it("keeps omitted required fields invalid, names their errors and refuses transport", async () => {
+    const source = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    const element = mount(workflow);
+    element.fieldPresentation = [{ name: "status" }];
+    workflow.begin("create");
+    expect(root(element).querySelector("[data-field='permit_no']")).toBeNull();
+    expect(workflow.snapshot().form?.controls.find((control) => control.name === "permit_no")).toMatchObject({
+      required: true,
+      nullable: false,
+    });
+    expect(root(element).querySelector("[data-omitted-field-error='permit_no']")?.textContent).toMatch(
+      /Permit number.*required/i,
+    );
+    expect(query<HTMLButtonElement>(element, "[data-action='submit']").disabled).toBe(true);
+    expect(element.preflight()?.ready).toBe(false);
+    expect((await workflow.submit()).transported).toBe(false);
+    expect(source.applyEdits).not.toHaveBeenCalled();
+  });
+
+  it("preserves explicitly seeded subtype values in the actual accepted mutation", async () => {
+    const source = makeSource();
+    const workflow = createFeatureEditorWorkflow({
+      source,
+      subtypes: {
+        field: "permit_kind",
+        defaultCode: 1,
+        subtypes: [
+          {
+            code: 1,
+            name: "Default",
+            fieldOverrides: { permit_no: { defaultValue: "P-DEFAULT" }, status: { defaultValue: "open" } },
+          },
+        ],
+      },
+    });
+    const element = mount(workflow);
+    element.fieldPresentation = [{ name: "status" }];
+    workflow.begin("create", {
+      attributes: { permit_no: "P-DEFAULT", status: "open", permit_kind: 1 },
+      geometry: null,
+    });
+    expect(workflow.fields().find((field) => field.name === "permit_no")?.defaultValue).toBe("P-DEFAULT");
+    expect(element.preflight()?.ready).toBe(true);
+    const commit = await workflow.submit();
+    expect(commit.status).toBe("committed");
+    expect(source.applyEdits).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(source.applyEdits).mock.calls[0][0].adds?.[0].attributes).toMatchObject({
+      permit_no: "P-DEFAULT",
+      status: "open",
+      permit_kind: 1,
+    });
+  });
+
+  it("does not grant read-only edits or invent unknown fields and can restore the full form", () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource(), subtypes: SUBTYPES });
+    const element = mount(workflow);
+    workflow.begin("update", feature());
+    const original = [...root(element).querySelectorAll("[data-field]")].map((control) =>
+      control.getAttribute("data-field"),
+    );
+    element.fieldPresentation = [{ name: "OBJECTID", label: "Identity" }, { name: "not_a_field" }];
+    expect(query<HTMLInputElement>(element, "[data-field='OBJECTID']").disabled).toBe(true);
+    expect(root(element).querySelector("[data-field='not_a_field']")).toBeNull();
+    element.fieldPresentation = undefined;
+    expect(
+      [...root(element).querySelectorAll("[data-field]")].map((control) => control.getAttribute("data-field")),
+    ).toEqual(original);
+  });
+
+  it("copies configuration and rejects duplicate or empty names atomically", () => {
+    const element = mount(createFeatureEditorWorkflow({ source: makeSource() }));
+    const fields = [{ name: "status", label: "State" }];
+    element.fieldPresentation = fields;
+    fields[0].label = "Changed";
+    expect(element.fieldPresentation?.[0].label).toBe("State");
+    for (const invalid of [
+      [{ name: "status" }, { name: "status" }],
+      [{ name: " " }],
+      [{ name: "status", label: " " }],
+    ]) {
+      expect(() => {
+        element.fieldPresentation = invalid;
+      }).toThrow(TypeError);
+      expect(element.fieldPresentation).toEqual([{ name: "status", label: "State" }]);
+    }
+  });
+});

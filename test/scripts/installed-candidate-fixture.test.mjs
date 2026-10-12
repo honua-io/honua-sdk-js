@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -65,3 +66,45 @@ test("the candidate server is given a mounted PKCS#12 key-ring certificate", asy
     await rm(work, { recursive: true, force: true });
   }
 });
+
+for (const rejectedPhase of [undefined, "first boot", "seeded restart"]) {
+  test(`server owns migrations before seeding; readiness rejection: ${rejectedPhase ?? "none"}`, async () => {
+    const work = await mkdtemp(path.join(tmpdir(), "installed-candidate-fixture-test-"));
+    const events = [];
+    let restarted = false;
+    const spawn = (command, args, options = {}) => {
+      if (command === process.execPath) {
+        events.push("consumer");
+        writeFileSync(args[1], JSON.stringify([{ id: "unexecuted", verdict: "blocked" }]));
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      assert.equal(command, "docker");
+      assert.ok(!args.some((arg) => arg.includes("HONUA_APPROVE_CONTRACT_MIGRATIONS")));
+      if (args[0] === "exec" && args.includes("psql")) {
+        events.push(options.input ? "seed" : "extensions");
+        if (!options.input) assert.match(args.at(-1), /postgis;.*postgis_raster/);
+      }
+      if (args[0] === "run" && args.includes(candidate.server.image)) events.push("boot");
+      if (args[0] === "restart") { events.push("restart"); restarted = true; }
+      if (args[0] === "image" || (args[0] === "inspect" && args.includes("{{.Image}}"))) return { status: 0, stdout: "sha256:fixture", stderr: "" };
+      if (args[0] === "inspect") {
+        const rejected = rejectedPhase === (restarted ? "seeded restart" : "first boot");
+        return { status: 0, stdout: JSON.stringify({ Running: !rejected, ExitCode: rejected ? 1 : 0, OOMKilled: false }), stderr: "" };
+      }
+      if (args[0] === "logs") return { status: 0, stdout: "Migration safety gate blocked pending contract-phase migration(s) on an existing database: migration.sql. These reviewed (annotated) contract migrations", stderr: "" };
+      if (args[0] === "port") return { status: 0, stdout: "127.0.0.1:12345", stderr: "" };
+      return { status: 0, stdout: "", stderr: "" };
+    };
+    try {
+      const execute = () => executeCandidateFixture({ candidate, work, root, spawn,
+        fetch: async () => { events.push("ready"); return { ok: true }; } });
+      if (rejectedPhase) await assert.rejects(execute, (error) => error.message.includes(`before readiness (${rejectedPhase})`));
+      else await execute();
+      assert.deepEqual(events, rejectedPhase === "first boot" ? ["extensions", "boot"]
+        : rejectedPhase === "seeded restart" ? ["extensions", "boot", "ready", "seed", "restart"]
+          : ["extensions", "boot", "ready", "seed", "restart", "ready", "consumer"]);
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
+  });
+}

@@ -19,10 +19,8 @@ import {
   SpatialFilterSchema,
   SpatialReferenceSchema,
   SpatialRelationship,
-  StatisticDefinitionSchema,
-  StatisticType,
 } from "../gen/geospatial/v1/index.js";
-import { HonuaGrpcError } from "./errors.js";
+import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import type {
   HonuaCountResponse,
@@ -108,16 +106,6 @@ const ESRI_TO_PROTO_DISTANCE_UNIT_MAP: Record<string, DistanceUnit> = {
   mi: DistanceUnit.MILES,
 };
 
-const STATISTIC_TYPE_MAP: Record<string, StatisticType> = {
-  count: StatisticType.COUNT,
-  sum: StatisticType.SUM,
-  min: StatisticType.MIN,
-  max: StatisticType.MAX,
-  avg: StatisticType.AVG,
-  stddev: StatisticType.STDDEV,
-  var: StatisticType.VAR,
-};
-
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
 const MIN_PROTO_INT64 = -(1n << 63n);
@@ -146,6 +134,14 @@ function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: nu
  * Converts a SDK QueryFeaturesRequest into a proto QueryFeaturesRequest message.
  */
 export function toProtoQueryRequest(request: QueryFeaturesRequest) {
+  if (
+    request.outStatistics !== undefined ||
+    request.groupByFieldsForStatistics !== undefined ||
+    request.extraParams?.outStatistics !== undefined ||
+    request.extraParams?.groupByFieldsForStatistics !== undefined
+  ) {
+    throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", `${request.serviceId}/${request.layerId}`);
+  }
   const msg = create(QueryFeaturesRequestSchema);
   msg.serviceId = request.serviceId;
   msg.layerId = request.layerId;
@@ -196,17 +192,6 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   if (request.returnDistinctValues !== undefined) {
     msg.returnDistinct = request.returnDistinctValues;
   }
-  if (request.groupByFieldsForStatistics !== undefined) {
-    msg.groupBy = request.groupByFieldsForStatistics
-      .split(",")
-      .map((field) => field.trim())
-      .filter(Boolean);
-  }
-
-  if (request.outStatistics !== undefined) {
-    msg.outStatistics = toProtoStatistics(request.outStatistics);
-  }
-
   if (request.geometry !== undefined) {
     const filter = create(SpatialFilterSchema);
     const { geometry, spatialReference } = toProtoGeometry(request.geometry);
@@ -341,7 +326,7 @@ export function fromProtoQueryResponse(
     geometryType: GEOMETRY_TYPE_MAP[response.geometryType] ?? "esriGeometryPoint",
     spatialReference: response.spatialReference ? convertSpatialReference(response.spatialReference) : undefined,
     fields: response.fields.map(convertField),
-    features: response.features.map(convertFeature),
+    features: response.features.map((feature) => convertFeature(feature, response.objectIdFieldName)),
     exceededTransferLimit: response.exceededTransferLimit || undefined,
   };
 }
@@ -402,55 +387,6 @@ function parseExtraString(params: Record<string, string | number | boolean>, key
   }
 
   return String(value);
-}
-
-function toProtoStatistics(
-  value: string | readonly Record<string, unknown>[],
-): ReturnType<typeof create<typeof StatisticDefinitionSchema>>[] {
-  const raw: readonly Record<string, unknown>[] = typeof value === "string" ? parseStatisticsString(value) : value;
-
-  return raw.map((item, index) => {
-    const statisticTypeValue = item.statisticType;
-    if (typeof statisticTypeValue !== "string") {
-      throw new Error(`Invalid outStatistics[${index}].statisticType`);
-    }
-
-    const statisticType = STATISTIC_TYPE_MAP[statisticTypeValue.toLowerCase()];
-    if (!statisticType) {
-      throw new Error(`Unsupported statisticType for gRPC transport: ${statisticTypeValue}`);
-    }
-
-    const onStatisticFieldValue = item.onStatisticField;
-    if (typeof onStatisticFieldValue !== "string" || onStatisticFieldValue.trim().length === 0) {
-      throw new Error(`Invalid outStatistics[${index}].onStatisticField`);
-    }
-
-    const outStatisticFieldNameValue = item.outStatisticFieldName;
-    const outStatisticFieldName =
-      typeof outStatisticFieldNameValue === "string" && outStatisticFieldNameValue.trim().length > 0
-        ? outStatisticFieldNameValue.trim()
-        : `${statisticTypeValue}_${onStatisticFieldValue}`;
-
-    const definition = create(StatisticDefinitionSchema);
-    definition.onStatisticField = onStatisticFieldValue;
-    definition.statisticType = statisticType;
-    definition.outStatisticFieldName = outStatisticFieldName;
-    return definition;
-  });
-}
-
-function parseStatisticsString(value: string): readonly Record<string, unknown>[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error("Invalid outStatistics JSON for gRPC transport.");
-  }
-
-  if (!Array.isArray(parsed)) {
-    throw new Error("outStatistics JSON must be an array for gRPC transport.");
-  }
-  return parsed as readonly Record<string, unknown>[];
 }
 
 function toProtoGeometry(geometryValue: string | Record<string, unknown>): {
@@ -682,12 +618,17 @@ function isPolygon(value: Record<string, unknown>): value is { rings: unknown[] 
 export async function* streamProtoPages(
   stream: AsyncIterable<FeaturePage>,
 ): AsyncGenerator<HonuaFeature[], void, undefined> {
+  // Metadata is populated on the first page only; later pages reuse it.
+  let objectIdFieldName = "";
   try {
     for await (const page of stream) {
+      if (page.objectIdFieldName) {
+        objectIdFieldName = page.objectIdFieldName;
+      }
       if (page.features.length === 0 && page.isLastPage) {
         break;
       }
-      const features = page.features.map(convertFeature);
+      const features = page.features.map((feature) => convertFeature(feature, objectIdFieldName));
       if (features.length > 0) {
         yield features;
       }
@@ -747,10 +688,22 @@ function convertField(field: ProtoFieldDefinition): HonuaFieldInfo {
   };
 }
 
-function convertFeature(feature: ProtoFeature): HonuaFeature {
+/**
+ * geospatial.v1 carries the object ID in `Feature.id` and the server no
+ * longer repeats it in `Feature.attributes` (honua-server#5330), so it is
+ * restored under the declared `objectIdFieldName` to match `f=json` output.
+ * An `id` of 0 means no object ID (for example distinct projections), and an
+ * attribute already present under that name in any casing (a legacy server
+ * repeating it, or a differing custom public ID) is kept as sent.
+ */
+function convertFeature(feature: ProtoFeature, objectIdFieldName: string): HonuaFeature {
   const attributes: Record<string, unknown> = {};
   for (const [key, attrValue] of Object.entries(feature.attributes)) {
     attributes[key] = convertAttributeValue(attrValue);
+  }
+
+  if (objectIdFieldName.length > 0 && feature.id !== 0n && !hasAttributeIgnoreCase(attributes, objectIdFieldName)) {
+    attributes[objectIdFieldName] = toSafeNumberOrString(feature.id);
   }
 
   const result: HonuaFeature = { attributes };
@@ -760,6 +713,11 @@ function convertFeature(feature: ProtoFeature): HonuaFeature {
   }
 
   return result;
+}
+
+function hasAttributeIgnoreCase(attributes: Record<string, unknown>, name: string): boolean {
+  const lowered = name.toLowerCase();
+  return Object.keys(attributes).some((key) => key.toLowerCase() === lowered);
 }
 
 function convertAttributeValue(attr: AttributeValue): unknown {

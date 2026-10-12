@@ -82,7 +82,12 @@ export async function geocodeCommand(parsed: ParsedArgs, ctx: CommandContext): P
   }
 
   const locatorName = getString(parsed, "locator");
-  const geo = createGeocodingClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, locatorName });
+  const geo = createGeocodingClient({
+    baseUrl: ctx.baseUrl,
+    apiKey: ctx.apiKey,
+    bearerToken: ctx.bearerToken,
+    locatorName,
+  });
 
   const results = await geo.forwardGeocode(address, maxResults ? { maxResults } : undefined);
 

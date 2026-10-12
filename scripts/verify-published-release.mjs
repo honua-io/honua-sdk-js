@@ -276,7 +276,7 @@ function expectSubjectIsTarball(statement, target, tarballSha512Hex) {
  * Everything the registry says is treated as a claim to be checked against the
  * bytes it also serves; nothing is trusted because the field exists.
  */
-async function verifyTarget(target, { registry, repository, fetchImpl }) {
+async function verifyTarget(target, { registry, repository, fetchImpl, selection }) {
   const checks = [];
   let packument;
   try {
@@ -303,7 +303,7 @@ async function verifyTarget(target, { registry, repository, fetchImpl }) {
   );
   if (release === undefined) return finishTarget(target, checks, {});
 
-  checks.push(
+  if (selection === "release-channel") checks.push(
     check("dist-tag", `dist-tag "${target.distTag}" resolves to ${target.version}`, () => {
       const actual = packument?.["dist-tags"]?.[target.distTag];
       expect(
@@ -479,10 +479,12 @@ export async function verifyPublishedRelease({
   fetchImpl = fetch,
   planningErrors = [],
   now = () => new Date(),
+  selection = "release-channel",
 }) {
+  if (!["release-channel", "exact-version"].includes(selection)) throw new Error("unknown publication selection mode");
   const artifacts = [];
   for (const target of targets) {
-    artifacts.push(await verifyTarget(target, { registry, repository, fetchImpl }));
+    artifacts.push(await verifyTarget(target, { registry, repository, fetchImpl, selection }));
   }
   const failures = [
     ...planningErrors,
@@ -498,6 +500,7 @@ export async function verifyPublishedRelease({
     status: failures.length === 0 && artifacts.length > 0 ? "verified" : "failed",
     verifiedAt: now().toISOString(),
     registry,
+    selection,
     repository,
     sealedTag,
     sealedCommit,

@@ -108,6 +108,9 @@ function assertSourceManifest(value) {
   ]) {
     if (value[key] === undefined || value[key] === "") throw new Error(`Admin client source manifest is missing ${key}.`);
   }
+  if (!/^[0-9a-f]{40}$/.test(value.localServerSourceSha ?? "")) {
+    throw new Error("Admin local server source SHA must be a full commit SHA from the customer-install manifest.");
+  }
   const contract = value.adminMcpContract;
   if (!contract || typeof contract !== "object") {
     throw new Error("Admin client source manifest is missing adminMcpContract.");
@@ -321,6 +324,7 @@ export const ADMIN_MCP_CONTRACT_STATUS = ${JSON.stringify(contract.status)} as c
 export const MCP_DEFAULT_STATIC_TOOL_COUNT = ${contract.defaultStaticToolCount} as const;
 export const MCP_DEFAULT_TOTAL_TOOL_COUNT = ${contract.defaultTotalToolCount} as const;
 export const ADMIN_LOCAL_SERVER_IMAGE = ${JSON.stringify(source.serverImage)} as const;
+export const ADMIN_LOCAL_SERVER_SHA = ${JSON.stringify(source.localServerSourceSha)} as const;
 export const ADMIN_RELEASE_SERVER_SHA = ${JSON.stringify(source.releaseManifestServerSha)} as const;
 export const ADMIN_RELEASE_OPERATION_COUNT = ${source.releaseManifestOperationCount} as const;
 export const ADMIN_RELEASE_CONTRACT_STATUS = ${JSON.stringify(source.releaseManifestStatus)} as const;

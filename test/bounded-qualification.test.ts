@@ -27,9 +27,9 @@ const SERVER_INFO = { name: "honua", version: "2026.1.0" };
 const METADATA = {
   view: "setup",
   revision: "setup.v1",
-  revisionDigest: DIGEST,
-  membershipDigest: "b".repeat(64),
-  descriptorDigest: "c".repeat(64),
+  revisionDigest: `sha256:${DIGEST}`,
+  membershipDigest: `sha256:${"b".repeat(64)}`,
+  descriptorDigest: `sha256:${"c".repeat(64)}`,
   toolCount: 2,
 };
 
@@ -53,9 +53,9 @@ function manifest(
     serverInfo: SERVER_INFO,
     view: "setup",
     revision: "setup.v1",
-    revisionDigest: DIGEST,
-    membershipDigest: "b".repeat(64),
-    descriptorDigest: "c".repeat(64),
+    revisionDigest: `sha256:${DIGEST}`,
+    membershipDigest: `sha256:${"b".repeat(64)}`,
+    descriptorDigest: `sha256:${"c".repeat(64)}`,
     tools,
   };
 }
@@ -79,8 +79,8 @@ function evidence(overrides: Partial<BoundedQualificationEvidence> = {}): Bounde
     access: {
       id: "key-1",
       name: "honua-local-agent",
-      requestedGrants: ["admin:read", "admin:write"],
-      effectiveGrants: ["admin:write", "admin:read"],
+      requestedGrants: ["admin:read", "admin:write", "read:*"],
+      effectiveGrants: ["read:*", "admin:write", "admin:read"],
       canAuthenticate: true,
     },
     adminVersion: { version: "2026.1.0", metadataApiVersion: "honua.io/admin/v1" },
@@ -100,9 +100,9 @@ function evidence(overrides: Partial<BoundedQualificationEvidence> = {}): Bounde
       discoveredStyleId: "preset-1",
       applied: true,
       appliedStyleId: "preset-1",
-      appliedStyleVersion: "3",
+      appliedStyleVersion: 3,
       confirmedStyleId: "preset-1",
-      confirmedStyleVersion: "3",
+      confirmedStyleVersion: 3,
       renderedStyleId: "preset-1",
       width: 8,
       height: 8,
@@ -115,6 +115,29 @@ function evidence(overrides: Partial<BoundedQualificationEvidence> = {}): Bounde
 }
 
 describe("bounded setup qualification", () => {
+  it.each(["revisionDigest", "membershipDigest", "descriptorDigest"] as const)(
+    "preserves canonical %s and rejects malformed server digest representations",
+    (key) => {
+      const pin = manifest();
+      const parse = (value: unknown) => {
+        const bytes = JSON.stringify(value);
+        return parseBoundedManifest(bytes, createHash("sha256").update(bytes).digest("hex"));
+      };
+      expect(parse(pin)[key]).toBe(pin[key]);
+      for (const invalid of [
+        "a".repeat(64),
+        `sha512:${"a".repeat(64)}`,
+        `sha256:${"A".repeat(64)}`,
+        `sha256:${"a".repeat(63)}`,
+        `sha256:${"a".repeat(65)}`,
+        ` sha256:${"a".repeat(64)}`,
+        `sha256:${"a".repeat(64)} `,
+      ]) {
+        expect(() => parse({ ...pin, [key]: invalid })).toThrow(key);
+      }
+    },
+  );
+
   it("passes a pinned bounded view without a 441-tool denominator", () => {
     const receipt = assembleBoundedQualification(evidence());
     expect(receipt.pass).toBe(true);
@@ -178,7 +201,37 @@ describe("bounded setup qualification", () => {
     expect(split.differences.join("\n")).not.toMatch(/441|pagination fault/);
   });
 
-  it("qualifies a private local directory and scrubs a credential echoed by the server", async () => {
+  it.each(["3", 0, -1, 1.5, Number.NaN, 2_147_483_648])("rejects invalid style version %j", (version) => {
+    const original = evidence();
+    const style = original.style as Exclude<BoundedQualificationEvidence["style"], { error: string } | undefined>;
+    const receipt = assembleBoundedQualification({
+      ...original,
+      style: {
+        ...style,
+        appliedStyleVersion: version as number,
+        confirmedStyleVersion: version as number,
+      },
+    });
+    expect(receipt.pass).toBe(false);
+    expect(receipt.differences).toContain("style apply/read-back must report integer style versions");
+  });
+
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648, "0"])(
+    "rejects invalid direct layer ID %j before local or network access",
+    async (layerId) => {
+      await expect(
+        qualifyBoundedSetup({
+          directory: "/missing",
+          manifestPath: "/missing",
+          manifestSha256: DIGEST,
+          catalogReceiptPath: "/missing",
+          layerId: layerId as number,
+        }),
+      ).rejects.toThrow("layerId must be an integer");
+    },
+  );
+
+  it.each([false, true])("qualifies a private local directory with live style execution %s", async (executeStyle) => {
     const directory = mkdtempSync(path.join(tmpdir(), "honua-qualify-"));
     cleanup.push(directory);
     const secret = "local-agent-credential-value";
@@ -228,9 +281,9 @@ describe("bounded setup qualification", () => {
         discoveredStyleId: "preset-1",
         applied: true,
         appliedStyleId: "preset-1",
-        appliedStyleVersion: "3",
+        appliedStyleVersion: 3,
         confirmedStyleId: "preset-1",
-        confirmedStyleVersion: "3",
+        confirmedStyleVersion: 3,
         renderedStyleId: "preset-1",
         width: 8,
         height: 8,
@@ -240,6 +293,7 @@ describe("bounded setup qualification", () => {
     );
     writeFileSync(stylePng, drawnPng(8, 8));
     const views: unknown[] = [];
+    const layerCalls: unknown[] = [];
     const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/healthz/ready")) return new Response("ready", { status: 200 });
@@ -251,14 +305,19 @@ describe("bounded setup qualification", () => {
               name: "honua-local-agent",
               status: "active",
               keyPrefix: "local-agent",
-              permissions: ["admin:read", "admin:write"],
+              permissions: ["admin:read", "admin:write", "read:*"],
             },
           ],
         });
       }
       if (url.includes("/effective-permissions")) {
         return json({
-          data: { id: "key-1", status: "active", canAuthenticate: true, permissions: ["admin:read", "admin:write"] },
+          data: {
+            id: "key-1",
+            status: "active",
+            canAuthenticate: true,
+            permissions: ["admin:read", "admin:write", "read:*"],
+          },
         });
       }
       if (url.endsWith("/api/v1/admin/version"))
@@ -267,8 +326,55 @@ describe("bounded setup qualification", () => {
         const body = JSON.parse(String(init?.body)) as {
           id: string;
           method: string;
-          params?: { view?: string; cursor?: string };
+          params?: { view?: string; cursor?: string; name?: string; arguments?: Record<string, unknown>; uri?: string };
         };
+        if (body.method === "tools/call") {
+          const args = body.params?.arguments ?? {};
+          if ("layerId" in args) layerCalls.push(args.layerId);
+          if (body.params?.name === "honua_render_map") {
+            const layers = args.layers as Array<{ layerId: unknown }>;
+            layerCalls.push(layers[0].layerId);
+            expect(args).toMatchObject({ width: 512, height: 512, bboxSrid: 4326 });
+            return json({
+              jsonrpc: "2.0",
+              id: body.id,
+              result: {
+                structuredContent: {
+                  layers: [{ styleId: "preset-1" }],
+                  image: { uri: "honua://renders/1", width: 512, height: 512 },
+                },
+              },
+            });
+          }
+          return json({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              structuredContent: {
+                styles: [{ styleId: "preset-1" }],
+                styleId: "preset-1",
+                styleVersion: 3,
+                applied: true,
+              },
+            },
+          });
+        }
+        if (body.method === "resources/read") {
+          expect(body.params?.uri).toBe("honua://renders/1");
+          return json({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              contents: [
+                {
+                  uri: "honua://renders/1",
+                  mimeType: "image/png",
+                  blob: Buffer.from(drawnPng(512, 512)).toString("base64"),
+                },
+              ],
+            },
+          });
+        }
         if (body.method === "tools/list") views.push(body.params?.view);
         const result =
           body.method === "initialize"
@@ -287,8 +393,14 @@ describe("bounded setup qualification", () => {
         manifestPath,
         manifestSha256,
         catalogReceiptPath: path.join(directory, "catalog.json"),
-        styleEvidencePath: styleJson,
-        stylePngPath: stylePng,
+        ...(executeStyle
+          ? {
+              executeStyle: true,
+              serviceId: "service-1",
+              layerId: 0,
+              bbox: [0, 0, 1, 1] as const,
+            }
+          : { styleEvidencePath: styleJson, stylePngPath: stylePng }),
         outputPath: path.join(directory, "receipt.json"),
         now: () => "2026-09-26T00:00:00.000Z",
       },
@@ -300,6 +412,7 @@ describe("bounded setup qualification", () => {
 
     expect(receipt.pass).toBe(true);
     expect(views).toEqual(["setup", "setup"]);
+    expect(layerCalls).toEqual(executeStyle ? [0, 0, 0, 0] : []);
     expect(JSON.stringify(receipt)).not.toContain(secret);
   });
 });

@@ -1,54 +1,42 @@
 ---
 name: honua-geoprocessing
-description: Use when an agent must validate, execute, poll, and consume a Honua geoprocessing plan — analytics.buffer-aggregate through honua_validate_plan and honua_execute_plan, plus the SDK GPServer runner for geometry.buffer — including job polling to a terminal state and turning a result artifact into something a map can bind. Covers 2026.1 zero-to-map stage 4 (geoprocessing).
+description: Use when an agent must validate, execute, poll, and consume a Honua geoprocessing plan — the bounded geometry.buffer process through discovered server tools or SDK process runners — including job polling to a terminal state and turning a result artifact into something a map can bind. Covers 2026.1 zero-to-map stage 4 (geoprocessing).
 release: "2026.1"
 stages: [geoprocessing]
 ---
 
-# Buffer a published layer, then prove geometry.buffer (stage 4: `geoprocessing`)
+# Execute the bounded geometry.buffer process
 
-Honua's server owns one process catalog and execution engine. Everything below
-is an adapter over it — the SDK does **not** federate to an external ArcGIS
-Server (`docs/geoprocessing.md`).
+Honua's server owns one process catalog and execution engine. The SDK runners
+are adapters over it; they do not federate to an external ArcGIS Server.
 
-There are two surfaces. Pick one deliberately. The unshipped Esri GP roster and
-the dataset-reference buffer verb are not on this journey.
+The 2026.1 release journey requires the existing `geometry.buffer` process.
+`analytics.buffer-aggregate`, dataset-reference buffer verbs, the full analysis
+profile, and the unshipped Esri GP roster are not prerequisites. A broader
+legacy repository driver exercising another process does not replace this
+bounded proof.
 
-## A. Published-layer buffer (the journey path)
+## Discover, validate, execute
 
-`analytics.buffer-aggregate` reads a published `layerId`. `geometry.buffer`
-accepts one WKB and has no `layerId`, so it cannot read the published parcels.
+1. Discover the candidate's bounded workflow view and the actual
+   `geometry.buffer` input/output schema. Missing membership is an actionable
+   qualification failure; do not guess a profile switch or substitute a verb.
+2. Select a bounded geometry from the authorized fixture or published layer.
+   The process accepts geometry input, not a published `layerId`. For the
+   advertised GPServer task, encode that geometry as WKB and supply its `srid`
+   and `distance`. Preserve the input identity, CRS, and process parameters.
+3. When using server plan tools, build the `geometry.buffer` step from the
+   discovered schema, call `honua_validate_plan`, then `honua_execute_plan`
+   with that same plan and an `idempotencyKey`. Do not copy the older
+   `analytics.buffer-aggregate` plan's `layerId` or `unit` fields.
+4. Capture the returned job identity and read its terminal result. A submitted
+   job or a process name in the catalog is not execution evidence.
 
-1. `honua_validate_plan` with a plan whose step `processId` is
-   `analytics.buffer-aggregate` and whose inputs include the published parcel
-   `layerId`.
-2. `honua_execute_plan` with that same plan. Capture `jobId`.
+`geometry.buffer` is planar: an EPSG:4326 distance is in degrees, not metres.
+Use the candidate's advertised geometry encoding; SDK protocol examples are
+not a promise that every server accepts every encoding.
 
-```json
-{
-  "plan": {
-    "planId": "2026.1-zero-to-map-buffer",
-    "steps": [
-      {
-        "stepId": "buffer-parcels",
-        "kind": "Geoprocess",
-        "processId": "analytics.buffer-aggregate",
-        "inputs": { "layerId": "<parcelsLayerId>", "distance": "25", "unit": "meters" }
-      }
-    ],
-    "outputs": ["FeatureLayer"]
-  }
-}
-```
-
-Pass an `idempotencyKey` on execute. Retrying without one submits a second job.
-
-## B. SDK GPServer runner (the separate proof)
-
-`geometry.buffer` is planar: an EPSG:4326 distance is in *degrees*, not metres.
-Send WKB. Do not send `layerId`.
-
-## C. SDK runners (in your own code)
+## SDK runners (in your own code)
 
 `docs/geoprocessing.md` has the compiled examples. Both adapt to the same
 `IJobRun<T>` contract, so `results()` / `watch()` / `cancel()` are identical:
@@ -96,15 +84,16 @@ and reading `outputs.outputFeatureLayer`.
 
 Geoprocessing is compute the user pays for. Before executing:
 
-- Check cardinality with `honua_count_features` — a buffer over a million rows
-  is not a "quick check".
+- If selecting input from a layer, check cardinality with `honua_count_features`
+  and select a bounded fixture geometry; do not silently buffer the whole layer.
 - State the distance, unit, and input layer in the plan before running.
 - One job per user request. If a run fails, diagnose it; do not loop.
 
 ## Verify
 
 - `docs/geoprocessing.md` — OGC Processes and GPServer, with compiled examples.
-- `mcp/release/zero-to-map/journey.v1.json` — stage `geoprocessing`.
+- `mcp/release/zero-to-map/journey.v1.json` — broader legacy engineering contract,
+  not the current bounded release acceptance definition.
 - `docs/zero-to-map-release-journey.md` — the buffer stage and the GPServer proof.
 - `examples/geoprocessing-job-runner/` — a runnable job-runner demo
   (`npm run demo:gp-runner:typecheck`).
