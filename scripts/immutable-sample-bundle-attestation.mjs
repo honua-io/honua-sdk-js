@@ -23,14 +23,14 @@ export const NODE_VERSION = "20.19.0";
 // it: nothing in CI can, because `GITHUB_TOKEN` cannot commit to
 // `.github/workflows/**` (#1357).
 export const EXPECTED_LOCKFILE_SHA256 =
-  "c61f3f4186776c157085229742a2c24ef7fa4330d75a4d2713c5c29de228ab74";
+  "711e51be8a810a662f6fa8e4f74dbeb8509f64414bcc62c4c99e8339a959e74d";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-  setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+  setupNode: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
   uploadArtifact:
     "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
   downloadArtifact:
-    "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
   attestBuildProvenance:
     "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 });
@@ -62,7 +62,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "ca014a64ba06714b46b6d760164fffc1ee3a8c2f291b4623c4ae25ffcc14012d",
+    "2426ff08532a6d0d174cb5a899d3881db003b88d32d2eab200189cc9c10b03fd",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":

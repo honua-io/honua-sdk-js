@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 20.19.0
           cache: npm
@@ -215,7 +215,7 @@ jobs:
       id-token: write
     steps:
       - name: Download governed publication
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: content-addressed-sample-bundles
           path: staged
@@ -227,7 +227,7 @@ jobs:
           # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
           # a release version bump rewrites those and nothing in CI is able
           # to move this constant (#1357).
-          EXPECTED_LOCKFILE_SHA256: c61f3f4186776c157085229742a2c24ef7fa4330d75a4d2713c5c29de228ab74
+          EXPECTED_LOCKFILE_SHA256: 711e51be8a810a662f6fa8e4f74dbeb8509f64414bcc62c4c99e8339a959e74d
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -254,9 +254,9 @@ jobs:
           assert re.fullmatch(r"[0-9a-f]{64}", lock_sha)
           action_map = {
               "checkout": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-              "setupNode": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+              "setupNode": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
               "uploadArtifact": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
-              "downloadArtifact": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+              "downloadArtifact": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
               "attestBuildProvenance": "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
           }
 
