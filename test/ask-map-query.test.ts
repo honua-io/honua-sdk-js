@@ -48,7 +48,10 @@ describe("Grounded sample query admission", () => {
     };
     const previousQuery = compile({ ...SEMANTIC_QUERY_FORMS.aggregate, filter: base }).query;
     const snapshot = { ...context, previousQuery };
-    const call = (semanticQuery: unknown, kind: HonuaAgentWidgetQueryRequest["kind"] = "categories") => ({
+    const call = (
+      semanticQuery: Readonly<Record<string, unknown>>,
+      kind: HonuaAgentWidgetQueryRequest["kind"] = "categories",
+    ) => ({
       sourceId: "incidents",
       kind,
       semanticQuery,
