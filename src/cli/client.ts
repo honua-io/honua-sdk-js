@@ -9,6 +9,7 @@
 import { type HonuaCommandRuntime, assertAdminBaseUrl, createHonuaCommandRuntime } from "../control-plane/index.js";
 import { HonuaClient } from "../core/client.js";
 import { HonuaGeocodingClient } from "../geocoding/index.js";
+import { HonuaStudioLifecycleClient } from "../studio/lifecycle-client.js";
 import { type ResolveOptions, resolveConnection } from "./config.js";
 
 /** Build a {@link HonuaClient} from CLI flags / env / saved config. */
@@ -27,7 +28,8 @@ export function createClient(options: ResolveOptions = {}): HonuaClient {
 export function createCommandRuntime(options: ResolveOptions = {}): HonuaCommandRuntime {
   const { baseUrl, apiKey, bearerToken } = resolveConnection(options);
   assertAdminBaseUrl(baseUrl);
-  return createHonuaCommandRuntime({ client: new HonuaClient({ baseUrl, apiKey, bearerToken }) });
+  const client = new HonuaClient({ baseUrl, apiKey, bearerToken });
+  return createHonuaCommandRuntime({ client, studio: new HonuaStudioLifecycleClient({ client }) });
 }
 
 /** Build a {@link HonuaGeocodingClient} from CLI flags / env / saved config. */
