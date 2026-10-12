@@ -1,6 +1,6 @@
 import { HonuaAskMapClarification, HonuaNlMapControlError, createNlMapControl } from "@honua/sdk-js/nl-map-control";
 import { type DuckDbDriver, createBrowserDuckDbDriver } from "../../../src/geoparquet/driver.js";
-import corpus from "../evaluation.v1.json";
+import corpus from "../evaluation.v1.json" with { type: "json" };
 import { CRS, FIXTURE_VERSION, ORIGIN, SCHEMA } from "./fixture.js";
 import { type QueryResult, createIncidentRuntime, initializeFixture, reviewQuery } from "./map-runtime.js";
 import { authenticatedLiveModel, groundedModel, recordedModel } from "./model.js";
@@ -110,7 +110,7 @@ export async function evaluateRecordedQueries(
       validateStep(call) {
         try {
           if (call.name !== "runWidgetQuery") throw new Error("Only incident queries are admitted");
-          reviewQuery(call.args);
+          reviewQuery(call.args, context);
           return [];
         } catch (error) {
           return [{ code: "capability-gap", message: error instanceof Error ? error.message : String(error) }];
@@ -124,10 +124,10 @@ export async function evaluateRecordedQueries(
       });
       const call = plan.steps[0]?.call;
       if (call?.name !== "runWidgetQuery") throw new Error("Unexpected tool");
-      const reviewed = reviewQuery(call.args);
-      previous.set(entry.id, reviewed.compiled.query);
+      const reviewed = reviewQuery(call.args, context);
       const execution = await control.execute(plan, { signal: controller.signal });
       if (execution.outcome !== "succeeded") throw new Error("Query execution failed");
+      previous.set(entry.id, reviewed.compiled.query);
       const data = (execution.results[0]?.data as { data: QueryResult }).data;
       const ids = data.features.map((row) => row.id).sort((a, b) => a - b);
       const groups = data.groups

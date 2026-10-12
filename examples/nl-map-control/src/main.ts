@@ -105,7 +105,7 @@ async function start(): Promise<void> {
         validateStep(call) {
           try {
             if (call.name !== "runWidgetQuery") throw new Error("Only read-only incident queries are admitted.");
-            reviewQuery(call.args);
+            reviewQuery(call.args, snapshot);
             return [];
           } catch (error) {
             return [{ code: "capability-gap", message: error instanceof Error ? error.message : String(error) }];
@@ -116,7 +116,7 @@ async function start(): Promise<void> {
     review(plan, snapshot) {
       const call = plan.steps[0]?.call;
       if (call?.name !== "runWidgetQuery") throw new Error("Missing query.");
-      const { compiled, featureQuery } = reviewQuery(call.args);
+      const { compiled, featureQuery } = reviewQuery(call.args, snapshot);
       return {
         summary: `Review ${compiled.query.kind === "aggregate" ? "grouped counts and matching features" : "matching incidents"} on ${FIXTURE_VERSION}: ${describeQuery(compiled.query)}. Captured viewport: ${snapshot.viewport.map((value) => value.toFixed(1)).join(", ")} in EPSG:3857. Distances are planar projected metres, not ground/geodesic metres. Moving the map invalidates this proposal.`,
         details: {
@@ -158,6 +158,7 @@ async function start(): Promise<void> {
       // The accepted plan remains the source of refinement context; receipt data never rewrites it.
       if (lastState.plan?.steps[0]?.call.name === "runWidgetQuery")
         previousQuery = reviewQuery(lastState.plan.steps[0].call.args as HonuaAgentWidgetQueryRequest).compiled.query;
+      updateQueryContext();
       return { count: ids.length };
     },
     onState(state) {
@@ -190,10 +191,18 @@ async function start(): Promise<void> {
     const id = event.features?.[0]?.properties?.id;
     if (typeof id === "number") select(id);
   });
-  map.on("movestart", () => {
+  function updateQueryContext() {
+    element("query-context").textContent = previousQuery
+      ? "Refining the accepted query: its filters and grouping are retained. Start a new question to change scope."
+      : "New question: no previous query filters or grouping.";
+  }
+  function newQuestion() {
     previousQuery = undefined;
     session.invalidate();
-  });
+    updateQueryContext();
+  }
+  element("new-question").addEventListener("click", newQuestion);
+  map.on("movestart", newQuestion);
   function mount() {
     mounted = mountAskMapControl({
       container: element("ask-control"),

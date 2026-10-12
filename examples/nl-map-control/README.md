@@ -15,7 +15,11 @@ npm run demo:nl-map-control:typecheck
 Choose “Show open incidents in this view”, review, and execute. Then group by
 type, select incident 1 in the table with the keyboard or on the map, and ask for
 those within 500 metres. The first query returns IDs 1, 2, 4 and 5 in the initial
-view; the distance refinement returns 1, 2 and 5. The (300, 400) offset is exactly
+view; the distance refinement returns 1, 2 and 5. After execution, the sample
+is explicitly in refinement mode: the host requires every prior filter conjunct
+and any grouped count to survive subsequent queries. Choose **Start new question**
+to clear that context without clearing displayed results or the selected location.
+Moving the map also starts a new question. The (300, 400) offset is exactly
 500 metres away and is included; (501, 0) is excluded.
 
 **Distance means planar EPSG:3857 projected metres**, explicitly disclosed in the

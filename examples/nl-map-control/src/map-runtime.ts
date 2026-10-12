@@ -1,8 +1,9 @@
 import type { HonuaAgentRuntime, HonuaAgentWidgetQueryRequest } from "@honua/sdk-js/agent-tools";
 import { HonuaNlMapControlError } from "@honua/sdk-js/nl-map-control";
+import { canonicalStringify, toJsonValue } from "@honua/sdk-js/query-planner";
 import type { DuckDbDriver } from "../../../src/geoparquet/driver.js";
 import { FIXTURE_VERSION, INCIDENTS, ORIGIN, SCHEMA } from "./fixture.js";
-import { type QueryContext, compile } from "./query.js";
+import { type IncidentQuery, type QueryContext, compile } from "./query.js";
 
 export interface QueryResult {
   readonly features: readonly { id: number; status: string; kind: string }[];
@@ -29,7 +30,12 @@ export async function initializeFixture(driver: DuckDbDriver): Promise<void> {
   )
     throw new Error("Fixture physical schema differs from the admitted logical schema.");
 }
-export function reviewQuery(request: HonuaAgentWidgetQueryRequest) {
+function conjuncts(filter: IncidentQuery["filter"]): string[] {
+  if (!filter) return [];
+  if (filter.kind === "boolean" && filter.operator === "and") return filter.args.flatMap(conjuncts);
+  return [canonicalStringify(toJsonValue(filter))];
+}
+export function reviewQuery(request: HonuaAgentWidgetQueryRequest, context?: QueryContext) {
   if (
     request.sourceId !== "incidents" ||
     request.query ||
@@ -66,6 +72,20 @@ export function reviewQuery(request: HonuaAgentWidgetQueryRequest) {
   }
   if ((compiled.query.kind === "aggregate") !== (request.kind === "categories"))
     throw new HonuaNlMapControlError("refusal", "Query kind does not match the reviewed result kind.");
+  const previous = context?.previousQuery;
+  if (previous) {
+    const retained = new Set(conjuncts(compiled.query.filter));
+    if (conjuncts(previous.filter).some((filter) => !retained.has(filter)))
+      throw new HonuaNlMapControlError(
+        "refusal",
+        "Refinement must retain every previous filter predicate, ANDed with the new predicate. Start a new question to change scope.",
+      );
+    if (previous.kind === "aggregate" && compiled.query.kind !== "aggregate")
+      throw new HonuaNlMapControlError(
+        "refusal",
+        "Refinement must retain the previous grouped count by kind. Start a new question to change grouping.",
+      );
+  }
   const featureQuery =
     compiled.query.kind === "aggregate"
       ? compile({
@@ -103,7 +123,7 @@ export function createIncidentRuntime(
       },
     ],
     async runSemanticWidgetQuery(request) {
-      const { compiled, featureQuery } = reviewQuery(request);
+      const { compiled, featureQuery } = reviewQuery(request, context);
       async function run(artifact: typeof compiled.artifact) {
         signal.throwIfAborted();
         const sql = artifact.sqlTemplate.replace("honua-resource://resolve-at-execution", "ask-map-incidents.parquet");

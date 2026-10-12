@@ -62,6 +62,12 @@ test("Ask this map executes exact fixture queries and keeps map/table review acc
     await page.getByRole("button", { name: "Show incidents nearby", exact: true }).click();
     await page.getByRole("button", { name: "Review query", exact: true }).click();
     await expect(page.locator('[data-phase="clarification"]')).toBeVisible();
+    await expect(page.locator("#query-context")).toContainText("Refining the accepted query");
+    await page.getByRole("button", { name: "Start new question", exact: true }).click();
+    await expect(page.locator("#query-context")).toContainText("New question");
+    await expect(page.locator("#results tr td:first-child")).toHaveText(["1", "2", "5"]);
+    await ask("Show open incidents in this view");
+    await expect(page.locator("#results tr td:first-child")).toHaveText(["1", "2", "4", "5"]);
     const evidence = await page.evaluate(async () => {
       const { evaluateRecordedQueriesInBrowser } = await import("/src/evaluation.ts");
       return evaluateRecordedQueriesInBrowser();

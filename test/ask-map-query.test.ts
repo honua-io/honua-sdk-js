@@ -10,6 +10,7 @@ import {
   recordedModel,
 } from "../examples/nl-map-control/src/model.js";
 import { type QueryContext, compile, describeQuery } from "../examples/nl-map-control/src/query.js";
+import type { HonuaAgentWidgetQueryRequest } from "../src/agent-tools/index.js";
 import { createNlMapControl } from "../src/nl-map-control/index.js";
 const context: QueryContext = {
   sourceId: "incidents",
@@ -20,19 +21,110 @@ const context: QueryContext = {
   mode: "recorded",
 };
 describe("Grounded sample query admission", () => {
-  it("describes actual bounds and reversed comparison operands without inventing a viewport scope", () => {
+  it("describes admitted operands and actual bounds without inventing a viewport scope", () => {
     const filter = {
       kind: "comparison",
       operator: "eq",
       left: { kind: "literal", value: "open" },
       right: { kind: "property", name: "status" },
     };
-    expect(describeQuery(compile({ ...SEMANTIC_QUERY_FORMS.features, filter }).query)).toContain('"open" eq status');
+    expect(() => compile({ ...SEMANTIC_QUERY_FORMS.features, filter })).toThrow();
+    expect(
+      describeQuery(
+        compile({ ...SEMANTIC_QUERY_FORMS.features, filter: SEMANTIC_QUERY_FORMS.filters.comparison }).query,
+      ),
+    ).toContain('status eq "literal user value"');
     const summary = describeQuery(
       compile({ ...SEMANTIC_QUERY_FORMS.features, filter: SEMANTIC_QUERY_FORMS.filters.viewport }).query,
     );
     expect(summary).toContain("EPSG:3857 bounds [0, 0, 1, 1]");
     expect(summary).not.toContain("captured viewport");
+  });
+  it("retains refinement conjuncts and grouping, rejecting widening before execution", () => {
+    const base = {
+      kind: "boolean",
+      operator: "and",
+      args: [SEMANTIC_QUERY_FORMS.filters.comparison, SEMANTIC_QUERY_FORMS.filters.viewport],
+    };
+    const previousQuery = compile({ ...SEMANTIC_QUERY_FORMS.aggregate, filter: base }).query;
+    const snapshot = { ...context, previousQuery };
+    const call = (semanticQuery: unknown, kind = "categories") => ({ sourceId: "incidents", kind, semanticQuery });
+    const retained = { kind: "boolean", operator: "and", args: [base, SEMANTIC_QUERY_FORMS.filters.distance] };
+    expect(() => reviewQuery(call({ ...SEMANTIC_QUERY_FORMS.aggregate, filter: retained }), snapshot)).not.toThrow();
+    expect(() =>
+      reviewQuery(call({ ...SEMANTIC_QUERY_FORMS.aggregate, filter: SEMANTIC_QUERY_FORMS.filters.distance }), snapshot),
+    ).toThrow("retain every previous filter");
+    expect(() =>
+      reviewQuery(call({ ...SEMANTIC_QUERY_FORMS.aggregate, filter: { ...retained, operator: "or" } }), snapshot),
+    ).toThrow("retain every previous filter");
+    expect(() => reviewQuery(call({ ...SEMANTIC_QUERY_FORMS.features, filter: retained }, "count"), snapshot)).toThrow(
+      "retain the previous grouped count",
+    );
+    expect(() =>
+      reviewQuery(
+        call({ ...SEMANTIC_QUERY_FORMS.features, filter: SEMANTIC_QUERY_FORMS.filters.distance }, "count"),
+        context,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      reviewQuery(call({ ...SEMANTIC_QUERY_FORMS.aggregate, filter: retained }), {
+        ...context,
+        previousQuery: compile({ ...SEMANTIC_QUERY_FORMS.features, filter: base }).query,
+      }),
+    ).not.toThrow();
+  });
+  it("self-corrects a rejected refinement without executing the widened first proposal", async () => {
+    const previousQuery = compile({
+      ...SEMANTIC_QUERY_FORMS.aggregate,
+      filter: SEMANTIC_QUERY_FORMS.filters.comparison,
+    }).query;
+    const snapshot = { ...context, previousQuery };
+    const widened = { ...SEMANTIC_QUERY_FORMS.features, filter: SEMANTIC_QUERY_FORMS.filters.distance };
+    const corrected = {
+      ...SEMANTIC_QUERY_FORMS.aggregate,
+      filter: { kind: "boolean", operator: "and", args: [previousQuery.filter, SEMANTIC_QUERY_FORMS.filters.distance] },
+    };
+    const provider = vi
+      .fn()
+      .mockResolvedValueOnce({
+        toolCalls: [
+          { name: "runWidgetQuery", arguments: { sourceId: "incidents", kind: "count", semanticQuery: widened } },
+        ],
+      })
+      .mockResolvedValueOnce({
+        toolCalls: [
+          {
+            name: "runWidgetQuery",
+            arguments: { sourceId: "incidents", kind: "categories", semanticQuery: corrected },
+          },
+        ],
+      });
+    const execute = vi.fn(async (_request: HonuaAgentWidgetQueryRequest) => ({
+      sourceId: "incidents",
+      kind: "categories" as const,
+      data: {},
+    }));
+    const control = createNlMapControl({
+      tools: { runtime: { runSemanticWidgetQuery: execute }, tools: ["runWidgetQuery"] },
+      llm: groundedModel(snapshot, provider),
+      validateStep(call) {
+        try {
+          if (call.name !== "runWidgetQuery") throw new Error("Unexpected tool");
+          reviewQuery(call.args, snapshot);
+          return [];
+        } catch (error) {
+          return [{ code: "capability-gap", message: String(error) }];
+        }
+      },
+    });
+    const plan = await control.propose("Within 500 metres of the selected location");
+    expect(plan.attempt).toBe(2);
+    expect(execute).not.toHaveBeenCalled();
+    expect(provider.mock.calls[1][0].purpose).toBe("self-correct");
+    expect(JSON.stringify(provider.mock.calls[1][0])).toContain("retain every previous filter");
+    expect((await control.execute(plan)).outcome).toBe("succeeded");
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls[0][0].semanticQuery).toEqual(corrected);
   });
   it("grounds provider callbacks with executable AST syntax, actual schema and captured context", async () => {
     const provider = vi.fn(recordedModel(context));
