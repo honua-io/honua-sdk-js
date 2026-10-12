@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.19](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.18...mcp-server-v0.1.19) (2026-10-12)
+
+
+### Features
+
+* **cli:** expose shared Studio draft save-version command ([#2050](https://github.com/honua-io/honua-sdk-js/issues/2050)) ([deed74d](https://github.com/honua-io/honua-sdk-js/commit/deed74d950203a91d5ae122a52c0e9b9a8e0917b))
+* **control-plane:** preserve requested map publication intent ([#2046](https://github.com/honua-io/honua-sdk-js/issues/2046)) ([d879a70](https://github.com/honua-io/honua-sdk-js/commit/d879a706495599b95189702fb1b57019722b5c56))
+
+
+### Bug Fixes
+
+* **mcp:** isolate offline certification and materialize gRPC statistics ([#2068](https://github.com/honua-io/honua-sdk-js/issues/2068)) ([584551c](https://github.com/honua-io/honua-sdk-js/commit/584551c20dc059223814990d0a4964bbc7a5b8a2))
+* **mcp:** preserve reviewed peer bridge across minor releases ([#2070](https://github.com/honua-io/honua-sdk-js/issues/2070)) ([3dbfac7](https://github.com/honua-io/honua-sdk-js/commit/3dbfac7b4eb637de4915a3d6ab819f79319f40e4))
+* **mcp:** preserve the peer bridge for the Node 22 transition ([dbdc6d3](https://github.com/honua-io/honua-sdk-js/commit/dbdc6d37bb8c880936235033218fea2e3d723add))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.18
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.17 || ^0.2.0 to ^0.1.18
+
 ## [0.1.18](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.17...mcp-server-v0.1.18) (2026-10-12)
 
 
