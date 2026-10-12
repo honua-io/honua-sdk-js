@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.17](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.16...mcp-server-v0.1.17) (2026-10-12)
+
+
+### Bug Fixes
+
+* **installer:** select and pin the published MCP 0.1.16 client ([#2026](https://github.com/honua-io/honua-sdk-js/issues/2026)) ([05fca2c](https://github.com/honua-io/honua-sdk-js/commit/05fca2c688f877baf433ef7a2bdd8885b04deb09))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.16
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.15 to ^0.1.16
+
 ## [0.1.16](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.15...mcp-server-v0.1.16) (2026-10-11)
 
 
