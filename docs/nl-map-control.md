@@ -166,6 +166,48 @@ which the host derives required transport scopes; without it, a protected-source
 read is refused before the runtime is called. Read-only map inspection that does
 not name a source can still use the controller's auto-execution policy.
 
+## Ask this map review control
+
+`createAskMapSession` adds a framework-neutral review lifecycle over an existing
+`NlMapControl`. Supply a JSON-compatible `context()` snapshot, a `createControl`
+factory, a pure plan-review function and an atomic result renderer. Include
+source/schema/version and authorization identity, captured viewport, selection
+and refinement context in the snapshot. Call `invalidate()` when those inputs
+change. The session compares the context again before execution and result
+application; it consumes each review once, cancels old work, and suppresses stale
+responses. It stores no conversation history.
+
+`mountAskMapControl` supplies labelled prompt entry, suggestion buttons, keyboard
+review/execution/rejection, a live status region and expandable diagnostics. The
+host owns map and table rendering. Recorded mode makes the prompt read-only;
+live mode permits free text. Throw `HonuaAskMapClarification` from a completion
+adapter when a question needs user input. Clarification is not an executable
+plan. The sample shows explicit loading, review, empty, refused, cancelled and
+failed outcomes.
+
+The default request bound is 15 seconds; `timeoutMs` accepts 1–120,000 milliseconds.
+The factory's `AbortSignal` spans proposal and execution, including the host's
+query runtime. The existing LLM callback receives an optional second argument
+`{ signal }`, so authenticated transports can abort network requests. A callback
+that ignores cancellation still cannot replace a newer UI state. If host policy
+requires approvals, supply `approve`; the returned bundle still passes through
+`NlMapControl.execute` and its existing verifier.
+
+`createNlMapControl({ validateStep })` lets a host admit source-grounded query
+calls during the existing bounded correction loop and again before execution.
+The hook returns typed `NlPlanIssue` entries and must remain free of effects.
+A `runWidgetQuery` call carrying `semanticQuery` requires the explicit runtime
+method `runSemanticWidgetQuery`; legacy `runWidgetQuery` hosts are never given an
+AST they might silently ignore. Validate against the actual source schema,
+compile with the supported backend compiler, refuse unsupported/approximate
+results, and execute only that admitted artifact. Never execute model-generated
+SQL. The incident sample does this with the existing semantic DuckDB compiler and
+parameterized DuckDB-WASM driver.
+
+The control remains experimental. The [sample README](../examples/nl-map-control/README.md)
+distinguishes deterministic semantic checks from the separately authenticated
+live-model evaluation and documents its current qualification gaps.
+
 ## Errors
 
 All failures are typed `HonuaNlMapControlError`s with a `code`:
@@ -194,7 +236,7 @@ the plan's effects).
   this layer: envelope forgery, replay, effect-budget bypass, receipt
   tampering, and plan-fingerprint mismatch, each with its conformance test.
 - [`examples/nl-map-control/`](../examples/nl-map-control/) — deterministic
-  MapLibre demo with a fixture LLM, plan/receipt JSON panes, and an approve
-  button.
+  MapLibre query sample with recorded suggestions, a grounded review control,
+  synchronized results and a separately authenticated live-model adapter.
 - [North-star ADR](./decisions/north-star-sdk-application-kernel.md) — why NL
   must compile to the same plan human code uses.

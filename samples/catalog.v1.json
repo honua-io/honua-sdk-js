@@ -607,13 +607,13 @@
     },
     {
       "id": "nl-map-control",
-      "title": "Natural-language map control",
-      "summary": "A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects.",
+      "title": "Ask this map",
+      "summary": "Review schema-grounded spatial queries, then synchronize exact fixture results on the map and in a keyboard-accessible table. Recorded suggestions and an optional authenticated live model share the same bounded semantic compiler and execution path.",
       "tier": "advanced",
       "supportStatus": "experimental",
       "disposition": {
         "decision": "keep",
-        "reason": "Headline proof of the plan-first NL map-control layer (#500): BYO LLM, approval envelopes, and execution receipts on a live MapLibre map."
+        "reason": "Experimental Ask this map control with captured query context, exact planar spatial execution and separate recorded/live evidence."
       },
       "sourcePath": "examples/nl-map-control",
       "docsPath": "examples/nl-map-control/README.md",
@@ -625,7 +625,7 @@
         "receipts"
       ],
       "protocols": [
-        "honua"
+        "geoparquet"
       ],
       "renderers": [
         "maplibre"
@@ -634,8 +634,8 @@
         "mode": "fixture",
         "authMode": "none",
         "config": [],
-        "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.",
-        "attribution": "Honua demo fixture attribution is shown in the sample.",
+        "provenance": "Versioned six-row incident fixture and independent expected IDs/counts in examples/nl-map-control/evaluation.v1.json; package-locked DuckDB-WASM with pinned spatial and Parquet extensions.",
+        "attribution": "Honua synthetic incident fixture; no external incident data.",
         "freshness": "Deterministic fixture replay time."
       },
       "lanes": {
@@ -650,7 +650,7 @@
           "commands": []
         }
       },
-      "expectedDegradation": "Viewport and mutation plans refuse to execute without a verified approval envelope and report approval-required; the recorded LLM answers only the canned demo instructions.",
+      "expectedDegradation": "Recorded mode answers only exact suggestions. Dates, arbitrary SQL and geodesic distance are refused; distance uses explicitly disclosed planar EPSG:3857 metres. Live mode requires an authenticated server adapter.",
       "validation": [
         "npm run demo:nl-map-control:typecheck",
         "npm run demo:nl-map-control:build"

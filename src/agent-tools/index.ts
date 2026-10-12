@@ -157,6 +157,8 @@ export interface HonuaAgentWidgetQueryRequest {
   readonly field?: string;
   readonly metric?: string;
   readonly query?: Query<Record<string, unknown>>;
+  /** Schema-grounded semantic query; hosts must validate and compile before execution. */
+  readonly semanticQuery?: Readonly<Record<string, unknown>>;
   readonly limit?: number;
 }
 
@@ -217,6 +219,8 @@ export interface HonuaAgentRuntime {
   ): MaybePromise<ReadonlyArray<FeatureSelectionTarget> | void>;
   summarizeSelection?(): MaybePromise<HonuaAgentSelectionSummary>;
   runWidgetQuery?(request: HonuaAgentWidgetQueryRequest): MaybePromise<HonuaAgentWidgetQueryResult>;
+  /** Explicit admission for semantic ASTs; legacy query hosts must never silently ignore them. */
+  runSemanticWidgetQuery?(request: HonuaAgentWidgetQueryRequest): MaybePromise<HonuaAgentWidgetQueryResult>;
   /**
    * Composition capabilities. Every one is optional: a runtime that does not
    * implement one still answers the corresponding tool, with the structured
@@ -755,6 +759,11 @@ export const HONUA_AGENT_TOOL_DEFINITIONS: readonly HonuaAgentToolDefinition[] =
         metric: stringSchema("Metric used by the widget query."),
         limit: { type: "number", description: "Maximum result rows.", minimum: 1 },
         query: { type: "object", description: "Optional canonical query projection.", additionalProperties: true },
+        semanticQuery: {
+          type: "object",
+          description: "Schema-grounded semantic query AST; never raw SQL.",
+          additionalProperties: true,
+        },
       },
       additionalProperties: false,
     },
@@ -1278,11 +1287,13 @@ export async function executeHonuaAgentTool(
       }
       case "summarizeSelection":
         return result(call.name, "ok", args, options, { data: await summarizeSelection(runtime, call.args) });
-      case "runWidgetQuery":
-        requireRuntimeMethod(runtime.runWidgetQuery, call.name);
+      case "runWidgetQuery": {
+        const executeQuery = args.semanticQuery !== undefined ? runtime.runSemanticWidgetQuery : runtime.runWidgetQuery;
+        requireRuntimeMethod(executeQuery, call.name);
         return result(call.name, "ok", args, options, {
-          data: await runtime.runWidgetQuery(args as unknown as RunWidgetQueryArgs),
+          data: await executeQuery.call(runtime, args as unknown as RunWidgetQueryArgs),
         });
+      }
       case "explainCapabilityGap":
         return result(call.name, "ok", args, options, { data: await explainCapabilityGap(runtime, call.args) });
       case "setLayerStyle": {

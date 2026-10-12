@@ -283,7 +283,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:nl-map-control:build",
     auditedVia:
-      "examples/nl-map-control/src/main.ts imports test/fixtures/nl-map-control/recorded-completions.json as a bundled module and mounts an inline MapLibre style; the sample issues no fetch.",
+      "Recorded mode compiles committed structured incident queries and executes them in package-locked DuckDB-WASM. engine-assets.mjs copies digest-pinned Parquet/spatial extensions and the locked engine/worker into the bundle; all recorded-mode runtime fetches are same-bundle. Optional live mode requires a separately authenticated same-origin model adapter.",
   },
   {
     id: "columnar-query-quickstart",

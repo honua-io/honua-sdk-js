@@ -204,7 +204,10 @@ export interface NlCompletionResponse {
 }
 
 /** Caller-provided LLM transport. The SDK never talks to a model vendor. */
-export type NlLlmCallback = (request: NlCompletionRequest) => Promise<NlCompletionResponse>;
+export type NlLlmCallback = (
+  request: NlCompletionRequest,
+  options?: { readonly signal?: AbortSignal },
+) => Promise<NlCompletionResponse>;
 
 // ── Control surface ───────────────────────────────────────────────────────
 
@@ -237,6 +240,8 @@ export interface CreateNlMapControlOptions {
   readonly approvalVerifier?: AgentEnvelopeVerifier;
   /** When present, receipts are additionally signed. */
   readonly receiptSigner?: AgentEnvelopeSigner;
+  /** Host admission applied during bounded self-correction and again before execution. */
+  readonly validateStep?: (call: HonuaAgentToolCall) => readonly NlPlanIssue[];
 }
 
 export interface NlProposeOptions {
@@ -841,12 +846,16 @@ export function createNlMapControl(options: CreateNlMapControlOptions): NlMapCon
     const maxAttempts = 1 + Math.max(0, maxSelfCorrections);
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       proposeOptions.signal?.throwIfAborted();
-      const response = await options.llm(request);
+      const response = await options.llm(request, { signal: proposeOptions.signal });
+      proposeOptions.signal?.throwIfAborted();
       if (response.refusal !== undefined) {
         throw new HonuaNlMapControlError("refusal", `The model declined the instruction: ${response.refusal}`);
       }
       const toolCalls = response.toolCalls ?? [];
       const { steps, issues } = parseCompletionToolCalls(toolCalls, tools, sources, maxPlanSteps);
+      if (issues.length === 0 && options.validateStep) {
+        for (const step of steps) issues.push(...options.validateStep(step.call));
+      }
       if (issues.length === 0) {
         return buildNlMapPlan(instruction, attempt, steps);
       }
@@ -871,6 +880,12 @@ export function createNlMapControl(options: CreateNlMapControlOptions): NlMapCon
 
   async function execute(planInput: NlMapPlan, executeOptions: NlExecuteOptions = {}): Promise<NlMapPlanExecution> {
     const plan = assertNlMapPlan(planInput);
+    executeOptions.signal?.throwIfAborted();
+    if (options.validateStep) {
+      const issues = plan.steps.flatMap((step) => options.validateStep!(step.call));
+      if (issues.length)
+        throw new HonuaNlMapControlError("plan-invalid", "Host rejected the plan before execution.", { issues });
+    }
     const timestamp = now();
     let mode: NlMapPlanReceipt["mode"];
     let approvalDigest: `sha256:${string}` | undefined;
@@ -1254,3 +1269,5 @@ function deepFreeze<T>(value: T): T {
   for (const entry of Object.values(value)) deepFreeze(entry);
   return Object.freeze(value);
 }
+
+export * from "./ask-map-control.js";

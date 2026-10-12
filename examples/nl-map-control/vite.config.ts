@@ -2,11 +2,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
+import { queryEngineAssets } from "./engine-assets.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(exampleRoot, "../..");
 
-export default defineConfig({
+export default defineConfig(async () => ({
+  plugins: [await queryEngineAssets()],
   root: exampleRoot,
   envDir: exampleRoot,
   base: "./",
@@ -44,6 +46,7 @@ export default defineConfig({
   },
   server: {
     host: "127.0.0.1",
+    proxy: { "/api/ask-map": { target: "http://127.0.0.1:9879", changeOrigin: false } },
     fs: {
       allow: [repoRoot],
     },
@@ -55,4 +58,4 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
   },
-});
+}));

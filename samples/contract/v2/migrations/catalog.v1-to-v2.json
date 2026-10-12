@@ -397,7 +397,11 @@
     },
     "nl-map-control": {
       "track": "lab",
-      "validationProfile": "browser-lab"
+      "validationProfile": "browser-lab",
+      "live": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
     },
     "columnar-query-quickstart": {
       "track": "recipe",

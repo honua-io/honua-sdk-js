@@ -7,6 +7,10 @@ const ci = Boolean(process.env.CI);
 export default defineConfig({
   resolve: {
     alias: [
+      {
+        find: "@honua/sdk-js/nl-map-control",
+        replacement: path.resolve(import.meta.dirname, "src/nl-map-control/index.ts"),
+      },
       // Subpath aliases come first so the prefix-matching parent
       // aliases below cannot rewrite `@honua/sdk-js/operator/<sub>`
       // into `src/operator/index.ts/<sub>` (which is a nonexistent
@@ -177,11 +181,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: [
-        "src/**/*.ts",
-        "examples/maplibre-quickstart/src/**/*.ts",
-        "examples/storytelling-25d-map/src/**/*.ts",
-      ],
+      include: ["src/**/*.ts", "examples/maplibre-quickstart/src/**/*.ts", "examples/storytelling-25d-map/src/**/*.ts"],
       exclude: [
         "dist/**",
         "src/gen/**",
