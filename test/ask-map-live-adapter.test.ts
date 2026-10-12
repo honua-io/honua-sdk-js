@@ -169,7 +169,7 @@ describe("Authenticated server-side model adapter", () => {
       model: "fixture-model",
       fetchImpl,
     });
-    const correction = {
+    const correction: NonNullable<NlCompletionRequest["correction"]> = {
       previousToolCalls: [{ name: "runWidgetQuery", arguments: { semanticQuery: "{}" } }],
       issues: [{ code: "invalid-arguments", message: "semanticQuery must be an object" }],
     };
