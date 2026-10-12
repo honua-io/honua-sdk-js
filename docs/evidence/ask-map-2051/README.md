@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Ask this map live qualification"
+description: "Bounded authenticated spatial-query evaluation with exact source, provider and failed-run provenance."
+---
 # Ask this map live qualification
 
 This directory retains actual authenticated model calls and independent semantic
