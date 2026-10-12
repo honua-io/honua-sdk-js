@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -87,8 +87,20 @@ describe("Preview alerts integration fixture", () => {
       expect(tests[index]?.args).toContain(`--outputFile=test-results/integration-alerts-${mode}-vitest.json`);
     }
     // The opt-in is the only difference between the two container commands.
-    expect(boots[0]?.args.map((arg) => arg.replace("__Enabled=false", "__Enabled=true"))).toEqual(
-      boots[1]?.args.map((arg) => arg.replace("__Enabled=false", "__Enabled=true")),
+    expect(
+      boots[0]?.args.map((arg) =>
+        arg.replace(
+          "Capabilities__Experimental__alerts.geofence__Enabled=false",
+          "Capabilities__Experimental__alerts.geofence__Enabled=true",
+        ),
+      ),
+    ).toEqual(
+      boots[1]?.args.map((arg) =>
+        arg.replace(
+          "Capabilities__Experimental__alerts.geofence__Enabled=false",
+          "Capabilities__Experimental__alerts.geofence__Enabled=true",
+        ),
+      ),
     );
   });
 
