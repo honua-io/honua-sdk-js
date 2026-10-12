@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Preview alerts fixture evidence"
+description: "Candidate-bound single-tenant Pro alerts off/on results with retained historical failure and immutable provenance."
+---
 # Preview alerts fixture evidence
 
 This directory retains the bounded SDK #1954 integration evidence. It covers
