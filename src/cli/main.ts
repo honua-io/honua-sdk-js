@@ -23,6 +23,7 @@ import { loginCommand, logoutCommand, whoamiCommand } from "./commands/login.js"
 import { mapCommand, tilesCommand } from "./commands/map.js";
 import { queryCommand } from "./commands/query.js";
 import { stacCommand } from "./commands/stac.js";
+import { studioCommand } from "./commands/studio.js";
 import { printLine } from "./output.js";
 
 export const CLI_VERSION = "0.1.0";
@@ -81,6 +82,7 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "style-png" },
   { name: "package" },
   { name: "message" },
+  { name: "generation" },
   { name: "source-kind" },
   { name: "source-url" },
   { name: "connection" },
@@ -108,6 +110,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   query: queryCommand,
   explain: explainCommand,
   stac: stacCommand,
+  studio: studioCommand,
   geocode: geocodeCommand,
   map: mapCommand,
   tiles: tilesCommand,
@@ -168,7 +171,11 @@ CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
       --title <text>             Human title for the resulting content
       --options <json|@file>     Import-kind-specific options, passed through verbatim
 
-  Both accept the shared command flags below, as honua map publish does:
+  honua studio draft save-version <draftId> [--generation <nonnegative integer>]
+      Save an immutable version through the shared studio.draft.saveVersion command.
+      --generation <n>          Check draft generation before and after saving
+
+  These accept the shared command flags below, as honua map publish does:
       --if-match / --idempotency-key / --actor / --tenant / --dry-run / --yes / --json
 
 MAPS
