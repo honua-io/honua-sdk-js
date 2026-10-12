@@ -68,7 +68,6 @@ import {
   editorFieldsFromSchema,
   editorOperationAvailability,
   redactEditorAttachment,
-  resolveActiveEditorSubtype,
   resolveEditorFields,
   resolveEditorOperations,
 } from "./feature-editor-model.js";
@@ -1065,10 +1064,30 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   }
 
   #seedCreateDefaults(): void {
+    const model = this.#model;
+    if (!model) return;
+    const values = this.#values();
+    const defaults: Record<string, unknown> = Object.create(null);
     const subtypes = this.#options.subtypes;
-    if (!subtypes || subtypes.defaultCode === undefined) return;
-    const active = resolveActiveEditorSubtype(subtypes, {});
-    this.#model?.setValues({ [subtypes.field]: active?.code ?? subtypes.defaultCode } as Partial<T>);
+    if (subtypes && values[subtypes.field] === undefined) {
+      // An explicit template code, including falsy/null values, is never replaced.
+      const field = this.#schemaFields.find((candidate) => candidate.name === subtypes.field);
+      const code = subtypes.defaultCode ?? field?.defaultValue;
+      if (field?.editable !== false && code !== undefined) defaults[subtypes.field] = code;
+    }
+    // Resolve overrides after choosing the new draft's subtype. These values are
+    // part of the draft, so validation, display and transport see the same data.
+    for (const field of this.#fieldsFor({ ...values, ...defaults })) {
+      if (
+        field.editable !== false &&
+        values[field.name] === undefined &&
+        defaults[field.name] === undefined &&
+        field.defaultValue !== undefined
+      ) {
+        defaults[field.name] = field.defaultValue;
+      }
+    }
+    if (Object.keys(defaults).length > 0) model.setValues(defaults as Partial<T>);
   }
 
   /**
