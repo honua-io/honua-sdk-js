@@ -170,10 +170,10 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 28 of the 35 generated support
+**Two deployment tiers, named up front.** 28 of the 36 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
-7 are `server-attach` and execute only after attaching to a Honua Server facade;
+8 are `server-attach` and execute only after attaching to a Honua Server facade;
 1 of those link a roadmap issue for an open-endpoint path and the rest state why the
 server dependency is inherent, in the generated
 [capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
@@ -232,7 +232,7 @@ Runtime support, stated up front:
 
 | Peer / runtime | Supported range |
 |----------------|-----------------|
-| Node.js | `>=20.19` |
+| Node.js | `>=22.12` |
 | `maplibre-gl` (optional peer) | **6.4.1 or newer within major 6** (`^6.4.1`). The next SDK release drops affected 5.x and early 6.x peers; published older SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
 | `cesium` (optional peer, scene surface) | `^1.139.0` |
 | `react` / `react-dom` (optional peer, `/react`) | `^18.2.0 \|\| ^19.0.0` |
@@ -409,7 +409,7 @@ const { features } = await geoServicesClient.queryFeatures({
 ```
 
 Run the complete First Map app locally — public endpoint in, inspected MapLibre map out. The
-app lives in this repository, so clone it first (Node.js `>=20.19` and git):
+app lives in this repository, so clone it first (Node.js `>=22.12` and git):
 
 ```bash
 git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git

@@ -122,7 +122,7 @@ the same starters in a browser from [Zero-install playgrounds](playgrounds.md).
 the complete version of this page: endpoint input, a table and filter over the
 bounded result, popup selection, the accepted plan and its degradation reasons,
 copyable code, and managed cleanup. It runs from a clone of the repository
-(Node.js `>=20.19` and git):
+(Node.js `>=22.12` and git):
 
 ```bash
 git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git

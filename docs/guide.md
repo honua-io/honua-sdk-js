@@ -68,7 +68,7 @@ contracts, live-query narrowing rules, preprocessing rules, and browser diagnost
 Deterministic local review flows from this repo:
 
 ```bash
-# Node.js 20.19.0+ at the repo root
+# Node.js 22.12.0+ at the repo root
 npm install
 
 # Run either mock server in its own terminal/session.

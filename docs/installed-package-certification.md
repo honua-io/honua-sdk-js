@@ -6,6 +6,29 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Installed-package certification
 
+The scheduled workflow and default manual dispatch select the approved current
+release through `config/installed-candidate-selection.v1.json`. This pointer
+contains only schema `honua.installed-candidate-selection/v1`,
+`reviewedReleaseSha`, and `candidateRef`: two full lowercase commit SHAs. It does
+not copy package versions or server digests. The existing pinned upstream
+candidate-input action still verifies reviewed-trunk ancestry and the data-only
+nightly snapshot, followed by complete public npm artifact verification and the
+installed consumer checks. The selection receipt records both commits and the
+pointer's SHA-256.
+
+A missing or invalid pointer blocks certification; it never falls back to the
+legacy cohort. Commit the pointer only after the actual published package set
+and immutable candidate have been admitted, through a reviewed PR. Advancing it
+requires another approved immutable snapshot. The schema is committed separately
+so preparation does not invent an unpublished current candidate.
+
+For an explicitly selected snapshot, manual dispatch still accepts
+`candidate_mode=release-snapshot`, `reviewed_release_sha`, and `candidate_ref`.
+The historical configuration and receipts remain unchanged; choose
+`candidate_mode=legacy-regression` explicitly to replay that cohort. The direct
+local commands below retain their declared legacy default unless supplied the
+release-snapshot environment.
+
 `npm run certify:installed-package -- --execute-fixture` checks the installed
 2026.1 package set against the digest in
 `config/installed-package-certification.v1.json`. It exits nonzero until every

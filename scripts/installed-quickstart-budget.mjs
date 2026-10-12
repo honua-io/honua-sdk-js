@@ -14,6 +14,7 @@ import { verifyPreparedSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
 import { packedSdkFilename, assertComparisonDependencies, assertInstalledConsumerModules } from "./lib/installed-consumer-lock.mjs";
 import { INSTALLED_FIRST_MAP_BUDGET, firstMapVerdict } from "./lib/first-map-budget.mjs";
 import { readInstalledCandidateInput } from "./installed-candidate-input.mjs";
+import { readFirstMapBuildResolution } from "./lib/first-map-build-resolution.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const sourceSha = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim();
@@ -121,8 +122,10 @@ try {
         worker: { ...loaded.config.worker, plugins: () => [moduleProof(true)] },
         build: { ...loaded.config.build, outDir, emptyOutDir: true },
       });
-    } catch (error) { failure = error.message; }
-    const resolution = JSON.parse(await readFile(path.join(outDir, "honua-sample-sdk-resolution.json"), "utf8"));
+    } catch (error) { failure = error instanceof Error ? error.message || error.name : String(error); }
+    const { resolution, unavailable } = await readFirstMapBuildResolution(
+      path.join(outDir, "honua-sample-sdk-resolution.json"), failure);
+    if (unavailable) return { minifier: effectiveMinifier, ...unavailable };
     // Match the existing generateBundle budget's chunk scope. Worker scripts
     // emitted as assets remain in the final-byte inventory, not this ceiling.
     let javascriptBytes = 0;
@@ -157,8 +160,11 @@ try {
   const runtimeOnly = proveRegression ? await measure("runtime-only", false, true) : undefined;
   const corrected = await measure("corrected");
   for (const observed of [baseline, runtimeOnly, corrected].filter(Boolean)) {
-    try { assertPeerIdentity(observed); observed.peerIdentityStatus = "passed"; }
-    catch { observed.peerIdentityStatus = "failed"; }
+    if (observed.resolutionStatus === "unavailable") observed.peerIdentityStatus = "unverified";
+    else {
+      try { assertPeerIdentity(observed); observed.peerIdentityStatus = "passed"; }
+      catch { observed.peerIdentityStatus = "failed"; }
+    }
     Object.assign(observed, firstMapVerdict(observed));
   }
   let execution;
@@ -194,7 +200,7 @@ try {
     sourceSha, sourceDirty,
     ...(previousLockBytes ? { comparisonLockSha256: sha256(previousLockBytes), comparisonRenderer: { version: previousRenderer.version, integrity: previousRenderer.integrity } } : {}),
     inputDigests: Object.fromEntries(await Promise.all(["package-lock.json", "scripts/installed-quickstart-budget.mjs",
-      "scripts/lib/first-map-execution.mjs", "scripts/lib/first-map-execution-budget.mjs", "config/first-map-execution-budget.v1.json", "examples/maplibre-quickstart/mock-server.mjs", "examples/maplibre-quickstart/vite.config.ts"]
+      "scripts/lib/first-map-build-resolution.mjs", "scripts/lib/first-map-execution.mjs", "scripts/lib/first-map-execution-budget.mjs", "config/first-map-execution-budget.v1.json", "examples/maplibre-quickstart/mock-server.mjs", "examples/maplibre-quickstart/vite.config.ts"]
       .map(async (file) => [file, sha256(await readFile(path.join(root, file)))]))),
     budget, minifier: corrected.minifier, buildMode: "default public endpoint", measurementScope: "emitted JavaScript chunks, as defined by the canonical First Map budget",
     node: process.version, ...(execution ? { execution } : {}), status: execution?.status === "failed" ? "failed" : corrected.status, ...(baseline ? { baseline, runtimeOnly } : {}), corrected };

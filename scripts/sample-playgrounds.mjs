@@ -598,7 +598,7 @@ function projectPackageJson(decision, sample) {
       version: "0.0.0",
       type: "module",
       description: `Zero-install playground generated from examples/${sample.id}.`,
-      engines: { node: ">=20.19.0" },
+      engines: { node: ">=22.12.0" },
       scripts: { dev: "vite", build: "vite build", preview: "vite preview", typecheck: "tsc --noEmit" },
       dependencies: decision.dependencies,
       devDependencies: decision.devDependencies,

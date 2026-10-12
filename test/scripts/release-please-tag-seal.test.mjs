@@ -5,6 +5,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
+// Current trunk executes this entrypoint before merge; include ancestor recovery
+// controls here so a new workflow step is not their first actual validation.
+import "./sealed-ancestor-recovery.test.mjs";
+
 // Where a release tag ends up decides whether a published version can ever pass
 // `release-seal check`. It stopped producing publishable tags for three
 // consecutive releases and nobody could tell from the logs, because every abort

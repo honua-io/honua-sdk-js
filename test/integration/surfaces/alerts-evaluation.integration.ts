@@ -1,5 +1,6 @@
 /**
- * Candidate-bound live coverage for the alert draft-validation contract.
+ * Candidate-bound live coverage for Preview alert draft validation.
+ * Only the dedicated single-tenant Pro fixture opts in to alerts.geofence.
  * Cross-references: honua-server#3388 and honua-release#157.
  *
  * @module
@@ -12,7 +13,15 @@ import { integrationSuite, runWithDiagnostics } from "../harness.js";
 const SURFACE = "alerts";
 
 integrationSuite("Alert draft evaluation", SURFACE, ({ client, config, context }) => {
-  it("validates a draft on the release candidate [cert:alerts/evaluation#positive] [cert:alerts/evaluation#media-schema]", async (ctx) => {
+  const alertsEnabled = process.env.HONUA_INTEGRATION_ALERTS_ENABLED;
+  if (alertsEnabled !== undefined && alertsEnabled !== "true" && alertsEnabled !== "false") {
+    throw new Error("HONUA_INTEGRATION_ALERTS_ENABLED must be true or false when set");
+  }
+  const capabilityOff = alertsEnabled === "false";
+  const title = capabilityOff
+    ? "rejects draft evaluation with the experimental capability disabled on the same Pro candidate"
+    : "validates a draft on the release candidate [cert:alerts/evaluation#positive] [cert:alerts/evaluation#media-schema]";
+  it(title, async (ctx) => {
     const candidateCutAt = process.env.HONUA_CANDIDATE_CUT_AT?.trim();
     if (!candidateCutAt) {
       ctx.skip("HONUA_CANDIDATE_CUT_AT is required to bind alerts.evaluation evidence to a release candidate");
@@ -45,6 +54,10 @@ integrationSuite("Alert draft evaluation", SURFACE, ({ client, config, context }
       }),
     );
 
+    if (capabilityOff) {
+      expect(result).toMatchObject({ supported: false, capability: "alert-rules", statusCode: 404 });
+      return;
+    }
     expect(result.supported).toBe(true);
     if (!result.supported) return;
     expect(result.value.isValid).toBe(true);

@@ -29,7 +29,7 @@ Two modes:
 
 ## Requirements
 
-- Node.js `>=20.19`
+- Node.js `>=22.12`
 - Any reachable FeatureServer/OGC endpoint (public or Honua)
 
 ## Install
@@ -350,7 +350,7 @@ It emits a stable machine-readable JSON report plus a human-readable Markdown
 summary, and exits non-zero on any conformance/round-trip failure.
 
 The certification and eval scripts in this section and the next run from a clone
-of this repository (Node.js `>=20.19` and git). `mcp/` links to the SDK at the
+of this repository (Node.js `>=22.12` and git). `mcp/` links to the SDK at the
 repository root, so build the SDK first:
 
 ```bash

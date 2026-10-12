@@ -57,7 +57,7 @@ exactly the enabled-profile roster fail closed before the first mutation.
 
 Prerequisites:
 
-- Node.js 20.19 or newer and Docker with Compose
+- Node.js 22.12 or newer and Docker with Compose
 - the 2026.1 `honua` CLI work from `honua-sdk-js#1370-#1373`
 - one admin credential. The journey does not require a second principal
 - a server build that advertises the closed operator roster this journey calls:

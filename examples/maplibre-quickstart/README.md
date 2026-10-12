@@ -29,7 +29,7 @@ presentation state without changing the accepted query plan.
 
 ## Five-minute fixture run
 
-Requirements: Node 20.19 and the repository dependencies installed with `npm ci`.
+Requirements: Node 22.12 or newer and the repository dependencies installed with `npm ci`. The repository pins Node 22.23.3 in `.nvmrc`.
 
 ```bash
 npm run demo:quickstart:mock

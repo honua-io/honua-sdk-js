@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       candidate_mode:
-        description: Preserve the legacy regression lane or consume an explicit release snapshot
+        description: Certify the approved current snapshot, an explicit snapshot, or the retained legacy regression
         type: choice
-        default: legacy-regression
-        options: [legacy-regression, release-snapshot]
+        default: current-release
+        options: [current-release, release-snapshot, legacy-regression]
       reviewed_release_sha:
         description: Immutable reviewed honua-release trunk commit; required for release-snapshot
         type: string
@@ -33,40 +33,49 @@ concurrency:
 jobs:
   certify:
     runs-on: ubuntu-24.04
-    env:
-      HONUA_INSTALLED_CANDIDATE_MODE: ${{ inputs.candidate_mode || 'legacy-regression' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
+          registry-url: https://registry.npmjs.org
       - name: Remove receipts retained from previous candidates
-        run: rm -f test-results/installed-package-certification.json test-results/installed-example-certification.json test-results/installed-quickstart-budget.json
-      - name: Require immutable release snapshot selection
-        if: inputs.candidate_mode == 'release-snapshot'
+        run: rm -f test-results/installed-package-certification.json test-results/installed-example-certification.json test-results/installed-quickstart-budget.json test-results/installed-candidate-selection.json
+      - name: Select the approved installed candidate
+        id: candidate
         env:
-          RELEASE_SHA: ${{ inputs.reviewed_release_sha }}
-          CANDIDATE_SHA: ${{ inputs.candidate_ref }}
+          CANDIDATE_MODE: ${{ inputs.candidate_mode }}
+          REVIEWED_RELEASE_SHA: ${{ inputs.reviewed_release_sha }}
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: node scripts/select-installed-candidate.mjs
+      - name: Require immutable release snapshot selection
+        if: steps.candidate.outputs.mode == 'release-snapshot'
+        env:
+          RELEASE_SHA: ${{ steps.candidate.outputs.reviewed_release_sha }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_ref }}
         run: |
           set -euo pipefail
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'reviewed_release_sha must be an immutable release commit'; exit 1; }
           [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'candidate_ref must be an immutable nightly snapshot commit'; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        if: inputs.candidate_mode == 'release-snapshot'
+        if: steps.candidate.outputs.mode == 'release-snapshot'
         with:
           repository: honua-io/honua-release
-          ref: ${{ inputs.reviewed_release_sha }}
+          ref: ${{ steps.candidate.outputs.reviewed_release_sha }}
           path: .tmp/honua-release-input
           fetch-depth: 0
       - uses: honua-io/honua-release/.github/actions/candidate-input@3ca3728f6675636e294dadbc585af874802cc7bc
         id: release_input
-        if: inputs.candidate_mode == 'release-snapshot'
+        if: steps.candidate.outputs.mode == 'release-snapshot'
         with:
-          candidate_ref: ${{ inputs.candidate_ref }}
-          reviewed_release_sha: ${{ inputs.reviewed_release_sha }}
+          candidate_ref: ${{ steps.candidate.outputs.candidate_ref }}
+          reviewed_release_sha: ${{ steps.candidate.outputs.reviewed_release_sha }}
           checkout_directory: .tmp/honua-release-input
       - name: Bind all installed producers to the adopted release bytes
-        if: inputs.candidate_mode == 'release-snapshot'
+        if: steps.candidate.outputs.mode == 'release-snapshot'
         env:
-          RELEASE_SHA: ${{ inputs.reviewed_release_sha }}
-          CANDIDATE_SHA: ${{ inputs.candidate_ref }}
+          RELEASE_SHA: ${{ steps.candidate.outputs.reviewed_release_sha }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_ref }}
           MANIFEST_SHA256: ${{ steps.release_input.outputs.manifest_sha256 }}
           MATRIX_SHA256: ${{ steps.release_input.outputs.matrix_sha256 }}
         run: |
@@ -77,16 +86,12 @@ jobs:
             echo "HONUA_RELEASE_MANIFEST_SHA256=$MANIFEST_SHA256"
             echo "HONUA_RELEASE_MATRIX_SHA256=$MATRIX_SHA256"
           } >> "$GITHUB_ENV"
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 20.19.0
-          registry-url: https://registry.npmjs.org
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        if: inputs.candidate_mode == 'release-snapshot'
+        if: steps.candidate.outputs.mode == 'release-snapshot'
         with:
           python-version: "3.12"
       - name: Verify the selected release npm artifacts with the upstream verifier
-        if: inputs.candidate_mode == 'release-snapshot'
+        if: steps.candidate.outputs.mode == 'release-snapshot'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -102,7 +107,7 @@ jobs:
       - name: Install locked test tooling
         run: npm ci
       - name: Validate the complete SDK package denominator before execution
-        if: inputs.candidate_mode == 'release-snapshot'
+        if: steps.candidate.outputs.mode == 'release-snapshot'
         run: node --input-type=module -e 'import { readInstalledCandidate } from "./scripts/installed-package-certification.mjs"; await readInstalledCandidate();'
       - name: Installed First Map bundle regression
         id: quickstart
@@ -124,6 +129,13 @@ jobs:
         id: examples
         continue-on-error: true
         run: npm run certify:installed-examples -- --output test-results/installed-example-certification.json
+      - name: Upload exact installed candidate selection
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: installed-candidate-selection
+          path: test-results/installed-candidate-selection.json
+          if-no-files-found: warn
       - name: Upload installed First Map measurements
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -139,7 +151,7 @@ jobs:
           path: test-results/installed-package-certification.json
           if-no-files-found: error
       - name: Upload scoped upstream artifact verification
-        if: always() && inputs.candidate_mode == 'release-snapshot'
+        if: always() && steps.candidate.outputs.mode == 'release-snapshot'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-npm-artifact-verification

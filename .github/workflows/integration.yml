@@ -64,23 +64,15 @@ permissions:
   packages: read
 
 env:
-  NODE_VERSION: "20.19.0"
-  # Pinned self-contained server image + fixtures. A repo variable overrides the
-  # pin so it can be advanced without a code change; advancing it is a
-  # deliberate, reviewable change. The vendored seed
-  # (test/integration/seed/places-roads-v1.sql) is refreshed 1:1 with this pin.
-  #
-  # Pinned to the current nightly candidate identity (R21: SDKs certify against
-  # the candidate): honua-server ff5f567, built by Nightly Container Build run
-  # 37188030565, which started (cut) at 2026-10-04T08:09:54Z. Repository
-  # overrides must also be immutable digest references so evidence cannot drift
-  # between runs. NOTE: the HONUA_INTEGRATION_SERVER_IMAGE / _SERVER_COMMIT /
-  # HONUA_CANDIDATE_CUT_AT repo variables, when set, replace this pin — see
-  # docs/integration-tests.md.
-  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39' }}
-  HONUA_INTEGRATION_SERVER_COMMIT: ${{ vars.HONUA_INTEGRATION_SERVER_COMMIT || 'ff5f5671903e96e13cffac7b73546c3ed0f853c5' }}
-  HONUA_CANDIDATE_CUT_AT: ${{ vars.HONUA_CANDIDATE_CUT_AT || '2026-10-04T08:09:54Z' }}
-  HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID: ${{ (vars.HONUA_INTEGRATION_SERVER_IMAGE != '' || vars.HONUA_INTEGRATION_SERVER_COMMIT != '' || vars.HONUA_CANDIDATE_CUT_AT != '') && !(vars.HONUA_INTEGRATION_SERVER_IMAGE != '' && vars.HONUA_INTEGRATION_SERVER_COMMIT != '' && vars.HONUA_CANDIDATE_CUT_AT != '') }}
+  NODE_VERSION: "22.23.3"
+  # Reviewed self-contained candidate identity: SDK #1956 / commit 8ac7abbc.
+  # Nightly Container Build 37188030565 produced and attested this immutable
+  # image from ff5f567 at the recorded cut. Keep image, source, cut, and seed
+  # coherent in version control; stale repository variables must not replace it.
+  # External mode retains its explicit dispatch/environment overrides below.
+  HONUA_INTEGRATION_SERVER_IMAGE: 'ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39'
+  HONUA_INTEGRATION_SERVER_COMMIT: 'ff5f5671903e96e13cffac7b73546c3ed0f853c5'
+  HONUA_CANDIDATE_CUT_AT: '2026-10-04T08:09:54Z'
   HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.2.0-alpha.1' }}
   # Deterministic container passwords for the self-contained stack. These are
   # NOT secrets (the stack is ephemeral and never exposed off the runner). The
@@ -257,10 +249,6 @@ jobs:
           NET=honua-integration
           PG_DB=honua_integration
 
-          if [ "${HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID}" = "true" ]; then
-            echo "::error::HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together"
-            exit 1
-          fi
           node --input-type=module -e \
             'import { validateIdentityOverrideEnvironment } from "./scripts/protocol-certification-fragment.mjs"; validateIdentityOverrideEnvironment(process.env);'
 
@@ -516,42 +504,52 @@ jobs:
         if: ${{ always() && steps.mode.outputs.mode == 'self-contained' }}
         run: |
           set -euo pipefail
-          # POST /rules/test is a documented Pro surface (honua-server ADR-0024).
-          # Exercise it on the same immutable candidate with the server's
-          # non-Production CI entitlement hook, without changing the Production
-          # Community target used by every other surface and conformance.
-          docker run -d --name honua-server-alerts --network honua-integration -p 8081:8080 \
-            -v "$SELF_CONTAINED_KEYRING_CERTIFICATE:/keyring/operation-keyring.pfx:ro" \
-            -e ASPNETCORE_ENVIRONMENT=Development \
-            -e Licensing__DevGrantEdition=Pro \
-            -e ASPNETCORE_URLS=http://+:8080 \
-            -e Kestrel__Endpoints__Http__Protocols=Http1AndHttp2 \
-            -e PUBLIC_BASE_URL=http://localhost:8081 \
-            -e HONUA_ADMIN_PASSWORD="$SELF_CONTAINED_ADMIN_PASSWORD" \
-            -e "ConnectionStrings__DefaultConnection=Server=honua-pg;Port=5432;Database=honua_integration;User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
-            -e "ConnectionStrings__honua=Server=honua-pg;Port=5432;Database=honua_integration;User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
-            -e ConnectionStrings__Redis=honua-redis:6379 \
-            -e Security__ConnectionEncryption__MasterKey="$SELF_CONTAINED_ENC_MASTER_KEY" \
-            -e Security__ConnectionEncryption__Salt="$SELF_CONTAINED_ENC_SALT" \
-            -e Operations__SecretChannel__KeyRingCertificatePath=/keyring/operation-keyring.pfx \
-            -e Operations__SecretChannel__KeyRingCertificatePassword="$SELF_CONTAINED_KEYRING_PASSWORD" \
-            -e HostValidation__AllowedHosts__0=localhost \
-            -e HostValidation__AllowedHosts__1=127.0.0.1 \
-            "$HONUA_INTEGRATION_SERVER_IMAGE"
+          # Preview only: one dedicated single-tenant Pro fixture, same immutable
+          # candidate as Community. Pro entitlement alone must not enable alerts.
+          # Restart the same fixture with only the experimental opt-in changed.
+          alerts_status=0
           trap 'docker rm -f honua-server-alerts >/dev/null 2>&1 || true' EXIT
+          for alerts_enabled in false true; do
+            docker run -d --name honua-server-alerts --network honua-integration -p 8081:8080 \
+              -v "$SELF_CONTAINED_KEYRING_CERTIFICATE:/keyring/operation-keyring.pfx:ro" \
+              -e ASPNETCORE_ENVIRONMENT=Development \
+              -e Licensing__DevGrantEdition=Pro \
+              -e MultiTenancy__Enabled=false \
+              -e MultiTenancy__SchemaRouting__Enabled=false \
+              -e "Capabilities__Experimental__alerts.geofence__Enabled=$alerts_enabled" \
+              -e ASPNETCORE_URLS=http://+:8080 \
+              -e Kestrel__Endpoints__Http__Protocols=Http1AndHttp2 \
+              -e PUBLIC_BASE_URL=http://localhost:8081 \
+              -e HONUA_ADMIN_PASSWORD="$SELF_CONTAINED_ADMIN_PASSWORD" \
+              -e "ConnectionStrings__DefaultConnection=Server=honua-pg;Port=5432;Database=honua_integration;User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
+              -e "ConnectionStrings__honua=Server=honua-pg;Port=5432;Database=honua_integration;User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
+              -e ConnectionStrings__Redis=honua-redis:6379 \
+              -e Security__ConnectionEncryption__MasterKey="$SELF_CONTAINED_ENC_MASTER_KEY" \
+              -e Security__ConnectionEncryption__Salt="$SELF_CONTAINED_ENC_SALT" \
+              -e Operations__SecretChannel__KeyRingCertificatePath=/keyring/operation-keyring.pfx \
+              -e Operations__SecretChannel__KeyRingCertificatePassword="$SELF_CONTAINED_KEYRING_PASSWORD" \
+              -e HostValidation__AllowedHosts__0=localhost \
+              -e HostValidation__AllowedHosts__1=127.0.0.1 \
+              "$HONUA_INTEGRATION_SERVER_IMAGE"
 
-          for i in $(seq 1 60); do
-            if curl -fsS http://localhost:8081/healthz/ready >/dev/null 2>&1; then break; fi
-            if [ "$i" -eq 60 ]; then docker logs honua-server-alerts; exit 1; fi
-            sleep 5
+            for i in $(seq 1 60); do
+              if curl -fsS http://localhost:8081/healthz/ready >/dev/null 2>&1; then break; fi
+              if [ "$i" -eq 60 ]; then docker logs honua-server-alerts; exit 1; fi
+              sleep 5
+            done
+
+            HONUA_INTEGRATION_BASE_URL=http://localhost:8081 \
+              HONUA_INTEGRATION_META_APPEND=true \
+              HONUA_INTEGRATION_ALERTS_ENABLED="$alerts_enabled" \
+              npx vitest run --config vitest.integration.config.ts \
+                test/integration/surfaces/alerts-evaluation.integration.ts \
+                --reporter=default --reporter=json \
+                --outputFile="test-results/integration-alerts-${alerts_enabled}-vitest.json" || alerts_status=1
+            # Keep diagnostics in the masked Actions log, never raw credential-bearing artifacts.
+            docker logs honua-server-alerts
+            docker rm -f honua-server-alerts
           done
-
-          HONUA_INTEGRATION_BASE_URL=http://localhost:8081 \
-            HONUA_INTEGRATION_META_APPEND=true \
-            npx vitest run --config vitest.integration.config.ts \
-              test/integration/surfaces/alerts-evaluation.integration.ts \
-              --reporter=default --reporter=json \
-              --outputFile=test-results/integration-alerts-vitest.json
+          exit "$alerts_status"
 
       - name: Merge integration surface reports
         if: ${{ always() && steps.mode.outputs.mode == 'self-contained' }}
@@ -560,7 +558,8 @@ jobs:
           import { readFile, writeFile } from "node:fs/promises";
           const paths = [
             "test-results/integration-community-vitest.json",
-            "test-results/integration-alerts-vitest.json",
+            "test-results/integration-alerts-false-vitest.json",
+            "test-results/integration-alerts-true-vitest.json",
           ];
           const reports = await Promise.all(paths.map(async (path) => {
             try {
@@ -607,6 +606,7 @@ jobs:
           path: |
             test-results/integration-meta.json
             test-results/integration-vitest.json
+            test-results/integration-alerts-*-vitest.json
             test-results/conformance-vitest.json
             test-results/protocol-certification-fragment.json
           if-no-files-found: warn

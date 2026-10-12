@@ -189,6 +189,18 @@ describe("operate observability client", () => {
     expect(result.supported && result.value.isValid).toBe(true);
   });
 
+  it("keeps capability-off alert draft validation as typed unsupported HTTP 404", async () => {
+    const draft = { rule: { serviceId: "places", layerId: 1, ruleName: "Preview", triggerType: "enter" as const } };
+    const requests: Array<{ method: string; path: string; body?: unknown }> = [];
+    const operate = clientForFixture(
+      { request: { method: "POST", path: "/api/v1/admin/alerts/rules/test" }, response: { status: 404 } },
+      requests,
+    );
+    const result = await operate.alertRules.test(draft);
+    expect(result).toMatchObject({ supported: false, capability: "alert-rules", statusCode: 404 });
+    expect(requests).toEqual([{ method: "POST", path: "/api/v1/admin/alerts/rules/test", body: draft }]);
+  });
+
   it("rejects a malformed alert-rule test response envelope", async () => {
     const operate = clientForFixture({
       request: { method: "POST", path: "/api/v1/admin/alerts/rules/test" },
