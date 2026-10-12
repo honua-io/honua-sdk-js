@@ -62,7 +62,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "1123caba9863f93123a946ed9d03be4863a4c1f53ed8d30cb9e946d61cc09a31",
+    "c0ec65afda78cbdab5988de2e18dfd513c9dde35c899fd29c8ac7094fb512a60",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":
