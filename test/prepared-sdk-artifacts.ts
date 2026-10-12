@@ -22,6 +22,10 @@ export function getPreparedHonuaEntryPath(): string {
   return getPreparedSdkArtifact(path.join("dist", "src", "honua.js"));
 }
 
+export function getPreparedColumnarAbsoluteRunnerPath(): string {
+  return getPreparedSdkArtifact(path.join("dist", "bench", "columnar-absolute-runner.js"));
+}
+
 function getPreparedSdkArtifact(relativePath: string): string {
   const projectRoot = getProjectRoot();
   const manifest = getRunManifest(projectRoot);

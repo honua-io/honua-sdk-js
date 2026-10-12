@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { COLUMNAR_ABSOLUTE_RECIPES } from "../bench/columnar-absolute-protocol.js";
 import { buildColumnarPatchFixture, runColumnarPatchBenchmark } from "../bench/columnar-patch-bench.js";
 import { inspectColumnarPatchState } from "../src/columnar/index.js";
+import { measureColumnarAbsolute } from "./columnar-absolute-measurement.js";
 
 /**
  * The absolute budgets declared for `columnar.patch.million-row` in
@@ -109,20 +111,15 @@ describe("columnar realtime patch benchmark", () => {
   });
 
   it("patches and rebuilds a million-row batch inside its declared absolute budgets", async () => {
-    const result = await runColumnarPatchBenchmark({
-      rowCount: 1_000_000,
-      reserveRows: 2_304,
-      patchOperations: 1_000,
-      patchesPerSample: 8,
-      warmupRuns: 1,
-      measurementRuns: 5,
-    });
+    const result = await runColumnarPatchBenchmark(COLUMNAR_ABSOLUTE_RECIPES.patch);
 
     expect(result.invariants.passed).toBe(true);
 
     // NFR-002: median in-place patch latency. The failure ceiling is what
     // `bench:lab --check` enforces; the issue's own 10 ms sits at the warning.
-    const latency = median(result.samples.map((sample) => sample.patchLatencyMs));
+    const timing = measureColumnarAbsolute("patch");
+    expect(timing.invariants).toEqual(result.invariants);
+    const latency = median(timing.samples);
     expect(latency).toBeLessThanOrEqual(BUDGETS.patchLatencyMs);
     // Not an assertion on the warning — a loaded host legitimately crosses it —
     // but a statement of what the number means when it does not.
