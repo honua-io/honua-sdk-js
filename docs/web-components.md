@@ -717,7 +717,10 @@ if (!review.ready) console.warn(review.blockers, review.validation.errors);
 `editor.fieldPresentation` can select the displayed attribute controls, set their
 order, and override their labels without altering the workflow's source metadata:
 
-```ts
+```ts doc-test=compile
+import type { HonuaFeatureEditorElement } from "@honua/sdk-js/web-components";
+
+const editor = document.querySelector<HonuaFeatureEditorElement>("honua-feature-editor")!;
 editor.fieldPresentation = [
   { name: "status", label: "Permit status" },
   { name: "permit_no", label: "Permit number" },
