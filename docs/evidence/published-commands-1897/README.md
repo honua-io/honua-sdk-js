@@ -34,7 +34,9 @@ The published install steps provide the MapLibre peer needed by the README
 snippet. Source examples explicitly enter a checkout before running repository
 scripts; the fixture/dev commands satisfy their readiness checks. CLI query
 examples, both scaffold templates and the MCP certification/offline evaluation
-commands pass their unchanged published commands and output checks. Typechecked
+commands complete their unchanged published commands successfully. The retained
+CLI receipt establishes exit status, not semantic correctness of every returned
+value; it does not retain stdout or separate CLI output assertions. Typechecked
 examples compile after their documented installation steps.
 
 The published MCP credential guidance identifies `HONUA_TOKEN` as the reader's
@@ -57,8 +59,8 @@ link are admitted separately from installed candidate packages. The source Git
 revision and lock bytes are checked before and after source execution and later
 observations. The three repaired MCP observations are marked `sourceDependencyAudit`;
 they are not claims that the source SDK 0.1.15 link is a published SDK 0.1.16 consumer.
-Honua-release PR 565 fixes that checker distinction while keeping the candidate
-registry strict.
+Honua-release PR 565 delivered that checker distinction at merge
+`4195ab9e5d1243eacf568dbfcf31fa18b5bf26ae`, keeping the candidate registry strict.
 
 Outside that guard, actual public `npm create honua-app@latest`, default npm install,
 production build and the documented dev command passed; readiness returned HTTP 200.
@@ -85,7 +87,16 @@ the separate Production four-adapter qualification in issue 1424.
   MCP source SDK link in three blocks. Four documents passed and one failed.
   [Unchanged raw failure](retained-source-audit-failure/executable-docs.json).
 - Run 38205709419 executed the checker repair at `e4f1538a8e36c252f99c8c4e4de7ae82cdb846d1`.
-  The current PR 565 head only adds four unrelated release-decision documents; its
-  executable input trees match. [Artifact identity and every retained file hash](corrected/provenance.json).
+  The merged checker at `4195ab9e5d1243eacf568dbfcf31fa18b5bf26ae` has identical
+  executable input trees; its additional changes are unrelated release decisions. [Artifact identity and every retained file hash](corrected/provenance.json).
 
 All raw reports remain byte-exact, including failed and blocked statuses.
+
+The retained [source input receipt](corrected/source-inputs/provenance.json) and
+[two variable declarations](corrected/source-inputs/vars/honua-sdk-js-readme.json)
+([MCP declaration](corrected/source-inputs/vars/honua-sdk-js-mcp-readme.json)) come
+byte-for-byte from the immutable runner source, separately from hosted artifacts.
+They substitute the documented server origins with `http://localhost:8080` and
+`http://localhost:8080/mcp` for the owned candidate. They contain no credentials.
+The receipt records their source paths and hashes plus the runner context source
+that defines these values.
