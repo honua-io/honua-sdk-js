@@ -26,7 +26,7 @@ export const EXPECTED_LOCKFILE_SHA256 =
   "711e51be8a810a662f6fa8e4f74dbeb8509f64414bcc62c4c99e8339a959e74d";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-  setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+  setupNode: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
   uploadArtifact:
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
   downloadArtifact:
@@ -62,7 +62,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "1123caba9863f93123a946ed9d03be4863a4c1f53ed8d30cb9e946d61cc09a31",
+    "c0ec65afda78cbdab5988de2e18dfd513c9dde35c899fd29c8ac7094fb512a60",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":
