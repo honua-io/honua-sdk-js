@@ -366,6 +366,7 @@ export type {
 // ── production-tier feature editor (issue #680) ──────────────────────────
 export { HonuaFeatureEditorElement, defineHonuaFeatureEditor } from "./feature-editor.js";
 export type {
+  HonuaFeatureEditorFieldPresentation,
   HonuaFeatureEditChangeDetail,
   HonuaFeatureEditCommitDetail,
   HonuaFeatureEditOfflineConflictDetail,
