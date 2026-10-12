@@ -1,0 +1,65 @@
+{
+  "startedAt": "2026-10-12T17:03:16.670Z",
+  "completedAt": "2026-10-12T17:06:07.326Z",
+  "provider": "https://bedrock-runtime.us-west-2.amazonaws.com",
+  "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "actualModel": "anthropic.claude-haiku-4-5-20251001-v1:0",
+  "adapterSha256": "39fdc2eb27da5a57c0dbcf4312caededb4feda4660cd3794ceba0afbc308ed19",
+  "adapterFiles": [
+    "invoke.py",
+    "run.mjs"
+  ],
+  "credentials": "existing AWS ambient credential chain; never read or exported",
+  "calls": [
+    {
+      "elapsedMs": 1027,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 836,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 930,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 968,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 982,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 1252,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 974,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 1082,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 1303,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    },
+    {
+      "elapsedMs": 994,
+      "outcome": "provider-error",
+      "errorClass": "provider-failed"
+    }
+  ]
+}

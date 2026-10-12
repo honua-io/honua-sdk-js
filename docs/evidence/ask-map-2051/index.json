@@ -1,0 +1,263 @@
+{
+  "schema": "honua.ask-map-live-evidence/v1",
+  "scope": "Bounded ten-case synthetic incident sample; not general natural-language accuracy",
+  "bridgeDigest": "SHA-256 of UTF-8 invoke.py filename and its retained bytes, then run.mjs filename and its retained bytes; .txt suffix is storage only.",
+  "runs": [
+    {
+      "id": "01-haiku-baseline",
+      "evaluatedSdkCommit": "cff18ac31971150a97b8b3bda408f461b2ac85cf",
+      "sdkHarnessSha256": "9a91396196872f8b33033988f233cf8c706bdc3eb204a68a6747fe503000fd9c",
+      "providerAdapterSha256": "ecb582232cb28132d846e1071225dff69415cc547ada2ca1c01eac3f8eaa97ee",
+      "outcome": "failed",
+      "files": {
+        "evaluation.json": "4fc2ec972850aabc888a426ab7b4a1b03327825215f5b53d153b397fa1a6184b",
+        "invoke.py.txt": "9e11f4ec8340ed05b1ca4a29a6b63e3974b1ffeb21923a0bdd5910c48a2722f7",
+        "provider-provenance.json": "cd44e0600ca824029f2d375b5afbb88556769a407a16a8e2045cb345ec911e3f",
+        "run.mjs.txt": "3b9d621b3aceacd4d7ddde4f1bc04d137050d0dad199a4a9b7e1c28c5fd5c14a"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "actualModels": [
+        "anthropic.claude-haiku-4-5-20251001-v1:0"
+      ]
+    },
+    {
+      "id": "02-haiku-diagnostic",
+      "evaluatedSdkCommit": "cff18ac31971150a97b8b3bda408f461b2ac85cf",
+      "sdkHarnessSha256": "9a91396196872f8b33033988f233cf8c706bdc3eb204a68a6747fe503000fd9c",
+      "providerAdapterSha256": "49f09fed535eb8dad54c79a71405f120aaae89c559fdf0ff9c15275c5db6f845",
+      "outcome": "failed",
+      "files": {
+        "evaluation.json": "4d70b9c77c5b99376ef686c10a1a388ae0154ff342ef2afd02c08528afe66539",
+        "invoke.py.txt": "9e11f4ec8340ed05b1ca4a29a6b63e3974b1ffeb21923a0bdd5910c48a2722f7",
+        "provider-provenance.json": "58d67aec2a869868cb0566f898c02e380be5e086567a50c1af001951f417c3f2",
+        "run.mjs.txt": "ce0bf0d9a13cd00836c96dac9143f8036ebe78c6ca372119df5dd1afe55c0bfb"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "actualModels": [
+        "anthropic.claude-haiku-4-5-20251001-v1:0"
+      ]
+    },
+    {
+      "id": "03-haiku-provider-schema-rejected",
+      "evaluatedSdkCommit": "2143b3ea83a2a8bce1b6c49820ccfd965bdad650",
+      "sdkHarnessSha256": "d93c411e23d12b11018b7dacc4159120c351975a26276d5a05f65fe7f8dc5209",
+      "providerAdapterSha256": "39fdc2eb27da5a57c0dbcf4312caededb4feda4660cd3794ceba0afbc308ed19",
+      "outcome": "provider-rejected",
+      "note": "No successful model responses. The legacy provenance actualModel field was the configured expected identity; it is not evidence of a returned model. Independent provider preflight identified unsupported top-level oneOf in the tool schema.",
+      "files": {
+        "evaluation.json": "491a676d7a60c9c9aa4efd9e501b587376a09cf0860a723cd38004fbda260032",
+        "invoke.py.txt": "9e11f4ec8340ed05b1ca4a29a6b63e3974b1ffeb21923a0bdd5910c48a2722f7",
+        "provider-provenance.json": "192acf4e5a0246391873cc980050af8e27cc4da93bbbe6181a450b68ee5b4bbf",
+        "run.mjs.txt": "7785b6cae97517193099a561a87c7550b4ee78a62ea3f43587fb13de00e5ea5f"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "actualModels": []
+    },
+    {
+      "id": "04-haiku-refinement-context-failure",
+      "evaluatedSdkCommit": "ce5e0e4186f417cac212e407d66b58a60a41fb71",
+      "sdkHarnessSha256": "fbfde353dd4096ce656c559180b9664014fec82e192cfe4b7b3baadd26c0e744",
+      "providerAdapterSha256": "15b1398717c9e777713ca069b48ac51503d875db4e25e6d702a0761dcbb3dd5d",
+      "outcome": "failed",
+      "files": {
+        "evaluation.json": "a4fed5dfa5b155558e2fce1926190ecabea1d47aeaac8f4b6d47c3c789f1a292",
+        "invoke.py.txt": "ef7878e0cb3f004959b12e3da7429b5455ddac718bbca041dca2c174c585282f",
+        "provider-provenance.json": "1ab2d88468b2d8296421f1f25c1fbadedf3a5ae1efe3738e2a601e3c51123abe",
+        "run.mjs.txt": "dfa9c5758bbcb00dded6cd9c75a9313b045db26878f4b9931fddf1cfd336549a"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "actualModels": [
+        "anthropic.claude-haiku-4-5-20251001-v1:0"
+      ]
+    },
+    {
+      "id": "05-haiku-refinement-clarification",
+      "evaluatedSdkCommit": "a0abbd080482e70bd29ceac36a152b8eda369875",
+      "sdkHarnessSha256": "306d4ce64b912a2d3a2725855a37366c384ed133ff5b2a42b1b12aaf343f9929",
+      "providerAdapterSha256": "15b1398717c9e777713ca069b48ac51503d875db4e25e6d702a0761dcbb3dd5d",
+      "outcome": "failed",
+      "files": {
+        "evaluation.json": "6b2d30abd7910cf381616c4c6e9d3ef64ba10bcb9a7340087ce5eb5c0fe5df75",
+        "invoke.py.txt": "ef7878e0cb3f004959b12e3da7429b5455ddac718bbca041dca2c174c585282f",
+        "provider-provenance.json": "bdfe1777676c669e822b5d357232b06db0d74399e70e18cae8e920d49a9d015f",
+        "run.mjs.txt": "dfa9c5758bbcb00dded6cd9c75a9313b045db26878f4b9931fddf1cfd336549a"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "actualModels": [
+        "anthropic.claude-haiku-4-5-20251001-v1:0"
+      ]
+    },
+    {
+      "id": "06-sonnet-identity-mismatch",
+      "evaluatedSdkCommit": "e2cc22dc1c913958e43d8475c9c11672ec6612bd",
+      "sdkHarnessSha256": "306d4ce64b912a2d3a2725855a37366c384ed133ff5b2a42b1b12aaf343f9929",
+      "providerAdapterSha256": "b5dffb5f2df50aa5a64b83b0bb24c870dccaea2d6dce3a79fffde0650cd52a0e",
+      "outcome": "identity-rejected",
+      "note": "Actual returned model claude-sonnet-4-5-20250929 differed from expected anthropic.claude-sonnet-4-5-20250929-v1:0. No queries executed; not a semantic accuracy result.",
+      "files": {
+        "evaluation.json": "dd6d2cd84623e4c24194bc7df9d2f4ab50804ed1ab54212d37b8bc567ae43769",
+        "invoke.py.txt": "4160507cdc69a3dfc1d5d0d80e1986c6b22d7e09aa3fa9207f35485655faec82",
+        "provider-provenance.json": "5051e2ecaae2d1242e2e3f20396ed3bb0413d24a7fc1ee6999f58f31ede5fbf9",
+        "run.mjs.txt": "502236c0fb1ba521886c158b1bc9b96e7fb164c0f85d41c10144ecaa440d015b"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "actualModels": [
+        "claude-sonnet-4-5-20250929"
+      ]
+    },
+    {
+      "id": "07-sonnet-serialized-query-failure",
+      "evaluatedSdkCommit": "1f92c335b19fb6ebfda5c32bac82987a1636eb08",
+      "sdkHarnessSha256": "306d4ce64b912a2d3a2725855a37366c384ed133ff5b2a42b1b12aaf343f9929",
+      "providerAdapterSha256": "8a39eb1f082630ef957dbc5f808d13f1eb87cd545308e845c7dfd8e37708a31e",
+      "outcome": "failed",
+      "files": {
+        "evaluation.json": "44286721d96b3a597f2669967910910915e5acadf6218876a7718fca6b689c44",
+        "identity-preflight.json": "6519eff55d6f0ea946b4b133c70fa9892edcc080b82f9df2a4144802a62f9ece",
+        "invoke.py.txt": "4160507cdc69a3dfc1d5d0d80e1986c6b22d7e09aa3fa9207f35485655faec82",
+        "native-diagnostic-request.json": "87fa8d8b2d2cb662a449434a4064de4c5bbc4e872f105032a168389cfd558782",
+        "native-diagnostic-response.json": "d8e3f93fd9fe0b9e48087426e9f39e003676c2db29e98855c8ad5549f7092733",
+        "provider-provenance.json": "1d37c65b2ae4a908deb9efbe300d77959c0243af25174b419c932606df47dfbd",
+        "run.mjs.txt": "11300fc60cf408e40d966881dc436593fc70c4a4ac10141f3a929cd67b59525e"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "actualModels": [
+        "claude-sonnet-4-5-20250929"
+      ]
+    },
+    {
+      "id": "08-sonnet-explicit-object-failure",
+      "evaluatedSdkCommit": "ebad1eed6cc57ddfe37cecf6db8e16babc92fc63",
+      "sdkHarnessSha256": "76b8e800aee836acf36ab1dcf2814eacf6e3a7a6c36c9784d148cbd693bf6c04",
+      "providerAdapterSha256": "8a39eb1f082630ef957dbc5f808d13f1eb87cd545308e845c7dfd8e37708a31e",
+      "outcome": "failed",
+      "files": {
+        "evaluation.json": "043ecdcc3dca224ecd894e63b722f1e977fc970fcac8f47c6157ce4aaf0b0715",
+        "invoke.py.txt": "4160507cdc69a3dfc1d5d0d80e1986c6b22d7e09aa3fa9207f35485655faec82",
+        "provider-provenance.json": "b1aee3661ce84ec50ce084b7dc5771d82b8317390d10ef6f24ed614c9c963666",
+        "run.mjs.txt": "11300fc60cf408e40d966881dc436593fc70c4a4ac10141f3a929cd67b59525e"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "actualModels": [
+        "claude-sonnet-4-5-20250929"
+      ]
+    },
+    {
+      "id": "09-haiku-refinement-retry-failure",
+      "evaluatedSdkCommit": "ebad1eed6cc57ddfe37cecf6db8e16babc92fc63",
+      "sdkHarnessSha256": "76b8e800aee836acf36ab1dcf2814eacf6e3a7a6c36c9784d148cbd693bf6c04",
+      "providerAdapterSha256": "15b1398717c9e777713ca069b48ac51503d875db4e25e6d702a0761dcbb3dd5d",
+      "outcome": "failed",
+      "files": {
+        "evaluation.json": "a7b1b0f8170d9ec5c1c389e466dff5dd60adcdbc07e7826954f706387d94a129",
+        "invoke.py.txt": "ef7878e0cb3f004959b12e3da7429b5455ddac718bbca041dca2c174c585282f",
+        "provider-provenance.json": "b8457f5ff9290d58288d90708755452ecf2d9956bd6ff7e5fb637596567c20ab",
+        "run.mjs.txt": "dfa9c5758bbcb00dded6cd9c75a9313b045db26878f4b9931fddf1cfd336549a"
+      },
+      "producer": {
+        "node": "v20.19.0",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "actualModels": [
+        "anthropic.claude-haiku-4-5-20251001-v1:0"
+      ]
+    },
+    {
+      "id": "10-haiku-qualified-node22",
+      "evaluatedSdkCommit": "a3e3412fd816cf9069a05395f9fc4787d591f0e0",
+      "sdkHarnessSha256": "cddd9990a9d22058a43c5b0b510bb9680893c5289fe3175e0a11f0f5ff78e8b6",
+      "providerAdapterSha256": "ae26502e56649d0cbcdbc652a12a2f9a72bdc754d30f872040b0166525088b50",
+      "outcome": "passed",
+      "files": {
+        "evaluation.json": "faf08e43d614f4a3ce59c9875fabf79e3619365d6340482414dca8ba2ee658f0",
+        "invoke.py.txt": "ef7878e0cb3f004959b12e3da7429b5455ddac718bbca041dca2c174c585282f",
+        "provider-provenance.json": "88808f254c2013e43fcb001a1d2cb67abcbb62aca664d3892f721aabbfa2ca36",
+        "run.mjs.txt": "abc9a2cf8699a30d62524d2e9c021043be34de99554fdc6b0ccb1a4b9136e1ea",
+        "tuple-draft7-rejected-request.json": "b181dfcf29b691d3bfaa161ec04cb2417e6e7d493b56e816d7ebc4e0f516f180",
+        "tuple-draft7-rejection.json": "b1332944159503e4bdb20e71f338207a0740059340b6aac03ab74260bf157a9f",
+        "tuple-preflight-request.json": "f7b1783d32868d6a304e220b9d3d8ba965b0cc7621cc91153e2c662370f86404",
+        "tuple-preflight-response.json": "75ec47caa7c21ce59becdf640e0f22d6f105982b941254e5bc300e1342722d6c"
+      },
+      "producer": {
+        "node": "v22.23.3",
+        "platform": "linux",
+        "architecture": "x64"
+      },
+      "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "actualModels": [
+        "anthropic.claude-haiku-4-5-20251001-v1:0"
+      ]
+    }
+  ],
+  "qualifiedRun": "10-haiku-qualified-node22",
+  "acceptanceThreshold": {
+    "engineeringReviewedAt": "2026-10-12",
+    "supportedCorrect": 6,
+    "supportedTotal": 6,
+    "safeOutcomesCorrect": 4,
+    "safeOutcomesTotal": 4,
+    "maxElapsedMs": 15000,
+    "unsafeExecutions": 0,
+    "credentialLeaks": 0,
+    "scope": "Only this ten-case synthetic incident sample, not general NL accuracy"
+  },
+  "recordedRuns": [
+    {
+      "id": "recorded-a0abbd",
+      "files": {
+        "browser-diagnostics.json": "3f015b5662304713e81b8744b0166199a6d0dcef29a0d84a0531479e6202d8f6",
+        "recorded-semantic-evaluation.json": "700f072002c754f16626e5853984bb9d5f0d05d11d95b4819cecbb03d9964e13"
+      }
+    },
+    {
+      "id": "recorded-a3e341-node22",
+      "files": {
+        "browser-diagnostics.json": "3f015b5662304713e81b8744b0166199a6d0dcef29a0d84a0531479e6202d8f6",
+        "recorded-semantic-evaluation.json": "ceca2db1a092f3f1e5c1e947a033fac7d8bdc1f453adc334e0b7e7f1d2ac724f"
+      }
+    }
+  ],
+  "sourceManifestSha256": "f55268571b7ae94c9436e23745c738dfe2860ba2b20813c62914008c2f7b7046"
+}

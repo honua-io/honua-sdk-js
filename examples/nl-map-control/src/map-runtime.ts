@@ -1,135 +1,158 @@
-import type { FeatureCollection } from "geojson";
-import type * as maplibregl from "maplibre-gl";
+import type { HonuaAgentRuntime, HonuaAgentWidgetQueryRequest } from "@honua/sdk-js/agent-tools";
+import { HonuaNlMapControlError } from "@honua/sdk-js/nl-map-control";
+import { canonicalStringify, toJsonValue } from "@honua/sdk-js/query-planner";
+import type { DuckDbDriver } from "../../../src/geoparquet/driver.js";
+import { FIXTURE_VERSION, INCIDENTS, ORIGIN, SCHEMA } from "./fixture.js";
+import { type IncidentQuery, type QueryContext, compile } from "./query.js";
 
-import type {
-  HonuaAgentLayerSummary,
-  HonuaAgentRuntime,
-  HonuaAgentSourceSummary,
-  HonuaAgentViewport,
-  HonuaAgentWidgetQueryRequest,
-  HonuaAgentWidgetQueryResult,
-} from "@honua/sdk-js/agent-tools";
-import type { FeatureSelectionTarget, FilterClause } from "@honua/sdk-js/exploration";
-
-export interface IncidentFeature {
-  readonly id: number;
-  readonly status: "open" | "closed";
-  readonly kind: string;
-  readonly lngLat: readonly [number, number];
+export interface QueryResult {
+  readonly features: readonly { id: number; status: string; kind: string }[];
+  readonly groups?: readonly Record<string, unknown>[];
+  readonly queries: readonly unknown[];
 }
-
-export const INCIDENTS: readonly IncidentFeature[] = [
-  { id: 1, status: "open", kind: "fire", lngLat: [-122.3352, 47.6081] },
-  { id: 2, status: "open", kind: "medical", lngLat: [-122.3419, 47.6034] },
-  { id: 3, status: "closed", kind: "fire", lngLat: [-122.3287, 47.6146] },
-  { id: 4, status: "open", kind: "hazmat", lngLat: [-122.3505, 47.6212] },
-  { id: 5, status: "closed", kind: "medical", lngLat: [-122.3122, 47.5991] },
-  { id: 6, status: "closed", kind: "rescue", lngLat: [-122.3618, 47.5903] },
-];
-
-export function incidentsGeoJson(): FeatureCollection {
-  return {
-    type: "FeatureCollection",
-    features: INCIDENTS.map((incident) => ({
-      type: "Feature",
-      id: incident.id,
-      properties: { status: incident.status, kind: incident.kind },
-      geometry: { type: "Point", coordinates: [...incident.lngLat] },
-    })),
-  };
+export async function initializeFixture(driver: DuckDbDriver): Promise<void> {
+  // Only committed numeric/string constants enter this bootstrap SQL. All user
+  // query literals go through the compiler's ordered prepared-statement binds.
+  const rows = INCIDENTS.map(
+    (row) => `(${row.id},'${row.status}','${row.kind}',${ORIGIN[0] + row.x},${ORIGIN[1] + row.y})`,
+  ).join(",");
+  await driver.run(
+    `COPY (SELECT id::INTEGER AS id, status, kind, ST_AsWKB(ST_Point(x, y))::BLOB AS shape FROM (VALUES ${rows}) AS fixture(id,status,kind,x,y)) TO 'ask-map-incidents.parquet' (FORMAT PARQUET)`,
+  );
+  // Keep the fixture's physical column a BLOB. DuckDB's WKB_BLOB logical
+  // annotation otherwise auto-promotes it to GEOMETRY on Parquet read, which
+  // would contradict the compiler's explicit WKB decoder contract.
+  const fields = await driver.query("DESCRIBE SELECT * FROM read_parquet('ask-map-incidents.parquet')");
+  const expected = { id: "INTEGER", status: "VARCHAR", kind: "VARCHAR", shape: "BLOB" };
+  if (
+    fields.length !== 4 ||
+    fields.some((field) => expected[field.column_name as keyof typeof expected] !== field.column_type)
+  )
+    throw new Error("Fixture physical schema differs from the admitted logical schema.");
 }
-
-const SOURCES: readonly HonuaAgentSourceSummary[] = [
-  {
-    id: "incidents",
-    title: "City incidents (fixture)",
-    protocol: "geoservices-feature-service",
-    capabilities: ["query", "queryAggregate"],
-  },
-];
-
-function filterExpression(clause: FilterClause): maplibregl.FilterSpecification | null {
-  if (clause.operator === "=") {
-    return ["==", ["get", clause.field], clause.value as string | number | boolean];
+function conjuncts(filter: IncidentQuery["filter"]): string[] {
+  if (!filter) return [];
+  if (filter.kind === "boolean" && filter.operator === "and") return filter.args.flatMap(conjuncts);
+  return [canonicalStringify(toJsonValue(filter))];
+}
+export function reviewQuery(request: HonuaAgentWidgetQueryRequest, context?: QueryContext) {
+  if (
+    request.sourceId !== "incidents" ||
+    request.query ||
+    !request.semanticQuery ||
+    !["count", "categories"].includes(request.kind)
+  ) {
+    throw new HonuaNlMapControlError("refusal", "This source admits structured incident feature/count queries only.");
   }
-  if (clause.operator === "!=") {
-    return ["!=", ["get", clause.field], clause.value as string | number | boolean];
+  const compiled = compile(request.semanticQuery);
+  if (compiled.query.kind === "features") {
+    const selection = compiled.query.select;
+    if (
+      compiled.query.geometry !== "omit" ||
+      selection?.length !== 3 ||
+      !["id", "status", "kind"].every((field) => selection?.includes(field))
+    ) {
+      throw new HonuaNlMapControlError(
+        "refusal",
+        "Feature queries must select id, status and kind, with geometry omitted; map geometry comes from the admitted fixture.",
+      );
+    }
+  } else if (
+    compiled.query.groupBy.length !== 1 ||
+    compiled.query.groupBy[0] !== "kind" ||
+    compiled.query.metrics.length !== 1 ||
+    compiled.query.metrics[0]?.fn !== "count" ||
+    compiled.query.metrics[0]?.as !== "count" ||
+    compiled.query.metrics[0]?.field
+  ) {
+    throw new HonuaNlMapControlError(
+      "refusal",
+      "This sample admits only grouped count(*) by kind; other aggregations are unavailable.",
+    );
   }
-  return null;
-}
-
-function countIncidents(request: HonuaAgentWidgetQueryRequest): number {
-  const where = request.query?.where;
-  if (typeof where === "string" && where.includes("status = 'open'")) {
-    return INCIDENTS.filter((incident) => incident.status === "open").length;
+  if ((compiled.query.kind === "aggregate") !== (request.kind === "categories"))
+    throw new HonuaNlMapControlError("refusal", "Query kind does not match the reviewed result kind.");
+  const previous = context?.previousQuery;
+  if (previous) {
+    const retained = new Set(conjuncts(compiled.query.filter));
+    if (conjuncts(previous.filter).some((filter) => !retained.has(filter)))
+      throw new HonuaNlMapControlError(
+        "refusal",
+        "Refinement must retain every previous filter predicate, ANDed with the new predicate. Start a new question to change scope.",
+      );
+    if (previous.kind === "aggregate" && compiled.query.kind !== "aggregate")
+      throw new HonuaNlMapControlError(
+        "refusal",
+        "Refinement must retain the previous grouped count by kind. Start a new question to change grouping.",
+      );
   }
-  return INCIDENTS.length;
+  const featureQuery =
+    compiled.query.kind === "aggregate"
+      ? compile({
+          kind: "features",
+          filter: compiled.query.filter,
+          geometry: "omit",
+          select: ["id", "status", "kind"],
+          page: { kind: "first", limit: 100 },
+        })
+      : compiled;
+  return { compiled, featureQuery };
 }
-
-/**
- * A small HonuaAgentRuntime adapter over a live MapLibre map: this is the
- * "map host" the NL layer's plans execute against.
- */
-export function createMapLibreAgentRuntime(
-  map: maplibregl.Map,
-  onEffect: (description: string) => void,
+export function createIncidentRuntime(
+  driver: DuckDbDriver,
+  context: QueryContext,
+  signal: AbortSignal,
 ): HonuaAgentRuntime {
-  let selection: FeatureSelectionTarget[] = [];
   return {
-    id: "nl-map-control-demo",
-    listSources: () => SOURCES,
-    listLayers: (): HonuaAgentLayerSummary[] =>
-      map.getStyle().layers.map((layer) => ({
-        id: layer.id,
-        type: layer.type,
-        sourceId: "source" in layer && typeof layer.source === "string" ? layer.source : undefined,
-        visible: true,
-      })),
-    getViewport: (): HonuaAgentViewport => {
-      const center = map.getCenter();
-      return { center: [center.lng, center.lat], zoom: map.getZoom() };
-    },
-    getSelection: () => selection,
-    setViewport: (viewport) => {
-      if (viewport.bbox) {
-        map.fitBounds(
-          [
-            [viewport.bbox[0], viewport.bbox[1]],
-            [viewport.bbox[2], viewport.bbox[3]],
-          ],
-          { animate: false },
-        );
-      } else {
-        map.jumpTo({
-          ...(viewport.center ? { center: [viewport.center[0], viewport.center[1]] } : {}),
-          ...(viewport.zoom !== undefined ? { zoom: viewport.zoom } : {}),
-          ...(viewport.pitch !== undefined ? { pitch: viewport.pitch } : {}),
-          ...(viewport.bearing !== undefined ? { bearing: viewport.bearing } : {}),
+    id: "ask-map-fixture",
+    listSources: () => [
+      {
+        id: "incidents",
+        title: "Incident fixtures — projected metres, EPSG:3857",
+        protocol: "geoparquet",
+        capabilities: ["query", "queryAggregate"],
+        metadata: {
+          schema: SCHEMA,
+          sourceVersion: FIXTURE_VERSION,
+          authorization: context.authorizationContextId,
+          capturedContext: context,
+          supported:
+            "read-only features, attribute filters, bbox, polygon, planar metre distance, aggregation; no dates or geodesic distance",
+          maxRows: 100,
+        },
+      },
+    ],
+    async runSemanticWidgetQuery(request) {
+      const { compiled, featureQuery } = reviewQuery(request, context);
+      async function run(artifact: typeof compiled.artifact) {
+        signal.throwIfAborted();
+        const sql = artifact.sqlTemplate.replace("honua-resource://resolve-at-execution", "ask-map-incidents.parquet");
+        const rows = await driver.query(sql, {
+          signal,
+          parameters: artifact.parameters.map((parameter) => parameter.value),
         });
+        signal.throwIfAborted();
+        if (rows.length > 100) throw new Error("The query exceeded its row bound.");
+        return rows.map((row) =>
+          Object.fromEntries(
+            Object.entries(row).map(([key, value]) => [
+              key,
+              typeof value === "bigint" && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value,
+            ]),
+          ),
+        );
       }
-      onEffect(`setViewport → ${JSON.stringify(viewport)}`);
-      return viewport;
-    },
-    setFilter: (id, clause) => {
-      const expression = clause ? filterExpression(clause) : null;
-      map.setFilter("incidents-circles", expression);
-      onEffect(clause ? `setFilter "${id}" → ${JSON.stringify(clause)}` : `setFilter "${id}" cleared`);
-      return { id };
-    },
-    addLayer: (layer, beforeId) => {
-      map.addLayer(layer as unknown as maplibregl.LayerSpecification, beforeId);
-      onEffect(`addLayer → ${String(layer.id ?? "layer")}`);
-      return layer;
-    },
-    selectFeature: (target, options) => {
-      selection = options?.replace === false ? [...selection, target] : [target];
-      onEffect(`selectFeature → ${JSON.stringify(target)}`);
-      return selection;
-    },
-    runWidgetQuery: (request): HonuaAgentWidgetQueryResult => {
-      const count = countIncidents(request);
-      onEffect(`runWidgetQuery ${request.kind} on "${request.sourceId}" → ${count}`);
-      return { sourceId: request.sourceId, kind: request.kind, data: { count } };
+      const rows = await run(compiled.artifact);
+      const features = compiled.query.kind === "aggregate" ? await run(featureQuery.artifact) : rows;
+      return {
+        sourceId: "incidents",
+        kind: request.kind,
+        data: {
+          features,
+          ...(compiled.query.kind === "aggregate" ? { groups: rows } : {}),
+          queries: [compiled.artifact, ...(compiled.query.kind === "aggregate" ? [featureQuery.artifact] : [])],
+        } satisfies Omit<QueryResult, "features"> & { features: typeof features },
+      };
     },
   };
 }

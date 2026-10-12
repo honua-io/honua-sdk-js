@@ -1,0 +1,790 @@
+{
+  "provider": "https://bedrock-runtime.us-west-2.amazonaws.com",
+  "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "actualModel": "anthropic.claude-haiku-4-5-20251001-v1:0",
+  "adapterSha256": "49f09fed535eb8dad54c79a71405f120aaae89c559fdf0ff9c15275c5db6f845",
+  "adapterFiles": [
+    "invoke.py",
+    "run.mjs"
+  ],
+  "credentials": "existing AWS ambient credential chain; never read or exported",
+  "calls": [
+    {
+      "requestId": "cfb547bc-0142-4f2c-8665-9433a079a3bc",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3447,
+      "usage": {
+        "input_tokens": 4524,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 198,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "filter": {
+                "kind": "comparison",
+                "operator": "eq",
+                "left": {
+                  "kind": "property",
+                  "name": "status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "open"
+                }
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "5c803c1a-1070-440d-86dc-a2c330ad04a5",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3183,
+      "usage": {
+        "input_tokens": 4524,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 198,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "filter": {
+                "kind": "comparison",
+                "operator": "eq",
+                "left": {
+                  "kind": "property",
+                  "name": "status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "open"
+                }
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "69099d4f-39ff-458c-ac72-c60a3c651537",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2099,
+      "usage": {
+        "input_tokens": 4744,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 82,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "categories",
+            "field": "kind",
+            "metric": "count"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "02396ad4-0e29-470d-bb08-be92921a19fe",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2167,
+      "usage": {
+        "input_tokens": 4849,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 140,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "aggregate",
+              "groupBy": [
+                "kind"
+              ],
+              "metrics": [
+                {
+                  "fn": "count",
+                  "as": "count"
+                }
+              ],
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "83be1065-60ab-46d4-afdb-cd85b68ea9b7",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2317,
+      "usage": {
+        "input_tokens": 4914,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 82,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "categories",
+            "field": "kind",
+            "metric": "count"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "16e13a73-aef8-4a7a-bd4f-73d8793c52b3",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 4133,
+      "usage": {
+        "input_tokens": 4564,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 370,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "filter": {
+                "kind": "spatial",
+                "operator": "within-distance",
+                "geometry": {
+                  "state": "present",
+                  "layout": "xy",
+                  "crs": {
+                    "definition": {
+                      "kind": "authority",
+                      "authority": "EPSG",
+                      "code": "3857"
+                    },
+                    "coordinateOrder": {
+                      "state": "known",
+                      "source": "encoding",
+                      "axes": [
+                        {
+                          "name": "easting",
+                          "direction": "east",
+                          "unit": "metre"
+                        },
+                        {
+                          "name": "northing",
+                          "direction": "north",
+                          "unit": "metre"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "method": "declared"
+                    }
+                  },
+                  "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                      -13618288,
+                      6046761
+                    ]
+                  }
+                },
+                "distance": {
+                  "value": 500,
+                  "unit": "metre",
+                  "mode": "planar"
+                }
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "04b14245-19fc-4366-b0ac-a43224a66c1b",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3853,
+      "usage": {
+        "input_tokens": 5019,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 505,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "filter": {
+                "kind": "spatial",
+                "operator": "within-distance",
+                "geometry": {
+                  "state": "present",
+                  "layout": "xy",
+                  "crs": {
+                    "definition": {
+                      "kind": "authority",
+                      "authority": "EPSG",
+                      "code": "3857",
+                      "definitionAxisOrder": {
+                        "state": "known",
+                        "source": "crs-definition",
+                        "axes": [
+                          {
+                            "name": "easting",
+                            "direction": "east",
+                            "unit": "metre"
+                          },
+                          {
+                            "name": "northing",
+                            "direction": "north",
+                            "unit": "metre"
+                          }
+                        ]
+                      }
+                    },
+                    "coordinateOrder": {
+                      "state": "known",
+                      "source": "encoding",
+                      "axes": [
+                        {
+                          "name": "easting",
+                          "direction": "east",
+                          "unit": "metre"
+                        },
+                        {
+                          "name": "northing",
+                          "direction": "north",
+                          "unit": "metre"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "method": "declared"
+                    }
+                  },
+                  "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                      -13618288,
+                      6046761
+                    ]
+                  }
+                },
+                "distance": {
+                  "value": 500,
+                  "unit": "metre",
+                  "mode": "planar"
+                }
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "492a4f91-c2cb-4f97-8153-a2fe167d45bb",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 4147,
+      "usage": {
+        "input_tokens": 4556,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 364,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "filter": {
+                "kind": "spatial",
+                "operator": "bbox-intersects",
+                "bbox": {
+                  "box": {
+                    "layout": "xy",
+                    "bounds": [
+                      -13618787,
+                      6046661,
+                      -13617988,
+                      6047161
+                    ]
+                  },
+                  "crs": {
+                    "definition": {
+                      "kind": "authority",
+                      "authority": "EPSG",
+                      "code": "3857"
+                    },
+                    "coordinateOrder": {
+                      "state": "known",
+                      "source": "encoding",
+                      "axes": [
+                        {
+                          "name": "easting",
+                          "direction": "east",
+                          "unit": "metre"
+                        },
+                        {
+                          "name": "northing",
+                          "direction": "north",
+                          "unit": "metre"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "method": "declared"
+                    }
+                  }
+                }
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "2e249757-5b8b-45a2-811f-410ced106ada",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 4509,
+      "usage": {
+        "input_tokens": 4977,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 364,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "filter": {
+                "kind": "spatial",
+                "operator": "bbox-intersects",
+                "bbox": {
+                  "box": {
+                    "layout": "xy",
+                    "bounds": [
+                      -13618787,
+                      6046661,
+                      -13617988,
+                      6047161
+                    ]
+                  },
+                  "crs": {
+                    "definition": {
+                      "kind": "authority",
+                      "authority": "EPSG",
+                      "code": "3857"
+                    },
+                    "coordinateOrder": {
+                      "state": "known",
+                      "source": "encoding",
+                      "axes": [
+                        {
+                          "name": "easting",
+                          "direction": "east",
+                          "unit": "metre"
+                        },
+                        {
+                          "name": "northing",
+                          "direction": "north",
+                          "unit": "metre"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "method": "declared"
+                    }
+                  }
+                }
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "0e174c4d-760a-48cd-96d5-2dc54ca14e98",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3394,
+      "usage": {
+        "input_tokens": 4977,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 364,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "filter": {
+                "kind": "spatial",
+                "operator": "bbox-intersects",
+                "bbox": {
+                  "box": {
+                    "layout": "xy",
+                    "bounds": [
+                      -13618787,
+                      6046661,
+                      -13617988,
+                      6047161
+                    ]
+                  },
+                  "crs": {
+                    "definition": {
+                      "kind": "authority",
+                      "authority": "EPSG",
+                      "code": "3857"
+                    },
+                    "coordinateOrder": {
+                      "state": "known",
+                      "source": "encoding",
+                      "axes": [
+                        {
+                          "name": "easting",
+                          "direction": "east",
+                          "unit": "metre"
+                        },
+                        {
+                          "name": "northing",
+                          "direction": "north",
+                          "unit": "metre"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "method": "declared"
+                    }
+                  }
+                }
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "6f8a98bc-1dbf-48ea-8b91-39d4bf803b1f",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 1987,
+      "usage": {
+        "input_tokens": 4751,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 67,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "clarify",
+          "arguments": {
+            "question": "What is the selected location? Please provide coordinates in EPSG:3857 (easting, northing) or describe the location so I can query incidents within 500 metres of it."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "072ec745-4b5e-49dd-befa-d3eea9ba13af",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2361,
+      "usage": {
+        "input_tokens": 4521,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 86,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "clarify",
+          "arguments": {
+            "question": "To show incidents nearby, I need to know: what is your current location or selected point? Please provide coordinates in EPSG:3857 (Web Mercator) or describe the location, and optionally specify a search distance in metres (default would be reasonable if not specified)."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "73a7bef4-57e7-4c2c-8b1c-38a7b9664651",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2370,
+      "usage": {
+        "input_tokens": 4522,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 69,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "refuse",
+          "arguments": {
+            "reason": "The incidents source does not support temporal queries. According to the source metadata, temporal filtering is not available (\"temporal\": {\"state\": \"none\"}). I cannot filter incidents by date or time, including yesterday's incidents."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "bd9740c8-3ac7-41d3-967c-4859542c50b3",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3325,
+      "usage": {
+        "input_tokens": 4521,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 117,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "refuse",
+          "arguments": {
+            "reason": "Arbitrary SQL queries are not supported. This SDK only supports schema-grounded semantic queries through the runWidgetQuery function. These queries are read-only and designed for safe, structured data access. If you need to query the incident data, I can help you with: count queries, categories/aggregations, histograms, ranges, top-values, time-series, or feature queries. Please specify what data you'd like to retrieve."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "11ba9c1d-3391-4627-9c49-fa58b886d91f",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3212,
+      "usage": {
+        "input_tokens": 4536,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 206,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "filter": {
+                "kind": "comparison",
+                "operator": "eq",
+                "left": {
+                  "kind": "property",
+                  "name": "status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "open' OR 1=1 --"
+                }
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    }
+  ]
+}

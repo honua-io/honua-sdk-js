@@ -1,0 +1,270 @@
+{
+  "startedAt": "2026-10-12T17:23:56.977Z",
+  "completedAt": "2026-10-12T17:27:58.037Z",
+  "provider": "https://bedrock-runtime.us-west-2.amazonaws.com",
+  "requestedProfile": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+  "expectedModel": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+  "actualModels": [
+    "claude-sonnet-4-5-20250929"
+  ],
+  "adapterSha256": "b5dffb5f2df50aa5a64b83b0bb24c870dccaea2d6dce3a79fffde0650cd52a0e",
+  "adapterFiles": [
+    "invoke.py",
+    "run.mjs"
+  ],
+  "credentials": "existing AWS ambient credential chain; never read or exported",
+  "calls": [
+    {
+      "requestId": "47f7f3dd-4208-400f-a7b6-60f1e239c0a1",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 6673,
+      "usage": {
+        "input_tokens": 6125,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 585
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": "{\n  \"kind\": \"features\",\n  \"geometry\": \"omit\",\n  \"select\": [\"id\", \"status\", \"kind\"],\n  \"filter\": {\n    \"kind\": \"boolean\",\n    \"operator\": \"and\",\n    \"args\": [\n      {\n        \"kind\": \"spatial\",\n        \"operator\": \"bbox-intersects\",\n        \"bbox\": {\n          \"box\": {\n            \"layout\": \"xy\",\n            \"bounds\": [-13619388, 6045661, -13617188, 6047861]\n          },\n          \"crs\": {\n            \"definition\": {\n              \"kind\": \"authority\",\n              \"authority\": \"EPSG\",\n              \"code\": \"3857\",\n              \"definitionAxisOrder\": {\n                \"state\": \"known\",\n                \"source\": \"crs-definition\",\n                \"axes\": [\n                  {\n                    \"name\": \"easting\",\n                    \"direction\": \"east\",\n                    \"unit\": \"metre\"\n                  },\n                  {\n                    \"name\": \"northing\",\n                    \"direction\": \"north\",\n                    \"unit\": \"metre\"\n                  }\n                ]\n              }\n            },\n            \"coordinateOrder\": {\n              \"state\": \"known\",\n              \"source\": \"encoding\",\n              \"axes\": [\n                {\n                  \"name\": \"easting\",\n                  \"direction\": \"east\",\n                  \"unit\": \"metre\"\n                },\n                {\n                  \"name\": \"northing\",\n                  \"direction\": \"north\",\n                  \"unit\": \"metre\"\n                }\n              ]\n            },\n            \"provenance\": {\n              \"method\": \"declared\"\n            }\n          }\n        }\n      },\n      {\n        \"kind\": \"comparison\",\n        \"operator\": \"eq\",\n        \"left\": {\n          \"kind\": \"property\",\n          \"name\": \"status\"\n        },\n        \"right\": {\n          \"kind\": \"literal\",\n          \"value\": \"open\"\n        }\n      }\n    ]\n  },\n  \"page\": {\n    \"kind\": \"first\",\n    \"limit\": 100\n  }\n}"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "1b1bcd3c-371d-4a56-9697-e08f30a806ff",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 6684,
+      "usage": {
+        "input_tokens": 6125,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 585
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": "{\n  \"kind\": \"features\",\n  \"geometry\": \"omit\",\n  \"select\": [\"id\", \"status\", \"kind\"],\n  \"filter\": {\n    \"kind\": \"boolean\",\n    \"operator\": \"and\",\n    \"args\": [\n      {\n        \"kind\": \"spatial\",\n        \"operator\": \"bbox-intersects\",\n        \"bbox\": {\n          \"box\": {\n            \"layout\": \"xy\",\n            \"bounds\": [-13618188, 6046661, -13617288, 6047761]\n          },\n          \"crs\": {\n            \"definition\": {\n              \"kind\": \"authority\",\n              \"authority\": \"EPSG\",\n              \"code\": \"3857\",\n              \"definitionAxisOrder\": {\n                \"state\": \"known\",\n                \"source\": \"crs-definition\",\n                \"axes\": [\n                  {\n                    \"name\": \"easting\",\n                    \"direction\": \"east\",\n                    \"unit\": \"metre\"\n                  },\n                  {\n                    \"name\": \"northing\",\n                    \"direction\": \"north\",\n                    \"unit\": \"metre\"\n                  }\n                ]\n              }\n            },\n            \"coordinateOrder\": {\n              \"state\": \"known\",\n              \"source\": \"encoding\",\n              \"axes\": [\n                {\n                  \"name\": \"easting\",\n                  \"direction\": \"east\",\n                  \"unit\": \"metre\"\n                },\n                {\n                  \"name\": \"northing\",\n                  \"direction\": \"north\",\n                  \"unit\": \"metre\"\n                }\n              ]\n            },\n            \"provenance\": {\n              \"method\": \"declared\"\n            }\n          }\n        }\n      },\n      {\n        \"kind\": \"comparison\",\n        \"operator\": \"eq\",\n        \"left\": {\n          \"kind\": \"property\",\n          \"name\": \"status\"\n        },\n        \"right\": {\n          \"kind\": \"literal\",\n          \"value\": \"open\"\n        }\n      }\n    ]\n  },\n  \"page\": {\n    \"kind\": \"first\",\n    \"limit\": 100\n  }\n}"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "1fe624e1-22da-437b-9e89-dda0ce9f5941",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 5922,
+      "usage": {
+        "input_tokens": 6123,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 464
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "categories",
+            "semanticQuery": "{\n  \"kind\": \"aggregate\",\n  \"groupBy\": [\"kind\"],\n  \"metrics\": [{\"fn\": \"count\", \"as\": \"count\"}],\n  \"filter\": {\n    \"kind\": \"spatial\",\n    \"operator\": \"bbox-intersects\",\n    \"bbox\": {\n      \"box\": {\n        \"layout\": \"xy\",\n        \"bounds\": [-13619388, 6045661, -13617188, 6047861]\n      },\n      \"crs\": {\n        \"definition\": {\n          \"kind\": \"authority\",\n          \"authority\": \"EPSG\",\n          \"code\": \"3857\",\n          \"definitionAxisOrder\": {\n            \"state\": \"known\",\n            \"source\": \"crs-definition\",\n            \"axes\": [\n              {\n                \"name\": \"easting\",\n                \"direction\": \"east\",\n                \"unit\": \"metre\"\n              },\n              {\n                \"name\": \"northing\",\n                \"direction\": \"north\",\n                \"unit\": \"metre\"\n              }\n            ]\n          }\n        },\n        \"coordinateOrder\": {\n          \"state\": \"known\",\n          \"source\": \"encoding\",\n          \"axes\": [\n            {\n              \"name\": \"easting\",\n              \"direction\": \"east\",\n              \"unit\": \"metre\"\n            },\n            {\n              \"name\": \"northing\",\n              \"direction\": \"north\",\n              \"unit\": \"metre\"\n            }\n          ]\n        },\n        \"provenance\": {\n          \"method\": \"declared\"\n        }\n      }\n    }\n  },\n  \"page\": {\"kind\": \"first\", \"limit\": 100}\n}"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "674f6b87-76d3-4ee0-a9d5-30d19e638158",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 5998,
+      "usage": {
+        "input_tokens": 6165,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 505
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": "{\n  \"kind\": \"features\",\n  \"geometry\": \"omit\",\n  \"select\": [\"id\", \"status\", \"kind\"],\n  \"filter\": {\n    \"kind\": \"spatial\",\n    \"operator\": \"within-distance\",\n    \"geometry\": {\n      \"state\": \"present\",\n      \"layout\": \"xy\",\n      \"crs\": {\n        \"definition\": {\n          \"kind\": \"authority\",\n          \"authority\": \"EPSG\",\n          \"code\": \"3857\",\n          \"definitionAxisOrder\": {\n            \"state\": \"known\",\n            \"source\": \"crs-definition\",\n            \"axes\": [\n              {\n                \"name\": \"easting\",\n                \"direction\": \"east\",\n                \"unit\": \"metre\"\n              },\n              {\n                \"name\": \"northing\",\n                \"direction\": \"north\",\n                \"unit\": \"metre\"\n              }\n            ]\n          }\n        },\n        \"coordinateOrder\": {\n          \"state\": \"known\",\n          \"source\": \"encoding\",\n          \"axes\": [\n            {\n              \"name\": \"easting\",\n              \"direction\": \"east\",\n              \"unit\": \"metre\"\n            },\n            {\n              \"name\": \"northing\",\n              \"direction\": \"north\",\n              \"unit\": \"metre\"\n            }\n          ]\n        },\n        \"provenance\": {\n          \"method\": \"declared\"\n        }\n      },\n      \"geometry\": {\n        \"type\": \"Point\",\n        \"coordinates\": [-13618288, 6046761]\n      }\n    },\n    \"distance\": {\n      \"value\": 500,\n      \"unit\": \"metre\",\n      \"mode\": \"planar\"\n    }\n  },\n  \"page\": {\n    \"kind\": \"first\",\n    \"limit\": 100\n  }\n}"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "480360ad-de63-48d7-9b76-e27703b2759c",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 5775,
+      "usage": {
+        "input_tokens": 6157,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 466
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": "{\n  \"kind\": \"features\",\n  \"geometry\": \"omit\",\n  \"select\": [\"id\", \"status\", \"kind\"],\n  \"filter\": {\n    \"kind\": \"spatial\",\n    \"operator\": \"bbox-intersects\",\n    \"bbox\": {\n      \"box\": {\n        \"layout\": \"xy\",\n        \"bounds\": [-13618787, 6046661, -13617988, 6047161]\n      },\n      \"crs\": {\n        \"definition\": {\n          \"kind\": \"authority\",\n          \"authority\": \"EPSG\",\n          \"code\": \"3857\",\n          \"definitionAxisOrder\": {\n            \"state\": \"known\",\n            \"source\": \"crs-definition\",\n            \"axes\": [\n              {\n                \"name\": \"easting\",\n                \"direction\": \"east\",\n                \"unit\": \"metre\"\n              },\n              {\n                \"name\": \"northing\",\n                \"direction\": \"north\",\n                \"unit\": \"metre\"\n              }\n            ]\n          }\n        },\n        \"coordinateOrder\": {\n          \"state\": \"known\",\n          \"source\": \"encoding\",\n          \"axes\": [\n            {\n              \"name\": \"easting\",\n              \"direction\": \"east\",\n              \"unit\": \"metre\"\n            },\n            {\n              \"name\": \"northing\",\n              \"direction\": \"north\",\n              \"unit\": \"metre\"\n            }\n          ]\n        },\n        \"provenance\": {\n          \"method\": \"declared\"\n        }\n      }\n    }\n  },\n  \"page\": {\n    \"kind\": \"first\",\n    \"limit\": 100\n  }\n}"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "3b8fde23-cf53-4c68-98a3-8f41a8357e3d",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 3506,
+      "usage": {
+        "input_tokens": 6130,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 70
+      },
+      "toolCalls": [
+        {
+          "name": "clarify",
+          "arguments": {
+            "question": "I need to know the selected location coordinates to create a 500-metre distance filter. Could you please provide the location (as EPSG:3857 coordinates) or select a point on the map?"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "e5347ae5-a779-4252-b3b2-efc9406daa3a",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 4825,
+      "usage": {
+        "input_tokens": 6122,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 117
+      },
+      "toolCalls": [
+        {
+          "name": "clarify",
+          "arguments": {
+            "question": "To show incidents nearby, I need to know:\n1. A specific location (point) to search around - what location would you like to use as the center?\n2. How far around that location should I search (distance in metres)?\n\nFor example, you could provide coordinates in EPSG:3857 format, or describe a location, along with a distance like \"500 metres\" or \"1000 metres\"."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "51b17e11-5c36-4eb9-8110-0dfdade3021d",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 5031,
+      "usage": {
+        "input_tokens": 6123,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 113
+      },
+      "toolCalls": [
+        {
+          "name": "refuse",
+          "arguments": {
+            "reason": "The incidents source does not support temporal/date filtering. According to the schema, the temporal state is \"none\", and the source metadata explicitly states \"no dates\" are supported. The available fields are: id, kind, shape (geometry), and status - none of which contain date or time information. To filter incidents, you can use the available fields like status or kind, or apply spatial filters (bbox, distance, polygon)."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "001c4406-4b18-48de-a976-39ce6f9477e2",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 9041,
+      "usage": {
+        "input_tokens": 6122,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 100
+      },
+      "toolCalls": [
+        {
+          "name": "refuse",
+          "arguments": {
+            "reason": "Arbitrary SQL execution is not supported. The system only allows read-only semantic queries through the structured query API. You can query incidents using filters on fields like 'status', 'kind', and 'id', apply spatial filters (bbox, distance, polygon intersections), and perform aggregations. All queries must use the predefined schema and semantic query structure."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "0a8e99eb-bcac-445e-885f-8c97d589a682",
+      "model": "claude-sonnet-4-5-20250929",
+      "elapsedMs": 3637,
+      "usage": {
+        "input_tokens": 6137,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 206
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": "{\n  \"kind\": \"features\",\n  \"geometry\": \"omit\",\n  \"select\": [\"id\", \"status\", \"kind\"],\n  \"filter\": {\n    \"kind\": \"comparison\",\n    \"operator\": \"eq\",\n    \"left\": {\n      \"kind\": \"property\",\n      \"name\": \"status\"\n    },\n    \"right\": {\n      \"kind\": \"literal\",\n      \"value\": \"open' OR 1=1 --\"\n    }\n  },\n  \"page\": {\n    \"kind\": \"first\",\n    \"limit\": 100\n  }\n}"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    }
+  ]
+}

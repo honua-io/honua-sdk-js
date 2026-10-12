@@ -1,205 +1,233 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../shared/maplibre-vite-worker.js";
-
-import * as maplibregl from "maplibre-gl";
-
-import type { AgentEnvelopeSigner, AgentEnvelopeVerifier } from "@honua/sdk-js/agent-safety";
+import type { HonuaAgentWidgetQueryRequest } from "@honua/sdk-js/agent-tools";
 import {
-  type NlMapPlan,
-  type NlRecordedExchange,
-  approveNlMapPlan,
+  type AskMapState,
+  createAskMapSession,
   createNlMapControl,
-  createRecordedNlLlm,
-  nlMapRuntimeBinding,
+  mountAskMapControl,
 } from "@honua/sdk-js/nl-map-control";
-import { sha256 } from "@honua/sdk-js/query-planner";
-
-import recordedCompletions from "../../../test/fixtures/nl-map-control/recorded-completions.json";
-import { createMapLibreAgentRuntime, incidentsGeoJson } from "./map-runtime.js";
-
+import * as maplibregl from "maplibre-gl";
+import { createBrowserDuckDbDriver } from "../../../src/geoparquet/driver.js";
+import { FIXTURE_VERSION, INCIDENTS, ORIGIN, SCHEMA, geographic, incidentsGeoJson, projected } from "./fixture.js";
+import { type QueryResult, createIncidentRuntime, initializeFixture, reviewQuery } from "./map-runtime.js";
+import { SUGGESTIONS, authenticatedLiveModel, groundedModel, recordedModel } from "./model.js";
+import { type IncidentQuery, type QueryContext, describeQuery } from "./query.js";
 import "./styles.css";
 
-type ScenarioName = "viewport-filter" | "read-only-count" | "self-correction-unknown-tool";
-
-const RECORDED = recordedCompletions as unknown as {
-  readonly scenarios: Readonly<Record<string, readonly NlRecordedExchange[]>>;
-};
-
-// Demo-only envelope crypto. A real host signs approvals with its own keys
-// (WebCrypto / KMS); the SDK only sees the signer/verifier callbacks.
-const DEMO_SECRET = "nl-map-control-demo";
-const demoSigner: AgentEnvelopeSigner = {
-  algorithm: "demo-sha256",
-  keyId: "demo-key-1",
-  sign: async (payload) => sha256(`${DEMO_SECRET}:${payload}`),
-};
-const demoVerifier: AgentEnvelopeVerifier = {
-  algorithm: "demo-sha256",
-  keyId: "demo-key-1",
-  verify: async (payload, signature) => signature === sha256(`${DEMO_SECRET}:${payload}`),
-};
-
 function element<T extends HTMLElement>(id: string): T {
-  const found = document.getElementById(id);
-  if (!found) throw new Error(`Missing #${id}`);
-  return found as T;
+  const value = document.getElementById(id);
+  if (!value) throw new Error(`Missing ${id}`);
+  return value as T;
 }
-
-const instructionSelect = element<HTMLSelectElement>("instruction");
-const proposeButton = element<HTMLButtonElement>("propose");
-const approveButton = element<HTMLButtonElement>("approve");
-const rejectButton = element<HTMLButtonElement>("reject");
-const statusLine = element<HTMLParagraphElement>("status");
-const planPane = element<HTMLPreElement>("plan-json");
-const receiptPane = element<HTMLPreElement>("receipt-json");
-
-const DEFAULT_BASEMAP_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {},
-  layers: [
-    {
-      id: "background",
-      type: "background",
-      paint: { "background-color": "#d9e7df" },
-    },
-  ],
-};
-const BASEMAP_STYLE = import.meta.env.VITE_HONUA_NL_MAP_CONTROL_BASEMAP_STYLE ?? DEFAULT_BASEMAP_STYLE;
-
-const effects: string[] = [];
-function setStatus(text: string): void {
-  statusLine.textContent = text;
-}
-
+const startup = element("startup");
+const mode = element<HTMLSelectElement>("mode");
+const results = element("results");
+const groupResults = element("groups");
+const location = element("location");
 const map = new maplibregl.Map({
   container: "map",
   attributionControl: false,
-  style: BASEMAP_STYLE,
-  center: [-122.3321, 47.6062],
-  zoom: 10.5,
+  style: {
+    version: 8,
+    sources: {},
+    layers: [{ id: "background", type: "background", paint: { "background-color": "#d9e7df" } }],
+  },
+  center: geographic(...ORIGIN),
+  zoom: 14,
 });
-
-map.on("load", () => {
+/** Read-only observation for sample evidence; IDs come from rendered MapLibre features. */
+export function observeDisplayedIncidentIds(): number[] {
+  return [
+    ...new Set(
+      map.queryRenderedFeatures({ layers: ["incidents-circles"] }).map((feature) => Number(feature.properties?.id)),
+    ),
+  ].sort((a, b) => a - b);
+}
+let previousQuery: IncidentQuery | undefined;
+let selectedLocation: readonly [number, number] | undefined;
+let selectedId: number | undefined;
+let mounted: ReturnType<typeof mountAskMapControl> | undefined;
+const context = (): QueryContext => {
+  const bounds = map.getBounds();
+  const southwest = projected(bounds.getWest(), bounds.getSouth());
+  const northeast = projected(bounds.getEast(), bounds.getNorth());
+  return {
+    sourceId: "incidents",
+    sourceVersion: FIXTURE_VERSION,
+    schemaFingerprint: SCHEMA.fingerprint,
+    authorizationContextId: "public-fixture",
+    viewport: [...southwest, ...northeast],
+    ...(selectedLocation ? { selectedLocation } : {}),
+    ...(previousQuery ? { previousQuery } : {}),
+    mode: mode.value as "recorded" | "live",
+  };
+};
+async function start(): Promise<void> {
+  await new Promise<void>((resolve) => map.on("load", () => resolve()));
   map.addSource("incidents", { type: "geojson", data: incidentsGeoJson() });
   map.addLayer({
     id: "incidents-circles",
     type: "circle",
     source: "incidents",
     paint: {
-      "circle-radius": 8,
-      "circle-color": ["match", ["get", "status"], "open", "#ff5f45", "#3fb1ce"],
-      "circle-stroke-color": "#eaf6ff",
-      "circle-stroke-width": 1.5,
+      "circle-radius": 9,
+      "circle-color": ["match", ["get", "status"], "open", "#db452d", "#288598"],
+      "circle-stroke-color": "#fff",
+      "circle-stroke-width": 2,
     },
   });
-  setStatus("Map ready. Propose a plan — nothing executes without review.");
-});
-
-const runtime = createMapLibreAgentRuntime(map, (effect) => {
-  effects.push(effect);
-});
-
-let currentPlan: NlMapPlan | undefined;
-
-function controlFor(scenario: ScenarioName) {
-  const exchanges = RECORDED.scenarios[scenario];
-  if (!exchanges) throw new Error(`Missing recorded scenario "${scenario}"`);
-  return createNlMapControl({
-    tools: { runtime, context: { includeSafeExamples: false } },
-    // Fixture LLM: replays the committed recorded completions, so the demo is
-    // deterministic and needs no API key. Swap in any provider callback here.
-    llm: createRecordedNlLlm(exchanges),
-    policy: { actor: "demo-user@honua.io" },
-    approvalVerifier: demoVerifier,
+  element("full-view").addEventListener("click", () => map.jumpTo({ center: geographic(...ORIGIN), zoom: 14 }));
+  element("empty-view").addEventListener("click", () =>
+    map.jumpTo({ center: geographic(ORIGIN[0] + 20000, ORIGIN[1]), zoom: 14 }),
+  );
+  const driver = await createBrowserDuckDbDriver({
+    bundle: {
+      mainModule: new URL("duckdb/duckdb-eh.wasm", document.baseURI).href,
+      mainWorker: new URL("duckdb/duckdb-browser-eh.worker.js", document.baseURI).href,
+    },
+    extensionRepository: new URL("duckdb/extensions", document.baseURI).href,
+    preloadExtensions: ["parquet"],
+    loadSpatial: true,
   });
-}
-
-async function executeCurrentPlan(): Promise<void> {
-  const plan = currentPlan;
-  if (!plan) return;
-  const control = controlFor(instructionSelect.value as ScenarioName);
-  effects.length = 0;
-  if (plan.readOnly) {
-    const execution = await control.execute(plan);
-    receiptPane.textContent = JSON.stringify({ effects: [...effects], receipt: execution.receipt }, null, 2);
-    setStatus(`Read-only plan auto-executed under policy — outcome: ${execution.outcome}.`);
-    return;
-  }
-  const nowIso = new Date().toISOString();
-  const approval = await approveNlMapPlan({
-    plan,
-    actor: "demo-user@honua.io",
-    approver: "demo-operator@honua.io",
-    signer: demoSigner,
-    bindings: {
-      map: nlMapRuntimeBinding({ observedAt: nowIso }),
-      incidents: {
-        id: "incidents",
-        schemaVersion: "fixture-1",
-        sourceVersion: "fixture-1",
-        authorizationScope: ["incidents:read"],
-        provenance: {
-          dataMode: "replayed",
-          observedAt: nowIso,
-          attribution: "Honua demo fixture",
-          citations: [{ uri: "https://runtime.honua.io/demo/incidents" }],
+  await initializeFixture(driver);
+  const session = createAskMapSession({
+    context,
+    createControl(snapshot, signal) {
+      return createNlMapControl({
+        tools: {
+          runtime: createIncidentRuntime(driver, snapshot, signal),
+          tools: ["runWidgetQuery"],
+          context: { includeSafeExamples: false },
         },
-      },
+        llm: groundedModel(snapshot, snapshot.mode === "recorded" ? recordedModel(snapshot) : authenticatedLiveModel()),
+        policy: { maxSelfCorrections: 2, maxPlanSteps: 1 },
+        validateStep(call) {
+          try {
+            if (call.name !== "runWidgetQuery") throw new Error("Only read-only incident queries are admitted.");
+            reviewQuery(call.args, snapshot);
+            return [];
+          } catch (error) {
+            return [{ code: "capability-gap", message: error instanceof Error ? error.message : String(error) }];
+          }
+        },
+      });
     },
-    issuedAt: nowIso,
-    expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    review(plan, snapshot) {
+      const call = plan.steps[0]?.call;
+      if (call?.name !== "runWidgetQuery") throw new Error("Missing query.");
+      const { compiled, featureQuery } = reviewQuery(call.args, snapshot);
+      return {
+        summary: `Review ${compiled.query.kind === "aggregate" ? "grouped counts and matching features" : "matching incidents"} on ${FIXTURE_VERSION}: ${describeQuery(compiled.query)}. Captured viewport: ${snapshot.viewport.map((value) => value.toFixed(1)).join(", ")} in EPSG:3857. Distances are planar projected metres, not ground/geodesic metres. Moving the map invalidates this proposal.`,
+        details: {
+          dialect: "duckdb-sql",
+          executedResource: "ask-map-incidents.parquet",
+          query: compiled.query,
+          queries: [compiled.artifact, ...(compiled.query.kind === "aggregate" ? [featureQuery.artifact] : [])],
+        },
+      };
+    },
+    apply(execution) {
+      const data = execution.results[0]?.data as { data?: QueryResult } | undefined;
+      const result = data?.data;
+      if (!result || !Array.isArray(result.features)) throw new Error("Missing bounded feature results.");
+      const ids = result.features.map((row) => row.id);
+      map.setFilter("incidents-circles", ["in", ["get", "id"], ["literal", ids]]);
+      results.replaceChildren();
+      for (const feature of result.features) {
+        const row = document.createElement("tr");
+        row.dataset.featureId = String(feature.id);
+        row.dataset.selected = String(feature.id === selectedId);
+        for (const value of [feature.id, feature.status, feature.kind]) {
+          const cell = document.createElement("td");
+          cell.textContent = String(value);
+          row.append(cell);
+        }
+        const cell = document.createElement("td");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `Select incident ${feature.id}`;
+        button.setAttribute("aria-pressed", String(feature.id === selectedId));
+        button.addEventListener("click", () => select(feature.id));
+        cell.append(button);
+        row.append(cell);
+        results.append(row);
+      }
+      groupResults.textContent =
+        result.groups?.map((row) => `${String(row.kind)}: ${String(row.count)}`).join(" · ") ?? "No grouping";
+      // The accepted plan remains the source of refinement context; receipt data never rewrites it.
+      if (lastState.plan?.steps[0]?.call.name === "runWidgetQuery")
+        previousQuery = reviewQuery(lastState.plan.steps[0].call.args as HonuaAgentWidgetQueryRequest).compiled.query;
+      updateQueryContext();
+      return { count: ids.length };
+    },
+    onState(state) {
+      lastState = state;
+      mounted?.render(state);
+    },
+    timeoutMs: 15_000,
   });
-  const execution = await control.execute(plan, { approval });
-  receiptPane.textContent = JSON.stringify({ effects: [...effects], receipt: execution.receipt }, null, 2);
-  setStatus(
-    `Approved plan executed with a signed agent-safety envelope (digest ${approval.approval.envelopeDigest.slice(0, 23)}…) — outcome: ${execution.outcome}.`,
+  let lastState: AskMapState = session.state;
+  function select(id: number) {
+    const feature = INCIDENTS.find((row) => row.id === id);
+    if (!feature) return;
+    selectedId = id;
+    selectedLocation = [ORIGIN[0] + feature.x, ORIGIN[1] + feature.y];
+    for (const row of results.querySelectorAll<HTMLTableRowElement>("tr[data-feature-id]")) {
+      const selected = row.dataset.featureId === String(id);
+      row.dataset.selected = String(selected);
+      row.querySelector("button")?.setAttribute("aria-pressed", String(selected));
+    }
+    location.textContent = `Selected incident ${id}; EPSG:3857 ${selectedLocation.join(", ")}.`;
+    map.setPaintProperty("incidents-circles", "circle-stroke-color", [
+      "case",
+      ["==", ["get", "id"], id],
+      "#000",
+      "#fff",
+    ]);
+    session.invalidate();
+  }
+  map.on("click", "incidents-circles", (event) => {
+    const id = event.features?.[0]?.properties?.id;
+    if (typeof id === "number") select(id);
+  });
+  function updateQueryContext() {
+    element("query-context").textContent = previousQuery
+      ? "Refining the accepted query: its filters and grouping are retained. Start a new question to change scope."
+      : "New question: no previous query filters or grouping.";
+  }
+  function newQuestion() {
+    previousQuery = undefined;
+    session.invalidate();
+    updateQueryContext();
+  }
+  element("new-question").addEventListener("click", newQuestion);
+  map.on("movestart", newQuestion);
+  function mount() {
+    mounted = mountAskMapControl({
+      container: element("ask-control"),
+      session,
+      suggestions: SUGGESTIONS,
+      mode: mode.value as "recorded" | "live",
+    });
+    mounted.render(session.state);
+  }
+  mode.addEventListener("change", () => {
+    mounted?.dispose();
+    mount();
+  });
+  mount();
+  startup.textContent =
+    "Ready. Recorded mode uses exact suggestions; live mode requires a signed-in server-side model adapter.";
+  window.addEventListener(
+    "pagehide",
+    () => {
+      session.cancel();
+      void driver.close();
+    },
+    { once: true },
   );
 }
-
-proposeButton.addEventListener("click", () => {
-  const scenario = instructionSelect.value as ScenarioName;
-  const instruction = instructionSelect.selectedOptions[0]?.textContent?.trim() ?? "";
-  const control = controlFor(scenario);
-  proposeButton.disabled = true;
-  setStatus("Proposing… the recorded model compiles the instruction into a typed plan.");
-  control
-    .propose(instruction)
-    .then((plan) => {
-      currentPlan = plan;
-      planPane.textContent = JSON.stringify(plan, null, 2);
-      receiptPane.textContent = "—";
-      approveButton.disabled = false;
-      rejectButton.disabled = false;
-      approveButton.textContent = plan.readOnly ? "Execute (read-only, auto-approved)" : "Approve & execute";
-      setStatus(
-        plan.readOnly
-          ? `Plan ${plan.id} is read-only (${plan.steps.length} step(s)); policy allows direct execution.`
-          : `Plan ${plan.id} has effects [${plan.effects.join(", ")}] — a signed approval envelope is required.${
-              plan.attempt > 1 ? ` (Self-corrected: valid on attempt ${plan.attempt}.)` : ""
-            }`,
-      );
-    })
-    .catch((error: unknown) => {
-      setStatus(`Proposal failed: ${error instanceof Error ? error.message : String(error)}`);
-    })
-    .finally(() => {
-      proposeButton.disabled = false;
-    });
-});
-
-approveButton.addEventListener("click", () => {
-  approveButton.disabled = true;
-  rejectButton.disabled = true;
-  executeCurrentPlan().catch((error: unknown) => {
-    setStatus(`Execution failed: ${error instanceof Error ? error.message : String(error)}`);
-  });
-});
-
-rejectButton.addEventListener("click", () => {
-  currentPlan = undefined;
-  planPane.textContent = "—";
-  receiptPane.textContent = "—";
-  approveButton.disabled = true;
-  rejectButton.disabled = true;
-  setStatus("Plan rejected. Nothing was executed and no receipt was emitted.");
+start().catch((error: unknown) => {
+  startup.textContent = `Initialization failed: ${error instanceof Error ? error.message : String(error)}`;
 });

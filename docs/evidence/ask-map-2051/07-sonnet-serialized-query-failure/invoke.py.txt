@@ -1,0 +1,41 @@
+import json
+import sys
+
+import boto3
+from botocore.config import Config
+
+request = json.load(sys.stdin)
+messages = [message for message in request["messages"] if message["role"] != "system"]
+system = "\n".join(message["content"] for message in request["messages"] if message["role"] == "system")
+body = {
+    "anthropic_version": "bedrock-2023-05-31",
+    "max_tokens": request["max_tokens"],
+    "temperature": request["temperature"],
+    "system": system,
+    "messages": messages,
+    "tools": [
+        {"name": item["function"]["name"], "description": item["function"]["description"],
+         "input_schema": item["function"]["parameters"]}
+        for item in request["tools"]
+    ],
+    "tool_choice": {"type": "any", "disable_parallel_tool_use": True},
+}
+client = boto3.client("bedrock-runtime", region_name="us-west-2", config=Config(connect_timeout=4, read_timeout=11, retries={"max_attempts": 0}))
+try:
+    response = client.invoke_model(
+        modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        body=json.dumps(body), contentType="application/json", accept="application/json",
+    )
+    value = json.loads(response["body"].read())
+    print(json.dumps({
+        "model": value["model"],
+        "choices": [{"message": {"tool_calls": [
+            {"function": {"name": item["name"], "arguments": json.dumps(item["input"])}}
+            for item in value["content"] if item["type"] == "tool_use"
+        ]}}],
+        "providerRequestId": response["ResponseMetadata"]["RequestId"],
+        "usage": value.get("usage"),
+    }))
+except Exception as error:
+    print(json.dumps({"error": type(error).__name__, "detail": getattr(error, "response", {}).get("Error", {}), "requestId": getattr(error, "response", {}).get("ResponseMetadata", {}).get("RequestId")}), file=sys.stderr)
+    sys.exit(1)

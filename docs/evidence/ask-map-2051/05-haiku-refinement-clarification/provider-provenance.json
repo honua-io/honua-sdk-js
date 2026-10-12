@@ -1,0 +1,736 @@
+{
+  "startedAt": "2026-10-12T17:20:56.879Z",
+  "completedAt": "2026-10-12T17:22:44.115Z",
+  "provider": "https://bedrock-runtime.us-west-2.amazonaws.com",
+  "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "expectedModel": "anthropic.claude-haiku-4-5-20251001-v1:0",
+  "actualModels": [
+    "anthropic.claude-haiku-4-5-20251001-v1:0"
+  ],
+  "adapterSha256": "15b1398717c9e777713ca069b48ac51503d875db4e25e6d702a0761dcbb3dd5d",
+  "adapterFiles": [
+    "invoke.py",
+    "run.mjs"
+  ],
+  "credentials": "existing AWS ambient credential chain; never read or exported",
+  "calls": [
+    {
+      "requestId": "f4de63f0-834a-4122-a7fe-2cc86c65d5de",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 5649,
+      "usage": {
+        "input_tokens": 6125,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 495,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "page": {
+                "kind": "first",
+                "limit": 100
+              },
+              "filter": {
+                "kind": "boolean",
+                "operator": "and",
+                "args": [
+                  {
+                    "kind": "comparison",
+                    "operator": "eq",
+                    "left": {
+                      "kind": "property",
+                      "name": "status"
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "value": "open"
+                    }
+                  },
+                  {
+                    "kind": "spatial",
+                    "operator": "bbox-intersects",
+                    "bbox": {
+                      "box": {
+                        "layout": "xy",
+                        "bounds": [
+                          -13619388,
+                          6045661,
+                          -13617188,
+                          6047861
+                        ]
+                      },
+                      "crs": {
+                        "definition": {
+                          "kind": "authority",
+                          "authority": "EPSG",
+                          "code": "3857",
+                          "definitionAxisOrder": {
+                            "state": "known",
+                            "source": "crs-definition",
+                            "axes": [
+                              {
+                                "name": "easting",
+                                "direction": "east",
+                                "unit": "metre"
+                              },
+                              {
+                                "name": "northing",
+                                "direction": "north",
+                                "unit": "metre"
+                              }
+                            ]
+                          }
+                        },
+                        "coordinateOrder": {
+                          "state": "known",
+                          "source": "encoding",
+                          "axes": [
+                            {
+                              "name": "easting",
+                              "direction": "east",
+                              "unit": "metre"
+                            },
+                            {
+                              "name": "northing",
+                              "direction": "north",
+                              "unit": "metre"
+                            }
+                          ]
+                        },
+                        "provenance": {
+                          "method": "declared"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "a3dbb85e-7379-4d5b-bf82-9cff0302fa3c",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 4585,
+      "usage": {
+        "input_tokens": 6125,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 495,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "page": {
+                "kind": "first",
+                "limit": 100
+              },
+              "filter": {
+                "kind": "boolean",
+                "operator": "and",
+                "args": [
+                  {
+                    "kind": "comparison",
+                    "operator": "eq",
+                    "left": {
+                      "kind": "property",
+                      "name": "status"
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "value": "open"
+                    }
+                  },
+                  {
+                    "kind": "spatial",
+                    "operator": "bbox-intersects",
+                    "bbox": {
+                      "box": {
+                        "layout": "xy",
+                        "bounds": [
+                          -13618188,
+                          6046661,
+                          -13617288,
+                          6047761
+                        ]
+                      },
+                      "crs": {
+                        "definition": {
+                          "kind": "authority",
+                          "authority": "EPSG",
+                          "code": "3857",
+                          "definitionAxisOrder": {
+                            "state": "known",
+                            "source": "crs-definition",
+                            "axes": [
+                              {
+                                "name": "easting",
+                                "direction": "east",
+                                "unit": "metre"
+                              },
+                              {
+                                "name": "northing",
+                                "direction": "north",
+                                "unit": "metre"
+                              }
+                            ]
+                          }
+                        },
+                        "coordinateOrder": {
+                          "state": "known",
+                          "source": "encoding",
+                          "axes": [
+                            {
+                              "name": "easting",
+                              "direction": "east",
+                              "unit": "metre"
+                            },
+                            {
+                              "name": "northing",
+                              "direction": "north",
+                              "unit": "metre"
+                            }
+                          ]
+                        },
+                        "provenance": {
+                          "method": "declared"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "b7787fe9-c726-4103-95bc-92955fd2c0a8",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 5004,
+      "usage": {
+        "input_tokens": 6964,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 500,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "categories",
+            "semanticQuery": {
+              "kind": "aggregate",
+              "groupBy": [
+                "kind"
+              ],
+              "metrics": [
+                {
+                  "fn": "count",
+                  "as": "count"
+                }
+              ],
+              "filter": {
+                "kind": "boolean",
+                "operator": "and",
+                "args": [
+                  {
+                    "kind": "comparison",
+                    "operator": "eq",
+                    "left": {
+                      "kind": "property",
+                      "name": "status"
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "value": "open"
+                    }
+                  },
+                  {
+                    "kind": "spatial",
+                    "operator": "bbox-intersects",
+                    "bbox": {
+                      "box": {
+                        "layout": "xy",
+                        "bounds": [
+                          -13619388,
+                          6045661,
+                          -13617188,
+                          6047861
+                        ]
+                      },
+                      "crs": {
+                        "definition": {
+                          "kind": "authority",
+                          "authority": "EPSG",
+                          "code": "3857",
+                          "definitionAxisOrder": {
+                            "state": "known",
+                            "source": "crs-definition",
+                            "axes": [
+                              {
+                                "name": "easting",
+                                "direction": "east",
+                                "unit": "metre"
+                              },
+                              {
+                                "name": "northing",
+                                "direction": "north",
+                                "unit": "metre"
+                              }
+                            ]
+                          }
+                        },
+                        "coordinateOrder": {
+                          "state": "known",
+                          "source": "encoding",
+                          "axes": [
+                            {
+                              "name": "easting",
+                              "direction": "east",
+                              "unit": "metre"
+                            },
+                            {
+                              "name": "northing",
+                              "direction": "north",
+                              "unit": "metre"
+                            }
+                          ]
+                        },
+                        "provenance": {
+                          "method": "declared"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "page": {
+                "kind": "first",
+                "limit": 100
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "03ac8288-7c5f-420f-88e6-f97d4e64a4ee",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 4421,
+      "usage": {
+        "input_tokens": 7024,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 498,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "page": {
+                "kind": "first",
+                "limit": 100
+              },
+              "filter": {
+                "kind": "spatial",
+                "operator": "within-distance",
+                "geometry": {
+                  "state": "present",
+                  "layout": "xy",
+                  "crs": {
+                    "definition": {
+                      "kind": "authority",
+                      "authority": "EPSG",
+                      "code": "3857",
+                      "definitionAxisOrder": {
+                        "state": "known",
+                        "source": "crs-definition",
+                        "axes": [
+                          {
+                            "name": "easting",
+                            "direction": "east",
+                            "unit": "metre"
+                          },
+                          {
+                            "name": "northing",
+                            "direction": "north",
+                            "unit": "metre"
+                          }
+                        ]
+                      }
+                    },
+                    "coordinateOrder": {
+                      "state": "known",
+                      "source": "encoding",
+                      "axes": [
+                        {
+                          "name": "easting",
+                          "direction": "east",
+                          "unit": "metre"
+                        },
+                        {
+                          "name": "northing",
+                          "direction": "north",
+                          "unit": "metre"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "method": "declared"
+                    }
+                  },
+                  "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                      -13618288,
+                      6046761
+                    ]
+                  }
+                },
+                "distance": {
+                  "value": 500,
+                  "unit": "metre",
+                  "mode": "planar"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "d84a0671-e5fb-4d05-940a-4cb8c13b8d9d",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2464,
+      "usage": {
+        "input_tokens": 7582,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 84,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "clarify",
+          "arguments": {
+            "question": "Your previous query filtered incidents within 500 metres of the selected location. To refine this result, what additional filter would you like to apply? For example, would you like to filter by status (e.g., \"open\" or \"closed\") or by incident kind?"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "b77e2502-a2d0-4b3a-9cee-aef618a39b93",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 4448,
+      "usage": {
+        "input_tokens": 6157,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 459,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "page": {
+                "kind": "first",
+                "limit": 100
+              },
+              "filter": {
+                "kind": "spatial",
+                "operator": "bbox-intersects",
+                "bbox": {
+                  "box": {
+                    "layout": "xy",
+                    "bounds": [
+                      -13618787,
+                      6046661,
+                      -13617988,
+                      6047161
+                    ]
+                  },
+                  "crs": {
+                    "definition": {
+                      "kind": "authority",
+                      "authority": "EPSG",
+                      "code": "3857",
+                      "definitionAxisOrder": {
+                        "state": "known",
+                        "source": "crs-definition",
+                        "axes": [
+                          {
+                            "name": "easting",
+                            "direction": "east",
+                            "unit": "metre"
+                          },
+                          {
+                            "name": "northing",
+                            "direction": "north",
+                            "unit": "metre"
+                          }
+                        ]
+                      }
+                    },
+                    "coordinateOrder": {
+                      "state": "known",
+                      "source": "encoding",
+                      "axes": [
+                        {
+                          "name": "easting",
+                          "direction": "east",
+                          "unit": "metre"
+                        },
+                        {
+                          "name": "northing",
+                          "direction": "north",
+                          "unit": "metre"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "method": "declared"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "45d4a1a7-0c4d-4576-90e0-a720f9253a7d",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3277,
+      "usage": {
+        "input_tokens": 6971,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 72,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "clarify",
+          "arguments": {
+            "question": "What is the selected location? Please provide the coordinates in EPSG:3857 (easting, northing) format, or describe the location so I can help you query incidents within 500 metres of it."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "3950051f-47ea-441f-b6ca-df82ddd76b89",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2585,
+      "usage": {
+        "input_tokens": 6122,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 71,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "clarify",
+          "arguments": {
+            "question": "What location should I search nearby? Please provide either coordinates (in EPSG:3857 metres) or a description of the area. Also, what distance radius would you like me to search (in metres)?"
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "b27f89e4-9710-44e9-8c5e-b3b49516f6a2",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2429,
+      "usage": {
+        "input_tokens": 6123,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 71,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "refuse",
+          "arguments": {
+            "reason": "The incidents source does not support temporal queries. The schema metadata indicates \"temporal\": {\"state\": \"none\"}, meaning date-based filtering is not available. I cannot filter incidents by \"yesterday\" or any other date range."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "0fd822f4-ca62-4a58-bcab-b4736b9d860e",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2828,
+      "usage": {
+        "input_tokens": 6122,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 105,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "refuse",
+          "arguments": {
+            "reason": "Arbitrary SQL queries are not supported. This map interface only supports schema-grounded semantic queries through the Honua SDK. You can query the incidents source using read-only operations like feature queries (to retrieve specific records) or aggregate queries (to group and count data). Please specify what you'd like to find in the incident data, and I can help you construct the appropriate semantic query."
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "ac032228-1b58-4bfc-af5b-246d7e7c77a8",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2778,
+      "usage": {
+        "input_tokens": 6137,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 183,
+        "service_tier": "standard"
+      },
+      "toolCalls": [
+        {
+          "name": "runWidgetQuery",
+          "arguments": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "semanticQuery": {
+              "kind": "features",
+              "geometry": "omit",
+              "select": [
+                "id",
+                "status",
+                "kind"
+              ],
+              "page": {
+                "kind": "first",
+                "limit": 100
+              },
+              "filter": {
+                "kind": "comparison",
+                "operator": "eq",
+                "left": {
+                  "kind": "property",
+                  "name": "status"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": "open' OR 1=1 --"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "outcome": "provider-response"
+    }
+  ]
+}

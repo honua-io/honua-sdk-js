@@ -1,0 +1,158 @@
+{
+  "schema": "honua.ask-map-evaluation-result/v1",
+  "metrics": {
+    "supportedCorrect": 6,
+    "supportedTotal": 6,
+    "safeOutcomesCorrect": 4,
+    "safeOutcomesTotal": 4,
+    "unexpectedExecutions": 0,
+    "failures": [],
+    "latencyFailures": [],
+    "latencyMs": {
+      "median": 42.900000005960464,
+      "maximum": 157.40000000596046
+    }
+  },
+  "mode": "recorded",
+  "model": "committed-exact-responses",
+  "fixture": "ask-map-incidents-v1",
+  "engine": {
+    "name": "DuckDB-WASM",
+    "version": "v1.4.3"
+  },
+  "schemaFingerprint": "sha256:ef9e469826e0d2b0e36a7c044dbfb01d134fb37bae0537b9e8b2a352b985883c",
+  "results": [
+    {
+      "id": "open-wide-view",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        4,
+        5
+      ],
+      "elapsedMs": 49.79999998211861,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:07166a646ef84078d56955e825b0057cce64fb15b090af119e21ec5b79fb2dbf",
+      "receiptDigest": "sha256:1b580c970ec4f9b72bfe301f676a2f2fb1d9b5b4e66f76ed4e219064b4c41938",
+      "latencyExceeded": false
+    },
+    {
+      "id": "open-east-view",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        2,
+        4
+      ],
+      "elapsedMs": 42.70000001788139,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:9de0141ebb9d8889e5f59d111894eecab46134fd09af3c4f727d2fb169445fdc",
+      "receiptDigest": "sha256:806730de1d14ffcf7ebbd3c03f2d533d8703d4e67040d957a892e5c876bede59",
+      "latencyExceeded": false
+    },
+    {
+      "id": "group-wide-view",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        4,
+        5
+      ],
+      "groups": {
+        "fire": 1,
+        "medical": 2,
+        "hazmat": 1
+      },
+      "elapsedMs": 111.10000002384186,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:dff66174ea02a46b026479e92e7b2c31aa38bccb91f0ebf97a0b92c93890b37a",
+      "receiptDigest": "sha256:7ef8b8d1b37f86a7ebaf384060691484133b895a5b70a18d6e260160c663d779",
+      "latencyExceeded": false
+    },
+    {
+      "id": "distance-500",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        5
+      ],
+      "groups": {
+        "fire": 1,
+        "medical": 2
+      },
+      "elapsedMs": 157.40000000596046,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:df346c42f47f0e8f84b24b345b5168c8fe047bdb8170ab039c005e1e8f1b1dba",
+      "receiptDigest": "sha256:a810b464eb1f12409a90de0b62066956ec55753308185df6ebd3ee93ab0fd594",
+      "latencyExceeded": false
+    },
+    {
+      "id": "polygon",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "elapsedMs": 42.900000005960464,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:aafa2b4fa41a6f4108b94b9796e224fa2496d1d292ff45e52ce2a4063f404797",
+      "receiptDigest": "sha256:2ed35f6e6ec2a87411f14f2c17981b6d125aaec9de6d8c75901f7c6ea4999c33",
+      "latencyExceeded": false
+    },
+    {
+      "id": "missing-location",
+      "passed": true,
+      "outcome": "clarification",
+      "elapsedMs": 0.5,
+      "latencyExceeded": false
+    },
+    {
+      "id": "nearby",
+      "passed": true,
+      "outcome": "clarification",
+      "elapsedMs": 0.19999998807907104,
+      "latencyExceeded": false
+    },
+    {
+      "id": "date-unavailable",
+      "passed": true,
+      "outcome": "refused",
+      "elapsedMs": 0.20000001788139343,
+      "latencyExceeded": false
+    },
+    {
+      "id": "sql-refused",
+      "passed": true,
+      "outcome": "refused",
+      "elapsedMs": 0.29999998211860657,
+      "latencyExceeded": false
+    },
+    {
+      "id": "quoted-literal",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [],
+      "elapsedMs": 49.5,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:cd1edd87e8c5d1f2fb1c7d4323da2e2d5c166984aad13cec35587bdab702dc43",
+      "receiptDigest": "sha256:66a66b1f9173f4e0278131120c9beb107b32f8838d6953eafc105e3268662530",
+      "latencyExceeded": false
+    }
+  ],
+  "passed": true,
+  "liveModelEvidence": false,
+  "sourceIdentity": {
+    "sourceCommit": "a3e3412fd816cf9069a05395f9fc4787d591f0e0",
+    "sourceDirty": false,
+    "harnessSha256": "cddd9990a9d22058a43c5b0b510bb9680893c5289fe3175e0a11f0f5ff78e8b6"
+  }
+}

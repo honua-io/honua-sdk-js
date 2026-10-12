@@ -1,0 +1,268 @@
+{
+  "provider": "https://bedrock-runtime.us-west-2.amazonaws.com",
+  "requestedProfile": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "actualModel": "anthropic.claude-haiku-4-5-20251001-v1:0",
+  "adapterSha256": "ecb582232cb28132d846e1071225dff69415cc547ada2ca1c01eac3f8eaa97ee",
+  "adapterFiles": [
+    "invoke.py",
+    "run.mjs"
+  ],
+  "credentials": "existing AWS ambient credential chain; never read or exported",
+  "calls": [
+    {
+      "requestId": "3b43ef6a-0f8e-479a-9089-46e8c3721480",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2595,
+      "usage": {
+        "input_tokens": 4524,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 198,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "21e2631d-93ca-42ce-9961-90889289f37b",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2521,
+      "usage": {
+        "input_tokens": 4524,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 198,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "ef6a23f2-990d-471a-9a23-999066729646",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 1928,
+      "usage": {
+        "input_tokens": 4744,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 99,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "a0c134de-b6c3-44c2-a9be-508edcba591d",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2224,
+      "usage": {
+        "input_tokens": 4855,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 140,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "422721c8-7ab9-41f4-a9be-c6d2a7f553d1",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 1664,
+      "usage": {
+        "input_tokens": 4914,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 82,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "bb263cd5-dad6-4045-9158-748f5733e244",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3828,
+      "usage": {
+        "input_tokens": 4564,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 370,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "48f20186-c9c7-4f9c-810f-72042a4971a6",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3130,
+      "usage": {
+        "input_tokens": 5019,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 505,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "748e9b1b-7e8c-4750-80d5-c3f389beca3d",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 3518,
+      "usage": {
+        "input_tokens": 4556,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 364,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "e7c22f15-77ac-4810-b4c5-685bf707b3ed",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2566,
+      "usage": {
+        "input_tokens": 4977,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 364,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "06fc3169-853a-49f2-b4b7-f102a53be941",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2692,
+      "usage": {
+        "input_tokens": 4977,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 364,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "b127a811-3ffa-49fa-aacc-aee35fb2493e",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 1778,
+      "usage": {
+        "input_tokens": 4751,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 69,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "ee5c0ba7-c38f-4406-bd6c-1c5ba9e3bcea",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2429,
+      "usage": {
+        "input_tokens": 4521,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 92,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "7be91039-1a64-44f9-9fcf-e18633fc45e2",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2083,
+      "usage": {
+        "input_tokens": 4522,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 69,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "3a21a74f-f92a-4c45-93ea-4edce00cacfb",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2413,
+      "usage": {
+        "input_tokens": 4521,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 115,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    },
+    {
+      "requestId": "9494dbfb-2afb-4e96-86e2-3297cf84fdad",
+      "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "elapsedMs": 2402,
+      "usage": {
+        "input_tokens": 4536,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 206,
+        "service_tier": "standard"
+      },
+      "outcome": "provider-response"
+    }
+  ]
+}
