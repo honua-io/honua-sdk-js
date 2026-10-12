@@ -48,24 +48,18 @@ const NON_SCRIPT_PACKAGE_COMMANDS = new Set([
 ]);
 
 export function analyzeTestBuildOwnership(options) {
+  return scanTestBuildOwnership(options).violations;
+}
+
+function scanTestBuildOwnership(options) {
   const projectRoot = path.resolve(options.projectRoot);
   const testRoot = path.resolve(projectRoot, options.testRoot ?? "test");
   const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
   const scripts = packageJson.scripts ?? {};
   const entryFiles = walkFiles(testRoot).filter((file) => TEST_FILE_PATTERN.test(file));
-  const reachableFiles = collectReachableFiles(projectRoot, entryFiles);
   const violations = [];
-
-  for (const absoluteFile of reachableFiles) {
+  const filesChecked = visitReachableFiles(projectRoot, entryFiles, (absoluteFile, sourceFile) => {
     const relativeFile = toRelative(projectRoot, absoluteFile);
-    const source = fs.readFileSync(absoluteFile, "utf8");
-    const sourceFile = ts.createSourceFile(
-      relativeFile,
-      source,
-      ts.ScriptTarget.Latest,
-      true,
-      scriptKindFor(relativeFile),
-    );
     const context = createAnalysisContext(sourceFile, scripts, projectRoot);
     visit(sourceFile, (node) => {
       if (!ts.isCallExpression(node)) return;
@@ -76,21 +70,18 @@ export function analyzeTestBuildOwnership(options) {
       const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
       violations.push({ file: relativeFile, line: position.line + 1, column: position.character + 1, reason });
     });
-  }
+  });
 
-  return violations.sort(
+  violations.sort(
     (left, right) =>
       left.file.localeCompare(right.file) || left.line - right.line || left.column - right.column ||
       left.reason.localeCompare(right.reason),
   );
+  return { filesChecked, violations };
 }
 
 export function assertTestBuildOwnership(options) {
-  const projectRoot = path.resolve(options.projectRoot);
-  const testRoot = path.resolve(projectRoot, options.testRoot ?? "test");
-  const entryFiles = walkFiles(testRoot).filter((file) => TEST_FILE_PATTERN.test(file));
-  const reachableFiles = collectReachableFiles(projectRoot, entryFiles);
-  const violations = analyzeTestBuildOwnership(options);
+  const { filesChecked, violations } = scanTestBuildOwnership(options);
   if (violations.length > 0) {
     throw new Error(
       `Full SDK compilation is owned only by ${OWNED_BUILD_FILE}:\n${violations
@@ -98,10 +89,12 @@ export function assertTestBuildOwnership(options) {
         .join("\n")}`,
     );
   }
-  return { filesChecked: reachableFiles.length };
+  return { filesChecked };
 }
 
-function collectReachableFiles(projectRoot, entryFiles) {
+// Keep only paths between visits: reuse each AST for discovery and analysis,
+// then release it. Every public scan starts fresh, including imported helpers.
+function visitReachableFiles(projectRoot, entryFiles, inspect) {
   const pending = [...entryFiles];
   const visited = new Set();
   while (pending.length > 0) {
@@ -121,8 +114,9 @@ function collectReachableFiles(projectRoot, entryFiles) {
       const resolved = resolveLocalModule(absoluteFile, specifier);
       if (resolved && isWithin(projectRoot, resolved)) pending.push(resolved);
     }
+    if (inspect(absoluteFile, sourceFile) === false) break;
   }
-  return [...visited].sort();
+  return visited.size;
 }
 
 function createAnalysisContext(sourceFile, scripts, projectRoot) {
@@ -505,25 +499,18 @@ function nodeHelpersIn(command) {
 function helperLaunchesRootCompile(parentContext, helper) {
   const absoluteHelper = resolveLocalModule(path.join(parentContext.projectRoot, "package.json"), `./${helper}`);
   if (!absoluteHelper || !isWithin(parentContext.projectRoot, absoluteHelper)) return false;
-  for (const absoluteFile of collectReachableFiles(parentContext.projectRoot, [absoluteHelper])) {
+  let reachesCompiler = false;
+  visitReachableFiles(parentContext.projectRoot, [absoluteHelper], (absoluteFile, sourceFile) => {
     const relativeFile = toRelative(parentContext.projectRoot, absoluteFile);
-    const sourceFile = ts.createSourceFile(
-      relativeFile,
-      fs.readFileSync(absoluteFile, "utf8"),
-      ts.ScriptTarget.Latest,
-      true,
-      scriptKindFor(relativeFile),
-    );
     const context = createAnalysisContext(sourceFile, parentContext.scripts, parentContext.projectRoot);
-    let reachesCompiler = false;
     visit(sourceFile, (node) => {
       if (reachesCompiler || !ts.isCallExpression(node)) return;
       const launch = launchForCall(node, context);
       if (launch && rootBuildReason(launch, context, relativeFile)) reachesCompiler = true;
     });
-    if (reachesCompiler) return true;
-  }
-  return false;
+    return !reachesCompiler;
+  });
+  return reachesCompiler;
 }
 
 function isFixtureTscCommand(command) {

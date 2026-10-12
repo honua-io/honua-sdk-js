@@ -508,7 +508,8 @@ budgets. `createHonua()` and built-in lightweight discovery must preserve the
 one-lightweight-stable-core-capability posture established by #357. The other
 direct dependencies are bounded compatibility plumbing:
 `@honua/honua-migrate` backs deprecated migration forwarders, and the temporary
-style-spec parser pin preserves Node 20 engine compatibility.
+style-spec parser pin originated with the earlier Node 20 compatibility baseline.
+The current runtime minimum is Node 22.12.
 
 ## Mapping to the current SDK
 

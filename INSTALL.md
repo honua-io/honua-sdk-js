@@ -175,7 +175,7 @@ entrypoint was removed outright (its projection helpers are owned by the
 
 ## Prerequisites
 
-- Node.js 20 or later
+- Node.js 22.12 or later
 - A Honua Server instance only for capabilities marked `facade-required`; standalone protocol clients do not require one
 
 ## Install
