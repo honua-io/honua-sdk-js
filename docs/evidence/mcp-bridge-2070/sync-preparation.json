@@ -1,0 +1,20 @@
+{
+  "schema": "honua.hosted-sdk-build-consumption/v1",
+  "head": "7768fa900a9d02c2045d15a116cfcb8fab6fdd95",
+  "producer": {
+    "repository": "honua-io/honua-sdk-js",
+    "runId": "38306679811",
+    "runAttempt": "1",
+    "headSha": "7768fa900a9d02c2045d15a116cfcb8fab6fdd95",
+    "workflowRef": "honua-io/honua-sdk-js/.github/workflows/sdk-verification.yml@refs/pull/2075/merge",
+    "eventName": "pull_request"
+  },
+  "producerJobId": 115002749469,
+  "producerJobConclusion": "success",
+  "artifactId": 11772982891,
+  "artifactZipSha256": "38cc9ca7869db2a440be7b9f4b346899268cefc3be40429a5c0a798e460c679c",
+  "fingerprint": "b1dd385d63f3e3c2c16f647c78ec49fd24f046f71881ccc6d4dffa336b2a0d0f",
+  "sourceInputs": "58cc60772878b35957f0ed91b64ca4763058dfa6499d9391b47d4641a42f7081",
+  "canonicalAdmissionLogSha256": "4d8adc686fdba3116def36cb687ee32ff93169303dfdece72303906638ed3b4f",
+  "qualification": "Exact-source canonical hosted build reused for future unchanged sync script; no local compile pass or changed-pin build claimed"
+}

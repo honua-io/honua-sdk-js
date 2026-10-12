@@ -36,8 +36,8 @@ The delivery order is:
    writing this receipt and either pin home. Offline verification binds the
    recorded peer to the exact pin and integrity; live verification downloads and
    checks those bytes again. An inferred caret based on the independently
-   versioned MCP release cannot describe this bridge. Actual bridge publication
-   and the synchronized pin remain pending until those bytes exist.
+   versioned MCP release cannot describe this bridge. The current bridge is the published `@honua/mcp-server@0.1.19`; the
+   synchronized pin and receipt identify its verified public bytes.
 3. Merge the approved Node 22 breaking baseline and let Release Please compute
    the next minor versions. Preserve the public bridge pin until the next MCP
    artifact is actually published. The existing packed/public installation and
@@ -47,3 +47,26 @@ A range declaration proves metadata compatibility only. Source/runtime tests,
 managed updater checks, and real default-resolver installations are separate
 proofs. A future 0.2 package is not published or qualified by this policy change.
 Historical Node 20 receipts and the certified scaffold fallback remain intact.
+
+## Recovered bridge and the next release boundary
+
+SDK 0.1.18 was sealed from the reviewed Node 20 source
+`7768fa900a9d02c2045d15a116cfcb8fab6fdd95`. MCP 0.1.19 was published from
+`ae6a835b5334a14c380b085d1af57161243ae0d5`. Their immutable releases and public
+artifacts preserve that supported Node 20 bridge. The MCP publisher passed a
+real default-resolution install beside public SDK 0.1.18 before publication.
+
+Current trunk already requires Node 22.12 or newer for both SDK and MCP. The
+recovered SDK tag is on an earlier reviewed branch, and the managed release
+history scan did not carry the original engine-floor declaration into both
+components' next version calculation. The pin change therefore declares the
+same breaking boundary in the forward SDK and MCP history: Node 20 is
+unsupported in the next release. Release Please must compute SDK **0.2.0** and
+MCP **0.2.0** through the normal managed workflow. A proposed 0.1 patch containing
+that engine change remains unpublishable; no version override or manual tag is
+permitted.
+
+The independent public-byte receipts are retained under
+`docs/evidence/mcp-bridge-2070/`. They prove the current-line artifact identities,
+not the future minor pair. Its actual default-resolution publication and public
+registry verification remain required before the transition is complete.
