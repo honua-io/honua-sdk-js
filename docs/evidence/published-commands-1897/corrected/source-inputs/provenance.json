@@ -1,0 +1,27 @@
+{
+  "provenance": "Immutable runner source inputs, not additional hosted artifact files",
+  "repository": "honua-io/honua-release",
+  "sourceSha": "e4f1538a8e36c252f99c8c4e4de7ae82cdb846d1",
+  "files": [
+    {
+      "file": "vars/honua-sdk-js-readme.json",
+      "sourcePath": "certification/executable-docs/vars/honua-sdk-js-readme.json",
+      "sha256": "b652a0232cf35d53cd1314ce5ac763c665d4baca9dbd226ee843c0c4506f6b71",
+      "bytes": 338
+    },
+    {
+      "file": "vars/honua-sdk-js-mcp-readme.json",
+      "sourcePath": "certification/executable-docs/vars/honua-sdk-js-mcp-readme.json",
+      "sha256": "cc9f61edf3120c9e13bdd28d8b8c24f3d59c2c80d6a9e39752d18b9d0469c352",
+      "bytes": 531
+    }
+  ],
+  "contextSource": {
+    "path": "certification/executable-docs/run.py",
+    "sha256": "54c6193b5f0af3bdc9c5f55ad2ac2ee471b019d63b319d8113dfc495d6ab8ca4"
+  },
+  "renderedNonsecretContext": {
+    "candidate.baseUrl": "http://localhost:8080",
+    "candidate.mcpUrl": "http://localhost:8080/mcp"
+  }
+}

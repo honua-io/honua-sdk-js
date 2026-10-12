@@ -1,0 +1,92 @@
+{
+  "runId": 38205709419,
+  "attempt": 1,
+  "jobId": 114668624573,
+  "sourceSha": "e4f1538a8e36c252f99c8c4e4de7ae82cdb846d1",
+  "artifact": {
+    "id": 11727651785,
+    "name": "sdk-publication-diagnostic",
+    "created_at": "2026-10-12T05:07:37Z",
+    "digest": "sha256:2035a9d663fad452857c37e735f0f0414697e685c00dfce2cf81246e5fed7c57"
+  },
+  "currentPullRequestHead": "37e75a73ff6489944613afa324d4516b9870980f",
+  "identicalExecutableInputs": [
+    {
+      "path": "certification/executable-docs",
+      "gitObject": "e55fbecb25589cad0635e954d0e1bed7a5c851b5"
+    },
+    {
+      "path": "certification/sdk-publication-replay",
+      "gitObject": "3c885dcd1257dbf17e66cbdb460643a254af3566"
+    },
+    {
+      "path": ".github/workflows/gate-executable-docs.yml",
+      "gitObject": "dc29b344e58926361ce28aaf83066a2444d1a9e4"
+    },
+    {
+      "path": "platform-manifest.yaml",
+      "gitObject": "8fc3d5950f84cdef098ff97a709a0c4488e64940"
+    },
+    {
+      "path": "compatibility-matrix.yaml",
+      "gitObject": "5c115ef5764d35ad26d9087877f96a99a510960e"
+    }
+  ],
+  "files": [
+    {
+      "file": "sdk-publication-candidate/platform-manifest.yaml",
+      "sha256": "2c0b5a70f3df1ca180692898bb2f4df92ff3ac8d1e964e52da8ac89bff5b0045",
+      "bytes": 83166
+    },
+    {
+      "file": "sdk-publication-candidate/preparation.json",
+      "sha256": "12efbaec3e0f92fd7bd824c89cdc4802679f96b9f257a8228be811ec96082ed0",
+      "bytes": 673
+    },
+    {
+      "file": "sdk-publication-candidate/registry-observations.json",
+      "sha256": "3f0016aacc15483e9b0721167f3a704b7a1a39a57fd92eb7b8367e041bd95f9a",
+      "bytes": 2697
+    },
+    {
+      "file": "sdk-publication-replay/executable-docs-summary.md",
+      "sha256": "e0354c45358a7b6d54a5d96f49d6a0981faaeb9d29b218795dbc4565a2c54410",
+      "bytes": 1226
+    },
+    {
+      "file": "sdk-publication-replay/executable-docs.json",
+      "sha256": "853d9b3fc62e752e3e31c433c1616c091e3341272dd1b3590ba925b0e00ab0c5",
+      "bytes": 178183
+    },
+    {
+      "file": "sdk-publication-replay/gate-exit-status.json",
+      "sha256": "e6637d259e0139d82dd13d0bb3f74e910ac135916f0b75eae374a9169c22761b",
+      "bytes": 258
+    },
+    {
+      "file": "sdk-publication-replay/installed-clients.json",
+      "sha256": "310b8ba155ec70b1d0c84d79de5b888f8a101de3d02de7dfe4186f16fc057ad8",
+      "bytes": 67349
+    },
+    {
+      "file": "sdk-publication-replay/public-consumer/my-map/package-lock.json",
+      "sha256": "6cdb6ee8740be50003db76cb0f167c6aa2056f679b2dc1f325717fed0f90dc6a",
+      "bytes": 71494
+    },
+    {
+      "file": "sdk-publication-replay/public-dev-readiness.json",
+      "sha256": "618431987e1ca9a71caf1daf990d212396d6afd8bee3cf477afa185656b70886",
+      "bytes": 4197
+    },
+    {
+      "file": "sdk-publication-replay/public-registry-observations.json",
+      "sha256": "8d00b35c30670dfb1933f03a44347e8fd1918c4e8435aa8d9584a98b419c02fc",
+      "bytes": 3243
+    },
+    {
+      "file": "sdk-publication-replay/public-scaffold-resolution.json",
+      "sha256": "7f937f20f069d50d98eb1f5c5c7f08bb575ce094a9d9e1b0196734e1a3583ffc",
+      "bytes": 4127
+    }
+  ]
+}
