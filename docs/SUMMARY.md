@@ -56,6 +56,7 @@
 * [Basemap development bundle evidence](evidence/basemap-1717/README.md)
 * [Terminal control-plane diagnostic evidence](evidence/control-plane-1424/2026-10-11/README.md)
 * [Local setup development qualification for issue 1401](evidence/local-setup-1401/README.md)
+* [Published documentation qualification for SDK issue 1897](evidence/published-commands-1897/README.md)
 * [ExplorationContext](exploration-context.md)
 * [Feature inspection](feature-inspection.md)
 * [Read multidimensional coverages with OGC API Coverages and WCS](features/coverages-wcs.md)

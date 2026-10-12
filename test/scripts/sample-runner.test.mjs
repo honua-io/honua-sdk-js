@@ -1986,7 +1986,7 @@ async function waitForHttp(url, timeoutMs = 10_000) {
 
 test(
   "native Windows ChildSupervisor drains an orphaned inherited-handle leaf and settles npx/Vite",
-  { skip: process.platform !== "win32" || process.versions.node !== "20.19.0" },
+  { skip: process.platform !== "win32" },
   async () => {
     const temporary = await mkdtemp(path.join(os.tmpdir(), "honua-supervisor-"));
     const root = `${temporary} Windows Î© & ! ^ (vite)`;

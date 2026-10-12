@@ -78,12 +78,11 @@ GeoJSON updates, events, controls, and PMTiles registration are covered on both
 renderer majors; v6-only style extensions should use `renderer-deferred`
 validation for now.
 
-MapLibre 6 itself declares Node `>=16.14.0`, and the compatibility checks pass
-under this repository's Node 20.19.0 baseline. The SDK pins
-`@mapbox/jsonlint-lines-primitives` 2.0.2 so its direct style-spec 24.x validator
-continues to honor that Node baseline. MapLibre 6's style-spec 26.x dependency
-declares no engine constraint as of 26.2.1 (observed 2026-08-03), so an
-`engine-strict=true` install no longer rejects v6 on Node 20.
+The SDK requires Node `>=22.12.0`; repository checks use Node `22.23.3` LTS.
+The existing `@mapbox/jsonlint-lines-primitives` 2.0.2 pin remains in place for
+the direct style-spec 24.x validator. It originated with the earlier Node 20
+compatibility work; moving the runtime baseline does not independently upgrade
+that parser or change which renderer features the SDK validates.
 
 ## Standalone data-to-map bridge
 

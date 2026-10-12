@@ -45,7 +45,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "20.19.0"
+  NODE_VERSION: "22.23.3"
 
 concurrency:
   # Supersede stale pull-request heads only: a newer push to the same PR cancels the
@@ -81,7 +81,7 @@ jobs:
           echo "PR_FAST_STARTED_AT_MONOTONIC_MS=$started_at" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -134,7 +134,7 @@ jobs:
 
       - name: Upload PR-fast timing evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: pr-fast-timing
           path: test-results/pr-fast.json
@@ -156,7 +156,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -170,7 +170,7 @@ jobs:
 
       - name: Upload benchmark evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sdk-benchmark-lab
           path: test-results/benchmark-lab.json
@@ -227,7 +227,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -321,7 +321,7 @@ jobs:
 
       - name: Upload quickstart timing evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: quickstart-time-to-map
           path: test-results/quickstart-time-to-map.json
@@ -524,7 +524,7 @@ jobs:
 
       - name: Upload runtime tarball budget receipt
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: runtime-tarball-budget
           path: test-results/runtime-tarball-budget.json
@@ -534,7 +534,7 @@ jobs:
         run: npm run samples:contract:pack
 
       - name: Upload independent sample-consumer contract archive
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sample-contract-${{ github.sha }}
           path: .artifacts/sample-contract/
@@ -551,7 +551,7 @@ jobs:
 
       - name: Upload packed First Map execution calibration
         if: always() && (steps.packed-first-map.outcome == 'success' || steps.packed-first-map.outcome == 'failure')
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: packed-first-map-execution
           path: |
@@ -616,7 +616,7 @@ jobs:
         # content-addressed immutable release produced by
         # publish-content-addressed-sample-bundles.yml, one per source commit.
         if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sample-bundles
           path: .artifacts/sample-bundles/
@@ -673,7 +673,7 @@ jobs:
 
       - name: Upload browser benchmark evidence
         if: always() && steps.browser_benchmark.outcome != 'skipped'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sdk-browser-benchmark
           path: test-results/browser-benchmark/
@@ -684,7 +684,7 @@ jobs:
         # (honua-io/honua-sdk-js#618); published on trunk builds only so
         # honua-evidence always ingests a merged, gate-passed snapshot.
         if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sdk-coverage-v1
           path: config/sdk-coverage.v1.json
@@ -736,7 +736,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -819,7 +819,7 @@ jobs:
 
       - name: Upload MCP provability artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: mcp-provability-artifacts
           path: |

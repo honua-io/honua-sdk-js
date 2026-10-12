@@ -150,10 +150,23 @@ export interface HonuaMapPackageSummary extends HonuaEntityValidators {
   readonly [extra: string]: unknown;
 }
 
+/**
+ * Supported route/audience subset of the server's publication intent.
+ * Approval remains a server decision. Embed, service, schedule, job and metadata
+ * options belong to other Studio operations and are not exposed by this command.
+ */
+export interface HonuaMapPublicationIntent {
+  /** Absolute route, for example `/maps/operations`. */
+  readonly route?: string;
+  /** Requested audience, subject to server policy and approval. */
+  readonly visibility?: "personal" | "team" | "organization" | "public";
+}
+
 export interface HonuaPublishMapPackageRequest {
   readonly mapId?: string;
   readonly workspaceId?: string;
   readonly package: HonuaMapPackage;
+  readonly intent?: HonuaMapPublicationIntent;
   readonly message?: string;
   readonly ifMatch?: string;
 }

@@ -35,7 +35,7 @@ Why this scenario:
 From the repo root:
 
 ```bash
-# Node.js 20.19.0+; `.nvmrc` pins the reviewed repo floor
+# Node.js 22.12.0+; `.nvmrc` pins the reviewed repo floor
 npm install
 npm run build
 python3 -m http.server 8080

@@ -381,7 +381,9 @@ function readBody(value: string | undefined, contentType: string | undefined): u
     }
   }
   const raw = value.startsWith("@")
-    ? readFileSync(value.slice(1), isJsonContentType(contentType) ? "utf8" : undefined)
+    ? isJsonContentType(contentType)
+      ? readFileSync(value.slice(1), "utf8")
+      : readFileSync(value.slice(1))
     : value;
   if (!isJsonContentType(contentType)) return raw;
   try {

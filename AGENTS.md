@@ -16,7 +16,7 @@ This repo also contains a separate MCP server package (`@honua/mcp-server`) unde
 ## Tech Stack
 
 - **Language:** TypeScript (`strict`, `verbatimModuleSyntax`, `module`/`moduleResolution` = `NodeNext`, target `ES2022`), ESM only (`"type": "module"`).
-- **Node:** `>=20.0.0` required; CI and `.nvmrc` pin `20.19.0`.
+- **Node:** `>=22.12.0` required; CI and `.nvmrc` pin `22.23.3`.
 - **Build:** `tsc` (no bundler for the library; `dist/` output).
 - **Tests:** Vitest (unit, integration, staging, cloud-demo configs) + Playwright (browser/demo smoke).
 - **Lint/format:** Biome 1.9.4 (`biome.json`).
@@ -27,7 +27,7 @@ This repo also contains a separate MCP server package (`@honua/mcp-server`) unde
 ## Setup
 
 ```bash
-nvm use            # Node 20.19.0 (.nvmrc)
+nvm use            # Node 22.23.3 (.nvmrc)
 npm ci             # install root deps (use npm ci, lockfile present)
 ```
 
