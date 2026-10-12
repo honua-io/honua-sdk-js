@@ -68,15 +68,16 @@ export const INCIDENT_TOOL_SCHEMA = {
   type: "object",
   required: ["sourceId", "kind", "semanticQuery"],
   properties: {
-    sourceId: { const: "incidents" },
-    kind: { enum: ["count", "categories"] },
-    semanticQuery: { oneOf: [{ $ref: "#/$defs/features" }, { $ref: "#/$defs/aggregate" }] },
+    sourceId: { type: "string", const: "incidents" },
+    kind: {
+      type: "string",
+      enum: ["count", "categories"],
+      description:
+        "Use count for semanticQuery.kind=features; use categories for semanticQuery.kind=aggregate. The host rejects any mismatched pair.",
+    },
+    semanticQuery: { type: "object", oneOf: [{ $ref: "#/$defs/features" }, { $ref: "#/$defs/aggregate" }] },
   },
   additionalProperties: false,
-  oneOf: [
-    { properties: { kind: { const: "count" }, semanticQuery: { $ref: "#/$defs/features" } } },
-    { properties: { kind: { const: "categories" }, semanticQuery: { $ref: "#/$defs/aggregate" } } },
-  ],
   $defs: {
     crs: {
       const: CRS,

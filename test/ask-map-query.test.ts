@@ -59,7 +59,9 @@ describe("Grounded sample query admission", () => {
           semanticQuery: { ...form, filter },
         };
         expect(validate(call), JSON.stringify(validate.errors)).toBe(true);
-        expect(validate({ ...call, kind: form.kind === "features" ? "categories" : "count" })).toBe(false);
+        expect(() => reviewQuery({ ...call, kind: form.kind === "features" ? "categories" : "count" })).toThrow(
+          "Query kind does not match",
+        );
       }
     }
     const incomplete = structuredClone(SEMANTIC_QUERY_FORMS.filters.viewport) as unknown as {
