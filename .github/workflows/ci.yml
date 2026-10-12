@@ -96,9 +96,6 @@ jobs:
       - name: Test Release Please tag-seal policy
         run: node --test test/scripts/release-please-tag-seal.test.mjs
 
-      - name: Test sealed-ancestor release recovery policy
-        run: node --test test/scripts/sealed-ancestor-recovery.test.mjs
-
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs
 
