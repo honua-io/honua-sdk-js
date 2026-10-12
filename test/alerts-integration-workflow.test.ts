@@ -20,7 +20,7 @@ function runFixture(failingMode = "") {
     const stub = join(bin, "command.mjs");
     writeFileSync(
       stub,
-      `#!/usr/bin/env node
+      String.raw`#!/usr/bin/env node
 import { appendFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
 const name = basename(process.argv[1]);
@@ -57,6 +57,7 @@ if (name === "npx") {
       },
     });
     if (result.error) throw result.error;
+    expect(result.stderr).toBe("");
     const commands = readFileSync(join(directory, "commands.jsonl"), "utf8")
       .trim()
       .split("\n")
