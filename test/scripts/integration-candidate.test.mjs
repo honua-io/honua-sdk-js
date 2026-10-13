@@ -1,3 +1,4 @@
+import { requirementsContext } from "../fixtures/protocol-requirements-context.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -96,7 +97,7 @@ test("final evidence cannot override actual producer, server, image, cut or owne
 });
 
 test("producer run is inside the receipt digest and never turns missing observations into passes", () => {
-  const fragment = buildFragment({ identity: bindNightlyCandidateIdentity(identity, executing),
+  const fragment = buildFragment({ requirementsContext: requirementsContext(identity), identity: bindNightlyCandidateIdentity(identity, executing),
     now: "2026-10-13T00:01:00Z", reports: [{ testResults: [{ name: "features",
       assertionResults: [{ title: "metadata [cert:featureserver/metadata#positive] [cert:featureserver/metadata#metadata] [cert:featureserver/metadata#media-schema]", status: "passed" }] }] }] });
   const observed = fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "metadata");
