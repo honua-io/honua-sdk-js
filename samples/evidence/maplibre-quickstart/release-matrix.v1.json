@@ -1,0 +1,76 @@
+{
+  "$schema": "../../contract/v2/schemas/sample-release-matrix-receipt.schema.json",
+  "format": "honua.sdk.sample-release-matrix-receipt.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "lane": "release-matrix-browser",
+  "status": "passed",
+  "sdkMode": "source",
+  "sourceRevision": "1e81a57c4741ef41877c94bf54514d8b92d858a1",
+  "sourceDigest": "64617d968314457ad398dcc87afa954ff6f2e9b150b758c15635d596d716c2f1",
+  "matrix": {
+    "envName": "HONUA_FIRST_MAP_RELEASE_MATRIX",
+    "envValue": "true",
+    "playwrightConfig": "playwright.first-map.config.mjs",
+    "playwrightVersion": "1.58.2",
+    "engines": [
+      {
+        "name": "chromium",
+        "browserName": "chromium",
+        "headless": true,
+        "status": "passed",
+        "tests": 1,
+        "failed": 0,
+        "durationMs": 3791
+      },
+      {
+        "name": "firefox",
+        "browserName": "firefox",
+        "headless": false,
+        "status": "passed",
+        "tests": 1,
+        "failed": 0,
+        "durationMs": 5313
+      },
+      {
+        "name": "webkit",
+        "browserName": "webkit",
+        "headless": true,
+        "status": "passed",
+        "tests": 1,
+        "failed": 0,
+        "durationMs": 7126
+      }
+    ]
+  },
+  "command": {
+    "argv": [
+      "npm",
+      "run",
+      "test:playwright:quickstart"
+    ]
+  },
+  "run": {
+    "repository": "honua-io/honua-sdk-js",
+    "workflow": "First Map Release Smoke",
+    "runId": "38402365070",
+    "runAttempt": 1,
+    "event": "workflow_dispatch",
+    "ref": "refs/tags/js-sdk-v0.2.0",
+    "commit": "1e81a57c4741ef41877c94bf54514d8b92d858a1"
+  },
+  "report": {
+    "kind": "playwright-release-matrix-report",
+    "bytes": 34771,
+    "sha256": "4ca1982ce57d1946ffed17b84a87fed11ef4fe2d8c33229e7d6283ca11ea7992",
+    "workflowArtifactName": "honua-sdk-first-map-release-matrix"
+  },
+  "producer": {
+    "id": "honua-sdk-release-matrix-receipt",
+    "version": 1,
+    "path": "scripts/seal-release-matrix-receipt.mjs",
+    "sha256": "23d667cf2e39223d5e52913370498ad928a57d170a1793176a86e7784006e07a"
+  },
+  "observedAt": "2026-10-13T13:08:21.376Z",
+  "expiresAt": "2026-10-20T13:08:21.376Z"
+}
