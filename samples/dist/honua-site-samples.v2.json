@@ -225,7 +225,7 @@
       "lifecycle": {
         "state": "retire",
         "reason": "The app-platform split supersedes this SDK-owned compatibility demonstration.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "external",
           "id": "honua-app-platform"
@@ -337,7 +337,7 @@
       "lifecycle": {
         "state": "rework",
         "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion.",
-        "targetRelease": "0.2.0-beta.0"
+        "targetRelease": "0.3.0"
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -507,7 +507,7 @@
       "lifecycle": {
         "state": "replace",
         "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "planning-permitting"
@@ -622,7 +622,7 @@
       "lifecycle": {
         "state": "merge",
         "reason": "Fold into the analysis journey while retaining this focused recipe.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "cloud-native-analysis"
@@ -866,7 +866,7 @@
       "lifecycle": {
         "state": "rework",
         "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey.",
-        "targetRelease": "0.2.0-beta.0"
+        "targetRelease": "0.3.0"
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -1490,7 +1490,7 @@
       "lifecycle": {
         "state": "replace",
         "reason": "Replace parity claims with renderer-specific execution and fidelity reports.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "service-explorer"
@@ -1732,7 +1732,7 @@
       "lifecycle": {
         "state": "rework",
         "reason": "Join the large-data journey and distinguish fixture estimates from executed plans.",
-        "targetRelease": "0.2.0-beta.0"
+        "targetRelease": "0.3.0"
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -1856,7 +1856,7 @@
       "lifecycle": {
         "state": "merge",
         "reason": "Use its strongest interactions inside the imagery and 3D journey.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "imagery-terrain"
@@ -1974,7 +1974,7 @@
       "lifecycle": {
         "state": "merge",
         "reason": "Combine point/profile proof with the imagery and 3D flagship.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "imagery-terrain"
@@ -2036,7 +2036,7 @@
       "lifecycle": {
         "state": "retire",
         "reason": "Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "incident-operations"
@@ -2097,7 +2097,7 @@
       "lifecycle": {
         "state": "retire",
         "reason": "Controls move with app-platform rather than remaining in the core SDK gallery.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "external",
           "id": "honua-app-platform"
