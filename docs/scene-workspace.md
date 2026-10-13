@@ -12,9 +12,9 @@ tray, and realtime status. It does not import Cesium, MapLibre, or a UI
 framework. Renderers translate their native events into typed workspace intents
 and subscribe to narrow slices or selectors.
 
-The former `@honua/sdk-js/scene-workspace` subpath is a deprecated 0.1.x
-forwarder. New applications should install `@honua/app-platform` plus only the
-optional renderer peers they use.
+The former `@honua/sdk-js/scene-workspace` subpath remains a deprecated forwarder
+through `0.2.x`, with removal scheduled for npm `0.3.0`. New applications should
+install `@honua/app-platform` plus only the optional renderer peers they use.
 
 ## Support status: beta
 

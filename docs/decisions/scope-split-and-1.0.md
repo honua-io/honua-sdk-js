@@ -126,9 +126,24 @@ experimental, while `/auth`, `/browser`, and `/cli` are included in the stable
 API report. `config/public-surface.json` supersedes the historical table below
 as the exact current inventory.
 
-The app-platform shims first shipped in `0.1.0-beta.0`, remain for the complete
-`0.1.x` line, and are removed in `0.2.0`. CI rejects a `0.2.x` package while any
-shim remains.
+The app-platform shims first shipped in `0.1.0-beta.0` and remain deprecated
+through the `0.2.x` line. Their npm removal deadline is `0.3.0`; CI rejects a
+`0.3.x` package while any shim remains.
+
+The reviewed October 2026 release decision retains compatibility for the Node 22
+minimum-version change, which independently requires the managed `0.2.0` minor
+release. It moves the 18 shim-removal deadlines and 11 unfinished sample
+transition deadlines to npm `0.3.0`. This is a schedule change, not completion of
+those transitions: no exports are removed, samples promoted, or experimental
+surfaces graduated. Sample rework, merge, replacement, and retirement states,
+replacement targets, and credential-safety gaps remain visible in the catalog.
+
+The shim-removal and graduation work remains tracked by
+[issue 385](https://github.com/honua-io/honua-sdk-js/issues/385) in platform release
+`2026.2`, including its required human graduation review. npm `0.3.0` names the
+package deadline; it does not rename that platform release or waive its review.
+The current Node 22 release is tracked by
+[issue 2070](https://github.com/honua-io/honua-sdk-js/issues/2070).
 
 ### Stable-1.0 (20)
 

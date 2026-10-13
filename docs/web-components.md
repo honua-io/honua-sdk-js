@@ -54,7 +54,7 @@ document.querySelector("honua-map")!.controller = controller;
 The canonical `@honua/app-platform/web-components` package exposes one
 supported, versioned application context for the whole component suite. The
 deprecated `@honua/sdk-js/web-components` forwarding entrypoint exposes the
-same contract during the 0.1.x transition.
+same contract during the transition through 0.2.x.
 
 ```ts doc-test=skip reason="requires browser markup and a Source supplied by the application"
 import { createHonuaApplicationContext, mountHonuaApplication } from "@honua/app-platform/web-components";

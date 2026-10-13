@@ -245,7 +245,7 @@ describe("sample publication contract", () => {
       3,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
-      lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
+      lifecycle: { state: "rework", targetRelease: "0.3.0" },
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
     expect(
@@ -937,6 +937,14 @@ describe("sample publication contract", () => {
     expect(isRunnableRootExampleDirectory("shared-test-helpers", ["README.md", "tsconfig.json"])).toBe(false);
   });
 
+  it("refuses unfinished sample transitions at the approved 0.3 deadline", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const packageJson = await readJson("package.json");
+    await expect(validateCatalog(catalog, { ...packageJson, version: "0.3.0" }, validationTime)).rejects.toThrow(
+      "lifecycle retire expired at 0.3.0",
+    );
+  });
+
   it("compares lifecycle targets with full semantic prerelease precedence", () => {
     expect(compareReleases("0.2.0-alpha.9", "0.2.0-beta.0")).toBeLessThan(0);
     expect(compareReleases("0.2.0-beta.0", "0.2.0-beta.0")).toBe(0);
@@ -1555,7 +1563,7 @@ describe("sample publication contract", () => {
     const second = replacementCycle.samples.find((sample: { id: string }) => sample.id === "stac-imagery-browser");
     first.lifecycle.replacement = { kind: "sample", id: second.id };
     second.lifecycle.state = "merge";
-    second.lifecycle.targetRelease = "0.2.0-beta.0";
+    second.lifecycle.targetRelease = first.lifecycle.targetRelease;
     second.lifecycle.replacement = { kind: "sample", id: first.id };
     await expect(validateCatalog(replacementCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:geoprocessing-job-runner -> sample:stac-imagery-browser -> sample:geoprocessing-job-runner",
@@ -1566,7 +1574,9 @@ describe("sample publication contract", () => {
       (sample: { id: string }) => sample.id === "imagery-cog-quickstart",
     );
     imagery.lifecycle.state = "merge";
-    imagery.lifecycle.targetRelease = "0.2.0-beta.0";
+    imagery.lifecycle.targetRelease = expandedJourneyCycle.samples.find(
+      (sample: { id: string }) => sample.id === "storytelling-25d-map",
+    ).lifecycle.targetRelease;
     imagery.lifecycle.replacement = { kind: "journey", id: "imagery-terrain" };
     await expect(validateCatalog(expandedJourneyCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:imagery-cog-quickstart -> journey:imagery-terrain -> sample:imagery-cog-quickstart",
@@ -2408,7 +2418,7 @@ runNpmScriptSync("demo:wrong:build", {
     inactive.sample.lifecycle = {
       state: "rework",
       reason: "Promotion regression fixture.",
-      targetRelease: "0.2.0-beta.0",
+      targetRelease: "0.3.0",
     };
     await expect(validateCatalog(inactive.catalog, packageJson, validationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples must be active",

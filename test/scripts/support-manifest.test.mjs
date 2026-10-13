@@ -354,7 +354,7 @@ test("the Cesium scene surface is beta with an explicit, exhaustive export list"
   assert.equal(forwarder.status, "deprecated");
   assert.equal(forwarder.replacement, "@honua/app-platform/scene-workspace");
   assert.equal(forwarder.replacementStatus, "beta");
-  assert.equal(forwarder.removeIn, "0.2.0");
+  assert.equal(forwarder.removeIn, "0.3.0");
 
   // Nothing is promoted by proximity: the barrel is partitioned exactly.
   const barrelExports = readBarrelExports(tier.barrel);
