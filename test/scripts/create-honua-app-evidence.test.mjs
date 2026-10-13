@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
+import "./create-honua-app-browser.test.mjs";
 
 import {
   CREATE_HONUA_APP_BUDGET_MS,
