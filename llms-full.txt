@@ -1223,6 +1223,14 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | `cloud-native-analysis` | planned | [`spatial-analytics-workbench`](#spatial-analytics-workbench) |
 | `arcgis-migration` | qualified | [`migration-workbench`](#migration-workbench) |
 
+## Release-matrix browser evidence
+
+Per-gate `browser` receipts prove the default Chromium-only Playwright lane. These samples additionally bind their golden qualification to the release-only three-engine smoke (Chromium, headed Firefox, WebKit); a failing or lapsed lane makes the qualification stale. Establishment is recorded in [`samples/contract/v2/release-matrix-lanes.v1.json`](../../samples/contract/v2/release-matrix-lanes.v1.json).
+
+| Sample | Last sealed run | Engines | Observed | Expires | Receipt |
+| --- | --- | --- | --- | --- | --- |
+| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-10-13T13:08:21.376Z | 2026-10-20T13:08:21.376Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
+
 ## Executable samples
 
 | Sample | Track | Journey candidate | Support | Lifecycle | Quality profile | Data | Configuration | Demonstration |
@@ -1842,7 +1850,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-13 at commit `609455826`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-13 at commit `e3cd46e36`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11612,7 +11620,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-13 at commit `609455826`._
+_Generated 2026-10-13 at commit `e3cd46e36`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
