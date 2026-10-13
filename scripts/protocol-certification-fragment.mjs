@@ -243,9 +243,10 @@ export function validateRequirementsContext(context, identity) {
   if (Buffer.byteLength(JSON.stringify(context), "utf8") > MAX_REQUIREMENTS_CONTEXT_BYTES) {
     throw new Error("requirements_context exceeds 60000 UTF-8 bytes");
   }
-  if (typeof context.requirements_revision !== "string" || !context.requirements_revision.trim()
-    || context.requirements_revision !== context.requirements_revision.trim()) {
-    throw new Error("requirements_context requires a nonempty requirements_revision");
+  if (typeof context.requirements_revision !== "string"
+    || context.requirements_revision !== context.requirements_revision.trim()
+    || !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(context.requirements_revision)) {
+    throw new Error("requirements_context requires a valid bounded requirements_revision");
   }
   if (context.producer !== "honua-sdk-js" || context.producer_source_sha !== identity.producerSourceSha) {
     throw new Error("requirements_context producer/source does not match the executing SDK");

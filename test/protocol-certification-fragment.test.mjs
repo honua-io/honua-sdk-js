@@ -601,3 +601,17 @@ test("actual workflow preflight emits runtime-only status and refuses missing ce
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test("catalog revision grammar matches the shared release and server contract", () => {
+  for (const revision of ["release/2026.1", "2026-10-13.1", "A" + "x".repeat(199)]) {
+    const context = requirementsContext(identity);
+    context.requirements_revision = revision;
+    assert.doesNotThrow(() => validateRequirementsContext(context, identity));
+  }
+  for (const revision of ["", " ", " leading", "trailing ", "line\nbreak", "trailing\n", "trailing\r\n", "-leading", "/leading", "é", "x".repeat(201), null, 7]) {
+    const context = requirementsContext(identity);
+    context.requirements_revision = revision;
+    assert.throws(() => validateRequirementsContext(context, identity), /valid bounded requirements_revision/);
+  }
+});
