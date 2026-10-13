@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "source": "samples/catalog.v1.json",
   "target": "samples/catalog.v2.json",
-  "targetRelease": "0.2.0-beta.0",
+  "targetRelease": "0.3.0",
   "configuration": {
     "browserSecretPolicy": "Approved browser configuration may name public endpoints and asset identifiers but never credential values or signed URLs; observed legacy-unsafe names remain inventoried.",
     "credentialQueryParameters": [
@@ -219,6 +219,7 @@
       }
     },
     "app-bootstrap-basic": {
+      "expectedDegradation": "Compatibility APIs are retained through 0.2.x and removed when the package advances to 0.3.0.",
       "track": "lab",
       "validationProfile": "browser-lab",
       "replacement": {
@@ -817,7 +818,7 @@
       "lifecycle": {
         "state": "rework",
         "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion.",
-        "targetRelease": "0.2.0-beta.0"
+        "targetRelease": "0.3.0"
       },
       "sourcePath": "docs/examples/cesium-route-playback",
       "docsPath": "docs/examples/cesium-route-playback/README.md",

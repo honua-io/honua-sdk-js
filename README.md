@@ -675,8 +675,8 @@ correctly use this SDK:
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
     `/operator/*`) have **moved to the separate `@honua/app-platform` package**; the old
-    18 deprecated compatibility subpaths remain through `0.1.x` and are removed in
-    `0.2.0`. The `/console` entrypoint was removed outright (no shim).
+    18 deprecated compatibility subpaths remain through `0.2.x` and are removed in
+    `0.3.0`. The `/console` entrypoint was removed outright (no shim).
     `@honua/app-platform/scene-workspace` is the first of those replacements promoted to
     **`beta`**: the renderer-neutral workspace state, the scene primitive contract, and
     the Cesium primitive adapter carry a shape commitment through `0.1.x`, while Honua
@@ -709,7 +709,7 @@ We publish a lifecycle because a library you build on should tell you what it pr
   entrypoints are being extracted to a separate `@honua/app-platform` package that versions at
   its own pre-1.0 cadence, so the client SDK can reach a frozen 1.0 without waiting on them.
   Their old `@honua/sdk-js/*` subpaths remain as `@deprecated` re-export shims through
-  `0.1.x` and are removed in `0.2.0` — promoting a replacement (the Cesium scene surface is
+  `0.2.x` and are removed in `0.3.0` — promoting a replacement (the Cesium scene surface is
   now `beta`) does not extend or shorten a forwarder's removal window. See
   [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
 - **What we don't promise.** No security-backport window or LTS branch pre-1.0; fixes land on

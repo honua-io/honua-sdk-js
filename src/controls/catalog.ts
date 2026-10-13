@@ -496,14 +496,14 @@ const DEPRECATED_COMPONENT_ALIASES: readonly HonuaDeprecatedComponentDiagnostic[
   {
     specifier: "@honua/sdk-js/controls",
     canonicalReplacement: "@honua/app-platform/controls",
-    removedIn: "0.2.0",
-    note: "Moved to @honua/app-platform/controls per docs/decisions/scope-split-and-1.0.md. The @honua/sdk-js/controls re-export is retained through the 0.1.x line and removed in 0.2.0.",
+    removedIn: "0.3.0",
+    note: "Moved to @honua/app-platform/controls per docs/decisions/scope-split-and-1.0.md. The @honua/sdk-js/controls re-export is retained through the 0.2.x line and removed in 0.3.0.",
   },
   {
     specifier: "@honua/sdk-js/web-components",
     canonicalReplacement: "@honua/app-platform/web-components",
-    removedIn: "0.2.0",
-    note: "Moved to @honua/app-platform/web-components per docs/decisions/scope-split-and-1.0.md. The @honua/sdk-js/web-components re-export is retained through the 0.1.x line and removed in 0.2.0.",
+    removedIn: "0.3.0",
+    note: "Moved to @honua/app-platform/web-components per docs/decisions/scope-split-and-1.0.md. The @honua/sdk-js/web-components re-export is retained through the 0.2.x line and removed in 0.3.0.",
   },
   {
     specifier: "controls.legend",
