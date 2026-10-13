@@ -10,6 +10,11 @@ on:
     - cron: "0 7 * * 1"
   workflow_dispatch:
     inputs:
+      sdk_version:
+        description: "Exact published SDK to certify; empty preserves the promoted channel/fallback"
+        required: false
+        default: ""
+        type: string
       template:
         description: "Template id to measure (defaults to the manifest default)"
         required: false
@@ -42,13 +47,17 @@ jobs:
         env:
           HONUA_CREATE_APP_LIVE_ENABLED: "true"
           CREATE_APP_TEMPLATE: ${{ inputs.template }}
+          CREATE_APP_SDK_VERSION: ${{ inputs.sdk_version }}
         run: |
           set -euo pipefail
+          args=()
           if [[ -n "${CREATE_APP_TEMPLATE}" ]]; then
-            npm run create-app:time-to-map -- --template "${CREATE_APP_TEMPLATE}"
-          else
-            npm run create-app:time-to-map
+            args+=(--template "${CREATE_APP_TEMPLATE}")
           fi
+          if [[ -n "${CREATE_APP_SDK_VERSION}" ]]; then
+            args+=(--sdk-version "${CREATE_APP_SDK_VERSION}")
+          fi
+          npm run create-app:time-to-map -- "${args[@]}"
 
       - name: Upload time-to-first-map evidence
         if: always()
