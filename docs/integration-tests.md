@@ -244,7 +244,11 @@ from the canonical requirements catalog. The JSON input is limited to 60,000
 UTF-8 bytes and binds its catalog `requirements_revision`, producer
 `honua-sdk-js`, executing `producer_source_sha`, and candidate
 `source_sha`, `image_digest`, and `cut_at`. Its `requirements` array contains the
-complete selected community or licensed SDK operation roster. Each row carries
+complete 67-row SDK roster for community/nightly execution, or the two-row
+licensed roster for an explicit licensed execution. Community runs retain the
+two licensed rows as skips with no receipt, even if a report contains passing
+realtime markers; only the separate live-entitlement path can certify them.
+Each row carries
 `capability_key`, `surface`, `operation`, `canonical_client`, `client_version`,
 `client_lane`, `deployment_target`, `fixture_revision`, `contract_revision`,
 `auth_policy_revision`, `scenario_facets`, `maturity`, and `required_tier`.

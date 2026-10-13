@@ -258,11 +258,12 @@ export function validateRequirementsContext(context, identity) {
     throw new Error("requirements_context candidate does not match the executed candidate");
   }
   const expected = new Map(OPERATIONS
-    .filter(([surface]) => identity.entitlementPolicyRevision ? surface === "realtime" : surface !== "realtime")
+    .filter(([surface]) => !identity.entitlementPolicyRevision || surface === "realtime")
     .map(([surface, operation]) => [`${surface}/${operation}`, {
       capability_key: CAPABILITIES[surface], surface, operation,
       canonical_client: CLIENT_ID, client_version: identity.clientVersion,
-      client_lane: RUNNER_LANE, deployment_target: identity.deploymentTarget,
+      client_lane: RUNNER_LANE,
+      deployment_target: surface === "realtime" ? "licensed-release" : identity.deploymentTarget,
       fixture_revision: identity.fixtureRevision,
       contract_revision: `sdk-js-certification@${identity.producerSourceSha}`,
       auth_policy_revision: surface === "realtime" ? LICENSED_AUTH_POLICY_REVISION : AUTH_POLICY_REVISION,
@@ -317,19 +318,19 @@ export function buildFragment({ reports, identity, licensedProof, requirementsCo
     },
     operation_scope: { complete, owner_issue: GAP_OWNER },
     observations: OPERATIONS
-      .filter(([surface]) => resolvedIdentity.entitlementPolicyRevision
-        ? surface === "realtime"
-        : surface !== "realtime")
+      .filter(([surface]) => !resolvedIdentity.entitlementPolicyRevision || surface === "realtime")
       .map(([surface, operation, surfacePattern, operationPattern, titlePattern]) => {
       const requirement = governed.get(`${surface}/${operation}`);
       const licensed = surface === "realtime";
       const authPolicyRevision = licensed ? LICENSED_AUTH_POLICY_REVISION : AUTH_POLICY_REVISION;
-      const matches = tests.filter(({ text, title }) =>
+      // A community report cannot establish licensed execution or entitlement.
+      const matches = licensed && !resolvedIdentity.entitlementPolicyRevision ? [] : tests.filter(({ text, title }) =>
         surfacePattern.test(text) && operationPattern.test(text) && (!titlePattern || titlePattern.test(title))
       );
       const scenarioFacets = facetsFor(operation);
       const [protocolVersion, protocolProfile] = PROTOCOL_CONTEXT[surface];
-      const requestUrl = operationRequestUrl(surface, operation, resolvedIdentity.requestContext);
+      const requestUrl = licensed && !resolvedIdentity.entitlementPolicyRevision
+        ? null : operationRequestUrl(surface, operation, resolvedIdentity.requestContext);
       const facetStatuses = Object.fromEntries(
         scenarioFacets.map((facet) => [facet, facetStatus(surface, operation, facet, matches)]),
       );
@@ -401,9 +402,13 @@ export function buildFragment({ reports, identity, licensedProof, requirementsCo
         request_url: requestUrl,
         exercised_capabilities: scenarioFacets.filter((facet) => facetStatuses[facet] === "pass"),
         client_version: resolvedIdentity.clientVersion,
-        deployment_target: resolvedIdentity.deploymentTarget,
+        deployment_target: requirement.deployment_target,
         result,
-        skip_reason: result === "skip" ? `No executable canonical SDK test matched this required operation; owner: ${GAP_OWNER}` : null,
+        skip_reason: result === "skip"
+          ? licensed && !resolvedIdentity.entitlementPolicyRevision
+            ? "Licensed operation was not executed: separate licensed-release execution and live entitlement proof are required."
+            : `No executable canonical SDK test matched this required operation; owner: ${GAP_OWNER}`
+          : null,
         source_sha: resolvedIdentity.sourceSha,
         producer_source_sha: resolvedIdentity.producerSourceSha,
         image_digest: resolvedIdentity.imageDigest,

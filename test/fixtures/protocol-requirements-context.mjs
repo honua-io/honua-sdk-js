@@ -9,18 +9,18 @@ export function requirementsContext(execution, licensed = false) {
     producer_source_sha: execution.producerSourceSha,
     candidate: { source_sha: execution.sourceSha, image_digest: execution.imageDigest, cut_at: execution.cutAt },
     requirements: certificationContract.operations
-      .filter(({ surface }) => licensed ? surface === "realtime" : surface !== "realtime")
+      .filter(({ surface }) => !licensed || surface === "realtime")
       .map((operation) => ({
         ...structuredClone(operation),
         canonical_client: "@honua/sdk-js",
         client_version: execution.clientVersion,
         client_lane: "sdk-js-certification",
-        deployment_target: execution.deploymentTarget,
+        deployment_target: operation.surface === "realtime" ? "licensed-release" : execution.deploymentTarget,
         fixture_revision: execution.fixtureRevision,
         contract_revision: `sdk-js-certification@${execution.producerSourceSha}`,
-        auth_policy_revision: licensed ? "api-key-protected-v1" : "anonymous-public-v1",
+        auth_policy_revision: operation.surface === "realtime" ? "api-key-protected-v1" : "anonymous-public-v1",
         maturity: "preview",
-        required_tier: "nightly",
+        required_tier: operation.surface === "realtime" ? "release" : "nightly",
       })),
   };
 }

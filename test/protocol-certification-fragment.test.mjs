@@ -215,8 +215,13 @@ test("every observation satisfies the truthful identity ingest assertions", () =
     assert.equal(observation.performed_by, observation.client_id);
     assert.ok(observation.protocol_version.length > 0);
     assert.ok(observation.protocol_profile.length > 0);
-    const requestUrl = new URL(observation.request_url);
-    assert.ok(["http:", "https:"].includes(requestUrl.protocol));
+    if (observation.request_url === null) {
+      assert.equal(observation.surface, "realtime");
+      assert.equal(observation.result, "skip");
+    } else {
+      const requestUrl = new URL(observation.request_url);
+      assert.ok(["http:", "https:"].includes(requestUrl.protocol));
+    }
     assert.ok(Array.isArray(observation.exercised_capabilities));
     if (observation.result === "pass") {
       assert.ok(observation.scenario_facets.every((facet) => observation.exercised_capabilities.includes(facet)));
@@ -238,7 +243,9 @@ test("marks evidence incomplete when a suite report is unavailable", () => {
 
 test("machine-readable certification contract matches emitted operation identities", () => {
   const communityFragment = buildFragment({ identity, reports: [] });
-  assert.equal(communityFragment.observations.some((row) => row.surface === "realtime"), false);
+  assert.equal(communityFragment.observations.length, 67);
+  assert.equal(communityFragment.observations.filter((row) => row.surface === "realtime").length, 2);
+  assert.ok(communityFragment.observations.filter((row) => row.surface === "realtime").every((row) => row.result === "skip" && row.evidence_receipt === null));
   const licensedIdentity = {
     ...identity,
     deploymentTarget: "licensed-release",
@@ -613,5 +620,42 @@ test("catalog revision grammar matches the shared release and server contract", 
     const context = requirementsContext(identity);
     context.requirements_revision = revision;
     assert.throws(() => validateRequirementsContext(context, identity), /valid bounded requirements_revision/);
+  }
+});
+
+
+test("full nightly roster retains licensed skips even when unlicensed reports contain passing markers", () => {
+  const context = requirementsContext(identity);
+  const fragment = buildRawFragment({ identity, requirementsContext: context, reports: [{ testResults: [{
+    name: "Realtime SSE", assertionResults: [
+      { title: "subscribes [cert:realtime/subscribe#positive] [cert:realtime/subscribe#media-schema]", status: "passed" },
+      { title: "resumes [cert:realtime/resume#positive] [cert:realtime/resume#media-schema]", status: "passed" },
+    ],
+  }] }] });
+  assert.equal(fragment.observations.length, 67);
+  assert.equal(fragment.operation_scope.complete, true);
+  for (const row of fragment.observations.filter((item) => item.surface === "realtime")) {
+    assert.equal(row.result, "skip");
+    assert.equal(row.deployment_target, "licensed-release");
+    assert.equal(row.auth_policy_revision, "api-key-protected-v1");
+    assert.equal(row.required_tier, "release");
+    assert.equal(row.evidence_receipt, null);
+    assert.equal(row.request_url, null);
+    assert.equal(row.evidence_digest, null);
+    assert.equal(row.facet_results, null);
+    assert.deepEqual(row.exercised_capabilities, []);
+    assert.match(row.skip_reason, /not executed.*live entitlement proof/);
+  }
+  for (const mutate of [
+    (c) => { c.requirements = c.requirements.filter((row) => row.surface !== "realtime"); },
+    (c) => { c.requirements.find((row) => row.surface === "realtime").deployment_target = "local-docker"; },
+    (c) => { c.requirements.find((row) => row.surface === "realtime").auth_policy_revision = "anonymous-public-v1"; },
+    ...["client_version", "client_lane", "canonical_client", "capability_key", "contract_revision", "fixture_revision"].map((field) => (c) => {
+      c.requirements.find((row) => row.surface === "realtime")[field] = "foreign-value";
+    }),
+  ]) {
+    const invalid = structuredClone(context);
+    mutate(invalid);
+    assert.throws(() => buildRawFragment({ identity, requirementsContext: invalid, reports: [] }), /requirements_context/);
   }
 });
