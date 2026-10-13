@@ -60,3 +60,60 @@ test("sketch editing demo draws through terra-draw with workflow undo/redo, dele
     await server.close();
   }
 });
+
+test("feature editor synchronizes real pointer gestures, single undo and successive update drafts", async ({ page }) => {
+  const { startEditorSketchFixture } = await import("./editor-sketch-fixture.mjs");
+  const server = await startEditorSketchFixture();
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.stack ?? error.message));
+  try {
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.goto(server.url);
+    await expect(page.locator("body")).toHaveAttribute("data-ready", "true");
+    const editor = page.locator("honua-feature-editor");
+    const geometry = editor.locator("[data-geometry-json]");
+    const observed = () => page.evaluate(() => window.editorSketchObservation());
+    await editor.locator('[data-operation="create"]').click();
+    await editor.locator('[data-sketch-tool="point"]').click();
+    await page.mouse.click(350, 350);
+    await expect(geometry).toHaveValue(/"Point"/);
+    expect(JSON.parse(await geometry.inputValue())).toEqual({ type: "Point", coordinates: [0, 0] });
+    expect((await observed()).snapshot.dirty).toBe(true);
+    expect((await observed()).calls).toBe(0);
+    await editor.locator('[data-action="undo"]').click();
+    await expect(geometry).not.toHaveValue(/"Point"/);
+    await expect(editor.locator('[data-action="undo"]')).toBeDisabled();
+    await editor.locator('[data-action="redo"]').click();
+    await expect(geometry).toHaveValue(/"Point"/);
+    await expect(editor.locator('[data-action="redo"]')).toBeDisabled();
+    await editor.locator('[data-action="submit"]').click();
+    await expect.poll(async () => (await observed()).calls).toBe(1);
+    await editor.locator('[data-operation="update"]').click();
+    await expect(geometry).toHaveValue(/"Point"/);
+    await page.mouse.click(350, 350);
+    await page.mouse.move(350, 350);
+    await page.mouse.down();
+    await page.mouse.move(400, 310, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(async () => JSON.parse(await geometry.inputValue()).coordinates[0]).toBeGreaterThan(0);
+    const reshaped = JSON.parse(await geometry.inputValue());
+    expect(reshaped.coordinates[1]).toBeGreaterThan(0);
+    expect((await observed()).calls).toBe(1);
+    await editor.locator('[data-action="undo"]').click();
+    expect(JSON.parse(await geometry.inputValue())).toEqual({ type: "Point", coordinates: [0, 0] });
+    await expect(editor.locator('[data-action="undo"]')).toBeDisabled();
+    await editor.locator('[data-action="redo"]').click();
+    expect(JSON.parse(await geometry.inputValue())).toEqual(reshaped);
+    await editor.locator('[data-action="cancel"]').click();
+    await page.mouse.click(450, 450);
+    expect((await observed()).calls).toBe(1);
+    expect((await observed()).snapshot.form).toBeUndefined();
+    await editor.locator('[data-operation="create"]').click();
+    await editor.locator('[data-sketch-tool="point"]').click();
+    await page.mouse.click(300, 300);
+    await expect(geometry).toHaveValue(/"Point"/);
+    expect(JSON.parse(await geometry.inputValue()).coordinates[0]).toBeLessThan(0);
+    expect((await observed()).calls).toBe(1);
+    expect(errors).toEqual([]);
+  } finally { await server.close(); }
+});

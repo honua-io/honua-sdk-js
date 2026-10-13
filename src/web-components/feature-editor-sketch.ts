@@ -196,6 +196,7 @@ function createAdapter<T>(
   drawOf: () => TerraDrawSketchInstance,
 ): HonuaEditorSketchAdapter {
   const { workflow } = options;
+  const canSelect = options.modes === undefined || options.modes.includes("select");
   // Report terra-draw's real tool support so the editor's rectangle / circle
   // buttons stop showing the contract's "requires renderer support" reason.
   workflow.configureSketchTools(terraDrawSketchToolCapabilities(options.modes));
@@ -204,15 +205,70 @@ function createAdapter<T>(
   let pending = Promise.resolve();
   let removed = false;
 
-  const rebind = (): void => {
-    if (removed) return;
-    const model = workflow.sketchModel();
-    if (model === bound) return;
+  let geometryKey: string | undefined;
+  let tool: EditSketchTool | undefined;
+
+  const detach = (): void => {
+    const ownedId = handle?.activeFeatureId;
     handle?.remove();
     handle = undefined;
-    bound = model;
-    if (!model) return;
-    handle = bindTerraDrawSketch<T>(drawOf(), { model, ...bindPassThrough(options) });
+    if (ownedId !== undefined) drawOf().removeFeatures?.([ownedId]);
+    bound = undefined;
+    geometryKey = undefined;
+    tool = undefined;
+  };
+
+  const rebind = (): void => {
+    if (removed) return;
+    const snapshot = workflow.snapshot();
+    const model =
+      snapshot.operation !== "delete" && snapshot.status !== "committed" && snapshot.status !== "queued"
+        ? workflow.sketchModel()
+        : undefined;
+    if (model !== bound) {
+      detach();
+      bound = model;
+      if (model) {
+        handle = bindTerraDrawSketch<T>(drawOf(), {
+          model,
+          ...bindPassThrough(options),
+          applyGeometry(nextTool, geometry) {
+            const current = workflow.snapshot();
+            if (
+              removed ||
+              workflow.sketchModel() !== model ||
+              current.busy ||
+              current.status === "committed" ||
+              current.status === "queued" ||
+              current.operation === "delete"
+            )
+              return false;
+            if (model.toolCapability(nextTool).state !== "supported") return false;
+            workflow.setGeometry(nextTool, geometry);
+            // Renderer already owns this geometry; avoid replacing its selected vertex.
+            geometryKey = JSON.stringify(geometry ?? null);
+            return true;
+          },
+        });
+      }
+    }
+    if (!handle || !model) {
+      drawOf().setMode("static");
+      return;
+    }
+    const nextGeometry = JSON.stringify(snapshot.sketch?.geometry ?? null);
+    if (geometryKey !== nextGeometry) {
+      handle.syncFromModel();
+      geometryKey = nextGeometry;
+    }
+    const nextTool = snapshot.sketch?.activeTool;
+    if (snapshot.busy) handle.cancel();
+    else if (nextTool !== tool || tool === undefined) {
+      if (nextTool) handle.setTool(nextTool);
+      else if (canSelect) handle.select();
+      else handle.cancel();
+    }
+    tool = snapshot.busy ? undefined : nextTool;
   };
 
   const schedule = (): void => {
@@ -226,20 +282,26 @@ function createAdapter<T>(
 
   return {
     setTool(tool) {
-      if (handle) return handle.setTool(tool);
-      return workflow.startSketch(tool);
+      const capability = workflow.startSketch(tool);
+      rebind();
+      return capability;
     },
     select() {
-      handle?.select();
+      if (canSelect) handle?.select();
+      else handle?.cancel();
     },
     cancel() {
       handle?.cancel();
     },
     undo() {
-      return handle ? handle.undo() : workflow.undo();
+      const changed = workflow.undo();
+      rebind();
+      return changed;
     },
     redo() {
-      return handle ? handle.redo() : workflow.redo();
+      const changed = workflow.redo();
+      rebind();
+      return changed;
     },
     syncFromModel() {
       return handle?.syncFromModel() ?? false;
@@ -248,11 +310,11 @@ function createAdapter<T>(
       return pending;
     },
     remove() {
+      if (removed) return;
       removed = true;
       subscription.remove();
-      handle?.remove();
-      handle = undefined;
-      bound = undefined;
+      detach();
+      drawOf().setMode("static");
     },
   };
 }

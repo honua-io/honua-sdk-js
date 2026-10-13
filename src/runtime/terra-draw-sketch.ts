@@ -196,6 +196,8 @@ export interface BindTerraDrawSketchOptions<T = Record<string, unknown>> {
   featureFilter?(id: TerraDrawSketchFeatureId, feature: TerraDrawSketchFeature): boolean;
   /** Override the terra-draw mode → sketch tool mapping. */
   toolForMode?(mode: string): EditSketchTool | undefined;
+  /** Optional owning-workflow writer; replaces the model write, preserving one undo entry. */
+  applyGeometry?(tool: EditSketchTool, geometry: Record<string, unknown> | null): boolean;
   /** Fired after every terra-draw `finish` event, applied or not. */
   onFinish?(event: TerraDrawSketchFinishEvent): void;
   /** Fired when the tracked sketch feature is deleted in terra-draw. */
@@ -285,7 +287,9 @@ export function bindTerraDrawSketch<T = Record<string, unknown>>(
     if (feature && tool && included) {
       const cloned = cloneJsonLike(feature.geometry) as Record<string, unknown>;
       geometry = options.transformGeometry ? options.transformGeometry(cloned) : cloned;
-      applied = model.setSketchGeometry(tool, geometry).toolCapability(tool).state === "supported";
+      applied = options.applyGeometry
+        ? options.applyGeometry(tool, geometry)
+        : model.setSketchGeometry(tool, geometry).toolCapability(tool).state === "supported";
       if (applied) {
         const previousId = activeFeatureId;
         activeFeatureId = id;
@@ -309,7 +313,8 @@ export function bindTerraDrawSketch<T = Record<string, unknown>>(
     if (activeFeatureId === undefined || !ids.includes(activeFeatureId)) return;
     const removedId = activeFeatureId;
     const tool = toolsByFeature.get(removedId) ?? model.snapshot().sketch.tool ?? "point";
-    model.setSketchGeometry(tool, null);
+    if (options.applyGeometry) options.applyGeometry(tool, null);
+    else model.setSketchGeometry(tool, null);
     toolsByFeature.delete(removedId);
     activeFeatureId = undefined;
     if (selectedFeatureId === removedId) selectedFeatureId = undefined;
@@ -350,7 +355,9 @@ export function bindTerraDrawSketch<T = Record<string, unknown>>(
         : (cloneJsonLike(geometry) as Record<string, unknown>);
       const tool =
         (activeFeatureId !== undefined ? toolsByFeature.get(activeFeatureId) : undefined) ?? snapshot.sketch.tool;
-      const mode = tool ? (TERRA_DRAW_SKETCH_TOOL_MODES[tool] ?? "polygon") : "polygon";
+      const inferredMode =
+        restored.type === "Point" ? "point" : restored.type === "LineString" ? "linestring" : "polygon";
+      const mode = tool ? (TERRA_DRAW_SKETCH_TOOL_MODES[tool] ?? inferredMode) : inferredMode;
       const restoreId = activeFeatureId;
       const feature: TerraDrawSketchFeature = {
         ...(restoreId !== undefined ? { id: restoreId } : {}),

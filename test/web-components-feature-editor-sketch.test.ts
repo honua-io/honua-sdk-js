@@ -9,7 +9,10 @@ import type {
 } from "../src/runtime/terra-draw-sketch.js";
 import { createTerraDrawSnapping } from "../src/runtime/terra-draw-sketch.js";
 import { bindEditorSketch, editorSnappingOptions } from "../src/web-components/feature-editor-sketch.js";
-import { createFeatureEditorWorkflow } from "../src/web-components/feature-editor-workflow.js";
+import {
+  type HonuaFeatureEditorWorkflow,
+  createFeatureEditorWorkflow,
+} from "../src/web-components/feature-editor-workflow.js";
 
 /**
  * The app-platform sketch default (issue #680, REQ-002). Verified against a
@@ -17,6 +20,10 @@ import { createFeatureEditorWorkflow } from "../src/web-components/feature-edito
  * adapter must report terra-draw's real tool support into the workflow and stay
  * bound as the editor opens successive drafts.
  */
+
+function sourceWrites(workflow: HonuaFeatureEditorWorkflow): number {
+  return vi.mocked(workflow.source.applyEdits).mock.calls.length;
+}
 
 const ok = (
   added: EditResult["added"] = [],
@@ -52,6 +59,7 @@ interface FakeDraw {
   addFeatures(features: TerraDrawSketchFeature[]): void;
   removeFeatures(ids: TerraDrawSketchFeatureId[]): void;
   emitFinish(id: TerraDrawSketchFeatureId, mode: string): void;
+  emitDelete(id: TerraDrawSketchFeatureId): void;
   listenerCount(event: string): number;
   readonly modes: string[];
   features: TerraDrawSketchFeature[];
@@ -78,10 +86,22 @@ function makeDraw(): FakeDraw {
       return draw.features;
     },
     addFeatures(features) {
-      draw.features = [...draw.features, ...features];
+      draw.features = [
+        ...draw.features,
+        ...features.map((feature, index) => ({
+          ...feature,
+          id: feature.id ?? `restored-${draw.features.length + index}`,
+        })),
+      ];
     },
     removeFeatures(ids) {
       draw.features = draw.features.filter((feature) => !ids.includes(feature.id as TerraDrawSketchFeatureId));
+    },
+    emitDelete(id) {
+      draw.features = draw.features.filter((feature) => feature.id !== id);
+      for (const listener of listeners.get("change") ?? []) {
+        (listener as unknown as (ids: TerraDrawSketchFeatureId[], type: string) => void)([id], "delete");
+      }
     },
     listenerCount(event) {
       return listeners.get(event)?.size ?? 0;
@@ -113,6 +133,166 @@ describe("bindEditorSketch", () => {
     expect(tools.rectangle).toBe("supported");
     expect(tools.circle).toBe("supported");
     expect(tools.buffer).toBe("unsupported");
+  });
+
+  it("mirrors component workflow tools and notifies exactly once per renderer edit without duplicate undo", async () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const draw = makeDraw();
+    const adapter = bindEditorSketch(asInstance(draw), { workflow });
+    workflow.begin("create");
+    await adapter.ready();
+    workflow.startSketch("point");
+    await adapter.ready();
+    expect(draw.modes.at(-1)).toBe("point");
+    const notifications = vi.fn();
+    workflow.subscribe(notifications);
+    notifications.mockClear();
+    draw.features = [
+      { id: "drawn", type: "Feature", geometry: { type: "Point", coordinates: [4, 5] }, properties: { mode: "point" } },
+    ];
+    draw.emitFinish("drawn", "point");
+    expect(notifications).toHaveBeenCalledTimes(1);
+    expect(notifications.mock.calls[0]?.[0].dirty).toBe(true);
+    await adapter.ready();
+    expect(draw.modes.at(-1)).toBe("select");
+    expect(workflow.undo()).toBe(true);
+    await adapter.ready();
+    expect(workflow.snapshot().sketch?.geometry).toBeUndefined();
+    expect(workflow.undo()).toBe(false);
+    expect(draw.features).toEqual([]);
+    expect(workflow.redo()).toBe(true);
+    await adapter.ready();
+    expect(draw.features[0]?.geometry).toEqual({ type: "Point", coordinates: [4, 5] });
+    expect(workflow.redo()).toBe(false);
+    expect(sourceWrites(workflow)).toBe(0);
+    adapter.remove();
+  });
+
+  it("restores update geometry and removes only the owned draft across cancel and replacement", async () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const draw = makeDraw();
+    const foreign = {
+      id: "foreign",
+      type: "Feature" as const,
+      geometry: { type: "Point", coordinates: [99, 99] },
+      properties: { mode: "point" },
+    };
+    draw.features = [foreign];
+    const adapter = bindEditorSketch(asInstance(draw), { workflow });
+    workflow.setSelection({ id: 7, attributes: { label: "saved" }, geometry: { type: "Point", coordinates: [1, 2] } });
+    workflow.begin("update");
+    await adapter.ready();
+    expect(draw.features).toHaveLength(2);
+    expect(draw.features[1]?.properties?.mode).toBe("point");
+    expect(draw.features[1]?.geometry).toEqual({ type: "Point", coordinates: [1, 2] });
+    expect(draw.modes.at(-1)).toBe("select");
+    workflow.cancel();
+    await adapter.ready();
+    expect(draw.features).toEqual([foreign]);
+    expect(draw.modes.at(-1)).toBe("static");
+    workflow.begin("create");
+    await adapter.ready();
+    workflow.startSketch("buffer");
+    await adapter.ready();
+    expect(draw.modes).not.toContain("buffer");
+    workflow.begin("update");
+    await adapter.ready();
+    adapter.remove();
+    const modesAtRemoval = draw.modes.length;
+    adapter.remove();
+    expect(draw.modes).toHaveLength(modesAtRemoval);
+    expect(draw.features).toEqual([foreign]);
+    expect(draw.listenerCount("finish")).toBe(0);
+    workflow.begin("create");
+    await adapter.ready();
+    expect(draw.listenerCount("finish")).toBe(0);
+    expect(sourceWrites(workflow)).toBe(0);
+  });
+
+  it("keeps custom draw bindings without a registered select mode usable", async () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const draw = makeDraw();
+    const setMode = draw.setMode;
+    draw.setMode = (mode) => {
+      if (!["point", "polygon", "static"].includes(mode)) throw new Error(`Unregistered mode: ${mode}`);
+      setMode(mode);
+    };
+    const adapter = bindEditorSketch(asInstance(draw), { workflow, modes: ["point", "polygon"] });
+    workflow.begin("create");
+    await adapter.ready();
+    adapter.select();
+    workflow.startSketch("point");
+    await adapter.ready();
+    expect(draw.modes.at(-1)).toBe("point");
+    expect(draw.modes).not.toContain("select");
+    adapter.remove();
+  });
+
+  it.each([
+    {
+      type: "LineString",
+      coordinates: [
+        [0, 0],
+        [1, 1],
+      ],
+      mode: "linestring",
+    },
+    {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [1, 0],
+          [0, 1],
+          [0, 0],
+        ],
+      ],
+      mode: "polygon",
+    },
+  ])("restores $type update drafts with the correct renderer mode", async ({ type, coordinates, mode }) => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const draw = makeDraw();
+    const adapter = bindEditorSketch(asInstance(draw), { workflow });
+    const geometry = { type, coordinates };
+    workflow.setSelection({ id: 7, attributes: { label: "saved" }, geometry });
+    workflow.begin("update");
+    await adapter.ready();
+    expect(draw.features[0]?.geometry).toEqual(geometry);
+    expect(draw.features[0]?.properties?.mode).toBe(mode);
+    adapter.remove();
+  });
+
+  it("notifies once on renderer deletion and retires committed geometry without unsolicited writes", async () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const draw = makeDraw();
+    const adapter = bindEditorSketch(asInstance(draw), { workflow });
+    workflow.begin("create");
+    await adapter.ready();
+    draw.features = [
+      { id: "owned", type: "Feature", properties: { mode: "point" }, geometry: { type: "Point", coordinates: [1, 2] } },
+    ];
+    draw.emitFinish("owned", "point");
+    await adapter.ready();
+    const changed = vi.fn();
+    workflow.subscribe(changed);
+    changed.mockClear();
+    draw.emitDelete("owned");
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(workflow.snapshot().sketch?.geometry).toBeNull();
+    expect(workflow.undo()).toBe(true);
+    await adapter.ready();
+    expect(workflow.snapshot().sketch?.geometry).toEqual({ type: "Point", coordinates: [1, 2] });
+    expect(sourceWrites(workflow)).toBe(0);
+    await workflow.submit();
+    await adapter.ready();
+    expect(sourceWrites(workflow)).toBe(1);
+    expect(draw.features).toEqual([]);
+    expect(draw.listenerCount("finish")).toBe(0);
+    adapter.remove();
+    draw.setMode = () => {
+      throw new Error("Renderer has already stopped");
+    };
+    expect(() => adapter.remove()).not.toThrow();
   });
 
   it("marks a tool unsupported when its terra-draw mode is not registered", () => {
