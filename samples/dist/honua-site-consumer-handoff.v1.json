@@ -18,8 +18,8 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
       "format": "honua.site.sdk-sample-projection.v2",
       "schemaVersion": 2,
-      "bytes": 77391,
-      "sha256": "5d57f9f3f28e67df071938ee351c3c6a9c00fa6c5af444d2ac5f349d0580c0d6",
+      "bytes": 77418,
+      "sha256": "733d4c721b1d612ef3c7787d272afe6d7c8946d055a9575c844e8c9441c10d58",
       "schemaBytes": 15143,
       "schemaSha256": "8b8fea558df79884f3d9522737d24043b33b099d234ab64f66f1e624cdc52bbd"
     },
@@ -487,14 +487,14 @@
           "status": "not-applicable"
         }
       },
-      "expectedDegradation": "Compatibility APIs are removed when the package advances to 0.2.0.",
+      "expectedDegradation": "Compatibility APIs are retained through 0.2.x and removed when the package advances to 0.3.0.",
       "qualification": {
         "state": "unsupported",
         "catalogStatus": "not-a-golden-journey"
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "app-bootstrap-basic application bootstrap basic bootstraps a minimal application through the legacy app-platform compatibility surface. lab app-bootstrap compatibility-gate-facade grpc honua maplibre fixture none deprecated retire unsupported compatibility apis are removed when the package advances to 0.2.0."
+      "searchText": "app-bootstrap-basic application bootstrap basic bootstraps a minimal application through the legacy app-platform compatibility surface. lab app-bootstrap compatibility-gate-facade grpc honua maplibre fixture none deprecated retire unsupported compatibility apis are retained through 0.2.x and removed when the package advances to 0.3.0."
     },
     {
       "id": "cesium-route-playback",

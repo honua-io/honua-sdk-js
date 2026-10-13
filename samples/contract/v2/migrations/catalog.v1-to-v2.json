@@ -219,6 +219,7 @@
       }
     },
     "app-bootstrap-basic": {
+      "expectedDegradation": "Compatibility APIs are retained through 0.2.x and removed when the package advances to 0.3.0.",
       "track": "lab",
       "validationProfile": "browser-lab",
       "replacement": {
