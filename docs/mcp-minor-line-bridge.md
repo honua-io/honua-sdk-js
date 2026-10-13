@@ -24,6 +24,15 @@ preserves this peer range. `verify:mcp-pin` and the unit suite refuse a changed
 package/lockfile range, automatic peer replacement, or a source SDK outside the
 policy. A future incompatible API change must review the policy before release.
 
+The trusted Release Please refresh also derives the new MCP workspace dependency
+notes from the actual base and candidate package declarations. The upstream
+workspace plugin can propose peer or local development dependency bumps in its
+notes even when its package updater preserves those declarations. The refresh
+checks the candidate lockfile and peer policy, corrects only the newest MCP
+changelog entry and matching PR body, and sends the resulting exact head through
+normal CI. It leaves historical release notes and other dependencies unchanged;
+versions and changelogs are never corrected by hand.
+
 The delivery order is:
 
 1. Merge the compatibility bridge while retaining the current Node 20 baseline,

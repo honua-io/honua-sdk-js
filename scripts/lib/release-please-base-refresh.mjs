@@ -33,7 +33,7 @@ function pollingOptions(input) {
   return { attempts, delayMs };
 }
 
-async function loadExactReleasePleasePullRequest(repository, request) {
+export async function loadExactReleasePleasePullRequest(repository, request) {
   const rest = await findCurrentReleasePleasePullRequest(repository, request);
   if (!rest) return null;
   const current = await loadCurrentPullRequestDisposition(
