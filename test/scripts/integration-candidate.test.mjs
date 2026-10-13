@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -116,13 +116,19 @@ test("actual workflow resolver writes only admitted values before image verifica
   const script = block.split("\n").map((line) => line.slice(10)).join("\n");
   const directory = mkdtempSync(join(tmpdir(), "honua-candidate-control-"));
   try {
+    mkdirSync(join(directory, "scripts/lib"), { recursive: true });
+    copyFileSync(new URL("../../scripts/lib/integration-candidate.mjs", import.meta.url), join(directory, "scripts/lib/integration-candidate.mjs"));
+    const scriptPath = join(directory, "resolve.sh");
+    writeFileSync(scriptPath, script);
     const outputs = { GITHUB_ENV: join(directory, "env"), GITHUB_OUTPUT: join(directory, "output") };
-    const result = spawnSync("bash", ["-e", "-c", script], { cwd: new URL("../../", import.meta.url), env: { PATH: process.env.PATH, ...env, ...outputs }, encoding: "utf8" });
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", scriptPath], { cwd: directory, env: { PATH: process.env.PATH, ...env, ...outputs }, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(readFileSync(outputs.GITHUB_ENV, "utf8"), Object.entries(candidate).map(([key, value]) => `${key}=${value}\n`).join(""));
     assert.equal(readFileSync(outputs.GITHUB_OUTPUT, "utf8"), "selected=true\n");
-    const invalid = spawnSync("bash", ["-e", "-c", script], { cwd: new URL("../../", import.meta.url), env: { PATH: process.env.PATH, ...env, ...outputs, HONUA_CANDIDATE_SOURCE_SHA: "trunk" }, encoding: "utf8" });
+    const rejected = { GITHUB_ENV: join(directory, "rejected-env"), GITHUB_OUTPUT: join(directory, "rejected-output") };
+    const invalid = spawnSync("bash", ["--noprofile", "--norc", "-e", scriptPath], { cwd: directory, env: { PATH: process.env.PATH, ...env, ...rejected, HONUA_CANDIDATE_SOURCE_SHA: "trunk" }, encoding: "utf8" });
     assert.notEqual(invalid.status, 0);
-    assert.equal(readFileSync(outputs.GITHUB_OUTPUT, "utf8"), "selected=true\n");
+    assert.equal(existsSync(rejected.GITHUB_ENV), false);
+    assert.equal(existsSync(rejected.GITHUB_OUTPUT), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
