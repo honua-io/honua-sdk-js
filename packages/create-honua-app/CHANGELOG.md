@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.9...create-honua-app-v0.2.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* Node 20 is no longer a supported runtime.
+
+### Miscellaneous
+
+* require Node 22.12 or newer ([96e2050](https://github.com/honua-io/honua-sdk-js/commit/96e2050e7dd187d0d2a3858e8e6fe79d8cf158e2))
+
 ## [0.1.9](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.8...create-honua-app-v0.1.9) (2026-10-12)
 
 
