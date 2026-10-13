@@ -192,6 +192,8 @@ describe("explicit scaffold registry certification", () => {
     const shell = block.split("        run: |\n")[1].split("\n").map((line) => line.replace(/^          /, "")).join("\n");
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "scaffold-workflow-"));
     try {
+      const script = path.join(directory, "workflow.sh");
+      fs.writeFileSync(script, shell);
       fs.writeFileSync(path.join(directory, "npm"), '#!/bin/sh\nprintf "%s\\n" "$@" > "$ARGUMENT_FILE"\n', { mode: 0o755 });
       for (const [template, version, expected] of [
         ["", "", ["run", "create-app:time-to-map", "--"]],
@@ -199,7 +201,7 @@ describe("explicit scaffold registry certification", () => {
         ["", '$(touch injected)', ["run", "create-app:time-to-map", "--", "--sdk-version", '$(touch injected)']],
       ]) {
         const argumentFile = path.join(directory, "args");
-        execFileSync("bash", ["--noprofile", "--norc", "-c", shell], { cwd: directory,
+        execFileSync("bash", ["--noprofile", "--norc", script], { cwd: directory,
           env: { PATH: `${directory}:${process.env.PATH}`, ARGUMENT_FILE: argumentFile, CREATE_APP_TEMPLATE: template, CREATE_APP_SDK_VERSION: version } });
         assert.deepEqual(fs.readFileSync(argumentFile, "utf8").trimEnd().split("\n"), expected);
         assert.equal(fs.existsSync(path.join(directory, "injected")), false);
