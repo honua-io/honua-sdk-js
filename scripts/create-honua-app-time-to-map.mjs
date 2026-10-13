@@ -28,6 +28,7 @@ import {
   liveLaneEnabled,
   parseArgs,
   validateCreateHonuaAppEvidence,
+  verifyRegistryInstall,
 } from "./lib/create-honua-app-evidence.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -165,11 +166,13 @@ async function main() {
     revision: repositoryRevision(),
   };
   const app = { template: templateId, sdkPackage: manifest.sdk.package, sdkVersion: manifest.sdk.version };
+  const selection = options.sdkVersion === undefined ? {} : { requestedSdkVersion: options.sdkVersion };
 
   if (!liveLaneEnabled(process.env)) {
     writeEvidence(options.output, {
       format: CREATE_HONUA_APP_EVIDENCE_FORMAT,
       status: "skipped",
+      ...selection,
       skip: { reason: "HONUA_CREATE_APP_LIVE_ENABLED is not set; the registry install lane stayed disabled." },
       app,
       environment,
@@ -188,14 +191,30 @@ async function main() {
     stageStartedAt = now;
   };
   let preview;
+  let registryInstall;
   try {
     // Resolve the SDK the way a user's scaffold does, so the lane measures the
     // promoted channel rather than the fallback pin.
-    const sdk = await resolveSdkVersion({ manifest });
+    const sdk = await resolveSdkVersion({ manifest, override: options.sdkVersion });
     app.sdkVersion = sdk.version;
+    // An explicit certification cannot use the CLI's offline override fallback.
+    // Query the public registry separately, then require npm's installed lock to
+    // match these bytes. npm verifies the SRI during the default-resolution install.
+    const metadata = options.sdkVersion === undefined ? undefined : JSON.parse(execFileSync("npm", [
+      "view", `${sdk.package}@${sdk.version}`, "--json", "--registry=https://registry.npmjs.org/",
+      "--@honua:registry=https://registry.npmjs.org/",
+    ], { encoding: "utf8", timeout: 30_000, maxBuffer: 4 * 1024 * 1024 }));
     scaffoldProject({ templateId, directory: projectDirectory, cwd: workspace, packageRoot: PACKAGE_ROOT, sdk });
     finishStage("scaffold");
-    runCommand("npm", ["install", "--no-audit", "--no-fund"], projectDirectory);
+    runCommand("npm", ["install", "--no-audit", "--no-fund", ...(options.sdkVersion === undefined ? [] : [
+      "--legacy-peer-deps=false", "--force=false", "--@honua:registry=https://registry.npmjs.org/",
+    ])], projectDirectory);
+    if (options.sdkVersion !== undefined) {
+      registryInstall = verifyRegistryInstall({ metadata, packageName: sdk.package, version: sdk.version,
+        installed: JSON.parse(fs.readFileSync(path.join(projectDirectory, "node_modules", sdk.package, "package.json"), "utf8")),
+        lock: JSON.parse(fs.readFileSync(path.join(projectDirectory, "package-lock.json"), "utf8")),
+      });
+    }
     finishStage("install");
     runCommand("npm", ["run", "build"], projectDirectory);
     finishStage("build");
@@ -207,6 +226,8 @@ async function main() {
     writeEvidence(options.output, {
       format: CREATE_HONUA_APP_EVIDENCE_FORMAT,
       status: journey.consoleErrors.length === 0 && journey.externalRequests.length === 0 ? "passed" : "failed",
+      ...selection,
+      ...(registryInstall ? { registryInstall } : {}),
       measurement: {
         budgetMs: CREATE_HONUA_APP_BUDGET_MS,
         elapsedMs,
@@ -229,6 +250,8 @@ async function main() {
     writeEvidence(options.output, {
       format: CREATE_HONUA_APP_EVIDENCE_FORMAT,
       status: "failed",
+      ...selection,
+      ...(registryInstall ? { registryInstall } : {}),
       measurement: {
         budgetMs: CREATE_HONUA_APP_BUDGET_MS,
         elapsedMs,
