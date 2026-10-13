@@ -207,6 +207,8 @@ function createAdapter<T>(
 
   let geometryKey: string | undefined;
   let tool: EditSketchTool | undefined;
+  let desiredMode: EditSketchTool | "select" | "static" | undefined;
+  let appliedMode: typeof desiredMode;
 
   const detach = (): void => {
     const ownedId = handle?.activeFeatureId;
@@ -216,6 +218,8 @@ function createAdapter<T>(
     bound = undefined;
     geometryKey = undefined;
     tool = undefined;
+    desiredMode = undefined;
+    appliedMode = undefined;
   };
 
   const rebind = (): void => {
@@ -262,13 +266,19 @@ function createAdapter<T>(
       geometryKey = nextGeometry;
     }
     const nextTool = snapshot.sketch?.activeTool;
-    if (snapshot.busy) handle.cancel();
-    else if (nextTool !== tool || tool === undefined) {
-      if (nextTool) handle.setTool(nextTool);
-      else if (canSelect) handle.select();
-      else handle.cancel();
+    // An unchanged workflow tool is not a new renderer command: preserve an
+    // explicit cancel and the current selection across attribute notifications.
+    if (desiredMode === undefined || nextTool !== tool) {
+      desiredMode = nextTool ?? (canSelect ? "select" : "static");
     }
-    tool = snapshot.busy ? undefined : nextTool;
+    tool = nextTool;
+    const nextMode = snapshot.busy ? "static" : desiredMode;
+    if (nextMode !== appliedMode) {
+      if (nextMode === "select") handle.select();
+      else if (nextMode === "static") handle.cancel();
+      else handle.setTool(nextMode);
+      appliedMode = nextMode;
+    }
   };
 
   const schedule = (): void => {
@@ -282,16 +292,20 @@ function createAdapter<T>(
 
   return {
     setTool(tool) {
+      desiredMode = undefined;
       const capability = workflow.startSketch(tool);
       rebind();
       return capability;
     },
     select() {
-      if (canSelect) handle?.select();
-      else handle?.cancel();
+      tool = workflow.snapshot().sketch?.activeTool;
+      desiredMode = canSelect ? "select" : "static";
+      rebind();
     },
     cancel() {
-      handle?.cancel();
+      tool = workflow.snapshot().sketch?.activeTool;
+      desiredMode = "static";
+      rebind();
     },
     undo() {
       const changed = workflow.undo();

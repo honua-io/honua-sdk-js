@@ -396,6 +396,63 @@ describe("bindEditorSketch", () => {
     expect(draw.modes).toEqual(expect.arrayContaining(["select", "static"]));
   });
 
+  it("keeps explicit cancellation across attribute notifications and re-arms the same tool only on request", async () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const draw = makeDraw();
+    const adapter = bindEditorSketch(asInstance(draw), { workflow });
+    workflow.begin("create");
+    await adapter.ready();
+    adapter.cancel();
+    const cancelledModes = [...draw.modes];
+    workflow.setValue("label", "attribute only");
+    await adapter.ready();
+    expect(draw.modes).toEqual(cancelledModes);
+    expect(draw.modes.at(-1)).toBe("static");
+
+    adapter.setTool("point");
+    expect(draw.modes.at(-1)).toBe("point");
+    adapter.cancel();
+    workflow.setValue("label", "still cancelled");
+    await adapter.ready();
+    expect(draw.modes.at(-1)).toBe("static");
+    adapter.setTool("point");
+    await adapter.ready();
+    expect(draw.modes.at(-1)).toBe("point");
+    expect(sourceWrites(workflow)).toBe(0);
+    adapter.remove();
+  });
+
+  it("does not restart select mode on unrelated notifications and resets mode for a new draft", async () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const draw = makeDraw();
+    let selectedVertex: string | undefined;
+    const setMode = draw.setMode;
+    draw.setMode = (mode) => {
+      selectedVertex = undefined;
+      setMode(mode);
+    };
+    const adapter = bindEditorSketch(asInstance(draw), { workflow });
+    workflow.setSelection({ id: 7, attributes: { label: "saved" }, geometry: { type: "Point", coordinates: [1, 2] } });
+    workflow.begin("update");
+    await adapter.ready();
+    adapter.select();
+    selectedVertex = "owned-vertex";
+    const selectedModes = [...draw.modes];
+    workflow.setValue("label", "changed");
+    await adapter.ready();
+    expect(draw.modes).toEqual(selectedModes);
+    expect(selectedVertex).toBe("owned-vertex");
+
+    adapter.cancel();
+    workflow.cancel();
+    await adapter.ready();
+    workflow.begin("update");
+    await adapter.ready();
+    expect(draw.modes.at(-1)).toBe("select");
+    expect(sourceWrites(workflow)).toBe(0);
+    adapter.remove();
+  });
+
   it("keeps snapping live across drafts so setSnapping works on later drafts", async () => {
     const workflow = createFeatureEditorWorkflow({ source: makeSource() });
     const index = createSnapIndex();
