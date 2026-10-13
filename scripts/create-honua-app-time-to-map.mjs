@@ -19,6 +19,8 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
+import { probeFirstMap } from "./lib/create-honua-app-browser.mjs";
+
 import { scaffoldProject } from "../packages/create-honua-app/lib/scaffold.mjs";
 import { resolveSdkVersion } from "../packages/create-honua-app/lib/sdk-version.mjs";
 import { defaultTemplate, loadTemplateManifest } from "../packages/create-honua-app/lib/templates.mjs";
@@ -109,52 +111,6 @@ async function startPreview(projectDirectory) {
   };
 }
 
-async function probeFirstMap(url) {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch();
-  const consoleErrors = [];
-  const externalRequests = [];
-  try {
-    const page = await browser.newPage();
-    const origin = new URL(url).origin;
-    page.on("console", (message) => {
-      if (message.type() === "error") consoleErrors.push(message.text());
-    });
-    page.on("pageerror", (error) => consoleErrors.push(error.message));
-    // `blob:` and `data:` requests are created by the page itself (MapLibre's
-    // worker), so only a real off-origin fetch counts against the fixture lane.
-    // Origins are parsed and compared, never prefix-matched: a prefix test
-    // would accept a look-alike host that merely starts with the same text.
-    const sameOrigin = (value) => {
-      if (value.startsWith("data:")) return true;
-      try {
-        return new URL(value).origin === origin;
-      } catch {
-        return false;
-      }
-    };
-    page.on("request", (request) => {
-      if (!sameOrigin(request.url())) externalRequests.push(request.url());
-    });
-    await page.goto(url, { waitUntil: "load", timeout: BROWSER_TIMEOUT_MS });
-    await page.waitForSelector(".maplibregl-canvas", { timeout: BROWSER_TIMEOUT_MS });
-    await page.waitForFunction(
-      () => /^[1-9][0-9]*/.test(document.getElementById("fact-features")?.textContent?.trim() ?? ""),
-      undefined,
-      { timeout: BROWSER_TIMEOUT_MS },
-    );
-    const rendered = await page.evaluate(() => document.getElementById("fact-features")?.textContent?.trim() ?? "");
-    return {
-      mapMounted: true,
-      renderedFeatureCount: Number.parseInt(rendered, 10),
-      dataLane: "fixture",
-      consoleErrors,
-      externalRequests,
-    };
-  } finally {
-    await browser.close();
-  }
-}
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -192,6 +148,7 @@ async function main() {
   };
   let preview;
   let registryInstall;
+  const journey = { mapMounted: false, canvasPresent: false, renderedFeatureCount: 0, dataLane: "fixture", consoleErrors: [], externalRequests: [] };
   try {
     // Resolve the SDK the way a user's scaffold does, so the lane measures the
     // promoted channel rather than the fallback pin.
@@ -220,7 +177,7 @@ async function main() {
     finishStage("build");
     preview = await startPreview(projectDirectory);
     finishStage("serve");
-    const journey = await probeFirstMap(preview.url);
+    await probeFirstMap(preview.url, journey, { timeoutMs: BROWSER_TIMEOUT_MS });
     finishStage("map");
     const elapsedMs = Math.round(performance.now() - startedAt);
     writeEvidence(options.output, {
@@ -261,7 +218,7 @@ async function main() {
       },
       app,
       environment,
-      journey: { mapMounted: false, renderedFeatureCount: 0, dataLane: "fixture", consoleErrors: [], externalRequests: [] },
+      journey,
       failure: { message: error instanceof Error ? error.message : String(error) },
     });
     process.exitCode = 1;

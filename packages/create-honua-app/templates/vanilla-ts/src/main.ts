@@ -1,4 +1,5 @@
 import { mountSampleOnlineBasemap } from "./online-basemap.js";
+import { STARTER_SOURCE_ID, observeRenderedFeatures } from "./rendered-features.js";
 import "./maplibre-worker.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -97,10 +98,12 @@ async function run(): Promise<void> {
       query: plan,
       sourceId,
       style: BASEMAP_STYLE,
-      rendererOptions: { mapOptions: MAP_OPTIONS },
+      rendererOptions: { mapOptions: MAP_OPTIONS, sourceId: STARTER_SOURCE_ID },
     });
     await mounted.ready;
     const rawMap = mounted.raw("maplibre");
+    if (!rawMap) throw new Error("The mounted map is unavailable.");
+    const stopObserving = observeRenderedFeatures(rawMap as maplibregl.Map);
     const disposeBasemap =
       configuredEndpoint && rawMap
         ? mountSampleOnlineBasemap(rawMap as maplibregl.Map, {
@@ -110,6 +113,7 @@ async function run(): Promise<void> {
     window.addEventListener(
       "pagehide",
       () => {
+        stopObserving();
         disposeBasemap();
         void honua.dispose();
       },
