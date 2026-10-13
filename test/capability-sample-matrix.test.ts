@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -30,6 +30,27 @@ async function canonicalInputs() {
   ]);
   const qualificationEvidence = await collectQualificationEvidence(catalog);
   return { catalog, packageJson, supportTruth, qualificationEvidence };
+}
+
+async function copyEstablishedMatrixSidecars(receiptRoot: string) {
+  let established: { lanes: Array<{ sampleId: string; receiptPath: string }> };
+  try {
+    // canonicalInputs already validated this registry and its real sidecars.
+    established = await readJson("samples/contract/v2/release-matrix-lanes.v1.json");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return;
+    throw error;
+  }
+  // Keep the canonical registry authoritative. Satisfy its sealed sidecar input
+  // with the actual bytes so orphan tests reach inventory validation instead of
+  // accidentally testing a missing release-matrix prerequisite.
+  for (const lane of established.lanes) {
+    const sampleRoot = path.join(receiptRoot, lane.sampleId);
+    await mkdir(sampleRoot, { recursive: true });
+    const copied = path.join(sampleRoot, path.basename(lane.receiptPath));
+    await copyFile(lane.receiptPath, copied);
+    expect(await readFile(copied)).toEqual(await readFile(lane.receiptPath));
+  }
 }
 
 function qualificationReceipts(
@@ -386,10 +407,11 @@ describe("capability-to-sample matrix contract", () => {
     );
   });
 
-  it("rejects orphan qualification evidence roots when the catalog claims zero qualified samples", async () => {
+  it("rejects orphan qualification evidence roots after satisfying established matrix sidecars", async () => {
     const inputs = await canonicalInputs();
     const receiptRoot = await mkdtemp(path.join(os.tmpdir(), "honua-matrix-orphan-"));
     try {
+      await copyEstablishedMatrixSidecars(receiptRoot);
       await mkdir(path.join(receiptRoot, "missing-sample"));
       await expect(collectQualificationEvidence(inputs.catalog, { receiptRoot })).rejects.toThrow(
         "qualification evidence root has orphan or missing entries",
@@ -403,6 +425,7 @@ describe("capability-to-sample matrix contract", () => {
     const inputs = await canonicalInputs();
     const receiptRoot = await mkdtemp(path.join(os.tmpdir(), "honua-matrix-excess-root-"));
     try {
+      await copyEstablishedMatrixSidecars(receiptRoot);
       for (let index = 0; index < 128; index += 1) {
         await mkdir(path.join(receiptRoot, `unexpected-${index.toString().padStart(3, "0")}`));
       }
@@ -410,7 +433,7 @@ describe("capability-to-sample matrix contract", () => {
       // (first-map/maplibre-quickstart, imagery-terrain/imagery-cog-quickstart,
       // arcgis-migration/migration-workbench, and
       // service-explorer/service-explorer), so the root bound is 4: the
-      // walk must stop at the fifth unexpected entry rather than reading
+      // walk must stop at the fifth root entry rather than reading
       // all 128.
       await expect(collectQualificationEvidence(inputs.catalog, { receiptRoot })).rejects.toThrow(
         "qualification evidence root has orphan or missing entries; found more than 4 entries",
