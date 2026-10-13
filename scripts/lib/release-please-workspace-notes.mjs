@@ -40,7 +40,7 @@ function rewriteSection(section, base, candidate) {
     return `    * ${SDK} bumped from ${before} to ${after}`;
   }).join("\n");
   return retained
-    ? output.replace("* The following workspace dependencies were updated", "* The following workspace dependency declarations were checked")
+    ? output.replace(/^\* The following workspace dependencies were updated$/mu, "* The following workspace dependencies were updated or retained")
     : output;
 }
 

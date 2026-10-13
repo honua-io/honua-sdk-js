@@ -43,6 +43,7 @@ describe("managed MCP workspace notes", () => {
     assert.match(result.changelog, /@honua\/sdk-js retained at file:\.\./);
     assert.match(result.changelog, /@honua\/sdk-js retained at \^0\.1\.17 \|\| \^0\.2\.0/);
     assert.match(result.changelog, /another-package bumped from 1\.0\.0 to 1\.1\.0/);
+    assert.match(result.changelog, /The following workspace dependencies were updated or retained/);
     assert.ok(result.changelog.endsWith(historical));
     assert.ok(result.body.endsWith(input.body.slice(input.body.indexOf("<details><summary>js-sdk:"))));
     assert.deepEqual(normalizeMcpWorkspaceNotes({ ...input, ...result }), result);
