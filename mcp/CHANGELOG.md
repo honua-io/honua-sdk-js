@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.19...mcp-server-v0.2.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **release:** SDK and MCP require Node 22.12 or newer; Node 20 is unsupported in the next managed release. Preserve the recovered Node 20 bridge as its existing immutable release.
+
+### Miscellaneous
+
+* **release:** advance verified MCP bridge for Node 22 ([#2084](https://github.com/honua-io/honua-sdk-js/issues/2084)) ([9485939](https://github.com/honua-io/honua-sdk-js/commit/9485939daf567053597e7e0bf339c4bb505e8c1c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.2.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.17 || ^0.2.0 to ^0.2.0
+
 ## [0.1.19](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.18...mcp-server-v0.1.19) (2026-10-12)
 
 
