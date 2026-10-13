@@ -229,3 +229,38 @@ explicit target inputs and variables below.
 This is the lane's only persistent observable signal — the workflow
 attaches it to every run so SDK / server drift is traceable from the
 GitHub Actions UI without re-running the suite.
+
+
+## Governed certification receipts
+
+Ordinary push, schedule, and context-free dispatch runs still execute the live
+integration and conformance suites and retain their raw reports. They do not
+emit a protocol certification fragment. A certification dispatch supplies
+`requirements_context`; both `nightly_dispatch_id` and
+`licensed_certification: true` require it. Missing context fails the run.
+
+The reviewed release dispatcher projects `honua.protocol-producer-context/v1`
+from the canonical requirements catalog. The JSON input is limited to 60,000
+UTF-8 bytes and binds its catalog `requirements_revision`, producer
+`honua-sdk-js`, executing `producer_source_sha`, and candidate
+`source_sha`, `image_digest`, and `cut_at`. Its `requirements` array contains the
+complete selected community or licensed SDK operation roster. Each row carries
+`capability_key`, `surface`, `operation`, `canonical_client`, `client_version`,
+`client_lane`, `deployment_target`, `fixture_revision`, `contract_revision`,
+`auth_policy_revision`, `scenario_facets`, `maturity`, and `required_tier`.
+The producer refuses missing, duplicate, foreign, or mismatched rows. SDK
+contracts currently govern facet markers rather than `test_ids`; adding
+ungoverned test IDs is refused.
+
+Every executed receipt uses `honua.certification-evidence-receipt/v2` and includes
+producer-owned maturity, required tier, requirements revision, and the candidate
+cut in its hashed identity. There is no v1 or context-free receipt fallback.
+Missing executable coverage remains a reported gap, even with valid context.
+Licensed receipts still require the existing live entitlement proof.
+
+For an offline normalization of retained reports, pass the reviewed context file
+using `node scripts/protocol-certification-fragment.mjs --requirements-context
+/path/to/context.json` together with the existing execution identity inputs.
+`HONUA_REQUIREMENTS_CONTEXT` supplies the same JSON in the hosted workflow.
+Context must come from the reviewed catalog projection; do not manufacture it
+from the observed test outcomes.

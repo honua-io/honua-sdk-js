@@ -209,7 +209,90 @@ function operationRequestUrl(surface, operation, context) {
   return new URL(paths[surface], base).href;
 }
 
-export function buildFragment({ reports, identity, licensedProof, complete = true, now = new Date().toISOString() }) {
+export const REQUIREMENTS_CONTEXT_SCHEMA = "honua.protocol-producer-context/v1";
+export const MAX_REQUIREMENTS_CONTEXT_BYTES = 60_000;
+const REQUIREMENT_FIELDS = [
+  "capability_key", "surface", "operation", "canonical_client", "client_version",
+  "client_lane", "deployment_target", "fixture_revision", "contract_revision",
+  "auth_policy_revision", "scenario_facets", "maturity", "required_tier",
+];
+
+export function parseRequirementsContext(raw) {
+  if (typeof raw !== "string" || !raw.trim()) {
+    throw new Error("certification requires requirements_context; context-less and v1 receipts are not supported");
+  }
+  if (Buffer.byteLength(raw, "utf8") > MAX_REQUIREMENTS_CONTEXT_BYTES) {
+    throw new Error("requirements_context exceeds 60000 UTF-8 bytes");
+  }
+  return JSON.parse(raw);
+}
+
+export function certificationRequested(environment = process.env) {
+  const supplied = Boolean(environment.HONUA_REQUIREMENTS_CONTEXT?.trim());
+  const required = Boolean(environment.HONUA_NIGHTLY_DISPATCH_ID)
+    || environment.HONUA_LICENSED_CERTIFICATION === "true";
+  if (required || supplied) parseRequirementsContext(environment.HONUA_REQUIREMENTS_CONTEXT);
+  return required || supplied;
+}
+
+export function validateRequirementsContext(context, identity) {
+  if (!exactKeys(context, ["schema", "requirements_revision", "producer", "producer_source_sha", "candidate", "requirements"])
+    || context.schema !== REQUIREMENTS_CONTEXT_SCHEMA) {
+    throw new Error("requirements_context must use the closed producer-context/v1 schema");
+  }
+  if (Buffer.byteLength(JSON.stringify(context), "utf8") > MAX_REQUIREMENTS_CONTEXT_BYTES) {
+    throw new Error("requirements_context exceeds 60000 UTF-8 bytes");
+  }
+  if (typeof context.requirements_revision !== "string" || !context.requirements_revision.trim()
+    || context.requirements_revision !== context.requirements_revision.trim()) {
+    throw new Error("requirements_context requires a nonempty requirements_revision");
+  }
+  if (context.producer !== "honua-sdk-js" || context.producer_source_sha !== identity.producerSourceSha) {
+    throw new Error("requirements_context producer/source does not match the executing SDK");
+  }
+  if (!exactKeys(context.candidate, ["source_sha", "image_digest", "cut_at"])
+    || context.candidate.source_sha !== identity.sourceSha
+    || context.candidate.image_digest !== identity.imageDigest
+    || context.candidate.cut_at !== identity.cutAt) {
+    throw new Error("requirements_context candidate does not match the executed candidate");
+  }
+  const expected = new Map(OPERATIONS
+    .filter(([surface]) => identity.entitlementPolicyRevision ? surface === "realtime" : surface !== "realtime")
+    .map(([surface, operation]) => [`${surface}/${operation}`, {
+      capability_key: CAPABILITIES[surface], surface, operation,
+      canonical_client: CLIENT_ID, client_version: identity.clientVersion,
+      client_lane: RUNNER_LANE, deployment_target: identity.deploymentTarget,
+      fixture_revision: identity.fixtureRevision,
+      contract_revision: `sdk-js-certification@${identity.producerSourceSha}`,
+      auth_policy_revision: surface === "realtime" ? LICENSED_AUTH_POLICY_REVISION : AUTH_POLICY_REVISION,
+      scenario_facets: facetsFor(operation),
+    }]));
+  if (!Array.isArray(context.requirements) || context.requirements.length !== expected.size) {
+    throw new Error("requirements_context must contain the complete SDK operation roster");
+  }
+  const governed = new Map();
+  for (const row of context.requirements) {
+    // SDK operation contracts govern facet markers, not arbitrary test IDs.
+    // A dispatcher cannot add identities that this producer does not execute.
+    if (!exactKeys(row, REQUIREMENT_FIELDS)) throw new Error("requirements_context row has missing or unknown fields");
+    const key = `${row.surface}/${row.operation}`;
+    const actual = expected.get(key);
+    if (!actual || governed.has(key)) throw new Error(`requirements_context has unknown or duplicate operation: ${key}`);
+    for (const [field, value] of Object.entries(actual)) {
+      if (canonicalJson(row[field]) !== canonicalJson(value)) {
+        throw new Error(`requirements_context ${key} does not match executed ${field}`);
+      }
+    }
+    if (!["supported", "preview", "experimental", "roadmap", "deprecated", "internal"].includes(row.maturity)
+      || !["pr", "nightly", "release"].includes(row.required_tier)) {
+      throw new Error(`requirements_context ${key} has invalid maturity or required_tier`);
+    }
+    governed.set(key, row);
+  }
+  return governed;
+}
+
+export function buildFragment({ reports, identity, licensedProof, requirementsContext, complete = true, now = new Date().toISOString() }) {
   const resolvedIdentity = resolveCertificationIdentity(identity, licensedProof);
   const startedAt = resolvedIdentity.startedAt ?? now;
   if (resolvedIdentity.entitlementPolicyRevision) {
@@ -219,6 +302,7 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
       throw new Error("licensed entitlement check must occur within the certification execution interval");
     }
   }
+  const governed = validateRequirementsContext(requirementsContext, resolvedIdentity);
   const tests = reports.flatMap(assertions);
   const payloadBase64 = Buffer.from(JSON.stringify(reports), "utf8").toString("base64");
   return {
@@ -236,6 +320,7 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
         ? surface === "realtime"
         : surface !== "realtime")
       .map(([surface, operation, surfacePattern, operationPattern, titlePattern]) => {
+      const requirement = governed.get(`${surface}/${operation}`);
       const licensed = surface === "realtime";
       const authPolicyRevision = licensed ? LICENSED_AUTH_POLICY_REVISION : AUTH_POLICY_REVISION;
       const matches = tests.filter(({ text, title }) =>
@@ -258,8 +343,12 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
       );
       const contractRevision = `sdk-js-certification@${resolvedIdentity.producerSourceSha}`;
       const evidenceReceipt = result === "skip" ? null : {
-        schema: "honua.certification-evidence-receipt/v1",
+        schema: "honua.certification-evidence-receipt/v2",
         identity: {
+          maturity: requirement.maturity,
+          required_tier: requirement.required_tier,
+          requirements_revision: requirementsContext.requirements_revision,
+          candidate_cut_at: resolvedIdentity.cutAt,
           capability_key: CAPABILITIES[surface],
           surface,
           operation,
@@ -295,6 +384,9 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
       const evidenceDigest = evidenceReceipt === null ? null
         : `sha256:${createHash("sha256").update(canonicalJson(evidenceReceipt)).digest("hex")}`;
       return {
+        maturity: requirement.maturity,
+        required_tier: requirement.required_tier,
+        requirements_revision: requirementsContext.requirements_revision,
         capability_key: CAPABILITIES[surface],
         surface,
         operation,
@@ -495,6 +587,9 @@ export function validateIdentityOverrideEnvironment(environment = process.env) {
 }
 
 async function main() {
+  const contextPath = argument("requirements-context");
+  const requirementsContext = parseRequirementsContext(contextPath
+    ? await readFile(contextPath, "utf8") : process.env.HONUA_REQUIREMENTS_CONTEXT);
   validateIdentityOverrideEnvironment();
   const reportPaths = argument("reports", "test-results/integration-vitest.json,test-results/conformance-vitest.json").split(",");
   const reports = await Promise.all(reportPaths.map(async (path) => {
@@ -563,6 +658,7 @@ async function main() {
     complete: metadataAvailable && reports.every(Boolean),
     identity,
     licensedProof,
+    requirementsContext,
   });
   await writeFile(argument("output", "test-results/protocol-certification-fragment.json"), `${JSON.stringify(fragment, null, 2)}\n`);
 }

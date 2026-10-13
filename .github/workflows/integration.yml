@@ -63,6 +63,9 @@ on:
       nightly_dispatch_id:
         description: "Nightly orchestrator correlation ID, recorded inside each executed evidence receipt."
         required: false
+      requirements_context:
+        description: "Reviewed producer context JSON for v2 certification receipts; required for nightly or licensed certification. Maximum 60000 UTF-8 bytes."
+        required: false
       licensed_certification:
         description: "Certify the licensed realtime surface against an external licensed-release target."
         required: false
@@ -124,6 +127,7 @@ jobs:
       HONUA_CANDIDATE_SOURCE_SHA: ${{ inputs.candidate_source_sha }}
       HONUA_CANDIDATE_CUT_INPUT: ${{ inputs.candidate_cut_at }}
       HONUA_NIGHTLY_DISPATCH_ID: ${{ inputs.nightly_dispatch_id }}
+      HONUA_REQUIREMENTS_CONTEXT: ${{ inputs.requirements_context }}
       HONUA_LICENSED_CERTIFICATION: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -134,6 +138,17 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
+
+      - name: Validate certification context availability
+        id: certification
+        run: |
+          node --input-type=module <<'EOF'
+          import { appendFileSync } from "node:fs";
+          import { certificationRequested } from "./scripts/protocol-certification-fragment.mjs";
+          const enabled = certificationRequested(process.env);
+          appendFileSync(process.env.GITHUB_OUTPUT, `enabled=${enabled}\n`);
+          if (!enabled) console.log("Runtime integration only: no governed certification context supplied; no certification receipt will be emitted.");
+          EOF
 
       - name: Resolve explicit nightly candidate
         id: nightly_candidate
@@ -629,7 +644,7 @@ jobs:
         run: npm run test:conformance -- --reporter=default --reporter=json --outputFile=test-results/conformance-vitest.json
 
       - name: Emit protocol certification fragment
-        if: always()
+        if: ${{ always() && steps.certification.outputs.enabled == 'true' }}
         env:
           HONUA_EVIDENCE_URI: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/protocol-certification-fragment.mjs

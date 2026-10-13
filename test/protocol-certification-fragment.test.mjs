@@ -1,10 +1,18 @@
+import { requirementsContext } from "./fixtures/protocol-requirements-context.mjs";
 import "./scripts/integration-candidate.test.mjs";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
-  buildFragment,
+  buildFragment as buildRawFragment,
+  certificationRequested,
+  parseRequirementsContext,
+  validateRequirementsContext,
   GAP_OWNER,
   LICENSED_PROOF_SCHEMA,
   validateCertificationIdentity,
@@ -36,6 +44,15 @@ const identity = {
     odataEntitySet: "Layers(0)/Features",
   },
 };
+
+// Existing normalization controls now use an explicit governed fixture. The
+// raw producer is exercised separately below to prove there is no fallback.
+function buildFragment(options) {
+  return buildRawFragment({
+    ...options,
+    requirementsContext: requirementsContext(options.identity, Boolean(options.licensedProof)),
+  });
+}
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -415,4 +432,172 @@ test("certifies OGC Features conformance only from the dedicated endpoint assert
     (candidate) => candidate.surface === "ogc-features" && candidate.operation === "conformance",
   );
   assert.equal(conformance.result, "fail");
+});
+
+
+test("v2 receipt binds governed maturity, tier, revision and candidate cut in its digest", () => {
+  const context = requirementsContext(identity);
+  const options = {
+    identity, requirementsContext: context, now: "2026-08-20T00:00:00.000Z",
+    reports: [{ testResults: [{ name: "FeatureServer", assertionResults: [{
+      title: "metadata [cert:featureserver/metadata#positive] [cert:featureserver/metadata#metadata] [cert:featureserver/metadata#media-schema]",
+      status: "passed",
+    }] }] }],
+  };
+  const before = buildRawFragment(options).observations.find((row) => row.surface === "featureserver" && row.operation === "metadata");
+  assert.equal(before.evidence_receipt.schema, "honua.certification-evidence-receipt/v2");
+  assert.equal(before.evidence_receipt.identity.maturity, "preview");
+  assert.equal(before.evidence_receipt.identity.required_tier, "nightly");
+  assert.equal(before.evidence_receipt.identity.requirements_revision, context.requirements_revision);
+  assert.equal(before.evidence_receipt.identity.candidate_cut_at, identity.cutAt);
+  assert.equal(before.evidence_digest, `sha256:${createHash("sha256").update(canonicalJson(before.evidence_receipt)).digest("hex")}`);
+  const requirement = context.requirements.find((row) => row.surface === "featureserver" && row.operation === "metadata");
+  for (const [key, value] of [["maturity", "supported"], ["required_tier", "release"]]) {
+    const changed = structuredClone(context);
+    changed.requirements.find((row) => row.surface === "featureserver" && row.operation === "metadata")[key] = value;
+    const after = buildRawFragment({ ...options, requirementsContext: changed }).observations.find((row) => row.surface === "featureserver" && row.operation === "metadata");
+    assert.equal(after.evidence_receipt.identity[key], value);
+    assert.notEqual(after.evidence_digest, before.evidence_digest);
+    assert.equal(requirement[key], before.evidence_receipt.identity[key]);
+  }
+  const after = buildRawFragment({ ...options, requirementsContext: { ...context, requirements_revision: "next-reviewed-revision" } }).observations.find((row) => row.surface === "featureserver" && row.operation === "metadata");
+  assert.notEqual(after.evidence_digest, before.evidence_digest);
+});
+
+test("context-less, v1 and incomplete contexts cannot produce a fragment", () => {
+  for (const context of [undefined, null, {}, { ...requirementsContext(identity), schema: "honua.certification-evidence-receipt/v1" }]) {
+    assert.throws(() => buildRawFragment({ identity, reports: [], requirementsContext: context }), /closed producer-context/);
+  }
+});
+
+test("context refuses changed producer, candidate and every governed execution field", () => {
+  const mutations = [
+    (c) => { c.producer = "other-producer"; },
+    (c) => { c.producer_source_sha = "d".repeat(40); },
+    (c) => { c.candidate.source_sha = "d".repeat(40); },
+    (c) => { c.candidate.image_digest = `sha256:${"d".repeat(64)}`; },
+    (c) => { c.candidate.cut_at = "2026-08-20T00:00:00Z"; },
+    (c) => { c.requirements_revision = " "; },
+    (c) => { c.unknown = true; },
+    (c) => { c.candidate.unknown = true; },
+    (c) => { c.requirements.pop(); },
+    (c) => { c.requirements[1] = structuredClone(c.requirements[0]); },
+    (c) => { c.requirements[0].operation = "unknown"; },
+    (c) => { c.requirements[0].scenario_facets = ["positive"]; },
+    (c) => { c.requirements[0].scenario_facets.push("positive"); },
+    (c) => { c.requirements[0].maturity = "ga"; },
+    (c) => { c.requirements[0].required_tier = "optional"; },
+    (c) => { delete c.requirements[0].maturity; },
+    (c) => { c.requirements[0].unknown = true; },
+    (c) => { c.requirements[0].test_ids = ["invented-test"]; },
+    ...["capability_key", "canonical_client", "client_version", "client_lane", "deployment_target", "fixture_revision", "contract_revision", "auth_policy_revision"].map((key) => (c) => { c.requirements[0][key] = "wrong"; }),
+  ];
+  for (const mutate of mutations) {
+    const context = requirementsContext(identity);
+    mutate(context);
+    assert.throws(() => validateRequirementsContext(context, identity), /requirements_context/);
+  }
+});
+
+test("workflow distinguishes runtime-only runs and mandatory certification context", () => {
+  assert.equal(certificationRequested({}), false);
+  assert.equal(certificationRequested({ HONUA_REQUIREMENTS_CONTEXT: " ", HONUA_LICENSED_CERTIFICATION: "false" }), false);
+  assert.throws(() => certificationRequested({ HONUA_NIGHTLY_DISPATCH_ID: "nightly-1" }), /requires requirements_context/);
+  assert.throws(() => certificationRequested({ HONUA_LICENSED_CERTIFICATION: "true" }), /requires requirements_context/);
+  assert.throws(() => certificationRequested({ HONUA_REQUIREMENTS_CONTEXT: "not json" }), SyntaxError);
+  assert.equal(certificationRequested({ HONUA_REQUIREMENTS_CONTEXT: JSON.stringify(requirementsContext(identity)) }), true);
+  const workflow = readFileSync(new URL("../.github/workflows/integration.yml", import.meta.url), "utf8");
+  assert.match(workflow, /HONUA_REQUIREMENTS_CONTEXT: \$\{\{ inputs.requirements_context \}\}/);
+  assert.match(workflow, /name: Emit protocol certification fragment\n        if: \$\{\{ always\(\) && steps.certification.outputs.enabled == 'true' \}\}/);
+  assert.match(workflow, /name: Run live conformance round-trip\n        if: always\(\)/);
+});
+
+test("requirements context size limit is UTF-8 bytes, not characters", () => {
+  const atLimit = '"' + "x".repeat(59998) + '"';
+  assert.equal(parseRequirementsContext(atLimit).length, 59998);
+  assert.throws(() => parseRequirementsContext('"' + "é".repeat(30000) + '"'), /60000 UTF-8 bytes/);
+  assert.throws(() => parseRequirementsContext(""), /requires requirements_context/);
+});
+
+
+test("actual CLI emits only context-bound v2 and refuses mismatches without an artifact", () => {
+  const directory = mkdtempSync(join(tmpdir(), "honua-certification-v2-"));
+  try {
+    const execution = { ...identity, clientVersion: packageJson.version };
+    const context = requirementsContext(execution);
+    const contextPath = join(directory, "context.json");
+    const reportsPath = join(directory, "reports.json");
+    const metadataPath = join(directory, "metadata.json");
+    const output = join(directory, "fragment.json");
+    writeFileSync(contextPath, JSON.stringify(context));
+    writeFileSync(reportsPath, JSON.stringify({ testResults: [{ name: "FeatureServer", assertionResults: [{
+      title: "metadata [cert:featureserver/metadata#positive] [cert:featureserver/metadata#metadata] [cert:featureserver/metadata#media-schema]", status: "passed",
+    }] }] }));
+    writeFileSync(metadataPath, JSON.stringify({ baseUrl: identity.requestContext.baseUrl }));
+    const args = [fileURLToPath(new URL("../scripts/protocol-certification-fragment.mjs", import.meta.url)),
+      "--reports", reportsPath, "--metadata", metadataPath, "--output", output,
+      "--deployment-target", identity.deploymentTarget, "--source-sha", identity.sourceSha,
+      "--producer-source-sha", identity.producerSourceSha, "--image-digest", identity.imageDigest,
+      "--fixture-revision", identity.fixtureRevision, "--candidate-cut-at", identity.cutAt,
+      "--evidence-uri", identity.evidenceUri,
+    ];
+    const run = (extra = []) => spawnSync(process.execPath, [...args, ...extra], {
+      cwd: directory, env: { HONUA_CERTIFICATION_EXTERNAL: "true" }, encoding: "utf8",
+    });
+    const absent = run();
+    assert.notEqual(absent.status, 0);
+    assert.match(absent.stderr, /requires requirements_context/);
+    assert.equal(existsSync(output), false);
+    const passed = run(["--requirements-context", contextPath]);
+    assert.equal(passed.status, 0, passed.stderr);
+    const fragment = JSON.parse(readFileSync(output, "utf8"));
+    const receipt = fragment.observations.find((row) => row.result === "pass").evidence_receipt;
+    assert.equal(receipt.schema, "honua.certification-evidence-receipt/v2");
+    assert.equal(receipt.identity.requirements_revision, context.requirements_revision);
+    rmSync(output);
+    context.candidate.source_sha = "d".repeat(40);
+    writeFileSync(contextPath, JSON.stringify(context));
+    const refused = run(["--requirements-context", contextPath]);
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /candidate does not match/);
+    assert.equal(existsSync(output), false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+
+test("actual workflow preflight emits runtime-only status and refuses missing certification context", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/integration.yml", import.meta.url), "utf8");
+  const step = workflow.slice(workflow.indexOf("      - name: Validate certification context availability"));
+  const script = step.split("        run: |\n")[1].split("\n\n")[0]
+    .split("\n").map((line) => line.slice(10)).join("\n");
+  const directory = mkdtempSync(join(tmpdir(), "honua-context-preflight-"));
+  try {
+    const scriptPath = join(directory, "preflight.sh");
+    writeFileSync(scriptPath, script);
+    const run = (name, environment) => {
+      const output = join(directory, name);
+      const result = spawnSync("bash", ["--noprofile", "--norc", "-e", scriptPath], {
+        cwd: fileURLToPath(new URL("..", import.meta.url)),
+        env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...environment }, encoding: "utf8",
+      });
+      return { ...result, output };
+    };
+    const ordinary = run("ordinary", {});
+    assert.equal(ordinary.status, 0, ordinary.stderr);
+    assert.equal(readFileSync(ordinary.output, "utf8"), "enabled=false\n");
+    assert.match(ordinary.stdout, /Runtime integration only/);
+    const certification = run("certification", { HONUA_REQUIREMENTS_CONTEXT: JSON.stringify(requirementsContext(identity)) });
+    assert.equal(certification.status, 0, certification.stderr);
+    assert.equal(readFileSync(certification.output, "utf8"), "enabled=true\n");
+    for (const [name, env] of [["nightly", { HONUA_NIGHTLY_DISPATCH_ID: "nightly-certification-1-1" }], ["licensed", { HONUA_LICENSED_CERTIFICATION: "true" }]]) {
+      const refused = run(name, env);
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stderr, /requires requirements_context/);
+      assert.equal(existsSync(refused.output), false);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
