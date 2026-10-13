@@ -897,7 +897,18 @@ jobs:
         run: npm run offline:shell-manifest:check
 
       - name: Browser suite
+        id: browser_smoke
         run: npm run test:playwright:prepared
+
+      - name: Retain GP response completion and raw browser events
+        if: always() && matrix.shard == 'examples' && steps.browser_smoke.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: gp-response-completion-graph
+          path: .tmp/playwright-output/**/execution-response-*.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
 
       # The deterministic rendering benchmark is map evidence.
       - name: Deterministic browser rendering benchmark

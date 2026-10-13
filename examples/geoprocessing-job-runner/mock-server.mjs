@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -71,9 +72,10 @@ async function readJson(req) {
   return chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : undefined;
 }
 
-export async function startGeoprocessingJobRunnerFixtureServer({ build = true } = {}) {
+export async function startGeoprocessingJobRunnerFixtureServer({ build = true, observeExecutions = false } = {}) {
   if (build) buildDemoIfNeeded();
   const requests = [];
+  const executionReceipts = [];
   let statusPolls = 0;
   let dismissed = false;
   const server = http.createServer(async (req, res) => {
@@ -83,6 +85,30 @@ export async function startGeoprocessingJobRunnerFixtureServer({ build = true } 
       if (method === "POST" && requestUrl.pathname === executionPath) {
         const body = await readJson(req);
         requests.push({ method, path: requestUrl.pathname, body, prefer: req.headers.prefer ?? null });
+        if (observeExecutions) {
+          const expected = Buffer.from(JSON.stringify(statusDocument("accepted", 5, "Buffer job accepted")));
+          const receipt = {
+            id: `gp-execution-${executionReceipts.length + 1}`,
+            method,
+            path: requestUrl.pathname,
+            requestBody: body,
+            prefer: req.headers.prefer ?? null,
+            status: 201,
+            location: jobPath,
+            byteLength: expected.length,
+            sha256: createHash("sha256").update(expected).digest("hex"),
+            finished: false,
+            prematureClose: false,
+          };
+          executionReceipts.push(receipt);
+          res.setHeader("x-honua-test-execution", receipt.id);
+          res.once("finish", () => {
+            receipt.finished = true;
+          });
+          res.once("close", () => {
+            if (!res.writableFinished) receipt.prematureClose = true;
+          });
+        }
         if (!isDeepStrictEqual(body, expectedBody)) {
           sendJson(res, 422, {
             type: "about:blank",
@@ -157,6 +183,7 @@ export async function startGeoprocessingJobRunnerFixtureServer({ build = true } 
   return {
     url: `http://127.0.0.1:${address.port}`,
     requests,
+    executionReceipts,
     fixture,
     async close() {
       await new Promise((resolve) => server.close(resolve));
