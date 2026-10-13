@@ -63,6 +63,24 @@ fixture set always maps 1:1 to a `geospatial.v1` schema release (REQ-003).
   separate `Conformance Drift Guardrail` job so a server-bring-up flake can
   never mask a regression in the detector itself.
 
+### Explicit nightly candidates
+
+The release orchestrator can dispatch this same lane with `candidate_image`,
+`candidate_source_sha`, and `candidate_cut_at`. The tuple is required together;
+external URLs and licensed mode cannot be mixed with it. Before creating the
+stack, the runner pulls the immutable image and checks both its repository digest
+and OCI source revision. Ordinary runs retain the committed default candidate.
+
+When `nightly_dispatch_id` is supplied, the workflow run name records that ID and
+each executed protocol receipt includes the actual repository, workflow, run ID,
+attempt, and dispatch ID inside its content digest. The final receipt must match
+the selected server tuple, executing SDK source, and owned endpoint. Intake still
+has to authenticate the run and artifacts against the catalog's pinned source.
+
+This lane builds the checked-out SDK source. It is not proof of a fresh npm
+installation or the separate SDK entrypoint-coverage lane. Unexecuted operations
+remain skips, and the same integration/conformance assertions determine success.
+
 ### Running locally
 
 ```bash

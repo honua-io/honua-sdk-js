@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { bindNightlyCandidateIdentity } from "./lib/integration-candidate.mjs";
 
 export const GAP_OWNER = "https://github.com/honua-io/honua-sdk-js/issues/1113";
 export const AUTH_POLICY_REVISION = "anonymous-public-v1";
@@ -268,6 +269,7 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
           ...(licensed ? { entitlement_policy_revision: resolvedIdentity.entitlementPolicyRevision } : {}),
           source_sha: resolvedIdentity.sourceSha,
           producer_source_sha: resolvedIdentity.producerSourceSha,
+          ...(resolvedIdentity.producerRun ? { producer_run: resolvedIdentity.producerRun } : {}),
           image_digest: resolvedIdentity.imageDigest,
           fixture_revision: resolvedIdentity.fixtureRevision,
           contract_revision: contractRevision,
@@ -523,7 +525,7 @@ async function main() {
     "deployment-target",
     external ? process.env.HONUA_DEPLOYMENT_TARGET : (process.env.HONUA_DEPLOYMENT_TARGET ?? "local-docker"),
   );
-  const identity = {
+  const identity = bindNightlyCandidateIdentity({
     clientVersion: packageJson.version,
     deploymentTarget: required("deployment-target", deploymentTarget),
     sourceSha: required("source-sha", argument("source-sha", metadata.serverCommit ?? process.env.HONUA_INTEGRATION_SERVER_COMMIT)),
@@ -548,7 +550,7 @@ async function main() {
       odataEntitySet: process.env.HONUA_INTEGRATION_ODATA_ENTITY_SET,
       geocodingLocatorName: process.env.HONUA_INTEGRATION_GEOCODING_LOCATOR,
     },
-  };
+  }, process.env);
   validateCertificationIdentity(identity);
   let licensedProof;
   try {
