@@ -64,7 +64,7 @@ jobs:
           ref: ${{ steps.candidate.outputs.reviewed_release_sha }}
           path: .tmp/honua-release-input
           fetch-depth: 0
-      - uses: honua-io/honua-release/.github/actions/candidate-input@3ca3728f6675636e294dadbc585af874802cc7bc
+      - uses: honua-io/honua-release/.github/actions/candidate-input@88ccc3d3fd0dad93c44b505575a6320de637e4ae
         id: release_input
         if: steps.candidate.outputs.mode == 'release-snapshot'
         with:
