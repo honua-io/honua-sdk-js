@@ -940,8 +940,15 @@ describe("sample publication contract", () => {
   it("refuses unfinished sample transitions at the approved 0.3 deadline", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
+    // Put the actual pending transition first so this negative control reaches
+    // its deadline guard before unrelated current-version live receipts. No
+    // receipt is relabeled as evidence for the synthetic future SDK version.
+    const pendingIndex = catalog.samples.findIndex((sample: { id: string }) => sample.id === "app-bootstrap-basic");
+    expect(pendingIndex).toBeGreaterThanOrEqual(0);
+    const [pending] = catalog.samples.splice(pendingIndex, 1);
+    catalog.samples.unshift(pending);
     await expect(validateCatalog(catalog, { ...packageJson, version: "0.3.0" }, validationTime)).rejects.toThrow(
-      "lifecycle retire expired at 0.3.0",
+      "app-bootstrap-basic: lifecycle retire expired at 0.3.0",
     );
   });
 
