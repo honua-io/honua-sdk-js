@@ -13,7 +13,8 @@ function utc(value) {
 /** Resolve only explicit self-contained dispatch inputs; ordinary and external runs keep their existing pins. */
 export function resolveIntegrationCandidate(env) {
   const selected = [env.HONUA_CANDIDATE_IMAGE, env.HONUA_CANDIDATE_SOURCE_SHA, env.HONUA_NIGHTLY_DISPATCH_ID];
-  if (!selected.some(Boolean)) return null;
+  const selfContainedCut = !env.HONUA_INTEGRATION_BASE_URL && env.HONUA_CANDIDATE_CUT_INPUT;
+  if (!selected.some(Boolean) && !selfContainedCut) return null;
   assert.equal(env.GITHUB_EVENT_NAME, "workflow_dispatch", "candidate overrides require workflow_dispatch");
   assert.ok(!env.HONUA_INTEGRATION_BASE_URL, "candidate overrides cannot mix with an external base URL");
   assert.notEqual(env.HONUA_LICENSED_CERTIFICATION, "true", "candidate overrides cannot mix with licensed certification");

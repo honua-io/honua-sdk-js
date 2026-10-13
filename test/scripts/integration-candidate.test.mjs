@@ -44,6 +44,9 @@ test("ordinary default and external runs retain their existing identity", () => 
 });
 
 test("explicit candidates require the complete immutable tuple and refuse mixed modes", () => {
+  assert.throws(() => resolveIntegrationCandidate({
+    GITHUB_EVENT_NAME: "workflow_dispatch", HONUA_CANDIDATE_CUT_INPUT: env.HONUA_CANDIDATE_CUT_INPUT,
+  }), /candidate image must be an immutable Honua server digest/);
   for (const key of ["HONUA_CANDIDATE_IMAGE", "HONUA_CANDIDATE_SOURCE_SHA", "HONUA_CANDIDATE_CUT_INPUT"]) {
     assert.throws(() => resolveIntegrationCandidate({ ...env, [key]: "" }));
   }
@@ -128,6 +131,14 @@ test("actual workflow resolver writes only admitted values before image verifica
     const rejected = { GITHUB_ENV: join(directory, "rejected-env"), GITHUB_OUTPUT: join(directory, "rejected-output") };
     const invalid = spawnSync("bash", ["--noprofile", "--norc", "-e", scriptPath], { cwd: directory, env: { PATH: process.env.PATH, ...env, ...rejected, HONUA_CANDIDATE_SOURCE_SHA: "trunk" }, encoding: "utf8" });
     assert.notEqual(invalid.status, 0);
+    assert.equal(existsSync(rejected.GITHUB_ENV), false);
+    assert.equal(existsSync(rejected.GITHUB_OUTPUT), false);
+    const loneCut = spawnSync("bash", ["--noprofile", "--norc", "-e", scriptPath], {
+      cwd: directory, env: { PATH: process.env.PATH, ...rejected, GITHUB_EVENT_NAME: "workflow_dispatch",
+        HONUA_CANDIDATE_CUT_INPUT: env.HONUA_CANDIDATE_CUT_INPUT }, encoding: "utf8",
+    });
+    assert.notEqual(loneCut.status, 0);
+    assert.match(loneCut.stderr, /candidate image must be an immutable Honua server digest/);
     assert.equal(existsSync(rejected.GITHUB_ENV), false);
     assert.equal(existsSync(rejected.GITHUB_OUTPUT), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
