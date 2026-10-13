@@ -5,6 +5,7 @@ import process from "node:process";
 
 import { refreshReleasePleaseBase } from "./lib/release-please-base-refresh.mjs";
 import { validateTrustedReleasePleaseWorkflowContext } from "./lib/release-please-disposition-check.mjs";
+import { normalizeReleasePleaseWorkspaceNotes } from "./lib/release-please-workspace-notes.mjs";
 
 function requiredEnvironment(name) {
   const value = process.env[name];
@@ -29,6 +30,7 @@ function writeResult(result) {
   if (present) {
     lines.push(`Pull request: ${result.repository}#${result.pullRequestNumber}.`);
     lines.push(`Exact current release head: ${result.headSha}.`);
+    lines.push(`Workspace dependency notes: ${result.workspaceNotes ?? "unchanged"}.`);
   } else {
     lines.push("No open exact Release Please pull request exists.");
   }
@@ -50,13 +52,17 @@ async function main() {
     trustedPolicySha: requiredEnvironment("TRUSTED_POLICY_SHA"),
     githubSha: requiredEnvironment("GITHUB_SHA"),
   });
-  writeResult(
-    await refreshReleasePleaseBase({
-      repository: requiredEnvironment("GITHUB_REPOSITORY"),
-      trustedPolicySha,
-      releasePleaseReportedUpdate: exactBooleanEnvironment("RELEASE_PLEASE_PRS_CREATED"),
-    }),
-  );
+  const result = await refreshReleasePleaseBase({
+    repository: requiredEnvironment("GITHUB_REPOSITORY"),
+    trustedPolicySha,
+    releasePleaseReportedUpdate: exactBooleanEnvironment("RELEASE_PLEASE_PRS_CREATED"),
+  });
+  if (result.status !== "not-found") {
+    const notes = await normalizeReleasePleaseWorkspaceNotes(result);
+    result.headSha = notes.headSha;
+    result.workspaceNotes = notes.status;
+  }
+  writeResult(result);
 }
 
 try {
