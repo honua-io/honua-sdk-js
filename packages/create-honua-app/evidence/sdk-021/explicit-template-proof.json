@@ -1,0 +1,40 @@
+{
+  "format": "honua.scaffold-published-sdk-template-proof/v1",
+  "status": "passed",
+  "scope": "Both repository starter templates rendered owned data using explicitly selected public SDK; not published default-scaffold proof",
+  "producerSource": "61dc4b784f18ade6155b0c9bbd9f7b8ae76187fd",
+  "sdkVersion": "0.2.1",
+  "sdkSource": "0fd1a2b46f52bf7761d68837c06436b6f841ec07",
+  "publicationReceiptSha256": "03e4166b75a7262c3af74fb510913ec0cf1ed1ec9aba8fd672941212bc7f7a78",
+  "runs": [
+    {
+      "template": "vanilla-ts",
+      "runId": 38467963904,
+      "runUrl": "https://github.com/honua-io/honua-sdk-js/actions/runs/38467963904",
+      "artifactId": 11850570667,
+      "archiveSha256": "bfc089800921a2a1d8e2f0907e92542315f64da19fb524cc4e79fc7fa212172c",
+      "rawFile": "sdk021-scaffold-vanilla-rendered.json",
+      "rawSha256": "78d62b075576ddb20bbae35e5f1c4c2bac4e09929ca6e5769ad95872c3ab718f",
+      "rawBytes": 1427,
+      "elapsedMs": 21231,
+      "renderedFeatureRecords": 4,
+      "budgetMs": 120000,
+      "wholeRun": "success"
+    },
+    {
+      "template": "react-ts",
+      "runId": 38467972126,
+      "runUrl": "https://github.com/honua-io/honua-sdk-js/actions/runs/38467972126",
+      "artifactId": 11849726284,
+      "archiveSha256": "e3fe956e1cc176ae6d181970a500e7e143c23a0eadfa68142e4604ccf22c228d",
+      "rawFile": "sdk021-scaffold-react-rendered.json",
+      "rawSha256": "9e01ecb4b9f9ef3e888746286b76bd5c930f4740509a6f8c976066336dd45996",
+      "rawBytes": 1424,
+      "elapsedMs": 16611,
+      "renderedFeatureRecords": 4,
+      "budgetMs": 120000,
+      "wholeRun": "success"
+    }
+  ],
+  "publicationReceiptFile": "published-release-verification.v1.json"
+}
