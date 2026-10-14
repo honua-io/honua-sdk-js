@@ -5,7 +5,7 @@
   "templates": [
     {
       "template": "vanilla-ts",
-      "receipt": "vanilla-ts/receipt.json",
+      "receipt": "vanilla-ts/receipt.json.raw",
       "receiptSha256": "83c99b620036b479df014e0f91cd73d6e0d1883b0e1c2c3a74cf088b7b4dde83",
       "elapsedMs": 88294,
       "budgetMs": 120000,
@@ -16,7 +16,7 @@
     },
     {
       "template": "react-ts",
-      "receipt": "react-ts/receipt.json",
+      "receipt": "react-ts/receipt.json.raw",
       "receiptSha256": "ad1fe3e711860f81f9a670d30503995a4ebfad260e354a50fc48c403b4fe45de",
       "elapsedMs": 86196,
       "budgetMs": 120000,
@@ -29,7 +29,7 @@
   "historicalExplicitSdk021Proof": "../sdk-021/explicit-template-proof.json",
   "explicitSdk022Proof": "../sdk-022/explicit-template-proof.json",
   "managedScaffoldPullRequest": 2111,
-  "documentationProvenance": "documentation-provenance.json",
-  "publicationReceipt": "published-release-verification.v1.json",
+  "documentationProvenance": "documentation-provenance.json.raw",
+  "publicationReceipt": "published-release-verification.v1.json.raw",
   "publicationReceiptSha256": "66a1a7f3ef97c49cd727d1ca6f216ea4c79778e2f634a6291f9a132252fe8f5b"
 }

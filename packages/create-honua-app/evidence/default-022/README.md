@@ -21,22 +21,25 @@ qualify a live server candidate.
 
 Each template retains its unmodified raw receipt, execution configuration,
 generated package, both installed lockfiles, observed latest metadata and actual
-CLI selection output. `published-default-proof.mjs` is the exact reviewed and
+CLI selection output. `published-default-proof.mjs.raw` is the exact reviewed and
 executed harness. Receipt hashes also bind the source browser and registry helpers
-to the immutable scaffold producer. `documentation-provenance.json` verifies that
+to the immutable scaffold producer. `documentation-provenance.json.raw` verifies that
 the README in the downloaded public scaffold tarball is byte-identical to that
 scaffold's own source, independently of the SDK release.
 
 The recorded absolute paths describe the original execution. To reproduce, use a
 clean checkout of the producer tag, install its locked dependencies under Node
 22.23.3, and supply a new config pointing at these authenticated publication bytes
-and a new output directory. Run the retained harness under the shared build lock
+and a new output directory. Verify retained inputs against `files.sha256.json`. Copy `published-default-proof.mjs.raw`
+to `published-default-proof.mjs` without changing its bytes and verify its SHA-256 remains
+`076d13877b9e55c4a169bd59064c4daaa26d485e612dbebcb23035e24dfc7ab9`.
+Run that harness under the shared build lock
 with an outer 480-second timeout. The harness deliberately refuses a changed
 public `latest` identity. Runtime provenance under `runtime/` records the real
 Chromium binaries and legitimate Ubuntu packages used for missing browser shared
 libraries; no custom browser bypass flags were supplied.
 
-`lock-waits.json` and both `*-first-lock-wait.log` files preserve initial semaphore
+`lock-waits.json.raw` and both `published-default-*-attempt1.log` files preserve initial semaphore
 waits that exited 75. The harness never executed during those waits, and its
 120-second measurement had not begun. It is not a failed or successful map measurement.
 
@@ -45,3 +48,9 @@ in [sdk-021](../sdk-021/explicit-template-proof.json), landed in PR2105 after th
 actual runs. The later SDK 0.2.2 explicit proofs remain in
 [sdk-022](../sdk-022/explicit-template-proof.json), followed by the certified
 fallback change in PR2110 and the independent managed scaffold cut in PR2111.
+
+Raw JSON and the executed harness carry an archival `.raw` suffix so their original
+producer formatting and hashes remain intact. They are evidence inputs, not maintained
+package code. Parse JSON receipts directly as UTF-8; the original filenames are retained
+in each receipt. Authored `summary.json` and `files.sha256.json` use normal repository
+formatting and checks. No formatter or lint policy is disabled.
