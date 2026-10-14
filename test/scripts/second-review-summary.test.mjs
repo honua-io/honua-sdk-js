@@ -160,3 +160,16 @@ it("keeps comment-triggered review privileged code on the workflow implementatio
     assert.equal(text.split("node --test test/scripts/second-review-summary.test.mjs").length - 1, count);
   }
 });
+
+it("isolates skipped comment events from the real pending-review concurrency group", () => {
+  const concurrency = workflow.match(/concurrency:\n([\s\S]*?)\nenv:/)?.[1];
+  assert.ok(concurrency);
+  assert.ok(concurrency.includes("github.event_name == 'issue_comment' && (!github.event.issue.pull_request || github.event.comment.user.login != 'chatgpt-codex-connector[bot]') && github.run_id || github.event.pull_request.number || github.event.issue.number || inputs.pull_request_number"));
+  assert.match(concurrency, /cancel-in-progress: false/);
+});
+
+it("explicitly reduces the exchanged reviewer App token's repository contents permission", () => {
+  const review = workflow.slice(workflow.indexOf("  review:\n"));
+  assert.match(review, /additional_permissions: \|\n            contents: read\n/);
+  assert.match(review, /permissions:\n      contents: read\n      pull-requests: write\n      id-token: write/);
+});
