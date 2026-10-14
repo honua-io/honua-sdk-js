@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Studio AI proxy event casing"
+description: "The signed stop-reason spelling, SSE event discriminants, and bounded aliases in the Studio agent contract."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Studio AI proxy event casing
 
 `@honua/sdk-js/studio-agent` preserves the server's stop-reason spelling. The
