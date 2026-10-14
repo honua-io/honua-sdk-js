@@ -91,6 +91,43 @@ test("shared app modules select every direct browser consumer", () => {
   assert.deepEqual(realtime.candidate.selected_lanes, ["realtime-collaboration", "examples-general"]);
 });
 
+test("shared extension cache selects both actual browser consumers without widening domain routes", () => {
+  const sharedPath = "examples/overture-geoparquet/extension-cache.mjs";
+  for (const fixture of ["examples/overture-geoparquet", "examples/nl-map-control"]) {
+    assert.ok(discoverLocalModuleDependencies(fixture).includes(sharedPath), fixture);
+  }
+  assert.deepEqual(evaluate(policy, [sharedPath]).candidate.selected_lanes, [
+    "heavy-map-kepler",
+    "examples-general",
+  ]);
+  assert.deepEqual(
+    evaluate(policy, ["examples/overture-geoparquet/prepare-duckdb-extension.mjs"]).candidate.selected_lanes,
+    ["heavy-map-kepler"],
+  );
+  assert.deepEqual(
+    evaluate(policy, ["examples/nl-map-control/engine-assets.mjs"]).candidate.selected_lanes,
+    ["examples-general"],
+  );
+});
+
+test("shared extension cache routing rejects either missing browser consumer", () => {
+  const sharedPath = "examples/overture-geoparquet/extension-cache.mjs";
+  for (const [lane, spec] of [
+    ["heavy-map-kepler", "overture-geoparquet.spec.mjs"],
+    ["examples-general", "nl-map-control.spec.mjs"],
+  ]) {
+    const incomplete = structuredClone(policy);
+    const shared = incomplete.sharedLanePatterns.find((entry) => entry.patterns.includes(sharedPath));
+    assert.ok(shared);
+    shared.lanes = shared.lanes.filter((candidate) => candidate !== lane);
+    assert.throws(() => validatePolicy(incomplete), (error) => {
+      assert.ok(error.message.includes(`${sharedPath}, imported by`));
+      assert.ok(error.message.includes(`must select ${lane} for ${spec}`));
+      return true;
+    });
+  }
+});
+
 test("offline cache primitives select every direct browser consumer", () => {
   // No heavy-map fixture imports the offline cache since the Kepler example retired (#1674).
   for (const path of ["src/offline/digest.ts", "src/offline/quota.ts"]) {

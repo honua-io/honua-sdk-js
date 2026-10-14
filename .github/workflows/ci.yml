@@ -116,6 +116,13 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # Candidate self-validation only; trusted observation still runs from trunk.
+      - name: Validate candidate browser impact policy and identity fixtures
+        run: |
+          node scripts/browser-impact-observe.mjs validate
+          node --test test/scripts/browser-impact-observe.test.mjs
+          node --test test/scripts/trusted-pr-workflow-run.test.cjs
+
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
@@ -261,6 +268,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
+
+      # Candidate self-validation only; trusted observation still runs from trunk.
+      - name: Validate candidate browser impact policy and identity fixtures
+        run: |
+          node scripts/browser-impact-observe.mjs validate
+          node --test test/scripts/browser-impact-observe.test.mjs
+          node --test test/scripts/trusted-pr-workflow-run.test.cjs
 
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
