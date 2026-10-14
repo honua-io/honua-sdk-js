@@ -1,0 +1,79 @@
+{
+  "format": "honua.sdk.published-release-verification.v1",
+  "schemaVersion": 1,
+  "status": "verified",
+  "verifiedAt": "2026-10-14T01:37:20.748Z",
+  "registry": "https://registry.npmjs.org",
+  "selection": "release-channel",
+  "repository": "honua-io/honua-sdk-js",
+  "sealedTag": "js-sdk-v0.2.2",
+  "sealedCommit": "076b4218f832725d57a8e23745fae75aeb9f4e5a",
+  "manifest": "config/release-artifacts.v1.json",
+  "artifacts": [
+    {
+      "id": "sdk-js",
+      "npmName": "@honua/sdk-js",
+      "version": "0.2.2",
+      "distTag": "latest",
+      "tag": "js-sdk-v0.2.2",
+      "sourceBinding": "sealed-js-sdk-tag",
+      "sourceRef": "refs/tags/js-sdk-v0.2.2",
+      "sourceRevision": "076b4218f832725d57a8e23745fae75aeb9f4e5a",
+      "workflow": ".github/workflows/publish-js-sdk.yml",
+      "tarball": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.2.2.tgz",
+      "integrity": "sha512-qwDHad4gd3haLRvQsoGKLavjOTXUZMYfhZ8GfCIh6nyERjAf+K6xPGVn/3qXSmx52TzVHVcyQbC1LNa0Hs1IHQ==",
+      "status": "verified",
+      "checks": [
+        {
+          "id": "registry-version",
+          "description": "@honua/sdk-js@0.2.2 is published",
+          "status": "pass",
+          "detail": "0.2.2"
+        },
+        {
+          "id": "dist-tag",
+          "description": "dist-tag \"latest\" resolves to 0.2.2",
+          "status": "pass",
+          "detail": "latest"
+        },
+        {
+          "id": "dist-integrity",
+          "description": "the served tarball hashes to the advertised integrity",
+          "status": "pass",
+          "detail": "sha512-qwDHad4gd3haLRvQsoGKLavjOTXUZMYfhZ8GfCIh6nyERjAf+K6xPGVn/3qXSmx52TzVHVcyQbC1LNa0Hs1IHQ=="
+        },
+        {
+          "id": "publish-attestation",
+          "description": "npm recorded a publish attestation bound to the published tarball",
+          "status": "pass",
+          "detail": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1"
+        },
+        {
+          "id": "provenance-attestation",
+          "description": "a SLSA provenance attestation is present and decodable",
+          "status": "pass",
+          "detail": "https://slsa.dev/provenance/v1"
+        },
+        {
+          "id": "provenance-subject",
+          "description": "the provenance is bound to the exact published tarball",
+          "status": "pass",
+          "detail": "pkg:npm/%40honua/sdk-js@0.2.2"
+        },
+        {
+          "id": "provenance-builder",
+          "description": "the provenance was produced by this repository's publish workflow",
+          "status": "pass",
+          "detail": ".github/workflows/publish-js-sdk.yml@refs/tags/js-sdk-v0.2.2"
+        },
+        {
+          "id": "source-revision",
+          "description": "the published artifact was built from 076b4218f832725d57a8e23745fae75aeb9f4e5a",
+          "status": "pass",
+          "detail": "076b4218f832725d57a8e23745fae75aeb9f4e5a"
+        }
+      ]
+    }
+  ],
+  "failures": []
+}
