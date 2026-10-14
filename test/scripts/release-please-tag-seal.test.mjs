@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
-import { parse as parseYaml } from "yaml";
 
 // Current trunk executes this entrypoint before merge; include ancestor recovery
 // controls here so a new workflow step is not their first actual validation.
@@ -540,36 +539,50 @@ test("release runs are serialized so none observes a drafted release without its
   );
 });
 
+function releasePhaseSteps() {
+  const source = readFileSync(WORKFLOW, "utf8");
+  const job = source.split("\n  release-please:\n")[1].split("\n  release-please-refresh:\n")[0];
+  const steps = job.split(/(?=^      - )/mu).slice(1);
+  const step = (id) => {
+    const matches = steps.filter((block) => block.includes(`\n        id: ${id}\n`));
+    assert.equal(matches.length, 1, `exactly one ${id} step`);
+    return matches[0];
+  };
+  return { job, steps, creation: step("release"), generation: step("release-pr"), token: step("release-pr-token"), initialToken: step("app-token") };
+}
+
 test("release PR generation follows the finish path with a fresh token and separate outputs", () => {
-  const job = parseYaml(readFileSync(WORKFLOW, "utf8")).jobs["release-please"];
-  const creation = job.steps.find((step) => step.id === "release");
-  const generation = job.steps.find((step) => step.id === "release-pr");
-  const token = job.steps.find((step) => step.id === "release-pr-token");
-  const finishIndex = job.steps.findIndex((step) => step.name === "Dispatch package publish workflows");
-  assert.equal(creation.with["skip-github-pull-request"], true);
-  assert.notEqual(creation.with["skip-github-release"], true);
-  assert.equal(generation.uses, creation.uses);
-  assert.equal(generation.with["skip-github-release"], true);
-  assert.notEqual(generation.with["skip-github-pull-request"], true);
-  assert.ok(job.steps.indexOf(creation) < finishIndex);
-  assert.ok(finishIndex < job.steps.indexOf(token));
-  assert.ok(job.steps.indexOf(token) < job.steps.indexOf(generation));
-  assert.equal(token.uses, job.steps.find((step) => step.id === "app-token").uses);
-  assert.deepEqual(token.with, job.steps.find((step) => step.id === "app-token").with);
-  assert.equal(generation.with.token, "${{ steps.release-pr-token.outputs.token || secrets.GITHUB_TOKEN }}");
-  assert.equal(job.outputs.prs_created, "${{ steps.release-pr.outputs.prs_created }}");
-  assert.equal(job.outputs.releases_created, "${{ steps.release.outputs.releases_created }}");
-  assert.equal(job.outputs.tag_name, "${{ steps.release.outputs.tag_name }}");
+  const { job, steps, creation, generation, token, initialToken } = releasePhaseSteps();
+  const finishIndex = steps.findIndex((block) => block.startsWith("      - name: Dispatch package publish workflows\n"));
+  assert.ok(finishIndex >= 0);
+  assert.match(creation, /\n          skip-github-pull-request: true\n/u);
+  assert.doesNotMatch(creation, /skip-github-release: true/u);
+  const action = /uses: (\S+)/u;
+  assert.equal(generation.match(action)[1], creation.match(action)[1]);
+  assert.match(generation, /\n          skip-github-release: true\n/u);
+  assert.doesNotMatch(generation, /skip-github-pull-request: true/u);
+  assert.ok(steps.indexOf(creation) < finishIndex);
+  assert.ok(finishIndex < steps.indexOf(token));
+  assert.ok(steps.indexOf(token) < steps.indexOf(generation));
+  assert.equal(token.match(action)[1], initialToken.match(action)[1]);
+  for (const input of ["app-id", "private-key", "owner"]) {
+    const pattern = new RegExp(`^          ${input}: (.+)$`, "mu");
+    assert.equal(token.match(pattern)[1], initialToken.match(pattern)[1]);
+  }
+  assert.match(generation, /token: \$\{\{ steps\.release-pr-token\.outputs\.token \|\| secrets\.GITHUB_TOKEN \}\}/u);
+  assert.match(job, /prs_created: \$\{\{ steps\.release-pr\.outputs\.prs_created \}\}/u);
+  assert.match(job, /releases_created: \$\{\{ steps\.release\.outputs\.releases_created \}\}/u);
+  assert.match(job, /tag_name: \$\{\{ steps\.release\.outputs\.tag_name \}\}/u);
 });
 
 test("PR generation admits successful cuts and no-release runs but excludes recovery and failed finishes", () => {
-  const job = parseYaml(readFileSync(WORKFLOW, "utf8")).jobs["release-please"];
-  const generation = job.steps.find((step) => step.id === "release-pr");
-  const token = job.steps.find((step) => step.id === "release-pr-token");
+  const { generation, token } = releasePhaseSteps();
   // These actual conditions use the common Boolean subset of Actions and JS.
   // No explicit status function may override Actions' implicit success() guard.
   function admitted(step, { event, recovery, credentials, priorSuccess }) {
-    const expression = step.if.trim().replace(/^\$\{\{/, "").replace(/\}\}$/, "");
+    const match = step.match(/\n        if: >-\n          \$\{\{([\s\S]*?)\}\}/u);
+    assert.ok(match, "the phase has an explicit folded expression");
+    const expression = match[1];
     assert.doesNotMatch(expression, /\b(?:always|success|failure|cancelled)\s*\(/u);
     return priorSuccess && runInNewContext(expression, {
       github: { event_name: event },
