@@ -98,7 +98,9 @@ function gate(value, completedSummary = true, alreadyReviewed = false) {
   try {
     writeFileSync(path.join(directory, "pull-request.json"), JSON.stringify({ data: { repository: { pullRequest: value } } }));
     writeFileSync(path.join(directory, "summary-admission.json"), JSON.stringify({ completedSummary }));
-    const result = spawnSync("bash", ["-c", `set -euo pipefail\n${command.replace(/^ {10}/gm, "")}`], {
+    const scriptPath = path.join(directory, "gate.sh");
+    writeFileSync(scriptPath, command.replace(/^ {10}/gm, ""));
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-u", "-o", "pipefail", scriptPath], {
       cwd: directory, encoding: "utf8",
       env: { ...process.env, FIRST_PASS_REVIEWER: "chatgpt-codex-connector", REPOSITORY: repository, already_reviewed: String(alreadyReviewed) },
     });
