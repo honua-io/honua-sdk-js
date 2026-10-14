@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.0...create-honua-app-v0.2.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **scaffold:** advance certified starter fallback to SDK 0.2.1 ([544a5c7](https://github.com/honua-io/honua-sdk-js/commit/544a5c7eba9ebc8c686a824e9b01ed8b439d850d))
+* **scaffold:** certify actual rendered data in both starters ([c9c244a](https://github.com/honua-io/honua-sdk-js/commit/c9c244ae3aba82499a724f51b3374eca57344e7e))
+* **scaffold:** observe rendered features in both starter templates ([fc7dfbf](https://github.com/honua-io/honua-sdk-js/commit/fc7dfbfec2333422072de08cf732b424c8f29c92))
+
 ## [0.2.0](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.9...create-honua-app-v0.2.0) (2026-10-13)
 
 
