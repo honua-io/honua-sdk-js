@@ -33,8 +33,12 @@ Signed transcripts bind the original provider-event values. Do not lowercase or
 rewrite an event before verification. A consumer may compare known aliases
 without mutating the received payload:
 
-```ts
-const endedNormally = event.stopReason === "EndTurn" || event.stopReason === "endTurn";
+```ts doc-test=compile
+import type { StudioAiChatEvent } from "@honua/sdk-js/studio-agent";
+
+function endedNormally(event: StudioAiChatEvent): boolean {
+  return event.stopReason === "EndTurn" || event.stopReason === "endTurn";
+}
 ```
 
 A recognized value is not proof of successful completion or authorization to

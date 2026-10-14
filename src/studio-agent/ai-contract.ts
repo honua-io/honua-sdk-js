@@ -29,7 +29,7 @@
  * @module
  */
 
-/** Role of one {@link StudioAiChatMessage} — matches `StudioAiRole` (server-side enum, lower-case on the wire). */
+/** Outbound role of one {@link StudioAiChatMessage}, accepted by the server's `StudioAiRole` converter. */
 export type StudioAiRole = "system" | "user" | "assistant" | "tool";
 
 /** One turn of provider-neutral chat history sent to `POST /v1/studio/ai/chat`. */
@@ -93,9 +93,10 @@ export interface StudioAiChatRequest {
 }
 
 /**
- * Discriminates which fields of a {@link StudioAiChatEvent} are populated —
- * the JSON body's `"type"` field. Camel-cased per the source-gen naming
- * policy (see module doc); NOT the same string as the SSE `event:` line.
+ * SDK-normalized discriminant describing which {@link StudioAiChatEvent} fields
+ * are populated. The transport derives it from the snake_case SSE `event:` line
+ * using {@link SSE_EVENT_NAME_TO_TYPE}. The raw server JSON body's `type` retains
+ * its PascalCase enum spelling; this union describes parsed SDK events.
  */
 export type StudioAiChatEventType =
   | "messageStart"
