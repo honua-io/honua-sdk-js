@@ -100,6 +100,7 @@
 * [Source capability profiles](source-capabilities.md)
 * [Advanced: split-package build target](split-packages.md)
 * [Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix](standalone-capability-matrix.md)
+* [Studio AI proxy event casing](studio-ai-wire.md)
 * [Studio Package Contracts (`@honua/sdk-js/studio`)](studio-package-contracts.md)
 * [Studio package parity: MCP, QGIS, and Console](studio-package-parity.md)
 * [terra-draw sketch binding (`@honua/sdk-js/runtime`)](terra-draw-sketch.md)
