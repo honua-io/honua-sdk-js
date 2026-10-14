@@ -1,0 +1,130 @@
+{
+  "format": "honua.sdk.sample-resolution.v1",
+  "schemaVersion": 1,
+  "mode": "packed",
+  "package": {
+    "name": "@honua/sdk-js",
+    "version": "0.2.3"
+  },
+  "entrypoints": [
+    {
+      "specifier": "@honua/sdk-js/runtime",
+      "exportTarget": "./dist/src/runtime/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "9712af10bff49ce32f0403ae9d7aea884becff0a6543676ec33a63cea1fa367b"
+    },
+    {
+      "specifier": "@honua/sdk-js",
+      "exportTarget": "./dist/src/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "8008748993d823bcc238ac3401fbe63efaff0cb6d8a1803f7429f4c36e610661"
+    }
+  ],
+  "bundle": [
+    {
+      "fileName": "assets/index-DoS7N9ZE.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 1816243,
+      "sha256": "11b68100badb7c1b67f0421fc9539ace8b82883b1e1ff89908c7aed93e5c9524"
+    },
+    {
+      "fileName": "assets/dist-xzinIzEQ.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 124915,
+      "sha256": "20a070bec66a6c8d674d0fa5c79ce11686994d330decc7d1695a154c0cb2a74b"
+    },
+    {
+      "fileName": "assets/esm-Dxs7VMXh.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 18723,
+      "sha256": "bc1eb4fb1eab5603d623bb3c59d203dc93be5092cb1aa0436f92c6c836384844"
+    },
+    {
+      "fileName": "assets/odata-write-codec-CDY8saeW.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 18685,
+      "sha256": "5ed21a8a4e5a37e35df83c3ceda9da670b63aabd59b234dd255239814e420b6c"
+    },
+    {
+      "fileName": "assets/features-pR7XSri0.json",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 1140907,
+      "sha256": "1bb83123398ec1a266dab3b71fbef245b1b9d852715b5cdbd65d85b351e94f96"
+    },
+    {
+      "fileName": "assets/index-BGGQKeEm.css",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 118740,
+      "sha256": "40adb5e95439d9627e60c3c56eef3ee675674ba4731f631dd202f076b59fb007"
+    },
+    {
+      "fileName": "assets/layer-BiJKvD-i.json",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 2493,
+      "sha256": "a5861a30c4081a5e35b5bbb1e4b158d686154e4356205871c409fb66c28112d7"
+    },
+    {
+      "fileName": "assets/maplibre-gl-worker-v2kpBMIs.js",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 509448,
+      "sha256": "a29dc8c8fe721914d8acb60bc512419d25a1a9453552c6f79d78fb99c82a54e6"
+    },
+    {
+      "fileName": "assets/ogc-api-definition-DY4X0Tld.json",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 9787,
+      "sha256": "3be9b489ac03e5807ba5f0eb8cb1c561b9b745277b23536553f7f9bb8d96f250"
+    },
+    {
+      "fileName": "assets/ogc-collection-Dkt232JH.json",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 2243,
+      "sha256": "9ae8d24007ce80875cd0ff9322ee91bacd0c9a76e25b423333d5aa3620aba35b"
+    },
+    {
+      "fileName": "assets/ogc-conformance-BGAMwFJg.json",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 162,
+      "sha256": "c6708ab48d2adba1f922fdc47013284135ad330e1fc8c4474cafe38f3b3f2373"
+    },
+    {
+      "fileName": "assets/ogc-items-BYuH4sXt.json",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 1206604,
+      "sha256": "c6ebae244538225ec8b038ba03f7d8c00dabea5d08f5db29ce9c9d230ae61e20"
+    },
+    {
+      "fileName": "assets/ogc-landing-CF9it_V2.json",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 2074,
+      "sha256": "6a280f31adee99bd6d187bcc6315d8499255e84193db2276dfb333d8cc7af65d"
+    },
+    {
+      "fileName": "first-map-bundle-budget.json",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 245,
+      "sha256": "ec5288eb2f098990fa365492b6f2d1cf0375b7d136aba0e234b4c26d7cf14996"
+    },
+    {
+      "fileName": "__honua-quickstart__/basemap-style.json",
+      "kind": "public",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 229,
+      "sha256": "5d715d10a9279021faf8bde93c507b41d3de01dd6876f1768714760081d9ea3b"
+    }
+  ]
+}
