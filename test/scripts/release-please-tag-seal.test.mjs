@@ -4,6 +4,8 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
+import { parse as parseYaml } from "yaml";
 
 // Current trunk executes this entrypoint before merge; include ancestor recovery
 // controls here so a new workflow step is not their first actual validation.
@@ -536,6 +538,59 @@ test("release runs are serialized so none observes a drafted release without its
     source,
     /concurrency:\n\s+group: release-please-\$\{\{ github\.repository \}\}\n\s+cancel-in-progress: false\n/u,
   );
+});
+
+test("release PR generation follows the finish path with a fresh token and separate outputs", () => {
+  const job = parseYaml(readFileSync(WORKFLOW, "utf8")).jobs["release-please"];
+  const creation = job.steps.find((step) => step.id === "release");
+  const generation = job.steps.find((step) => step.id === "release-pr");
+  const token = job.steps.find((step) => step.id === "release-pr-token");
+  const finishIndex = job.steps.findIndex((step) => step.name === "Dispatch package publish workflows");
+  assert.equal(creation.with["skip-github-pull-request"], true);
+  assert.notEqual(creation.with["skip-github-release"], true);
+  assert.equal(generation.uses, creation.uses);
+  assert.equal(generation.with["skip-github-release"], true);
+  assert.notEqual(generation.with["skip-github-pull-request"], true);
+  assert.ok(job.steps.indexOf(creation) < finishIndex);
+  assert.ok(finishIndex < job.steps.indexOf(token));
+  assert.ok(job.steps.indexOf(token) < job.steps.indexOf(generation));
+  assert.equal(token.uses, job.steps.find((step) => step.id === "app-token").uses);
+  assert.deepEqual(token.with, job.steps.find((step) => step.id === "app-token").with);
+  assert.equal(generation.with.token, "${{ steps.release-pr-token.outputs.token || secrets.GITHUB_TOKEN }}");
+  assert.equal(job.outputs.prs_created, "${{ steps.release-pr.outputs.prs_created }}");
+  assert.equal(job.outputs.releases_created, "${{ steps.release.outputs.releases_created }}");
+  assert.equal(job.outputs.tag_name, "${{ steps.release.outputs.tag_name }}");
+});
+
+test("PR generation admits successful cuts and no-release runs but excludes recovery and failed finishes", () => {
+  const job = parseYaml(readFileSync(WORKFLOW, "utf8")).jobs["release-please"];
+  const generation = job.steps.find((step) => step.id === "release-pr");
+  const token = job.steps.find((step) => step.id === "release-pr-token");
+  // These actual conditions use the common Boolean subset of Actions and JS.
+  // No explicit status function may override Actions' implicit success() guard.
+  function admitted(step, { event, recovery, credentials, priorSuccess }) {
+    const expression = step.if.trim().replace(/^\$\{\{/, "").replace(/\}\}$/, "");
+    assert.doesNotMatch(expression, /\b(?:always|success|failure|cancelled)\s*\(/u);
+    return priorSuccess && runInNewContext(expression, {
+      github: { event_name: event },
+      inputs: { finish_stranded_draft: recovery },
+      steps: { creds: { outputs: { available: String(credentials) } } },
+    }, { timeout: 100 });
+  }
+  const ordinary = { event: "push", recovery: "", credentials: true, priorSuccess: true };
+  for (const scenario of [ordinary, { ...ordinary, event: "workflow_dispatch" }]) {
+    assert.equal(admitted(generation, scenario), true);
+    assert.equal(admitted(token, scenario), true);
+    // No-release runs skip publication dispatch without failing the job.
+    assert.equal(admitted(generation, { ...scenario, credentials: false }), true);
+    assert.equal(admitted(token, { ...scenario, credentials: false }), false);
+    // A failed seal or publication leaves the next action unexecuted.
+    assert.equal(admitted(generation, { ...scenario, priorSuccess: false }), false);
+    assert.equal(admitted(token, { ...scenario, priorSuccess: false }), false);
+  }
+  const recovery = { ...ordinary, event: "workflow_dispatch", recovery: TAG };
+  assert.equal(admitted(generation, recovery), false);
+  assert.equal(admitted(token, recovery), false);
 });
 
 test("the js-sdk release is configured to be cut as a draft", () => {

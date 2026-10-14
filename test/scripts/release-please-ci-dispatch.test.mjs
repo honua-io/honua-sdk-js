@@ -253,7 +253,7 @@ describe("Release Please workflow policy", () => {
     const jsSdk = jobSlice(ci, "js-sdk");
     const mcpSdk = jobSlice(ci, "mcp-sdk");
 
-    assert.match(release, /prs_created: \$\{\{ steps\.release\.outputs\.prs_created \}\}/u);
+    assert.match(release, /prs_created: \$\{\{ steps\.release-pr\.outputs\.prs_created \}\}/u);
     assert.match(refresher, /if: \$\{\{ always\(\) && needs\.release-please\.result == 'success' \}\}/u);
     assert.match(refresher, /permissions:\n      contents: write\n      pull-requests: write/u);
     assert.match(refresher, /persist-credentials: false/u);

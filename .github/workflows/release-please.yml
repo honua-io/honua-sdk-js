@@ -51,7 +51,7 @@ jobs:
       pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
-      prs_created: ${{ steps.release.outputs.prs_created }}
+      prs_created: ${{ steps.release-pr.outputs.prs_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       # Release identity (#1093). The release pull request must be authored by
@@ -143,6 +143,9 @@ jobs:
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # The SDK draft has no tag until the finish step seals it. The action
+          # otherwise reloads history and opens a PR inside that same gap.
+          skip-github-pull-request: true
 
       # The stranded-draft re-entry (#1337) must be able to run in a dispatch
       # where Release Please creates nothing. Without the second clause this
@@ -702,6 +705,33 @@ jobs:
             fi
           fi
 
+
+      # Default success() semantics keep both steps out of a failed finish
+      # path, while allowing ordinary runs whose publish step was skipped.
+      # Recovery only finishes its selected draft; it never generates a PR.
+      - name: Mint fresh release PR automation token
+        id: release-pr-token
+        if: >-
+          ${{ steps.creds.outputs.available == 'true' &&
+              (github.event_name != 'workflow_dispatch' ||
+               inputs.finish_stranded_draft == '') }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: honua-io
+
+      - name: Generate release PR after publication handling
+        id: release-pr
+        if: >-
+          ${{ github.event_name != 'workflow_dispatch' ||
+              inputs.finish_stranded_draft == '' }}
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        with:
+          token: ${{ steps.release-pr-token.outputs.token || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
 
       - name: Retain sealed-ancestor recovery verification
         if: always() && inputs.recover_sealed_source != ''
