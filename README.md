@@ -456,6 +456,24 @@ example (`npm run demo:quickstart:mock`); see
 
 ## Command-line client (`honua`)
 
+For local geoprocessing development, `honua gp` delegates to the separately
+installed `Honua.Geoprocessing.Cli` engine. Follow the
+[GP authoring guide](https://docs.honua.io/guides/query-analyze/gp-devkit-authoring)
+to install `honua-gp-devkit`, then put it on PATH or set `HONUA_GP_CLI` to its
+executable path. No engine is automatically downloaded.
+
+```bash
+honua gp doctor --managed-only --json
+honua gp list --json
+honua gp describe geometry.buffer --json
+```
+
+The engine receives arguments literally and owns output and exit codes; a launch
+failure returns `127`. These local commands do not require a server URL or add
+a backend selector to server submissions. `honua doctor` remains the separate
+support-bundle command. The proprietary `honua-gp` ArcPy compatibility tool is
+not the devkit executable.
+
 Installing the SDK also installs a first-class **`honua` CLI** — the same
 querying and catalog browsing without writing code. It wraps the SDK (no raw
 HTTP, no URL-encoding, no `f=json`), prints readable tables by default, and adds
