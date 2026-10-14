@@ -86,3 +86,18 @@ which is also what makes the starters runnable in a browser playground. See
 Set `VITE_HONUA_ENDPOINT` (and optionally `VITE_HONUA_PROTOCOL`) to run the identical code against any anonymous,
 CORS-enabled GeoServices FeatureServer layer or OGC API Features landing page. Durable credentials never belong in
 Vite environment variables: Vite embeds them in public JavaScript.
+
+## Published default verification
+
+The independently managed `create-honua-app@0.2.2` release was verified from the public registry with both starters
+and no SDK override. The observed public `latest` CLI selected its certified SDK `0.2.2` fallback. Vanilla reached
+a rendered map in 88.294 seconds and React in 86.196 seconds; each measurement includes registry resolution, CLI
+installation, scaffolding, fresh default-resolution app installation, production build and browser startup. Both stayed
+inside the unchanged 120-second budget, rendered four fixture features, and recorded no console errors or off-origin requests.
+
+The [retained default proof](../packages/create-honua-app/evidence/default-022/README.md) binds the actual npm tarballs,
+installed lockfiles and independent source tags. The published scaffold README is byte-identical to its own
+`create-honua-app-v0.2.2` source, independently of `js-sdk-v0.2.2`. The original
+[SDK 0.2.1 explicit-template proofs](../packages/create-honua-app/evidence/sdk-021/explicit-template-proof.json) and
+later [SDK 0.2.2 proofs](../packages/create-honua-app/evidence/sdk-022/explicit-template-proof.json) remain unchanged.
+These starter fixture journeys do not qualify a live server candidate.

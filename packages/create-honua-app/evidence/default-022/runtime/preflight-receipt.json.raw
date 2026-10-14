@@ -1,0 +1,25 @@
+{
+  "purpose": "Browser runtime preflight only; no scaffold qualification",
+  "node": "v22.23.3",
+  "playwright": "1.58.2",
+  "sharedSlotHeld": "1",
+  "libraryPath": "/home/mike/.local/state/honua-release-work/browser-runtime/root/usr/lib/x86_64-linux-gnu",
+  "executablePath": "/home/mike/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome",
+  "browser": {
+    "version": "145.0.7632.6",
+    "observation": {
+      "webgl2": true,
+      "pixel": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "renderer": "WebKit WebGL",
+      "vendor": "WebKit"
+    }
+  },
+  "status": "passed",
+  "observedAt": "2026-10-14T00:21:46.422Z",
+  "harnessSha256": "7a08700e905cd9f3aaa1a07a72e92af6329a70918e6763f32de046f94eedda0e"
+}
