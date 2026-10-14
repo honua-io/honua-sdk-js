@@ -12,8 +12,8 @@ afterEach(() => {
 });
 
 function child() {
-  const process = new EventEmitter();
-  vi.mocked(spawn).mockReturnValue(process as ReturnType<typeof spawn>);
+  const process = Object.assign(new EventEmitter(), { kill: vi.fn() });
+  vi.mocked(spawn).mockReturnValue(process as unknown as ReturnType<typeof spawn>);
   return process;
 }
 
@@ -54,5 +54,16 @@ describe("GP devkit adapter", () => {
     const result = gpCommand(["run"]);
     process.emit("exit", null, "SIGINT");
     expect(await result).toBe(130);
+  });
+
+  it("forwards parent termination and removes signal handlers after exit", async () => {
+    const before = process.listenerCount("SIGTERM");
+    const handle = child();
+    const result = gpCommand(["run"]);
+    process.emit("SIGTERM");
+    expect(handle.kill).toHaveBeenCalledWith("SIGTERM");
+    handle.emit("exit", null, "SIGTERM");
+    expect(await result).toBe(143);
+    expect(process.listenerCount("SIGTERM")).toBe(before);
   });
 });

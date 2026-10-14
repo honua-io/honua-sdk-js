@@ -471,7 +471,7 @@ honua gp describe geometry.buffer --json
 The engine receives arguments literally and owns output and exit codes; a launch
 failure returns `127`. These local commands do not require a server URL or add
 a backend selector to server submissions. `honua doctor` remains the separate
-support-bundle command. The proprietary `honua-gp` ArcPy compatibility tool is
+support-bundle command. The proprietary `honua-gp` compatibility tool is
 not the devkit executable.
 
 Installing the SDK also installs a first-class **`honua` CLI** — the same
