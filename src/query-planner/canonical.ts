@@ -32,20 +32,17 @@ function convertJson(value: unknown, path: string, ancestors: WeakSet<object>): 
       throw new TypeError(`${path} must contain only plain JSON objects`);
     }
     ancestors.add(value);
-    const converted: Record<string, JsonValue> = {};
+    const entries: [string, JsonValue][] = [];
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
       const entry = (value as Record<string, unknown>)[key];
       if (entry !== undefined) {
-        Object.defineProperty(converted, key, {
-          value: convertJson(entry, `${path}.${key}`, ancestors),
-          enumerable: true,
-          writable: true,
-          configurable: true,
-        });
+        entries.push([key, convertJson(entry, `${path}.${key}`, ancestors)]);
       }
     }
     ancestors.delete(value);
-    return converted;
+    // Native data-property creation keeps special keys inert without allocating
+    // a property descriptor for every member of every detached object.
+    return Object.fromEntries(entries);
   }
   throw new TypeError(`${path} contains unsupported ${typeof value}`);
 }
@@ -54,16 +51,11 @@ function sortJson(value: JsonValue): JsonValue {
   if (Array.isArray(value)) return value.map(sortJson);
   if (value !== null && typeof value === "object") {
     const object = value as { readonly [key: string]: JsonValue };
-    const sorted: Record<string, JsonValue> = {};
+    const entries: [string, JsonValue][] = [];
     for (const key of Object.keys(object).sort()) {
-      Object.defineProperty(sorted, key, {
-        value: sortJson(object[key] as JsonValue),
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      });
+      entries.push([key, sortJson(object[key] as JsonValue)]);
     }
-    return sorted;
+    return Object.fromEntries(entries);
   }
   return value;
 }
