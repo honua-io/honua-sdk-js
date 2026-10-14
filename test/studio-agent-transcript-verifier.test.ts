@@ -5,6 +5,7 @@ import type {
   StudioAiChatRequest,
   StudioAiSignedTranscript,
 } from "../src/studio-agent/ai-contract.js";
+import { SSE_EVENT_NAME_TO_TYPE, SseChatTransport, type StudioAiStopReason } from "../src/studio-agent/index.js";
 import { InMemoryStudioAiReplayStore, StudioAiTranscriptVerifier } from "../src/studio-agent/transcript-verifier.js";
 
 const crypto = webcrypto as unknown as Crypto;
@@ -42,6 +43,7 @@ async function fixture(
   options: {
     readonly content?: string;
     readonly serverEscaping?: boolean;
+    readonly stopReason?: StudioAiStopReason;
     readonly signedEventTypes?: (type: string) => string;
   } = {},
 ) {
@@ -68,7 +70,7 @@ async function fixture(
     { type: "messageStart", model: "claude-sonnet" },
     { type: "toolCallStart", toolCallId: "call-1", toolName: "honua_studio_propose_operation" },
     { type: "toolCallStop", toolCallId: "call-1", toolArguments: { title: "map" } },
-    { type: "messageStop", stopReason: "toolCall" },
+    { type: "messageStop", stopReason: options.stopReason ?? "toolCall" },
   ];
   const issuedAt = new Date("2026-09-02T10:00:00Z");
   const transcript = encoder.encode(
@@ -121,10 +123,64 @@ async function fixture(
     now: () => issuedAt,
     crypto,
   });
-  return { request, events, provenance, verifier, manifest, issuedAt };
+  return { request, events, wireEvents: signedEvents(events), provenance, verifier, manifest, issuedAt };
+}
+
+async function streamSignedFixture(value: Awaited<ReturnType<typeof fixture>>): Promise<StudioAiChatEvent[]> {
+  const eventNames = new Map(Object.entries(SSE_EVENT_NAME_TO_TYPE).map(([name, type]) => [type, name]));
+  const frames = value.wireEvents.map(
+    (event, index) => `event: ${eventNames.get(value.events[index].type)}\ndata: ${JSON.stringify(event)}\n\n`,
+  );
+  frames.push(
+    `event: transcript_provenance\ndata: ${JSON.stringify({ type: "TranscriptProvenance", provenance: value.provenance })}\n\n`,
+  );
+  const transport = new SseChatTransport({
+    fetchImpl: async () => new Response(frames.join(""), { headers: { "Content-Type": "text/event-stream" } }),
+  });
+  const received: StudioAiChatEvent[] = [];
+  for await (const event of transport.streamChat(value.request, new AbortController().signal)) received.push(event);
+  expect(received.at(-1)?.provenance).toEqual(value.provenance);
+  return received.filter((event) => event.type !== "transcriptProvenance");
 }
 
 describe("StudioAiTranscriptVerifier", () => {
+  it.each(["ToolCall", "EndTurn"] as const)(
+    "preserves signed server %s through SSE and verifies it once",
+    async (stopReason) => {
+      const value = await fixture("anthropic", { stopReason, signedEventTypes: serverEventType, serverEscaping: true });
+      const events = await streamSignedFixture(value);
+      expect(events.at(-1)?.stopReason).toBe(stopReason);
+      expect(events).toEqual(value.events);
+      await expect(value.verifier.verify(value.provenance, value.request, events)).resolves.toMatchObject({ ok: true });
+      await expect(value.verifier.verify(value.provenance, value.request, events)).resolves.toEqual({
+        ok: false,
+        reason: "replay",
+      });
+    },
+  );
+
+  it.each(["toolCall", "EndTurn"] as const)(
+    "rejects changing signed ToolCall to %s without consuming the valid nonce",
+    async (replacement) => {
+      const value = await fixture("anthropic", {
+        stopReason: "ToolCall",
+        signedEventTypes: serverEventType,
+        serverEscaping: true,
+      });
+      const original = await streamSignedFixture(value);
+      const changed = original.map((event) =>
+        event.type === "messageStop" ? { ...event, stopReason: replacement } : event,
+      );
+      await expect(value.verifier.verify(value.provenance, value.request, changed)).resolves.toEqual({
+        ok: false,
+        reason: "terminal-events-mismatch",
+      });
+      await expect(value.verifier.verify(value.provenance, value.request, original)).resolves.toMatchObject({
+        ok: true,
+      });
+    },
+  );
+
   it("accepts the exact signed proxy transcript once and atomically rejects replay", async () => {
     const value = await fixture();
     await expect(value.verifier.verify(value.provenance, value.request, value.events)).resolves.toMatchObject({
