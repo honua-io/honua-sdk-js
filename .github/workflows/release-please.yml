@@ -706,6 +706,42 @@ jobs:
           fi
 
 
+      # A later push can follow a failed cut without creating a new release.
+      # Do not let that no-release run enumerate the same tagless draft either.
+      - name: Verify release history before generating PRs
+        id: release-history
+        if: >-
+          ${{ github.event_name != 'workflow_dispatch' ||
+              inputs.finish_stranded_draft == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fail_history() {
+            echo "::error::$* Release PR generation stopped. Finish an existing SDK draft through the supported finish_stranded_draft workflow dispatch; no tag or version was changed."
+            exit 1
+          }
+          if ! version="$(gh api "repos/${GITHUB_REPOSITORY}/contents/package.json?ref=trunk" -H "Accept: application/vnd.github.raw" --jq .version)"; then
+            fail_history "Could not read the current SDK package version."
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            fail_history "The current SDK package version is invalid."
+          fi
+          tag="js-sdk-v${version}"
+          if ! tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${tag}" --jq ".[] | select(.ref == \"refs/tags/${tag}\") | .object.sha")"; then
+            fail_history "Could not verify the exact ${tag} ref."
+          fi
+          if [[ ! "$tag_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            fail_history "The current SDK version has no exact immutable ${tag} tag."
+          fi
+          if ! release_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '[.tag_name, .draft] | @tsv')"; then
+            fail_history "Could not verify the GitHub release for ${tag}."
+          fi
+          if [[ "$release_state" != "${tag}"$'\tfalse' ]]; then
+            fail_history "The exact ${tag} GitHub release is still a draft or does not match."
+          fi
+          echo "Release history is anchored by published ${tag} (${tag_sha})."
+
       # Default success() semantics keep both steps out of a failed finish
       # path, while allowing ordinary runs whose publish step was skipped.
       # Recovery only finishes its selected draft; it never generates a PR.
