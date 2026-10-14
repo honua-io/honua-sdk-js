@@ -42,6 +42,11 @@ if (command === 'run') {
       }
       break;
     case 'verify:browser:prepared': write('dist/browser/index.js', '// browser'); break;
+    case 'verify:runtime-tarball':
+      assert.ok(fs.existsSync('dist/browser/index.js'));
+      for (const name of packages) manifest('dist/packages/' + name);
+      if (process.env.FAIL_RUNTIME_TARBALL === 'true') process.exit(1);
+      break;
     case 'verify:publish-surface':
     case 'verify:packed-sdk':
       assert.ok(fs.existsSync('dist/browser/index.js'));
@@ -74,6 +79,10 @@ for (const dryRun of [true, false]) {
     const { run, calls } = fixture(t, dryRun);
     const result = run(publish);
     assert.equal(result.status, 0, result.stderr);
+    const recorded = calls();
+    const runtimeChecks = recorded.filter((call) => call.command === "run" && call.target === "verify:runtime-tarball");
+    assert.equal(runtimeChecks.length, 1, "runtime tarball verification must run exactly once");
+    assert.ok(recorded.indexOf(runtimeChecks[0]) < recorded.findIndex((call) => call.command === "publish"));
     assert.deepEqual(calls().filter((call) => call.command === "publish").map((call) => path.basename(call.target)),
       [".", ...packages.map((name) => `${name}.tgz`)]);
     if (dryRun) {
@@ -91,7 +100,18 @@ it("stops before publishing when client-pair verification fails", (t) => {
   assert.equal(calls().some((call) => call.command === "publish"), false);
 });
 
-function fixture(t, dryRun, failClientPair = false) {
+for (const dryRun of [true, false]) {
+  it(`stops before publishing when runtime tarball verification fails (dry run: ${dryRun})`, (t) => {
+    const { run, calls } = fixture(t, dryRun, false, true);
+    assert.notEqual(run(publish).status, 0);
+    const recorded = calls();
+    assert.equal(recorded.filter((call) => call.command === "run" && call.target === "verify:runtime-tarball").length, 1);
+    assert.equal(recorded.some((call) => call.command === "publish"), false);
+    assert.equal(recorded.some((call) => call.command === "run" && call.target === "verify:packed-sdk"), false);
+  });
+}
+
+function fixture(t, dryRun, failClientPair = false, failRuntimeTarball = false) {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "publish-sdk-workflow-"));
   t.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
   fs.mkdirSync(path.join(fixtureRoot, "bin"));
@@ -115,6 +135,7 @@ function fixture(t, dryRun, failClientPair = false) {
         RUNNER_TEMP: path.join(fixtureRoot, "runner temp"),
         DRY_RUN: String(dryRun),
         FAIL_CLIENT_PAIR: String(failClientPair),
+        FAIL_RUNTIME_TARBALL: String(failRuntimeTarball),
         ACTIONS_ID_TOKEN_REQUEST_URL: "offline-fixture",
       },
       });
