@@ -170,6 +170,8 @@ it("isolates skipped comment events from the real pending-review concurrency gro
 
 it("explicitly reduces the exchanged reviewer App token's repository contents permission", () => {
   const review = workflow.slice(workflow.indexOf("  review:\n"));
+  assert.match(review, /allowed_bots: chatgpt-codex-connector\[bot\]\n/);
+  assert.equal((review.match(/allowed_bots:/g) ?? []).length, 1);
   assert.match(review, /additional_permissions: \|\n            contents: read\n/);
   assert.match(review, /permissions:\n      contents: read\n      pull-requests: write\n      id-token: write/);
 });
