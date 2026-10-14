@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.1...create-honua-app-v0.2.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **scaffold:** advance certified starter fallback to SDK 0.2.2 ([12060fb](https://github.com/honua-io/honua-sdk-js/commit/12060fb54a08f40757f32ff24dd1d7871023bc89))
+
 ## [0.2.1](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.0...create-honua-app-v0.2.1) (2026-10-13)
 
 
