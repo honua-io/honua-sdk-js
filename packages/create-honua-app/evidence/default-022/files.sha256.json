@@ -1,0 +1,130 @@
+{
+  "format": "honua.evidence-file-manifest/v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3042,
+      "sha256": "2fb839572d2bd8e199f4573eab58f9dab87f531d5b093904c30e16f8037de7a8"
+    },
+    {
+      "path": "documentation-provenance.json",
+      "bytes": 575,
+      "sha256": "1cc0421d05b225825bf5554a5c10253b5a1cd76e7e5d4a499fc2585d452b2b48"
+    },
+    {
+      "path": "lock-waits.json",
+      "bytes": 521,
+      "sha256": "6552ef83619c84e30a8435869aadc1deea9717e5a86680cb15dec52685aa6317"
+    },
+    {
+      "path": "published-default-proof.mjs",
+      "bytes": 13649,
+      "sha256": "076d13877b9e55c4a169bd59064c4daaa26d485e612dbebcb23035e24dfc7ab9"
+    },
+    {
+      "path": "published-release-verification.v1.json",
+      "bytes": 20516,
+      "sha256": "66a1a7f3ef97c49cd727d1ca6f216ea4c79778e2f634a6291f9a132252fe8f5b"
+    },
+    {
+      "path": "react-first-lock-wait.log",
+      "bytes": 57,
+      "sha256": "1d93975f7dee5cefc623269cebcf825ac653cc293d11bc104c670780ee0c0794"
+    },
+    {
+      "path": "react-ts/command-7.log",
+      "bytes": 340,
+      "sha256": "d01a1053e5d92dc9d2fa5a0379d4922af2403a12e136517e0b29c0f6210f667b"
+    },
+    {
+      "path": "react-ts/execution-config.json",
+      "bytes": 864,
+      "sha256": "b67ac9ec533e945812b236cdcb789a93c81edbb04f8bd0629717877ae78984aa"
+    },
+    {
+      "path": "react-ts/generated-package.json",
+      "bytes": 668,
+      "sha256": "8bb685355516bb1bb46f4093eb879b9a6c9a6bb971f80afe010c7e71ec0def1d"
+    },
+    {
+      "path": "react-ts/receipt.json",
+      "bytes": 11424,
+      "sha256": "ad1fe3e711860f81f9a670d30503995a4ebfad260e354a50fc48c403b4fe45de"
+    },
+    {
+      "path": "react-ts/scaffold-latest-registry-metadata.json",
+      "bytes": 3431,
+      "sha256": "7f29db524c19eafda89e570f5953e2e573f3547e8211fe90200eececc0401212"
+    },
+    {
+      "path": "react-ts/scaffold-package-lock.json",
+      "bytes": 685,
+      "sha256": "b479bcfee778b360deffa3471b1a495f36175e6d6e19880de1de86e05c09a8a7"
+    },
+    {
+      "path": "react-ts/sdk-package-lock.json",
+      "bytes": 73702,
+      "sha256": "0aa5b2c2ff1b8e4212ac400c2981b51692eb3ce4792520aacdd658880ce5db44"
+    },
+    {
+      "path": "runtime/browser-binary-identities.json",
+      "bytes": 679,
+      "sha256": "b19571ce80ff4bdbe3ce6f640404d05c0f3cfbbc441de1f067317124d1b63249"
+    },
+    {
+      "path": "runtime/preflight-receipt.json",
+      "bytes": 735,
+      "sha256": "9bd7ea366a18cacbaeaca242732f4090b4d04ed595bf563e2b9be93c22f01be2"
+    },
+    {
+      "path": "runtime/ubuntu-package-provenance.json",
+      "bytes": 1626,
+      "sha256": "cf358c255b567eb7a44fa739a5435c9e432e3889ef9439668072fc33302ed641"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 1528,
+      "sha256": "ffa7996575e5da4891226ea7ba97785e287205894e1f4ea45fdd0fdc45ee9efd"
+    },
+    {
+      "path": "vanilla-first-lock-wait.log",
+      "bytes": 57,
+      "sha256": "1d93975f7dee5cefc623269cebcf825ac653cc293d11bc104c670780ee0c0794"
+    },
+    {
+      "path": "vanilla-ts/command-7.log",
+      "bytes": 342,
+      "sha256": "6c97504c8d4e83f681ad533d536fdaa887b3eed23e20eea067ea4cf6a0a7b306"
+    },
+    {
+      "path": "vanilla-ts/execution-config.json",
+      "bytes": 868,
+      "sha256": "c3e8340366d1e395a6051b23240f8330ce2a44098d7cd89c7f94389c286e8204"
+    },
+    {
+      "path": "vanilla-ts/generated-package.json",
+      "bytes": 553,
+      "sha256": "c04f5b577ddba51c3d247069fdd432fcdeb1927cc0390f344f36dadf79e87d0c"
+    },
+    {
+      "path": "vanilla-ts/receipt.json",
+      "bytes": 11428,
+      "sha256": "83c99b620036b479df014e0f91cd73d6e0d1883b0e1c2c3a74cf088b7b4dde83"
+    },
+    {
+      "path": "vanilla-ts/scaffold-latest-registry-metadata.json",
+      "bytes": 3431,
+      "sha256": "7f29db524c19eafda89e570f5953e2e573f3547e8211fe90200eececc0401212"
+    },
+    {
+      "path": "vanilla-ts/scaffold-package-lock.json",
+      "bytes": 685,
+      "sha256": "b479bcfee778b360deffa3471b1a495f36175e6d6e19880de1de86e05c09a8a7"
+    },
+    {
+      "path": "vanilla-ts/sdk-package-lock.json",
+      "bytes": 71473,
+      "sha256": "00c57db6fe32d70ffdca8483284e612bf60be78a72a3a1c87db148f1758e9472"
+    }
+  ]
+}
