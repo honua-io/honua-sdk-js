@@ -693,6 +693,7 @@ describe("ci.yml stays the authoritative workflow while the graph runs in shadow
       // was in review. The coverage fixture caught its absence from the graph on
       // the merge ref, which is the composition check working as intended.
       "node test/scripts/stranded-merge-detector.test.mjs",
+      "node test/scripts/second-review-summary.test.mjs",
     ];
     for (const jobId of ["pr-fast", "js-sdk"]) {
       const commands = jobCommands(ci, jobId);
