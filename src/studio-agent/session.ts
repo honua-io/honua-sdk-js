@@ -1018,18 +1018,20 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   async #dispatchComposition(call: PendingToolCall): Promise<StudioAgentToolDispatch> {
     const client = this.#ensureMcpClient();
     const args = { ...asRecord(call.args) };
+    const properties = asRecord(this.#catalog.descriptor(call.toolName)?.inputSchema.properties);
     if (this.#draft) {
       // The session owns draft identity and the optimistic-concurrency token;
-      // a model-supplied `generation` is never trusted over the session's.
-      args.draftId = args.draftId ?? this.#draft.draftId;
-      args.generation = this.#draft.generation;
+      // inject them only into schemas that declare them. Immutable-version
+      // publication and draft creation must not receive unrelated draft fields.
+      if (Object.hasOwn(properties, "draftId")) args.draftId = args.draftId ?? this.#draft.draftId;
+      if (Object.hasOwn(properties, "generation")) args.generation = this.#draft.generation;
     }
 
     let result: McpToolsCallResult;
     try {
       result = await client.callTool(call.toolName, args);
     } catch (error) {
-      if (!isMcpGenerationConflict(error) || !this.#draft) {
+      if (!isMcpGenerationConflict(error) || !this.#draft || !Object.hasOwn(properties, "generation")) {
         return reject(call, "composition", errorMessage(error), mcpErrorCode(error));
       }
       // Refresh the view, but never overwrite another writer with stale intent.

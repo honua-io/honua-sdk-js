@@ -1126,6 +1126,43 @@ describe("createStudioAgentSession composition plane", () => {
     expect(session.draft).toEqual({ draftId: "draft-1", generation: 5 });
   });
 
+  it.each(["Published", "AwaitingApproval"])(
+    "preserves immutable-version publication arguments for %s",
+    async (status) => {
+      const input = {
+        itemId: "item-1",
+        versionId: "version-1",
+        contentHash: "hash-1",
+        route: "/maps/parcels",
+        visibility: "private",
+      };
+      const tool = {
+        ...descriptor("honua_studio_propose_publication", COMPOSITION),
+        inputSchema: {
+          type: "object",
+          properties: Object.fromEntries(Object.keys(input).map((key) => [key, { type: "string" }])),
+          required: Object.keys(input),
+          additionalProperties: false,
+        },
+      };
+      const receipt = {
+        status,
+        humanConfirmationRequired: status === "AwaitingApproval",
+        ...(status === "Published" ? { shareUrl: "/apps/parcels" } : { proposalId: "proposal-1" }),
+      };
+      const { server, session } = makeSession({
+        draft: { draftId: "editing-another-draft", generation: 4 },
+        toolPages: onePage([tool]),
+        turns: [toolTurn([{ id: "publish-1", name: tool.name, args: input }]), textTurn("Publication submitted.")],
+        mcp: { toolCalls: [{ result: receipt }] },
+      });
+      const turn = await session.chat("Publish the saved version.");
+      expect(server.mcpCalls).toEqual([{ name: tool.name, arguments: input }]);
+      expect(session.draft).toEqual({ draftId: "editing-another-draft", generation: 4 });
+      expect(JSON.parse(turn.toolCalls[0]!.content)).toEqual({ status: "ok", result: receipt });
+    },
+  );
+
   it("refreshes a conflicted draft without replaying stale intent", async () => {
     const { server, session } = makeSession({
       draft: { draftId: "draft-1", generation: 4 },
