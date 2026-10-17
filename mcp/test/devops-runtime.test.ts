@@ -102,8 +102,8 @@ it.skipIf(!artifact)(
   async () => {
     const runtime = createDevOpsExtension(
       {
-        command: process.env.HONUA_DEVOPS_TEST_DOTNET ?? "/home/mike/.dotnet/dotnet",
-        args: [artifact ?? "", "--mcp"],
+        command: process.env.HONUA_DEVOPS_TEST_DOTNET ?? artifact ?? "",
+        args: process.env.HONUA_DEVOPS_TEST_DOTNET ? [artifact ?? "", "--mcp"] : ["--mcp"],
         env: {
           PATH: process.env.PATH ?? "",
           HOME: process.env.HOME ?? "",
