@@ -12,8 +12,9 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   if(m.method === 'initialize') result={protocolVersion:m.params.protocolVersion,capabilities:{tools:{}},serverInfo:{name:'fixture',version:'1'}};
   if(m.method === 'tools/list') result=m.params?.cursor ? {tools:[tool('provision_infrastructure'),tool('record_gitops_proposal_decision')]} : {tools:[tool('describe_environment')],nextCursor:'page2'};
   if(m.method === 'tools/call') {
+    if(m.params.arguments.disconnect) { process.exit(0); }
     if(m.params.arguments.fail) { process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,error:{code:-32603,message:process.env.HONUA_DEVOPS_API_KEY}})+'\\n'); return; }
-    result={content:[{type:'text',text:process.env.HONUA_DEVOPS_API_KEY}],structuredContent:{name:m.params.name,args:m.params.arguments},_meta:{canonical:'operation-123'}};
+    result={content:[{type:'text',text:process.env.HONUA_DEVOPS_API_KEY + ':' + process.env.HONUA_ADMIN_KEY}],structuredContent:{name:m.params.name,args:m.params.arguments},_meta:{canonical:'operation-123'}};
   }
   process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
 });`;
@@ -42,6 +43,7 @@ describe("optional private DevOps runtime", () => {
       expect(result.structuredContent).toEqual({ name: "provision_infrastructure", args: { stack: "aws-ecs" } });
       expect(result._meta).toEqual({ canonical: "operation-123" });
       expect(JSON.stringify(result)).not.toContain("sentinel-secret-123");
+      expect(JSON.stringify(result)).not.toContain("sentinel-admin-key-456");
       expect(actions).toEqual([{ canonicalTool: null }, { canonicalTool: "provision_infrastructure" }]);
     } finally {
       await runtime.close();
@@ -87,6 +89,18 @@ describe("optional private DevOps runtime", () => {
     );
     await runtime.close();
     await expect(runtime.listTools()).rejects.toThrow("unavailable or unauthorized");
+  });
+
+  it("reconnects later requests after child loss without replaying the failed action", async () => {
+    const runtime = extension();
+    try {
+      await expect(runtime.callTool("honua_agent_devops_describe_environment", { disconnect: true })).rejects.toThrow(
+        "reconcile canonical operation state",
+      );
+      expect((await runtime.listTools()).length).toBe(2);
+    } finally {
+      await runtime.close();
+    }
   });
 
   it("requires a host-selected absolute executable", () => {
