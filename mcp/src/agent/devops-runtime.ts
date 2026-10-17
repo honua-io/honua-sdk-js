@@ -45,9 +45,20 @@ export interface DevOpsProcessConfiguration {
   cwd?: string;
   /** Explicit child environment, including any operator credentials. Never returned to the model. */
   env?: Record<string, string>;
+  /** Host-only bindings; absent path bindings hide handoff tools entirely. */
+  fixedArguments?: Record<string, Record<string, unknown>>;
+  provisioningScope?: {
+    environment: string;
+    region: string;
+    namePrefix: string;
+    allowedImages: string[];
+  };
 }
 
-export type DevOpsAuthorization = (action: { canonicalTool: string | null }) => Promise<void>;
+export type DevOpsAuthorization = (action: {
+  canonicalTool: string | null;
+  arguments?: Readonly<Record<string, unknown>>;
+}) => Promise<void>;
 
 /**
  * One optional private subprocess behind the existing public registration. Authorization is
@@ -67,6 +78,62 @@ export function createDevOpsExtension(
     ...(configuration.cwd ? { cwd: configuration.cwd } : {}),
     ...(configuration.env ? { env: { ...configuration.env } } : {}),
   };
+  const bindings = structuredClone(configuration.fixedArguments ?? {});
+  const provisioningScope = configuration.provisioningScope
+    ? structuredClone(configuration.provisioningScope)
+    : undefined;
+  function enabled(name: string): boolean {
+    if (name === "install_handoff")
+      return ["baseUrl", "adminKeySecretRef", "outputDirectory"].every(
+        (key) => typeof bindings[name]?.[key] === "string" && String(bindings[name][key]).length > 0,
+      );
+    if (name === "verify_install_handoff")
+      return (
+        typeof bindings[name]?.handoffConfigPath === "string" && String(bindings[name].handoffConfigPath).length > 0
+      );
+    if (name === "provision_infrastructure")
+      return Boolean(
+        provisioningScope?.environment &&
+          provisioningScope.region &&
+          provisioningScope.namePrefix &&
+          provisioningScope.allowedImages.length,
+      );
+    return true;
+  }
+  function bindArguments(name: string, supplied: Record<string, unknown>): Record<string, unknown> {
+    if (!enabled(name)) throw new Error("Host scope binding required");
+    const effective = structuredClone(supplied);
+    for (const [key, value] of Object.entries(bindings[name] ?? {})) {
+      if (
+        effective[key] !== undefined &&
+        effective[key] !== "" &&
+        JSON.stringify(effective[key]) !== JSON.stringify(value)
+      )
+        throw new Error("Host argument binding mismatch");
+      effective[key] = value;
+    }
+    if (name === "provision_infrastructure") {
+      if (effective.stack !== "aws-ecs" || !provisioningScope) throw new Error("Unsupported adapter");
+      const variables: unknown = JSON.parse(
+        typeof effective.variablesJson === "string" && effective.variablesJson.trim() ? effective.variablesJson : "{}",
+      );
+      if (!variables || typeof variables !== "object" || Array.isArray(variables)) throw new Error("Invalid variables");
+      const scoped = variables as Record<string, unknown>;
+      for (const [key, value] of Object.entries({
+        environment: provisioningScope.environment,
+        region: provisioningScope.region,
+        name_prefix: provisioningScope.namePrefix,
+      })) {
+        if (scoped[key] !== undefined && scoped[key] !== value) throw new Error("Cloud target scope mismatch");
+        scoped[key] = value;
+      }
+      if (scoped.honua_image !== undefined && !provisioningScope.allowedImages.includes(String(scoped.honua_image)))
+        throw new Error("Image outside approved scope");
+      scoped.honua_image ??= provisioningScope.allowedImages[0];
+      effective.variablesJson = JSON.stringify(scoped);
+    }
+    return effective;
+  }
   let pending: Promise<Client> | undefined;
   let closed = false;
   let progressToken = 0;
@@ -124,7 +191,7 @@ export function createDevOpsExtension(
     do {
       const page = await client.listTools(cursor ? { cursor } : {});
       for (const tool of page.tools) {
-        if (!DEVOPS_TOOL_ALLOWLIST.has(tool.name)) continue;
+        if (!DEVOPS_TOOL_ALLOWLIST.has(tool.name) || !enabled(tool.name)) continue;
         if (tools.some((existing) => existing.name === tool.name)) throw new Error("Duplicate private tool");
         tools.push(tool);
       }
@@ -149,20 +216,19 @@ export function createDevOpsExtension(
       const canonicalTool = name.startsWith(PREFIX) ? name.slice(PREFIX.length) : "";
       if (!DEVOPS_TOOL_ALLOWLIST.has(canonicalTool)) throw new Error("Unsupported private DevOps tool");
       try {
-        await authorize({ canonicalTool });
+        const effectiveArguments = bindArguments(canonicalTool, args);
+        await authorize({ canonicalTool, arguments: effectiveArguments });
         const client = await connect();
         // Discover afresh: do not use a stale descriptor after a target/policy change.
         if (!(await catalog(client)).some((tool) => tool.name === canonicalTool))
           throw new Error("Private DevOps capability unavailable");
-        if (canonicalTool === "provision_infrastructure" && args.stack !== "aws-ecs")
-          throw new Error("Unsupported provisioning adapter");
         return scrub(
           await client.request(
             {
               method: "tools/call",
               params: {
                 name: canonicalTool,
-                arguments: args,
+                arguments: effectiveArguments,
                 ...(options?.onprogress ? { _meta: { progressToken: ++progressToken } } : {}),
               },
             },
