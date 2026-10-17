@@ -70,8 +70,13 @@ export function createDevOpsExtension(
   let pending: Promise<Client> | undefined;
   let closed = false;
   let progressToken = 0;
+  let generation = 0;
   const secretValues = Object.entries(config.env ?? {})
-    .filter(([key, value]) => /secret|token|password|api_?key|credential/i.test(key) && value.length >= 4)
+    .filter(
+      ([key, value]) =>
+        /secret|token|password|(?:^|_)key(?:$|_)|api_?key|credential|authorization|bearer/i.test(key) &&
+        value.length >= 4,
+    )
     .map(([, value]) => value);
   function scrub<T>(value: T): T {
     return JSON.parse(
@@ -86,9 +91,13 @@ export function createDevOpsExtension(
   async function connect(): Promise<Client> {
     if (closed) throw new Error("DevOps integration is closed");
     if (!pending) {
+      const currentGeneration = ++generation;
       pending = (async () => {
         const client = new Client({ name: "honua-agent-devops", version: "1.0.0" }, { capabilities: {} });
         client.onerror = () => {};
+        client.onclose = () => {
+          if (generation === currentGeneration) pending = undefined;
+        };
         // Ignore child stderr: operator diagnostics are not model-visible tool content.
         const transport = new StdioClientTransport({ ...config, stderr: "ignore" });
         try {
