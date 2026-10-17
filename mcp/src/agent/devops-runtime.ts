@@ -114,6 +114,10 @@ export function createDevOpsExtension(
     }
     if (name === "provision_infrastructure") {
       if (effective.stack !== "aws-ecs" || !provisioningScope) throw new Error("Unsupported adapter");
+      if (effective.variablesJson !== undefined && typeof effective.variablesJson !== "string")
+        throw new Error("Invalid variable document type");
+      if (typeof effective.variablesJson === "string" && effective.variablesJson.length > 64 * 1024)
+        throw new Error("Variable document exceeds scope limit");
       const variables: unknown = JSON.parse(
         typeof effective.variablesJson === "string" && effective.variablesJson.trim() ? effective.variablesJson : "{}",
       );
