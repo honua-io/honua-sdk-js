@@ -1179,11 +1179,14 @@ describe("createStudioAgentSession composition plane", () => {
     expect(turn.toolCalls[1]?.errorMessage).toContain("previous command");
   });
 
-  it("surfaces a failed refresh without replaying the mutation", async () => {
+  it("surfaces a failed refresh and stops the remaining stale batch", async () => {
     const { server, session } = makeSession({
       draft: { draftId: "draft-1", generation: 4 },
       turns: [
-        toolTurn([{ id: "call-1", name: "honua_studio_add_widget", args: { widget: { id: "w", kind: "chart" } } }]),
+        toolTurn([
+          { id: "call-1", name: "honua_studio_add_widget", args: { widget: { id: "w", kind: "chart" } } },
+          { id: "call-2", name: "honua_studio_remove_interaction", args: { interactionId: interaction.id } },
+        ]),
         textTurn("Could not add it."),
       ],
       mcp: {
@@ -1199,8 +1202,11 @@ describe("createStudioAgentSession composition plane", () => {
     expect(server.mcpCalls).toHaveLength(2);
     expect(turn.status).toBe("completed");
     expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: false });
-    expect(turn.toolCalls[0]?.errorCode).toBe("permission_denied");
+    expect(turn.toolCalls[0]?.errorCode).toBe("failed_precondition");
     expect(turn.toolCalls[0]?.errorMessage).toContain("access revoked");
+    expect(turn.toolCalls).toHaveLength(2);
+    expect(turn.toolCalls[1]).toMatchObject({ ok: false, errorCode: "failed_precondition" });
+    expect(turn.toolCalls[1]?.errorMessage).toContain("previous command");
   });
 
   it("surfaces a non-conflict tool failure without reloading the draft", async () => {

@@ -1043,7 +1043,14 @@ class StudioAgentSessionImpl implements StudioAgentSession {
           content: stringify({ status: "error", code: mcpErrorCode(error), message, draft }),
         };
       } catch (refreshError) {
-        return reject(call, "composition", errorMessage(refreshError), mcpErrorCode(refreshError));
+        // Preserve the mutation's conflict even when its diagnostic refresh fails:
+        // the turn loop must still reject the rest of the precomputed batch.
+        return reject(
+          call,
+          "composition",
+          `The draft changed in another session, and refreshing it failed: ${errorMessage(refreshError)}`,
+          "failed_precondition",
+        );
       }
     }
 
