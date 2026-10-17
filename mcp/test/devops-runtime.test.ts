@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDevOpsExtension } from "../src/agent/devops-runtime.js";
+import { type DevOpsProcessConfiguration, createDevOpsExtension } from "../src/agent/devops-runtime.js";
 
 // Wire-level child process: exercises real stdio framing, initialization and pagination.
 // This fixture is protocol evidence, not a qualified AWS deployment.
@@ -10,7 +10,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   let result;
   const tool = name => ({name,description:'canonical contract',inputSchema:{type:'object',properties:{stack:{type:'string'}}},annotations:{readOnlyHint:false},_meta:{contract:'v1'}});
   if(m.method === 'initialize') result={protocolVersion:m.params.protocolVersion,capabilities:{tools:{}},serverInfo:{name:'fixture',version:'1'}};
-  if(m.method === 'tools/list') result=m.params?.cursor ? {tools:[tool('provision_infrastructure'),tool('record_gitops_proposal_decision')]} : {tools:[tool('describe_environment')],nextCursor:'page2'};
+  if(m.method === 'tools/list') result=m.params?.cursor ? {tools:[tool('provision_infrastructure'),tool('record_gitops_proposal_decision'),tool('install_handoff'),tool('verify_install_handoff')]} : {tools:[tool('describe_environment')],nextCursor:'page2'};
   if(m.method === 'tools/call') {
     if(m.params.arguments.disconnect) { process.exit(0); }
     if(m.params.arguments.fail) { process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,error:{code:-32603,message:process.env.HONUA_DEVOPS_API_KEY}})+'\\n'); return; }
@@ -19,9 +19,23 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
 });`;
 
-function extension(authorize = async (_action: { canonicalTool: string | null }) => {}) {
+function extension(
+  authorize = async (_action: { canonicalTool: string | null }) => {},
+  overrides: Partial<DevOpsProcessConfiguration> = {},
+) {
   return createDevOpsExtension(
-    { command: process.execPath, args: ["-e", fixture], env: { HONUA_DEVOPS_API_KEY: "sentinel-secret-123" } },
+    {
+      command: process.execPath,
+      args: ["-e", fixture],
+      env: { HONUA_DEVOPS_API_KEY: "sentinel-secret-123", HONUA_ADMIN_KEY: "sentinel-admin-key-456" },
+      provisioningScope: {
+        environment: "dev",
+        region: "us-west-2",
+        namePrefix: "approved-cell",
+        allowedImages: ["honua@sha256:approved"],
+      },
+      ...overrides,
+    },
     authorize,
   );
 }
@@ -40,11 +54,20 @@ describe("optional private DevOps runtime", () => {
       ]);
       expect(tools[0]).toMatchObject({ description: "canonical contract", _meta: { contract: "v1" } });
       const result = await runtime.callTool("honua_agent_devops_provision_infrastructure", { stack: "aws-ecs" });
-      expect(result.structuredContent).toEqual({ name: "provision_infrastructure", args: { stack: "aws-ecs" } });
+      expect(result.structuredContent).toMatchObject({ name: "provision_infrastructure", args: { stack: "aws-ecs" } });
+      expect(JSON.parse(String((result.structuredContent?.args as Record<string, unknown>).variablesJson))).toEqual({
+        environment: "dev",
+        region: "us-west-2",
+        name_prefix: "approved-cell",
+        honua_image: "honua@sha256:approved",
+      });
       expect(result._meta).toEqual({ canonical: "operation-123" });
       expect(JSON.stringify(result)).not.toContain("sentinel-secret-123");
       expect(JSON.stringify(result)).not.toContain("sentinel-admin-key-456");
-      expect(actions).toEqual([{ canonicalTool: null }, { canonicalTool: "provision_infrastructure" }]);
+      expect(actions).toMatchObject([
+        { canonicalTool: null },
+        { canonicalTool: "provision_infrastructure", arguments: { stack: "aws-ecs" } },
+      ]);
     } finally {
       await runtime.close();
     }
@@ -98,6 +121,46 @@ describe("optional private DevOps runtime", () => {
         "reconcile canonical operation state",
       );
       expect((await runtime.listTools()).length).toBe(2);
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("hides unbound credential paths and rejects cloud target overrides before private dispatch", async () => {
+    const runtime = extension();
+    try {
+      expect((await runtime.listTools()).some((tool) => tool.name.includes("handoff"))).toBe(false);
+      await expect(
+        runtime.callTool("honua_agent_devops_install_handoff", { outputDirectory: "/model-selected" }),
+      ).rejects.toThrow("failed or unauthorized");
+      for (const variablesJson of [
+        '{"environment":"prod"}',
+        '{"region":"other"}',
+        '{"name_prefix":"other"}',
+        '{"honua_image":"unapproved"}',
+      ]) {
+        await expect(
+          runtime.callTool("honua_agent_devops_provision_infrastructure", { stack: "aws-ecs", variablesJson }),
+        ).rejects.toThrow("failed or unauthorized");
+      }
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("injects fixed handoff fields and refuses mismatched paths", async () => {
+    const fixed = {
+      baseUrl: "https://approved.example",
+      adminKeySecretRef: "secret://approved",
+      outputDirectory: "/host/handoff",
+    };
+    const runtime = extension(async () => {}, { fixedArguments: { install_handoff: fixed } });
+    try {
+      const result = await runtime.callTool("honua_agent_devops_install_handoff", { outputDirectory: "" });
+      expect(result.structuredContent).toMatchObject({ args: fixed });
+      await expect(
+        runtime.callTool("honua_agent_devops_install_handoff", { outputDirectory: "/other" }),
+      ).rejects.toThrow("failed or unauthorized");
     } finally {
       await runtime.close();
     }
