@@ -40,10 +40,9 @@
  * Both planes are serialized through one promise queue, so a multi-tool
  * assistant turn applies strictly in order and two calls never race the same
  * draft generation. A `failed_precondition` from a composition tool triggers
- * exactly one reload (`honua_studio_get_draft`) + retry against the fresh
- * generation — the same semantics honua-studio's `ToolCallOrchestrator`
- * (`src/mcp/orchestrator.ts`) established; a second failure is surfaced, not
- * retried again.
+ * a reload (`honua_studio_get_draft`) and returns the conflict with the current
+ * draft. The rejected mutation is never automatically replayed against a
+ * generation the agent has not observed.
  *
  * **The session never throws mid-stream.** Transport failure, provider error
  * events, tool rejection, and cancellation are all outcomes of
@@ -214,7 +213,7 @@ export interface StudioAgentToolDispatch {
   readonly runtimeResult?: HonuaAgentToolResult;
   /** The draft the composition tool returned, for `plane: "composition"`. */
   readonly draft?: StudioMcpDraft;
-  /** Set when the composition call succeeded only after one generation-conflict reload+retry. */
+  /** @deprecated Conflicting writes are no longer retried automatically. */
   readonly retriedAfterConflict?: boolean;
   /** Structured MCP tool error code, when the composition server supplied one. */
   readonly errorCode?: McpToolErrorCode;
@@ -723,8 +722,17 @@ class StudioAgentSessionImpl implements StudioAgentSession {
         return finish("completed");
       }
 
+      let draftConflict = false;
       for (const pending of roundResult.pending) {
-        const dispatch = await this.#enqueue(() => this.#dispatch(pending));
+        const dispatch = draftConflict
+          ? reject(
+              pending,
+              "unknown",
+              "A previous command encountered a draft conflict. Review the refreshed draft before continuing this batch.",
+              "failed_precondition",
+            )
+          : await this.#enqueue(() => this.#dispatch(pending));
+        if (!dispatch.ok && dispatch.errorCode === "failed_precondition") draftConflict = true;
         dispatches.push(dispatch);
         this.#options.onEvent?.({ type: "toolResult", result: dispatch });
         this.#messages.push({
@@ -1018,20 +1026,24 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     }
 
     let result: McpToolsCallResult;
-    let retried = false;
     try {
       result = await client.callTool(call.toolName, args);
     } catch (error) {
       if (!isMcpGenerationConflict(error) || !this.#draft) {
         return reject(call, "composition", errorMessage(error), mcpErrorCode(error));
       }
-      // One reload + retry against the fresh generation, then surface.
+      // Refresh the view, but never overwrite another writer with stale intent.
       try {
-        const refreshed = await this.#reloadDraft(client, this.#draft.draftId);
-        retried = true;
-        result = await client.callTool(call.toolName, { ...args, generation: refreshed.generation });
-      } catch (retryError) {
-        return reject(call, "composition", errorMessage(retryError), mcpErrorCode(retryError));
+        const draft = await this.#reloadDraft(client, this.#draft.draftId);
+        const message =
+          "The draft changed in another session. Reconcile your intended edit with the refreshed draft before submitting a new command.";
+        return {
+          ...reject(call, "composition", message, mcpErrorCode(error)),
+          draft,
+          content: stringify({ status: "error", code: mcpErrorCode(error), message, draft }),
+        };
+      } catch (refreshError) {
+        return reject(call, "composition", errorMessage(refreshError), mcpErrorCode(refreshError));
       }
     }
 
@@ -1043,12 +1055,11 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       plane: "composition",
       ok: true,
       ...(draft ? { draft } : {}),
-      ...(retried ? { retriedAfterConflict: true } : {}),
       content: stringify({ status: "ok", ...(draft ? { draft } : { result: toolResultPayload(result) }) }),
     };
   }
 
-  async #reloadDraft(client: McpClient, draftId: string): Promise<StudioAgentDraftBinding> {
+  async #reloadDraft(client: McpClient, draftId: string): Promise<StudioMcpDraft> {
     const result = await client.callTool("honua_studio_get_draft", { draftId });
     const draft = parseStudioDraftResult(result);
     if (!draft) {
@@ -1056,7 +1067,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     }
     const binding = { draftId: draft.draftId, generation: draft.generation };
     this.#draft = binding;
-    return binding;
+    return draft;
   }
 
   #ensureMcpClient(): McpClient {
