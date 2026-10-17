@@ -26,6 +26,7 @@
 * [JavaScript migration tool transition](migration-tool-transition.md)
 * [Zero-install playgrounds](playgrounds.md)
 * [Source schema v2 migration](source-schema-v2-migration.md)
+* [Unified agent workflows](unified-agent-workflows.md)
 
 ## Concepts
 

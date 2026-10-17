@@ -7,6 +7,9 @@ tags: [mcp, agents, install]
 ---
 # `@honua/mcp-server`
 
+For the persistent connector journey across Docker, data, Studio, Processes and
+optional cloud operations, see [Unified agent workflows](unified-agent-workflows.md).
+
 There are two different MCP servers in the Honua platform and they advertise
 different tools. Calling a tool against the wrong one returns "unknown tool",
 which is the single most common way an agent gets stuck here.
