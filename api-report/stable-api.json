@@ -2849,8 +2849,8 @@
     {
       "subpath": "@honua/sdk-js/runtime",
       "types": "dist/src/runtime/index.d.ts",
-      "exportCount": 283,
-      "signatureSha256": "e164f56b29bd9d19a4c193f0ad65df93977f67f40bc67f6b07a3f06dee7087ee",
+      "exportCount": 284,
+      "signatureSha256": "a1780f68d13109896f168d6e0ac7c8d282e14b4de1e5c7810363efe24b4fe8e2",
       "exports": [
         "BindEditSketchSnappingOptions — interface",
         "BindPopupOptions — interface",
@@ -2918,6 +2918,7 @@
         "HonuaRuntimeTelemetrySpan — interface",
         "HonuaRuntimeTelemetrySpanResult — interface",
         "HonuaStyleRefBody — type",
+        "HonuaStyleRefLayerBinding — interface",
         "HonuaStyleRefLayerOverride — interface",
         "ImportMapPackageOptions — interface",
         "ImportMapPackageResult — interface",
