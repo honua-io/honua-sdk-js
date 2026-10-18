@@ -79,7 +79,17 @@ recovery; it retains its separate human approval inbox. Do not route approvals
 through an agent tool or infer recovery readiness from ECS provisioning support.
 Recovery qualification must bind the exact adapter, server artifact, prior and
 candidate revisions, protection policy, terminal operation and observed service
-state. Lambda/EKS are unsupported until real adapters and execution proof exist.
+state. The host's protected DevOps configuration can select `runtimeKind`
+(`aws-ecs`, `aws-lambda`, or `aws-eks`; legacy configurations default to ECS).
+Lambda and EKS require the server authorization response to match the selected
+runtime and its canonical backend before the gateway exposes operations. EKS
+requires the native `honua-kubernetes-deployment` backend. Argo is not a
+dependency: the workflow uses standard Kubernetes Deployments, with Honua
+approvals, rollout health checks and rollback to a recorded immutable image.
+Neither an Argo adapter nor a generic GitOps handoff is interchangeable. The EKS
+Terraform infrastructure root does not yet install the Honua application; its
+Deployment, Service, route and bound cluster identity need separate verification. These gateway bindings do not establish deployment/recovery
+qualification: complete Lambda and EKS journeys remain unqualified.
 
 See [MCP integration](mcp-server.md), [Studio versioning](studio-package-contracts.md), and
 [agent execution](agent-safety.md) for the connected contract details.

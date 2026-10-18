@@ -41,6 +41,57 @@ function extension(
 }
 
 describe("optional private DevOps runtime", () => {
+  it.each([
+    ["aws-lambda", "honua_image_uri"],
+    ["aws-eks", undefined],
+  ] as const)("keeps %s provisioning inside the host-selected runtime", async (runtimeKind, imageVariable) => {
+    const runtime = extension(async () => {}, { runtimeKind });
+    try {
+      const result = await runtime.callTool("honua_agent_devops_provision_infrastructure", { stack: runtimeKind });
+      const variables = JSON.parse(String((result.structuredContent?.args as Record<string, unknown>).variablesJson));
+      expect(variables).toEqual({
+        environment: "dev",
+        region: "us-west-2",
+        name_prefix: "approved-cell",
+        ...(imageVariable ? { [imageVariable]: "honua@sha256:approved" } : {}),
+      });
+      await expect(
+        runtime.callTool("honua_agent_devops_provision_infrastructure", { stack: "aws-ecs" }),
+      ).rejects.toThrow("failed or unauthorized");
+      for (const variablesJson of [
+        '{"region":"other"}',
+        '{"honua_image":"honua@sha256:approved"}',
+        '{"install":{"artifact":{"image":"unapproved"}}}',
+      ]) {
+        await expect(
+          runtime.callTool("honua_agent_devops_provision_infrastructure", { stack: runtimeKind, variablesJson }),
+        ).rejects.toThrow("failed or unauthorized");
+      }
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("checks marketplace image overrides against the approved image scope", async () => {
+    const runtime = extension();
+    try {
+      await expect(
+        runtime.callTool("honua_agent_devops_provision_infrastructure", {
+          stack: "aws-ecs",
+          variablesJson: '{"install":{"artifact":{"image":"unapproved"}}}',
+        }),
+      ).rejects.toThrow("failed or unauthorized");
+      const result = await runtime.callTool("honua_agent_devops_provision_infrastructure", {
+        stack: "aws-ecs",
+        variablesJson: '{"install":{"artifact":{"image":"honua@sha256:approved"}}}',
+      });
+      const variables = JSON.parse(String((result.structuredContent?.args as Record<string, unknown>).variablesJson));
+      expect(variables.install.artifact.image).toBe("honua@sha256:approved");
+    } finally {
+      await runtime.close();
+    }
+  });
+
   it("projects canonical descriptors through the closed allowlist over real child stdio", async () => {
     const actions: unknown[] = [];
     const runtime = extension(async (action) => {
