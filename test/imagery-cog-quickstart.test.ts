@@ -97,8 +97,11 @@ describe("Imagery and COG Quickstart sample", () => {
       "https://samples.honua.test/other/stac?f=json",
       "https://samples.honua.test/stac?f=html",
       "https://samples.honua.test/stac?f=json&unrelated=true",
-    ]) await expect(fetchFn(url)).rejects.toThrow(/blocked unmatched request/u);
-    await expect(fetchFn("https://samples.honua.test/stac", { method: "POST" })).rejects.toThrow(/blocked unmatched request/u);
+    ])
+      await expect(fetchFn(url)).rejects.toThrow(/blocked unmatched request/u);
+    await expect(fetchFn("https://samples.honua.test/stac", { method: "POST" })).rejects.toThrow(
+      /blocked unmatched request/u,
+    );
     expect(forwarded).toEqual([]);
   });
 

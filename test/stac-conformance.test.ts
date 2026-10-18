@@ -60,12 +60,18 @@ describe("STAC search conformance gate", () => {
     const requests: Array<{ url: URL; init?: RequestInit }> = [];
     const client = mockClient((url, init) => {
       if (!url.pathname.endsWith("/search")) {
-        return Response.json({ conformsTo: [
-          STAC_CONFORMANCE_CLASS["item-search"], STAC_CONFORMANCE_CLASS.filter, STAC_CONFORMANCE_CLASS["cql2-json"],
-        ] });
+        return Response.json({
+          conformsTo: [
+            STAC_CONFORMANCE_CLASS["item-search"],
+            STAC_CONFORMANCE_CLASS.filter,
+            STAC_CONFORMANCE_CLASS["cql2-json"],
+          ],
+        });
       }
       requests.push({ url, init });
-      return init?.method === "POST" ? new Response("POST unavailable", { status: 405 }) : Response.json(EMPTY_COLLECTION);
+      return init?.method === "POST"
+        ? new Response("POST unavailable", { status: 405 })
+        : Response.json(EMPTY_COLLECTION);
     });
     const filter = { op: "<", args: [{ property: "cloud_cover" }, 10] };
     const stac = new HonuaStacSearch({ client });
