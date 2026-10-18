@@ -346,6 +346,12 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
     throw new ArgError("Native HTTP gateway requires --native-gateway-url and --native-gateway-key-env together.");
   const gatewayHttp =
     gatewayUrl && gatewayKeyEnv ? { url: gatewayUrl, keyEnvironmentVariable: gatewayKeyEnv } : undefined;
+  const processUrl = getString(parsed, "native-gp-workspace-url");
+  const processKeyEnv = getString(parsed, "native-gp-workspace-key-env");
+  if ((processUrl !== undefined || processKeyEnv !== undefined) && (!processUrl || !processKeyEnv))
+    throw new ArgError("Local processes require --native-gp-workspace-url and --native-gp-workspace-key-env together.");
+  const localProcesses =
+    processUrl && processKeyEnv ? { url: processUrl, keyEnvironmentVariable: processKeyEnv } : undefined;
   const hasNativeOptions = [
     serverImage,
     consoleImage,
@@ -355,6 +361,7 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
     ...gatewayArgs,
     modelProvider,
     gatewayHttp,
+    localProcesses,
   ].some((value) => value !== undefined);
   if (hasNativeOptions && (!serverImage || !consoleImage || !releaseId || !gatewayCommand))
     throw new ArgError(
@@ -362,7 +369,17 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
     );
   const nativeWorkspace =
     serverImage && consoleImage && releaseId && gatewayCommand
-      ? { serverImage, consoleImage, releaseId, consolePort, gatewayCommand, gatewayArgs, modelProvider, gatewayHttp }
+      ? {
+          serverImage,
+          consoleImage,
+          releaseId,
+          consolePort,
+          gatewayCommand,
+          gatewayArgs,
+          modelProvider,
+          gatewayHttp,
+          localProcesses,
+        }
       : undefined;
   if (getBoolean(parsed, "dry-run")) {
     printLine(

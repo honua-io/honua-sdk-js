@@ -48,6 +48,8 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "native-gateway-arg", multiple: true },
   { name: "native-gateway-url" },
   { name: "native-gateway-key-env" },
+  { name: "native-gp-workspace-url" },
+  { name: "native-gp-workspace-key-env" },
   { name: "native-console-port" },
   { name: "native-model-kind" },
   { name: "native-model-endpoint" },

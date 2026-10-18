@@ -101,8 +101,11 @@ it("passes host-selected model and gateway credential references without resolvi
     HONUA_AGENT_PREVIEW_MODEL_KEY_ENV: "PRIVATE_MODEL_TOKEN",
     HONUA_AGENT_PREVIEW_GATEWAY_HTTP_URL: "http://private-gateway:7863",
     HONUA_AGENT_PREVIEW_GATEWAY_HTTP_KEY_ENV: "PRIVATE_GATEWAY_BRIDGE",
+    HONUA_AGENT_PREVIEW_GP_WORKSPACE_URL: "http://host.docker.internal:7194",
+    HONUA_AGENT_PREVIEW_GP_WORKSPACE_KEY_ENV: "PRIVATE_PROCESS_BRIDGE",
     PRIVATE_MODEL_TOKEN: "model-secret-must-not-be-copied-here",
     PRIVATE_GATEWAY_BRIDGE: "gateway-secret-must-not-be-copied-here",
+    PRIVATE_PROCESS_BRIDGE: "process-secret-must-not-be-copied-here",
   };
   const configuration = nativeWorkspaceFromEnv(env);
   expect(configuration?.modelProvider).toEqual({
@@ -116,15 +119,22 @@ it("passes host-selected model and gateway credential references without resolvi
     keyEnvironmentVariable: "PRIVATE_GATEWAY_BRIDGE",
   });
   expect(JSON.stringify(configuration)).not.toContain("secret-must-not-be-copied-here");
+  expect(configuration?.localProcesses).toEqual({
+    url: "http://host.docker.internal:7194",
+    keyEnvironmentVariable: "PRIVATE_PROCESS_BRIDGE",
+  });
   for (const field of [
     "HONUA_AGENT_PREVIEW_MODEL_KIND",
     "HONUA_AGENT_PREVIEW_MODEL_NAME",
     "HONUA_AGENT_PREVIEW_GATEWAY_HTTP_URL",
     "HONUA_AGENT_PREVIEW_GATEWAY_HTTP_KEY_ENV",
+    "HONUA_AGENT_PREVIEW_GP_WORKSPACE_URL",
+    "HONUA_AGENT_PREVIEW_GP_WORKSPACE_KEY_ENV",
   ] as const) {
     expect(() => nativeWorkspaceFromEnv({ ...env, [field]: undefined })).toThrow();
   }
   expect(() => nativeWorkspaceFromEnv({ ...env, HONUA_AGENT_PREVIEW_MODEL_KIND: "unknown" })).toThrow("provider kind");
   expect(() => nativeWorkspaceFromEnv({ HONUA_AGENT_PREVIEW_MODEL_NAME: "partial" })).toThrow("Incomplete");
   expect(() => nativeWorkspaceFromEnv({ HONUA_AGENT_PREVIEW_GATEWAY_HTTP_KEY_ENV: "partial" })).toThrow("Incomplete");
+  expect(() => nativeWorkspaceFromEnv({ HONUA_AGENT_PREVIEW_GP_WORKSPACE_KEY_ENV: "partial" })).toThrow("Incomplete");
 });

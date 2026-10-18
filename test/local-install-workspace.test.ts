@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
@@ -20,6 +20,7 @@ const nativeWorkspace = {
 it("binds a separate verified workspace credential, preserves it on reinstall, and never lends the human key to Console", async () => {
   const nativeWithModel = {
     ...nativeWorkspace,
+    localProcesses: { url: "http://host.docker.internal:7194", keyEnvironmentVariable: "PRIVATE_GP_KEY" },
     gatewayHttp: {
       url: "http://operator-selected-gateway:3010/",
       keyEnvironmentVariable: "HONUA_TEST_GATEWAY_BRIDGE_KEY",
@@ -32,6 +33,7 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
     },
   };
   vi.stubEnv("HONUA_TEST_NATIVE_MODEL_KEY", "private-test-provider-key");
+  vi.stubEnv("PRIVATE_GP_KEY", "separate-private-local-process-service-key");
   vi.stubEnv("HONUA_TEST_GATEWAY_BRIDGE_KEY", "independent-private-test-bridge-key-material");
   const directory = mkdtempSync(path.join(tmpdir(), "honua-workspace-installer-"));
   directories.push(directory);
@@ -82,6 +84,13 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
   expect(compose.services.console.environment.HONUA_AGENT_GATEWAY_URL).toBe("${HONUA_AGENT_GATEWAY_URL:-}");
   expect(compose.services.console.environment.HONUA_AGENT_GATEWAY_KEY).toBe("${HONUA_AGENT_GATEWAY_KEY:-}");
   expect(compose.services.honua.environment).not.toHaveProperty("HONUA_AGENT_GATEWAY_KEY");
+  expect(compose.services.honua.environment.LocalProcesses__WorkspaceUrl).toBe("${HONUA_GP_WORKSPACE_URL:-}");
+  expect(compose.services.honua.environment.HONUA_GP_WORKSPACE_KEY).toBe("${HONUA_GP_WORKSPACE_KEY:-}");
+  expect(compose.services.console.environment).not.toHaveProperty("HONUA_GP_WORKSPACE_KEY");
+  expect(compose.services.honua.extra_hosts).toEqual(["host.docker.internal:host-gateway"]);
+  expect(compose.services.console.extra_hosts).toEqual(["host.docker.internal:host-gateway"]);
+  expect(env).toContain("HONUA_GP_WORKSPACE_KEY=separate-private-local-process-service-key");
+  expect(JSON.stringify(first)).not.toContain("separate-private-local-process-service-key");
   expect(JSON.stringify(first)).not.toContain("independent-private-test-bridge-key-material");
   expect(compose.services.console.environment).not.toHaveProperty("HONUA_NATIVE_TRANSCRIPT_SEED");
   expect(compose.services.console.environment).not.toHaveProperty("HONUA_STUDIOAI_NATIVE_API_KEY");
@@ -108,6 +117,14 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
   });
   expect(JSON.stringify(mcp)).not.toContain(keys[0]?.key);
   expect(JSON.stringify(mcp)).not.toContain(keys[1]?.key);
+  // Reconcile the exact prior generated template; unrelated user edits remain protected.
+  const previousCompose = readFileSync(first.composeFile, "utf8")
+    .replaceAll('    extra_hosts: ["host.docker.internal:host-gateway"]\n', "")
+    .replace(
+      "      LocalProcesses__WorkspaceUrl: ${HONUA_GP_WORKSPACE_URL:-}\n      HONUA_GP_WORKSPACE_KEY: ${HONUA_GP_WORKSPACE_KEY:-}\n",
+      "",
+    );
+  writeFileSync(first.composeFile, previousCompose);
   const second = await installHonuaLocal({ directory, nativeWorkspace: nativeWithModel }, { fetchFn, run });
   expect(keys).toHaveLength(2);
   expect(second.workspaceCredential?.provisioned).toBe(false);
@@ -132,6 +149,17 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
   );
   expect(run).not.toHaveBeenCalled();
   vi.stubEnv("HONUA_TEST_NATIVE_MODEL_KEY", "private-test-provider-key");
+  vi.stubEnv("PRIVATE_GP_KEY", humanBridge);
+  await expect(installHonuaLocal({ directory, nativeWorkspace: nativeWithModel }, { fetchFn, run })).rejects.toThrow(
+    "independent",
+  );
+  expect(run).not.toHaveBeenCalled();
+  vi.stubEnv("PRIVATE_GP_KEY", "independent-private-test-bridge-key-material");
+  await expect(installHonuaLocal({ directory, nativeWorkspace: nativeWithModel }, { fetchFn, run })).rejects.toThrow(
+    "independent",
+  );
+  expect(run).not.toHaveBeenCalled();
+  vi.stubEnv("PRIVATE_GP_KEY", "separate-private-local-process-service-key");
   await installHonuaLocal(
     {
       directory,
@@ -143,11 +171,68 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
     { fetchFn, run },
   );
   expect(readFileSync(first.envFile, "utf8")).not.toContain("private-test-provider-key");
+  expect(readFileSync(first.envFile, "utf8")).not.toContain("separate-private-local-process-service-key");
+  expect(readFileSync(first.envFile, "utf8")).toContain("HONUA_GP_WORKSPACE_URL=\n");
   expect(readFileSync(first.envFile, "utf8")).toContain(`HONUA_NATIVE_TRANSCRIPT_SEED=${seed}`);
   keys[1]!.permissions.push("write:*");
   await expect(installHonuaLocal({ directory, nativeWorkspace: nativeWithModel }, { fetchFn, run })).rejects.toThrow(
     "scope",
   );
+});
+
+it.each([
+  "http://localhost:7194",
+  "http://127.0.0.1:7194",
+  "http://[::1]:7194",
+  "http://0.0.0.0:7194",
+  "https://public.example",
+  "http://8.8.8.8:7194",
+  "http://172.32.0.1:7194",
+  "http://host.docker.internal:7194/project",
+  "http://host.docker.internal:7194/?key=x",
+  "http://host.docker.internal:7194/#fragment",
+  "http://user:secret@host.docker.internal:7194",
+  "ftp://host.docker.internal:7194",
+])("rejects unreachable or unsafe Docker process origins before Docker: %s", async (url) => {
+  const run = vi.fn();
+  await expect(
+    installHonuaLocal(
+      {
+        directory: "/unused",
+        nativeWorkspace: { ...nativeWorkspace, localProcesses: { url, keyEnvironmentVariable: "PRIVATE_GP_KEY" } },
+      },
+      { run },
+    ),
+  ).rejects.toThrow("private host origin");
+  expect(run).not.toHaveBeenCalled();
+});
+
+it("rejects missing process credentials and authority aliases before Docker", async () => {
+  const run = vi.fn();
+  const install = (keyEnvironmentVariable: string) =>
+    installHonuaLocal(
+      {
+        directory: "/unused",
+        nativeWorkspace: {
+          ...nativeWorkspace,
+          localProcesses: { url: "http://host.docker.internal:7194", keyEnvironmentVariable },
+        },
+      },
+      { run },
+    );
+  vi.stubEnv("PRIVATE_GP_KEY", undefined);
+  await expect(install("PRIVATE_GP_KEY")).rejects.toThrow("unavailable");
+  for (const name of [
+    "HONUA_ADMIN_KEY",
+    "HONUA_AGENT_API_KEY",
+    "HONUA_AGENT_GATEWAY_KEY",
+    "HONUA_NATIVE_MODEL_API_KEY",
+  ])
+    await expect(install(name)).rejects.toThrow("independent");
+  vi.stubEnv("PRIVATE_GP_KEY", "independent-service-credential-material");
+  vi.stubEnv("HONUA_ADMIN_KEY", "independent-service-credential-material");
+  await expect(install("PRIVATE_GP_KEY")).rejects.toThrow("independent");
+  expect(run).not.toHaveBeenCalled();
 });
 
 it("requires explicit immutable preview artifacts before starting Docker", async () => {

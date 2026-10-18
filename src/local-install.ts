@@ -10,6 +10,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { isIP } from "node:net";
 import path from "node:path";
 
 import { HonuaAdminClient } from "./control-plane/admin-client.js";
@@ -52,6 +53,8 @@ export interface LocalInstallOptions {
     readonly consolePort?: number;
     /** Optional private HTTP gateway reachable from the Console container. */
     readonly gatewayHttp?: { readonly url: string; readonly keyEnvironmentVariable: string };
+    /** Host-selected local GP daemon; only the server receives its independent service credential. */
+    readonly localProcesses?: { readonly url: string; readonly keyEnvironmentVariable: string };
     /** Server-only model configuration. The credential is referenced by host environment variable name. */
     readonly modelProvider?: {
       readonly kind: "openai" | "anthropic" | "bedrock";
@@ -340,6 +343,58 @@ export async function installHonuaLocal(
     )
       throw new Error("The native gateway credential must be independent from other credentials.");
   }
+  let localProcessKey: string | undefined;
+  if (native?.localProcesses) {
+    const local = native.localProcesses;
+    let endpoint: URL;
+    try {
+      endpoint = new URL(local.url);
+    } catch {
+      throw new Error("Invalid local process origin.");
+    }
+    const host = endpoint.hostname.replace(/^\[|\]$/g, "");
+    const octets = host.split(".").map(Number);
+    const privateHost =
+      host === "host.docker.internal" ||
+      (isIP(host) === 4 &&
+        (octets[0] === 10 ||
+          (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31) ||
+          (octets[0] === 192 && octets[1] === 168))) ||
+      (isIP(host) === 6 && /^f[cd]/i.test(host));
+    if (
+      !privateHost ||
+      /[\s"'`\\$#]/.test(local.url) ||
+      !["http:", "https:"].includes(endpoint.protocol) ||
+      endpoint.username ||
+      endpoint.password ||
+      endpoint.pathname !== "/" ||
+      endpoint.search ||
+      endpoint.hash
+    )
+      throw new Error(
+        "The Docker local-process daemon requires an explicit private host origin reachable from the server container.",
+      );
+    const reference = local.keyEnvironmentVariable;
+    if (
+      !/^[A-Z][A-Z0-9_]{0,127}$/.test(reference) ||
+      [
+        ...HOST_AUTHORITY_KEYS.filter((name) => name !== "HONUA_GP_WORKSPACE_KEY"),
+        "HONUA_AGENT_GATEWAY_KEY",
+        "HONUA_NATIVE_MODEL_API_KEY",
+        "HONUA_STUDIOAI_NATIVE_API_KEY",
+      ].some((name) => name === reference)
+    )
+      throw new Error("The local process daemon requires an independent credential environment reference.");
+    localProcessKey = process.env[reference];
+    if (
+      !localProcessKey ||
+      localProcessKey.length < 32 ||
+      localProcessKey.length > 512 ||
+      /[\s"'`\\$#\0]/.test(localProcessKey)
+    )
+      throw new Error("The referenced local process credential is unavailable or invalid.");
+    assertIndependentLocalProcessKey(localProcessKey, process.env);
+  }
   if (!native && !isAdminReleaseContractCompatible()) {
     throw new Error(
       `Honua local install is blocked: the manifest-pinned server ${ADMIN_RELEASE_SERVER_SHA} exposes ` +
@@ -397,6 +452,8 @@ export async function installHonuaLocal(
       ? {
           HONUA_AGENT_GATEWAY_URL: native.gatewayHttp?.url ?? "",
           HONUA_AGENT_GATEWAY_KEY: gatewayKey ?? "",
+          HONUA_GP_WORKSPACE_URL: native.localProcesses?.url ?? "",
+          HONUA_GP_WORKSPACE_KEY: localProcessKey ?? "",
           HONUA_NATIVE_TRANSCRIPT_SEED: existingEnv.HONUA_NATIVE_TRANSCRIPT_SEED ?? randomBytes(32).toString("base64"),
           HONUA_NATIVE_MODEL_ENABLED: provider ? "true" : "false",
           HONUA_NATIVE_MODEL_KIND: provider?.kind ?? "openai",
@@ -418,6 +475,7 @@ export async function installHonuaLocal(
   };
 
   assertIndependentModelCredential(providerKey, existingEnv);
+  assertIndependentLocalProcessKey(localProcessKey, existingEnv);
   assertIndependentGatewayKey(env);
   if (
     gatewayKey &&
@@ -794,7 +852,7 @@ services:
     restart: unless-stopped
   honua:
     image: \${HONUA_SERVER_IMAGE}
-    ports:
+${_options.nativeWorkspace ? '    extra_hosts: ["host.docker.internal:host-gateway"]\n' : ""}    ports:
       - "127.0.0.1:\${HONUA_HTTP_PORT}:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
@@ -803,6 +861,8 @@ services:
 ${
   _options.nativeWorkspace
     ? `      AgentWorkspace__LocalAgentPrincipalId: \${HONUA_AGENT_PRINCIPAL_ID:-}
+      LocalProcesses__WorkspaceUrl: \${HONUA_GP_WORKSPACE_URL:-}
+      HONUA_GP_WORKSPACE_KEY: \${HONUA_GP_WORKSPACE_KEY:-}
       Studio__EndUserAuthorization__Enabled: "true"
       AgentWorkspace__LocalHumanBridge__Enabled: "true"
       AgentWorkspace__LocalHumanBridge__Key: \${HONUA_LOCAL_HUMAN_BRIDGE_KEY}
@@ -851,6 +911,7 @@ ${
   _options.nativeWorkspace
     ? `  console:
     image: \${HONUA_CONSOLE_IMAGE}
+    extra_hosts: ["host.docker.internal:host-gateway"]
     ports:
       - "127.0.0.1:\${HONUA_CONSOLE_PORT}:8080"
     environment:
@@ -1404,6 +1465,12 @@ async function verifyInstallFiles(
                 current,
                 preWorkspace,
                 renderLocalCompose({ profile: profile as LocalInstallProfile, nativeWorkspace: true }),
+                renderLocalCompose({ profile: profile as LocalInstallProfile, nativeWorkspace: true })
+                  .replaceAll('    extra_hosts: ["host.docker.internal:host-gateway"]\n', "")
+                  .replace(
+                    "      LocalProcesses__WorkspaceUrl: ${HONUA_GP_WORKSPACE_URL:-}\n      HONUA_GP_WORKSPACE_KEY: ${HONUA_GP_WORKSPACE_KEY:-}\n",
+                    "",
+                  ),
                 beforeTcpReadiness,
                 beforeAllowlist,
                 previous,
@@ -1464,6 +1531,8 @@ async function readEnv(filePath: string, original?: string): Promise<Record<stri
 }
 
 const MANAGED_ENV_KEYS = [
+  "HONUA_GP_WORKSPACE_URL",
+  "HONUA_GP_WORKSPACE_KEY",
   "HONUA_AGENT_GATEWAY_URL",
   "HONUA_AGENT_GATEWAY_KEY",
   "HONUA_NATIVE_TRANSCRIPT_SEED",
@@ -1553,6 +1622,7 @@ function assertIndependentModelCredential(key: string | undefined, env: Record<s
 
 function assertIndependentGatewayKey(env: Record<string, string | undefined>): void {
   assertIndependentModelCredential(env.HONUA_NATIVE_MODEL_API_KEY, env);
+  assertIndependentLocalProcessKey(env.HONUA_GP_WORKSPACE_KEY, env);
   const bridge = env.HONUA_AGENT_GATEWAY_KEY;
   if (
     bridge &&
@@ -1561,6 +1631,19 @@ function assertIndependentGatewayKey(env: Record<string, string | undefined>): v
     )
   )
     throw new Error("The native gateway credential must be independent from other credentials.");
+}
+
+function assertIndependentLocalProcessKey(key: string | undefined, env: Record<string, string | undefined>): void {
+  if (
+    key &&
+    [
+      ...HOST_AUTHORITY_KEYS.filter((name) => name !== "HONUA_GP_WORKSPACE_KEY"),
+      "HONUA_AGENT_GATEWAY_KEY",
+      "HONUA_NATIVE_MODEL_API_KEY",
+      "HONUA_STUDIOAI_NATIVE_API_KEY",
+    ].some((name) => env[name] && env[name] === key)
+  )
+    throw new Error("The local process credential must be independent from other credentials.");
 }
 
 function renderEnv(env: Record<string, string | undefined>, original: string): string {

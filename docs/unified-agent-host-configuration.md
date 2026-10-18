@@ -88,6 +88,8 @@ artifact/executable settings in the [local preview reference](local-agent-worksp
 | `HONUA_AGENT_PREVIEW_MODEL_KEY_ENV` | Name of a protected host environment variable containing the model credential. |
 | `HONUA_AGENT_PREVIEW_GATEWAY_HTTP_URL` | Private gateway origin reachable from the Console container. |
 | `HONUA_AGENT_PREVIEW_GATEWAY_HTTP_KEY_ENV` | Name of a protected host environment variable containing the independent bridge credential; required with the HTTP URL. |
+| `HONUA_AGENT_PREVIEW_GP_WORKSPACE_URL` | Private local-process daemon origin reachable from the server container; requires `GP_WORKSPACE_KEY_ENV`. |
+| `HONUA_AGENT_PREVIEW_GP_WORKSPACE_KEY_ENV` | Name of a protected host environment variable containing an independent local-process service credential. |
 
 All names in the table include the `HONUA_AGENT_PREVIEW_` prefix. Partial model
 or gateway settings fail rather than silently enabling a different setup. The
@@ -96,6 +98,28 @@ paste their values into a prompt. Bedrock still requires an explicit AWS
 credential chain available to the server container. A host AWS login alone
 does not configure container credentials. The HTTP gateway must be started by
 the host using its configured private address and the same bridge credential.
+
+For local Python/.NET process editing, configure the daemon separately with
+`HONUA_GP_WORKSPACE_KEY` and an explicit private bind address and allowed Host.
+The installer accepts `host.docker.internal`, private IPv4 addresses, or IPv6
+unique-local addresses for this daemon. It adds Docker's host-gateway mapping;
+`localhost` would address the server container and is rejected. The daemon must
+actually listen on the chosen reachable interface. These settings configure the
+connection; they do not start the daemon or qualify a sandbox image.
+
+The CLI equivalents are `--native-gp-workspace-url` and
+`--native-gp-workspace-key-env`. The installer resolves the credential reference
+into the protected installation environment and passes it only to the server as
+`HONUA_GP_WORKSPACE_KEY`, alongside `LocalProcesses__WorkspaceUrl`. Console and
+model tool arguments never receive it. Use a separate value from the model,
+gateway, human and agent credentials. Removing this optional configuration on
+reinstall clears its managed URL and credential.
+
+The server verifies the current caller, workspace membership, captured turn and
+process grant before forwarding trusted identity assertions to the daemon.
+Human binding/revocation remains separate from agent source edits and immutable
+process runs. The service credential authenticates this private hop; it does not
+replace per-request RBAC or grant an agent ownership of a project.
 
 The HTTP gateway provides `/mcp` and `/capabilities`. Every request verifies the
 current scoped agent key and rereads the captured workspace turn on the actual

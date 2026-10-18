@@ -19,6 +19,7 @@ export function nativeWorkspaceFromEnv(env: NodeJS.ProcessEnv): LocalInstallOpti
   const prefix = "HONUA_AGENT_PREVIEW_";
   const modelNames = ["MODEL_KIND", "MODEL_ENDPOINT", "MODEL_NAME", "MODEL_REGION", "MODEL_KEY_ENV"];
   const gatewayNames = ["GATEWAY_HTTP_URL", "GATEWAY_HTTP_KEY_ENV"];
+  const processNames = ["GP_WORKSPACE_URL", "GP_WORKSPACE_KEY_ENV"];
   const names = [
     "SERVER_IMAGE",
     "CONSOLE_IMAGE",
@@ -28,6 +29,7 @@ export function nativeWorkspaceFromEnv(env: NodeJS.ProcessEnv): LocalInstallOpti
     "CONSOLE_PORT",
     ...modelNames,
     ...gatewayNames,
+    ...processNames,
   ];
   if (!names.some((name) => env[`${prefix}${name}`] !== undefined)) return undefined;
   const required = (name: string): string => {
@@ -64,6 +66,9 @@ export function nativeWorkspaceFromEnv(env: NodeJS.ProcessEnv): LocalInstallOpti
   const gatewayHttp = gatewayNames.some((name) => env[`${prefix}${name}`] !== undefined)
     ? { url: required("GATEWAY_HTTP_URL"), keyEnvironmentVariable: required("GATEWAY_HTTP_KEY_ENV") }
     : undefined;
+  const localProcesses = processNames.some((name) => env[`${prefix}${name}`] !== undefined)
+    ? { url: required("GP_WORKSPACE_URL"), keyEnvironmentVariable: required("GP_WORKSPACE_KEY_ENV") }
+    : undefined;
   return {
     serverImage: required("SERVER_IMAGE"),
     consoleImage: required("CONSOLE_IMAGE"),
@@ -73,6 +78,7 @@ export function nativeWorkspaceFromEnv(env: NodeJS.ProcessEnv): LocalInstallOpti
     ...(consolePort === undefined ? {} : { consolePort }),
     ...(modelProvider === undefined ? {} : { modelProvider }),
     ...(gatewayHttp === undefined ? {} : { gatewayHttp }),
+    ...(localProcesses === undefined ? {} : { localProcesses }),
   };
 }
 
