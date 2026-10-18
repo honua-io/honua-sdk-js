@@ -13,23 +13,26 @@
 import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "./error-envelope.js";
 import type { StacSearchRequest } from "./types.js";
 
+const STAC_SPEC_ORIGIN = "https://api.stacspec.org";
+const ITEM_SEARCH_PATH = "/v1.0.0/item-search";
+const ITEM_SEARCH_URI = `${STAC_SPEC_ORIGIN}${ITEM_SEARCH_PATH}`;
+const CQL2_CONFORMANCE_URI = "http://www.opengis.net/spec/cql2/1.0/conf/";
+
 /** Canonical conformance URI for each extension this client gates. */
 export const STAC_CONFORMANCE_CLASS = Object.freeze({
-  core: "https://api.stacspec.org/v1.0.0/core",
-  "item-search": "https://api.stacspec.org/v1.0.0/item-search",
-  filter: "https://api.stacspec.org/v1.0.0/item-search#filter",
-  "cql2-text": "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
-  "cql2-json": "http://www.opengis.net/spec/cql2/1.0/conf/cql2-json",
-  sort: "https://api.stacspec.org/v1.0.0/item-search#sort",
-  fields: "https://api.stacspec.org/v1.0.0/item-search#fields",
+  core: `${STAC_SPEC_ORIGIN}/v1.0.0/core`,
+  "item-search": ITEM_SEARCH_URI,
+  filter: `${ITEM_SEARCH_URI}#filter`,
+  "cql2-text": `${CQL2_CONFORMANCE_URI}cql2-text`,
+  "cql2-json": `${CQL2_CONFORMANCE_URI}cql2-json`,
+  sort: `${ITEM_SEARCH_URI}#sort`,
+  fields: `${ITEM_SEARCH_URI}#fields`,
   /** Predicate only. This client does not emit the legacy Query extension. */
-  query: "https://api.stacspec.org/v1.0.0/item-search#query",
-});
+  query: `${ITEM_SEARCH_URI}#query`,
+} as const);
 
 export type StacConformanceKind = keyof typeof STAC_CONFORMANCE_CLASS;
 
-const STAC_SPEC_ORIGIN = "https://api.stacspec.org";
-const ITEM_SEARCH_PATH = "/v1.0.0/item-search";
 const OGC_FEATURES_PATH = "/v1.0.0/ogcapi-features";
 const EXTENSION_FRAGMENT: Partial<Record<StacConformanceKind, string>> = {
   filter: "#filter",

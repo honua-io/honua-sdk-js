@@ -35,6 +35,19 @@ function searchClient(landing: unknown): { client: HonuaClient; paths: string[] 
 }
 
 describe("STAC conformance predicates", () => {
+  it("exports the exact canonical conformance URI values", () => {
+    expect(STAC_CONFORMANCE_CLASS).toEqual({
+      core: "https://api.stacspec.org/v1.0.0/core",
+      "item-search": "https://api.stacspec.org/v1.0.0/item-search",
+      filter: "https://api.stacspec.org/v1.0.0/item-search#filter",
+      "cql2-text": "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
+      "cql2-json": "http://www.opengis.net/spec/cql2/1.0/conf/cql2-json",
+      sort: "https://api.stacspec.org/v1.0.0/item-search#sort",
+      fields: "https://api.stacspec.org/v1.0.0/item-search#fields",
+      query: "https://api.stacspec.org/v1.0.0/item-search#query",
+    });
+  });
+
   it("reads the Earth Search landing page as a subset: sort, fields, and query, not filter or CQL2", () => {
     const conformsTo = earthSearchLanding.conformsTo;
     expect(hasStacConformance(conformsTo, "core")).toBe(true);
