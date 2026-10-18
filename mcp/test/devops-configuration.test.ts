@@ -74,24 +74,39 @@ describe("host-configured private integration identity", () => {
     ["aws-eks", "eks", "honua-kubernetes-deployment"],
   ])("binds %s only to its server-verified actuator on every call", async (runtimeKind, terraformTarget, backend) => {
     const fixture = await setup({ runtimeKind });
-    fixture.fetcher.mockImplementation(async () => Response.json({
-      targetId: "server-1", deployTargetId: "ecs-cell-1", environment: "dev", runtimeKind, backend,
-    }));
+    fixture.fetcher.mockImplementation(async () =>
+      Response.json({
+        targetId: "server-1",
+        deployTargetId: "ecs-cell-1",
+        environment: "dev",
+        runtimeKind,
+        backend,
+      }),
+    );
     const integration = await configuredDevOps(fixture.file, fixture.runtime);
     await integration.listTools();
-    expect(createDevOpsExtension).toHaveBeenCalledWith(expect.objectContaining({
-      runtimeKind,
-      env: expect.objectContaining({
-        HONUA_DEVOPS_RUNTIME_KIND: runtimeKind,
-        HONUA_DEVOPS_RUNTIME_BACKEND: backend,
-        HONUA_DEVOPS_SERVER_TARGET_ID: "server-1",
-        HONUA_DEVOPS_TERRAFORM_TARGETS: terraformTarget,
-        HONUA_DEVOPS_HONUA_API_KEY: "scoped-agent-key",
+    expect(createDevOpsExtension).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runtimeKind,
+        env: expect.objectContaining({
+          HONUA_DEVOPS_RUNTIME_KIND: runtimeKind,
+          HONUA_DEVOPS_RUNTIME_BACKEND: backend,
+          HONUA_DEVOPS_SERVER_TARGET_ID: "server-1",
+          HONUA_DEVOPS_TERRAFORM_TARGETS: terraformTarget,
+          HONUA_DEVOPS_HONUA_API_KEY: "scoped-agent-key",
+        }),
       }),
-    }), expect.any(Function));
-    fixture.fetcher.mockImplementation(async () => Response.json({
-      targetId: "server-1", deployTargetId: "ecs-cell-1", environment: "dev", runtimeKind, backend: "honua-gitops-kubernetes",
-    }));
+      expect.any(Function),
+    );
+    fixture.fetcher.mockImplementation(async () =>
+      Response.json({
+        targetId: "server-1",
+        deployTargetId: "ecs-cell-1",
+        environment: "dev",
+        runtimeKind,
+        backend: "honua-gitops-kubernetes",
+      }),
+    );
     await expect(integration.callTool("describe_environment", {})).rejects.toThrow("runtime changed");
     await integration.close();
   });
@@ -100,10 +115,15 @@ describe("host-configured private integration identity", () => {
     "refuses EKS authorization through the unsupported %s backend",
     async (backend) => {
       const fixture = await setup({ runtimeKind: "aws-eks" });
-      fixture.fetcher.mockImplementation(async () => Response.json({
-        targetId: "server-1", deployTargetId: "ecs-cell-1", environment: "dev",
-        runtimeKind: "aws-eks", backend,
-      }));
+      fixture.fetcher.mockImplementation(async () =>
+        Response.json({
+          targetId: "server-1",
+          deployTargetId: "ecs-cell-1",
+          environment: "dev",
+          runtimeKind: "aws-eks",
+          backend,
+        }),
+      );
       const integration = await configuredDevOps(fixture.file, fixture.runtime);
       await expect(integration.listTools()).rejects.toThrow("runtime changed");
       expect(createDevOpsExtension).not.toHaveBeenCalled();
@@ -128,9 +148,12 @@ describe("host-configured private integration identity", () => {
     await integration.listTools();
     const request = fixture.fetcher.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(request[0])).toBe("http://127.0.0.1:8080/tenant/api/v1/agent/devops/authorize");
-    expect(createDevOpsExtension).toHaveBeenCalledWith(expect.objectContaining({
-      env: expect.objectContaining({ HONUA_DEVOPS_HONUA_API_BASE_URL: "http://127.0.0.1:8080/tenant" }),
-    }), expect.any(Function));
+    expect(createDevOpsExtension).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({ HONUA_DEVOPS_HONUA_API_BASE_URL: "http://127.0.0.1:8080/tenant" }),
+      }),
+      expect.any(Function),
+    );
     await integration.close();
   });
 

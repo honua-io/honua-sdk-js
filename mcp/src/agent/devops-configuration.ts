@@ -53,7 +53,8 @@ export async function configuredDevOps(
       extension = (async () => {
         const connection = await runtime.resolve();
         const base = new URL(connection.transport.remoteUrl);
-        if (!/\/mcp\/?$/.test(base.pathname)) throw new Error("Private integration requires the canonical MCP endpoint");
+        if (!/\/mcp\/?$/.test(base.pathname))
+          throw new Error("Private integration requires the canonical MCP endpoint");
         base.pathname = base.pathname.replace(/mcp\/?$/, "");
         base.search = "";
         base.hash = "";
@@ -90,7 +91,8 @@ export async function configuredDevOps(
             receipt.environment !== config.environment
           )
             throw new Error("Private integration target changed");
-          const legacyEcs = config.runtimeKind === "aws-ecs" && receipt.runtimeKind === undefined && receipt.backend === undefined;
+          const legacyEcs =
+            config.runtimeKind === "aws-ecs" && receipt.runtimeKind === undefined && receipt.backend === undefined;
           if (!legacyEcs && (receipt.runtimeKind !== config.runtimeKind || receipt.backend !== target.backend))
             throw new Error("Private integration runtime changed or is unsupported");
         };
