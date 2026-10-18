@@ -77,5 +77,9 @@ const shared = createSampleViteConfig(import.meta.url, {
 
 export default defineConfig({
   ...shared,
+  build: {
+    ...shared.build,
+    minify: "esbuild",
+  },
   plugins: [bundleBudget, ...(shared.plugins ?? [])],
 });
