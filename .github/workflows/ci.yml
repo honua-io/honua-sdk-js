@@ -123,6 +123,9 @@ jobs:
           node --test test/scripts/browser-impact-observe.test.mjs
           node --test test/scripts/trusted-pr-workflow-run.test.cjs
 
+      - name: Test migration dependency cohort refusal controls
+        run: node --test test/scripts/verify-migration-cohort.test.mjs
+
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
@@ -275,6 +278,9 @@ jobs:
           node scripts/browser-impact-observe.mjs validate
           node --test test/scripts/browser-impact-observe.test.mjs
           node --test test/scripts/trusted-pr-workflow-run.test.cjs
+
+      - name: Test migration dependency cohort refusal controls
+        run: node --test test/scripts/verify-migration-cohort.test.mjs
 
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs

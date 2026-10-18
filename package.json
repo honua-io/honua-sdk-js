@@ -373,6 +373,9 @@
     "verify:root-surface": "npm run prepare:test-sdk --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
     "verify:root-surface:prepared": "npm run prepare:test-sdk:already --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
     "verify:migration-forwarder-tarball": "node scripts/verify-migration-forwarder-tarball.mjs",
+    "verify:migration-cohort": "npm run build --silent && npm run verify:migration-cohort:prepared",
+    "verify:migration-cohort:prepared": "node --test test/scripts/verify-migration-cohort.test.mjs && node scripts/verify-migration-cohort.mjs",
+    "verify:migration-cohort:registry": "node scripts/verify-migration-cohort.mjs --sdk-source registry",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat",
     "typecheck": "tsc --noEmit",
     "docs:api": "node scripts/docs-api.mjs",
@@ -767,7 +770,7 @@
     "test:runtime-tarball": "node --test test/scripts/runtime-tarball.test.mjs"
   },
   "dependencies": {
-    "@honua/honua-migrate": "0.2.0-beta.0",
+    "@honua/honua-migrate": "0.3.0-beta.0",
     "@mapbox/jsonlint-lines-primitives": "2.0.2",
     "@maplibre/maplibre-gl-style-spec": "^24.7.0"
   },

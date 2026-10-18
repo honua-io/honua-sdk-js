@@ -13,7 +13,6 @@ const sdkRoot = path.resolve(import.meta.dirname, "..");
 const migratePackageRoot = path.resolve(
   process.argv[2] ?? process.env.HONUA_MIGRATE_PACKAGE_ROOT ?? "../honua-migrate/packages/javascript",
 );
-const expectedMigrateVersion = "0.2.0-beta.0";
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -76,7 +75,8 @@ function onlyTarball(directory, label) {
 
 const sdkManifest = readJson(path.join(sdkRoot, "package.json"));
 const migrateManifest = readJson(path.join(migratePackageRoot, "package.json"));
-assert.equal(sdkManifest.dependencies?.["@honua/honua-migrate"], expectedMigrateVersion);
+const expectedMigrateVersion = sdkManifest.dependencies?.["@honua/honua-migrate"];
+assert.match(expectedMigrateVersion ?? "", /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
 assert.equal(migrateManifest.name, "@honua/honua-migrate");
 assert.equal(migrateManifest.version, expectedMigrateVersion);
 
@@ -126,7 +126,7 @@ try {
   assert.equal(installedMigrate.repository?.directory, "packages/javascript");
   assert.equal(installedMigrate.homepage, "https://github.com/honua-io/honua-migrate#readme");
   assert.equal(installedMigrate.bugs?.url, "https://github.com/honua-io/honua-migrate/issues");
-  assert.equal(installedMigrate.engines?.node, ">=20.19.0");
+  assert.equal(installedMigrate.engines?.node, ">=22.12.0");
   assert.ok(fs.existsSync(path.join(installedSdkRoot, "scripts", "run-legacy-migration-cli.mjs")));
 
   const lock = readJson(path.join(consumerRoot, "package-lock.json"));

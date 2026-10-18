@@ -41,3 +41,14 @@ jobs:
       # Install both halves from the registry with no flags at all.
       - name: Verify the published pair co-installs with default npm resolution
         run: npm run verify:client-pair:registry
+
+      - name: Verify the published migration cohort and installed forwarding surfaces
+        run: npm run verify:migration-cohort:registry
+
+      - name: Upload migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-registry
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn

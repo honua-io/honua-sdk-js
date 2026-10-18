@@ -27,3 +27,26 @@ releases and 90 days. They will not be removed before `honua-migrate` 1.2.
 
 The canonical Python executable remains `honua-migrate`; the JavaScript
 executable is `honua-js-migrate`, avoiding a global command-name collision.
+
+## Release verification
+
+From an SDK source checkout, `npm run verify:migration-cohort` builds and packs
+the SDK, installs it into a fresh consumer using npm's default resolver, and
+checks its published migration dependency. The check compares installed export
+identity and CLI output, verifies that the migrator and compat package resolve
+the same SDK, and rejects nested packages from an incompatible SDK generation.
+
+After SDK publication, `npm run verify:migration-cohort:registry` performs the
+same checks with every package installed from the public registry. This is the
+published-consumer proof; the packed check is prepublication evidence. Both
+retain `test-results/migration-cohort.json` and its companion lockfile, including
+installed versions, integrity, release source/provenance checks, and failures.
+The publication workflow requires both stages, and the scheduled client-pin
+workflow repeats the registry stage. The existing sibling-source tarball test
+remains a separate development check.
+
+For guarded branch-recovery publications, the publication workflow supplies its
+authenticated ref through `--sdk-publish-ref`. A manual registry replay of that
+recovery must supply the same ref. The release tag must still resolve to the
+source commit in provenance; earlier SDK dependency versions and the migrator
+retain their separate release-tag checks.
