@@ -44,6 +44,8 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "native-server-image" },
   { name: "native-console-image" },
   { name: "native-release-id" },
+  { name: "native-gateway-command" },
+  { name: "native-gateway-arg", multiple: true },
   { name: "native-console-port" },
   { name: "locator" },
   { name: "provider" },

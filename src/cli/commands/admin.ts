@@ -40,7 +40,7 @@ INSTALL
   honua admin install local --yes [--directory <dir>] [--profile quickstart|gp-dev]
       [--http-port <port>] [--timeout-ms <ms>] [--dry-run]
       [--native-server-image <digest-ref> --native-console-image <digest-ref> --native-release-id <id>]
-      [--native-console-port <port>]
+      [--native-gateway-command <absolute-executable> --native-gateway-arg <arg>...] [--native-console-port <port>]
   honua admin install status [--directory <dir>]
   honua admin install cloud [aws]
   --directory defaults to .honua. Create it outside the git repo you are editing.
@@ -316,13 +316,19 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
   const consoleImage = getString(parsed, "native-console-image");
   const releaseId = getString(parsed, "native-release-id");
   const consolePort = getNumber(parsed, "native-console-port");
-  const hasNativeOptions = [serverImage, consoleImage, releaseId, consolePort].some((value) => value !== undefined);
-  if (hasNativeOptions && (!serverImage || !consoleImage || !releaseId))
+  const gatewayCommand = getString(parsed, "native-gateway-command");
+  const gatewayArgs = getArray(parsed, "native-gateway-arg");
+  const hasNativeOptions = [serverImage, consoleImage, releaseId, consolePort, gatewayCommand, ...gatewayArgs].some(
+    (value) => value !== undefined,
+  );
+  if (hasNativeOptions && (!serverImage || !consoleImage || !releaseId || !gatewayCommand))
     throw new ArgError(
-      "Native preview requires --native-server-image, --native-console-image, and --native-release-id together.",
+      "Native preview requires --native-server-image, --native-console-image, --native-release-id, and --native-gateway-command together.",
     );
   const nativeWorkspace =
-    serverImage && consoleImage && releaseId ? { serverImage, consoleImage, releaseId, consolePort } : undefined;
+    serverImage && consoleImage && releaseId && gatewayCommand
+      ? { serverImage, consoleImage, releaseId, consolePort, gatewayCommand, gatewayArgs }
+      : undefined;
   if (getBoolean(parsed, "dry-run")) {
     printLine(
       renderJson({
