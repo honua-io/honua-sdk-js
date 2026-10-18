@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 import { runNpmSync } from "./lib/npm-cli.mjs";
 import { publicResolverEnv } from "./verify-client-pair-install.mjs";
-import { verifyPublishedRelease } from "./verify-published-release.mjs";
+import { attestationsUrl, decodeAttestationStatement, PROVENANCE_PREDICATE_TYPE, verifyPublishedRelease } from "./verify-published-release.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const SDK = "@honua/sdk-js";
@@ -160,24 +160,118 @@ function run(command, args, { cwd, env }) {
   return result;
 }
 
-async function publication(item, sdkPublication) {
+// A scheduled replay has no publisher github.ref. Recover that identity only
+// from the exact GitHub run attempt named by the package's provenance, after
+// every registry check except the ref/source check has passed. A successful
+// publish can precede a failed propagation check, so authenticate the actual
+// publisher steps rather than requiring the whole historical run to be green.
+export async function recoverSdkPublicationRef({ item, tag, commit, proof, fetchJson }) {
+  if (item.name === MIGRATE || proof.status !== "failed") return undefined;
+  const failed = proof.artifacts?.[0]?.checks?.filter((check) => check.status !== "pass") ?? [];
+  if (failed.length !== 1 || failed[0].id !== "source-revision") return undefined;
+  assert.equal(proof.artifacts.length, 1);
+  assert.equal(proof.artifacts[0].npmName, item.name);
+  assert.equal(proof.artifacts[0].version, item.version);
+  assert.equal(tag, `js-sdk-v${item.version}`);
+  assert.match(commit, /^[a-f0-9]{40}$/);
+  const repository = "honua-io/honua-sdk-js";
+  const workflowPath = ".github/workflows/publish-js-sdk.yml";
+  const attestations = await fetchJson(attestationsUrl("https://registry.npmjs.org", item.name, item.version));
+  const entries = attestations.attestations.filter((entry) => entry.predicateType === PROVENANCE_PREDICATE_TYPE);
+  assert.equal(entries.length, 1, "recovery requires one unambiguous provenance statement");
+  const statement = decodeAttestationStatement(entries[0]);
+  assert.equal(statement.predicateType, PROVENANCE_PREDICATE_TYPE);
+  const build = statement.predicate?.buildDefinition;
+  const workflow = build?.externalParameters?.workflow;
+  assert.equal(workflow?.repository, `https://github.com/${repository}`);
+  assert.equal(workflow?.path, workflowPath);
+  assert.match(workflow?.ref ?? "", /^refs\/heads\/[^\s]+$/, "recovery requires a branch publication");
+  assert.ok(build.resolvedDependencies?.some((dependency) => dependency.digest?.gitCommit === commit),
+    "recovery source must equal the immutable release tag");
+  const invocation = statement.predicate?.runDetails?.metadata?.invocationId;
+  const match = /^https:\/\/github\.com\/honua-io\/honua-sdk-js\/actions\/runs\/([1-9][0-9]*)\/attempts\/([1-9][0-9]*)$/.exec(invocation ?? "");
+  assert.ok(match, "recovery requires the canonical publisher run attempt");
+  const [, runId, attempt] = match;
+  const endpoint = `https://api.github.com/repos/${repository}/actions/runs/${runId}/attempts/${attempt}`;
+  const run = await fetchJson(endpoint);
+  assert.equal(String(run.id), runId);
+  assert.equal(String(run.run_attempt), attempt);
+  assert.equal(run.repository?.full_name, repository);
+  assert.equal(run.head_repository?.full_name, repository);
+  assert.equal(run.path, workflowPath);
+  assert.equal(run.event, "workflow_dispatch");
+  assert.equal(run.status, "completed");
+  assert.equal(run.head_sha, commit);
+  assert.equal(run.head_branch, workflow.ref.slice("refs/heads/".length));
+  const jobs = [];
+  for (let page = 1; ; page += 1) {
+    const result = await fetchJson(`${endpoint}/jobs?per_page=100&page=${page}`);
+    assert.ok(Array.isArray(result.jobs));
+    jobs.push(...result.jobs);
+    if (result.jobs.length < 100) break;
+  }
+  const publishers = jobs.filter((job) => job.name === "publish-js-packages");
+  assert.equal(publishers.length, 1, "recovery requires exactly one publisher job");
+  const publisher = publishers[0];
+  assert.equal(String(publisher.run_id), runId);
+  assert.equal(String(publisher.run_attempt), attempt);
+  assert.equal(publisher.status, "completed");
+  assert.equal(publisher.conclusion, "success");
+  for (const [name, conclusion] of [
+    ["Validate publish ref and version", "success"],
+    ["Publish split packages", "success"],
+    ["Publish summary", "skipped"],
+  ]) {
+    const steps = publisher.steps.filter((step) => step.name === name);
+    assert.equal(steps.length, 1, `recovery requires publisher step ${name}`);
+    assert.equal(steps[0].status, "completed");
+    assert.equal(steps[0].conclusion, conclusion, `recovery publisher step ${name}`);
+  }
+  return { expectedRef: workflow.ref, tag, commit, invocation, runId, attempt,
+    runConclusion: run.conclusion, publisherJobId: publisher.id,
+    authenticatedRun: run, authenticatedPublisherJob: publisher };
+}
+
+export async function verifyMigrationPublication(item, sdkPublication, networkFetch = fetch) {
   const migrate = item.name === MIGRATE;
   const repository = `honua-io/${migrate ? "honua-migrate" : "honua-sdk-js"}`;
   const tag = `${migrate ? "javascript" : "js-sdk"}-v${item.version}`;
-  const response = await fetch(`https://api.github.com/repos/${repository}/commits/${tag}`, {
+  const response = await networkFetch(`https://api.github.com/repos/${repository}/commits/${tag}`, {
     signal: AbortSignal.timeout(30_000),
     headers: { Accept: "application/vnd.github+json" },
   });
   assert.ok(response.ok, `cannot resolve ${repository} ${tag}: HTTP ${response.status}`);
   const { sha } = await response.json();
   assert.match(sha, /^[a-f0-9]{40}$/);
-  const proof = await verifyPublishedRelease({
-    targets: [{ id: item.name, npmName: item.name, version: item.version, tag, commit: sha,
-      expectedRef: expectedSdkPublicationRef(item, sdkPublication),
-      workflow: `.github/workflows/${migrate ? "publish-javascript" : "publish-js-sdk"}.yml` }],
+  // Re-verification must authenticate the same registry bytes used to discover
+  // the recovery invocation; do not learn a ref from a second mutable response.
+  const responses = new Map();
+  const fetchImpl = async (url) => {
+    if (!responses.has(url)) responses.set(url, await networkFetch(url, { signal: AbortSignal.timeout(60_000) }));
+    return responses.get(url).clone();
+  };
+  const target = { id: item.name, npmName: item.name, version: item.version, tag, commit: sha,
+    expectedRef: expectedSdkPublicationRef(item, sdkPublication),
+    workflow: `.github/workflows/${migrate ? "publish-javascript" : "publish-js-sdk"}.yml` };
+  const verify = (expectedRef) => verifyPublishedRelease({
+    targets: [{ ...target, expectedRef }],
     sealedTag: tag, sealedCommit: sha, repository, selection: "exact-version",
-    fetchImpl: (url) => fetch(url, { signal: AbortSignal.timeout(60_000) }),
+    fetchImpl,
   });
+  let proof = await verify(target.expectedRef);
+  if (!target.expectedRef) {
+    const recovery = await recoverSdkPublicationRef({ item, tag, commit: sha, proof,
+      fetchJson: async (url) => {
+        const response = await fetchImpl(url);
+        assert.ok(response.ok, `cannot authenticate publication identity: HTTP ${response.status}`);
+        return response.json();
+      } });
+    if (recovery) {
+      const initialTagVerification = proof;
+      proof = await verify(recovery.expectedRef);
+      proof.recoveryPublication = { ...recovery, initialTagVerification };
+    }
+  }
   return proof;
 }
 
@@ -221,7 +315,7 @@ export async function verifyMigrationCohort(argv) {
     for (const item of receipt.packages.filter((entry) => !entry.packed)) {
       const key = `${item.name}@${item.version}`;
       if (!verified.has(key)) {
-        const proof = await publication(item, sdkPublication);
+        const proof = await verifyMigrationPublication(item, sdkPublication);
         receipt.publications.push(proof);
         assert.equal(proof.status, "verified", JSON.stringify(proof.failures));
         assert.equal(proof.artifacts[0].integrity, item.integrity, `${key} installed integrity differs from publication`);

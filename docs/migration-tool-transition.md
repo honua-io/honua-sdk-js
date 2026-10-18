@@ -46,7 +46,14 @@ workflow repeats the registry stage. The existing sibling-source tarball test
 remains a separate development check.
 
 For guarded branch-recovery publications, the publication workflow supplies its
-authenticated ref through `--sdk-publish-ref`. A manual registry replay of that
-recovery must supply the same ref. The release tag must still resolve to the
-source commit in provenance; earlier SDK dependency versions and the migrator
-retain their separate release-tag checks.
+authenticated ref through `--sdk-publish-ref`. Scheduled and manual replays
+first require the normal release-tag proof. If an SDK package fails only the
+ref/source check, they authenticate the exact GitHub publisher run attempt
+named by its provenance: canonical repository/workflow, release-tag source
+commit, matching branch, successful guarded publication, and a skipped dry-run
+summary. They then repeat the full registry verification with that branch ref
+and retain the run identity. Missing or contradictory run evidence fails; it
+never authorizes an arbitrary ref. Each older SDK dependency is verified against
+its own release identity, and the migrator retains its separate release-tag
+check. The publisher's immediate check still supplies its own ref because that
+run has not finished yet.
