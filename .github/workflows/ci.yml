@@ -379,6 +379,9 @@ jobs:
       - name: Validate quickstart timing runner
         run: npm run docs:quickstart:time-to-map:test
 
+      - name: Test SDK publication workflow execution
+        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
+
       - name: Typecheck
         run: npm run typecheck
 

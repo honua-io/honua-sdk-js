@@ -202,6 +202,9 @@ jobs:
       - name: Test verification graph policy
         run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/unit-test-shards.test.mjs
 
+      - name: Test SDK publication workflow execution
+        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
+
       - name: Verify every unit spec has exactly one shard
         run: npm run unit:shards:check
 
