@@ -1126,18 +1126,54 @@ describe("createStudioAgentSession composition plane", () => {
     expect(session.draft).toEqual({ draftId: "draft-1", generation: 5 });
   });
 
-  it("reloads and retries exactly once on a generation conflict", async () => {
+  it.each(["Published", "AwaitingApproval"])(
+    "preserves immutable-version publication arguments for %s",
+    async (status) => {
+      const input = {
+        itemId: "item-1",
+        versionId: "version-1",
+        contentHash: "hash-1",
+        route: "/maps/parcels",
+        visibility: "private",
+      };
+      const tool = {
+        ...descriptor("honua_studio_propose_publication", COMPOSITION),
+        inputSchema: {
+          type: "object",
+          properties: Object.fromEntries(Object.keys(input).map((key) => [key, { type: "string" }])),
+          required: Object.keys(input),
+          additionalProperties: false,
+        },
+      };
+      const receipt = {
+        status,
+        humanConfirmationRequired: status === "AwaitingApproval",
+        ...(status === "Published" ? { shareUrl: "/apps/parcels" } : { proposalId: "proposal-1" }),
+      };
+      const { server, session } = makeSession({
+        draft: { draftId: "editing-another-draft", generation: 4 },
+        toolPages: onePage([tool]),
+        turns: [toolTurn([{ id: "publish-1", name: tool.name, args: input }]), textTurn("Publication submitted.")],
+        mcp: { toolCalls: [{ result: receipt }] },
+      });
+      const turn = await session.chat("Publish the saved version.");
+      expect(server.mcpCalls).toEqual([{ name: tool.name, arguments: input }]);
+      expect(session.draft).toEqual({ draftId: "editing-another-draft", generation: 4 });
+      expect(JSON.parse(turn.toolCalls[0]!.content)).toEqual({ status: "ok", result: receipt });
+    },
+  );
+
+  it("refreshes a conflicted draft without replaying stale intent", async () => {
     const { server, session } = makeSession({
       draft: { draftId: "draft-1", generation: 4 },
       turns: [
         toolTurn([{ id: "call-1", name: "honua_studio_remove_interaction", args: { interactionId: interaction.id } }]),
-        textTurn("Removed."),
+        textTurn("The draft changed; the removal was not applied."),
       ],
       mcp: {
         toolCalls: [
           { isError: true, result: { code: "failed_precondition", message: "stale generation" } },
           { result: { draftId: "draft-1", generation: 9 } },
-          { result: { draftId: "draft-1", generation: 10 } },
         ],
       },
     });
@@ -1147,36 +1183,67 @@ describe("createStudioAgentSession composition plane", () => {
     expect(server.mcpCalls.map((call) => call.name)).toEqual([
       "honua_studio_remove_interaction",
       "honua_studio_get_draft",
-      "honua_studio_remove_interaction",
     ]);
-    expect(server.mcpCalls[2]?.arguments).toMatchObject({ generation: 9 });
-    expect(turn.toolCalls[0]).toMatchObject({ ok: true, retriedAfterConflict: true, draft: { generation: 10 } });
-    expect(session.draft).toEqual({ draftId: "draft-1", generation: 10 });
+    expect(turn.toolCalls[0]).toMatchObject({ ok: false, errorCode: "failed_precondition", draft: { generation: 9 } });
+    expect(JSON.parse(turn.toolCalls[0]?.content ?? "{}")).toMatchObject({ status: "error", draft: { generation: 9 } });
+    expect(session.draft).toEqual({ draftId: "draft-1", generation: 9 });
   });
 
-  it("surfaces a second generation conflict rather than retrying again", async () => {
+  it("stops the rest of a stale tool batch until the model observes the refreshed draft", async () => {
     const { server, session } = makeSession({
       draft: { draftId: "draft-1", generation: 4 },
       turns: [
-        toolTurn([{ id: "call-1", name: "honua_studio_add_widget", args: { widget: { id: "w", kind: "chart" } } }]),
-        textTurn("Could not add it."),
+        toolTurn([
+          { id: "call-1", name: "honua_studio_remove_interaction", args: { interactionId: interaction.id } },
+          { id: "call-2", name: "honua_studio_add_widget", args: { widget: { id: "w", kind: "chart" } } },
+        ]),
+        textTurn("Reviewing the updated draft."),
       ],
       mcp: {
         toolCalls: [
           { isError: true, result: { code: "failed_precondition", message: "stale generation" } },
           { result: { draftId: "draft-1", generation: 9 } },
-          { isError: true, result: { code: "failed_precondition", message: "stale again" } },
+        ],
+      },
+    });
+    const turn = await session.chat("Replace this interaction with a chart.");
+    expect(server.mcpCalls.map((call) => call.name)).toEqual([
+      "honua_studio_remove_interaction",
+      "honua_studio_get_draft",
+    ]);
+    expect(turn.toolCalls).toHaveLength(2);
+    expect(turn.toolCalls.every((call) => !call.ok)).toBe(true);
+    expect(turn.toolCalls[1]?.errorMessage).toContain("previous command");
+  });
+
+  it("surfaces a failed refresh and stops the remaining stale batch", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "draft-1", generation: 4 },
+      turns: [
+        toolTurn([
+          { id: "call-1", name: "honua_studio_add_widget", args: { widget: { id: "w", kind: "chart" } } },
+          { id: "call-2", name: "honua_studio_remove_interaction", args: { interactionId: interaction.id } },
+        ]),
+        textTurn("Could not add it."),
+      ],
+      mcp: {
+        toolCalls: [
+          { isError: true, result: { code: "failed_precondition", message: "stale generation" } },
+          { isError: true, result: { code: "permission_denied", message: "access revoked" } },
         ],
       },
     });
 
     const turn = await session.chat("Add a chart.");
 
-    expect(server.mcpCalls).toHaveLength(3);
+    expect(server.mcpCalls).toHaveLength(2);
     expect(turn.status).toBe("completed");
     expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: false });
     expect(turn.toolCalls[0]?.errorCode).toBe("failed_precondition");
-    expect(turn.toolCalls[0]?.errorMessage).toContain("stale again");
+    expect(turn.toolCalls[0]?.errorMessage).toContain("access revoked");
+    expect(turn.toolCalls).toHaveLength(2);
+    expect(turn.toolCalls[1]).toMatchObject({ ok: false, errorCode: "failed_precondition" });
+    expect(turn.toolCalls[1]?.errorMessage).toContain("previous command");
   });
 
   it("surfaces a non-conflict tool failure without reloading the draft", async () => {
