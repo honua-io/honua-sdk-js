@@ -88,3 +88,43 @@ it("requires a complete host-selected preview configuration rather than silently
   expect(() => nativeWorkspaceFromEnv({ ...env, HONUA_AGENT_PREVIEW_GATEWAY_ARGS: "[1]" })).toThrow("string array");
   expect(() => nativeWorkspaceFromEnv({ ...env, HONUA_AGENT_PREVIEW_CONSOLE_PORT: "0" })).toThrow("Console port");
 });
+
+it("passes host-selected model and gateway credential references without resolving secrets into configuration", () => {
+  const env = {
+    HONUA_AGENT_PREVIEW_SERVER_IMAGE: `server@sha256:${"a".repeat(64)}`,
+    HONUA_AGENT_PREVIEW_CONSOLE_IMAGE: `console@sha256:${"b".repeat(64)}`,
+    HONUA_AGENT_PREVIEW_RELEASE_ID: "preview",
+    HONUA_AGENT_PREVIEW_GATEWAY_COMMAND: "/qualified/node",
+    HONUA_AGENT_PREVIEW_MODEL_KIND: "bedrock",
+    HONUA_AGENT_PREVIEW_MODEL_NAME: "amazon.nova-pro-v1:0",
+    HONUA_AGENT_PREVIEW_MODEL_REGION: "us-east-1",
+    HONUA_AGENT_PREVIEW_MODEL_KEY_ENV: "PRIVATE_MODEL_TOKEN",
+    HONUA_AGENT_PREVIEW_GATEWAY_HTTP_URL: "http://private-gateway:7863",
+    HONUA_AGENT_PREVIEW_GATEWAY_HTTP_KEY_ENV: "PRIVATE_GATEWAY_BRIDGE",
+    PRIVATE_MODEL_TOKEN: "model-secret-must-not-be-copied-here",
+    PRIVATE_GATEWAY_BRIDGE: "gateway-secret-must-not-be-copied-here",
+  };
+  const configuration = nativeWorkspaceFromEnv(env);
+  expect(configuration?.modelProvider).toEqual({
+    kind: "bedrock",
+    model: "amazon.nova-pro-v1:0",
+    region: "us-east-1",
+    apiKeyEnvironmentVariable: "PRIVATE_MODEL_TOKEN",
+  });
+  expect(configuration?.gatewayHttp).toEqual({
+    url: "http://private-gateway:7863",
+    keyEnvironmentVariable: "PRIVATE_GATEWAY_BRIDGE",
+  });
+  expect(JSON.stringify(configuration)).not.toContain("secret-must-not-be-copied-here");
+  for (const field of [
+    "HONUA_AGENT_PREVIEW_MODEL_KIND",
+    "HONUA_AGENT_PREVIEW_MODEL_NAME",
+    "HONUA_AGENT_PREVIEW_GATEWAY_HTTP_URL",
+    "HONUA_AGENT_PREVIEW_GATEWAY_HTTP_KEY_ENV",
+  ] as const) {
+    expect(() => nativeWorkspaceFromEnv({ ...env, [field]: undefined })).toThrow();
+  }
+  expect(() => nativeWorkspaceFromEnv({ ...env, HONUA_AGENT_PREVIEW_MODEL_KIND: "unknown" })).toThrow("provider kind");
+  expect(() => nativeWorkspaceFromEnv({ HONUA_AGENT_PREVIEW_MODEL_NAME: "partial" })).toThrow("Incomplete");
+  expect(() => nativeWorkspaceFromEnv({ HONUA_AGENT_PREVIEW_GATEWAY_HTTP_KEY_ENV: "partial" })).toThrow("Incomplete");
+});

@@ -17,7 +17,18 @@ const execute = promisify(execFile);
 /** Preview artifacts come from host configuration, never from model tool arguments. */
 export function nativeWorkspaceFromEnv(env: NodeJS.ProcessEnv): LocalInstallOptions["nativeWorkspace"] {
   const prefix = "HONUA_AGENT_PREVIEW_";
-  const names = ["SERVER_IMAGE", "CONSOLE_IMAGE", "RELEASE_ID", "GATEWAY_COMMAND", "GATEWAY_ARGS", "CONSOLE_PORT"];
+  const modelNames = ["MODEL_KIND", "MODEL_ENDPOINT", "MODEL_NAME", "MODEL_REGION", "MODEL_KEY_ENV"];
+  const gatewayNames = ["GATEWAY_HTTP_URL", "GATEWAY_HTTP_KEY_ENV"];
+  const names = [
+    "SERVER_IMAGE",
+    "CONSOLE_IMAGE",
+    "RELEASE_ID",
+    "GATEWAY_COMMAND",
+    "GATEWAY_ARGS",
+    "CONSOLE_PORT",
+    ...modelNames,
+    ...gatewayNames,
+  ];
   if (!names.some((name) => env[`${prefix}${name}`] !== undefined)) return undefined;
   const required = (name: string): string => {
     const value = env[`${prefix}${name}`];
@@ -35,6 +46,24 @@ export function nativeWorkspaceFromEnv(env: NodeJS.ProcessEnv): LocalInstallOpti
     env.HONUA_AGENT_PREVIEW_CONSOLE_PORT === undefined ? undefined : Number(env.HONUA_AGENT_PREVIEW_CONSOLE_PORT);
   if (consolePort !== undefined && (!Number.isInteger(consolePort) || consolePort < 1 || consolePort > 65535))
     throw new Error("Invalid preview Console port");
+  let modelProvider: NonNullable<LocalInstallOptions["nativeWorkspace"]>["modelProvider"];
+  if (modelNames.some((name) => env[`${prefix}${name}`] !== undefined)) {
+    const kind = required("MODEL_KIND");
+    if (kind !== "openai" && kind !== "anthropic" && kind !== "bedrock")
+      throw new Error("Invalid preview model provider kind");
+    modelProvider = {
+      kind,
+      model: required("MODEL_NAME"),
+      ...(env.HONUA_AGENT_PREVIEW_MODEL_ENDPOINT === undefined ? {} : { endpoint: required("MODEL_ENDPOINT") }),
+      ...(env.HONUA_AGENT_PREVIEW_MODEL_REGION === undefined ? {} : { region: required("MODEL_REGION") }),
+      ...(env.HONUA_AGENT_PREVIEW_MODEL_KEY_ENV === undefined
+        ? {}
+        : { apiKeyEnvironmentVariable: required("MODEL_KEY_ENV") }),
+    };
+  }
+  const gatewayHttp = gatewayNames.some((name) => env[`${prefix}${name}`] !== undefined)
+    ? { url: required("GATEWAY_HTTP_URL"), keyEnvironmentVariable: required("GATEWAY_HTTP_KEY_ENV") }
+    : undefined;
   return {
     serverImage: required("SERVER_IMAGE"),
     consoleImage: required("CONSOLE_IMAGE"),
@@ -42,6 +71,8 @@ export function nativeWorkspaceFromEnv(env: NodeJS.ProcessEnv): LocalInstallOpti
     gatewayCommand: required("GATEWAY_COMMAND"),
     gatewayArgs,
     ...(consolePort === undefined ? {} : { consolePort }),
+    ...(modelProvider === undefined ? {} : { modelProvider }),
+    ...(gatewayHttp === undefined ? {} : { gatewayHttp }),
   };
 }
 

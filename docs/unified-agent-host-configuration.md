@@ -75,6 +75,28 @@ configuration is rejected. With neither setting, Console uses the canonical
 server directly and does not discover the optional private adapter. These
 settings are host configuration, not chat arguments or browser credentials.
 
+For an agent-driven preview install, the existing gateway host can also supply
+the optional installer settings below, alongside all four required preview
+artifact/executable settings in the [local preview reference](local-agent-workspace-preview.md).
+
+| Host setting | Installer configuration |
+| --- | --- |
+| `HONUA_AGENT_PREVIEW_MODEL_KIND` | `openai`, `anthropic`, or `bedrock`; requires `MODEL_NAME`. |
+| `HONUA_AGENT_PREVIEW_MODEL_NAME` | Model identifier accepted by the configured provider. |
+| `HONUA_AGENT_PREVIEW_MODEL_ENDPOINT` | Provider endpoint; required for OpenAI/Anthropic, optional for Bedrock. |
+| `HONUA_AGENT_PREVIEW_MODEL_REGION` | Optional provider region. |
+| `HONUA_AGENT_PREVIEW_MODEL_KEY_ENV` | Name of a protected host environment variable containing the model credential. |
+| `HONUA_AGENT_PREVIEW_GATEWAY_HTTP_URL` | Private gateway origin reachable from the Console container. |
+| `HONUA_AGENT_PREVIEW_GATEWAY_HTTP_KEY_ENV` | Name of a protected host environment variable containing the independent bridge credential; required with the HTTP URL. |
+
+All names in the table include the `HONUA_AGENT_PREVIEW_` prefix. Partial model
+or gateway settings fail rather than silently enabling a different setup. The
+installer resolves credential references into protected configuration; never
+paste their values into a prompt. Bedrock still requires an explicit AWS
+credential chain available to the server container. A host AWS login alone
+does not configure container credentials. The HTTP gateway must be started by
+the host using its configured private address and the same bridge credential.
+
 The HTTP gateway provides `/mcp` and `/capabilities`. Every request verifies the
 current scoped agent key and rereads the captured workspace turn on the actual
 server. Sessions are pinned to the operator partition, workspace, target and
