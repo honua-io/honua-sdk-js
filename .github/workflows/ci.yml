@@ -498,6 +498,17 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify packed SDK migration cohort with default npm resolution
+        run: npm run verify:migration-cohort:prepared
+
+      - name: Upload migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-packed
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn
+
       - name: Qualify shared-kit pilots from source and packed SDK
         run: |
           npm run samples:run -- verify --kit --sdk-mode source
