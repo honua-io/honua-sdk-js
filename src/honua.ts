@@ -507,6 +507,13 @@ export type {
   HonuaStacSearchOptions,
 } from "./core/stac.js";
 export {
+  HonuaStacConformanceError,
+  STAC_CONFORMANCE_CLASS,
+  hasStacConformance,
+  stacSearchExtensionRequirements,
+} from "./core/stac-conformance.js";
+export type { StacConformanceKind } from "./core/stac-conformance.js";
+export {
   HonuaOdataEntitySet,
   buildOdataSpatialFilter,
   odataFieldSchema,

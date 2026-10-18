@@ -571,6 +571,23 @@ function maybeServeHonuaFixture(req, requestUrl, res) {
     return true;
   }
 
+  if (requestUrl.pathname === "/stac" || requestUrl.pathname === "/stac/") {
+    // Extension searches read this landing page before emitting filter-lang.
+    serveJson(res, {
+      type: "Catalog",
+      stac_version: "1.0.0",
+      id: "imagery-cog-fixture",
+      conformsTo: [
+        "https://api.stacspec.org/v1.0.0/core",
+        "https://api.stacspec.org/v1.0.0/item-search",
+        "https://api.stacspec.org/v1.0.0/item-search#filter",
+        "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
+      ],
+      links: [{ rel: "search", href: "/stac/search", type: "application/geo+json", method: "GET" }],
+    });
+    return true;
+  }
+
   if (requestUrl.pathname === "/stac/search") {
     serveStacSearch(requestUrl, res);
     return true;

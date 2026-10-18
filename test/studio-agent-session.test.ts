@@ -91,6 +91,13 @@ interface ScriptOptions {
   readonly chunkSize?: number;
   /** Rejects the chat fetch, standing in for a network failure. */
   readonly failChat?: boolean;
+  /**
+   * Append a terminal `transcriptProvenance` event to tool-calling turns.
+   * Candidate sessions require it. End-user sessions leave it off: the server
+   * signs a transcript only when the request carries certification.
+   * @default true
+   */
+  readonly certifyTranscript?: boolean;
   /** Called with the abort signal for each chat request, so a test can cancel mid-stream. */
   readonly onChatStream?: (signal: AbortSignal | undefined) => void;
 }
@@ -112,25 +119,26 @@ const DEFAULT_CAPABILITIES: StudioAiCapabilitiesResponse = {
   ],
 };
 
-function sseBody(events: ScriptedTurn): string {
-  const secured = events.some((event) => event.type === "toolCallStop")
-    ? [
-        ...events,
-        {
-          type: "transcriptProvenance",
-          provenance: {
-            schemaVersion: "honua.studio-ai.transcript.v1",
-            canonicalization: "honua-canonical-json-v1",
-            digestAlgorithm: "sha-256",
-            signatureAlgorithm: "Ed25519",
-            keyId: "fixture",
-            canonicalTranscript: "fixture",
-            transcriptDigest: "fixture",
-            signature: "fixture",
-          },
-        } satisfies StudioAiChatEvent,
-      ]
-    : events;
+function sseBody(events: ScriptedTurn, certifyTranscript = true): string {
+  const secured =
+    certifyTranscript && events.some((event) => event.type === "toolCallStop")
+      ? [
+          ...events,
+          {
+            type: "transcriptProvenance",
+            provenance: {
+              schemaVersion: "honua.studio-ai.transcript.v1",
+              canonicalization: "honua-canonical-json-v1",
+              digestAlgorithm: "sha-256",
+              signatureAlgorithm: "Ed25519",
+              keyId: "fixture",
+              canonicalTranscript: "fixture",
+              transcriptDigest: "fixture",
+              signature: "fixture",
+            },
+          } satisfies StudioAiChatEvent,
+        ]
+      : events;
   return secured
     .map((event) => {
       const { type, ...rest } = event;
@@ -189,7 +197,8 @@ function createScriptedServer(options: ScriptOptions = {}): ScriptedServer {
       chatRequests.push(JSON.parse(String(init?.body)) as StudioAiChatRequest);
       options.onChatStream?.(init?.signal ?? undefined);
       const events = turns[turnIndex++] ?? [{ type: "messageStop", stopReason: "endTurn" }];
-      return new Response(chunkedStream(sseBody(events), options.chunkSize ?? 4096, init?.signal ?? undefined), {
+      const body = sseBody(events, options.certifyTranscript !== false);
+      return new Response(chunkedStream(body, options.chunkSize ?? 4096, init?.signal ?? undefined), {
         status: 200,
         headers: { "content-type": "text/event-stream" },
       });
@@ -883,6 +892,88 @@ describe("createStudioAgentSession tool discovery", () => {
     expect(turn.status).toBe("error");
     expect(turn.errorMessage).toBe("Transcript provenance verification failed.");
     expect(server.mcpCalls).toEqual([]);
+  });
+
+  /**
+   * honua-server `StudioAiProxyEndpoints.HandleChat` returns 403 when
+   * `certification != null` and the caller is not allowed to override the
+   * candidate binding. End-user admission is `certification == null`.
+   */
+  function nonAdminChatAdmitted(request: StudioAiChatRequest): boolean {
+    return request.certification === undefined || request.certification === null;
+  }
+
+  it("dispatches a model-selected composition tool for an end user who sends no certification", async () => {
+    const server = createScriptedServer({
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_add_layer"),
+      turns: [
+        toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layer: { id: "l" } } }]),
+        textTurn("Added."),
+      ],
+    });
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      draft: { draftId: "draft-1", generation: 4 },
+    });
+
+    const turn = await session.chat("Add a layer.");
+
+    expect(turn.status).not.toBe("error");
+    expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: true, toolName: "honua_studio_add_layer" });
+    expect(server.mcpCalls.map((call) => call.name)).toEqual(["honua_studio_add_layer"]);
+    expect(server.chatRequests[0]?.certification).toBeUndefined();
+    expect(server.chatRequests[0]?.model).toBeUndefined();
+    expect(nonAdminChatAdmitted(server.chatRequests[0]!)).toBe(true);
+    expect(nonAdminChatAdmitted({ ...server.chatRequests[0]!, certification: TEST_CERTIFICATION })).toBe(false);
+  });
+
+  it("keeps a certified session fail-closed when the proxy omits transcript provenance", async () => {
+    const server = createScriptedServer({
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_add_layer"),
+      turns: [toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layerId: "roads" } }])],
+    });
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    const turn = await session.chat("Add roads.");
+
+    expect(turn.status).toBe("error");
+    expect(turn.errorMessage).toContain("transcript provenance");
+    expect(server.mcpCalls).toEqual([]);
+    expect(server.chatRequests[0]?.certification).toEqual(TEST_CERTIFICATION);
+    expect(nonAdminChatAdmitted(server.chatRequests[0]!)).toBe(false);
+  });
+
+  it("does not dispatch when only certification or only the verifier is configured", async () => {
+    for (const partial of [
+      { certification: TEST_CERTIFICATION },
+      { transcriptVerifier: VERIFIED_SESSION.transcriptVerifier },
+    ]) {
+      const server = createScriptedServer({
+        toolPages: compositionPage("honua_studio_add_layer"),
+        turns: [toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layerId: "roads" } }])],
+      });
+      const session = createStudioAgentSession({
+        ...partial,
+        baseUrl: "/api",
+        fetchImpl: server.fetchImpl,
+        kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      });
+
+      const turn = await session.chat("Add roads.");
+
+      expect(turn.status).toBe("error");
+      expect(turn.errorMessage).toContain("transcript provenance");
+      expect(server.mcpCalls).toEqual([]);
+    }
   });
 
   it("degrades to runtime tools when discovery fails and retries on the next turn", async () => {
