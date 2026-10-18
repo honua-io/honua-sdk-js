@@ -1853,7 +1853,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-16 at commit `63ae54008`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-18 at commit `afa85488c`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11623,7 +11623,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-16 at commit `63ae54008`._
+_Generated 2026-10-18 at commit `afa85488c`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11638,7 +11638,7 @@ _Generated 2026-10-16 at commit `63ae54008`._
 | `/agent-safety` | 69.0 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
 | `/nl-map-control` | 92.5 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
-| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 44.4 KiB | 46.9 KiB | 14.2 KiB | 15.0 KiB |
+| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 44.9 KiB | 46.9 KiB | 14.4 KiB | 15.0 KiB |
 | `/runtime` | 704.4 KiB | 752.5 KiB | 181.7 KiB | 198.6 KiB |
 | `/realtime` | 82.3 KiB | 86.2 KiB | 23.6 KiB | 25.0 KiB |
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
@@ -16683,6 +16683,69 @@ Two modes:
   — AI operational data editing is not supported (honua-server ADR-0028).
 
 ## Requirements
+
+### Persistent local agent connector — source preview
+
+This branch adds `honua-agent-mcp`: one stdio connection that starts with local
+setup tools and attaches the installed Honua server's canonical MCP surface
+without replacing the client's registration. It is a source preview, not yet
+the qualified public Docker-to-map getting-started path.
+
+Start the built `dist/src/agent/cli.js` with Node from this package. The host sets
+`HONUA_AGENT_INSTALL_DIRECTORY` (default `~/.honua/local`); the agent cannot
+choose arbitrary credential files or remote URLs. Node and a local Unix-socket
+Docker engine with Compose 2.23.1 or later are required. Linux/WSL is the initial
+lane; Windows named pipes and remote Docker contexts are refused.
+
+Prompt: **"Check this machine, then set up Honua locally in Docker. Show me the
+target and available workflows when it is ready."** The agent calls
+`honua_agent_inspect_local`, obtains installation authorization, and calls
+`honua_agent_install_local` with `confirm: true`. Keep the installation tool
+timeout long enough for image pulls and database initialization (ten minutes is
+a useful starting point). If the client times out, inspect `honua_agent_status`
+and the installation before issuing another install. Cancellation of a local
+installation does not undo Docker work already started.
+
+The connector verifies readiness and the installed credential before announcing
+the server's tools. Existing installations attach on startup; after a transport
+disconnect, `honua_agent_connect` verifies the same target again. A changed
+credential identity requires a host restart. It never retries an upstream
+mutation after an uncertain response.
+
+Credentials stay in the installer's protected file and the HTTP transport. The
+local agent key has `admin:read`, `admin:write`, and `read:*`; it has no
+`admin:approve` or feature-write grant. Every upstream request carries that key,
+and the server enforces current RBAC, resource access, and governance. Discovery
+is not authorization; a denied operation remains denied. Browser human sessions
+and their approval authority are separate.
+
+This preview forwards canonical paginated tools, resources, resource templates,
+prompts, request metadata, tool progress, cancellation, and catalog-change
+notifications. It negotiates its own MCP identity and preserves the configured
+workflow view. It does not advertise subscriptions, sampling, roots,
+completions, or tasks. Durable workflow context, command reconciliation, browser
+pairing, and coordinated Console/Studio artifacts remain tracked in
+[the unified workspace workstream](https://github.com/honua-io/honua-server/issues/6297).
+
+After building the SDK and this package, maintainers can run the opt-in Docker
+handoff and process-restart check with
+`HONUA_AGENT_LIVE_ENABLED=true npm run test:unit --prefix mcp -- test/agent-local-live.test.ts`
+from the repository root. It creates and removes its own isolated Compose project.
+This tests the built connector against the installer's pinned server image; it
+does not certify the full map-making or browser journey.
+
+The packaged workflow guide is available as the MCP resource
+`honua://agent/knowledge/workflows/v1`, even before installation. Optional private
+DevOps tools can share this registration through host configuration; see
+[the host reference](../docs/unified-agent-host-configuration.md) for target and
+credential requirements and the current qualification limits.
+
+Native Console chat can use the preview `honua-agent-gateway` backend HTTP
+transport to reach this same public/private catalog. Its separate bridge key,
+workspace-turn checks and host configuration are described in that reference.
+External agents continue to use their single `honua-agent-mcp` registration.
+
+### Existing standalone and proxy modes
 
 - Node.js `>=22.12`
 - Any reachable FeatureServer/OGC endpoint (public or Honua)
