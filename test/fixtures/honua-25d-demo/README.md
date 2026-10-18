@@ -11,7 +11,7 @@ These files intentionally mirror the runtime shapes used by the demo app:
 
 Canonical fixture properties:
 
-- `capabilities.json` reports a supported `1.0.0` / `stable` compatibility contract on `/api/v1/admin`
+- `capabilities.json` reports a supported `2026.1.0` / `stable` compatibility contract on `/api/v1/admin`
 - `assets.json` uses stable feature ids plus canonical `risk_score`, `extrusion_height_m`, and optional `linked_stop_id`
 - `route.json` uses a single `LineString` feature for playback
 - `stops.json` uses canonical `sequence` and `linked_asset_id` properties
