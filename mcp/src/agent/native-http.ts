@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { InitializeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -49,7 +49,9 @@ function identifier(value: string): string {
 }
 
 function sameSecret(left: string, right: string): boolean {
-  return timingSafeEqual(createHash("sha256").update(left).digest(), createHash("sha256").update(right).digest());
+  const supplied = Buffer.from(left, "utf8");
+  const expected = Buffer.from(right, "utf8");
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
 function samePrincipal(expected: NativeBinding, current: NativeBinding): boolean {

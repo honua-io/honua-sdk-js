@@ -237,6 +237,10 @@ it("rejects wrong bridge identity, workspace, partition, revoked membership and 
   const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "canonical_echo", arguments: {} } };
   for (const bad of [
     { "X-Honua-Gateway-Key": "wrong" },
+    { "X-Honua-Gateway-Key": "x".repeat(bridgeKey.length) },
+    { "X-Honua-Gateway-Key": `${bridgeKey}suffix` },
+    { "X-API-Key": "x".repeat(apiKey.length) },
+    { "X-API-Key": `${apiKey}suffix` },
     { "X-Honua-Workspace": "workspace-b" },
     { "X-Honua-Operator-Partition": "operator-b" },
     { Origin: "https://browser.invalid" },
