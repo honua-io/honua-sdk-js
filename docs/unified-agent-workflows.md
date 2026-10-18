@@ -7,7 +7,7 @@ description: Evaluate, publish and operate GIS resources through one persistent 
 # Unified agent workflows
 
 The connector ships semantic workflow knowledge as `honua.agent-workflow-knowledge/v1`,
-knowledge version `2026-10-17.1`, resource `honua://agent/knowledge/workflows/v1`.
+knowledge version `2026-10-17.2`, resource `honua://agent/knowledge/workflows/v1`.
 The packaged module is `mcp/src/agent/workflow-knowledge.ts`; its preconditions,
 canonical actions, resource references and observed outcomes apply equally to an
 external agent and a native conversation. This is guidance, not an execution
@@ -27,6 +27,22 @@ human pairing before a human action is required. Keep bootstrap credentials in
 the host transport. Persist target, resource, command and operation references;
 resume from canonical records after a new chat or restart. A lost response requires
 reconciliation before retrying a mutation.
+
+For shared Console/Studio work, use the actual paired workspace and tab/view
+references. Discover `honua_workspace_*`, read the current context, and capture
+each prompt with its submitted context revision before execution. Keep reading
+that immutable turn while the user navigates; a newer selection applies to the
+next prompt. An existing publish-layer form can be read and patched by either
+the form or the agent using its current revision. Preserve its command identity
+and reconcile the canonical command before retrying a submission. Conflicts
+require review of current state, not overwriting another tab's changes.
+
+A Studio task refers to its real draft, generation and package key. A built-in
+process task refers to an immutable workflow-package id, version and content
+hash authorized for this workspace. Local Python/.NET run references remain
+separate. Native chat supplies request bindings through the Console backend;
+external agents use the explicit workspace tool contracts. A client connection
+alone does not supply the browser's current selection or establish human pairing.
 
 For data, validate the source schema and CRS, import/connect, wait for the actual
 job outcome, publish a service/layer, and query it. For a map or app, compose and

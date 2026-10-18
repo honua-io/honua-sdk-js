@@ -2,7 +2,7 @@
 export const WORKFLOW_KNOWLEDGE_URI = "honua://agent/knowledge/workflows/v1";
 export const WORKFLOW_KNOWLEDGE = {
   schemaVersion: "honua.agent-workflow-knowledge/v1",
-  knowledgeVersion: "2026-10-17.1",
+  knowledgeVersion: "2026-10-17.2",
   qualification: "contract-guidance-only",
   authority: [
     "Use discovered canonical tool schemas; these workflow descriptions never grant authorization.",
@@ -30,6 +30,47 @@ export const WORKFLOW_KNOWLEDGE = {
         "separate human pairing where required",
       ],
       failureRule: "Installation output alone is not a verified or human-paired connection.",
+    },
+    {
+      id: "shared-workspace-context",
+      intent: "Continue the same authorized GIS task through chat, Console forms and Studio.",
+      preconditions: [
+        "Discovered honua_workspace_* tools",
+        "Actual paired workspace and explicit browser view references",
+        "Current workspace membership, target and resource authorization",
+      ],
+      actions: [
+        "honua_workspace_get",
+        "honua_workspace_set_context when changing selection or task; retain expectedRevision",
+        "honua_workspace_create_turn before execution; capture the submitted contextRevision",
+        "honua_workspace_get_turn for the active prompt instead of rereading a later selection",
+        "honua_workspace_get_draft and honua_workspace_patch_draft for an existing publish-layer form",
+        "honua_workspace_submit_draft with a persistent commandId",
+        "honua_workspace_get_command before retrying a submission with an unknown outcome",
+        "honua_workspace_append_message for conversation text, never for verified operation receipts",
+      ],
+      inputReferences: [
+        "workspace id",
+        "view id",
+        "target id",
+        "context revision",
+        "selected service/layer references",
+        "task reference from an actual canonical response",
+      ],
+      outputReferences: [
+        "immutable turn id",
+        "shared draft id and revision",
+        "command id",
+        "canonical operation/proposal id",
+      ],
+      observedOutcomes: [
+        "current authorized selection",
+        "frozen prompt target",
+        "shared form revision",
+        "canonical command state",
+      ],
+      failureRule:
+        "Do not invent browser/workspace references, overwrite dirty forms or retarget an existing turn after navigation. A Studio task binds its real draft id/generation/package key; a workflow-package task binds its immutable package id/version/content hash. A local custom-code run is not a server workflow-package task. Native chat supplies request bindings through its backend; external clients must use the discovered explicit workspace tool contracts and must not assume automatic header binding.",
     },
     {
       id: "data-and-services",
