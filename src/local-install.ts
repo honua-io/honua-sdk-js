@@ -30,6 +30,13 @@ export interface LocalInstallOptions {
   readonly profile?: LocalInstallProfile;
   readonly httpPort?: number;
   readonly timeoutMs?: number;
+  /** Explicit preview artifacts; no public release currently proves this workspace contract. */
+  readonly nativeWorkspace?: {
+    readonly serverImage: string;
+    readonly consoleImage: string;
+    readonly releaseId: string;
+    readonly consolePort?: number;
+  };
 }
 
 export interface LocalInstallRuntime {
@@ -59,6 +66,9 @@ export interface LocalInstallResult {
   readonly adminKeyWritten: true;
   /** Secret-free identity and grant evidence for the credential handed to MCP. */
   readonly accessCredential: LocalAccessCredentialReceipt;
+  readonly workspaceCredential?: LocalAccessCredentialReceipt;
+  readonly workspaceQualification?: "preview-requires-human-pairing";
+  readonly consoleUrl?: string;
   readonly serverImage: string;
   readonly reused: boolean;
   /**
@@ -115,6 +125,8 @@ export const LOCAL_AGENT_GRANTS = ["admin:read", "admin:write", "read:*"] as con
 export const LEGACY_LOCAL_AGENT_GRANTS = ["admin:read", "admin:write"] as const;
 
 const LOCAL_AGENT_KEY_NAME = "honua-local-agent";
+export const LOCAL_WORKSPACE_AGENT_GRANTS = [...LOCAL_AGENT_GRANTS, "agent:workspace"] as const;
+const LOCAL_WORKSPACE_AGENT_KEY_NAME = "honua-local-workspace-agent";
 
 export interface LocalInstallStatus {
   readonly installed: boolean;
@@ -199,7 +211,22 @@ export async function installHonuaLocal(
   options: LocalInstallOptions,
   runtime: LocalInstallRuntime = {},
 ): Promise<LocalInstallResult> {
-  if (!isAdminReleaseContractCompatible()) {
+  const native = options.nativeWorkspace;
+  if (native) {
+    for (const image of [native.serverImage, native.consoleImage]) {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9./:_-]*@sha256:[a-f0-9]{64}$/.test(image))
+        throw new Error("Native workspace preview requires explicit immutable server and Console image digests.");
+    }
+    if (
+      !/^[A-Za-z0-9._-]{1,128}$/.test(native.releaseId) ||
+      !Number.isInteger(native.consolePort ?? 8081) ||
+      (native.consolePort ?? 8081) < 1024 ||
+      (native.consolePort ?? 8081) > 65535 ||
+      (native.consolePort ?? 8081) === (options.httpPort ?? 8080)
+    )
+      throw new Error("Invalid native workspace release identity or Console port.");
+  }
+  if (!native && !isAdminReleaseContractCompatible()) {
     throw new Error(
       `Honua local install is blocked: the manifest-pinned server ${ADMIN_RELEASE_SERVER_SHA} exposes ` +
         `${ADMIN_RELEASE_OPERATION_COUNT} Admin REST operations, but the 2026.1 SDK requires 396 ` +
@@ -217,6 +244,14 @@ export async function installHonuaLocal(
   const originalEnvText = await readEnvText(envFile);
   const existingEnv = await readEnv(envFile, originalEnvText);
   validateManagedEnv(originalEnvText);
+  if (existingEnv.HONUA_CONSOLE_IMAGE && !native)
+    throw new Error(
+      "This directory has a native workspace preview; supply its explicit artifact configuration to reinstall.",
+    );
+  if (native && existingEnv.HONUA_AGENT_RELEASE_ID && existingEnv.HONUA_AGENT_RELEASE_ID !== native.releaseId)
+    throw new Error(
+      "A native preview release change requires a new install directory until upgrade qualification is available.",
+    );
   const bootstrapFile = path.join(directory, "postgis-bootstrap.sql");
   await verifyInstallFiles(composeFile, bootstrapFile, existingEnv);
   const [hasMcpConfig, hasClaudeConfig] = await Promise.all([
@@ -241,7 +276,17 @@ export async function installHonuaLocal(
   } = {
     ...existingEnv,
     HONUA_COMPOSE_PROJECT: existingEnv.HONUA_COMPOSE_PROJECT ?? `honua-local-${randomBytes(12).toString("hex")}`,
-    HONUA_SERVER_IMAGE: LOCAL_INSTALL_SERVER_IMAGE,
+    HONUA_SERVER_IMAGE: native?.serverImage ?? LOCAL_INSTALL_SERVER_IMAGE,
+    HONUA_AGENT_DEPLOYMENT_ID: existingEnv.HONUA_AGENT_DEPLOYMENT_ID ?? `local-${randomBytes(12).toString("hex")}`,
+    HONUA_AGENT_RELEASE_ID: native?.releaseId ?? existingEnv.HONUA_AGENT_RELEASE_ID ?? ADMIN_RELEASE_SERVER_SHA,
+    ...(native
+      ? {
+          HONUA_CONSOLE_IMAGE: native.consoleImage,
+          HONUA_CONSOLE_PORT: String(native.consolePort ?? 8081),
+          HONUA_LOCAL_HUMAN_BRIDGE_KEY: existingEnv.HONUA_LOCAL_HUMAN_BRIDGE_KEY ?? secret(32),
+          HONUA_LOCAL_OPERATOR_SIGNING_KEY: existingEnv.HONUA_LOCAL_OPERATOR_SIGNING_KEY ?? secret(64),
+        }
+      : {}),
     HONUA_HTTP_PORT: String(httpPort),
     POSTGRES_PASSWORD: existingEnv.POSTGRES_PASSWORD ?? secret(24),
     HONUA_ADMIN_PASSWORD: existingEnv.HONUA_ADMIN_PASSWORD ?? secret(24),
@@ -324,7 +369,7 @@ export async function installHonuaLocal(
   }
   await mkdir(directory, { recursive: true });
   await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
-  await writeFile(composeFile, renderLocalCompose({ profile }), "utf8");
+  await writeFile(composeFile, renderLocalCompose({ profile, nativeWorkspace: !!native }), "utf8");
   await writeFile(bootstrapFile, LOCAL_POSTGIS_BOOTSTRAP_SQL, "utf8");
 
   await requireCommand(
@@ -384,6 +429,42 @@ export async function installHonuaLocal(
     }
   }
 
+  let workspaceCredential: ProvisionedAdminCredential | undefined;
+  if (native) {
+    // A live server-owned target proves this image exposes the workspace route before issuance.
+    const targetResponse = await (runtime.fetchFn ?? fetch)(`${baseUrl}/api/v1/agent/target`, {
+      headers: { "X-API-Key": env.HONUA_ADMIN_KEY! },
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
+    });
+    const target = (await targetResponse.json()) as { targetId?: unknown };
+    if (!targetResponse.ok || typeof target.targetId !== "string" || !target.targetId)
+      throw new Error("Native workspace preview server does not expose a valid workspace target.");
+    workspaceCredential = await ensureWorkspaceCredential(baseUrl, env, envFile, originalEnvText, runtime.fetchFn);
+    env.HONUA_AGENT_PRINCIPAL_ID = `apikey:api-key:${workspaceCredential.id.toLowerCase()}`;
+    await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
+    // Recreate applies the newly issued principal binding; Console gets only its scoped key.
+    await requireCommand(
+      run,
+      dockerCommand,
+      [
+        "compose",
+        "--project-name",
+        env.HONUA_COMPOSE_PROJECT,
+        "--project-directory",
+        directory,
+        "--file",
+        composeFile,
+        "up",
+        "-d",
+        "--wait",
+      ],
+      directory,
+      "Honua workspace binding",
+    );
+    await waitForReady(`${baseUrl}/healthz/ready`, options.timeoutMs ?? 180_000, runtime);
+  }
+
   return {
     status: "ready",
     profile,
@@ -406,7 +487,24 @@ export async function installHonuaLocal(
       referenceDigestSha256: createHash("sha256").update(`file:${envFile}#HONUA_ADMIN_KEY`, "utf8").digest("hex"),
       provisioned: credential.provisioned,
     },
-    serverImage: LOCAL_INSTALL_SERVER_IMAGE,
+    ...(workspaceCredential
+      ? {
+          workspaceCredential: {
+            id: workspaceCredential.id,
+            name: workspaceCredential.name,
+            status: "active" as const,
+            requestedGrants: workspaceCredential.requestedGrants,
+            effectiveGrants: workspaceCredential.effectiveGrants,
+            canAuthenticate: true as const,
+            referenceType: "private-env-file" as const,
+            referenceDigestSha256: createHash("sha256").update(`file:${envFile}#HONUA_AGENT_API_KEY`).digest("hex"),
+            provisioned: workspaceCredential.provisioned,
+          },
+          workspaceQualification: "preview-requires-human-pairing" as const,
+          consoleUrl: `http://127.0.0.1:${native!.consolePort ?? 8081}`,
+        }
+      : {}),
+    serverImage: env.HONUA_SERVER_IMAGE,
     reused,
     credentialReissued: reissueReason !== undefined,
     ...(reissueReason ? { reason: reissueReason } : {}),
@@ -504,7 +602,10 @@ ON CONFLICT (parcel_id) DO NOTHING;
 `;
 
 // Both supported local profiles follow the 2026.1 operator policy (honua-release#338).
-export function renderLocalCompose(_options: { readonly profile: LocalInstallProfile }): string {
+export function renderLocalCompose(_options: {
+  readonly profile: LocalInstallProfile;
+  readonly nativeWorkspace?: boolean;
+}): string {
   return `# Generated by @honua/sdk-js local installer
 name: \${HONUA_COMPOSE_PROJECT:?Missing installer project identity}
 services:
@@ -553,7 +654,19 @@ services:
       - "127.0.0.1:\${HONUA_HTTP_PORT}:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Host=postgres;Database=honua;Username=honua;Password=\${POSTGRES_PASSWORD}"
+      AgentWorkspace__DeploymentId: \${HONUA_AGENT_DEPLOYMENT_ID}
+      AgentWorkspace__ReleaseId: \${HONUA_AGENT_RELEASE_ID}
+${
+  _options.nativeWorkspace
+    ? `      AgentWorkspace__LocalAgentPrincipalId: \${HONUA_AGENT_PRINCIPAL_ID:-}
+      AgentWorkspace__LocalHumanBridge__Enabled: "true"
+      AgentWorkspace__LocalHumanBridge__Key: \${HONUA_LOCAL_HUMAN_BRIDGE_KEY}
+      AgentWorkspace__LocalHumanBridge__TenantId: public
+      Authentication__OperatorBearer__Enabled: "true"
+      Authentication__OperatorBearer__SigningKey: \${HONUA_LOCAL_OPERATOR_SIGNING_KEY}
+`
+    : ""
+}      ConnectionStrings__DefaultConnection: "Host=postgres;Database=honua;Username=honua;Password=\${POSTGRES_PASSWORD}"
       HONUA_LOCAL_DB_PASSWORD: "Host=postgres;Database=honua;Username=honua;Password=\${POSTGRES_PASSWORD}"
       Security__RequestSecretReferences__AllowedEnvironmentVariables__0: HONUA_LOCAL_DB_PASSWORD
       ConnectionStrings__Redis: redis:6379
@@ -578,7 +691,29 @@ services:
       timeout: 5s
       retries: 20
     restart: unless-stopped
-volumes:
+${
+  _options.nativeWorkspace
+    ? `  console:
+    image: \${HONUA_CONSOLE_IMAGE}
+    ports:
+      - "127.0.0.1:\${HONUA_CONSOLE_PORT}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      HONUA_SERVER_BASE_URL: http://honua:8080
+      HONUA_AGENT_SERVER_BASE_URL: http://honua:8080
+      HONUA_AGENT_API_KEY: \${HONUA_AGENT_API_KEY:-}
+      HONUA_AGENT_RELEASE_ID: \${HONUA_AGENT_RELEASE_ID}
+      Honua__Console__Auth__Mode: Dev
+      Honua__Console__Auth__LocalHumanBridge__Enabled: "true"
+      HONUA_LOCAL_HUMAN_BRIDGE_KEY: \${HONUA_LOCAL_HUMAN_BRIDGE_KEY}
+    depends_on:
+      honua:
+        condition: service_healthy
+    restart: unless-stopped
+`
+    : ""
+}volumes:
   postgres_data:
   redis_data:
   honua_storage:
@@ -647,28 +782,131 @@ async function bootstrapAdminKey(
   baseUrl: string,
   rootKey: string,
   fetchFn: typeof fetch | undefined,
+  name: string = LOCAL_AGENT_KEY_NAME,
+  grants: readonly string[] = LOCAL_AGENT_GRANTS,
 ): Promise<ProvisionedAdminCredential> {
   const client = new HonuaAdminClient({ baseUrl, adminKey: rootKey, fetchFn });
   const result = await client.call("createAdminApiKey", {
-    body: { name: LOCAL_AGENT_KEY_NAME, permissions: LOCAL_AGENT_GRANTS },
+    body: { name, permissions: [...grants] },
   });
   const issued = readIssuedAdminCredential(result.data);
   try {
+    if (issued.name !== name) throw new Error("Admin key bootstrap identity did not match the requested name.");
     const effective = await readEffectiveAdminCredential(client, issued.id);
-    if (!sameStrings(LOCAL_AGENT_GRANTS, effective.permissions)) {
+    if (!sameStrings(grants, effective.permissions)) {
       throw new Error("Admin key bootstrap effective grants did not match the requested grants.");
     }
     return {
       material: issued.material,
       id: issued.id,
       name: issued.name,
-      requestedGrants: LOCAL_AGENT_GRANTS,
+      requestedGrants: grants,
       effectiveGrants: effective.permissions,
       provisioned: true,
     };
   } catch (error) {
     return await revokeIssuedAdminKey(client, issued.id, error);
   }
+}
+
+/** Verify the preview credential independently; never use the operator key as a fallback. */
+export async function inspectLocalWorkspaceAgentAccess(
+  baseUrl: string,
+  material: string,
+  id: string,
+  fetchFn: typeof fetch | undefined = undefined,
+): Promise<LocalAccessCredentialReceipt> {
+  if (!material || !id) throw new Error("Native workspace credential identity is incomplete.");
+  const credential = await ensureWorkspaceCredential(
+    baseUrl,
+    {
+      HONUA_AGENT_API_KEY: material,
+      HONUA_AGENT_KEY_ID: id,
+      HONUA_ADMIN_PASSWORD: material,
+    },
+    "",
+    "",
+    fetchFn,
+  );
+  return {
+    id: credential.id,
+    name: credential.name,
+    status: "active",
+    requestedGrants: credential.requestedGrants,
+    effectiveGrants: credential.effectiveGrants,
+    canAuthenticate: true,
+    referenceType: "private-env-file",
+    referenceDigestSha256: createHash("sha256").update(`workspace-key:${id}`).digest("hex"),
+    provisioned: false,
+  };
+}
+
+async function ensureWorkspaceCredential(
+  baseUrl: string,
+  env: Record<string, string | undefined>,
+  envFile: string,
+  original: string,
+  fetchFn: typeof fetch | undefined,
+): Promise<ProvisionedAdminCredential> {
+  const root = new HonuaAdminClient({ baseUrl, adminKey: env.HONUA_ADMIN_PASSWORD!, fetchFn });
+  if (env.HONUA_AGENT_API_KEY || env.HONUA_AGENT_KEY_ID) {
+    if (
+      !env.HONUA_AGENT_API_KEY ||
+      !env.HONUA_AGENT_KEY_ID ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(env.HONUA_AGENT_KEY_ID)
+    )
+      throw new Error("Native workspace credential identity is incomplete; reconcile before reinstalling.");
+    const result = await root.call("listAdminApiKeys", {});
+    const data = isRecord(result.data) ? result.data.data : undefined;
+    const matches = Array.isArray(data)
+      ? data.filter(
+          (value) =>
+            isRecord(value) &&
+            value.id === env.HONUA_AGENT_KEY_ID &&
+            value.name === LOCAL_WORKSPACE_AGENT_KEY_NAME &&
+            value.status === "active" &&
+            typeof value.keyPrefix === "string" &&
+            value.keyPrefix.length > 0 &&
+            env.HONUA_AGENT_API_KEY!.startsWith(value.keyPrefix) &&
+            isStringArray(value.permissions) &&
+            sameStrings(value.permissions, LOCAL_WORKSPACE_AGENT_GRANTS),
+        )
+      : [];
+    const effective = await readEffectiveAdminCredential(root, env.HONUA_AGENT_KEY_ID);
+    if (matches.length !== 1 || !sameStrings(effective.permissions, LOCAL_WORKSPACE_AGENT_GRANTS))
+      throw new Error("Native workspace credential grants or identity do not match the required scope.");
+    return {
+      material: env.HONUA_AGENT_API_KEY,
+      id: env.HONUA_AGENT_KEY_ID,
+      name: LOCAL_WORKSPACE_AGENT_KEY_NAME,
+      requestedGrants: LOCAL_WORKSPACE_AGENT_GRANTS,
+      effectiveGrants: effective.permissions,
+      provisioned: false,
+    };
+  }
+  const issued = await bootstrapAdminKey(
+    baseUrl,
+    env.HONUA_ADMIN_PASSWORD!,
+    fetchFn,
+    LOCAL_WORKSPACE_AGENT_KEY_NAME,
+    LOCAL_WORKSPACE_AGENT_GRANTS,
+  );
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(issued.id))
+    return revokeIssuedAdminKey(
+      root,
+      issued.id,
+      new Error("Native workspace credential ID is not a canonical API-key UUID."),
+    );
+  try {
+    env.HONUA_AGENT_API_KEY = issued.material;
+    env.HONUA_AGENT_KEY_ID = issued.id;
+    await writePrivateFileAtomic(envFile, renderEnv(env, original));
+  } catch (error) {
+    delete env.HONUA_AGENT_API_KEY;
+    delete env.HONUA_AGENT_KEY_ID;
+    return revokeIssuedAdminKey(root, issued.id, error);
+  }
+  return issued;
 }
 
 async function revokeIssuedAdminKey(
@@ -978,12 +1216,33 @@ async function verifyInstallFiles(
                 'Licensing__Mode: "Disabled"',
                 `Licensing__DevGrantEdition: "${profile === "gp-dev" ? "Pro" : ""}"`,
               );
-              return [current, beforeTcpReadiness, beforeAllowlist, previous].some((candidate) => {
+              const preWorkspace = current.replace(
+                "      AgentWorkspace__DeploymentId: ${HONUA_AGENT_DEPLOYMENT_ID}\n      AgentWorkspace__ReleaseId: ${HONUA_AGENT_RELEASE_ID}\n",
+                "",
+              );
+              return [
+                current,
+                preWorkspace,
+                renderLocalCompose({ profile: profile as LocalInstallProfile, nativeWorkspace: true }),
+                beforeTcpReadiness,
+                beforeAllowlist,
+                previous,
+              ].some((candidate) => {
                 const legacy = candidate.replace(
                   "# Generated by @honua/sdk-js local installer\nname: ${HONUA_COMPOSE_PROJECT:?Missing installer project identity}",
                   "name: honua-local",
                 );
-                return content === candidate || content === legacy;
+                const withoutWorkspace = (value: string) =>
+                  value.replace(
+                    "      AgentWorkspace__DeploymentId: ${HONUA_AGENT_DEPLOYMENT_ID}\n      AgentWorkspace__ReleaseId: ${HONUA_AGENT_RELEASE_ID}\n",
+                    "",
+                  );
+                return (
+                  content === candidate ||
+                  content === legacy ||
+                  content === withoutWorkspace(candidate) ||
+                  content === withoutWorkspace(legacy)
+                );
               });
             });
       if (!env.HONUA_SERVER_IMAGE || !known) throw new Error("unrecognized installer content");
@@ -1025,6 +1284,15 @@ async function readEnv(filePath: string, original?: string): Promise<Record<stri
 }
 
 const MANAGED_ENV_KEYS = [
+  "HONUA_LOCAL_HUMAN_BRIDGE_KEY",
+  "HONUA_LOCAL_OPERATOR_SIGNING_KEY",
+  "HONUA_AGENT_DEPLOYMENT_ID",
+  "HONUA_AGENT_RELEASE_ID",
+  "HONUA_CONSOLE_IMAGE",
+  "HONUA_CONSOLE_PORT",
+  "HONUA_AGENT_API_KEY",
+  "HONUA_AGENT_KEY_ID",
+  "HONUA_AGENT_PRINCIPAL_ID",
   "HONUA_SERVER_IMAGE",
   "HONUA_COMPOSE_PROJECT",
   "HONUA_HTTP_PORT",

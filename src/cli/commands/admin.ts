@@ -39,6 +39,8 @@ USAGE
 INSTALL
   honua admin install local --yes [--directory <dir>] [--profile quickstart|gp-dev]
       [--http-port <port>] [--timeout-ms <ms>] [--dry-run]
+      [--native-server-image <digest-ref> --native-console-image <digest-ref> --native-release-id <id>]
+      [--native-console-port <port>]
   honua admin install status [--directory <dir>]
   honua admin install cloud [aws]
   --directory defaults to .honua. Create it outside the git repo you are editing.
@@ -310,13 +312,25 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
   if (profile !== "quickstart" && profile !== "gp-dev") {
     throw new ArgError("Local install --profile must be quickstart or gp-dev.");
   }
+  const serverImage = getString(parsed, "native-server-image");
+  const consoleImage = getString(parsed, "native-console-image");
+  const releaseId = getString(parsed, "native-release-id");
+  const consolePort = getNumber(parsed, "native-console-port");
+  const hasNativeOptions = [serverImage, consoleImage, releaseId, consolePort].some((value) => value !== undefined);
+  if (hasNativeOptions && (!serverImage || !consoleImage || !releaseId))
+    throw new ArgError(
+      "Native preview requires --native-server-image, --native-console-image, and --native-release-id together.",
+    );
+  const nativeWorkspace =
+    serverImage && consoleImage && releaseId ? { serverImage, consoleImage, releaseId, consolePort } : undefined;
   if (getBoolean(parsed, "dry-run")) {
     printLine(
       renderJson({
         action: "install-local",
         directory,
         profile,
-        compose: renderLocalCompose({ profile }),
+        compose: renderLocalCompose({ profile, nativeWorkspace: !!nativeWorkspace }),
+        ...(nativeWorkspace ? { nativeWorkspace, qualification: "preview-requires-human-pairing" } : {}),
         postgisBootstrapSql: LOCAL_POSTGIS_BOOTSTRAP_SQL,
         executed: false,
       }),
@@ -333,6 +347,7 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
     profile,
     httpPort: getNumber(parsed, "http-port"),
     timeoutMs: getNumber(parsed, "timeout-ms"),
+    nativeWorkspace,
   });
   printLine(renderJson(result));
 }
