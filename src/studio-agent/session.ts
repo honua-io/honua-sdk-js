@@ -285,8 +285,8 @@ export interface StudioAgentSession {
    * a different catalog; nothing derived from the old one survives.
    */
   reconnect(): void;
-  /** Attaches (or re-attaches) the composition draft. */
-  attachDraft(draft: StudioAgentDraftBinding): void;
+  /** Attaches the composition draft, or clears it when the host switches to another workflow. */
+  attachDraft(draft: StudioAgentDraftBinding | undefined): void;
   /** Clears the conversation history. Draft binding, tool catalog, and capabilities cache survive. */
   reset(): void;
   /**
@@ -400,7 +400,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return this.#toolWatch?.status;
   }
 
-  public attachDraft(draft: StudioAgentDraftBinding): void {
+  public attachDraft(draft: StudioAgentDraftBinding | undefined): void {
     this.#draft = draft;
   }
 
