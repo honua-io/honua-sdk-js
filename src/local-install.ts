@@ -390,7 +390,7 @@ export async function installHonuaLocal(
       !localProcessKey ||
       localProcessKey.length < 32 ||
       localProcessKey.length > 512 ||
-      /[\s"'`\\$#\0]/.test(localProcessKey)
+      /[^\x21-\x7e]|["'`\\$#]/.test(localProcessKey)
     )
       throw new Error("The referenced local process credential is unavailable or invalid.");
     assertIndependentLocalProcessKey(localProcessKey, process.env);

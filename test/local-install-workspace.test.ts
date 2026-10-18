@@ -235,6 +235,24 @@ it("rejects missing process credentials and authority aliases before Docker", as
   expect(run).not.toHaveBeenCalled();
 });
 
+it.each(["\u0001", "\u007f", "é"])("rejects process keys the server cannot accept: %j", async (character) => {
+  const run = vi.fn();
+  vi.stubEnv("PRIVATE_GP_KEY", `${"valid-credential-prefix".repeat(2)}${character}`);
+  await expect(
+    installHonuaLocal(
+      {
+        directory: "/unused",
+        nativeWorkspace: {
+          ...nativeWorkspace,
+          localProcesses: { url: "http://host.docker.internal:7194", keyEnvironmentVariable: "PRIVATE_GP_KEY" },
+        },
+      },
+      { run },
+    ),
+  ).rejects.toThrow("unavailable or invalid");
+  expect(run).not.toHaveBeenCalled();
+});
+
 it("requires explicit immutable preview artifacts before starting Docker", async () => {
   const run = vi.fn();
   await expect(
