@@ -29,9 +29,18 @@ import {
 import { z } from "zod";
 import { SERVER_VERSION } from "../index.js";
 import { WORKFLOW_VIEW_META_KEY, buildUpstreamHeaders, readWorkflowView } from "../proxy.js";
+import type { DevOpsExtension } from "./devops-runtime.js";
 import type { AgentConnection, AgentRuntime, AgentTarget } from "./local-runtime.js";
+import { WORKFLOW_KNOWLEDGE, WORKFLOW_KNOWLEDGE_URI } from "./workflow-knowledge.js";
 
 const PREFIX = "honua_agent_";
+const DEVOPS_PREFIX = "honua_agent_devops_";
+const knowledgeResource = {
+  uri: WORKFLOW_KNOWLEDGE_URI,
+  name: "Honua conversational GIS workflows v1",
+  description: "Versioned workflow semantics and evidence requirements; canonical tools remain authoritative.",
+  mimeType: "application/json",
+};
 const installInput = z
   .object({
     confirm: z.literal(true),
@@ -127,6 +136,7 @@ export class HonuaAgentGateway {
   constructor(
     private readonly runtime: AgentRuntime,
     private readonly upstream: UpstreamFactory = connectAgentUpstream,
+    private readonly devops?: DevOpsExtension,
   ) {
     this.server.oninitialized = () => {
       this.#initialized = true;
@@ -135,6 +145,7 @@ export class HonuaAgentGateway {
     this.server.onclose = () => {
       this.#closed = true;
       void this.#client?.close().catch(() => {});
+      void this.devops?.close().catch(() => {});
     };
     // Never log transport errors: HTTP error bodies can contain credentials.
     this.server.onerror = () => {};
@@ -145,12 +156,34 @@ export class HonuaAgentGateway {
       );
       if (page.tools.some((tool) => tool.name.startsWith(PREFIX)))
         throw new McpError(ErrorCode.InvalidRequest, "Reserved connector tool namespace collision");
-      return { ...page, tools: request.params?.cursor ? page.tools : [...localTools, ...page.tools] };
+      // A missing/private integration must not make the public GIS catalog unavailable.
+      const privateTools = !request.params?.cursor && this.devops ? await this.devops.listTools().catch(() => []) : [];
+      return { ...page, tools: request.params?.cursor ? page.tools : [...localTools, ...privateTools, ...page.tools] };
     });
     this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+      const token = request.params._meta?.progressToken;
+      if (request.params.name.startsWith(DEVOPS_PREFIX)) {
+        if (!this.devops) throw new McpError(ErrorCode.MethodNotFound, "Private DevOps integration is not configured");
+        return this.#withClient(() =>
+          this.devops!.callTool(request.params.name, request.params.arguments ?? {}, {
+            signal: extra.signal,
+            ...(token === undefined
+              ? {}
+              : {
+                  onprogress: (progress) => {
+                    void extra
+                      .sendNotification({
+                        method: "notifications/progress",
+                        params: { ...progress, progressToken: token },
+                      })
+                      .catch(() => {});
+                  },
+                }),
+          }),
+        );
+      }
       if (request.params.name.startsWith(PREFIX))
         return this.#local(request.params.name, request.params.arguments ?? {});
-      const token = request.params._meta?.progressToken;
       return this.#withClient((client) =>
         client.request(request, CallToolResultSchema, {
           signal: extra.signal,
@@ -169,11 +202,15 @@ export class HonuaAgentGateway {
         }),
       );
     });
-    this.server.setRequestHandler(ListResourcesRequestSchema, (request, extra) =>
-      !this.#client
-        ? { resources: [] }
-        : this.#withClient((client) => client.request(request, ListResourcesResultSchema, { signal: extra.signal })),
-    );
+    this.server.setRequestHandler(ListResourcesRequestSchema, async (request, extra) => {
+      if (!this.#client) return { resources: [knowledgeResource] };
+      const page = await this.#withClient((client) =>
+        client.request(request, ListResourcesResultSchema, { signal: extra.signal }),
+      );
+      if (page.resources.some((resource) => resource.uri === WORKFLOW_KNOWLEDGE_URI))
+        throw new McpError(ErrorCode.InvalidRequest, "Reserved workflow knowledge URI collision");
+      return { ...page, resources: request.params?.cursor ? page.resources : [knowledgeResource, ...page.resources] };
+    });
     this.server.setRequestHandler(ListResourceTemplatesRequestSchema, (request, extra) =>
       !this.#client
         ? { resourceTemplates: [] }
@@ -182,7 +219,13 @@ export class HonuaAgentGateway {
           ),
     );
     this.server.setRequestHandler(ReadResourceRequestSchema, (request, extra) =>
-      this.#withClient((client) => client.request(request, ReadResourceResultSchema, { signal: extra.signal })),
+      request.params.uri === WORKFLOW_KNOWLEDGE_URI
+        ? {
+            contents: [
+              { uri: WORKFLOW_KNOWLEDGE_URI, mimeType: "application/json", text: JSON.stringify(WORKFLOW_KNOWLEDGE) },
+            ],
+          }
+        : this.#withClient((client) => client.request(request, ReadResourceResultSchema, { signal: extra.signal })),
     );
     this.server.setRequestHandler(ListPromptsRequestSchema, (request, extra) =>
       !this.#client
@@ -250,6 +293,7 @@ export class HonuaAgentGateway {
   async close(): Promise<void> {
     this.#closed = true;
     await this.#client?.close();
+    await this.devops?.close();
     await this.server.close();
   }
 

@@ -3,12 +3,17 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { isMainEntrypoint } from "../entrypoint.js";
+import { configuredDevOps } from "./devops-configuration.js";
 import { HonuaAgentGateway } from "./gateway.js";
-import { createLocalAgentRuntime } from "./local-runtime.js";
+import { createLocalAgentRuntime, nativeWorkspaceFromEnv } from "./local-runtime.js";
 
 export async function runAgent(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const directory = env.HONUA_AGENT_INSTALL_DIRECTORY ?? path.join(homedir(), ".honua", "local");
-  const gateway = new HonuaAgentGateway(createLocalAgentRuntime(directory));
+  const runtime = createLocalAgentRuntime(directory, nativeWorkspaceFromEnv(env));
+  const devops = env.HONUA_AGENT_DEVOPS_CONFIG
+    ? await configuredDevOps(env.HONUA_AGENT_DEVOPS_CONFIG, runtime)
+    : undefined;
+  const gateway = new HonuaAgentGateway(runtime, undefined, devops);
   const close = () => {
     void gateway.close().catch(() => {});
   };

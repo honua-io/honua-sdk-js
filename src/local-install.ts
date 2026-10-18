@@ -682,6 +682,7 @@ services:
 ${
   _options.nativeWorkspace
     ? `      AgentWorkspace__LocalAgentPrincipalId: \${HONUA_AGENT_PRINCIPAL_ID:-}
+      Studio__EndUserAuthorization__Enabled: "true"
       AgentWorkspace__LocalHumanBridge__Enabled: "true"
       AgentWorkspace__LocalHumanBridge__Key: \${HONUA_LOCAL_HUMAN_BRIDGE_KEY}
       AgentWorkspace__LocalHumanBridge__TenantId: public
@@ -723,6 +724,7 @@ ${
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      Studio__EmbedJsStudio: "true"
       HONUA_SERVER_BASE_URL: http://honua:8080
       HONUA_AGENT_SERVER_BASE_URL: http://honua:8080
       HONUA_AGENT_API_KEY: \${HONUA_AGENT_API_KEY:-}

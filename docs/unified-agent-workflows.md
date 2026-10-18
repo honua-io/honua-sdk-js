@@ -14,6 +14,13 @@ external agent and a native conversation. This is guidance, not an execution
 language or a claim of live qualification. Discover the connected target's actual
 tool schemas before acting; missing capabilities remain unsupported.
 
+This guide belongs to the repository's Open Knowledge Format (OKF) bundle: typed
+Markdown pages connected by links. The MCP resource is the packaged workflow
+guidance for agents; it does not introduce another executable GIS DSL. Use
+[local native workspace preview](local-agent-workspace-preview.md) for preview
+Docker configuration and [host configuration](unified-agent-host-configuration.md)
+for the optional DevOps adapter.
+
 Start by inspecting local Docker, install after explicit authorization, and attach
 the verified target through the same persistent registration. Complete separate
 human pairing before a human action is required. Keep bootstrap credentials in
@@ -60,3 +67,24 @@ state. Lambda/EKS are unsupported until real adapters and execution proof exist.
 
 See [MCP integration](mcp-server.md), [Studio versioning](studio-package-contracts.md), and
 [agent execution](agent-safety.md) for the connected contract details.
+
+## Prompts that describe the workflow
+
+Name the intended result, data or resource, target, and what should be verified.
+You do not need to translate the request into tool calls:
+
+- **Set up:** "Set up Honua locally in Docker. Check this machine first, then verify the running server and my agent's access."
+- **Import and publish:** "Import this parcels file, check its CRS and geometry, publish it as Parcels, and query the result. Ask me for missing source details."
+- **Make a map:** "Use Parcels to make a map colored by land use. Show changes live, save a version, reopen it, and publish it when validation succeeds."
+- **Build a process:** "Create a process that buffers these roads and intersects the result with Parcels. Run it, show any errors, and add the successful output to my map."
+- **Operate:** "Inspect this deployment, propose the supported version update, and send any required approval to my inbox. Verify the deployed version and health afterward."
+- **Recover:** "Find the last known-good revision and show the supported recovery plan. Keep the failed attempt's receipts and verify the restored service."
+
+The agent must discover which steps the connected release supports. A missing
+executor or unqualified recovery backend is an explicit stopping condition for
+that step. An approval request remains pending until the separate human action
+occurs. A new conversation should resume from saved resource and operation
+references rather than repeat completed mutations.
+
+Operators connecting the private extension can use the deeper
+[host configuration reference](unified-agent-host-configuration.md).

@@ -46,6 +46,8 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
   const env = readFileSync(first.envFile, "utf8");
   expect(env).toContain("HONUA_AGENT_PRINCIPAL_ID=apikey:api-key:22222222-2222-4222-8222-222222222222");
   const compose = parse(readFileSync(first.composeFile, "utf8"));
+  expect(compose.services.honua.environment.Studio__EndUserAuthorization__Enabled).toBe("true");
+  expect(compose.services.console.environment.Studio__EmbedJsStudio).toBe("true");
   expect(compose.services.console.environment.HONUA_AGENT_API_KEY).toBe("${HONUA_AGENT_API_KEY:-}");
   expect(compose.services.console.environment).not.toHaveProperty("HONUA_ADMIN_API_KEY");
   expect(compose.services.console.environment).not.toHaveProperty("Authentication__OperatorBearer__SigningKey");
