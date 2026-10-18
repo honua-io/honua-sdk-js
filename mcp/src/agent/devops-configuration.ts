@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { buildUpstreamHeaders } from "../proxy.js";
 import { type DevOpsExtension, createDevOpsExtension } from "./devops-runtime.js";
+import { devOpsTarget } from "./devops-targets.js";
 import type { AgentConnection, AgentRuntime } from "./local-runtime.js";
 
 const configuration = z
@@ -10,6 +11,7 @@ const configuration = z
     serverTargetId: z.string().min(1).max(128),
     environment: z.string().min(1).max(128),
     deployTargetId: z.string().min(1).max(128),
+    runtimeKind: z.enum(["aws-ecs", "aws-lambda", "aws-eks"]).default("aws-ecs"),
     command: z.string().min(1),
     args: z.array(z.string()).max(64).optional(),
     cwd: z.string().optional(),
@@ -38,6 +40,7 @@ export async function configuredDevOps(
   if (!info.isFile() || info.size > 65536 || (process.platform !== "win32" && (info.mode & 0o077) !== 0))
     throw new Error("DevOps configuration must be a private, bounded regular file");
   const config = configuration.parse(JSON.parse(await readFile(file, "utf8")));
+  const target = devOpsTarget(config.runtimeKind);
   if (!path.isAbsolute(config.command) || (config.cwd && !path.isAbsolute(config.cwd)))
     throw new Error("DevOps executable and working directory must be host-selected absolute paths");
   if (config.provisioningScope && config.provisioningScope.environment !== config.environment)
@@ -50,7 +53,8 @@ export async function configuredDevOps(
       extension = (async () => {
         const connection = await runtime.resolve();
         const base = new URL(connection.transport.remoteUrl);
-        base.pathname = "/";
+        if (!/\/mcp\/?$/.test(base.pathname)) throw new Error("Private integration requires the canonical MCP endpoint");
+        base.pathname = base.pathname.replace(/mcp\/?$/, "");
         base.search = "";
         base.hash = "";
         // Child operations use this same scoped agent credential. A separately configured
@@ -77,6 +81,8 @@ export async function configuredDevOps(
             targetId?: unknown;
             deployTargetId?: unknown;
             environment?: unknown;
+            runtimeKind?: unknown;
+            backend?: unknown;
           };
           if (
             receipt.targetId !== config.serverTargetId ||
@@ -84,6 +90,9 @@ export async function configuredDevOps(
             receipt.environment !== config.environment
           )
             throw new Error("Private integration target changed");
+          const legacyEcs = config.runtimeKind === "aws-ecs" && receipt.runtimeKind === undefined && receipt.backend === undefined;
+          if (!legacyEcs && (receipt.runtimeKind !== config.runtimeKind || receipt.backend !== target.backend))
+            throw new Error("Private integration runtime changed or is unsupported");
         };
         await authorize({ canonicalTool: null });
         return createDevOpsExtension(
@@ -93,7 +102,10 @@ export async function configuredDevOps(
               ...config.env,
               HONUA_DEVOPS_HONUA_API_BASE_URL: base.toString().replace(/\/$/, ""),
               HONUA_DEVOPS_HONUA_API_KEY: connection.transport.apiKey,
-              HONUA_DEVOPS_TERRAFORM_TARGETS: "ecs",
+              HONUA_DEVOPS_TERRAFORM_TARGETS: target.terraformTarget,
+              HONUA_DEVOPS_RUNTIME_KIND: config.runtimeKind,
+              HONUA_DEVOPS_RUNTIME_BACKEND: target.backend,
+              HONUA_DEVOPS_SERVER_TARGET_ID: config.serverTargetId,
               HONUA_DEVOPS_ALLOWED_ENVIRONMENTS: config.environment,
               HONUA_DEVOPS_DEPLOY_TARGET_ID: config.deployTargetId,
             },

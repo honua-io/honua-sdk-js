@@ -7,6 +7,7 @@ import {
   type Progress,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import { type DevOpsRuntimeKind, devOpsTarget } from "./devops-targets.js";
 
 const PREFIX = "honua_agent_devops_";
 export const DEVOPS_TOOL_FAMILY = "honua.workspace.devops";
@@ -42,6 +43,7 @@ export interface DevOpsExtension {
 /** Host configuration only. Never accept this configuration from an MCP tool argument. */
 export interface DevOpsProcessConfiguration {
   command: string;
+  runtimeKind?: DevOpsRuntimeKind;
   args?: string[];
   cwd?: string;
   /** Explicit child environment, including any operator credentials. Never returned to the model. */
@@ -72,6 +74,8 @@ export function createDevOpsExtension(
   authorize: DevOpsAuthorization,
 ): DevOpsExtension {
   if (!path.isAbsolute(configuration.command)) throw new Error("DevOps executable must be an absolute host path");
+  const runtimeKind = configuration.runtimeKind ?? "aws-ecs";
+  const target = devOpsTarget(runtimeKind);
   // Copy configuration so a caller cannot silently change credentials/commands after binding.
   const config = {
     command: configuration.command,
@@ -114,7 +118,7 @@ export function createDevOpsExtension(
       effective[key] = value;
     }
     if (name === "provision_infrastructure") {
-      if (effective.stack !== "aws-ecs" || !provisioningScope) throw new Error("Unsupported adapter");
+      if (effective.stack !== runtimeKind || !provisioningScope) throw new Error("Unsupported adapter");
       if (effective.variablesJson !== undefined && typeof effective.variablesJson !== "string")
         throw new Error("Invalid variable document type");
       if (typeof effective.variablesJson === "string" && effective.variablesJson.length > 64 * 1024)
@@ -132,9 +136,31 @@ export function createDevOpsExtension(
         if (scoped[key] !== undefined && scoped[key] !== value) throw new Error("Cloud target scope mismatch");
         scoped[key] = value;
       }
-      if (scoped.honua_image !== undefined && !provisioningScope.allowedImages.includes(String(scoped.honua_image)))
-        throw new Error("Image outside approved scope");
-      scoped.honua_image ??= provisioningScope.allowedImages[0];
+      const requireImage = (image: unknown) => {
+        if (typeof image !== "string" || !provisioningScope.allowedImages.includes(image))
+          throw new Error("Image outside approved scope");
+      };
+      // Marketplace install.artifact.image overrides the flat Terraform variable.
+      // Validate that effective image too, rather than letting the nested input
+      // bypass the host's allowlist.
+      if (scoped.install !== undefined) {
+        if (!scoped.install || typeof scoped.install !== "object" || Array.isArray(scoped.install))
+          throw new Error("Invalid install scope");
+        const artifact = (scoped.install as Record<string, unknown>).artifact;
+        if (artifact !== undefined && artifact !== null) {
+          if (typeof artifact !== "object" || Array.isArray(artifact)) throw new Error("Invalid artifact scope");
+          const image = (artifact as Record<string, unknown>).image;
+          if (image !== undefined && image !== null) requireImage(image);
+        }
+      }
+      if (target.imageVariable) {
+        if (scoped[target.imageVariable] !== undefined) requireImage(scoped[target.imageVariable]);
+        scoped[target.imageVariable] ??= provisioningScope.allowedImages[0];
+      }
+      for (const variable of ["honua_image", "honua_image_uri"]) {
+        if (variable !== target.imageVariable && scoped[variable] !== undefined)
+          throw new Error("Image variable does not belong to the selected runtime");
+      }
       effective.variablesJson = JSON.stringify(scoped);
     }
     return effective;

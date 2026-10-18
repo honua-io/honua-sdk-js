@@ -30,7 +30,7 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
-async function setup() {
+async function setup(overrides: Record<string, unknown> = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), "honua-private-config-"));
   directories.push(directory);
   const file = path.join(directory, "devops.json");
@@ -45,6 +45,7 @@ async function setup() {
         HONUA_DEVOPS_HONUA_API_KEY: "broad-key-must-not-be-used",
         HONUA_DEVOPS_HONUA_API_BASE_URL: "https://wrong.test",
       },
+      ...overrides,
     }),
     { mode: 0o600 },
   );
@@ -68,6 +69,78 @@ async function setup() {
 }
 
 describe("host-configured private integration identity", () => {
+  it.each([
+    ["aws-lambda", "lambda", "honua-gitops-aws-lambda"],
+    ["aws-eks", "eks", "honua-kubernetes-deployment"],
+  ])("binds %s only to its server-verified actuator on every call", async (runtimeKind, terraformTarget, backend) => {
+    const fixture = await setup({ runtimeKind });
+    fixture.fetcher.mockImplementation(async () => Response.json({
+      targetId: "server-1", deployTargetId: "ecs-cell-1", environment: "dev", runtimeKind, backend,
+    }));
+    const integration = await configuredDevOps(fixture.file, fixture.runtime);
+    await integration.listTools();
+    expect(createDevOpsExtension).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeKind,
+      env: expect.objectContaining({
+        HONUA_DEVOPS_RUNTIME_KIND: runtimeKind,
+        HONUA_DEVOPS_RUNTIME_BACKEND: backend,
+        HONUA_DEVOPS_SERVER_TARGET_ID: "server-1",
+        HONUA_DEVOPS_TERRAFORM_TARGETS: terraformTarget,
+        HONUA_DEVOPS_HONUA_API_KEY: "scoped-agent-key",
+      }),
+    }), expect.any(Function));
+    fixture.fetcher.mockImplementation(async () => Response.json({
+      targetId: "server-1", deployTargetId: "ecs-cell-1", environment: "dev", runtimeKind, backend: "honua-gitops-kubernetes",
+    }));
+    await expect(integration.callTool("describe_environment", {})).rejects.toThrow("runtime changed");
+    await integration.close();
+  });
+
+  it.each(["honua-kubernetes-argo-rollouts", "honua-gitops-kubernetes"])(
+    "refuses EKS authorization through the unsupported %s backend",
+    async (backend) => {
+      const fixture = await setup({ runtimeKind: "aws-eks" });
+      fixture.fetcher.mockImplementation(async () => Response.json({
+        targetId: "server-1", deployTargetId: "ecs-cell-1", environment: "dev",
+        runtimeKind: "aws-eks", backend,
+      }));
+      const integration = await configuredDevOps(fixture.file, fixture.runtime);
+      await expect(integration.listTools()).rejects.toThrow("runtime changed");
+      expect(createDevOpsExtension).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["aws-lambda", "aws-eks"])("refuses an old authorization response for %s", async (runtimeKind) => {
+    const fixture = await setup({ runtimeKind });
+    const integration = await configuredDevOps(fixture.file, fixture.runtime);
+    await expect(integration.listTools()).rejects.toThrow("runtime changed");
+    expect(createDevOpsExtension).not.toHaveBeenCalled();
+    await integration.close();
+  });
+
+  it("preserves the authorized server path prefix for the API and private process", async () => {
+    const fixture = await setup();
+    fixture.replaceConnection({
+      target: { id: "connection-1", endpoint: "http://127.0.0.1:8080/tenant/mcp", credentialId: "key-1" },
+      transport: { remoteUrl: "http://127.0.0.1:8080/tenant/mcp", apiKey: "scoped-agent-key" },
+    });
+    const integration = await configuredDevOps(fixture.file, fixture.runtime);
+    await integration.listTools();
+    const request = fixture.fetcher.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(request[0])).toBe("http://127.0.0.1:8080/tenant/api/v1/agent/devops/authorize");
+    expect(createDevOpsExtension).toHaveBeenCalledWith(expect.objectContaining({
+      env: expect.objectContaining({ HONUA_DEVOPS_HONUA_API_BASE_URL: "http://127.0.0.1:8080/tenant" }),
+    }), expect.any(Function));
+    await integration.close();
+  });
+
+  it("rejects an unknown runtime before authorization or child startup", async () => {
+    const fixture = await setup({ runtimeKind: "kubernetes" });
+    await expect(configuredDevOps(fixture.file, fixture.runtime)).rejects.toThrow();
+    expect(fixture.fetcher).not.toHaveBeenCalled();
+    expect(createDevOpsExtension).not.toHaveBeenCalled();
+  });
+
   it("never lends the host's broad key or server URL and pins the environment and deployment", async () => {
     const fixture = await setup();
     const integration = await configuredDevOps(fixture.file, fixture.runtime);
