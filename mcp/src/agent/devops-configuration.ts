@@ -28,7 +28,11 @@ const configuration = z
   .strict();
 
 /** The host selects this protected file; MCP arguments cannot select executable paths or credentials. */
-export async function configuredDevOps(file: string, runtime: AgentRuntime): Promise<DevOpsExtension> {
+export async function configuredDevOps(
+  file: string,
+  runtime: AgentRuntime,
+  fetchImpl: typeof fetch = fetch,
+): Promise<DevOpsExtension> {
   if (!path.isAbsolute(file)) throw new Error("DevOps configuration requires an absolute host path");
   const info = await lstat(file);
   if (!info.isFile() || info.size > 65536 || (process.platform !== "win32" && (info.mode & 0o077) !== 0))
@@ -55,7 +59,7 @@ export async function configuredDevOps(file: string, runtime: AgentRuntime): Pro
         const authorize = async (action: { canonicalTool: string | null; arguments?: Record<string, unknown> }) => {
           const current = await runtime.resolve();
           requireSameConnection(connection, current);
-          const response = await fetch(new URL("api/v1/agent/devops/authorize", base), {
+          const response = await fetchImpl(new URL("api/v1/agent/devops/authorize", base), {
             method: "POST",
             redirect: "error",
             signal: AbortSignal.timeout(10000),

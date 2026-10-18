@@ -54,6 +54,35 @@ operator documentation. Exposing a tool does not grant cloud permission, approve
 a plan, or certify ECS deployment recovery. Lambda and EKS are outside this
 adapter's qualified scope.
 
+## Native Console chat
+
+The preview executable `honua-agent-gateway` exposes the same composed gateway
+over a backend HTTP transport. External agents keep their existing
+`honua-agent-mcp` registration. Console sends native chat requests through its
+authenticated backend; the browser never connects to this transport directly.
+
+On the gateway host, configure `HONUA_AGENT_INSTALL_DIRECTORY` and an independent
+`HONUA_AGENT_GATEWAY_KEY` of at least 32 bytes. The gateway reads the verified
+workspace agent credential from the installation. It also reads the optional
+`HONUA_AGENT_DEVOPS_CONFIG` described above. Its default listen address is
+`127.0.0.1:7863`; `HONUA_AGENT_GATEWAY_HOST` and `HONUA_AGENT_GATEWAY_PORT` are
+explicit host settings. For a containerized Console, provide a reachable private
+network address; container loopback does not reach a host process.
+
+Configure Console's backend with both `HONUA_AGENT_GATEWAY_URL` (the gateway's
+base URL) and the same independent `HONUA_AGENT_GATEWAY_KEY`. A partial
+configuration is rejected. With neither setting, Console uses the canonical
+server directly and does not discover the optional private adapter. These
+settings are host configuration, not chat arguments or browser credentials.
+
+The HTTP gateway provides `/mcp` and `/capabilities`. Every request verifies the
+current scoped agent key and rereads the captured workspace turn on the actual
+server. Sessions are pinned to the operator partition, workspace, target and
+credential; concurrent turns retain their own context. The gateway disables
+local bootstrap tools on this transport. Private DevOps tools are advertised to
+native chat only after authorized discovery, and each call rechecks RBAC. The
+capability response cannot grant permission or approve an operation.
+
 ## Evidence boundaries
 
 The connector's packaged workflow resource is available at

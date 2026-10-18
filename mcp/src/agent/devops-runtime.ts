@@ -9,6 +9,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 const PREFIX = "honua_agent_devops_";
+export const DEVOPS_TOOL_FAMILY = "honua.workspace.devops";
 /** Private provisioning/planning only. Day-2 operations remain on the server's canonical MCP surface. */
 export const DEVOPS_TOOL_ALLOWLIST: ReadonlySet<string> = new Set([
   "describe_environment",
@@ -211,7 +212,13 @@ export function createDevOpsExtension(
       try {
         await authorize({ canonicalTool: null });
         const tools = await catalog(await connect());
-        return scrub(tools.map((tool) => ({ ...tool, name: `${PREFIX}${tool.name}` })));
+        return scrub(
+          tools.map((tool) => ({
+            ...tool,
+            name: `${PREFIX}${tool.name}`,
+            _meta: { ...tool._meta, "honua.studio": { family: DEVOPS_TOOL_FAMILY, view: "workspace", revision: "1" } },
+          })),
+        );
       } catch {
         throw new Error("Private DevOps discovery unavailable or unauthorized");
       }

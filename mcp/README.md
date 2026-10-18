@@ -85,6 +85,11 @@ DevOps tools can share this registration through host configuration; see
 [the host reference](../docs/unified-agent-host-configuration.md) for target and
 credential requirements and the current qualification limits.
 
+Native Console chat can use the preview `honua-agent-gateway` backend HTTP
+transport to reach this same public/private catalog. Its separate bridge key,
+workspace-turn checks and host configuration are described in that reference.
+External agents continue to use their single `honua-agent-mcp` registration.
+
 ### Existing standalone and proxy modes
 
 - Node.js `>=22.12`

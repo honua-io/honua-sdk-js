@@ -91,10 +91,15 @@ const localTools: Tool[] = [
 export type UpstreamFactory = (connection: AgentConnection, view?: string) => Promise<Client>;
 
 /** A gateway owns initialization; it does not impersonate the downstream client. */
-export async function connectAgentUpstream(connection: AgentConnection, view?: string): Promise<Client> {
+export async function connectAgentUpstream(
+  connection: AgentConnection,
+  view?: string,
+  fetchImpl?: typeof fetch,
+): Promise<Client> {
   const headers = buildUpstreamHeaders(connection.transport);
   const transport = new StreamableHTTPClientTransport(new URL(connection.transport.remoteUrl), {
     requestInit: { headers, redirect: "manual" },
+    ...(fetchImpl ? { fetch: fetchImpl } : {}),
   });
   const send = transport.send.bind(transport);
   transport.send = (message, options) => {
@@ -137,6 +142,7 @@ export class HonuaAgentGateway {
     private readonly runtime: AgentRuntime,
     private readonly upstream: UpstreamFactory = connectAgentUpstream,
     private readonly devops?: DevOpsExtension,
+    private readonly options: { bootstrapTools?: boolean } = {},
   ) {
     this.server.oninitialized = () => {
       this.#initialized = true;
@@ -150,7 +156,8 @@ export class HonuaAgentGateway {
     // Never log transport errors: HTTP error bodies can contain credentials.
     this.server.onerror = () => {};
     this.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
-      if (!this.#client) return { tools: localTools };
+      const bootstrap = this.options.bootstrapTools === false ? [] : localTools;
+      if (!this.#client) return { tools: bootstrap };
       const page = await this.#withClient((client) =>
         client.request(request, ListToolsResultSchema, { signal: extra.signal }),
       );
@@ -158,7 +165,7 @@ export class HonuaAgentGateway {
         throw new McpError(ErrorCode.InvalidRequest, "Reserved connector tool namespace collision");
       // A missing/private integration must not make the public GIS catalog unavailable.
       const privateTools = !request.params?.cursor && this.devops ? await this.devops.listTools().catch(() => []) : [];
-      return { ...page, tools: request.params?.cursor ? page.tools : [...localTools, ...privateTools, ...page.tools] };
+      return { ...page, tools: request.params?.cursor ? page.tools : [...bootstrap, ...privateTools, ...page.tools] };
     });
     this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const token = request.params._meta?.progressToken;
@@ -182,6 +189,8 @@ export class HonuaAgentGateway {
           }),
         );
       }
+      if (request.params.name.startsWith(PREFIX) && this.options.bootstrapTools === false)
+        throw new McpError(ErrorCode.MethodNotFound, "Host installation tools are unavailable in native chat");
       if (request.params.name.startsWith(PREFIX))
         return this.#local(request.params.name, request.params.arguments ?? {});
       return this.#withClient((client) =>
@@ -295,6 +304,12 @@ export class HonuaAgentGateway {
     await this.#client?.close();
     await this.devops?.close();
     await this.server.close();
+  }
+
+  /** Native HTTP discovery must not race the external connector's background attachment. */
+  async prepare(view?: string): Promise<void> {
+    this.#view = view;
+    await this.#attach();
   }
 
   async #withClient<T>(call: (client: Client) => Promise<T>): Promise<T> {
