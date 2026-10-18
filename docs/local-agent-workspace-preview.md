@@ -46,3 +46,41 @@ The preview release, public gateway artifact, Console sign-in, shared workspace,
 canonical approval inbox, and native turn must be qualified together before
 advancing public installer pins or calling this release verified. A preview
 release change currently requires a separate install directory.
+
+Native model access is an optional explicit configuration. Set API
+`nativeWorkspace.modelProvider` with `kind` (`openai`, `anthropic`, or `bedrock`),
+`model`, an API `endpoint` for OpenAI-compatible/Anthropic providers, optional
+`region`, and optional `apiKeyEnvironmentVariable`. The CLI equivalents are
+`--native-model-kind`, `--native-model-name`, `--native-model-endpoint`,
+`--native-model-region`, and `--native-model-key-env`. The last flag takes a host
+environment variable name, never a credential value. The installer copies that
+reference's value only into the verified private `.env` and passes it only to
+the server. Bedrock can use the server's configured AWS credential chain;
+no provider credential or identity is inferred from the Console session.
+
+The preview generates an independent base64-encoded 32-byte Ed25519 transcript
+seed and retains it across reinstalls. Server configuration references that
+secret through `env:HONUA_NATIVE_TRANSCRIPT_SEED`; the Console receives only the
+actual capability endpoint's public verification manifest. This seed is distinct
+from the local operator HMAC signing key. With no model provider configured,
+`StudioAiProxy:Enabled` remains false and native chat is explicitly unavailable.
+Provider connectivity and signed real tool execution still require qualification
+against the selected immutable preview images.
+
+An optional native HTTP gateway uses API `nativeWorkspace.gatewayHttp` with
+`url` and `keyEnvironmentVariable`, or CLI `--native-gateway-url` plus
+`--native-gateway-key-env`. The URL must be an explicit HTTP(S) origin with no
+extra path, credentials, query or fragment. The key argument names an independent
+host environment secret of at least 32 UTF-8 bytes. Reserved Honua credentials
+and known reused credential values are rejected. Only the private `.env` and
+Console receive this bridge key; it is not passed to the server or MCP model.
+The configured gateway must use the same bridge secret and actual scoped agent
+credential, verify each captured workspace turn, and advertise authorized
+families through its capability manifest.
+
+Choose a private address reachable from the Console container and configure the
+gateway listener on that private interface. Its default loopback listener is not
+automatically reachable from Docker. The installer does not guess a Docker host
+address, alter host listeners, or open a public gateway port. Without this opt-in,
+Console uses the server's canonical MCP tools directly; optional infrastructure
+extension tools are not advertised to native chat.

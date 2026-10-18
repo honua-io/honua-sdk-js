@@ -24,6 +24,17 @@ import { verifyPrivateFile, writePrivateFileAtomic } from "./private-file.js";
 import { resolveExecutableFromPath } from "./process-executable.js";
 
 export type LocalInstallProfile = "quickstart" | "gp-dev";
+const HOST_AUTHORITY_KEYS = [
+  "HONUA_AGENT_API_KEY",
+  "HONUA_ADMIN_KEY",
+  "HONUA_ADMIN_PASSWORD",
+  "HONUA_LOCAL_HUMAN_BRIDGE_KEY",
+  "HONUA_LOCAL_OPERATOR_SIGNING_KEY",
+  "HONUA_NATIVE_TRANSCRIPT_SEED",
+  "HONUA_CONNECTION_ENCRYPTION_MASTER_KEY",
+  "HONUA_GP_WORKSPACE_KEY",
+  "POSTGRES_PASSWORD",
+] as const;
 
 export interface LocalInstallOptions {
   readonly directory: string;
@@ -39,6 +50,16 @@ export interface LocalInstallOptions {
     readonly gatewayCommand: string;
     readonly gatewayArgs?: readonly string[];
     readonly consolePort?: number;
+    /** Optional private HTTP gateway reachable from the Console container. */
+    readonly gatewayHttp?: { readonly url: string; readonly keyEnvironmentVariable: string };
+    /** Server-only model configuration. The credential is referenced by host environment variable name. */
+    readonly modelProvider?: {
+      readonly kind: "openai" | "anthropic" | "bedrock";
+      readonly endpoint?: string;
+      readonly model: string;
+      readonly region?: string;
+      readonly apiKeyEnvironmentVariable?: string;
+    };
   };
 }
 
@@ -237,6 +258,88 @@ export async function installHonuaLocal(
     )
       throw new Error("Invalid native workspace release identity or Console port.");
   }
+  const provider = native?.modelProvider;
+  let providerKey: string | undefined;
+  if (provider) {
+    if (
+      !["openai", "anthropic", "bedrock"].includes(provider.kind) ||
+      !/^[A-Za-z0-9._:/-]{1,256}$/.test(provider.model) ||
+      (provider.region !== undefined && !/^[a-z0-9-]{1,64}$/.test(provider.region))
+    )
+      throw new Error("Invalid native model provider configuration.");
+    if (provider.kind !== "bedrock" || provider.endpoint !== undefined) {
+      let endpoint: URL;
+      try {
+        endpoint = new URL(provider.endpoint ?? "");
+      } catch {
+        throw new Error("Native model provider requires an absolute endpoint.");
+      }
+      if (
+        /[\s"'`\\$#]/.test(provider.endpoint ?? "") ||
+        !["http:", "https:"].includes(endpoint.protocol) ||
+        endpoint.username ||
+        endpoint.password ||
+        endpoint.search ||
+        endpoint.hash
+      )
+        throw new Error("Native model provider endpoint must not contain credentials, query or fragment.");
+    }
+    if (provider.apiKeyEnvironmentVariable) {
+      if (!/^[A-Z][A-Z0-9_]{0,127}$/.test(provider.apiKeyEnvironmentVariable))
+        throw new Error("Invalid native model credential environment reference.");
+      if (
+        [...HOST_AUTHORITY_KEYS, "HONUA_AGENT_GATEWAY_KEY"].some((name) => name === provider.apiKeyEnvironmentVariable)
+      )
+        throw new Error("The model credential reference must be independent from Honua host credentials.");
+      providerKey = process.env[provider.apiKeyEnvironmentVariable];
+      if (!providerKey || /[\s"'`\\$#\0]/.test(providerKey))
+        throw new Error("The referenced native model credential is unavailable.");
+      assertIndependentModelCredential(providerKey, process.env);
+    }
+  }
+  let gatewayKey: string | undefined;
+  if (native?.gatewayHttp) {
+    let gatewayUrl: URL;
+    try {
+      gatewayUrl = new URL(native.gatewayHttp.url);
+    } catch {
+      throw new Error("Invalid native gateway origin.");
+    }
+    if (
+      /[\s"'`\\$#]/.test(native.gatewayHttp.url) ||
+      !["http:", "https:"].includes(gatewayUrl.protocol) ||
+      gatewayUrl.username ||
+      gatewayUrl.password ||
+      gatewayUrl.pathname !== "/" ||
+      gatewayUrl.search ||
+      gatewayUrl.hash
+    )
+      throw new Error(
+        "The native gateway requires an absolute HTTP(S) origin without a path, credentials, query or fragment.",
+      );
+    const reference = native.gatewayHttp.keyEnvironmentVariable;
+    if (
+      !/^[A-Z][A-Z0-9_]{0,127}$/.test(reference) ||
+      [...HOST_AUTHORITY_KEYS, "HONUA_NATIVE_MODEL_API_KEY", "HONUA_STUDIOAI_NATIVE_API_KEY"].some(
+        (name) => name === reference,
+      )
+    )
+      throw new Error("The native gateway requires an independent credential environment reference.");
+    gatewayKey = process.env[reference];
+    if (
+      !gatewayKey ||
+      Buffer.byteLength(gatewayKey, "utf8") < 32 ||
+      Buffer.byteLength(gatewayKey, "utf8") > 512 ||
+      /[\s"'`\\$#\0]/.test(gatewayKey)
+    )
+      throw new Error("The referenced native gateway credential is unavailable or invalid.");
+    if (
+      [...HOST_AUTHORITY_KEYS, "HONUA_NATIVE_MODEL_API_KEY", "HONUA_STUDIOAI_NATIVE_API_KEY"].some(
+        (name) => process.env[name] && process.env[name] === gatewayKey,
+      )
+    )
+      throw new Error("The native gateway credential must be independent from other credentials.");
+  }
   if (!native && !isAdminReleaseContractCompatible()) {
     throw new Error(
       `Honua local install is blocked: the manifest-pinned server ${ADMIN_RELEASE_SERVER_SHA} exposes ` +
@@ -292,6 +395,15 @@ export async function installHonuaLocal(
     HONUA_AGENT_RELEASE_ID: native?.releaseId ?? existingEnv.HONUA_AGENT_RELEASE_ID ?? ADMIN_RELEASE_SERVER_SHA,
     ...(native
       ? {
+          HONUA_AGENT_GATEWAY_URL: native.gatewayHttp?.url ?? "",
+          HONUA_AGENT_GATEWAY_KEY: gatewayKey ?? "",
+          HONUA_NATIVE_TRANSCRIPT_SEED: existingEnv.HONUA_NATIVE_TRANSCRIPT_SEED ?? randomBytes(32).toString("base64"),
+          HONUA_NATIVE_MODEL_ENABLED: provider ? "true" : "false",
+          HONUA_NATIVE_MODEL_KIND: provider?.kind ?? "openai",
+          HONUA_NATIVE_MODEL_ENDPOINT: provider?.endpoint ?? "",
+          HONUA_NATIVE_MODEL_NAME: provider?.model ?? "",
+          HONUA_NATIVE_MODEL_REGION: provider?.region ?? "us-west-2",
+          HONUA_NATIVE_MODEL_API_KEY: provider ? (providerKey ?? "") : "",
           HONUA_CONSOLE_IMAGE: native.consoleImage,
           HONUA_CONSOLE_PORT: String(native.consolePort ?? 8081),
           HONUA_LOCAL_HUMAN_BRIDGE_KEY: existingEnv.HONUA_LOCAL_HUMAN_BRIDGE_KEY ?? secret(32),
@@ -305,6 +417,15 @@ export async function installHonuaLocal(
     HONUA_ADMIN_KEY: existingEnv.HONUA_ADMIN_KEY,
   };
 
+  assertIndependentModelCredential(providerKey, existingEnv);
+  assertIndependentGatewayKey(env);
+  if (
+    gatewayKey &&
+    [...HOST_AUTHORITY_KEYS, "HONUA_NATIVE_MODEL_API_KEY", "HONUA_STUDIOAI_NATIVE_API_KEY"].some(
+      (name) => existingEnv[name] && existingEnv[name] === gatewayKey,
+    )
+  )
+    throw new Error("The native gateway credential must be independent from existing credentials.");
   const dockerCommand = runtime.run
     ? "docker"
     : await resolveExecutableFromPath("docker", { excludedDirectory: directory });
@@ -687,6 +808,17 @@ ${
       AgentWorkspace__LocalHumanBridge__TenantId: public
       Authentication__OperatorBearer__Enabled: "true"
       Authentication__OperatorBearer__SigningKey: \${HONUA_LOCAL_OPERATOR_SIGNING_KEY}
+      StudioAiProxy__Enabled: \${HONUA_NATIVE_MODEL_ENABLED:-false}
+      StudioAiProxy__DefaultProvider: native
+      StudioAiProxy__Providers__native__Kind: \${HONUA_NATIVE_MODEL_KIND:-openai}
+      StudioAiProxy__Providers__native__Endpoint: \${HONUA_NATIVE_MODEL_ENDPOINT:-}
+      StudioAiProxy__Providers__native__Model: \${HONUA_NATIVE_MODEL_NAME:-}
+      StudioAiProxy__Providers__native__Region: \${HONUA_NATIVE_MODEL_REGION:-us-west-2}
+      StudioAiProxy__Providers__native__SupportsTools: "true"
+      HONUA_STUDIOAI_NATIVE_API_KEY: \${HONUA_NATIVE_MODEL_API_KEY:-}
+      StudioAiProxy__TranscriptSigning__KeyId: local-native-transcript
+      StudioAiProxy__TranscriptSigning__PrivateKeyReference: env:HONUA_NATIVE_TRANSCRIPT_SEED
+      HONUA_NATIVE_TRANSCRIPT_SEED: \${HONUA_NATIVE_TRANSCRIPT_SEED}
 `
     : ""
 }      ConnectionStrings__DefaultConnection: "Host=postgres;Database=honua;Username=honua;Password=\${POSTGRES_PASSWORD}"
@@ -726,6 +858,8 @@ ${
       HONUA_SERVER_BASE_URL: http://honua:8080
       HONUA_AGENT_SERVER_BASE_URL: http://honua:8080
       HONUA_AGENT_API_KEY: \${HONUA_AGENT_API_KEY:-}
+      HONUA_AGENT_GATEWAY_URL: \${HONUA_AGENT_GATEWAY_URL:-}
+      HONUA_AGENT_GATEWAY_KEY: \${HONUA_AGENT_GATEWAY_KEY:-}
       HONUA_AGENT_RELEASE_ID: \${HONUA_AGENT_RELEASE_ID}
       Honua__Console__Auth__Mode: Dev
       Honua__Console__Auth__LocalHumanBridge__Enabled: "true"
@@ -1328,6 +1462,15 @@ async function readEnv(filePath: string, original?: string): Promise<Record<stri
 }
 
 const MANAGED_ENV_KEYS = [
+  "HONUA_AGENT_GATEWAY_URL",
+  "HONUA_AGENT_GATEWAY_KEY",
+  "HONUA_NATIVE_TRANSCRIPT_SEED",
+  "HONUA_NATIVE_MODEL_ENABLED",
+  "HONUA_NATIVE_MODEL_KIND",
+  "HONUA_NATIVE_MODEL_ENDPOINT",
+  "HONUA_NATIVE_MODEL_NAME",
+  "HONUA_NATIVE_MODEL_REGION",
+  "HONUA_NATIVE_MODEL_API_KEY",
   "HONUA_LOCAL_HUMAN_BRIDGE_KEY",
   "HONUA_LOCAL_OPERATOR_SIGNING_KEY",
   "HONUA_AGENT_DEPLOYMENT_ID",
@@ -1401,7 +1544,25 @@ async function verifyPrivateFileIfPresent(filePath: string): Promise<boolean> {
   }
 }
 
+function assertIndependentModelCredential(key: string | undefined, env: Record<string, string | undefined>): void {
+  if (key && [...HOST_AUTHORITY_KEYS, "HONUA_AGENT_GATEWAY_KEY"].some((name) => env[name] && env[name] === key))
+    throw new Error("The native model credential must be independent from host authority credentials.");
+}
+
+function assertIndependentGatewayKey(env: Record<string, string | undefined>): void {
+  assertIndependentModelCredential(env.HONUA_NATIVE_MODEL_API_KEY, env);
+  const bridge = env.HONUA_AGENT_GATEWAY_KEY;
+  if (
+    bridge &&
+    [...HOST_AUTHORITY_KEYS, "HONUA_NATIVE_MODEL_API_KEY", "HONUA_STUDIOAI_NATIVE_API_KEY"].some(
+      (name) => env[name] && env[name] === bridge,
+    )
+  )
+    throw new Error("The native gateway credential must be independent from other credentials.");
+}
+
 function renderEnv(env: Record<string, string | undefined>, original: string): string {
+  assertIndependentGatewayKey(env);
   const seen = new Set<string>();
   let content = original
     .split(/(?<=\n)/)
