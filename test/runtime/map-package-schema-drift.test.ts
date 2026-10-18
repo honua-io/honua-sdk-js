@@ -54,6 +54,7 @@ const INTERFACE_TO_DEF: Readonly<Record<string, string>> = {
   HonuaMapPackageSourceBinding: "sourceBinding",
   HonuaMapPackageLocator: "locator",
   HonuaMapPackageStyleRef: "styleRef",
+  HonuaStyleRefLayerBinding: "styleRefLayerBinding",
   HonuaStyleRefLayerOverride: "styleRefLayerOverride",
   HonuaMapPackageThemeSpec: "themeSpec",
   HonuaMapPackageInitialView: "initialView",
@@ -139,6 +140,7 @@ const interfaces = parseInterfaces(typesSource);
 
 const ANNOTATION_KEYWORDS = new Set(["title", "description", "$comment"]);
 const SCHEMA_MAP_KEYWORDS = new Set(["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"]);
+const OPAQUE_DATA_KEYWORDS = new Set(["enum", "const", "default", "examples"]);
 
 /**
  * Every JSON Pointer at which the schema declares a *property* whose name
@@ -155,7 +157,12 @@ function collectAnnotationNamedProperties(node: unknown, pointer = "#", insideSc
   for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
     const childPointer = `${pointer}/${key}`;
     if (insideSchemaMap && ANNOTATION_KEYWORDS.has(key)) found.push(childPointer);
-    found.push(...collectAnnotationNamedProperties(value, childPointer, SCHEMA_MAP_KEYWORDS.has(key)));
+    if (!insideSchemaMap && OPAQUE_DATA_KEYWORDS.has(key)) continue;
+    // A schema-map entry's key is a user-chosen name, even when it is "properties".
+    // Its value is an ordinary schema node, not another schema map.
+    found.push(
+      ...collectAnnotationNamedProperties(value, childPointer, !insideSchemaMap && SCHEMA_MAP_KEYWORDS.has(key)),
+    );
   }
   return found;
 }
@@ -217,6 +224,23 @@ describe("honua-map-package.v1 schema ↔ TypeScript drift", () => {
         canonical.errors,
       );
     }
+  });
+
+  test("annotation discovery distinguishes schema-map property names from schema keywords", () => {
+    expect(
+      collectAnnotationNamedProperties({
+        properties: {
+          properties: {
+            description: "Array of override groups, not a declared property",
+            type: "array",
+            items: { type: "string" },
+          },
+          description: { type: "string" },
+          nested: { type: "object", properties: { title: { type: "string" } } },
+        },
+        const: { properties: { title: "literal data" } },
+      }),
+    ).toEqual(["#/properties/description", "#/properties/nested/properties/title"]);
   });
 
   test("a property named like an annotation keyword still constrains the generated validator", () => {

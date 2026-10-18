@@ -23,8 +23,9 @@ import type { HonuaClient } from "../core/client.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
 import { HonuaMapPackageError } from "./errors.js";
-import type { HonuaStyleRefBody, HonuaStyleRefLayerOverride } from "./map-package.js";
+import type { HonuaStyleRefBody, HonuaStyleRefLayerBinding, HonuaStyleRefLayerOverride } from "./map-package.js";
 import type { StyleRefResolver } from "./style-compose.js";
+import { readStyleLayerBindings, selectBoundStyleOverride } from "./style-ref-bindings.js";
 
 /** Default path prefix for the server's OGC API – Styles surface. */
 export const DEFAULT_OGC_STYLES_PATH_PREFIX = "/ogc/styles";
@@ -171,9 +172,10 @@ export function createOgcStyleRefResolver(options: OgcStyleRefResolverOptions): 
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.headers ? { headers: options.headers } : {}),
   };
-  return async (styleId: string): Promise<HonuaStyleRefBody> => {
+  return async (styleId, _presetId, layerBindings): Promise<HonuaStyleRefBody> => {
+    const bindings = readStyleLayerBindings(layerBindings);
     const style = await ogc.getStyle(styleId, requestOptions);
-    return styleDocumentToRefBody(style);
+    return styleDocumentToRefBody(style, bindings);
   };
 }
 
@@ -182,7 +184,24 @@ export function createOgcStyleRefResolver(options: OgcStyleRefResolverOptions): 
  * per-layer paint/layout overrides keyed by layer id. Layers without any
  * override-relevant fields are omitted.
  */
-export function styleDocumentToRefBody(style: HonuaStyleSpecification): HonuaStyleRefBody {
+export function styleDocumentToRefBody(
+  style: HonuaStyleSpecification,
+  layerBindings?: readonly HonuaStyleRefLayerBinding[],
+): HonuaStyleRefBody {
+  const bindings = readStyleLayerBindings(layerBindings);
+  if (bindings) {
+    return Object.fromEntries(
+      bindings.map((binding) => {
+        const selected = style.layers.filter((layer) => layer.id === binding.styleLayerId);
+        if (selected.length !== 1 || selected[0].type !== binding.layerType)
+          throw new HonuaMapPackageError("The selected shared style render layer changed; rebind the style.", {
+            stage: "style-compose",
+            detail: { styleLayerId: binding.styleLayerId },
+          });
+        return [binding.targetLayerId, selectBoundStyleOverride(layerToOverride(selected[0]) ?? {}, binding)];
+      }),
+    );
+  }
   const body: HonuaStyleRefBody = {};
   for (const layer of style.layers ?? []) {
     if (!layer || typeof layer.id !== "string") continue;

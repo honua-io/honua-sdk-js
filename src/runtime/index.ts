@@ -157,6 +157,7 @@ export type {
   HonuaMapPackageThemeSpec,
   HonuaMapPackageWidget,
   HonuaStyleRefBody,
+  HonuaStyleRefLayerBinding,
   HonuaStyleRefLayerOverride,
 } from "./map-package.js";
 
