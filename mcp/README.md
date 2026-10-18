@@ -79,6 +79,17 @@ from the repository root. It creates and removes its own isolated Compose projec
 This tests the built connector against the installer's pinned server image; it
 does not certify the full map-making or browser journey.
 
+The packaged workflow guide is available as the MCP resource
+`honua://agent/knowledge/workflows/v1`, even before installation. Optional private
+DevOps tools can share this registration through host configuration; see
+[the host reference](../docs/unified-agent-host-configuration.md) for target and
+credential requirements and the current qualification limits.
+
+Native Console chat can use the preview `honua-agent-gateway` backend HTTP
+transport to reach this same public/private catalog. Its separate bridge key,
+workspace-turn checks and host configuration are described in that reference.
+External agents continue to use their single `honua-agent-mcp` registration.
+
 ### Existing standalone and proxy modes
 
 - Node.js `>=22.12`

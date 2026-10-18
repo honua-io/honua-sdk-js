@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "honua.agent-devops-smoke/v1",
+  "artifact": {
+    "repository": "honua-io/honua-devops",
+    "tag": "v2026.1.0",
+    "asset": "honua-devops-linux-x64.tar.gz",
+    "sha256": "7e9cf2f6e74e9280c80b2663f413ebf7aad861d2c33f243240b56be26090a8ec",
+    "checksumVerification": "sha256sum -c: OK"
+  },
+  "command": "HONUA_DEVOPS_TEST_ARTIFACT=<extracted-absolute-path>/Honua.DevOps.Agent npm run test:unit -- test/devops-runtime.test.ts",
+  "result": {
+    "testFilesPassed": 1,
+    "testsPassed": 9,
+    "testsSkipped": 0
+  },
+  "observed": [
+    "Real published private process initialized through current optional MCP runtime",
+    "Allowlisted canonical tool discovery and read-only plan_gitops_engine invocation succeeded",
+    "Wire fixtures additionally proved closed allowlist, per-action authorization, exact-value credential scrubbing, opaque errors and reconnect without failed-action replay",
+    "Host-bound cloud env/region/name/image and credential-reference/output path injection/refusal passed"
+  ],
+  "executionMode": "plan",
+  "approvalMode": "pr-first",
+  "cloudResourcesCreated": false,
+  "limitations": [
+    "The published private artifact predates the new scoped Git PR/revert implementation",
+    "No actual GitHub PR, live ECS deployment, rollback or recovery was exercised",
+    "This does not qualify current public artifact release or the full unified GIS journey"
+  ]
+}

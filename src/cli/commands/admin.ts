@@ -39,6 +39,9 @@ USAGE
 INSTALL
   honua admin install local --yes [--directory <dir>] [--profile quickstart|gp-dev]
       [--http-port <port>] [--timeout-ms <ms>] [--dry-run]
+      [--native-server-image <digest-ref> --native-console-image <digest-ref> --native-release-id <id>]
+      [--native-model-kind openai|anthropic|bedrock --native-model-name <id> --native-model-endpoint <url> --native-model-key-env <name>]
+      [--native-gateway-command <absolute-executable> --native-gateway-arg <arg>...] [--native-console-port <port>]
   honua admin install status [--directory <dir>]
   honua admin install cloud [aws]
   --directory defaults to .honua. Create it outside the git repo you are editing.
@@ -310,13 +313,82 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
   if (profile !== "quickstart" && profile !== "gp-dev") {
     throw new ArgError("Local install --profile must be quickstart or gp-dev.");
   }
+  const serverImage = getString(parsed, "native-server-image");
+  const consoleImage = getString(parsed, "native-console-image");
+  const releaseId = getString(parsed, "native-release-id");
+  const consolePort = getNumber(parsed, "native-console-port");
+  const gatewayCommand = getString(parsed, "native-gateway-command");
+  const gatewayArgs = getArray(parsed, "native-gateway-arg");
+  const modelKind = getString(parsed, "native-model-kind");
+  const modelName = getString(parsed, "native-model-name");
+  const endpoint = getString(parsed, "native-model-endpoint");
+  const region = getString(parsed, "native-model-region");
+  const apiKeyEnvironmentVariable = getString(parsed, "native-model-key-env");
+  const hasModelOptions = [modelKind, modelName, endpoint, region, apiKeyEnvironmentVariable].some(
+    (value) => value !== undefined,
+  );
+  if (hasModelOptions && (!modelName || !modelKind || !["openai", "anthropic", "bedrock"].includes(modelKind)))
+    throw new ArgError(
+      "Native model configuration requires --native-model-kind openai|anthropic|bedrock and --native-model-name.",
+    );
+  const modelProvider = hasModelOptions
+    ? {
+        kind: modelKind as "openai" | "anthropic" | "bedrock",
+        model: modelName!,
+        endpoint,
+        region,
+        apiKeyEnvironmentVariable,
+      }
+    : undefined;
+  const gatewayUrl = getString(parsed, "native-gateway-url");
+  const gatewayKeyEnv = getString(parsed, "native-gateway-key-env");
+  if ((gatewayUrl || gatewayKeyEnv) && (!gatewayUrl || !gatewayKeyEnv))
+    throw new ArgError("Native HTTP gateway requires --native-gateway-url and --native-gateway-key-env together.");
+  const gatewayHttp =
+    gatewayUrl && gatewayKeyEnv ? { url: gatewayUrl, keyEnvironmentVariable: gatewayKeyEnv } : undefined;
+  const processUrl = getString(parsed, "native-gp-workspace-url");
+  const processKeyEnv = getString(parsed, "native-gp-workspace-key-env");
+  if ((processUrl !== undefined || processKeyEnv !== undefined) && (!processUrl || !processKeyEnv))
+    throw new ArgError("Local processes require --native-gp-workspace-url and --native-gp-workspace-key-env together.");
+  const localProcesses =
+    processUrl && processKeyEnv ? { url: processUrl, keyEnvironmentVariable: processKeyEnv } : undefined;
+  const hasNativeOptions = [
+    serverImage,
+    consoleImage,
+    releaseId,
+    consolePort,
+    gatewayCommand,
+    ...gatewayArgs,
+    modelProvider,
+    gatewayHttp,
+    localProcesses,
+  ].some((value) => value !== undefined);
+  if (hasNativeOptions && (!serverImage || !consoleImage || !releaseId || !gatewayCommand))
+    throw new ArgError(
+      "Native preview requires --native-server-image, --native-console-image, --native-release-id, and --native-gateway-command together.",
+    );
+  const nativeWorkspace =
+    serverImage && consoleImage && releaseId && gatewayCommand
+      ? {
+          serverImage,
+          consoleImage,
+          releaseId,
+          consolePort,
+          gatewayCommand,
+          gatewayArgs,
+          modelProvider,
+          gatewayHttp,
+          localProcesses,
+        }
+      : undefined;
   if (getBoolean(parsed, "dry-run")) {
     printLine(
       renderJson({
         action: "install-local",
         directory,
         profile,
-        compose: renderLocalCompose({ profile }),
+        compose: renderLocalCompose({ profile, nativeWorkspace: !!nativeWorkspace }),
+        ...(nativeWorkspace ? { nativeWorkspace, qualification: "preview-requires-human-pairing" } : {}),
         postgisBootstrapSql: LOCAL_POSTGIS_BOOTSTRAP_SQL,
         executed: false,
       }),
@@ -333,6 +405,7 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
     profile,
     httpPort: getNumber(parsed, "http-port"),
     timeoutMs: getNumber(parsed, "timeout-ms"),
+    nativeWorkspace,
   });
   printLine(renderJson(result));
 }

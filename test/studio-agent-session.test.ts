@@ -1069,6 +1069,29 @@ describe("McpClient.listAllTools pagination bounds", () => {
 });
 
 describe("createStudioAgentSession composition plane", () => {
+  it("clears the previous draft without dropping conversation when the host switches workflows", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "previous-map", generation: 4 },
+      turns: [
+        textTurn("Ready."),
+        toolTurn([
+          { id: "call-1", name: "honua_studio_set_layer_visibility", args: { layerId: "layer-1", visible: true } },
+        ]),
+        textTurn("Done."),
+      ],
+      mcp: { toolCalls: [{ result: { status: "ok" } }] },
+    });
+    await session.chat("Inspect this map.");
+    const history = [...session.messages];
+    session.attachDraft(undefined);
+    expect(session.draft).toBeUndefined();
+    expect(session.messages).toEqual(history);
+
+    await session.chat("Continue in the new workflow.");
+    expect(server.mcpCalls[0]?.arguments).toEqual({ layerId: "layer-1", visible: true });
+    expect(session.draft).toBeUndefined();
+  });
+
   const interaction = {
     id: "select-parcel-filters-chart",
     on: { ref: "layer:parcels", event: "featureSelect" },

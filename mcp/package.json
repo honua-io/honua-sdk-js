@@ -25,7 +25,8 @@
     "honua-mcp": "dist/src/index.js",
     "honua-mcp-proxy": "dist/src/proxy.js",
     "honua-zero-to-map-release": "dist/src/release/zero-to-map-cli.js",
-    "honua-agent-mcp": "dist/src/agent/cli.js"
+    "honua-agent-mcp": "dist/src/agent/cli.js",
+    "honua-agent-gateway": "dist/src/agent/native-cli.js"
   },
   "exports": {
     ".": {
