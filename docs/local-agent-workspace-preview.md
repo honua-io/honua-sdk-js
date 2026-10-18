@@ -4,12 +4,17 @@ The manifest-pinned public server and MCP package do not yet prove the native
 workspace contract. The default installer remains on its published pins. The
 Node installer API accepts an explicit `nativeWorkspace` preview configuration
 with `serverImage`, `consoleImage` (both immutable `@sha256` references), a
-`releaseId`, and an optional loopback `consolePort` (default 8081). Supply actual
+`releaseId`, an absolute host-selected `gatewayCommand` and optional `gatewayArgs`,
+and an optional loopback `consolePort` (default 8081). Supply actual
 approved preview artifacts; no preview image names are built into the SDK.
 
 The CLI exposes the same opt-in with `--native-server-image`,
-`--native-console-image`, `--native-release-id`, and optionally
-`--native-console-port`. Supply all three artifact/identity flags together.
+`--native-console-image`, `--native-release-id`, `--native-gateway-command`,
+repeatable `--native-gateway-arg`, and optionally `--native-console-port`.
+Supply all four artifact/identity/executable flags together. The single MCP
+registration uses that qualified executable and only its fixed installation
+directory; neither credential material nor an unpublished npm pin is written
+into the preview MCP configuration.
 `--dry-run` renders the proposed Compose configuration without starting Docker.
 
 The installer records a stable deployment identity in its private `.env`, starts

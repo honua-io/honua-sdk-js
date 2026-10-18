@@ -35,6 +35,9 @@ export interface LocalInstallOptions {
     readonly serverImage: string;
     readonly consoleImage: string;
     readonly releaseId: string;
+    /** Qualified host executable, never a guessed unpublished npm release. */
+    readonly gatewayCommand: string;
+    readonly gatewayArgs?: readonly string[];
     readonly consolePort?: number;
   };
 }
@@ -213,6 +216,14 @@ export async function installHonuaLocal(
 ): Promise<LocalInstallResult> {
   const native = options.nativeWorkspace;
   if (native) {
+    if (
+      !path.isAbsolute(native.gatewayCommand) ||
+      /[\r\n\0]/.test(native.gatewayCommand) ||
+      native.gatewayArgs?.some((argument) => /[\r\n\0]/.test(argument))
+    )
+      throw new Error(
+        "Native workspace preview requires an absolute host-selected gateway executable and valid arguments.",
+      );
     for (const image of [native.serverImage, native.consoleImage]) {
       if (!/^[a-zA-Z0-9][a-zA-Z0-9./:_-]*@sha256:[a-f0-9]{64}$/.test(image))
         throw new Error("Native workspace preview requires explicit immutable server and Console image digests.");
@@ -400,7 +411,9 @@ export async function installHonuaLocal(
     try {
       env.HONUA_ADMIN_KEY = credential.material;
       await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
-      const mcpConfig = renderMcpConfig(baseUrl, credential.material);
+      const mcpConfig = native
+        ? renderNativeWorkspaceMcpConfig(directory, native.gatewayCommand, native.gatewayArgs)
+        : renderMcpConfig(baseUrl, credential.material);
       await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, mcpConfig);
     } catch (error) {
       env.HONUA_ADMIN_KEY = undefined;
@@ -413,7 +426,9 @@ export async function installHonuaLocal(
     const existing = await resolveExistingAdminKey(baseUrl, env.HONUA_ADMIN_KEY, runtime.fetchFn);
     if (existing.kind === "current") {
       credential = existing.credential;
-      const mcpConfig = renderMcpConfig(baseUrl, credential.material);
+      const mcpConfig = native
+        ? renderNativeWorkspaceMcpConfig(directory, native.gatewayCommand, native.gatewayArgs)
+        : renderMcpConfig(baseUrl, credential.material);
       await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, mcpConfig);
     } else {
       credential = await reissueLegacyAdminKey({
@@ -424,6 +439,9 @@ export async function installHonuaLocal(
         mcpConfigFile,
         claudeDesktopConfigFile,
         fetchFn: runtime.fetchFn,
+        mcpConfig: native
+          ? renderNativeWorkspaceMcpConfig(directory, native.gatewayCommand, native.gatewayArgs)
+          : undefined,
       });
       reissueReason = "legacy-grants";
     }
@@ -463,6 +481,11 @@ export async function installHonuaLocal(
       "Honua workspace binding",
     );
     await waitForReady(`${baseUrl}/healthz/ready`, options.timeoutMs ?? 180_000, runtime);
+    await writeMcpConfigs(
+      mcpConfigFile,
+      claudeDesktopConfigFile,
+      renderNativeWorkspaceMcpConfig(directory, native.gatewayCommand, native.gatewayArgs),
+    );
   }
 
   return {
@@ -720,6 +743,22 @@ ${
 `;
 }
 
+export function renderNativeWorkspaceMcpConfig(
+  directory: string,
+  command: string,
+  args: readonly string[] = [],
+): string {
+  return `${JSON.stringify(
+    {
+      mcpServers: {
+        honua: { command, args: [...args], env: { HONUA_AGENT_INSTALL_DIRECTORY: path.resolve(directory) } },
+      },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
 export function renderMcpConfig(baseUrl: string, adminKey: string): string {
   return `${JSON.stringify(
     {
@@ -948,6 +987,7 @@ async function reissueLegacyAdminKey(args: {
   readonly mcpConfigFile: string;
   readonly claudeDesktopConfigFile: string;
   readonly fetchFn: typeof fetch | undefined;
+  readonly mcpConfig?: string;
 }): Promise<ProvisionedAdminCredential> {
   const { baseUrl, env, legacyId, envFile, mcpConfigFile, claudeDesktopConfigFile, fetchFn } = args;
   const originalEnvText = await readEnvText(envFile);
@@ -963,7 +1003,11 @@ async function reissueLegacyAdminKey(args: {
   try {
     env.HONUA_ADMIN_KEY = credential.material;
     await writePrivateFileAtomic(envFile, renderEnv(env, originalEnvText));
-    await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, renderMcpConfig(baseUrl, credential.material));
+    await writeMcpConfigs(
+      mcpConfigFile,
+      claudeDesktopConfigFile,
+      args.mcpConfig ?? renderMcpConfig(baseUrl, credential.material),
+    );
   } catch (error) {
     return await revokeIssuedAdminKey(root, credential.id, error, restorePrevious);
   }

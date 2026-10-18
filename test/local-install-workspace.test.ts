@@ -13,6 +13,7 @@ const nativeWorkspace = {
   serverImage: `example.invalid/server@sha256:${"a".repeat(64)}`,
   consoleImage: `example.invalid/console@sha256:${"b".repeat(64)}`,
   releaseId: "isolated-preview",
+  gatewayCommand: "/qualified/preview/honua-agent-mcp",
 };
 
 it("binds a separate verified workspace credential, preserves it on reinstall, and never lends the human key to Console", async () => {
@@ -55,6 +56,14 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
   expect(compose.services.honua.environment.AgentWorkspace__LocalHumanBridge__TenantId).toBe("public");
   expect(JSON.stringify(first)).not.toContain(keys[1]?.key);
   expect(first.workspaceQualification).toBe("preview-requires-human-pairing");
+  const mcp = JSON.parse(readFileSync(first.mcpConfigFile, "utf8"));
+  expect(mcp.mcpServers.honua).toEqual({
+    command: nativeWorkspace.gatewayCommand,
+    args: [],
+    env: { HONUA_AGENT_INSTALL_DIRECTORY: directory },
+  });
+  expect(JSON.stringify(mcp)).not.toContain(keys[0]?.key);
+  expect(JSON.stringify(mcp)).not.toContain(keys[1]?.key);
   const second = await installHonuaLocal({ directory, nativeWorkspace }, { fetchFn, run });
   expect(keys).toHaveLength(2);
   expect(second.workspaceCredential?.provisioned).toBe(false);
