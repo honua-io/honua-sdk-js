@@ -51,7 +51,7 @@ jobs:
       pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
-      prs_created: ${{ steps.release.outputs.prs_created }}
+      prs_created: ${{ steps.release-pr.outputs.prs_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       # Release identity (#1093). The release pull request must be authored by
@@ -143,6 +143,9 @@ jobs:
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # The SDK draft has no tag until the finish step seals it. The action
+          # otherwise reloads history and opens a PR inside that same gap.
+          skip-github-pull-request: true
 
       # The stranded-draft re-entry (#1337) must be able to run in a dispatch
       # where Release Please creates nothing. Without the second clause this
@@ -702,6 +705,69 @@ jobs:
             fi
           fi
 
+
+      # A later push can follow a failed cut without creating a new release.
+      # Do not let that no-release run enumerate the same tagless draft either.
+      - name: Verify release history before generating PRs
+        id: release-history
+        if: >-
+          ${{ github.event_name != 'workflow_dispatch' ||
+              inputs.finish_stranded_draft == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fail_history() {
+            echo "::error::$* Release PR generation stopped. Finish an existing SDK draft through the supported finish_stranded_draft workflow dispatch; no tag or version was changed."
+            exit 1
+          }
+          if ! version="$(gh api "repos/${GITHUB_REPOSITORY}/contents/package.json?ref=trunk" -H "Accept: application/vnd.github.raw" --jq .version)"; then
+            fail_history "Could not read the current SDK package version."
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            fail_history "The current SDK package version is invalid."
+          fi
+          tag="js-sdk-v${version}"
+          if ! tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${tag}" --jq ".[] | select(.ref == \"refs/tags/${tag}\") | .object.sha")"; then
+            fail_history "Could not verify the exact ${tag} ref."
+          fi
+          if [[ ! "$tag_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            fail_history "The current SDK version has no exact immutable ${tag} tag."
+          fi
+          if ! release_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '[.tag_name, .draft] | @tsv')"; then
+            fail_history "Could not verify the GitHub release for ${tag}."
+          fi
+          if [[ "$release_state" != "${tag}"$'\tfalse' ]]; then
+            fail_history "The exact ${tag} GitHub release is still a draft or does not match."
+          fi
+          echo "Release history is anchored by published ${tag} (${tag_sha})."
+
+      # Default success() semantics keep both steps out of a failed finish
+      # path, while allowing ordinary runs whose publish step was skipped.
+      # Recovery only finishes its selected draft; it never generates a PR.
+      - name: Mint fresh release PR automation token
+        id: release-pr-token
+        if: >-
+          ${{ steps.creds.outputs.available == 'true' &&
+              (github.event_name != 'workflow_dispatch' ||
+               inputs.finish_stranded_draft == '') }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: honua-io
+
+      - name: Generate release PR after publication handling
+        id: release-pr
+        if: >-
+          ${{ github.event_name != 'workflow_dispatch' ||
+              inputs.finish_stranded_draft == '' }}
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        with:
+          token: ${{ steps.release-pr-token.outputs.token || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
 
       - name: Retain sealed-ancestor recovery verification
         if: always() && inputs.recover_sealed_source != ''
