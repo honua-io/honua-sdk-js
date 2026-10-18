@@ -288,7 +288,7 @@ runtime.dispose();
 | --- | --- | --- |
 | `maplibreRenderer(peer, opts)` | `RendererAdapter<"maplibre", MapLibreRendererMap, MapLibreRendererOptions>` | Caller-injected connection adapter. Reuses automatic feature/vector/PMTiles/raster planning, exposes first-frame readiness/refresh/diagnostics, and never enters the root runtime graph as a value import. |
 | `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | Inline-package load entry point. Throws `HonuaMapPackageError` for binding failures under `sourceErrorPolicy: "fail-fast"`; under the default `"tolerant"` policy a single per-source binding failure does not abort the load — see *Tolerant binding* below. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; consumers can broadcast them through `runtime.reportSourceError(sourceId, error)` to convert query-time rejections into the canonical `source-error` event. |
-| `fetchMapPackage(idOrLocator, opts)` | `Promise<FetchMapPackageResult>` | Fetches a hosted package through `HonuaClient.pipelineFetch`, validates it, resolves style refs when a resolver is supplied, and uses ETag / Last-Modified validators from the server when available. |
+| `fetchMapPackage(idOrLocator, opts)` | `Promise<FetchMapPackageResult>` | Fetches a hosted package through `HonuaClient.pipelineFetch`, validates it, resolves live style refs through the default OGC resolver or a supplied resolver, and uses ETag / Last-Modified validators from the server when available. |
 | `loadMapPackageFromId(idOrLocator, map, opts)` | `Promise<LoadMapPackageFromIdResult>` | Builder-style helper: fetches a hosted package, then delegates to `loadMapPackage`. The result includes the runtime plus fetch diagnostics/cache state. |
 | `watchMapPackage(idOrLocator, opts)` | `MapPackageWatchHandle` | Opt-in polling watcher with `dispose()` and `refresh()`. It reuses `fetchMapPackage`, reports structural updates that require full style reload, and can apply updates to an existing `HonuaMapRuntime`. |
 | `validateMapPackage(pkg, opts)` | `ValidateMapPackageResult` | Returns typed diagnostics for format/version, missing sources, unsupported protocols, stale/expired packages, and style-ref target mismatches. |
@@ -317,7 +317,7 @@ runtime.dispose();
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 interface LoadMapPackageOptions {
   client: HonuaClient;
-  resolveStyleRef?: (styleId: string, presetId?: string) => Promise<HonuaStyleRefBody>;
+  resolveStyleRef?: (styleId: string, presetId?: string, layerBindings?: readonly HonuaStyleRefLayerBinding[]) => Promise<HonuaStyleRefBody>;
   resolveTheme?: (themeId: string) => Promise<HonuaMapPackageThemeSpec>;
   resolveSource?: SourceResolver;          // forwarded to createDataset for tiles / MapLibre-native sources
   skipCompatibilityCheck?: boolean;        // tests / conformance fixtures
@@ -665,6 +665,33 @@ Additional contract:
 
 Theme application recurses into nested arrays / objects inside
 `paint` / `layout` so expression literals can reference theme tokens.
+
+### Shared catalog styles and map-local snapshots
+
+A reference without `body` resolves the current shared catalog style. When the
+catalog and map use different render-layer IDs, persist `layerBindings` on the
+reference. Each binding names the exact `styleLayerId`, `targetLayerId` and
+expected catalog `layerType`. The default OGC resolver checks the selected
+catalog layer and maps its appearance onto the named map layer. Missing,
+duplicate or incompatible layers fail validation rather than dropping styling.
+
+An optional `properties` array selects `paint`, `layout`, `filter`, `minzoom`,
+`maxzoom`, `metadata` or `visibility`. Without it, all appearance properties are
+selected. Different render types may share only filter, zoom bounds and
+visibility, allowing a polygon's outline to follow its fill without acquiring
+fill paint properties. Source identity and Honua composition ownership remain
+with the map. A hidden map layer stays hidden even if its shared style is visible.
+
+Custom resolvers receive bindings as their third argument and must return exactly
+the target-layer keys. An inline `body` already uses those target keys and is a
+snapshot; it is never fetched or remapped again. Save a map-local edit in the map
+package. Update a reusable style through the shared style catalog after checking
+its affected consumers and the caller's authority.
+
+The fetch cache retains unresolved references. A package `304 Not Modified`
+still resolves live shared styles: changed appearance returns cache status
+`refreshed`, while unchanged resolved content returns `not-modified`. A failed
+style lookup reports an error instead of substituting previously cached styling.
 
 ## Operational API
 

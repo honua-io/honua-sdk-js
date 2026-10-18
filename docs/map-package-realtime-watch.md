@@ -11,6 +11,12 @@ channel when one is configured by the caller or advertised by the package. The
 polling watcher remains the fallback path and is still used when no realtime
 channel is available.
 
+On each fetch or refresh, live shared style references are resolved again even
+if the package endpoint returns `304 Not Modified`. A changed resolved style
+counts as a package update for the watcher. Inline style bodies remain snapshots.
+This does not imply that every shared-style edit emits a realtime notification;
+use polling or explicit refresh when the server does not advertise one.
+
 ## Client Usage
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
