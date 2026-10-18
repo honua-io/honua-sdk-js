@@ -150,6 +150,19 @@ describe("Imagery and Terrain S1 journey", () => {
       const request = new Request(input, init);
       requestedUrls.push(request.url);
       const url = new URL(request.url);
+      if (url.pathname === "/honua/stac" || url.pathname === "/honua/stac/") {
+        return new Response(
+          JSON.stringify({
+            conformsTo: [
+              "https://api.stacspec.org/v1.0.0/item-search",
+              "https://api.stacspec.org/v1.0.0/item-search#filter",
+              "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
+            ],
+            links: [{ rel: "search", href: "/honua/stac/search", method: "GET" }],
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      }
       if (url.pathname === "/honua/stac/search") {
         return new Response(
           JSON.stringify({
