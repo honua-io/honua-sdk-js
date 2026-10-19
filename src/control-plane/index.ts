@@ -107,3 +107,5 @@ export type {
   HonuaUpdateHostedMapRequest,
   HonuaWorkspaceSummary,
 } from "./types.js";
+
+export * from "./dataset-import/index.js";

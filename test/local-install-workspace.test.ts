@@ -79,6 +79,26 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
   expect(env).toContain("HONUA_AGENT_PRINCIPAL_ID=apikey:api-key:22222222-2222-4222-8222-222222222222");
   const compose = parse(readFileSync(first.composeFile, "utf8"));
   expect(compose.services.honua.environment.Studio__EndUserAuthorization__Enabled).toBe("true");
+  const importPrefix = "AgentWorkspace__DatasetImport__LocalStorage__";
+  const importSettings = Object.fromEntries(
+    Object.entries(compose.services.honua.environment)
+      .filter(([key]) => key.startsWith(importPrefix))
+      .map(([key, value]) => [key.slice(importPrefix.length), value]),
+  );
+  expect(importSettings).toEqual({
+    Enabled: "true",
+    RootDirectory: "/var/lib/honua/storage/dataset-import",
+    DomainId: "imports-${HONUA_AGENT_DEPLOYMENT_ID}",
+    GlobalBytes: "${HONUA_IMPORT_GLOBAL_BYTES:-34359738368}",
+    TenantBytes: "${HONUA_IMPORT_TENANT_BYTES:-25769803776}",
+    OwnerBytes: "${HONUA_IMPORT_OWNER_BYTES:-17179869184}",
+    MaximumObjects: "256",
+    JournalCapacity: "256",
+    MaximumScratchBytes: "${HONUA_IMPORT_MAX_SCRATCH_BYTES:-8589934592}",
+    MaximumFileBytes: "${HONUA_IMPORT_MAX_FILE_BYTES:-4294967296}",
+  });
+  expect(compose.services.honua.volumes).toContain("honua_storage:/var/lib/honua/storage");
+  expect(Object.keys(compose.services.console.environment).some((key) => key.startsWith(importPrefix))).toBe(false);
   expect(compose.services.console.environment.Studio__EmbedJsStudio).toBe("true");
   expect(compose.services.console.environment.HONUA_AGENT_API_KEY).toBe("${HONUA_AGENT_API_KEY:-}");
   expect(compose.services.console.environment.HONUA_AGENT_GATEWAY_URL).toBe("${HONUA_AGENT_GATEWAY_URL:-}");
@@ -119,6 +139,7 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
   expect(JSON.stringify(mcp)).not.toContain(keys[1]?.key);
   // Reconcile the exact prior generated template; unrelated user edits remain protected.
   const previousCompose = readFileSync(first.composeFile, "utf8")
+    .replace(/^ {6}AgentWorkspace__DatasetImport__LocalStorage__.*\n/gm, "")
     .replaceAll('    extra_hosts: ["host.docker.internal:host-gateway"]\n', "")
     .replace(
       "      LocalProcesses__WorkspaceUrl: ${HONUA_GP_WORKSPACE_URL:-}\n      HONUA_GP_WORKSPACE_KEY: ${HONUA_GP_WORKSPACE_KEY:-}\n",
@@ -129,6 +150,9 @@ it("binds a separate verified workspace credential, preserves it on reinstall, a
   expect(keys).toHaveLength(2);
   expect(second.workspaceCredential?.provisioned).toBe(false);
   expect(readFileSync(first.envFile, "utf8")).toBe(env);
+  expect(parse(readFileSync(second.composeFile, "utf8")).services.honua.environment).toMatchObject(
+    compose.services.honua.environment,
+  );
   const humanBridge = env
     .split("\n")
     .find((line) => line.startsWith("HONUA_LOCAL_HUMAN_BRIDGE_KEY="))!

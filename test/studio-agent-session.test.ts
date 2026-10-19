@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { setImmediate as nextEventLoopTurn } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -1373,5 +1374,220 @@ describe("createStudioAgentSession failure and cancellation", () => {
     expect(chatEvents.length).toBeGreaterThan(4);
     expect(toolResults).toHaveLength(1);
     expect(toolResults[0]).toMatchObject({ type: "toolResult", result: { toolName: "setViewport", ok: true } });
+  });
+});
+
+describe("bounded workflow view switching", () => {
+  const selector = "honua_client_select_workflow_view";
+  const setupTool = descriptor("honua_studio_add_layer", COMPOSITION);
+  const workflowTool = descriptor("honua_workflow_package", { family: "honua.workspace.canonical", view: "analyze" });
+
+  function workflowServer(turns: readonly ScriptedTurn[] = []) {
+    const server = createScriptedServer({ turns });
+    const requests: Array<{ method: string; view?: string; session: string | null; authorization: string | null }> = [];
+    let ignoredView = false;
+    let tokenVersion = 0;
+    let delay: (() => Promise<void>) | undefined;
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/mcp")) {
+        const envelope = JSON.parse(String(init?.body)) as { id: string; method: string; params?: { view?: string } };
+        const headers = new Headers(init?.headers);
+        requests.push({
+          method: envelope.method,
+          view: envelope.params?.view,
+          session: headers.get("mcp-session-id"),
+          authorization: headers.get("authorization"),
+        });
+        if (envelope.method === "tools/list") {
+          const view = ignoredView ? "setup" : (envelope.params?.view ?? "setup");
+          if (view === "analyze") await delay?.();
+          return jsonResponse({
+            jsonrpc: "2.0",
+            id: envelope.id,
+            result: { tools: view === "analyze" ? [workflowTool] : [setupTool], _meta: { view } },
+          });
+        }
+      }
+      return server.fetchImpl(input, init);
+    }) as typeof fetch;
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl,
+      auth: { getAccessToken: async () => `test-token-${++tokenVersion}` },
+      studioTools: { families: ["honua.studio.composition", "honua.workspace.canonical"], required: [] },
+    });
+    return {
+      server,
+      session,
+      requests,
+      ignoreView: () => {
+        ignoredView = true;
+      },
+      delayAnalysis: (wait: () => Promise<void>) => {
+        delay = wait;
+      },
+    };
+  }
+
+  it("keeps one session, conversation and draft while replacing the discovered tools", async () => {
+    const { session, requests } = workflowServer([textTurn("Map ready")]);
+    await session.chat("Build my map");
+    session.attachDraft({ draftId: "draft-1", generation: 3 });
+    const history = [...session.messages];
+    expect(session.tools.map((tool) => tool.name)).toContain(selector);
+    await session.selectWorkflowView("analyze");
+    expect(session.compositionTools).toEqual(["honua_workflow_package"]);
+    await session.selectWorkflowView("setup");
+    expect(session.compositionTools).toEqual(["honua_studio_add_layer"]);
+    expect(session.messages).toEqual(history);
+    expect(session.draft).toEqual({ draftId: "draft-1", generation: 3 });
+    expect(requests.filter((request) => request.method === "initialize")).toHaveLength(1);
+    expect(new Set(requests.map((request) => request.authorization)).size).toBe(requests.length);
+    expect(requests.every((request) => request.authorization?.startsWith("Bearer test-token-"))).toBe(true);
+    expect(requests.filter((request) => request.method === "tools/list").map((request) => request.session)).toEqual([
+      "session-1",
+      "session-1",
+      "session-1",
+    ]);
+    expect(requests.filter((request) => request.method === "tools/list").map((request) => request.view)).toEqual([
+      undefined,
+      "analyze",
+      "setup",
+    ]);
+  });
+
+  it("lets the model switch then replan without executing a stale mutation batch", async () => {
+    const { session, server } = workflowServer([
+      toolTurn([
+        { id: "switch", name: selector, args: { view: "analyze" } },
+        { id: "stale", name: "honua_studio_add_layer", args: { draftId: "draft-1" } },
+      ]),
+      toolTurn([{ id: "workflow", name: "honua_workflow_package", args: { action: "read" } }]),
+      textTurn("Workflow ready"),
+    ]);
+    const result = await session.chat("Now inspect my GIS workflow");
+    expect(result.status).toBe("completed");
+    expect(result.toolCalls.map((call) => call.ok)).toEqual([true, false, true]);
+    expect(result.toolCalls[1]?.errorMessage).toContain("workflow tool view changed");
+    expect(server.mcpCalls.map((call) => call.name)).toEqual(["honua_workflow_package"]);
+    expect(server.chatRequests[1]?.tools?.map((tool) => tool.name)).toContain("honua_workflow_package");
+    expect(server.chatRequests[1]?.tools?.map((tool) => tool.name)).not.toContain("honua_studio_add_layer");
+  });
+
+  it("clears the old catalog when the server ignores selection and rejects full without a request", async () => {
+    const { session, requests, ignoreView } = workflowServer();
+    await session.refreshTools();
+    const before = requests.length;
+    await expect(session.selectWorkflowView("full")).rejects.toThrow("bounded");
+    expect(requests).toHaveLength(before);
+    ignoreView();
+    const failed = await session.selectWorkflowView("analyze");
+    expect(failed.errorMessage).toContain("did not confirm");
+    expect(session.compositionTools).toEqual([]);
+    expect(session.tools.map((tool) => tool.name)).toEqual([selector]);
+  });
+
+  it("rejects a queued call when its workflow view changes before dispatch even if the tool remains available", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    let verifiedSecond!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const dispatchStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const secondTranscript = new Promise<void>((resolve) => {
+      verifiedSecond = resolve;
+    });
+    const server = createScriptedServer({
+      turns: [
+        toolTurn([{ id: "first", name: setupTool.name, args: { marker: "already-running" } }]),
+        toolTurn([{ id: "stale", name: setupTool.name, args: { marker: "planned-before-switch" } }]),
+      ],
+    });
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/mcp")) {
+        const request = JSON.parse(String(init?.body));
+        if (request.method === "tools/list") {
+          const view = request.params?.view ?? "setup";
+          return jsonResponse({
+            jsonrpc: "2.0",
+            id: request.id,
+            result: { tools: [descriptor(setupTool.name, { ...COMPOSITION, view })], _meta: { view } },
+          });
+        }
+        if (request.method === "tools/call" && request.params?.arguments?.marker === "already-running") {
+          started();
+          await blocked;
+        }
+      }
+      return server.fetchImpl(input, init);
+    }) as typeof fetch;
+    let transcripts = 0;
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl,
+      maxToolRounds: 1,
+      transcriptVerifier: {
+        verify: async () => {
+          if (++transcripts === 2) verifiedSecond();
+          return { ok: true as const, transcriptDigest: "fixture-digest" };
+        },
+      },
+    });
+    const first = session.chat("Start the first command.");
+    await dispatchStarted;
+    const stale = session.chat("Plan another command in the current view.");
+    try {
+      await secondTranscript;
+      // Drain the verified stream's promise continuations into the blocked
+      // dispatch queue. No timer or network race controls this interleaving.
+      await nextEventLoopTurn();
+      await session.selectWorkflowView("analyze");
+      expect(session.compositionTools).toContain(setupTool.name);
+      release();
+      const [runningResult, staleResult] = await Promise.all([first, stale]);
+      expect(runningResult.toolCalls[0]?.ok).toBe(true);
+      expect(staleResult.toolCalls[0]).toMatchObject({ ok: false, errorCode: "failed_precondition" });
+      expect(staleResult.toolCalls[0]?.errorMessage).toContain("workflow tool view changed");
+      expect(server.mcpCalls.map((call) => call.arguments.marker)).toEqual(["already-running"]);
+    } finally {
+      release();
+      await Promise.allSettled([first, stale]);
+    }
+  });
+
+  it("does not let a slower prior view overwrite the newest selection", async () => {
+    const { session, delayAnalysis } = workflowServer();
+    await session.refreshTools();
+    let release: (() => void) | undefined;
+    let entered: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    delayAnalysis(async () => {
+      entered?.();
+      await gate;
+    });
+    const stale = session.selectWorkflowView("analyze");
+    await started;
+    await session.selectWorkflowView("setup");
+    release?.();
+    await stale;
+    expect(session.compositionTools).toEqual(["honua_studio_add_layer"]);
+  });
+
+  it("still applies the host's tool-family policy in the selected view", async () => {
+    const server = createScriptedServer({ toolPages: [{ tools: [workflowTool], _meta: { view: "analyze" } }] });
+    const session = createStudioAgentSession({ ...VERIFIED_SESSION, baseUrl: "/api", fetchImpl: server.fetchImpl });
+    const report = await session.selectWorkflowView("analyze");
+    expect(report.routed).toEqual([]);
+    expect(session.compositionTools).toEqual([]);
   });
 });
