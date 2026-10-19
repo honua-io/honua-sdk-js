@@ -734,7 +734,7 @@ jobs:
       - name: Mint release automation token
         id: app-token
         if: steps.creds.outputs.available == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
@@ -931,13 +931,13 @@ jobs:
             sleep 10
           done
 
-      - name: Merge validated regeneration PR
+      - name: Wait for exact regeneration validation
         if: needs.regenerate.outputs.changed == 'true'
-        timeout-minutes: 60
+        timeout-minutes: 120
         env:
-          # The merge itself is the operation the trunk ruleset judges, so it
-          # runs under the same bot App identity that opened the pull request.
-          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          # Read-only validation can outlive the App installation token minted
+          # before publication. Keep that short-lived identity out of this wait.
+          GH_TOKEN: ${{ github.token }}
           GENERATED: ${{ steps.publish.outputs.generated }}
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
           STRICT_CI_RUN_ID: ${{ steps.strict.outputs.ci_run_id }}
@@ -984,6 +984,32 @@ jobs:
             sleep 10
           done
 
+      - name: Refresh release merge identity
+        id: merge-token
+        if: needs.regenerate.outputs.changed == 'true' && steps.creds.outputs.available == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: honua-io
+
+      - name: Refresh merge checkout credentials
+        if: needs.regenerate.outputs.changed == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ steps.merge-token.outputs.token || github.token }}
+
+      - name: Merge validated regeneration PR
+        if: needs.regenerate.outputs.changed == 'true'
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ steps.merge-token.outputs.token || github.token }}
+          GENERATED: ${{ steps.publish.outputs.generated }}
+          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+        run: |
+          set -euo pipefail
           # GENERATED passed the commit-subject and changed-path allowlists before
           # publication. Rebind the still-open same-repository PR and its remote
           # branch to that immutable approved commit after the bounded check wait.

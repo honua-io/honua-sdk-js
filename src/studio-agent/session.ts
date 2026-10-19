@@ -280,6 +280,12 @@ export interface StudioAgentSession {
    */
   refreshTools(): Promise<StudioToolDiscoveryReport>;
   /**
+   * Selects a bounded server workflow view on the existing MCP session. Clears
+   * prior descriptors before discovery; failure cannot retain old routing.
+   * Conversation, draft binding, credentials, and MCP session are preserved.
+   */
+  selectWorkflowView(view: string): Promise<StudioToolDiscoveryReport>;
+  /**
    * Drops the negotiated MCP session and invalidates the tool catalog, so the
    * next turn re-handshakes and re-discovers. A reconnected principal may have
    * a different catalog; nothing derived from the old one survives.
@@ -298,6 +304,21 @@ export interface StudioAgentSession {
   close(): void;
 }
 
+const SELECT_WORKFLOW_VIEW = "honua_client_select_workflow_view";
+const WORKFLOW_VIEW_TOOL: StudioAiToolDefinition = {
+  name: SELECT_WORKFLOW_VIEW,
+  description:
+    "Select a bounded Honua workflow tool view on this same connection and conversation. " +
+    "Use honua_list_capabilities to discover server workflowViews and their purposes. " +
+    "This changes tool discovery only, grants no authority, and runs no server mutation. " +
+    "After switching, plan the next action using the refreshed tools in the next round.",
+  inputSchema: {
+    type: "object",
+    properties: { view: { type: "string", minLength: 1, maxLength: 64 } },
+    required: ["view"],
+    additionalProperties: false,
+  },
+};
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
 /** Wall-clock bound on one `tools/list` discovery pass. See `toolDiscoveryTimeoutMs`. */
 const DEFAULT_TOOL_DISCOVERY_TIMEOUT_MS = 15_000;
@@ -332,6 +353,9 @@ class StudioAgentSessionImpl implements StudioAgentSession {
    * catalog survives.
    */
   #discoveryGeneration = 0;
+  #selectedWorkflowView: string | undefined;
+  #workflowSelectionGeneration = 0;
+  #canSelectWorkflowView = false;
   /** A `tools/list_changed` refresh is running; see `#refreshFromNotification`. */
   #toolRefreshInFlight = false;
   /** A notification arrived mid-refresh and owes us one trailing walk. */
@@ -414,6 +438,23 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return this.#ensureToolCatalog();
   }
 
+  public selectWorkflowView(view: string): Promise<StudioToolDiscoveryReport> {
+    if (!/^[a-z][a-z0-9-]{0,63}$/.test(view) || view === "full") {
+      return Promise.reject(
+        new Error("Select a bounded server workflow view; full catalog discovery is not supported here."),
+      );
+    }
+    if (this.#options.disableToolDiscovery) {
+      return Promise.reject(new Error("Workflow discovery is disabled for this session."));
+    }
+    this.#selectedWorkflowView = view;
+    this.#workflowSelectionGeneration += 1;
+    this.#catalog = StudioToolCatalog.empty();
+    this.#tools = this.#canSelectWorkflowView ? [...this.#runtimeTools, WORKFLOW_VIEW_TOOL] : this.#runtimeTools;
+    this.#discoveryReport = undefined;
+    return this.refreshTools();
+  }
+
   public close(): void {
     this.#toolWatchClosed = true;
     // The stream reference is kept, not dropped: a consumer reading
@@ -436,6 +477,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     this.#discoveryGeneration += 1;
     this.#discovery = undefined;
     this.#catalog = StudioToolCatalog.empty();
+    this.#canSelectWorkflowView = false;
     this.#tools = this.#runtimeTools;
   }
 
@@ -520,12 +562,23 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       return report;
     }
     this.#catalog = catalog;
+    this.#canSelectWorkflowView =
+      typeof listing.metadata?.view === "string" &&
+      listing.metadata.view !== "full" &&
+      !this.#runtimeToolNames.has(SELECT_WORKFLOW_VIEW);
     // Runtime tools first and unconditionally; a discovered descriptor sharing a
     // runtime verb's name is dropped rather than merged, so a server can never
     // shadow a local runtime tool the session executes itself.
     this.#tools = [
       ...this.#runtimeTools,
-      ...catalog.toolDefinitions().filter((tool) => !this.#runtimeToolNames.has(tool.name)),
+      ...(this.#canSelectWorkflowView ? [WORKFLOW_VIEW_TOOL] : []),
+      ...catalog
+        .toolDefinitions()
+        .filter(
+          (tool) =>
+            !this.#runtimeToolNames.has(tool.name) &&
+            !(this.#canSelectWorkflowView && tool.name === SELECT_WORKFLOW_VIEW),
+        ),
     ];
     const published = this.#publishDiscovery(report);
     // Only now: the subscription needs the `Mcp-Session-Id` this pass's
@@ -611,7 +664,15 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   async #listAllToolsBounded(): Promise<McpToolListing> {
     const timeoutMs = this.#options.toolDiscoveryTimeoutMs ?? DEFAULT_TOOL_DISCOVERY_TIMEOUT_MS;
     const client = this.#ensureMcpClient();
-    if (!(timeoutMs > 0)) return client.listAllTools();
+    const view = this.#selectedWorkflowView;
+    const selection = view === undefined ? {} : { view };
+    const validateView = (listing: McpToolListing): McpToolListing => {
+      if (view !== undefined && listing.metadata?.view !== view) {
+        throw new Error("The server did not confirm the requested workflow view.");
+      }
+      return listing;
+    };
+    if (!(timeoutMs > 0)) return validateView(await client.listAllTools(selection));
 
     const controller = new AbortController();
     let timedOut = false;
@@ -620,7 +681,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       controller.abort();
     }, timeoutMs);
     try {
-      return await client.listAllTools({ signal: controller.signal });
+      return validateView(await client.listAllTools({ ...selection, signal: controller.signal }));
     } catch (error) {
       if (timedOut) throw new Error(`tools/list did not respond within ${timeoutMs}ms.`);
       throw error;
@@ -705,6 +766,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       }
       rounds += 1;
 
+      const workflowGeneration = this.#workflowSelectionGeneration;
       const request = this.#buildRequest(system, chatOptions.toolChoice);
       const roundResult = await this.#streamRound(request, signal, events, assistantText);
       if (roundResult.stopReason) stopReason = roundResult.stopReason;
@@ -724,14 +786,22 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 
       let draftConflict = false;
       for (const pending of roundResult.pending) {
-        const dispatch = draftConflict
-          ? reject(
-              pending,
-              "unknown",
-              "A previous command encountered a draft conflict. Review the refreshed draft before continuing this batch.",
-              "failed_precondition",
-            )
-          : await this.#enqueue(() => this.#dispatch(pending));
+        const dispatch =
+          workflowGeneration !== this.#workflowSelectionGeneration
+            ? reject(
+                pending,
+                "unknown",
+                "The workflow tool view changed. Plan again using the refreshed tools.",
+                "failed_precondition",
+              )
+            : draftConflict
+              ? reject(
+                  pending,
+                  "unknown",
+                  "A previous command encountered a draft conflict. Review the refreshed draft before continuing this batch.",
+                  "failed_precondition",
+                )
+              : await this.#enqueue(() => this.#dispatch(pending, workflowGeneration));
         if (!dispatch.ok && dispatch.errorCode === "failed_precondition") draftConflict = true;
         dispatches.push(dispatch);
         this.#options.onEvent?.({ type: "toolResult", result: dispatch });
@@ -962,11 +1032,38 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return run;
   }
 
-  async #dispatch(call: PendingToolCall): Promise<StudioAgentToolDispatch> {
+  async #dispatch(call: PendingToolCall, workflowGeneration: number): Promise<StudioAgentToolDispatch> {
+    if (workflowGeneration !== this.#workflowSelectionGeneration) {
+      return reject(
+        call,
+        "unknown",
+        "The workflow tool view changed. Plan again using the refreshed tools.",
+        "failed_precondition",
+      );
+    }
     // Runtime first, matching the merge order in `#discoverTools`: a local
     // runtime verb is never shadowed by a server descriptor of the same name.
     if (this.#runtimeToolNames.has(call.toolName)) {
       return this.#dispatchRuntime(call);
+    }
+    if (this.#canSelectWorkflowView && call.toolName === SELECT_WORKFLOW_VIEW) {
+      const args = asRecord(call.args);
+      if (typeof args.view !== "string" || Object.keys(args).some((key) => key !== "view")) {
+        return reject(call, "runtime", "Provide only the bounded workflow view name.");
+      }
+      try {
+        const report = await this.selectWorkflowView(args.view);
+        if (report.errorMessage) return reject(call, "runtime", report.errorMessage);
+        return {
+          toolCallId: call.toolCallId,
+          toolName: call.toolName,
+          plane: "runtime",
+          ok: true,
+          content: stringify({ status: "ok", view: args.view, tools: report.routed }),
+        };
+      } catch (error) {
+        return reject(call, "runtime", errorMessage(error));
+      }
     }
     // The discovered, policy-approved catalog is the ONLY routing authority for
     // the composition plane. A `honua_studio_`-prefixed name the server did not

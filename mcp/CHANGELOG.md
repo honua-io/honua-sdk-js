@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.2.5](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.4...mcp-server-v0.2.5) (2026-10-19)
+
+
+### Bug Fixes
+
+* **mcp:** advance generated client pin to published 0.2.4 ([#2171](https://github.com/honua-io/honua-sdk-js/issues/2171)) ([8103be6](https://github.com/honua-io/honua-sdk-js/commit/8103be65aa8fbafe9853c3cd7d5be41babdef53e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.2.4](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.3...mcp-server-v0.2.4) (2026-10-19)
+
+
+### Features
+
+* **agent:** bind cloud operations to verified runtime backends ([#2144](https://github.com/honua-io/honua-sdk-js/issues/2144)) ([f3fcb90](https://github.com/honua-io/honua-sdk-js/commit/f3fcb9061ce3355fa06e567c0d173e8d38a1c098))
+* **agent:** integrate native workspace gateway and private workflows ([#2141](https://github.com/honua-io/honua-sdk-js/issues/2141)) ([afa8548](https://github.com/honua-io/honua-sdk-js/commit/afa85488c12a0239e89e2d0bc8a442cb76acc0c1))
+* **mcp:** add persistent local Honua agent gateway ([#2138](https://github.com/honua-io/honua-sdk-js/issues/2138)) ([160a17d](https://github.com/honua-io/honua-sdk-js/commit/160a17d50a5e2bfd8350357e30cae5fb1e240578))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
 ## [0.2.3](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.2...mcp-server-v0.2.3) (2026-10-14)
 
 

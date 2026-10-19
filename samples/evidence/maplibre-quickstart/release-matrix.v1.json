@@ -6,8 +6,8 @@
   "lane": "release-matrix-browser",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "32ab864720d3cd2e3a00827ed942b1c2ebdd8d44",
-  "sourceDigest": "dd469d0cf10fa3b6dcd0d5394a11d77c74078043b0f60885c8b3e3459f5a1e89",
+  "sourceRevision": "1b098478f710861a5b861bcd7d4598601d30fcb6",
+  "sourceDigest": "f3868926a06a62ee52fcbd69e4b3c881766033438148338e49a14c2f677fd067",
   "matrix": {
     "envName": "HONUA_FIRST_MAP_RELEASE_MATRIX",
     "envValue": "true",
@@ -21,7 +21,7 @@
         "status": "passed",
         "tests": 1,
         "failed": 0,
-        "durationMs": 4816
+        "durationMs": 5760
       },
       {
         "name": "firefox",
@@ -30,7 +30,7 @@
         "status": "passed",
         "tests": 1,
         "failed": 0,
-        "durationMs": 7707
+        "durationMs": 8391
       },
       {
         "name": "webkit",
@@ -39,7 +39,7 @@
         "status": "passed",
         "tests": 1,
         "failed": 0,
-        "durationMs": 9097
+        "durationMs": 11672
       }
     ]
   },
@@ -53,16 +53,16 @@
   "run": {
     "repository": "honua-io/honua-sdk-js",
     "workflow": "First Map Release Smoke",
-    "runId": "38620800643",
+    "runId": "39283120496",
     "runAttempt": 1,
     "event": "workflow_dispatch",
-    "ref": "refs/tags/js-sdk-v0.2.3",
-    "commit": "32ab864720d3cd2e3a00827ed942b1c2ebdd8d44"
+    "ref": "refs/tags/js-sdk-v0.2.4",
+    "commit": "1b098478f710861a5b861bcd7d4598601d30fcb6"
   },
   "report": {
     "kind": "playwright-release-matrix-report",
-    "bytes": 34772,
-    "sha256": "db2cdba06808d39b49b98362200e0feed1daa885f620d5f2bde355d44cb4ecab",
+    "bytes": 34609,
+    "sha256": "ece9bb44afec11a0e6692ba3f8ec62387bfaf0148a14640432bd8fa63cc6e4c9",
     "workflowArtifactName": "honua-sdk-first-map-release-matrix"
   },
   "producer": {
@@ -71,6 +71,6 @@
     "path": "scripts/seal-release-matrix-receipt.mjs",
     "sha256": "23d667cf2e39223d5e52913370498ad928a57d170a1793176a86e7784006e07a"
   },
-  "observedAt": "2026-10-14T19:08:37.399Z",
-  "expiresAt": "2026-10-21T19:08:37.399Z"
+  "observedAt": "2026-10-19T16:10:48.852Z",
+  "expiresAt": "2026-10-26T16:10:48.852Z"
 }
