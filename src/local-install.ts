@@ -224,10 +224,10 @@ export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";
  * Published `@honua/mcp-server` version whose `@honua/sdk-js` peer range admits
  * this package's own version, so the pinned pair co-installs with no flags.
  */
-export const LOCAL_INSTALL_MCP_PACKAGE_VERSION = "0.1.19";
+export const LOCAL_INSTALL_MCP_PACKAGE_VERSION = "0.2.4";
 /** Registry tarball integrity for {@link LOCAL_INSTALL_MCP_PACKAGE_VERSION}. */
 export const LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY =
-  "sha512-8a97LvOY2iBgnei7/TVf7KNxCTGB78sd4lRquIcvIqO0tQOMxAiWWYRcrSfPXmE6ZK+ltS8td0QPHWpiOpHLpg==";
+  "sha512-i0uEgIl+fGNXe38gW09I+c9oNT2W/W89WQBUywmJ8G3ulxWW1KPO3aWoF2R//2cm82aFbbpU9xRZEf9AR67LuQ==";
 export const LOCAL_INSTALL_MCP_PACKAGE = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`;
 
 function isAdminReleaseContractCompatible(): boolean {
