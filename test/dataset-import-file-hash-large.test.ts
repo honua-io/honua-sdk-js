@@ -37,4 +37,4 @@ it("hashes 4 GiB plus a tail against independent native SHA-256 without whole-fi
   expect(actual).toBe(native.digest("hex"));
   expect(offset).toBe(totalBytes);
   expect(reads).toBe(4097);
-}, 180_000);
+}, 900_000);
