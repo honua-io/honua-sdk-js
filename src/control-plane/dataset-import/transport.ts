@@ -19,7 +19,8 @@ export class DatasetImportWorkspaceTransport {
     this.base = `${base.href.replace(/\/$/, "")}/api/v1/agent/workspaces/${encodeURIComponent(options.workspaceId)}`;
     this.workspaceId = options.workspaceId;
     this.originatingTurnId = options.originatingTurnId;
-    this.fetcher = options.fetch ?? globalThis.fetch;
+    // Native browser fetch rejects a transport instance as its receiver.
+    this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.headers = options.headers;
   }
 

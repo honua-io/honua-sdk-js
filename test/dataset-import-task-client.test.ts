@@ -33,6 +33,19 @@ const createRequest = (): CreateDatasetImportTask => ({
 });
 
 describe("canonical import task client", () => {
+  it("invokes the default browser fetch with its global receiver", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async function (this: typeof globalThis) {
+      expect(this).toBe(globalThis);
+      return new Response(null, { status: 404 });
+    });
+    try {
+      expect(await new DatasetImportTaskClient(options).readTask(reference)).toBeNull();
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+
   it("pins scope and submitted fields before awaiting fresh authentication", async () => {
     let release!: (headers: HeadersInit) => void;
     const authentication = new Promise<HeadersInit>((resolve) => {
