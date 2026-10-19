@@ -16,7 +16,7 @@
  *  - It is a `node_modules`-heavy, transport-and-protocol-agnostic kit built
  *    around `Server`/`Client` classes, stdio transports, and a request-router
  *    abstraction sized for building an MCP SERVER or a general-purpose agent
- *    host — this is neither. It only ever issues three method calls against
+ *    host — this is neither. It only ever issues four method calls against
  *    one already-known HTTP endpoint.
  *  - It pulls in `zod` (schema validation this surface does not otherwise
  *    need) and a `content-type`/`raw-body`/`eventsource-parser` chain sized
@@ -25,10 +25,10 @@
  *  - This surface already hand-rolls an equally protocol-sensitive streaming
  *    client (`./sse-transport.ts` + `./sse-parser.ts`) rather than reach for
  *    a dependency — the same call applies here, and the surface is smaller
- *    (three JSON-RPC methods, no streaming to parse in the common case).
+ *    (four JSON-RPC methods, no streaming to parse in the common case).
  *  - Bundle size matters: `@honua/sdk-js` ships to a browser tab and is
  *    budgeted per entrypoint, and the SDK is not tree-shake-friendly against
- *    a three-method usage.
+ *    a four-method usage.
  *
  * A ~250-line hand-rolled client that speaks exactly the transport
  * honua-server documents is safer for bundle size and matches this

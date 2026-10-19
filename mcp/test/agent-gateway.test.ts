@@ -13,6 +13,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { WORKFLOW_KNOWLEDGE as SDK_WORKFLOW_KNOWLEDGE } from "@honua/sdk-js/studio-agent";
 import type { DevOpsExtension } from "../src/agent/devops-runtime.js";
 import { HonuaAgentGateway, connectAgentUpstream } from "../src/agent/gateway.js";
 import type { AgentRuntime } from "../src/agent/local-runtime.js";
@@ -184,10 +185,13 @@ describe("persistent Honua agent gateway", () => {
     );
     const read = await fixture.client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI });
     expect(JSON.stringify(read)).toContain("contract-guidance-only");
+    expect(JSON.parse(String(read.contents[0]?.text))).toEqual(SDK_WORKFLOW_KNOWLEDGE);
     await fixture.client.callTool({ name: "honua_agent_install_local", arguments: { confirm: true } });
     const resources = (await fixture.client.listResources()).resources;
     expect(resources).toContainEqual(expect.objectContaining({ uri: WORKFLOW_KNOWLEDGE_URI }));
     expect(resources).toContainEqual(expect.objectContaining({ uri: "honua://fixture" }));
+    const attachedKnowledge = await fixture.client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI });
+    expect(JSON.parse(String(attachedKnowledge.contents[0]?.text))).toEqual(SDK_WORKFLOW_KNOWLEDGE);
   });
 
   it("shares the registration with the optional private adapter without replaying failed mutations", async () => {

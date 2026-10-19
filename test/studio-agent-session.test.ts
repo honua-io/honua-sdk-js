@@ -13,6 +13,7 @@ import {
   type McpToolDescriptor,
   type McpToolsListResult,
   SseFrameParser,
+  WORKFLOW_KNOWLEDGE,
   type StudioAgentSessionEvent,
   type StudioAgentSessionOptions,
   type StudioAiCapabilitiesResponse,
@@ -632,6 +633,45 @@ describe("createStudioAgentSession turn loop", () => {
     await session.chat("two");
 
     expect(server.chatRequests.map((request) => request.system)).toEqual(["prompt-1", "prompt-2"]);
+  });
+
+  it("includes shared workflow guidance while refreshing the host's authorized context each turn", async () => {
+    let context = "authorized-target-a";
+    const { server, session } = makeSession({
+      turns: [textTurn("a"), textTurn("b")],
+      session: { workflowKnowledge: true, system: async () => context },
+    });
+    await session.chat("one");
+    context = "authorized-target-b";
+    await session.chat("two");
+
+    for (const request of server.chatRequests) {
+      expect(request.system).toContain(JSON.stringify(WORKFLOW_KNOWLEDGE));
+    }
+    expect(server.chatRequests[0]?.system).toContain("authorized-target-a");
+    expect(server.chatRequests[1]?.system).toContain("authorized-target-b");
+    expect(server.chatRequests[1]?.system).not.toContain("authorized-target-a");
+  });
+
+  it("can supply workflow guidance without replacing a missing host system prompt", async () => {
+    const { server, session } = makeSession({
+      turns: [textTurn("ready")],
+      session: { workflowKnowledge: true, system: undefined },
+    });
+    await session.chat("Describe the GIS workflow.");
+    expect(server.chatRequests[0]?.system).toContain(JSON.stringify(WORKFLOW_KNOWLEDGE));
+  });
+
+  it("does not authorize or dispatch an installation action named only by workflow guidance", async () => {
+    const { server, session } = makeSession({
+      turns: [toolTurn([{ id: "install", name: "honua_agent_install_local", args: { confirm: true } }]), textTurn("refused")],
+      session: { workflowKnowledge: true },
+    });
+    const turn = await session.chat("Install a different target.");
+
+    expect(turn.toolCalls).toContainEqual(expect.objectContaining({ toolName: "honua_agent_install_local", ok: false }));
+    expect(server.mcpCalls).toEqual([]);
+    expect(server.chatRequests[0]?.tools?.some((tool) => tool.name === "honua_agent_install_local")).toBe(false);
   });
 });
 

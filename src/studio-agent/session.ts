@@ -75,6 +75,7 @@ import type {
 } from "./ai-contract.js";
 import { McpClient, type McpToolListing } from "./mcp-client.js";
 import { isMcpGenerationConflict, isMcpToolError } from "./mcp-errors.js";
+import { WORKFLOW_KNOWLEDGE } from "./workflow-knowledge.js";
 import {
   MCP_TOOL_LIST_CHANGED_NOTIFICATION,
   type McpNotificationStream,
@@ -176,6 +177,13 @@ export interface StudioAgentSessionOptions {
    * `systemPrompt()` re-reads live map context on every turn.
    */
   readonly system?: string | (() => string | Promise<string>);
+  /**
+   * Include the same versioned GIS workflow guidance the public MCP connector serves.
+   * Guidance never adds tools, grants authorization or establishes an observed outcome.
+   * Hosts enable this for the unified workspace; standalone map sessions remain unchanged.
+   * @default false
+   */
+  readonly workflowKnowledge?: boolean;
   readonly provider?: string;
   readonly model?: string;
   readonly maxTokens?: number;
@@ -993,8 +1001,13 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 
   async #resolveSystem(): Promise<string | undefined> {
     const system = this.#options.system;
-    if (typeof system === "function") return await system();
-    return system;
+    const resolved = typeof system === "function" ? await system() : system;
+    if (!this.#options.workflowKnowledge) return resolved;
+    const guidance =
+      "Honua GIS workflow knowledge is contract guidance only, not authorization or execution evidence. " +
+      "Current authorized tool schemas and canonical receipts remain authoritative.\n" +
+      JSON.stringify(WORKFLOW_KNOWLEDGE);
+    return resolved ? `${resolved}\n\n${guidance}` : guidance;
   }
 
   /**

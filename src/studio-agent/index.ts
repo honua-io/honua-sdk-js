@@ -89,6 +89,8 @@ export type { SseFrame } from "./sse-parser.js";
 export { ChatTransportError } from "./transport.js";
 export type { ChatTransport } from "./transport.js";
 
+export { WORKFLOW_KNOWLEDGE, WORKFLOW_KNOWLEDGE_URI } from "./workflow-knowledge.js";
+
 export { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
 export type { FetchStudioAiCapabilitiesOptions, SseChatTransportOptions } from "./sse-transport.js";
 

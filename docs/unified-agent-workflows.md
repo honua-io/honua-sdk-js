@@ -7,10 +7,17 @@ description: Evaluate, publish and operate GIS resources through one persistent 
 # Unified agent workflows
 
 The connector ships semantic workflow knowledge as `honua.agent-workflow-knowledge/v1`,
-knowledge version `2026-10-17.2`, resource `honua://agent/knowledge/workflows/v1`.
-The packaged module is `mcp/src/agent/workflow-knowledge.ts`; its preconditions,
-canonical actions, resource references and observed outcomes apply equally to an
-external agent and a native conversation. This is guidance, not an execution
+knowledge version `2026-10-19.1`, resource `honua://agent/knowledge/workflows/v1`.
+The canonical source is `src/studio-agent/workflow-knowledge.ts`; the MCP module
+is generated from it with `node scripts/sync-workflow-knowledge.mjs --write`.
+External MCP clients read the resource. SDK conversation hosts can opt into the
+same versioned preconditions, canonical actions, resource references and observed
+outcomes with the `workflowKnowledge` session option. Its packaged data is also
+exported from `@honua/sdk-js/studio-agent`. The option adds guidance to each turn's
+fresh host system context without changing tool discovery or authorization.
+Native Console integration requires a matching published SDK and an editor bundle
+that enables this option; its current default is not qualified by this SDK change.
+This is guidance, not an execution
 language or a claim of live qualification. Discover the connected target's actual
 tool schemas before acting; missing capabilities remain unsupported.
 
