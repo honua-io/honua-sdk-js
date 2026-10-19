@@ -12,7 +12,7 @@ import {
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { WORKFLOW_KNOWLEDGE as SDK_WORKFLOW_KNOWLEDGE } from "@honua/sdk-js/studio-agent";
 import type { DevOpsExtension } from "../src/agent/devops-runtime.js";
 import { HonuaAgentGateway, connectAgentUpstream } from "../src/agent/gateway.js";

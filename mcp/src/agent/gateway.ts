@@ -27,6 +27,7 @@ import {
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { z as protocolZod } from "zod/v4";
 import { SERVER_VERSION } from "../index.js";
 import { WORKFLOW_VIEW_META_KEY, buildUpstreamHeaders, readWorkflowView } from "../proxy.js";
 import type { DevOpsExtension } from "./devops-runtime.js";
@@ -37,8 +38,8 @@ import { WORKFLOW_KNOWLEDGE, WORKFLOW_KNOWLEDGE_URI } from "./workflow-knowledge
 // these extension fields before the handler runs, so declare them explicitly.
 const honuaReadResourceRequestSchema = ReadResourceRequestSchema.extend({
   params: ReadResourceRequestSchema.shape.params.extend({
-    cursor: z.string().optional(),
-    maxChars: z.number().int().min(1).max(1_000_000).optional(),
+    cursor: protocolZod.string().optional(),
+    maxChars: protocolZod.number().int().min(1).max(1_000_000).optional(),
   }),
 });
 
