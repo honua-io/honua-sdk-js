@@ -33,25 +33,26 @@ changelog entry and matching PR body, and sends the resulting exact head through
 normal CI. It leaves historical release notes and other dependencies unchanged;
 versions and changelogs are never corrected by hand.
 
-The delivery order is:
+The completed Node 20-to-22 transition followed this delivery order. These are
+historical steps; use the current published-pin guidance below for new releases.
 
-1. Merge the compatibility bridge while retaining the current Node 20 baseline,
-   then complete the normal managed current-line SDK/MCP patch release. Verify
-   the real public artifacts and default-resolver installation.
-2. Run canonical `sync:mcp-pin` against that published bridge. Record and verify
-   its peer range from the actual integrity-verified tarball `package.json`,
-   require agreement with the registry manifest, and retain the package JSON
-   hash in `config/mcp-pinned-peer.v1.json`. The sync verifies all inputs before
+1. The compatibility bridge merged while retaining the Node 20 baseline,
+   followed by the normal managed current-line SDK/MCP patch release and
+   verification of its real public artifacts and default-resolver installation.
+2. Canonical `sync:mcp-pin` recorded the published bridge's peer range from its
+   integrity-verified tarball `package.json`, checked agreement with the registry
+   manifest, and retained the package JSON hash in
+   `config/mcp-pinned-peer.v1.json`. The sync verifies all inputs before
    writing this receipt and either pin home. Offline verification binds the
    recorded peer to the exact pin and integrity; live verification downloads and
    checks those bytes again. An inferred caret based on the independently
    versioned MCP release cannot describe this bridge. The historical Node 20 bridge used published
    `@honua/mcp-server@0.1.19`. Keep its immutable receipts as transition
    evidence; it is no longer the current generated-client pin.
-3. Merge the approved Node 22 breaking baseline and let Release Please compute
-   the next minor versions. Preserve the public bridge pin until the next MCP
-   artifact is actually published. The existing packed/public installation and
-   release verification gates remain mandatory.
+3. The approved Node 22 breaking baseline merged, and Release Please computed
+   the next minor versions. The public bridge pin was retained until the next
+   MCP artifact was published. The existing packed/public installation and
+   release verification gates remain mandatory for subsequent releases.
 
 A range declaration proves metadata compatibility only. Source/runtime tests,
 managed updater checks, and real default-resolver installations are separate
