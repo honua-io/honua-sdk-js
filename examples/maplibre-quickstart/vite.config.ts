@@ -85,6 +85,21 @@ export default defineConfig({
       ecma: 2020,
       compress: { passes: 2 },
     },
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              // Compress the installed renderer independently of SDK/application
+              // identifiers. Keep lazy SDK imports and the worker graph separate;
+              // this emitted chunk still counts toward the total byte budget.
+              name: "maplibre-renderer",
+              test: /[\\/]node_modules[\\/]maplibre-gl[\\/]dist[\\/]maplibre-gl\.(?:mjs|js)$/,
+            },
+          ],
+        },
+      },
+    },
   },
   plugins: [bundleBudget, ...(shared.plugins ?? [])],
 });
