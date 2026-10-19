@@ -251,6 +251,40 @@ describe("canonical task-bound upload client", () => {
     await expect(client.reconcile(reference, original)).rejects.toThrow("immutable task/session binding");
   });
 
+  it("requires unchanged projected state for the same CAS version and fixed bytes after cancellation", async () => {
+    const receiving = receipt();
+    const complete = receipt({ version: 2, acceptedBytes: 3, chunkCount: 1 });
+    const sealed = { ...complete, state: "sealed" as const, contentSha256: digest };
+    const cancelled = receipt({ version: 4, state: "cancelled" });
+    for (const [original, returned] of [
+      [receiving, { ...receiving, acceptedBytes: 3, chunkCount: 1 }],
+      [receiving, { ...receiving, state: "cancelled" }],
+      [complete, sealed],
+      [sealed, { ...sealed, sourceRetention: { bytes: 3, sha256: digest, expiresAt: null } }],
+      [cancelled, { ...cancelled, version: 5, acceptedBytes: 3, chunkCount: 1 }],
+    ] as const) {
+      const client = new DatasetImportUploadClient({ ...options, fetch: vi.fn(async () => Response.json(returned)) });
+      await expect(client.reconcile(reference, original)).rejects.toThrow("immutable task/session binding");
+    }
+  });
+
+  it("allows identical same-version terminal reads and a later-version new source receipt", async () => {
+    const sealed = receipt({ version: 3, state: "sealed", acceptedBytes: 3, chunkCount: 1, contentSha256: digest });
+    const retained = { ...sealed, version: 4, sourceRetention: { bytes: 3, sha256: digest } };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ ...retained, sourceRetention: { ...retained.sourceRetention, expiresAt: null } }),
+      )
+      .mockResolvedValueOnce(Response.json(retained));
+    const client = new DatasetImportUploadClient({ ...options, fetch: fetcher });
+    expect(await client.reconcile(reference, retained)).toEqual({
+      ...retained,
+      sourceRetention: { ...retained.sourceRetention, expiresAt: null },
+    });
+    expect(await client.reconcile(reference, sealed)).toEqual(retained);
+  });
+
   it("rejects another session returned after a mutation instead of overwriting the original", async () => {
     const fetcher = vi.fn(async () =>
       Response.json(receipt({ uploadId: "c".repeat(32), version: 2, state: "cancelled" })),

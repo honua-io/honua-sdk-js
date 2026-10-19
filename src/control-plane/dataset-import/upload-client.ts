@@ -192,15 +192,7 @@ function validate(
     typeof value.uploadId !== "string" ||
     value.uploadId.length !== 32 ||
     !/^[a-f0-9]{32}$/.test(value.uploadId) ||
-    (session !== undefined &&
-      (value.uploadId !== session.uploadId ||
-        value.totalBytes !== session.totalBytes ||
-        value.chunkBytes !== session.chunkBytes ||
-        value.expiresAt !== session.expiresAt ||
-        value.version < session.version ||
-        value.acceptedBytes < session.acceptedBytes ||
-        (session.state !== "receiving" && value.state !== session.state) ||
-        (session.contentSha256 != null && value.contentSha256 !== session.contentSha256))) ||
+    (session !== undefined && !matchesOriginalSession(value, session)) ||
     !Number.isSafeInteger(value.version) ||
     value.version < 1 ||
     !Number.isSafeInteger(value.totalBytes) ||
@@ -269,4 +261,37 @@ function captureSession(original: DatasetImportUploadReceipt, reference: Dataset
           },
         }),
   };
+}
+
+function matchesOriginalSession(value: DatasetImportUploadReceipt, original: SessionSnapshot): boolean {
+  if (
+    value.uploadId !== original.uploadId ||
+    value.totalBytes !== original.totalBytes ||
+    value.chunkBytes !== original.chunkBytes ||
+    value.expiresAt !== original.expiresAt ||
+    value.version < original.version ||
+    value.acceptedBytes < original.acceptedBytes ||
+    (original.state !== "receiving" && value.state !== original.state) ||
+    (original.state === "cancelled" && value.acceptedBytes !== original.acceptedBytes) ||
+    (original.contentSha256 != null && value.contentSha256 !== original.contentSha256)
+  )
+    return false;
+  // Every byte/state/source mutation advances canonical CAS version. A same-version
+  // response cannot add bytes, a seal, cancellation or a retained source receipt.
+  return (
+    value.version !== original.version ||
+    (value.acceptedBytes === original.acceptedBytes &&
+      value.state === original.state &&
+      (value.contentSha256 ?? null) === (original.contentSha256 ?? null) &&
+      sameRetention(value.sourceRetention, original.sourceRetention))
+  );
+}
+function sameRetention(
+  left: DatasetImportUploadReceipt["sourceRetention"],
+  right: SessionSnapshot["sourceRetention"],
+): boolean {
+  if (left == null || right == null) return left == null && right == null;
+  return (
+    left.bytes === right.bytes && left.sha256 === right.sha256 && (left.expiresAt ?? null) === (right.expiresAt ?? null)
+  );
 }
