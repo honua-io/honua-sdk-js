@@ -169,6 +169,25 @@ describe("canonical task-bound submission client", () => {
     await expect(client.reconcile(reference, result)).rejects.toThrow();
   });
 
+  it.each([undefined, null])("rejects a successful job without an output receipt (%j)", async (output) => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        ...accepted(),
+        job: {
+          ...accepted().job,
+          status: "succeeded",
+          output,
+          updatedAt: "2026-10-18T00:01:00Z",
+          completedAt: "2026-10-18T00:01:00Z",
+        },
+      }),
+    );
+    const client = new DatasetImportSubmissionClient({ ...options, fetch: fetcher });
+    await expect(client.read(reference)).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0]?.[1]?.method).toBe("GET");
+  });
+
   it("observes pending commit decisions by the original accepted job without dispatch or inferred completion", async () => {
     const pending: DatasetImportSubmissionReceipt = {
       ...accepted(),

@@ -801,7 +801,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
                   "A previous command encountered a draft conflict. Review the refreshed draft before continuing this batch.",
                   "failed_precondition",
                 )
-              : await this.#enqueue(() => this.#dispatch(pending));
+              : await this.#enqueue(() => this.#dispatch(pending, workflowGeneration));
         if (!dispatch.ok && dispatch.errorCode === "failed_precondition") draftConflict = true;
         dispatches.push(dispatch);
         this.#options.onEvent?.({ type: "toolResult", result: dispatch });
@@ -1032,7 +1032,15 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return run;
   }
 
-  async #dispatch(call: PendingToolCall): Promise<StudioAgentToolDispatch> {
+  async #dispatch(call: PendingToolCall, workflowGeneration: number): Promise<StudioAgentToolDispatch> {
+    if (workflowGeneration !== this.#workflowSelectionGeneration) {
+      return reject(
+        call,
+        "unknown",
+        "The workflow tool view changed. Plan again using the refreshed tools.",
+        "failed_precondition",
+      );
+    }
     // Runtime first, matching the merge order in `#discoverTools`: a local
     // runtime verb is never shadowed by a server descriptor of the same name.
     if (this.#runtimeToolNames.has(call.toolName)) {

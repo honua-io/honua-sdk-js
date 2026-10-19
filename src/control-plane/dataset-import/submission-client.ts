@@ -227,6 +227,7 @@ function validate(value: DatasetImportSubmissionReceipt, reference: DatasetImpor
   )
     fail();
   const output = job.output;
+  if (job.status === "succeeded" && output == null) fail();
   if (
     output != null &&
     (job.status !== "succeeded" ||

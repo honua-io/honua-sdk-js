@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { setImmediate as nextEventLoopTurn } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -1485,6 +1486,78 @@ describe("bounded workflow view switching", () => {
     expect(failed.errorMessage).toContain("did not confirm");
     expect(session.compositionTools).toEqual([]);
     expect(session.tools.map((tool) => tool.name)).toEqual([selector]);
+  });
+
+  it("rejects a queued call when its workflow view changes before dispatch even if the tool remains available", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    let verifiedSecond!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const dispatchStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const secondTranscript = new Promise<void>((resolve) => {
+      verifiedSecond = resolve;
+    });
+    const server = createScriptedServer({
+      turns: [
+        toolTurn([{ id: "first", name: setupTool.name, args: { marker: "already-running" } }]),
+        toolTurn([{ id: "stale", name: setupTool.name, args: { marker: "planned-before-switch" } }]),
+      ],
+    });
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/mcp")) {
+        const request = JSON.parse(String(init?.body));
+        if (request.method === "tools/list") {
+          const view = request.params?.view ?? "setup";
+          return jsonResponse({
+            jsonrpc: "2.0",
+            id: request.id,
+            result: { tools: [descriptor(setupTool.name, { ...COMPOSITION, view })], _meta: { view } },
+          });
+        }
+        if (request.method === "tools/call" && request.params?.arguments?.marker === "already-running") {
+          started();
+          await blocked;
+        }
+      }
+      return server.fetchImpl(input, init);
+    }) as typeof fetch;
+    let transcripts = 0;
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl,
+      maxToolRounds: 1,
+      transcriptVerifier: {
+        verify: async () => {
+          if (++transcripts === 2) verifiedSecond();
+          return { ok: true as const, transcriptDigest: "fixture-digest" };
+        },
+      },
+    });
+    const first = session.chat("Start the first command.");
+    await dispatchStarted;
+    const stale = session.chat("Plan another command in the current view.");
+    try {
+      await secondTranscript;
+      // Drain the verified stream's promise continuations into the blocked
+      // dispatch queue. No timer or network race controls this interleaving.
+      await nextEventLoopTurn();
+      await session.selectWorkflowView("analyze");
+      expect(session.compositionTools).toContain(setupTool.name);
+      release();
+      const [runningResult, staleResult] = await Promise.all([first, stale]);
+      expect(runningResult.toolCalls[0]?.ok).toBe(true);
+      expect(staleResult.toolCalls[0]).toMatchObject({ ok: false, errorCode: "failed_precondition" });
+      expect(staleResult.toolCalls[0]?.errorMessage).toContain("workflow tool view changed");
+      expect(server.mcpCalls.map((call) => call.arguments.marker)).toEqual(["already-running"]);
+    } finally {
+      release();
+      await Promise.allSettled([first, stale]);
+    }
   });
 
   it("does not let a slower prior view overwrite the newest selection", async () => {
