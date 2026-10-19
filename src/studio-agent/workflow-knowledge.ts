@@ -2,7 +2,7 @@
 export const WORKFLOW_KNOWLEDGE_URI = "honua://agent/knowledge/workflows/v1";
 export const WORKFLOW_KNOWLEDGE = {
   schemaVersion: "honua.agent-workflow-knowledge/v1",
-  knowledgeVersion: "2026-10-19.1",
+  knowledgeVersion: "2026-10-19.2",
   qualification: "contract-guidance-only",
   authority: [
     "Use discovered canonical tool schemas; these workflow descriptions never grant authorization.",
@@ -83,6 +83,8 @@ export const WORKFLOW_KNOWLEDGE = {
       ],
       actions: [
         "Discover connection/import tools",
+        "For an installed local Docker target register its catalog through the discovered secret-reference-only connection tool using the host-allowed env:HONUA_LOCAL_DB_PASSWORD reference; never request or reveal the password",
+        "Verify the returned connection actually targets the ingest catalog before publication; an imported table with no registered connection is not ready to publish",
         "Validate source schema and geometry/CRS",
         "Execute canonical import or connection",
         "Publish via discovered service/layer tool",
@@ -92,6 +94,7 @@ export const WORKFLOW_KNOWLEDGE = {
       outputReferences: ["import job id", "service id", "layer id or protocol-neutral source reference"],
       observedOutcomes: [
         "terminal import outcome",
+        "stored target CRS verified against canonical table metadata, distinct from the detected source CRS",
         "service catalog entry",
         "query result with expected schema and representative data",
       ],

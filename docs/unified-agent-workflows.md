@@ -7,7 +7,7 @@ description: Evaluate, publish and operate GIS resources through one persistent 
 # Unified agent workflows
 
 The connector ships semantic workflow knowledge as `honua.agent-workflow-knowledge/v1`,
-knowledge version `2026-10-19.1`, resource `honua://agent/knowledge/workflows/v1`.
+knowledge version `2026-10-19.2`, resource `honua://agent/knowledge/workflows/v1`.
 The canonical source is `src/studio-agent/workflow-knowledge.ts`; the MCP module
 is generated from it with `node scripts/sync-workflow-knowledge.mjs --write`.
 External MCP clients read the resource. SDK conversation hosts can opt into the
@@ -52,7 +52,14 @@ external agents use the explicit workspace tool contracts. A client connection
 alone does not supply the browser's current selection or establish human pairing.
 
 For data, validate the source schema and CRS, import/connect, wait for the actual
-job outcome, publish a service/layer, and query it. For a map or app, compose and
+job outcome, publish a service/layer, and query it. A successful inline ingest
+can still lack a registered catalog connection; complete the discovered
+secret-reference-only connection operation before publication rather than
+inventing a connection ID. The local installer permits the fixed
+`env:HONUA_LOCAL_DB_PASSWORD` reference without exposing its value. If the
+connected release does not advertise that operation, report the missing step.
+Check the stored table CRS separately from source detection whenever import
+transforms coordinates. For a map or app, compose and
 style against those resource references, validate, save an immutable Studio
 version, then read/reopen it before publishing. Preserve unrelated concurrent
 edits by reconciling against the current draft revision. A `Published` receipt
@@ -106,7 +113,7 @@ See [MCP integration](mcp-server.md), [Studio versioning](studio-package-contrac
 Name the intended result, data or resource, target, and what should be verified.
 You do not need to translate the request into tool calls:
 
-- **Set up:** "Set up Honua locally in Docker. Check this machine first, then verify the running server and my agent's access."
+- **Set up:** "Set up Honua locally in Docker. Check this machine first, register its built-in database, and verify the running server and my agent's access."
 - **Import and publish:** "Import this parcels file, check its CRS and geometry, publish it as Parcels, and query the result. Ask me for missing source details."
 - **Make a map:** "Use Parcels to make a map colored by land use. Show changes live, save a version, reopen it, and publish it when validation succeeds."
 - **Build a process:** "Create a process that buffers these roads and intersects the result with Parcels. Run it, show any errors, and add the successful output to my map."
