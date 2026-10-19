@@ -12,7 +12,7 @@ assembling peer dependencies.
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.2.4 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.2.5 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -53,7 +53,7 @@ ESM-only and loads its worker as a separate module, each starter ships `src/mapl
 the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
 
 ```bash
-npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.2.4 # x-release-please-version
+npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.2.5 # x-release-please-version
 create-honua-app --list-templates
 ```
 
