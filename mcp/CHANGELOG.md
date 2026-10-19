@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.5](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.4...mcp-server-v0.2.5) (2026-10-19)
+
+
+### Bug Fixes
+
+* **mcp:** advance generated client pin to published 0.2.4 ([#2171](https://github.com/honua-io/honua-sdk-js/issues/2171)) ([8103be6](https://github.com/honua-io/honua-sdk-js/commit/8103be65aa8fbafe9853c3cd7d5be41babdef53e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
 ## [0.2.4](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.3...mcp-server-v0.2.4) (2026-10-19)
 
 
