@@ -83,7 +83,7 @@ export default defineConfig({
     terserOptions: {
       maxWorkers: 2,
       ecma: 2020,
-      compress: { passes: 2 },
+      compress: { passes: 5 },
     },
     rolldownOptions: {
       output: {
