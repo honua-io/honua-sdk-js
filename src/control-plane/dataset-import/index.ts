@@ -23,3 +23,10 @@ export type {
   DatasetImportUploadCapabilities,
   DatasetImportUploadReceipt,
 } from "./types.js";
+export { DatasetImportSubmissionClient } from "./submission-client.js";
+export type {
+  DatasetImportJobReceipt,
+  DatasetImportOutputReceipt,
+  DatasetImportSubmissionReceipt,
+  SubmitDatasetImport,
+} from "./types.js";

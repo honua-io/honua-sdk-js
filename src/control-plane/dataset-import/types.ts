@@ -108,3 +108,42 @@ export interface DatasetImportUploadCapabilities {
   readonly maximumFileBytes: number;
   readonly importAcceptanceSupported: false;
 }
+
+/** Current authority tuple explicitly reviewed before human preparation or actual executor submission. */
+export interface SubmitDatasetImport {
+  readonly taskContentHash: string;
+  readonly authorityRevision: number;
+  readonly authorityFingerprint: string;
+  readonly policyContextFingerprint: string;
+}
+/** Actual persisted successful provider output, never inferred from the requested destination. */
+export interface DatasetImportOutputReceipt {
+  readonly physicalTableName: string;
+  readonly schema: string;
+  readonly featureCount: number;
+  readonly detectedSrid?: number | null;
+}
+export interface DatasetImportJobReceipt {
+  readonly jobId: string;
+  readonly leaseId: string;
+  readonly status: "queued" | "provisioning" | "running" | "succeeded" | "failed" | "cancelled";
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly completedAt?: string | null;
+  readonly percentComplete?: number | null;
+  readonly output?: DatasetImportOutputReceipt | null;
+  readonly errorCode?: string | null;
+}
+/** Preparation awaits the actual agent; only accepted contains a real durable job receipt. */
+export interface DatasetImportSubmissionReceipt {
+  readonly taskId: string;
+  readonly taskRevision: number;
+  readonly taskContentHash: string;
+  readonly state: "not-prepared" | "prepared" | "accepted";
+  readonly operationId?: string | null;
+  readonly authorityRevision?: number | null;
+  readonly authorityFingerprint?: string | null;
+  readonly policyContextFingerprint?: string | null;
+  readonly acceptBefore?: string | null;
+  readonly job?: DatasetImportJobReceipt | null;
+}
