@@ -106,7 +106,7 @@ export interface DatasetImportUploadReceipt {
 export interface DatasetImportUploadCapabilities {
   readonly chunkBytes: number;
   readonly maximumFileBytes: number;
-  readonly importAcceptanceSupported: false;
+  readonly importAcceptanceSupported: boolean;
 }
 
 /** Current authority tuple explicitly reviewed before human preparation or actual executor submission. */
@@ -127,6 +127,8 @@ export interface DatasetImportJobReceipt {
   readonly jobId: string;
   readonly leaseId: string;
   readonly status: "queued" | "provisioning" | "running" | "succeeded" | "failed" | "cancelled";
+  /** The accepted operation is checking a durable commit decision; never permission to resubmit. */
+  readonly outcomePending?: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly completedAt?: string | null;

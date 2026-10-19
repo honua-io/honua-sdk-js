@@ -169,6 +169,46 @@ describe("canonical task-bound submission client", () => {
     await expect(client.reconcile(reference, result)).rejects.toThrow();
   });
 
+  it("observes pending commit decisions by the original accepted job without dispatch or inferred completion", async () => {
+    const pending: DatasetImportSubmissionReceipt = {
+      ...accepted(),
+      job: { ...accepted().job!, outcomePending: true },
+    };
+    const confirmed: DatasetImportSubmissionReceipt = {
+      ...accepted(),
+      job: { ...accepted().job!, outcomePending: false },
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(pending))
+      .mockResolvedValueOnce(Response.json(confirmed));
+    const client = new DatasetImportSubmissionClient({ ...options, fetch: fetcher });
+    const observed = await client.read(reference);
+    expect(observed?.job?.outcomePending).toBe(true);
+    expect(observed?.job?.status).toBe("queued");
+    expect(observed?.job?.output).toBeUndefined();
+    expect((await client.reconcile(reference, observed!))?.job?.outcomePending).toBe(false);
+    expect(fetcher.mock.calls.every(([, init]) => init.method === "GET")).toBe(true);
+  });
+
+  it.each([null, "true", {}, 1])("rejects nonboolean pending metadata (%j)", async (outcomePending) => {
+    const client = new DatasetImportSubmissionClient({
+      ...options,
+      fetch: vi.fn(async () => Response.json({ ...accepted(), job: { ...accepted().job, outcomePending } })),
+    });
+    await expect(client.read(reference)).rejects.toThrow();
+  });
+
+  it.each(["succeeded", "failed", "cancelled"])("rejects terminal job mislabeled as pending (%s)", async (status) => {
+    const client = new DatasetImportSubmissionClient({
+      ...options,
+      fetch: vi.fn(async () =>
+        Response.json({ ...accepted(), job: { ...accepted().job, status, outcomePending: true } }),
+      ),
+    });
+    await expect(client.read(reference)).rejects.toThrow();
+  });
+
   it("allows same-job nonterminal requeue after worker lease loss and rejects premature output", async () => {
     const original: DatasetImportSubmissionReceipt = { ...accepted(), job: { ...accepted().job!, status: "running" } };
     const resumed: DatasetImportSubmissionReceipt = {

@@ -40,7 +40,7 @@ export class DatasetImportUploadClient {
         !Number.isSafeInteger(value.maximumFileBytes) ||
         value.maximumFileBytes < 1 ||
         value.maximumFileBytes > value.chunkBytes * maximumChunks ||
-        value.importAcceptanceSupported !== false)
+        typeof value.importAcceptanceSupported !== "boolean")
     )
       throw new Error("The host returned an unsupported transfer capability contract.");
     return value;

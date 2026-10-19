@@ -46,10 +46,21 @@ describe("canonical task-bound upload client", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it.each([false, true])(
+    "preserves the canonical host readiness boolean without inferring acceptance (%s)",
+    async (readiness) => {
+      const capability = { chunkBytes: 4 * 1024 * 1024, maximumFileBytes: 1024, importAcceptanceSupported: readiness };
+      const fetcher = vi.fn(async () => Response.json(capability));
+      const client = new DatasetImportUploadClient({ ...options, fetch: fetcher });
+      expect(await client.capabilities(reference)).toEqual(capability);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it.each([
     { chunkBytes: 4 * 1024 * 1024, maximumFileBytes: 1024 ** 4, importAcceptanceSupported: false },
     { chunkBytes: 8 * 1024 * 1024, maximumFileBytes: 1024, importAcceptanceSupported: false },
-    { chunkBytes: 4 * 1024 * 1024, maximumFileBytes: 1024, importAcceptanceSupported: true },
+    { chunkBytes: 4 * 1024 * 1024, maximumFileBytes: 1024, importAcceptanceSupported: "true" },
   ])("refuses unsupported or overstated transfer capabilities (%j)", async (capability) => {
     const client = new DatasetImportUploadClient({ ...options, fetch: vi.fn(async () => Response.json(capability)) });
     await expect(client.capabilities(reference)).rejects.toThrow("capability contract");

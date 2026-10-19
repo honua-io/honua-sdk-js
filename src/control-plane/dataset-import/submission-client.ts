@@ -221,6 +221,11 @@ function validate(value: DatasetImportSubmissionReceipt, reference: DatasetImpor
     (job.errorCode != null && (job.status !== "failed" || job.errorCode !== "import-failed"))
   )
     fail();
+  if (
+    job.outcomePending !== undefined &&
+    (typeof job.outcomePending !== "boolean" || (job.outcomePending && terminal(job.status)))
+  )
+    fail();
   const output = job.output;
   if (
     output != null &&
