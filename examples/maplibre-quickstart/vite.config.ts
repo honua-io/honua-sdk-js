@@ -79,7 +79,12 @@ export default defineConfig({
   ...shared,
   build: {
     ...shared.build,
-    minify: "esbuild",
+    minify: "terser",
+    terserOptions: {
+      maxWorkers: 2,
+      ecma: 2020,
+      compress: { passes: 2 },
+    },
   },
   plugins: [bundleBudget, ...(shared.plugins ?? [])],
 });
