@@ -17,3 +17,9 @@ export {
   DatasetImportTaskClient,
 } from "./client.js";
 export type { DatasetImportTaskClientOptions } from "./client.js";
+export { DatasetImportUploadClient } from "./upload-client.js";
+export type {
+  DatasetImportSourceRetentionReceipt,
+  DatasetImportUploadCapabilities,
+  DatasetImportUploadReceipt,
+} from "./types.js";

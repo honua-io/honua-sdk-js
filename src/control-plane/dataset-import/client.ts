@@ -1,3 +1,5 @@
+import { DatasetImportWorkspaceTransport, validId } from "./transport.js";
+export { DatasetImportTaskApiError } from "./errors.js";
 import type {
   CreateDatasetImportTask,
   DatasetImportAuthorityDescriptor,
@@ -19,13 +21,6 @@ export interface DatasetImportTaskClientOptions {
   readonly headers?: () => HeadersInit | Promise<HeadersInit>;
 }
 
-export class DatasetImportTaskApiError extends Error {
-  constructor(readonly status: number) {
-    super(`Dataset import request failed (${status}).`);
-    this.name = "DatasetImportTaskApiError";
-  }
-}
-
 /**
  * Canonical task/authority APIs only. Never dispatches an import, retries a POST,
  * invents an authority revision, or treats preparation as an accepted job.
@@ -33,39 +28,27 @@ export class DatasetImportTaskApiError extends Error {
  * replies use readIntent or replay the SAME renewal ID, never mint a replacement.
  */
 export class DatasetImportTaskClient {
-  private readonly base: string;
   private readonly workspaceId: string;
   private readonly targetId: string;
-  private readonly originatingTurnId?: string;
-  private readonly fetcher: typeof globalThis.fetch;
-  private readonly headers?: DatasetImportTaskClientOptions["headers"];
+  private readonly transport: DatasetImportWorkspaceTransport;
 
   constructor(options: DatasetImportTaskClientOptions) {
-    const base = new URL(options.baseUrl);
-    if (!/^https?:$/.test(base.protocol) || base.username || base.password || base.search || base.hash)
-      throw new TypeError("A deployment HTTP(S) URL without credentials, query or fragment is required.");
-    validId(options.workspaceId);
-    validId(options.targetId);
-    if (options.originatingTurnId !== undefined) validId(options.originatingTurnId);
-    this.base = `${base.href.replace(/\/$/, "")}/api/v1/agent/workspaces/${encodeURIComponent(options.workspaceId)}`;
+    this.transport = new DatasetImportWorkspaceTransport(options);
     this.workspaceId = options.workspaceId;
     this.targetId = options.targetId;
-    this.originatingTurnId = options.originatingTurnId;
-    this.fetcher = options.fetch ?? globalThis.fetch;
-    this.headers = options.headers;
   }
 
   async createTask(request: CreateDatasetImportTask, signal?: AbortSignal): Promise<DatasetImportTask> {
     // Serialize before the first await so later form edits cannot change the request.
     const body = JSON.stringify(request);
-    const task = await this.request<DatasetImportTask>("/dataset-import-tasks", "POST", body, signal);
+    const task = await this.transport.request<DatasetImportTask>("/dataset-import-tasks", "POST", body, signal);
     this.assertTask(task);
     return task;
   }
 
   async readIntent(intentId: string, signal?: AbortSignal): Promise<DatasetImportTask | null> {
     validId(intentId);
-    const task = await this.request<DatasetImportTask>(
+    const task = await this.transport.request<DatasetImportTask>(
       `/dataset-import-task-intents/${encodeURIComponent(intentId)}`,
       "GET",
       undefined,
@@ -78,7 +61,7 @@ export class DatasetImportTaskClient {
 
   async readTask(reference: DatasetImportTaskReference, signal?: AbortSignal): Promise<DatasetImportTask | null> {
     const pinned = pin(reference);
-    const task = await this.request<DatasetImportTask>(path(pinned), "GET", undefined, signal, true);
+    const task = await this.transport.request<DatasetImportTask>(path(pinned), "GET", undefined, signal, true);
     if (task !== null) {
       this.assertTask(task);
       if (task.taskId !== pinned.taskId || task.revision !== pinned.revision || task.contentHash !== pinned.contentHash)
@@ -92,7 +75,7 @@ export class DatasetImportTaskClient {
     signal?: AbortSignal,
   ): Promise<DatasetImportAuthorityDescriptor | null> {
     const pinned = pin(reference);
-    const descriptor = await this.request<DatasetImportAuthorityDescriptor>(
+    const descriptor = await this.transport.request<DatasetImportAuthorityDescriptor>(
       `${path(pinned)}/authority?contentHash=${pinned.contentHash}`,
       "GET",
       undefined,
@@ -127,7 +110,7 @@ export class DatasetImportTaskClient {
     const body = JSON.stringify(request);
     const renewalId = request.renewalId;
     const previousRevision = request.expectedAuthorityRevision;
-    const receipt = await this.request<DatasetImportAuthorityRenewal>(
+    const receipt = await this.transport.request<DatasetImportAuthorityRenewal>(
       `${path(pinned)}/authority-renewals`,
       "POST",
       body,
@@ -151,63 +134,8 @@ export class DatasetImportTaskClient {
       contentHash: task.contentHash,
     });
   }
-
-  private async request<T>(
-    suffix: string,
-    method: "GET" | "POST",
-    body: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<T>;
-  private async request<T>(
-    suffix: string,
-    method: "GET" | "POST",
-    body: string | undefined,
-    signal: AbortSignal | undefined,
-    allowMissing: true,
-  ): Promise<T | null>;
-  private async request<T>(
-    suffix: string,
-    method: "GET" | "POST",
-    body: string | undefined,
-    signal: AbortSignal | undefined,
-    allowMissing = false,
-  ): Promise<T | null> {
-    const headers = new Headers(await this.headers?.());
-    headers.set("Accept", "application/json");
-    // These scope headers are controlled by the pinned client, never fresh auth input.
-    headers.delete("X-Honua-Workspace");
-    headers.delete("X-Honua-Turn");
-    if (this.originatingTurnId !== undefined) {
-      headers.set("X-Honua-Workspace", this.workspaceId);
-      headers.set("X-Honua-Turn", this.originatingTurnId);
-    }
-    if (body !== undefined) headers.set("Content-Type", "application/json");
-    const response = await this.fetcher(`${this.base}${suffix}`, {
-      method,
-      headers,
-      body,
-      signal,
-      redirect: "error",
-    });
-    if (allowMissing && response.status === 404) return null;
-    if (!response.ok) throw new DatasetImportTaskApiError(response.status);
-    return (await response.json()) as T;
-  }
 }
 
-function validId(value: string): void {
-  if (
-    typeof value !== "string" ||
-    value.length < 1 ||
-    value.length > 256 ||
-    value.trim() !== value ||
-    Array.from(value).some((character) => {
-      const code = character.charCodeAt(0);
-      return code <= 31 || (code >= 127 && code <= 159);
-    })
-  )
-    throw new TypeError("A bounded canonical identity is required.");
-}
 function pin(reference: DatasetImportTaskReference): DatasetImportTaskReference {
   validId(reference.taskId);
   if (

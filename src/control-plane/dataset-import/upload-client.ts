@@ -1,0 +1,199 @@
+import type { DatasetImportTaskClientOptions } from "./client.js";
+import { hashDatasetImportFile } from "./file-hash.js";
+import { DatasetImportWorkspaceTransport, validId } from "./transport.js";
+import type {
+  DatasetImportTaskReference,
+  DatasetImportUploadCapabilities,
+  DatasetImportUploadReceipt,
+} from "./types.js";
+
+const maximumChunkBytes = 4 * 1024 * 1024;
+const maximumChunks = 65536;
+
+/**
+ * Canonical transfer primitives. No import submission or automatic mutation retry.
+ * Persist the original immutable task reference before create; recover uncertain
+ * create/chunk/seal/source outcomes using read against that SAME task. Always
+ * verify the complete reselected file SHA-256 before sending any resumed chunk.
+ */
+export class DatasetImportUploadClient {
+  private readonly transport: DatasetImportWorkspaceTransport;
+  constructor(options: DatasetImportTaskClientOptions) {
+    this.transport = new DatasetImportWorkspaceTransport(options);
+  }
+
+  async capabilities(
+    reference: DatasetImportTaskReference,
+    signal?: AbortSignal,
+  ): Promise<DatasetImportUploadCapabilities | null> {
+    const pinned = pin(reference);
+    const value = await this.transport.request<DatasetImportUploadCapabilities>(
+      `${path(pinned)}/capabilities?contentHash=${pinned.contentHash}`,
+      "GET",
+      undefined,
+      signal,
+      true,
+    );
+    if (
+      value !== null &&
+      (!validChunkBytes(value.chunkBytes) ||
+        !Number.isSafeInteger(value.maximumFileBytes) ||
+        value.maximumFileBytes < 1 ||
+        value.maximumFileBytes > value.chunkBytes * maximumChunks ||
+        value.importAcceptanceSupported !== false)
+    )
+      throw new Error("The host returned an unsupported transfer capability contract.");
+    return value;
+  }
+
+  async read(reference: DatasetImportTaskReference, signal?: AbortSignal): Promise<DatasetImportUploadReceipt | null> {
+    const pinned = pin(reference);
+    const value = await this.transport.request<DatasetImportUploadReceipt>(
+      `${path(pinned)}?contentHash=${pinned.contentHash}`,
+      "GET",
+      undefined,
+      signal,
+      true,
+    );
+    if (value !== null) validate(value, pinned);
+    return value;
+  }
+
+  async create(reference: DatasetImportTaskReference, signal?: AbortSignal): Promise<DatasetImportUploadReceipt> {
+    const pinned = pin(reference);
+    const body = JSON.stringify({ taskContentHash: pinned.contentHash });
+    const value = await this.transport.request<DatasetImportUploadReceipt>(path(pinned), "POST", body, signal);
+    validate(value, pinned);
+    return value;
+  }
+
+  async appendChunk(
+    reference: DatasetImportTaskReference,
+    original: DatasetImportUploadReceipt,
+    chunk: Blob,
+    signal?: AbortSignal,
+  ): Promise<DatasetImportUploadReceipt> {
+    const pinned = pin(reference);
+    validate(original, pinned);
+    // Snapshot every mutable receipt field before hashing or authentication awaits.
+    const { uploadId, version, acceptedBytes, totalBytes, chunkBytes, state } = original;
+    const expectedBytes = Math.min(chunkBytes, totalBytes - acceptedBytes);
+    if (state !== "receiving" || expectedBytes < 1 || chunk.size !== expectedBytes)
+      throw new TypeError("Exactly one original next chunk is required.");
+    const sha256 = await hashDatasetImportFile(chunk, { signal });
+    const value = await this.transport.request<DatasetImportUploadReceipt>(
+      `${path(pinned)}/chunks?contentHash=${pinned.contentHash}&expectedVersion=${version}&offset=${acceptedBytes}&sha256=${sha256}`,
+      "PUT",
+      chunk,
+      signal,
+      false,
+      "application/octet-stream",
+    );
+    validate(value, pinned, uploadId);
+    return value;
+  }
+
+  async seal(
+    reference: DatasetImportTaskReference,
+    original: DatasetImportUploadReceipt,
+    signal?: AbortSignal,
+  ): Promise<DatasetImportUploadReceipt> {
+    return await this.mutate(reference, original, "/seal", signal);
+  }
+  async retainSource(
+    reference: DatasetImportTaskReference,
+    original: DatasetImportUploadReceipt,
+    signal?: AbortSignal,
+  ): Promise<DatasetImportUploadReceipt> {
+    return await this.mutate(reference, original, "/source", signal);
+  }
+  async cancel(
+    reference: DatasetImportTaskReference,
+    original: DatasetImportUploadReceipt,
+    signal?: AbortSignal,
+  ): Promise<DatasetImportUploadReceipt> {
+    const pinned = pin(reference);
+    validate(original, pinned);
+    const { uploadId, version } = original;
+    const value = await this.transport.request<DatasetImportUploadReceipt>(
+      `${path(pinned)}?contentHash=${pinned.contentHash}&expectedVersion=${version}`,
+      "DELETE",
+      undefined,
+      signal,
+    );
+    validate(value, pinned, uploadId);
+    return value;
+  }
+  private async mutate(
+    reference: DatasetImportTaskReference,
+    original: DatasetImportUploadReceipt,
+    action: "/seal" | "/source",
+    signal?: AbortSignal,
+  ): Promise<DatasetImportUploadReceipt> {
+    const pinned = pin(reference);
+    validate(original, pinned);
+    const { uploadId, version } = original;
+    const body = JSON.stringify({ taskContentHash: pinned.contentHash, expectedVersion: version });
+    const value = await this.transport.request<DatasetImportUploadReceipt>(
+      `${path(pinned)}${action}`,
+      "POST",
+      body,
+      signal,
+    );
+    validate(value, pinned, uploadId);
+    return value;
+  }
+}
+
+function pin(reference: DatasetImportTaskReference): DatasetImportTaskReference {
+  validId(reference.taskId);
+  if (!Number.isSafeInteger(reference.revision) || reference.revision < 1 || !digest(reference.contentHash))
+    throw new TypeError("An exact immutable task reference is required.");
+  return { taskId: reference.taskId, revision: reference.revision, contentHash: reference.contentHash };
+}
+function digest(value: unknown): value is string {
+  return typeof value === "string" && value.length === 64 && /^[a-f0-9]{64}$/.test(value);
+}
+function validChunkBytes(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 65536 && value <= maximumChunkBytes;
+}
+function path(reference: DatasetImportTaskReference): string {
+  return `/dataset-import-tasks/${encodeURIComponent(reference.taskId)}/versions/${reference.revision}/upload`;
+}
+function validate(value: DatasetImportUploadReceipt, reference: DatasetImportTaskReference, uploadId?: string): void {
+  if (
+    !value ||
+    value.taskId !== reference.taskId ||
+    value.taskRevision !== reference.revision ||
+    value.taskContentHash !== reference.contentHash ||
+    typeof value.uploadId !== "string" ||
+    value.uploadId.length !== 32 ||
+    !/^[a-f0-9]{32}$/.test(value.uploadId) ||
+    (uploadId !== undefined && value.uploadId !== uploadId) ||
+    !Number.isSafeInteger(value.version) ||
+    value.version < 1 ||
+    !Number.isSafeInteger(value.totalBytes) ||
+    value.totalBytes < 1 ||
+    !validChunkBytes(value.chunkBytes) ||
+    value.totalBytes > value.chunkBytes * maximumChunks ||
+    !Number.isSafeInteger(value.acceptedBytes) ||
+    value.acceptedBytes < 0 ||
+    value.acceptedBytes > value.totalBytes ||
+    value.chunkCount !== Math.ceil(value.acceptedBytes / value.chunkBytes) ||
+    value.acceptedBytes !== Math.min(value.chunkCount * value.chunkBytes, value.totalBytes) ||
+    !["receiving", "sealed", "cancelled"].includes(value.state) ||
+    !Number.isFinite(Date.parse(value.expiresAt)) ||
+    (value.state === "sealed"
+      ? value.acceptedBytes !== value.totalBytes || !digest(value.contentSha256)
+      : value.contentSha256 != null)
+  )
+    throw new Error("The transfer receipt changed its immutable task/session binding or canonical byte range.");
+  if (
+    value.sourceRetention != null &&
+    (value.state !== "sealed" ||
+      value.sourceRetention.bytes !== value.totalBytes ||
+      value.sourceRetention.sha256 !== value.contentSha256 ||
+      (value.sourceRetention.expiresAt != null && !Number.isFinite(Date.parse(value.sourceRetention.expiresAt))))
+  )
+    throw new Error("The retained source receipt does not match the sealed original bytes.");
+}

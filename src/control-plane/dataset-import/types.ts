@@ -78,3 +78,31 @@ export interface DatasetImportAuthorityRenewal {
   readonly authorityFingerprint: string;
   readonly renewedAt: string;
 }
+
+/** Describes a retained receipt; it does not prove the storage object still exists. */
+export interface DatasetImportSourceRetentionReceipt {
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly expiresAt?: string | null;
+}
+/** Task-bound transfer receipt. Sealing/retaining never accepts an import job. */
+export interface DatasetImportUploadReceipt {
+  readonly taskId: string;
+  readonly taskRevision: number;
+  readonly taskContentHash: string;
+  readonly uploadId: string;
+  readonly version: number;
+  readonly state: "receiving" | "sealed" | "cancelled";
+  readonly acceptedBytes: number;
+  readonly totalBytes: number;
+  readonly chunkBytes: number;
+  readonly chunkCount: number;
+  readonly expiresAt: string;
+  readonly contentSha256?: string | null;
+  readonly sourceRetention?: DatasetImportSourceRetentionReceipt | null;
+}
+export interface DatasetImportUploadCapabilities {
+  readonly chunkBytes: number;
+  readonly maximumFileBytes: number;
+  readonly importAcceptanceSupported: false;
+}
