@@ -58,7 +58,7 @@ export function assertRegistryFreshness(manifest, packageName, packument) {
     throw new Error(`${packageName}: npm response has no versions`);
   }
   const newer = Object.keys(packument.versions)
-    .filter((version) => parseVersion(version).prerelease.length && compareVersions(version, manifest.latestRelease) > 0)
+    .filter((version) => compareVersions(version, manifest.latestRelease) > 0)
     .sort(compareVersions).at(-1);
   if (newer) throw new Error(`${packageName}: npm publishes ${newer}; documentation manifest says ${manifest.latestRelease}`);
 }

@@ -41,6 +41,14 @@ test("registry guard checks all published prereleases even if npm latest dist-ta
   assert.throws(() => assertRegistryFreshness(manifest, "@honua/sdk-js", {}), /no versions/);
 });
 
+test("registry guard catches a stable release the manifest has not recorded", () => {
+  const stable = { latestRelease: "0.2.3", versions: [{ version: "0.2.3" }] };
+  const packument = { versions: { "0.0.10-alpha.0": {}, "0.2.2": {}, "0.2.3": {} } };
+  assert.doesNotThrow(() => assertRegistryFreshness(stable, "@honua/sdk-js", packument));
+  packument.versions["0.2.4"] = {};
+  assert.throws(() => assertRegistryFreshness(stable, "@honua/sdk-js", packument), /npm publishes 0.2.4; documentation manifest says 0.2.3/);
+});
+
 test("network guards check both packages and fail closed on HTTP and malformed responses", async () => {
   const urls = [];
   await verifyRegistry(manifest, async (url) => {
