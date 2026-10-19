@@ -59,6 +59,25 @@ export class DatasetImportUploadClient {
     return value;
   }
 
+  /** Read-only recovery of a known session, preserving its immutable fields and terminal receipts. */
+  async reconcile(
+    reference: DatasetImportTaskReference,
+    original: DatasetImportUploadReceipt,
+    signal?: AbortSignal,
+  ): Promise<DatasetImportUploadReceipt | null> {
+    const pinned = pin(reference);
+    const session = captureSession(original, pinned);
+    const value = await this.transport.request<DatasetImportUploadReceipt>(
+      `${path(pinned)}?contentHash=${pinned.contentHash}`,
+      "GET",
+      undefined,
+      signal,
+      true,
+    );
+    if (value !== null) validate(value, pinned, session);
+    return value;
+  }
+
   async create(reference: DatasetImportTaskReference, signal?: AbortSignal): Promise<DatasetImportUploadReceipt> {
     const pinned = pin(reference);
     const body = JSON.stringify({ taskContentHash: pinned.contentHash });
@@ -74,9 +93,9 @@ export class DatasetImportUploadClient {
     signal?: AbortSignal,
   ): Promise<DatasetImportUploadReceipt> {
     const pinned = pin(reference);
-    validate(original, pinned);
+    const session = captureSession(original, pinned);
     // Snapshot every mutable receipt field before hashing or authentication awaits.
-    const { uploadId, version, acceptedBytes, totalBytes, chunkBytes, state } = original;
+    const { version, acceptedBytes, totalBytes, chunkBytes, state } = session;
     const expectedBytes = Math.min(chunkBytes, totalBytes - acceptedBytes);
     if (state !== "receiving" || expectedBytes < 1 || chunk.size !== expectedBytes)
       throw new TypeError("Exactly one original next chunk is required.");
@@ -89,7 +108,7 @@ export class DatasetImportUploadClient {
       false,
       "application/octet-stream",
     );
-    validate(value, pinned, uploadId);
+    validate(value, pinned, session);
     return value;
   }
 
@@ -113,15 +132,15 @@ export class DatasetImportUploadClient {
     signal?: AbortSignal,
   ): Promise<DatasetImportUploadReceipt> {
     const pinned = pin(reference);
-    validate(original, pinned);
-    const { uploadId, version } = original;
+    const session = captureSession(original, pinned);
+    const { version } = session;
     const value = await this.transport.request<DatasetImportUploadReceipt>(
       `${path(pinned)}?contentHash=${pinned.contentHash}&expectedVersion=${version}`,
       "DELETE",
       undefined,
       signal,
     );
-    validate(value, pinned, uploadId);
+    validate(value, pinned, session);
     return value;
   }
   private async mutate(
@@ -131,8 +150,8 @@ export class DatasetImportUploadClient {
     signal?: AbortSignal,
   ): Promise<DatasetImportUploadReceipt> {
     const pinned = pin(reference);
-    validate(original, pinned);
-    const { uploadId, version } = original;
+    const session = captureSession(original, pinned);
+    const { version } = session;
     const body = JSON.stringify({ taskContentHash: pinned.contentHash, expectedVersion: version });
     const value = await this.transport.request<DatasetImportUploadReceipt>(
       `${path(pinned)}${action}`,
@@ -140,7 +159,7 @@ export class DatasetImportUploadClient {
       body,
       signal,
     );
-    validate(value, pinned, uploadId);
+    validate(value, pinned, session);
     return value;
   }
 }
@@ -160,7 +179,11 @@ function validChunkBytes(value: number): boolean {
 function path(reference: DatasetImportTaskReference): string {
   return `/dataset-import-tasks/${encodeURIComponent(reference.taskId)}/versions/${reference.revision}/upload`;
 }
-function validate(value: DatasetImportUploadReceipt, reference: DatasetImportTaskReference, uploadId?: string): void {
+function validate(
+  value: DatasetImportUploadReceipt,
+  reference: DatasetImportTaskReference,
+  session?: SessionSnapshot,
+): void {
   if (
     !value ||
     value.taskId !== reference.taskId ||
@@ -169,7 +192,15 @@ function validate(value: DatasetImportUploadReceipt, reference: DatasetImportTas
     typeof value.uploadId !== "string" ||
     value.uploadId.length !== 32 ||
     !/^[a-f0-9]{32}$/.test(value.uploadId) ||
-    (uploadId !== undefined && value.uploadId !== uploadId) ||
+    (session !== undefined &&
+      (value.uploadId !== session.uploadId ||
+        value.totalBytes !== session.totalBytes ||
+        value.chunkBytes !== session.chunkBytes ||
+        value.expiresAt !== session.expiresAt ||
+        value.version < session.version ||
+        value.acceptedBytes < session.acceptedBytes ||
+        (session.state !== "receiving" && value.state !== session.state) ||
+        (session.contentSha256 != null && value.contentSha256 !== session.contentSha256))) ||
     !Number.isSafeInteger(value.version) ||
     value.version < 1 ||
     !Number.isSafeInteger(value.totalBytes) ||
@@ -189,6 +220,14 @@ function validate(value: DatasetImportUploadReceipt, reference: DatasetImportTas
   )
     throw new Error("The transfer receipt changed its immutable task/session binding or canonical byte range.");
   if (
+    session?.sourceRetention !== undefined &&
+    (value.sourceRetention == null ||
+      value.sourceRetention.bytes !== session.sourceRetention.bytes ||
+      value.sourceRetention.sha256 !== session.sourceRetention.sha256 ||
+      (value.sourceRetention.expiresAt ?? null) !== session.sourceRetention.expiresAt)
+  )
+    throw new Error("The original retained source receipt changed.");
+  if (
     value.sourceRetention != null &&
     (value.state !== "sealed" ||
       value.sourceRetention.bytes !== value.totalBytes ||
@@ -196,4 +235,38 @@ function validate(value: DatasetImportUploadReceipt, reference: DatasetImportTas
       (value.sourceRetention.expiresAt != null && !Number.isFinite(Date.parse(value.sourceRetention.expiresAt))))
   )
     throw new Error("The retained source receipt does not match the sealed original bytes.");
+}
+
+interface SessionSnapshot {
+  readonly uploadId: string;
+  readonly version: number;
+  readonly state: DatasetImportUploadReceipt["state"];
+  readonly acceptedBytes: number;
+  readonly totalBytes: number;
+  readonly chunkBytes: number;
+  readonly expiresAt: string;
+  readonly contentSha256?: string | null;
+  readonly sourceRetention?: { readonly bytes: number; readonly sha256: string; readonly expiresAt: string | null };
+}
+function captureSession(original: DatasetImportUploadReceipt, reference: DatasetImportTaskReference): SessionSnapshot {
+  validate(original, reference);
+  return {
+    uploadId: original.uploadId,
+    version: original.version,
+    state: original.state,
+    acceptedBytes: original.acceptedBytes,
+    totalBytes: original.totalBytes,
+    chunkBytes: original.chunkBytes,
+    expiresAt: original.expiresAt,
+    contentSha256: original.contentSha256,
+    ...(original.sourceRetention == null
+      ? {}
+      : {
+          sourceRetention: {
+            bytes: original.sourceRetention.bytes,
+            sha256: original.sourceRetention.sha256,
+            expiresAt: original.sourceRetention.expiresAt ?? null,
+          },
+        }),
+  };
 }

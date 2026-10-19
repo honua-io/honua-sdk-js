@@ -152,6 +152,105 @@ describe("canonical task-bound upload client", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it.each(["append", "seal", "source", "cancel"] as const)(
+    "pins all immutable session fields on %s responses",
+    async (action) => {
+      for (const change of [
+        { totalBytes: 6 },
+        { chunkBytes: 2 * 1024 * 1024 },
+        { expiresAt: "2026-10-20T00:00:00Z" },
+      ]) {
+        const original =
+          action === "seal" || action === "source"
+            ? receipt({
+                version: 2,
+                acceptedBytes: 3,
+                chunkCount: 1,
+                ...(action === "source" ? { state: "sealed", contentSha256: digest } : {}),
+              })
+            : receipt();
+        const next =
+          action === "cancel"
+            ? receipt({ version: 2, state: "cancelled", ...change })
+            : receipt({
+                version: 3,
+                acceptedBytes: change.totalBytes ?? 3,
+                chunkCount: 1,
+                ...(action === "append" ? {} : { state: "sealed", contentSha256: digest }),
+                ...change,
+              });
+        const fetcher = vi.fn(async () => Response.json(next));
+        const client = new DatasetImportUploadClient({ ...options, fetch: fetcher as typeof fetch });
+        const mutate =
+          action === "append"
+            ? client.appendChunk(reference, original, new Blob(["abc"]))
+            : action === "seal"
+              ? client.seal(reference, original)
+              : action === "source"
+                ? client.retainSource(reference, original)
+                : client.cancel(reference, original);
+        await expect(mutate).rejects.toThrow("immutable task/session binding");
+        expect(fetcher).toHaveBeenCalledTimes(1);
+      }
+    },
+  );
+
+  it("captures original session fields before authentication and later caller mutation", async () => {
+    let release!: (headers: HeadersInit) => void;
+    const authentication = new Promise<HeadersInit>((resolve) => {
+      release = resolve;
+    });
+    const original = { ...receipt() };
+    const client = new DatasetImportUploadClient({
+      ...options,
+      headers: () => authentication,
+      fetch: vi.fn(async () => Response.json(receipt({ version: 2, state: "cancelled" }))),
+    });
+    const cancelling = client.cancel(reference, original);
+    original.totalBytes = 6;
+    original.chunkBytes = 2 * 1024 * 1024;
+    original.expiresAt = "2026-10-20T00:00:00Z";
+    release({});
+    expect(await cancelling).toEqual(receipt({ version: 2, state: "cancelled" }));
+  });
+
+  it("reconciles known uncertain sessions with GET and refuses changed admission deadline", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(receipt({ version: 2, acceptedBytes: 3, chunkCount: 1 })))
+      .mockResolvedValueOnce(Response.json(receipt({ expiresAt: "2026-10-20T00:00:00Z" })))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+    const client = new DatasetImportUploadClient({ ...options, fetch: fetcher });
+    expect((await client.reconcile(reference, receipt()))?.acceptedBytes).toBe(3);
+    await expect(client.reconcile(reference, receipt())).rejects.toThrow("immutable task/session binding");
+    expect(await client.reconcile(reference, receipt())).toBeNull();
+    expect(fetcher.mock.calls.every((call) => call[1].method === "GET")).toBe(true);
+  });
+
+  it("never replaces an original retained source receipt or regresses terminal state", async () => {
+    const original = receipt({
+      version: 4,
+      state: "sealed",
+      acceptedBytes: 3,
+      chunkCount: 1,
+      contentSha256: digest,
+      sourceRetention: { bytes: 3, sha256: digest, expiresAt: "2026-10-19T00:00:00Z" },
+    });
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          ...original,
+          version: 5,
+          sourceRetention: { ...original.sourceRetention, expiresAt: "2026-10-20T00:00:00Z" },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json(receipt({ version: 5, acceptedBytes: 3, chunkCount: 1 })));
+    const client = new DatasetImportUploadClient({ ...options, fetch: fetcher });
+    await expect(client.retainSource(reference, original)).rejects.toThrow("original retained source");
+    await expect(client.reconcile(reference, original)).rejects.toThrow("immutable task/session binding");
+  });
+
   it("rejects another session returned after a mutation instead of overwriting the original", async () => {
     const fetcher = vi.fn(async () =>
       Response.json(receipt({ uploadId: "c".repeat(32), version: 2, state: "cancelled" })),
