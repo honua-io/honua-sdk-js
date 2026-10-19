@@ -133,6 +133,29 @@ describe("canonical import task client", () => {
     );
   });
 
+  it("requires a complete authority descriptor instead of guessing missing preparation fields", async () => {
+    const descriptor = {
+      taskId: reference.taskId,
+      taskRevision: reference.revision,
+      taskContentHash: hash,
+      executorActorId: "actual-executor",
+      originatingTurnId: "original-turn",
+      originalTurnHash: hash,
+      authorityRevision: 4,
+      authorityFingerprint: hash,
+      policyContextFingerprint: hash,
+      uploadAdmissionDeadline: "2026-10-19T00:00:00Z",
+      preparedOperationId: "b".repeat(32),
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(descriptor))
+      .mockResolvedValueOnce(Response.json({ ...descriptor, authorityFingerprint: null }));
+    const client = new DatasetImportTaskClient({ ...options, fetch: fetcher });
+    expect(await client.readAuthority(reference)).toEqual(descriptor);
+    await expect(client.readAuthority(reference)).rejects.toThrow("immutable task binding");
+  });
+
   it("replays the same renewal without inferring a newer authority revision", async () => {
     const receipt = {
       renewalId: "original-renewal",

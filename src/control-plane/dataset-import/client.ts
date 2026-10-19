@@ -88,7 +88,17 @@ export class DatasetImportTaskClient {
         descriptor.taskRevision !== pinned.revision ||
         descriptor.taskContentHash !== pinned.contentHash ||
         !Number.isSafeInteger(descriptor.authorityRevision) ||
-        descriptor.authorityRevision < 1)
+        descriptor.authorityRevision < 1 ||
+        !validDigest(descriptor.authorityFingerprint) ||
+        !validDigest(descriptor.policyContextFingerprint) ||
+        !validDigest(descriptor.originalTurnHash) ||
+        typeof descriptor.executorActorId !== "string" ||
+        descriptor.executorActorId.length < 1 ||
+        typeof descriptor.originatingTurnId !== "string" ||
+        descriptor.originatingTurnId.length < 1 ||
+        !Number.isFinite(Date.parse(descriptor.uploadAdmissionDeadline)) ||
+        (descriptor.preparedOperationId != null &&
+          (descriptor.preparedOperationId.length !== 32 || !/^[a-f0-9]{32}$/.test(descriptor.preparedOperationId))))
     )
       throw new Error("Import authority response changed the immutable task binding.");
     return descriptor;
@@ -119,7 +129,9 @@ export class DatasetImportTaskClient {
     if (
       receipt.renewalId !== renewalId ||
       receipt.previousAuthorityRevision !== previousRevision ||
-      receipt.authorityRevision !== previousRevision + 1
+      receipt.authorityRevision !== previousRevision + 1 ||
+      !validDigest(receipt.authorityFingerprint) ||
+      !Number.isFinite(Date.parse(receipt.renewedAt))
     )
       throw new Error("Import renewal response changed the original renewal binding.");
     return receipt;
@@ -154,4 +166,8 @@ function pin(reference: DatasetImportTaskReference): DatasetImportTaskReference 
 }
 function path(reference: DatasetImportTaskReference): string {
   return `/dataset-import-tasks/${encodeURIComponent(reference.taskId)}/versions/${reference.revision}`;
+}
+
+function validDigest(value: unknown): value is string {
+  return typeof value === "string" && value.length === 64 && /^[a-f0-9]{64}$/.test(value);
 }
