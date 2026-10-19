@@ -225,10 +225,10 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /\["SDK CI","PR issue disposition","Schema sync gate","Security"\]/u);
     assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --json name,bucket/u);
     const mergeWait = workflow.slice(
-      workflow.indexOf("- name: Merge validated regeneration PR"),
+      workflow.indexOf("- name: Wait for exact regeneration validation"),
       workflow.indexOf("- name: Dispatch strict trunk CI and docs validation"),
     );
-    assert.match(mergeWait, /timeout-minutes: 60/u);
+    assert.match(mergeWait, /timeout-minutes: 120/u);
     assert.doesNotMatch(mergeWait, /--auto/u);
     assert.doesNotMatch(mergeWait, /--watch/u);
     assert.match(mergeWait, /all\(\.\[\]; \.bucket == "pass"\)/u);
