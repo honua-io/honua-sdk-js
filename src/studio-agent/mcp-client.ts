@@ -1,8 +1,8 @@
 /**
  * A minimal MCP client over honua-server's `/mcp` HTTP transport. JSON-RPC
- * 2.0 over `POST /mcp`: `initialize` handshake, `tools/list`, `tools/call` —
- * nothing else (no resources/prompts/sampling; a Studio tool plane never
- * needs them).
+ * 2.0 over `POST /mcp`: `initialize` handshake, `tools/list`, `tools/call`, and `resources/read`.
+ * Resource reads preserve Honua continuation cursors; there are no
+ * prompts/sampling/roots implementations.
  *
  * **Origin.** Ported verbatim from `honua-studio`'s `src/mcp/client.ts`
  * (honua-studio#7 REQ-001), where it is zero-import, DOM-free, and
@@ -112,6 +112,21 @@ export interface McpToolListing {
   readonly pages: number;
   /** View metadata from the pages. Absent when the server did not send `_meta`. */
   readonly metadata?: Record<string, unknown>;
+}
+
+/** Honua resource-window options; echo the opaque cursor from the previous result. */
+export interface McpReadResourceOptions {
+  readonly cursor?: string;
+  /** Per-request character budget, from 1 through 1,000,000. Server default is 64,000. */
+  readonly maxChars?: number;
+  /** Aborts both lazy initialization and this resource request. */
+  readonly signal?: AbortSignal;
+}
+
+/** A resource chunk. Concatenate text per URI until nextCursor is absent. */
+export interface McpReadResourceResult {
+  readonly contents?: readonly Record<string, unknown>[];
+  readonly nextCursor?: string | null;
 }
 
 export interface McpClientOptions {
@@ -335,16 +350,28 @@ export class McpClient {
   }
 
   /**
+   * `resources/read`. Binary artifacts come back as base64 `blob` contents.
+   * A text chunk may not be valid JSON on its own: echo nextCursor in options
+   * and concatenate text per URI before parsing the complete document.
+   */
+  public async readResource(uri: string, options: McpReadResourceOptions = {}): Promise<McpReadResourceResult> {
+    await this.initialize(options.signal);
+    return this.#send(
+      "resources/read",
+      {
+        uri,
+        ...(options.cursor !== undefined ? { cursor: options.cursor } : {}),
+        ...(options.maxChars !== undefined ? { maxChars: options.maxChars } : {}),
+      },
+      options.signal,
+    );
+  }
+
+  /**
    * `tools/call`. Throws {@link McpToolError} when the tool reported failure
    * (`result.isError: true`) — never returns a result the caller has to
    * remember to check `.isError` on.
    */
-  /** `resources/read`. Binary artifacts come back as base64 `blob` contents. */
-  public async readResource(uri: string): Promise<{ contents?: readonly Record<string, unknown>[] }> {
-    await this.initialize();
-    return this.#send("resources/read", { uri });
-  }
-
   public async callTool(name: string, args: Record<string, unknown> = {}): Promise<McpToolsCallResult> {
     await this.initialize();
     const params: McpToolsCallParams = { name, arguments: args };

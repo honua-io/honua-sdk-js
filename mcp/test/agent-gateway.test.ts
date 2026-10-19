@@ -12,6 +12,7 @@ import {
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type { DevOpsExtension } from "../src/agent/devops-runtime.js";
 import { HonuaAgentGateway, connectAgentUpstream } from "../src/agent/gateway.js";
 import type { AgentRuntime } from "../src/agent/local-runtime.js";
@@ -29,6 +30,7 @@ async function setup(
   let installed = options.installed ?? false;
   const calls: unknown[] = [];
   const views: (string | undefined)[] = [];
+  const resourceReads: Record<string, unknown>[] = [];
   let notified = 0;
   let cancelled = false;
   const upstream = new Server(
@@ -89,9 +91,33 @@ async function setup(
     resources: [{ name: "Fixture", uri: "honua://fixture" }],
   }));
   upstream.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
-  upstream.setRequestHandler(ReadResourceRequestSchema, async (request) => ({
-    contents: [{ uri: request.params.uri, text: "canonical resource" }],
-  }));
+  // Independent upstream declares the Server's documented resource-window extension.
+  upstream.setRequestHandler(
+    ReadResourceRequestSchema.extend({
+      params: ReadResourceRequestSchema.shape.params.extend({
+        cursor: z.string().optional(),
+        maxChars: z.number().int().positive().max(1_000_000).optional(),
+      }),
+    }),
+    async (request) => {
+      resourceReads.push(request.params);
+      if (request.params.uri !== "honua://catalog/processes")
+        return { contents: [{ uri: request.params.uri, text: "canonical resource" }] };
+      const document = JSON.stringify({
+        processes: [
+          { processId: "first", description: "GIS workflow 🗺️ ".repeat(6_000) },
+          { processId: "last", executionKind: "Job" },
+        ],
+      });
+      const offset = request.params.cursor ? Number(request.params.cursor.slice("window:".length)) : 0;
+      const end = Math.min(offset + (request.params.maxChars ?? 64_000), document.length);
+      return {
+        contents: [{ uri: request.params.uri, mimeType: "application/json", text: document.slice(offset, end) }],
+        ...(end < document.length ? { nextCursor: `window:${end}` } : {}),
+        _meta: { catalogVersion: "fixture.window.v1" },
+      };
+    },
+  );
   upstream.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [{ name: "fixture-prompt" }] }));
   upstream.setRequestHandler(GetPromptRequestSchema, async () => ({
     messages: [{ role: "user", content: { type: "text", text: "canonical prompt" } }],
@@ -143,6 +169,7 @@ async function setup(
     upstream,
     runtime,
     calls,
+    resourceReads,
     views,
     notifications: () => notified,
     cancelled: () => cancelled,
@@ -271,6 +298,47 @@ describe("persistent Honua agent gateway", () => {
       text: "canonical prompt",
     });
   });
+
+  it("preserves opaque resource cursors and character budgets through both MCP transports", async () => {
+    const { client, resourceReads } = await setup({ installed: true });
+    const uri = "honua://catalog/processes";
+    let page = await client.readResource({ uri });
+    const first = page.contents[0];
+    if (!("text" in first)) throw new Error("Expected a text resource");
+    expect(first.text.length).toBe(64_000);
+    expect(() => JSON.parse(first.text)).toThrow();
+    let document = first.text;
+    let pages = 1;
+    const cursors = new Set<string>();
+    while (typeof page.nextCursor === "string") {
+      expect(pages).toBeLessThan(16);
+      expect(cursors.has(page.nextCursor)).toBe(false);
+      cursors.add(page.nextCursor);
+      const params = { uri, cursor: page.nextCursor, maxChars: 8_192, _meta: { "honua.trace": "catalog" } };
+      page = await client.readResource(params);
+      expect(resourceReads.at(-1)).toEqual(params);
+      expect(page._meta).toEqual({ catalogVersion: "fixture.window.v1" });
+      const chunk = page.contents[0];
+      if (!("text" in chunk)) throw new Error("Expected a text resource");
+      expect(chunk.text.length).toBeLessThanOrEqual(8_192);
+      document += chunk.text;
+      pages++;
+    }
+    expect(pages).toBeGreaterThan(1);
+    const catalog = JSON.parse(document);
+    expect(catalog.processes[0].description).toBe("GIS workflow 🗺️ ".repeat(6_000));
+    expect(catalog.processes.at(-1)).toEqual({ processId: "last", executionKind: "Job" });
+  });
+
+  it.each([0, -1, 1.5, 1_000_001, "64000"])(
+    "rejects an invalid resource budget %s before upstream dispatch",
+    async (maxChars) => {
+      const { client, resourceReads } = await setup({ installed: true });
+      const params = { uri: "honua://catalog/processes", maxChars };
+      await expect(client.readResource(params)).rejects.toThrow();
+      expect(resourceReads).toHaveLength(0);
+    },
+  );
 
   it("refreshes the downstream catalog on upstream notifications", async () => {
     const fixture = await setup({ installed: true });

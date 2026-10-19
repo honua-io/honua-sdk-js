@@ -33,6 +33,15 @@ import type { DevOpsExtension } from "./devops-runtime.js";
 import type { AgentConnection, AgentRuntime, AgentTarget } from "./local-runtime.js";
 import { WORKFLOW_KNOWLEDGE, WORKFLOW_KNOWLEDGE_URI } from "./workflow-knowledge.js";
 
+// Honua chunks large resource documents. The standard MCP schema strips
+// these extension fields before the handler runs, so declare them explicitly.
+const honuaReadResourceRequestSchema = ReadResourceRequestSchema.extend({
+  params: ReadResourceRequestSchema.shape.params.extend({
+    cursor: z.string().optional(),
+    maxChars: z.number().int().min(1).max(1_000_000).optional(),
+  }),
+});
+
 const PREFIX = "honua_agent_";
 const DEVOPS_PREFIX = "honua_agent_devops_";
 const knowledgeResource = {
@@ -227,7 +236,7 @@ export class HonuaAgentGateway {
             client.request(request, ListResourceTemplatesResultSchema, { signal: extra.signal }),
           ),
     );
-    this.server.setRequestHandler(ReadResourceRequestSchema, (request, extra) =>
+    this.server.setRequestHandler(honuaReadResourceRequestSchema, (request, extra) =>
       request.params.uri === WORKFLOW_KNOWLEDGE_URI
         ? {
             contents: [

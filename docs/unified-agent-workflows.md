@@ -114,3 +114,19 @@ references rather than repeat completed mutations.
 
 Operators connecting the private extension can use the deeper
 [host configuration reference](unified-agent-host-configuration.md).
+
+### Reading large process catalogs and job results
+
+`honua://catalog/processes` and other JSON resources can span multiple text
+windows. A first `resources/read` response can contain incomplete JSON with a
+`nextCursor`. Echo that opaque value in the next request's `cursor`, retain the
+same URI, and concatenate text for that URI until the cursor is absent before
+parsing JSON. The gateway preserves these Honua extensions. `maxChars` optionally
+sets the per-request character budget from 1 through 1,000,000; omitting it uses
+the Server default of 64,000. Clients must bound page counts and reject repeated
+cursors rather than loop indefinitely.
+
+The native SDK exposes the same window contract through
+`McpClient.readResource(uri, { cursor, maxChars, signal })`. Its result includes
+`nextCursor`; reads do not automatically retry, switch targets or execute jobs.
+Single-window `readResource(uri)` calls remain valid.
