@@ -190,14 +190,16 @@ jobs:
         run: node scripts/browser-shards.mjs check
 
       # Everything above this line imports only Node builtins and repository
-      # sources, so it fails in seconds. The graph fixture parses two workflow
-      # files and needs the `yaml` devDependency, so it -- and only it -- pays
-      # for an install.
+      # sources, so it fails in seconds. The graph and reseal policy fixtures parse workflow
+      # files with the `yaml` devDependency, so these checks run after install.
       - name: Install dependencies
         run: npm ci
 
       - name: Test verification graph policy
         run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/unit-test-shards.test.mjs
+
+      - name: Test reseal credential lifetime policy
+        run: node --test test/scripts/reseal-token-lifetime.test.mjs
 
       - name: Verify every unit spec has exactly one shard
         run: npm run unit:shards:check
