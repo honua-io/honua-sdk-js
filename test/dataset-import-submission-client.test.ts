@@ -169,13 +169,23 @@ describe("canonical task-bound submission client", () => {
     await expect(client.reconcile(reference, result)).rejects.toThrow();
   });
 
-  it("rejects progress regression and output claimed before success", async () => {
+  it("allows same-job nonterminal requeue after worker lease loss and rejects premature output", async () => {
     const original: DatasetImportSubmissionReceipt = { ...accepted(), job: { ...accepted().job!, status: "running" } };
-    const client = new DatasetImportSubmissionClient({
-      ...options,
-      fetch: vi.fn(async () => Response.json(accepted())),
-    });
-    await expect(client.reconcile(reference, original)).rejects.toThrow();
+    const resumed: DatasetImportSubmissionReceipt = {
+      ...original,
+      job: { ...original.job!, updatedAt: "2026-10-18T00:02:00Z" },
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(accepted()))
+      .mockResolvedValueOnce(Response.json(resumed));
+    const client = new DatasetImportSubmissionClient({ ...options, fetch: fetcher });
+    const requeued = await client.reconcile(reference, original);
+    expect(requeued?.job?.status).toBe("queued");
+    const running = await client.reconcile(reference, requeued!);
+    expect(running?.job?.status).toBe("running");
+    expect(running?.job?.jobId).toBe(original.job!.jobId);
+    expect(fetcher.mock.calls.every(([, init]) => init.method === "GET")).toBe(true);
     const malformed: DatasetImportSubmissionReceipt = {
       ...accepted(),
       job: { ...accepted().job!, output: { schema: "public", physicalTableName: "guessed", featureCount: 1 } },

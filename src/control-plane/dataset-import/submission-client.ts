@@ -53,9 +53,7 @@ export class DatasetImportSubmissionClient {
           value.state !== "accepted" ||
           value.job!.jobId !== before.job!.jobId ||
           value.job!.leaseId !== before.job!.leaseId ||
-          value.job!.createdAt !== before.job!.createdAt ||
-          Date.parse(value.job!.updatedAt) < Date.parse(before.job!.updatedAt) ||
-          rank(value.job!.status) < rank(before.job!.status)
+          value.job!.createdAt !== before.job!.createdAt
         )
           fail();
         if (
@@ -155,9 +153,6 @@ function outputKey(output: DatasetImportOutputReceipt | null | undefined): strin
   return output == null
     ? "null"
     : JSON.stringify([output.schema, output.physicalTableName, output.featureCount, output.detectedSrid ?? null]);
-}
-function rank(value: string): number {
-  return value === "queued" ? 0 : value === "provisioning" ? 1 : value === "running" ? 2 : 3;
 }
 function terminal(value: string): boolean {
   return ["succeeded", "failed", "cancelled"].includes(value);
