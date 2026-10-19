@@ -1,0 +1,51 @@
+{
+  "kind": "same-sdk-renderer-comparison",
+  "releaseQualified": false,
+  "head": "7936205e0064ef2a080398c14634022c326e2cc7",
+  "node": "v24.19.0",
+  "dependencyChanges": [
+    {
+      "name": "node_modules/maplibre-gl",
+      "before": {
+        "version": "6.14.0",
+        "integrity": "sha512-L7U9y9TyPJ3P/JJbW+eH+A3FzdPq+3fnZFqqeCwf/S6cRGganHwVI5b/C8/zOYzreUzsloDPZVVaMQA94wOt4A=="
+      },
+      "after": {
+        "version": "6.15.0",
+        "integrity": "sha512-kxFetbvUHDOVaAP1CYb226Mdk2QhzIPddqM0xJTFD35wu78Mpd6NM7+H68ALjc6Oa0kAOX5EAdMKyvD2u3qfcg=="
+      }
+    }
+  ],
+  "delta": {
+    "javascriptBytes": 18991,
+    "javascriptGzipBytes": 6253
+  },
+  "rows": [
+    {
+      "renderer": "6.14.0",
+      "exitCode": 0,
+      "measurement": {
+        "javascriptBytes": 1971979,
+        "javascriptGzipBytes": 525539
+      },
+      "budgetStatus": "passed",
+      "receiptSha256": "f4f8cf92e1a19cc191bf9d6a86023d8daa503409b5b627625f795bee26469f2d"
+    },
+    {
+      "renderer": "6.15.0",
+      "exitCode": 1,
+      "measurement": {
+        "javascriptBytes": 1990970,
+        "javascriptGzipBytes": 531792
+      },
+      "budgetStatus": "failed",
+      "receiptSha256": "ad307286bfd79d70edca1ef14ac6cd536a4d855c5396ad5b49fbc8fd0c7042ed"
+    }
+  ],
+  "files": {
+    "6.14.0.consumer-lock.json": "884278f7e221e878b013144adc5935ee3928f0f1166209680942a4706ac78b60",
+    "6.14.0.receipt.json": "f4f8cf92e1a19cc191bf9d6a86023d8daa503409b5b627625f795bee26469f2d",
+    "6.15.0.consumer-lock.json": "a80d3995144e19374b23bff87e10b863a84fba33664faa17233f5e22b6fb8cf3",
+    "6.15.0.receipt.json": "ad307286bfd79d70edca1ef14ac6cd536a4d855c5396ad5b49fbc8fd0c7042ed"
+  }
+}

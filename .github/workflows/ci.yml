@@ -373,6 +373,9 @@ jobs:
       - name: Validate quickstart timing runner
         run: npm run docs:quickstart:time-to-map:test
 
+      - name: Test reseal credential lifetime policy
+        run: node --test test/scripts/reseal-token-lifetime.test.mjs
+
       - name: Typecheck
         run: npm run typecheck
 
