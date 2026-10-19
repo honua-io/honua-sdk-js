@@ -85,6 +85,12 @@ export default defineConfig({
       ecma: 2020,
       compress: { passes: 2 },
     },
+    // First Map has one application entry. Keep its reachable modules together
+    // so compression can share a dictionary across the complete application;
+    // the MapLibre worker remains a separately built worker asset.
+    rolldownOptions: {
+      output: { codeSplitting: false },
+    },
   },
   plugins: [bundleBudget, ...(shared.plugins ?? [])],
 });
