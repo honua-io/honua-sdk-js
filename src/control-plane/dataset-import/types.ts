@@ -16,6 +16,8 @@ export interface DatasetImportSource {
   readonly totalBytes: number;
   readonly expectedSha256?: string | null;
   readonly artifact?: DatasetImportArtifactSource | null;
+  /** Original human file selection captured by the immutable originating turn. */
+  readonly browserSelectionId?: string | null;
 }
 export interface DatasetImportTaskOptions {
   /** Current new-table slice supports Append (1); occupied destinations remain unsupported. */

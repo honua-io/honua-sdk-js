@@ -27,6 +27,7 @@ const createRequest = (): CreateDatasetImportTask => ({
     fileName: "roads.geojson",
     totalBytes: 9000000000,
     expectedSha256: hash,
+    browserSelectionId: "original-human-file",
   },
   options: { loadMode: 1, targetSrid: 4326 },
 });
@@ -50,6 +51,7 @@ describe("canonical import task client", () => {
     mutableOptions.workspaceId = "later-workspace";
     mutableOptions.originatingTurnId = "later-turn";
     (request.destination as { table: string }).table = "later_table";
+    (request.source as { browserSelectionId: string }).browserSelectionId = "later-human-file";
     release({
       Authorization: "Bearer refreshed",
       "X-Honua-Workspace": "injected",
@@ -61,6 +63,7 @@ describe("canonical import task client", () => {
       "https://honua.example/deployment/api/v1/agent/workspaces/workspace-original/dataset-import-tasks",
     );
     expect(JSON.parse(init.body as string).destination.table).toBe("roads");
+    expect(JSON.parse(init.body as string).source.browserSelectionId).toBe("original-human-file");
     const headers = new Headers(init.headers);
     expect(headers.get("Authorization")).toBe("Bearer refreshed");
     expect(headers.get("X-Honua-Workspace")).toBe("workspace-original");
