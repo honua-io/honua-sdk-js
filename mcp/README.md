@@ -67,7 +67,10 @@ and their approval authority are separate.
 This preview forwards canonical paginated tools, resources, resource templates,
 prompts, request metadata, tool progress, cancellation, and catalog-change
 notifications. It negotiates its own MCP identity and preserves the configured
-workflow view. It does not advertise subscriptions, sampling, roots,
+workflow view. When a client omits its view, the persistent connector selects
+the server's `full` view so Studio and the other GIS workflows remain
+discoverable on the same registration. This changes discovery only; Server
+RBAC and approval policy still govern every operation. It does not advertise subscriptions, sampling, roots,
 completions, or tasks. Durable workflow context, command reconciliation, browser
 pairing, and coordinated Console/Studio artifacts remain tracked in
 [the unified workspace workstream](https://github.com/honua-io/honua-server/issues/6297).

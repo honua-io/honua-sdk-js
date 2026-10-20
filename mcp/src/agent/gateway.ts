@@ -312,7 +312,11 @@ export class HonuaAgentGateway {
     transport.onmessage = (message, extra) => {
       if ("method" in message && message.method === "initialize") {
         try {
-          this.#view = readWorkflowView(InitializeRequestSchema.parse(message));
+          // Ordinary MCP hosts do not send Honua-specific view metadata. The
+          // persistent connector spans GIS workflows, including Studio; the
+          // Server's bounded default omits those tools. Membership and authority
+          // remain Server-owned, and an explicit client view still takes priority.
+          this.#view = readWorkflowView(InitializeRequestSchema.parse(message)) ?? "full";
         } catch {
           if ("id" in message)
             void transport
