@@ -81,7 +81,10 @@ export class DatasetImportServerJobSourceClient {
     };
   }
 
-  async describe(request: DescribeServerJobImportSource, signal?: AbortSignal): Promise<DatasetImportServerJobSource | null> {
+  async describe(
+    request: DescribeServerJobImportSource,
+    signal?: AbortSignal,
+  ): Promise<DatasetImportServerJobSource | null> {
     const { jobId, resultPackageId, artifactId } = request;
     validId(jobId);
     validPackage(jobId, resultPackageId);
@@ -115,8 +118,10 @@ export class DatasetImportServerJobSourceClient {
         : output.crsState !== "unknown" || output.sourceSrid != null)
     )
       throw new Error("The job source description changed its original identity or content/coordinate contract.");
-    if (!principalText(output.producerActorId, 2048) ||
-      (output.producerTenantId != null && !principalText(output.producerTenantId, 512, true)))
+    if (
+      !principalText(output.producerActorId, 2048) ||
+      (output.producerTenantId != null && !principalText(output.producerTenantId, 512, true))
+    )
       throw new Error("The job source producer identity is outside the Server contract.");
     return {
       kind: "server-job-artifact",
@@ -124,7 +129,13 @@ export class DatasetImportServerJobSourceClient {
       totalBytes: source.totalBytes,
       expectedSha256: source.expectedSha256,
       serverJobArtifact: {
-        reference: { targetId: this.targetId, jobId, resultPackageId, artifactId, referenceSha256: reference.referenceSha256 },
+        reference: {
+          targetId: this.targetId,
+          jobId,
+          resultPackageId,
+          artifactId,
+          referenceSha256: reference.referenceSha256,
+        },
         producerActorId: output.producerActorId,
         producerTenantId: output.producerTenantId ?? null,
         crsState: output.crsState,
@@ -158,9 +169,13 @@ function digest(value: unknown): value is string {
 
 // Principal identifiers have different Server bounds from workspace/job IDs.
 function principalText(value: unknown, maximum: number, allowEmpty = false): value is string {
-  return typeof value === "string" && (allowEmpty || value.length > 0) && value.length <= maximum &&
+  return (
+    typeof value === "string" &&
+    (allowEmpty || value.length > 0) &&
+    value.length <= maximum &&
     Array.from(value).every((character) => {
       const code = character.charCodeAt(0);
       return code > 31 && (code < 127 || code > 159);
-    });
+    })
+  );
 }
