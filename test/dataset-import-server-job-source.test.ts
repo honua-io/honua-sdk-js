@@ -66,6 +66,15 @@ describe("Server-owned job source handoff", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("normalizes the Server's omitted terminal cursor and nullable producer fields", async () => {
+    const wireSource = source();
+    Object.assign(wireSource.serverJobArtifact, { crsState: "unknown", sourceSrid: undefined, producerTenantId: undefined });
+    const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ ...page(), nextOffset: undefined })).mockResolvedValueOnce(Response.json(wireSource));
+    const client = new DatasetImportServerJobSourceClient({ ...options, fetch: fetcher });
+    expect((await client.list({ jobId: request.jobId }))?.nextOffset).toBeNull();
+    expect((await client.describe(request))?.serverJobArtifact).toMatchObject({ crsState: "unknown", sourceSrid: null, producerTenantId: null });
+  });
+
   it.each([
     { targetId: "other-target" },
     { jobId: "other-job" },

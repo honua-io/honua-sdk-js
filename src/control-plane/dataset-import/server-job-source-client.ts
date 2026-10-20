@@ -41,12 +41,14 @@ export class DatasetImportServerJobSourceClient {
     validPackage(jobId, value.resultPackageId);
     if (resultPackageId !== null && value.resultPackageId !== resultPackageId)
       throw new Error("The job source page changed the original result version.");
+    // AgentWorkspaceJsonContext omits null members on the wire.
+    const nextOffset = value.nextOffset ?? null;
     if (
       !Number.isSafeInteger(value.totalArtifacts) ||
       value.totalArtifacts < offset ||
       !Array.isArray(value.artifacts) ||
       value.artifacts.length !== Math.min(50, value.totalArtifacts - offset) ||
-      value.nextOffset !== (offset + value.artifacts.length < value.totalArtifacts ? offset + value.artifacts.length : null)
+      nextOffset !== (offset + value.artifacts.length < value.totalArtifacts ? offset + value.artifacts.length : null)
     )
       throw new Error("The job source page has an inconsistent bounded continuation.");
     const artifacts = value.artifacts.map((choice, index) => {
@@ -75,7 +77,7 @@ export class DatasetImportServerJobSourceClient {
       resultPackageId: value.resultPackageId,
       artifacts,
       totalArtifacts: value.totalArtifacts,
-      nextOffset: value.nextOffset,
+      nextOffset,
     };
   }
 
