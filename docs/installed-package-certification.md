@@ -103,14 +103,20 @@ URLs/integrities, verified provenance and this mismatch. Verdict: **not-certifie
 0 passes, 228 blocked operations**. Fixing source or adding an npm override would
 not repair those published bytes; a compatible published package set is required.
 
-The current source dependency now uses the published migration engine
+The earlier migration dependency repair used the published migration engine
 `@honua/honua-migrate@0.2.0-beta.0`, whose stable SDK dependencies resolve to
 `0.1.15`. Its tarball integrity and signed publisher provenance were verified,
 and the installed canonical and SDK compatibility CLIs produce identical matrix
 output. The [consumer receipt](evidence/migration-1897/published-migrator-consumer.json)
 records that bounded proof. The September receipt above remains unchanged;
-this source update does not qualify a new SDK release or the complete operation
+that source update did not qualify a new SDK release or the complete operation
 matrix.
+
+Current source selects `@honua/honua-migrate@0.3.0-beta.0`, which requires the
+SDK/compat 0.2 generation. Its managed SDK publication and registry-only cohort
+proof remain separate obligations; see the
+[migration transition verification](migration-tool-transition.md). The retained
+historical receipts above are unchanged.
 
 For a non-certifying check of the fixture oracle while package-set admission is
 blocked, run `node scripts/diagnose-installed-fixture.mjs test-results/fixture-diagnostic.json`.

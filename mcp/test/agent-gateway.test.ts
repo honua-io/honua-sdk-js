@@ -1,3 +1,4 @@
+import { WORKFLOW_KNOWLEDGE as SDK_WORKFLOW_KNOWLEDGE } from "@honua/sdk-js/studio-agent";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -12,6 +13,7 @@ import {
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod/v4";
 import type { DevOpsExtension } from "../src/agent/devops-runtime.js";
 import { HonuaAgentGateway, connectAgentUpstream } from "../src/agent/gateway.js";
 import type { AgentRuntime } from "../src/agent/local-runtime.js";
@@ -24,11 +26,18 @@ afterEach(async () => {
 });
 
 async function setup(
-  options: { installed?: boolean; collision?: boolean; fail?: boolean; devops?: DevOpsExtension } = {},
+  options: {
+    installed?: boolean;
+    collision?: boolean;
+    fail?: boolean;
+    devops?: DevOpsExtension;
+    workflowView?: unknown;
+  } = {},
 ) {
   let installed = options.installed ?? false;
   const calls: unknown[] = [];
   const views: (string | undefined)[] = [];
+  const resourceReads: Record<string, unknown>[] = [];
   let notified = 0;
   let cancelled = false;
   const upstream = new Server(
@@ -89,9 +98,33 @@ async function setup(
     resources: [{ name: "Fixture", uri: "honua://fixture" }],
   }));
   upstream.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
-  upstream.setRequestHandler(ReadResourceRequestSchema, async (request) => ({
-    contents: [{ uri: request.params.uri, text: "canonical resource" }],
-  }));
+  // Independent upstream declares the Server's documented resource-window extension.
+  upstream.setRequestHandler(
+    ReadResourceRequestSchema.extend({
+      params: ReadResourceRequestSchema.shape.params.extend({
+        cursor: z.string().optional(),
+        maxChars: z.number().int().positive().max(1_000_000).optional(),
+      }),
+    }),
+    async (request) => {
+      resourceReads.push(request.params);
+      if (request.params.uri !== "honua://catalog/processes")
+        return { contents: [{ uri: request.params.uri, text: "canonical resource" }] };
+      const document = JSON.stringify({
+        processes: [
+          { processId: "first", description: "GIS workflow 🗺️ ".repeat(6_000) },
+          { processId: "last", executionKind: "Job" },
+        ],
+      });
+      const offset = request.params.cursor ? Number(request.params.cursor.slice("window:".length)) : 0;
+      const end = Math.min(offset + (request.params.maxChars ?? 64_000), document.length);
+      return {
+        contents: [{ uri: request.params.uri, mimeType: "application/json", text: document.slice(offset, end) }],
+        ...(end < document.length ? { nextCursor: `window:${end}` } : {}),
+        _meta: { catalogVersion: "fixture.window.v1" },
+      };
+    },
+  );
   upstream.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [{ name: "fixture-prompt" }] }));
   upstream.setRequestHandler(GetPromptRequestSchema, async () => ({
     messages: [{ role: "user", content: { type: "text", text: "canonical prompt" } }],
@@ -122,17 +155,25 @@ async function setup(
     options.devops,
   );
   const [a, b] = InMemoryTransport.createLinkedPair();
+  const send = a.send.bind(a);
+  a.send = (message, transportOptions) =>
+    send(
+      "method" in message && message.method === "initialize" && "workflowView" in options
+        ? { ...message, params: { ...message.params, _meta: { "honua.io/workflow-view": options.workflowView } } }
+        : message,
+      transportOptions,
+    );
   const client = new Client({ name: "test-host", version: "1" });
   client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
     notified++;
   });
-  await gateway.connect(b);
-  await client.connect(a);
   cleanup.push(
     () => upstream.close(),
     () => gateway.close(),
     () => client.close(),
   );
+  await gateway.connect(b);
+  await client.connect(a);
   await vi.waitFor(async () => {
     const status = await client.callTool({ name: "honua_agent_status" });
     expect(status.structuredContent?.state).not.toBe("connecting");
@@ -143,6 +184,7 @@ async function setup(
     upstream,
     runtime,
     calls,
+    resourceReads,
     views,
     notifications: () => notified,
     cancelled: () => cancelled,
@@ -150,6 +192,66 @@ async function setup(
 }
 
 describe("persistent Honua agent gateway", () => {
+  it.each([
+    [undefined, "full"],
+    [null, "full"],
+    ["", "full"],
+    ["   ", "full"],
+    ["setup", "setup"],
+    ["workspace", "workspace"],
+    ["processes", "processes"],
+  ])("selects upstream view %s as %s without changing the target", async (workflowView, expected) => {
+    const fixture = await setup({ installed: true, workflowView });
+    expect(fixture.views).toEqual([expected]);
+    const status = await fixture.client.callTool({ name: "honua_agent_status" });
+    expect(status.structuredContent?.target).toEqual({
+      id: "target-1",
+      endpoint: "http://127.0.0.1:8080/mcp",
+      credentialId: "credential-1",
+    });
+    await fixture.upstream.close();
+    const reconnected = await fixture.client.callTool({ name: "honua_agent_connect" });
+    expect(reconnected.structuredContent?.state).toBe("attached");
+    expect(fixture.views).toEqual([expected, expected]);
+  });
+
+  it.each([false, { invalid: "setup" }, "x".repeat(65)])("refuses malformed view metadata %s", async (workflowView) => {
+    await expect(setup({ installed: true, workflowView })).rejects.toThrow("Invalid workflow view");
+  });
+
+  it("advertises the canonical full HTTP catalog to an ordinary host with no view metadata", async () => {
+    const remote = await startFixture();
+    cleanup.push(() => remote.close());
+    const gateway = new HonuaAgentGateway({
+      inspect: vi.fn(),
+      install: vi.fn(),
+      resolve: vi.fn(async () => ({
+        target: { id: "http-fixture", endpoint: remote.url, credentialId: "fixture" },
+        transport: { remoteUrl: remote.url, apiKey: "test-credential" },
+      })),
+    });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "ordinary-mcp-host", version: "1" });
+    cleanup.push(
+      () => gateway.close(),
+      () => client.close(),
+    );
+    await gateway.connect(b);
+    await client.connect(a);
+    await vi.waitFor(async () => {
+      expect((await client.callTool({ name: "honua_agent_status" })).structuredContent?.state).toBe("attached");
+    });
+    const catalog = await client.listTools();
+    expect(catalog.tools.filter((tool) => !tool.name.startsWith("honua_agent_"))).toHaveLength(32);
+    expect(catalog._meta?.revision).toBe("full.v1");
+    expect([...remote.sessions.values()]).toEqual(["full"]);
+    const initialize = JSON.parse(
+      remote.traffic.find((event: { direction: string }) => event.direction === "http-request").body,
+    );
+    expect(initialize.params._meta).toEqual({ "honua.io/workflow-view": "full" });
+    expect(initialize.params.clientInfo.name).toBe("honua-agent-gateway");
+  });
+
   it("serves versioned workflow knowledge before installation and after attachment", async () => {
     const fixture = await setup();
     expect((await fixture.client.listResources()).resources).toContainEqual(
@@ -157,11 +259,69 @@ describe("persistent Honua agent gateway", () => {
     );
     const read = await fixture.client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI });
     expect(JSON.stringify(read)).toContain("contract-guidance-only");
+    expect(JSON.parse(String(read.contents[0]?.text))).toEqual(SDK_WORKFLOW_KNOWLEDGE);
     await fixture.client.callTool({ name: "honua_agent_install_local", arguments: { confirm: true } });
     const resources = (await fixture.client.listResources()).resources;
     expect(resources).toContainEqual(expect.objectContaining({ uri: WORKFLOW_KNOWLEDGE_URI }));
     expect(resources).toContainEqual(expect.objectContaining({ uri: "honua://fixture" }));
+    const attachedKnowledge = await fixture.client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI });
+    expect(JSON.parse(String(attachedKnowledge.contents[0]?.text))).toEqual(SDK_WORKFLOW_KNOWLEDGE);
   });
+
+  it.each([false, true])("honors workflow resource windows with installed=%s", async (installed) => {
+    const { client, resourceReads } = await setup({ installed });
+    let page = await client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, maxChars: 257 });
+    let document = "";
+    const cursors = new Set<string>();
+    for (let pages = 0; pages < 512; pages++) {
+      const chunk = page.contents[0];
+      if (!(chunk && "text" in chunk)) throw new Error("Expected a text resource");
+      expect(chunk.uri).toBe(WORKFLOW_KNOWLEDGE_URI);
+      expect(chunk.text.length).toBeGreaterThan(0);
+      expect(chunk.text.length).toBeLessThanOrEqual(257);
+      document += chunk.text;
+      if (typeof page.nextCursor !== "string") break;
+      expect(cursors.size).toBeLessThan(512);
+      expect(cursors.has(page.nextCursor)).toBe(false);
+      cursors.add(page.nextCursor);
+      page = await client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, cursor: page.nextCursor, maxChars: 257 });
+    }
+    expect(page.nextCursor).toBeUndefined();
+    expect(cursors.size).toBeGreaterThan(0);
+    expect(document).toBe(JSON.stringify(SDK_WORKFLOW_KNOWLEDGE));
+    expect(JSON.parse(document)).toEqual(SDK_WORKFLOW_KNOWLEDGE);
+    expect(resourceReads).toEqual([]);
+  });
+
+  it("allows workflow continuation with a different budget, including single-character windows", async () => {
+    const { client } = await setup();
+    const first = await client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, maxChars: 1 });
+    expect(first.contents[0]?.text).toBe("{");
+    if (typeof first.nextCursor !== "string") throw new Error("Expected the first continuation cursor");
+    const second = await client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, cursor: first.nextCursor, maxChars: 1 });
+    expect(second.contents[0]?.text).toBe('"');
+    if (typeof second.nextCursor !== "string") throw new Error("Expected the second continuation cursor");
+    const last = await client.readResource({
+      uri: WORKFLOW_KNOWLEDGE_URI,
+      cursor: second.nextCursor,
+      maxChars: 1_000_000,
+    });
+    expect(last.nextCursor).toBeUndefined();
+    expect(String(first.contents[0]?.text) + String(second.contents[0]?.text) + String(last.contents[0]?.text)).toBe(
+      JSON.stringify(SDK_WORKFLOW_KNOWLEDGE),
+    );
+  });
+
+  it.each(["", "not:a:cursor", "a".repeat(257), Buffer.from(`${"0".repeat(64)}:1`).toString("base64url")])(
+    "refuses an invalid or stale workflow cursor %s without upstream dispatch",
+    async (cursor) => {
+      const { client, resourceReads } = await setup({ installed: true });
+      await expect(client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, cursor, maxChars: 257 })).rejects.toThrow(
+        "Invalid workflow knowledge continuation cursor",
+      );
+      expect(resourceReads).toEqual([]);
+    },
+  );
 
   it("shares the registration with the optional private adapter without replaying failed mutations", async () => {
     const devops: DevOpsExtension = {
@@ -271,6 +431,47 @@ describe("persistent Honua agent gateway", () => {
       text: "canonical prompt",
     });
   });
+
+  it("preserves opaque resource cursors and character budgets through both MCP transports", async () => {
+    const { client, resourceReads } = await setup({ installed: true });
+    const uri = "honua://catalog/processes";
+    let page = await client.readResource({ uri });
+    const first = page.contents[0];
+    if (!("text" in first)) throw new Error("Expected a text resource");
+    expect(first.text.length).toBe(64_000);
+    expect(() => JSON.parse(first.text)).toThrow();
+    let document = first.text;
+    let pages = 1;
+    const cursors = new Set<string>();
+    while (typeof page.nextCursor === "string") {
+      expect(pages).toBeLessThan(16);
+      expect(cursors.has(page.nextCursor)).toBe(false);
+      cursors.add(page.nextCursor);
+      const params = { uri, cursor: page.nextCursor, maxChars: 8_192, _meta: { "honua.trace": "catalog" } };
+      page = await client.readResource(params);
+      expect(resourceReads.at(-1)).toEqual(params);
+      expect(page._meta).toEqual({ catalogVersion: "fixture.window.v1" });
+      const chunk = page.contents[0];
+      if (!("text" in chunk)) throw new Error("Expected a text resource");
+      expect(chunk.text.length).toBeLessThanOrEqual(8_192);
+      document += chunk.text;
+      pages++;
+    }
+    expect(pages).toBeGreaterThan(1);
+    const catalog = JSON.parse(document);
+    expect(catalog.processes[0].description).toBe("GIS workflow 🗺️ ".repeat(6_000));
+    expect(catalog.processes.at(-1)).toEqual({ processId: "last", executionKind: "Job" });
+  });
+
+  it.each([0, -1, 1.5, 1_000_001, "64000"])(
+    "rejects an invalid resource budget %s before upstream dispatch",
+    async (maxChars) => {
+      const { client, resourceReads } = await setup({ installed: true });
+      const params = { uri: "honua://catalog/processes", maxChars };
+      await expect(client.readResource(params)).rejects.toThrow();
+      expect(resourceReads).toHaveLength(0);
+    },
+  );
 
   it("refreshes the downstream catalog on upstream notifications", async () => {
     const fixture = await setup({ installed: true });

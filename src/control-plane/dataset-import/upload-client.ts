@@ -86,6 +86,29 @@ export class DatasetImportUploadClient {
     return value;
   }
 
+  /**
+   * Transfer the original task's Server-owned job output through the canonical
+   * upload coordinator and retain it. This does not submit an import. A lost
+   * reply remains unknown: recover with read/reconcile before explicitly resuming
+   * this same task. Never create a replacement task or automatically retry.
+   */
+  async transferServerJobArtifact(
+    reference: DatasetImportTaskReference,
+    signal?: AbortSignal,
+  ): Promise<DatasetImportUploadReceipt> {
+    const pinned = pin(reference);
+    const value = await this.transport.request<DatasetImportUploadReceipt>(
+      `${path(pinned)}/server-job-artifact`,
+      "POST",
+      JSON.stringify({ taskContentHash: pinned.contentHash }),
+      signal,
+    );
+    validate(value, pinned);
+    if (value.state !== "sealed" || value.sourceRetention == null)
+      throw new Error("The Server job transfer did not return a sealed retained source receipt.");
+    return value;
+  }
+
   async appendChunk(
     reference: DatasetImportTaskReference,
     original: DatasetImportUploadReceipt,

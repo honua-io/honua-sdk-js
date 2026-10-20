@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmod,
   copyFile,
   mkdtemp,
   mkdir,
@@ -499,6 +500,71 @@ test("the actual workflow passes parsed structural policy", async () => {
   await validateWorkflowFile(WORKFLOW);
 });
 
+test("the dedicated publisher identity fails closed and reads only owner-enforced policy", async () => {
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  const steps = workflow.jobs["attest-and-publish"].steps;
+  const credentials = steps.find((step) => step.name === "Require dedicated immutable-policy reader credentials");
+  const policy = steps.find((step) => step.name === "Require owner-enforced immutable releases");
+  const credentialEnv = (id, key) => ({
+    PATH: process.env.PATH,
+    SAMPLE_BUNDLE_POLICY_APP_ID: id,
+    SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY: key,
+  });
+  const temp = await mkdtemp(path.join(os.tmpdir(), "immutable-policy-reader-"));
+  try {
+    // Execute the exact workflow step bytes from fixture files. Dynamic
+    // `bash -c` hides the command from the repository's build-ownership check.
+    const credentialsScript = path.join(temp, "credentials.sh");
+    const policyScript = path.join(temp, "policy.sh");
+    await writeFile(credentialsScript, `${credentials.run}\n`);
+    await writeFile(policyScript, `${policy.run}\n`);
+    for (const [id, key] of [["", ""], ["dummy-app", ""], ["", "dummy-key"]]) {
+      assert.notEqual(spawnSync("bash", [credentialsScript], { env: credentialEnv(id, key) }).status, 0);
+    }
+    assert.equal(
+      spawnSync("bash", [credentialsScript], { env: credentialEnv("dummy-app", "dummy-key") }).status,
+      0,
+    );
+
+    const bin = path.join(temp, "trusted-gh/bin");
+    await mkdir(bin, { recursive: true });
+    const gh = path.join(bin, "gh");
+    await writeFile(gh, `#!/bin/sh
+test "$GH_TOKEN" = dummy-policy-token || exit 91
+test "$1" = api || exit 92
+test "$2" = repos/honua-io/honua-sdk-js/immutable-releases || exit 93
+test "\${FAKE_POLICY_EXIT:-0}" = 0 || exit 22
+printf '%s\\n' "$FAKE_POLICY_JSON"
+`);
+    await chmod(gh, 0o700);
+    const runPolicy = (json, exit = 0, token = "dummy-policy-token") => spawnSync("bash", [policyScript], {
+      env: {
+        PATH: process.env.PATH,
+        RUNNER_TEMP: temp,
+        GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
+        GH_TOKEN: token,
+        FAKE_POLICY_JSON: json,
+        FAKE_POLICY_EXIT: String(exit),
+      },
+      encoding: "utf8",
+    });
+    assert.equal(runPolicy('{"enabled":true,"enforced_by_owner":true}').status, 0);
+    assert.notEqual(runPolicy('{"enabled":true,"enforced_by_owner":true}', 0, "").status, 0, "missing minted token must refuse");
+    for (const json of [
+      "[]",
+      "null",
+      '{"enabled":false,"enforced_by_owner":true}',
+      '{"enabled":true,"enforced_by_owner":false}',
+      '{"enabled":"true","enforced_by_owner":true}',
+      '{"enabled":true}',
+      "not-json",
+    ]) assert.notEqual(runPolicy(json).status, 0, json);
+    assert.notEqual(runPolicy('{"enabled":true,"enforced_by_owner":true}', 22).status, 0, "403 must refuse");
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
 test("the pinned lockfile digest still matches the committed lockfile", async () => {
   // The privileged publish job never checks out source, so it can only judge
   // the manifest's `build.lockfileSha256` against a constant carried in the
@@ -671,8 +737,18 @@ test("structural policy rejects syntax mutations rather than comments", async ()
     "unpinned action": (value) =>
       (value.jobs["build-and-smoke"].steps[1].uses = "actions/checkout@v4"),
     "old attest commit": (value) =>
-      (value.jobs["attest-and-publish"].steps[3].uses =
+      (value.jobs["attest-and-publish"].steps[6].uses =
         "actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661"),
+    "policy reader broadened to all repos": (value) =>
+      (value.jobs["attest-and-publish"].steps[4].with.repositories = ""),
+    "policy reader write permission": (value) =>
+      (value.jobs["attest-and-publish"].steps[4].with["permission-administration"] = "write"),
+    "policy read falls back to default token": (value) =>
+      (value.jobs["attest-and-publish"].steps[5].env.GH_TOKEN = "${{ github.token }}"),
+    "policy gate after attestation": (value) => {
+      const steps = value.jobs["attest-and-publish"].steps;
+      [steps[5], steps[6]] = [steps[6], steps[5]];
+    },
     "extra checkout": (value) =>
       value.jobs["build-and-smoke"].steps.splice(
         4,
@@ -688,10 +764,10 @@ test("structural policy rejects syntax mutations rather than comments", async ()
     "privileged additive run mutation": (value) =>
       (value.jobs["attest-and-publish"].steps[1].run += "\n:"),
     "rolling target": (value) =>
-      (value.jobs["attest-and-publish"].steps[7].run +=
+      (value.jobs["attest-and-publish"].steps[10].run +=
         "\necho sample-bundles-latest"),
     "late SHA after create": (value) => {
-      const step = value.jobs["attest-and-publish"].steps[7];
+      const step = value.jobs["attest-and-publish"].steps[10];
       const gate =
         'CURRENT_SHA="$($GH api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)"\n    test "$CURRENT_SHA" = "$SOURCE_COMMIT"';
       step.run = `${step.run.replace(gate, "")}\n${gate}\n`;

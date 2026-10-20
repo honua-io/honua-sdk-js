@@ -446,6 +446,7 @@ const SAFE_ERROR_NAMES = new Set([
   "HonuaReplicaSyncError",
   "HonuaRuntimeDiagnosticError",
   "HonuaSdkError",
+  "HonuaStacConformanceError",
   "HonuaTemporalPlaybackError",
   "HonuaTimeoutError",
   "HonuaWfsExceptionError",

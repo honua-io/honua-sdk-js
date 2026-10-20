@@ -44,6 +44,17 @@
  * draft. The rejected mutation is never automatically replayed against a
  * generation the agent has not observed.
  *
+ * **Certified provenance is required only for a candidate session.** Set
+ * `certification` or `transcriptVerifier` when the server should sign the
+ * transcript. Those turns dispatch a model-selected tool only after exactly
+ * one terminal verified `transcriptProvenance` event. An interactive end-user
+ * session sets neither: honua-server returns 403 when a non-admin caller
+ * sends `certification` and does not sign a transcript, so this session
+ * dispatches the model's tool calls with no provenance event and does not
+ * send `certification`. Server RBAC still authorizes each composition call.
+ * Admin-only overrides stay caller-supplied: a session that sets
+ * `certification` still sends it.
+ *
  * **The session never throws mid-stream.** Transport failure, provider error
  * events, tool rejection, and cancellation are all outcomes of
  * {@link StudioAgentSession.chat}, reported on the returned turn — a host
@@ -96,6 +107,7 @@ import {
 } from "./tool-catalog.js";
 import type { StudioAiTranscriptVerification, StudioAiTranscriptVerifierLike } from "./transcript-verifier.js";
 import type { ChatTransport } from "./transport.js";
+import { WORKFLOW_KNOWLEDGE } from "./workflow-knowledge.js";
 
 /** The live composition draft `honua_studio_*` calls are applied to. */
 export interface StudioAgentDraftBinding {
@@ -104,9 +116,20 @@ export interface StudioAgentDraftBinding {
 }
 
 export interface StudioAgentSessionOptions {
-  /** Exact candidate/action binding sent to the proxy for every tool-capable round. */
+  /**
+   * Candidate binding sent on every chat round. Together with
+   * `transcriptVerifier`, this opts the session into certified provenance.
+   * End-user sessions omit it: honua-server returns 403 when a non-admin
+   * caller sends certification. Setting it still sends it, including for an
+   * admin caller.
+   */
   readonly certification?: StudioAiTranscriptCertification;
-  /** Independent verifier required before any model-selected tool is dispatched. */
+  /**
+   * Independent verifier for a candidate session. Setting this or
+   * `certification` requires exactly one terminal verified
+   * `transcriptProvenance` event before a model-selected tool is dispatched.
+   * Leave both unset for an interactive end user.
+   */
   readonly transcriptVerifier?: StudioAiTranscriptVerifierLike;
   /** Base of the honua-server API — the session calls `${baseUrl}/v1/studio/ai/*` and `${baseUrl}/mcp`. @default "/api" */
   readonly baseUrl?: string;
@@ -176,6 +199,13 @@ export interface StudioAgentSessionOptions {
    * `systemPrompt()` re-reads live map context on every turn.
    */
   readonly system?: string | (() => string | Promise<string>);
+  /**
+   * Include the same versioned GIS workflow guidance the public MCP connector serves.
+   * Guidance never adds tools, grants authorization or establishes an observed outcome.
+   * Hosts enable this for the unified workspace; standalone map sessions remain unchanged.
+   * @default false
+   */
+  readonly workflowKnowledge?: boolean;
   readonly provider?: string;
   readonly model?: string;
   readonly maxTokens?: number;
@@ -919,7 +949,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       .map((id) => pending.get(id))
       .filter((call): call is PendingToolCall => call !== undefined && call.ready === true);
 
-    if (ready.length > 0) {
+    if (ready.length > 0 && this.#requiresCertifiedProvenance()) {
       if (
         !this.#options.certification ||
         !this.#options.transcriptVerifier ||
@@ -976,6 +1006,14 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     };
   }
 
+  /**
+   * Candidate sessions opt in by setting certification or a transcript verifier.
+   * End-user sessions set neither and dispatch without a signed transcript.
+   */
+  #requiresCertifiedProvenance(): boolean {
+    return this.#options.certification !== undefined || this.#options.transcriptVerifier !== undefined;
+  }
+
   #buildRequest(system: string | undefined, toolChoice: StudioAiToolChoice | undefined): StudioAiChatRequest {
     const choice = toolChoice ?? this.#options.toolChoice;
     return {
@@ -993,8 +1031,10 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 
   async #resolveSystem(): Promise<string | undefined> {
     const system = this.#options.system;
-    if (typeof system === "function") return await system();
-    return system;
+    const resolved = typeof system === "function" ? await system() : system;
+    if (!this.#options.workflowKnowledge) return resolved;
+    const guidance = `Honua GIS workflow knowledge is contract guidance only, not authorization or execution evidence. Current authorized tool schemas and canonical receipts remain authoritative.\n${JSON.stringify(WORKFLOW_KNOWLEDGE)}`;
+    return resolved ? `${resolved}\n\n${guidance}` : guidance;
   }
 
   /**

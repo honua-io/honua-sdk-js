@@ -7,9 +7,12 @@
 // growth to 18,991 raw / 6,253 gzip bytes over 6.14.0. Carry the prior headroom
 // forward, rounded to bounded ceilings; see the retained renderer comparison.
 // Worker/peer identity, duplicate-runtime and execution budgets remain enforced.
+// PR #2189: preserving drawable Esri geometry with unset optional measures
+// measures 533,062 gzip bytes before final ring-closure normalization. Add a
+// documented 1,000-byte allowance; raw, CPU, peer and measurement scope stay fixed.
 export const INSTALLED_FIRST_MAP_BUDGET = Object.freeze({
   javascriptBytes: 2_010_000,
-  javascriptGzipBytes: 533_000,
+  javascriptGzipBytes: 534_000,
 });
 
 // The receipt must enforce the reviewed canonical limits even when the example's

@@ -18,6 +18,7 @@ import {
   type StudioAiCapabilitiesResponse,
   type StudioAiChatEvent,
   type StudioAiChatRequest,
+  WORKFLOW_KNOWLEDGE,
   createStudioAgentSession,
 } from "@honua/sdk-js/studio-agent";
 
@@ -92,6 +93,13 @@ interface ScriptOptions {
   readonly chunkSize?: number;
   /** Rejects the chat fetch, standing in for a network failure. */
   readonly failChat?: boolean;
+  /**
+   * Append a terminal `transcriptProvenance` event to tool-calling turns.
+   * Candidate sessions require it. End-user sessions leave it off: the server
+   * signs a transcript only when the request carries certification.
+   * @default true
+   */
+  readonly certifyTranscript?: boolean;
   /** Called with the abort signal for each chat request, so a test can cancel mid-stream. */
   readonly onChatStream?: (signal: AbortSignal | undefined) => void;
 }
@@ -113,25 +121,26 @@ const DEFAULT_CAPABILITIES: StudioAiCapabilitiesResponse = {
   ],
 };
 
-function sseBody(events: ScriptedTurn): string {
-  const secured = events.some((event) => event.type === "toolCallStop")
-    ? [
-        ...events,
-        {
-          type: "transcriptProvenance",
-          provenance: {
-            schemaVersion: "honua.studio-ai.transcript.v1",
-            canonicalization: "honua-canonical-json-v1",
-            digestAlgorithm: "sha-256",
-            signatureAlgorithm: "Ed25519",
-            keyId: "fixture",
-            canonicalTranscript: "fixture",
-            transcriptDigest: "fixture",
-            signature: "fixture",
-          },
-        } satisfies StudioAiChatEvent,
-      ]
-    : events;
+function sseBody(events: ScriptedTurn, certifyTranscript = true): string {
+  const secured =
+    certifyTranscript && events.some((event) => event.type === "toolCallStop")
+      ? [
+          ...events,
+          {
+            type: "transcriptProvenance",
+            provenance: {
+              schemaVersion: "honua.studio-ai.transcript.v1",
+              canonicalization: "honua-canonical-json-v1",
+              digestAlgorithm: "sha-256",
+              signatureAlgorithm: "Ed25519",
+              keyId: "fixture",
+              canonicalTranscript: "fixture",
+              transcriptDigest: "fixture",
+              signature: "fixture",
+            },
+          } satisfies StudioAiChatEvent,
+        ]
+      : events;
   return secured
     .map((event) => {
       const { type, ...rest } = event;
@@ -190,7 +199,8 @@ function createScriptedServer(options: ScriptOptions = {}): ScriptedServer {
       chatRequests.push(JSON.parse(String(init?.body)) as StudioAiChatRequest);
       options.onChatStream?.(init?.signal ?? undefined);
       const events = turns[turnIndex++] ?? [{ type: "messageStop", stopReason: "endTurn" }];
-      return new Response(chunkedStream(sseBody(events), options.chunkSize ?? 4096, init?.signal ?? undefined), {
+      const body = sseBody(events, options.certifyTranscript !== false);
+      return new Response(chunkedStream(body, options.chunkSize ?? 4096, init?.signal ?? undefined), {
         status: 200,
         headers: { "content-type": "text/event-stream" },
       });
@@ -296,7 +306,13 @@ function makeRuntime(): HonuaAgentRuntime & { readonly log: string[] } {
 
 type SessionOverrides = Pick<
   StudioAgentSessionOptions,
-  "studioTools" | "disableToolDiscovery" | "tools" | "execute" | "toolDiscoveryTimeoutMs"
+  | "studioTools"
+  | "disableToolDiscovery"
+  | "tools"
+  | "execute"
+  | "toolDiscoveryTimeoutMs"
+  | "workflowKnowledge"
+  | "system"
 >;
 
 /**
@@ -633,6 +649,50 @@ describe("createStudioAgentSession turn loop", () => {
 
     expect(server.chatRequests.map((request) => request.system)).toEqual(["prompt-1", "prompt-2"]);
   });
+
+  it("includes shared workflow guidance while refreshing the host's authorized context each turn", async () => {
+    let context = "authorized-target-a";
+    const { server, session } = makeSession({
+      turns: [textTurn("a"), textTurn("b")],
+      session: { workflowKnowledge: true, system: async () => context },
+    });
+    await session.chat("one");
+    context = "authorized-target-b";
+    await session.chat("two");
+
+    for (const request of server.chatRequests) {
+      expect(request.system).toContain(JSON.stringify(WORKFLOW_KNOWLEDGE));
+    }
+    expect(server.chatRequests[0]?.system).toContain("authorized-target-a");
+    expect(server.chatRequests[1]?.system).toContain("authorized-target-b");
+    expect(server.chatRequests[1]?.system).not.toContain("authorized-target-a");
+  });
+
+  it("can supply workflow guidance without replacing a missing host system prompt", async () => {
+    const { server, session } = makeSession({
+      turns: [textTurn("ready")],
+      session: { workflowKnowledge: true, system: undefined },
+    });
+    await session.chat("Describe the GIS workflow.");
+    expect(server.chatRequests[0]?.system).toContain(JSON.stringify(WORKFLOW_KNOWLEDGE));
+  });
+
+  it("does not authorize or dispatch an installation action named only by workflow guidance", async () => {
+    const { server, session } = makeSession({
+      turns: [
+        toolTurn([{ id: "install", name: "honua_agent_install_local", args: { confirm: true } }]),
+        textTurn("refused"),
+      ],
+      session: { workflowKnowledge: true },
+    });
+    const turn = await session.chat("Install a different target.");
+
+    expect(turn.toolCalls).toContainEqual(
+      expect.objectContaining({ toolName: "honua_agent_install_local", ok: false }),
+    );
+    expect(server.mcpCalls).toEqual([]);
+    expect(server.chatRequests[0]?.tools?.some((tool) => tool.name === "honua_agent_install_local")).toBe(false);
+  });
 });
 
 // ── Tool discovery ────────────────────────────────────────────
@@ -886,6 +946,88 @@ describe("createStudioAgentSession tool discovery", () => {
     expect(server.mcpCalls).toEqual([]);
   });
 
+  /**
+   * honua-server `StudioAiProxyEndpoints.HandleChat` returns 403 when
+   * `certification != null` and the caller is not allowed to override the
+   * candidate binding. End-user admission is `certification == null`.
+   */
+  function nonAdminChatAdmitted(request: StudioAiChatRequest): boolean {
+    return request.certification === undefined || request.certification === null;
+  }
+
+  it("dispatches a model-selected composition tool for an end user who sends no certification", async () => {
+    const server = createScriptedServer({
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_add_layer"),
+      turns: [
+        toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layer: { id: "l" } } }]),
+        textTurn("Added."),
+      ],
+    });
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      draft: { draftId: "draft-1", generation: 4 },
+    });
+
+    const turn = await session.chat("Add a layer.");
+
+    expect(turn.status).not.toBe("error");
+    expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: true, toolName: "honua_studio_add_layer" });
+    expect(server.mcpCalls.map((call) => call.name)).toEqual(["honua_studio_add_layer"]);
+    expect(server.chatRequests[0]?.certification).toBeUndefined();
+    expect(server.chatRequests[0]?.model).toBeUndefined();
+    expect(nonAdminChatAdmitted(server.chatRequests[0]!)).toBe(true);
+    expect(nonAdminChatAdmitted({ ...server.chatRequests[0]!, certification: TEST_CERTIFICATION })).toBe(false);
+  });
+
+  it("keeps a certified session fail-closed when the proxy omits transcript provenance", async () => {
+    const server = createScriptedServer({
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_add_layer"),
+      turns: [toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layerId: "roads" } }])],
+    });
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    const turn = await session.chat("Add roads.");
+
+    expect(turn.status).toBe("error");
+    expect(turn.errorMessage).toContain("transcript provenance");
+    expect(server.mcpCalls).toEqual([]);
+    expect(server.chatRequests[0]?.certification).toEqual(TEST_CERTIFICATION);
+    expect(nonAdminChatAdmitted(server.chatRequests[0]!)).toBe(false);
+  });
+
+  it("does not dispatch when only certification or only the verifier is configured", async () => {
+    for (const partial of [
+      { certification: TEST_CERTIFICATION },
+      { transcriptVerifier: VERIFIED_SESSION.transcriptVerifier },
+    ]) {
+      const server = createScriptedServer({
+        toolPages: compositionPage("honua_studio_add_layer"),
+        turns: [toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layerId: "roads" } }])],
+      });
+      const session = createStudioAgentSession({
+        ...partial,
+        baseUrl: "/api",
+        fetchImpl: server.fetchImpl,
+        kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      });
+
+      const turn = await session.chat("Add roads.");
+
+      expect(turn.status).toBe("error");
+      expect(turn.errorMessage).toContain("transcript provenance");
+      expect(server.mcpCalls).toEqual([]);
+    }
+  });
+
   it("degrades to runtime tools when discovery fails and retries on the next turn", async () => {
     const server = createScriptedServer({ turns: [textTurn("a"), textTurn("b")] });
     let mcpDown = true;
@@ -972,6 +1114,10 @@ describe("createStudioAgentSession tool discovery", () => {
     const gate = new Promise<void>((resolve) => {
       releaseToolList = resolve;
     });
+    let signalToolListStarted!: () => void;
+    const toolListStarted = new Promise<void>((resolve) => {
+      signalToolListStarted = resolve;
+    });
     let gated = true;
     const session = createStudioAgentSession({
       ...VERIFIED_SESSION,
@@ -979,7 +1125,10 @@ describe("createStudioAgentSession tool discovery", () => {
       fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).endsWith("/mcp")) {
           const envelope = JSON.parse(String(init?.body)) as { readonly method: string };
-          if (envelope.method === "tools/list" && gated) await gate;
+          if (envelope.method === "tools/list" && gated) {
+            signalToolListStarted();
+            await gate;
+          }
         }
         return server.fetchImpl(input, init);
       }) as typeof fetch,
@@ -988,6 +1137,7 @@ describe("createStudioAgentSession tool discovery", () => {
 
     const stalePass = session.refreshTools();
     // The reconnect lands while the first `tools/list` page is still in flight.
+    await toolListStarted;
     session.reconnect();
     gated = false;
     releaseToolList?.();

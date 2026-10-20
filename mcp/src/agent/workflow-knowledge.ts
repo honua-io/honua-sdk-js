@@ -1,8 +1,10 @@
+// Generated from src/studio-agent/workflow-knowledge.ts.
+// Update the canonical source, then run node scripts/sync-workflow-knowledge.mjs --write.
 /** Versioned semantic guidance, not an executor or a claim of live qualification. */
 export const WORKFLOW_KNOWLEDGE_URI = "honua://agent/knowledge/workflows/v1";
 export const WORKFLOW_KNOWLEDGE = {
   schemaVersion: "honua.agent-workflow-knowledge/v1",
-  knowledgeVersion: "2026-10-17.2",
+  knowledgeVersion: "2026-10-19.2",
   qualification: "contract-guidance-only",
   authority: [
     "Use discovered canonical tool schemas; these workflow descriptions never grant authorization.",
@@ -11,6 +13,7 @@ export const WORKFLOW_KNOWLEDGE = {
     "After a lost mutation response reconcile the durable command/operation before retry; never infer failure from a timeout.",
     "The human approval inbox and approving principal are distinct from the agent. AwaitingApproval is a successful handoff, not a published result.",
     "Keep bootstrap secrets, cloud credentials, signing keys and private environment values outside model context.",
+    "Large JSON resources can arrive as incomplete text windows. Echo nextCursor as cursor for the same URI and concatenate text per URI before parsing. Bound pages and reject repeated cursors; a first chunk is not the complete process catalog or job result.",
   ],
   workflows: [
     {
@@ -82,6 +85,8 @@ export const WORKFLOW_KNOWLEDGE = {
       ],
       actions: [
         "Discover connection/import tools",
+        "For an installed local Docker target register its catalog through the discovered secret-reference-only connection tool using the host-allowed env:HONUA_LOCAL_DB_PASSWORD reference; never request or reveal the password",
+        "Verify the returned connection actually targets the ingest catalog before publication; an imported table with no registered connection is not ready to publish",
         "Validate source schema and geometry/CRS",
         "Execute canonical import or connection",
         "Publish via discovered service/layer tool",
@@ -91,6 +96,7 @@ export const WORKFLOW_KNOWLEDGE = {
       outputReferences: ["import job id", "service id", "layer id or protocol-neutral source reference"],
       observedOutcomes: [
         "terminal import outcome",
+        "stored target CRS verified against canonical table metadata, distinct from the detected source CRS",
         "service catalog entry",
         "query result with expected schema and representative data",
       ],
@@ -134,6 +140,7 @@ export const WORKFLOW_KNOWLEDGE = {
         "Explicit built-in versus custom-code execution mode",
       ],
       actions: [
+        "For built-in asynchronous jobs read the complete honua://catalog/processes resource; select executionKind=Job with Async support and its typed inputs",
         "Snapshot inputs and graph/code immutably",
         "Validate/build in the selected adapter",
         "Run with bounded resources",
