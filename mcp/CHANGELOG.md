@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.7](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.6...mcp-server-v0.2.7) (2026-10-20)
+
+
+### Bug Fixes
+
+* **agent:** generate configs with verified published MCP 0.2.6 ([#2180](https://github.com/honua-io/honua-sdk-js/issues/2180)) ([#2185](https://github.com/honua-io/honua-sdk-js/issues/2185)) ([8bdda43](https://github.com/honua-io/honua-sdk-js/commit/8bdda43a1e4b64d4743558123b4b59b69327ce8e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
 ## [0.2.6](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.5...mcp-server-v0.2.6) (2026-10-20)
 
 
