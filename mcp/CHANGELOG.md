@@ -11,11 +11,11 @@
 
 ### Dependencies
 
-* The following workspace dependencies were updated
+* The following workspace dependencies were updated or retained
   * devDependencies
-    * @honua/sdk-js bumped from file:.. to 0.2.6
+    * @honua/sdk-js retained at file:..
   * peerDependencies
-    * @honua/sdk-js bumped from ^0.1.17 || ^0.2.0 to ^0.2.6
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
 
 ## [0.2.5](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.4...mcp-server-v0.2.5) (2026-10-19)
 
