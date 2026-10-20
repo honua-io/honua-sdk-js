@@ -125,3 +125,52 @@ it("preserves the polygon and attributes through the canonical feature-service l
     },
   ]);
 });
+
+describe.each([undefined, "esriGeometryNull"])("inferred multipart polygons with metadata %s", (metadata) => {
+  const first = [
+    [0, 0],
+    [0, 4],
+    [4, 4],
+    [4, 0],
+    [0, 0],
+  ];
+  const second = [
+    [10, 0],
+    [10, 4],
+    [14, 4],
+    [14, 0],
+    [10, 0],
+  ];
+  const firstHole = [
+    [1, 1],
+    [3, 1],
+    [3, 3],
+    [1, 3],
+    [1, 1],
+  ];
+  const secondHole = [
+    [11, 1],
+    [13, 1],
+    [13, 3],
+    [11, 3],
+    [11, 1],
+  ];
+  const reversed = (ring: number[][]) => [...ring].reverse();
+
+  it("preserves two independent exterior areas as MultiPolygon", () => {
+    expect(esriGeometryToGeoJson({ rings: [first, second] }, metadata)).toEqual({
+      type: "MultiPolygon",
+      coordinates: [[reversed(first)], [reversed(second)]],
+    });
+  });
+
+  it("assigns out-of-order holes to their containing exterior", () => {
+    expect(esriGeometryToGeoJson({ rings: [secondHole, first, second, firstHole] }, metadata)).toEqual({
+      type: "MultiPolygon",
+      coordinates: [
+        [reversed(first), reversed(firstHole)],
+        [reversed(second), reversed(secondHole)],
+      ],
+    });
+  });
+});

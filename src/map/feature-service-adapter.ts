@@ -24,6 +24,7 @@
  */
 
 import type { HonuaClient } from "../core/client.js";
+import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
 import { HonuaFeatureLayer } from "../core/surfaces.js";
 import type { HonuaFeatureLayerQueryAllRequest } from "../core/surfaces.js";
 import type { EsriGeometryType } from "../core/types.js";
@@ -150,6 +151,13 @@ export function esriGeometryToGeoJson(
   if (geometryType === undefined || geometryType === null || geometryType === "esriGeometryNull") {
     geometryType = inferGenericGeometryType(geometry);
     if (!geometryType) return null;
+    if (geometryType === "esriGeometryPolygon") {
+      // Esri can encode several independent exterior rings and holes in one
+      // rings array. Reuse the canonical topology/winding conversion rather
+      // than treating every ring after the first as a GeoJSON interior.
+      const polygon = esriGeometryToGeoJSON(geometry);
+      return polygon?.type === "Polygon" || polygon?.type === "MultiPolygon" ? polygon : null;
+    }
   }
 
   // Point geometries are recognisable structurally even without a declared
