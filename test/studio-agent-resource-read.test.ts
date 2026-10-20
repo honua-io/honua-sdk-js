@@ -1,3 +1,4 @@
+import { setImmediate as nextEventLoopTurn } from "node:timers/promises";
 import { McpClient } from "@honua/sdk-js/studio-agent";
 import { describe, expect, it } from "vitest";
 
@@ -154,6 +155,69 @@ describe("McpClient resource windows", () => {
     await refused;
     expect(abandonedSignal?.aborted).toBe(true);
     await expect(client.readResource("honua://catalog/processes")).resolves.toEqual({ contents: [] });
+    expect(handshakes).toBe(2);
+  });
+
+  it("ignores a late reset handshake without clearing the fresh handshake or restoring its identity", async () => {
+    const oldResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    const oldStarted = deferred<void>();
+    const freshStarted = deferred<void>();
+    const resourceSessions: Array<string | null> = [];
+    let handshakes = 0;
+    let oldSignal: AbortSignal | null | undefined;
+    const client = new McpClient({
+      fetchImpl: async (_input, init) => {
+        const request = JSON.parse(String(init?.body));
+        if (request.method === "initialize") {
+          handshakes += 1;
+          if (handshakes === 1) {
+            oldSignal = init?.signal;
+            oldStarted.resolve();
+            // Deliberately ignore cancellation to exercise a late network response.
+            return oldResponse.promise;
+          }
+          if (handshakes === 2) {
+            freshStarted.resolve();
+            return freshResponse.promise;
+          }
+          throw new Error("The fresh handshake must remain shared");
+        }
+        resourceSessions.push(new Headers(init?.headers).get("mcp-session-id"));
+        return Response.json({ jsonrpc: "2.0", id: request.id, result: { contents: [] } });
+      },
+    });
+    const abandoned = client.readResource("honua://catalog/processes");
+    const refused = expect(abandoned).rejects.toThrow("Could not reach the MCP endpoint");
+    await oldStarted.promise;
+    client.resetSession();
+    await refused;
+    expect(oldSignal?.aborted).toBe(true);
+
+    const fresh = client.readResource("honua://catalog/processes");
+    await freshStarted.promise;
+    oldResponse.resolve(
+      Response.json(
+        { jsonrpc: "2.0", id: "old-initialize", result: { protocolVersion: "2025-03-26" } },
+        { headers: { "mcp-session-id": "old-session" } },
+      ),
+    );
+    // Drain the released response's promise chain, including its stale finalizer.
+    await nextEventLoopTurn();
+    expect(client.sessionId).toBeUndefined();
+    expect(client.serverInfo).toBeUndefined();
+
+    const joined = client.readResource("honua://catalog/processes");
+    expect(handshakes).toBe(2);
+    freshResponse.resolve(
+      Response.json(
+        { jsonrpc: "2.0", id: "fresh-initialize", result: { protocolVersion: "2025-03-26" } },
+        { headers: { "mcp-session-id": "fresh-session" } },
+      ),
+    );
+    await expect(Promise.all([fresh, joined])).resolves.toEqual([{ contents: [] }, { contents: [] }]);
+    expect(client.sessionId).toBe("fresh-session");
+    expect(resourceSessions).toEqual(["fresh-session", "fresh-session"]);
     expect(handshakes).toBe(2);
   });
 });

@@ -1023,6 +1023,10 @@ describe("createStudioAgentSession tool discovery", () => {
     const gate = new Promise<void>((resolve) => {
       releaseToolList = resolve;
     });
+    let signalToolListStarted!: () => void;
+    const toolListStarted = new Promise<void>((resolve) => {
+      signalToolListStarted = resolve;
+    });
     let gated = true;
     const session = createStudioAgentSession({
       ...VERIFIED_SESSION,
@@ -1030,7 +1034,10 @@ describe("createStudioAgentSession tool discovery", () => {
       fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).endsWith("/mcp")) {
           const envelope = JSON.parse(String(init?.body)) as { readonly method: string };
-          if (envelope.method === "tools/list" && gated) await gate;
+          if (envelope.method === "tools/list" && gated) {
+            signalToolListStarted();
+            await gate;
+          }
         }
         return server.fetchImpl(input, init);
       }) as typeof fetch,
@@ -1039,6 +1046,7 @@ describe("createStudioAgentSession tool discovery", () => {
 
     const stalePass = session.refreshTools();
     // The reconnect lands while the first `tools/list` page is still in flight.
+    await toolListStarted;
     session.reconnect();
     gated = false;
     releaseToolList?.();
