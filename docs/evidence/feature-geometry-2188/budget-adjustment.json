@@ -1,0 +1,73 @@
+{
+  "schema": "honua.feature-geometry-budget-adjustment/v1",
+  "scope": "local packed-development evidence; not registry or release qualification",
+  "generatedAt": "2026-10-20T11:08:47.160Z",
+  "packedDevelopment": {
+    "sourceSha": "08181c656370fe3e9e5c32939c8f1b3543f168f5",
+    "sourceDirty": true,
+    "inputsSha256": "b58089355793b306c7ad708c35a00ddeffff298721ef97fe183942276e063398",
+    "distSha256": "076f4526b94099d9fdb7d4e9fb5b74cd599092f41d10d0519172704e96d9f734"
+  },
+  "package": {
+    "coordinate": "@honua/sdk-js",
+    "version": "0.2.6",
+    "integrity": "sha512-EnZP/+nOaQOMwbp229IUsKS/5saT96olu0HD21yCtni8ZpPtiZXPnWgErZZnLdIHPhPoJDSSJfIvs51uySM7uA==",
+    "resolved": "$PACKED_DEVELOPMENT_TARBALL"
+  },
+  "consumerLockSha256": "b484d9af4a7b274c80f102a488a14ee69a7cf3733aaa63093115e872f8db276f",
+  "measurement": {
+    "javascriptBytes": 1994371,
+    "javascriptGzipBytes": 533062
+  },
+  "priorBudget": {
+    "javascriptBytes": 2010000,
+    "javascriptGzipBytes": 533000
+  },
+  "priorStatus": "failed",
+  "peerIdentityStatus": "passed",
+  "executionStatus": "measured",
+  "newBudget": {
+    "javascriptBytes": 2010000,
+    "javascriptGzipBytes": 534000
+  },
+  "reason": "Esri optional-dimension projection and final GeoJSON ring closure; canonical topology reuse; no new runtime dependency",
+  "unchanged": [
+    "raw-byte limit",
+    "measurement scope",
+    "peer identity",
+    "worker identity",
+    "duplicate-runtime guards",
+    "calibrated execution limits"
+  ],
+  "finalMeasurement": {
+    "generatedAt": "2026-10-20T11:23:46.106Z",
+    "packedDevelopment": {
+      "sourceSha": "08181c656370fe3e9e5c32939c8f1b3543f168f5",
+      "sourceDirty": true,
+      "inputsSha256": "43f5ad92691838b0604d237b384c9981371ef592f61f02a775d327a99442aa51",
+      "distSha256": "5b484885398ec7e328e00e8af83494565427948e21717cb3e9a70679d0d6bc2f"
+    },
+    "package": {
+      "coordinate": "@honua/sdk-js",
+      "version": "0.2.6",
+      "integrity": "sha512-kKR5nr3LbKXqzrK+2qiJuINZy/hab3SpzeUfmF8SslEU7+GftYiK86aYgaSN4EFsFQM3L1FCw/fo/6lQWbraRg==",
+      "resolved": "$PACKED_DEVELOPMENT_TARBALL"
+    },
+    "measurement": {
+      "javascriptBytes": 1994556,
+      "javascriptGzipBytes": 533124
+    },
+    "budget": {
+      "javascriptBytes": 2010000,
+      "javascriptGzipBytes": 534000
+    },
+    "peerIdentityStatus": "passed",
+    "status": "passed",
+    "executionStatus": "measured",
+    "calibratedHostedCpu": "pending normal CI",
+    "rendererIdentityMatchesInitialMeasurement": true,
+    "runtimeSourceSha256": "e8628c8e125372975e6a8850d2589ac672342d99a3cee9c850a1268e03c3cf10",
+    "geometryCasesPassed": 107,
+    "budgetGuardCasesPassed": 9
+  }
+}

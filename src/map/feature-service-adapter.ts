@@ -27,7 +27,7 @@ import type { HonuaClient } from "../core/client.js";
 import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
 import { HonuaFeatureLayer } from "../core/surfaces.js";
 import type { HonuaFeatureLayerQueryAllRequest } from "../core/surfaces.js";
-import type { EsriGeometryType } from "../core/types.js";
+import type { EsriGeometryType, HonuaLayerMetadata } from "../core/types.js";
 import { parseFeatureLayerUrl } from "../esri-compat/url.js";
 import type { HonuaMap } from "./honua-map.js";
 
@@ -141,6 +141,7 @@ function isValidGenericGeometry(geometry: Record<string, unknown>): boolean {
 export function esriGeometryToGeoJson(
   geometry: Record<string, unknown> | null | undefined,
   geometryType: EsriGeometryType | undefined,
+  dimensions?: Pick<HonuaLayerMetadata, "hasZ" | "hasM">,
 ): AdapterGeoJsonGeometry | null {
   if (!geometry || typeof geometry !== "object" || Array.isArray(geometry)) return null;
 
@@ -162,8 +163,29 @@ export function esriGeometryToGeoJson(
   // One converter owns exterior/hole grouping, winding and coordinate ordinates
   // for both metadata-declared and structurally inferred feature geometry.
   if (!isValidGenericGeometry(shape)) return null;
-  const converted = esriGeometryToGeoJSON(shape);
-  return converted && "coordinates" in converted ? converted : null;
+  // Optional Esri Z/M can be null. Keep finite spatial coordinates, omit
+  // absent Z, and never treat a measure as GeoJSON altitude.
+  const converted = esriGeometryToGeoJSON({ ...shape, z: asFiniteNumber(shape.z) });
+  if (!converted || !("coordinates" in converted)) return null;
+  const hasZ = asFiniteNumber(shape.z) !== undefined || (geometry.hasZ ?? dimensions?.hasZ) === true;
+  const coordinates = projectCoordinates(converted.coordinates, hasZ);
+  const polygons =
+    converted.type === "Polygon"
+      ? [coordinates as number[][][]]
+      : converted.type === "MultiPolygon"
+        ? (coordinates as number[][][][])
+        : [];
+  for (const polygon of polygons) {
+    for (const ring of polygon) {
+      const first = ring[0];
+      const last = ring[ring.length - 1];
+      // Close after dimension projection, comparing every retained ordinate.
+      // Append the first position so a distinct final Z is not discarded.
+      if (first && last && (first.length !== last.length || first.some((value, index) => value !== last[index])))
+        ring.push([...first]);
+    }
+  }
+  return { type: converted.type, coordinates };
 }
 
 /**
@@ -173,12 +195,13 @@ export function esriGeometryToGeoJson(
 export function esriFeaturesToGeoJson(
   features: ReadonlyArray<{ attributes?: Record<string, unknown>; geometry?: Record<string, unknown> | null }>,
   geometryType: EsriGeometryType | undefined,
+  dimensions?: Pick<HonuaLayerMetadata, "hasZ" | "hasM">,
 ): AdapterGeoJsonFeatureCollection {
   return {
     type: "FeatureCollection",
     features: features.map((feature) => ({
       type: "Feature",
-      geometry: esriGeometryToGeoJson(feature.geometry ?? null, geometryType),
+      geometry: esriGeometryToGeoJson(feature.geometry ?? null, geometryType, dimensions),
       properties: { ...(feature.attributes ?? {}) },
     })),
   };
@@ -222,11 +245,12 @@ export async function loadHonuaFeatureServiceGeoJson(
 
   const metadataPromise = layer.metadata(options.signal ? { signal: options.signal } : {}).catch(() => undefined);
   const features = await layer.queryFeaturesAll(request);
-  const geometryType = (await metadataPromise)?.geometryType;
+  const metadata = await metadataPromise;
 
   const data = esriFeaturesToGeoJson(
     features as ReadonlyArray<{ attributes?: Record<string, unknown>; geometry?: Record<string, unknown> | null }>,
-    geometryType,
+    metadata?.geometryType,
+    metadata,
   );
 
   return {
@@ -389,7 +413,17 @@ function asFiniteNumber(value: unknown): number | undefined {
 }
 
 function asPosition(value: unknown): [number, number, ...number[]] | undefined {
-  return Array.isArray(value) && value.length >= 2 && value.every((ordinate) => asFiniteNumber(ordinate) !== undefined)
+  return Array.isArray(value) &&
+    value.length >= 2 &&
+    asFiniteNumber(value[0]) !== undefined &&
+    asFiniteNumber(value[1]) !== undefined
     ? (value as [number, number, ...number[]])
     : undefined;
+}
+
+/** GeoJSON has spatial coordinates, not Esri measures; absent optional Z stays 2D. */
+function projectCoordinates(coordinates: unknown, hasZ: boolean): unknown {
+  if (!Array.isArray(coordinates)) return coordinates;
+  if (Array.isArray(coordinates[0])) return coordinates.map((part) => projectCoordinates(part, hasZ));
+  return coordinates.slice(0, hasZ && asFiniteNumber(coordinates[2]) !== undefined ? 3 : 2);
 }

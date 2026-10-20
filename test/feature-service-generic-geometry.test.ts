@@ -202,21 +202,170 @@ it("retains point elevation through the same canonical declared/inferred convers
   }
 });
 
-// Positions retain their ordinates through canonical conversion. Reject invalid
-// trailing ordinates rather than letting JSON serialization turn NaN into null.
-describe.each([null, "bad", Number.NaN, Number.POSITIVE_INFINITY])("invalid coordinate ordinate %s", (invalid) => {
-  for (const position of [
-    [1, 2, invalid],
-    [1, 2, 3, invalid],
-  ]) {
-    it.each([
-      ["esriGeometryMultipoint", { points: [position] }],
-      ["esriGeometryPolyline", { paths: [[[0, 0, 0], position]] }],
-      ["esriGeometryPolygon", { rings: [[[0, 0, 0], [2, 0, 0], position, [0, 0, 0]]] }],
-    ] as const)("refuses invalid preserved positions for %s", (declared, geometry) => {
-      for (const metadata of [undefined, "esriGeometryNull", declared] as const) {
-        expect(esriGeometryToGeoJson(geometry, metadata)).toBeNull();
-      }
+// Optional Esri measures may be null. They must not erase an otherwise
+// drawable geometry or appear as nonnumeric GeoJSON position elements.
+describe.each([null, "bad", Number.NaN, Number.POSITIVE_INFINITY])(
+  "unset or invalid optional ordinate %s",
+  (optional) => {
+    for (const position of [
+      [1, 2, optional],
+      [1, 2, 3, optional],
+    ]) {
+      it.each([
+        ["esriGeometryMultipoint", { points: [position] }, { type: "MultiPoint", coordinates: [[1, 2]] }],
+        [
+          "esriGeometryPolyline",
+          { paths: [[[0, 0, 0], position]] },
+          {
+            type: "LineString",
+            coordinates: [
+              [0, 0],
+              [1, 2],
+            ],
+          },
+        ],
+        [
+          "esriGeometryPolygon",
+          { rings: [[[0, 0, 0], [2, 0, 0], position, [0, 0, 0]]] },
+          {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [2, 0],
+                [1, 2],
+                [0, 0],
+              ],
+            ],
+          },
+        ],
+      ] as const)(
+        `keeps ${position.length}D input drawable for %s without dimension metadata`,
+        (declared, geometry, expected) => {
+          for (const metadata of [undefined, "esriGeometryNull", declared] as const) {
+            expect(esriGeometryToGeoJson(geometry, metadata)).toEqual(expected);
+          }
+        },
+      );
+    }
+  },
+);
+
+it.each([undefined, "esriGeometryNull", "esriGeometryPoint"] as const)(
+  "renders a point with absent Z and metadata %s",
+  (metadata) => {
+    expect(esriGeometryToGeoJson({ x: 1, y: 2, z: null, m: null }, metadata)).toEqual({
+      type: "Point",
+      coordinates: [1, 2],
     });
+  },
+);
+
+it.each([
+  ["esriGeometryMultipoint", { points: [[1, 2, 3, null]] }, { type: "MultiPoint", coordinates: [[1, 2, 3]] }],
+  [
+    "esriGeometryPolyline",
+    {
+      paths: [
+        [
+          [0, 0, 0, null],
+          [1, 2, 3, null],
+        ],
+      ],
+    },
+    {
+      type: "LineString",
+      coordinates: [
+        [0, 0, 0],
+        [1, 2, 3],
+      ],
+    },
+  ],
+  [
+    "esriGeometryPolygon",
+    {
+      rings: [
+        [
+          [0, 0, 0, null],
+          [2, 0, 0, null],
+          [1, 2, 3, null],
+          [0, 0, 0, null],
+        ],
+      ],
+    },
+    {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0, 0],
+          [2, 0, 0],
+          [1, 2, 3],
+          [0, 0, 0],
+        ],
+      ],
+    },
+  ],
+] as const)("preserves declared Z and omits null M for %s", (declared, geometry, expected) => {
+  for (const metadata of [undefined, "esriGeometryNull", declared] as const) {
+    expect(esriGeometryToGeoJson({ ...geometry, hasZ: true, hasM: true }, metadata)).toEqual(expected);
   }
 });
+
+it("does not interpret an M-only position as altitude", () => {
+  expect(esriGeometryToGeoJson({ points: [[1, 2, 99]], hasM: true }, "esriGeometryMultipoint")).toEqual({
+    type: "MultiPoint",
+    coordinates: [[1, 2]],
+  });
+});
+
+it("passes the actual layer dimension context through authenticated feature loading", async () => {
+  const client = new HonuaClient({ baseUrl: "https://gis.example.com" });
+  vi.spyOn(client, "getLayerMetadata").mockResolvedValue({
+    id: 1,
+    geometryType: "esriGeometryNull",
+    hasZ: true,
+    hasM: true,
+  } as never);
+  vi.spyOn(client, "queryFeatures").mockResolvedValue({
+    features: [{ attributes: { OBJECTID: 7 }, geometry: { points: [[1, 2, 3, null]] } }],
+    exceededTransferLimit: false,
+  } as never);
+  const result = await loadHonuaFeatureServiceGeoJson(
+    client,
+    "https://gis.example.com/rest/services/measured/FeatureServer/1",
+  );
+  expect(result.data.features[0]).toEqual({
+    type: "Feature",
+    properties: { OBJECTID: 7 },
+    geometry: { type: "MultiPoint", coordinates: [[1, 2, 3]] },
+  });
+});
+
+it.each([undefined, "esriGeometryNull", "esriGeometryPolygon"] as const)(
+  "closes every retained ordinate after Z projection for metadata %s",
+  (metadata) => {
+    const first = [
+      [0, 0, 1],
+      [2, 0, 2],
+      [1, 2, 3],
+      [0, 0, 9],
+    ];
+    const second = [
+      [10, 10, 4],
+      [12, 10, 5],
+      [11, 12, 6],
+      [10, 10, 8],
+    ];
+    const geometry = { hasZ: true, rings: [first] };
+    const before = JSON.stringify(geometry);
+    expect(esriGeometryToGeoJson(geometry, metadata)).toEqual({
+      type: "Polygon",
+      coordinates: [[...first, [0, 0, 1]]],
+    });
+    expect(JSON.stringify(geometry)).toBe(before);
+    expect(esriGeometryToGeoJson({ hasZ: true, rings: [first, second] }, metadata)).toEqual({
+      type: "MultiPolygon",
+      coordinates: [[[...first, [0, 0, 1]]], [[...second, [10, 10, 4]]]],
+    });
+  },
+);
