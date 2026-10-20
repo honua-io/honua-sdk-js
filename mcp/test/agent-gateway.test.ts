@@ -194,6 +194,61 @@ describe("persistent Honua agent gateway", () => {
     expect(JSON.parse(String(attachedKnowledge.contents[0]?.text))).toEqual(SDK_WORKFLOW_KNOWLEDGE);
   });
 
+  it.each([false, true])("honors workflow resource windows with installed=%s", async (installed) => {
+    const { client, resourceReads } = await setup({ installed });
+    let page = await client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, maxChars: 257 });
+    let document = "";
+    const cursors = new Set<string>();
+    for (let pages = 0; pages < 512; pages++) {
+      const chunk = page.contents[0];
+      if (!(chunk && "text" in chunk)) throw new Error("Expected a text resource");
+      expect(chunk.uri).toBe(WORKFLOW_KNOWLEDGE_URI);
+      expect(chunk.text.length).toBeGreaterThan(0);
+      expect(chunk.text.length).toBeLessThanOrEqual(257);
+      document += chunk.text;
+      if (typeof page.nextCursor !== "string") break;
+      expect(cursors.size).toBeLessThan(512);
+      expect(cursors.has(page.nextCursor)).toBe(false);
+      cursors.add(page.nextCursor);
+      page = await client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, cursor: page.nextCursor, maxChars: 257 });
+    }
+    expect(page.nextCursor).toBeUndefined();
+    expect(cursors.size).toBeGreaterThan(0);
+    expect(document).toBe(JSON.stringify(SDK_WORKFLOW_KNOWLEDGE));
+    expect(JSON.parse(document)).toEqual(SDK_WORKFLOW_KNOWLEDGE);
+    expect(resourceReads).toEqual([]);
+  });
+
+  it("allows workflow continuation with a different budget, including single-character windows", async () => {
+    const { client } = await setup();
+    const first = await client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, maxChars: 1 });
+    expect(first.contents[0]?.text).toBe("{");
+    if (typeof first.nextCursor !== "string") throw new Error("Expected the first continuation cursor");
+    const second = await client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, cursor: first.nextCursor, maxChars: 1 });
+    expect(second.contents[0]?.text).toBe('"');
+    if (typeof second.nextCursor !== "string") throw new Error("Expected the second continuation cursor");
+    const last = await client.readResource({
+      uri: WORKFLOW_KNOWLEDGE_URI,
+      cursor: second.nextCursor,
+      maxChars: 1_000_000,
+    });
+    expect(last.nextCursor).toBeUndefined();
+    expect(String(first.contents[0]?.text) + String(second.contents[0]?.text) + String(last.contents[0]?.text)).toBe(
+      JSON.stringify(SDK_WORKFLOW_KNOWLEDGE),
+    );
+  });
+
+  it.each(["", "not:a:cursor", "a".repeat(257), Buffer.from(`${"0".repeat(64)}:1`).toString("base64url")])(
+    "refuses an invalid or stale workflow cursor %s without upstream dispatch",
+    async (cursor) => {
+      const { client, resourceReads } = await setup({ installed: true });
+      await expect(client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI, cursor, maxChars: 257 })).rejects.toThrow(
+        "Invalid workflow knowledge continuation cursor",
+      );
+      expect(resourceReads).toEqual([]);
+    },
+  );
+
   it("shares the registration with the optional private adapter without replaying failed mutations", async () => {
     const devops: DevOpsExtension = {
       listTools: vi.fn(async () => [
