@@ -115,8 +115,9 @@ export class DatasetImportServerJobSourceClient {
         : output.crsState !== "unknown" || output.sourceSrid != null)
     )
       throw new Error("The job source description changed its original identity or content/coordinate contract.");
-    validId(output.producerActorId);
-    if (output.producerTenantId != null) validId(output.producerTenantId);
+    if (!principalText(output.producerActorId, 2048) ||
+      (output.producerTenantId != null && !principalText(output.producerTenantId, 512, true)))
+      throw new Error("The job source producer identity is outside the Server contract.");
     return {
       kind: "server-job-artifact",
       fileName: source.fileName,
@@ -153,4 +154,13 @@ function positiveInteger(value: unknown): value is number {
 
 function digest(value: unknown): value is string {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+// Principal identifiers have different Server bounds from workspace/job IDs.
+function principalText(value: unknown, maximum: number, allowEmpty = false): value is string {
+  return typeof value === "string" && (allowEmpty || value.length > 0) && value.length <= maximum &&
+    Array.from(value).every((character) => {
+      const code = character.charCodeAt(0);
+      return code > 31 && (code < 127 || code > 159);
+    });
 }

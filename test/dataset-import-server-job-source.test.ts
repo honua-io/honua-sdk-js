@@ -112,6 +112,23 @@ describe("Server-owned job source handoff", () => {
     await expect(client.describe(request)).rejects.toThrow();
   });
 
+  it("accepts the Server's full principal bounds and refuses overlong or controlled identities", async () => {
+    const bounded = source();
+    Object.assign(bounded.serverJobArtifact, { producerActorId: "a".repeat(2048), producerTenantId: "t".repeat(512) });
+    const overlongActor = source();
+    Object.assign(overlongActor.serverJobArtifact, { producerActorId: "a".repeat(2049) });
+    const overlongTenant = source();
+    Object.assign(overlongTenant.serverJobArtifact, { producerTenantId: "t".repeat(513) });
+    const controlled = source();
+    Object.assign(controlled.serverJobArtifact, { producerActorId: `actor${String.fromCharCode(10)}injected` });
+    const fetcher = vi.fn();
+    for (const value of [bounded, overlongActor, overlongTenant, controlled]) fetcher.mockResolvedValueOnce(Response.json(value));
+    const client = new DatasetImportServerJobSourceClient({ ...options, fetch: fetcher });
+    expect(await client.describe(request)).toEqual(bounded);
+    for (let index = 0; index < 3; index++) await expect(client.describe(request)).rejects.toThrow("producer identity");
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+
   it("does not send a URI in place of a canonical artifact identity", async () => {
     const fetcher = vi.fn();
     const client = new DatasetImportServerJobSourceClient({ ...options, fetch: fetcher });
