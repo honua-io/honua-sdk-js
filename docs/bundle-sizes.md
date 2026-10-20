@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-20 at commit `a9cf6e61b`._
+_Generated 2026-10-20 at commit `a17576b50`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -41,15 +41,15 @@ _Generated 2026-10-20 at commit `a9cf6e61b`._
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 325.5 KiB | 364.2 KiB | 86.9 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1177.4 KiB | 1275.0 KiB | 307.0 KiB | 312.7 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1177.3 KiB | 1275.0 KiB | 307.1 KiB | 312.7 KiB |
 | `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1282.5 KiB | 1395.4 KiB | 338.6 KiB | 356.1 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 562.8 KiB | 619.8 KiB | 152.4 KiB | 165.2 KiB |
+| `/react` (react/react-dom external) | 562.8 KiB | 619.8 KiB | 152.3 KiB | 165.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 553.8 KiB | 568.0 KiB | 147.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 757.9 KiB | 832.8 KiB | 202.3 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 757.5 KiB | 828.5 KiB | 202.2 KiB | 221.7 KiB |
+| browser ESM (`./browser`) | 757.5 KiB | 828.5 KiB | 202.1 KiB | 221.7 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 232.0 KiB | 280.2 KiB | 58.9 KiB | 74.3 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 615.5 KiB | 695.1 KiB | 162.8 KiB | 186.7 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.2 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
@@ -58,7 +58,7 @@ _Generated 2026-10-20 at commit `a9cf6e61b`._
 | tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 717.6 KiB | 791.3 KiB | 191.7 KiB | 210.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 256.1 KiB | 296.3 KiB | 65.1 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.5 KiB | 316.3 KiB | 65.3 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 48.8 KiB | 54.4 KiB | 14.8 KiB | 16.4 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 48.7 KiB | 54.4 KiB | 14.8 KiB | 16.4 KiB |
 | tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 34.8 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.4 KiB | 3.8 KiB | 1.5 KiB | 1.7 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |

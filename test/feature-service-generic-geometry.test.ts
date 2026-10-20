@@ -201,3 +201,22 @@ it("retains point elevation through the same canonical declared/inferred convers
     expect(esriGeometryToGeoJson({ x: 1, y: 2, z: 3 }, metadata)).toEqual({ type: "Point", coordinates: [1, 2, 3] });
   }
 });
+
+// Positions retain their ordinates through canonical conversion. Reject invalid
+// trailing ordinates rather than letting JSON serialization turn NaN into null.
+describe.each([null, "bad", Number.NaN, Number.POSITIVE_INFINITY])("invalid coordinate ordinate %s", (invalid) => {
+  for (const position of [
+    [1, 2, invalid],
+    [1, 2, 3, invalid],
+  ]) {
+    it.each([
+      ["esriGeometryMultipoint", { points: [position] }],
+      ["esriGeometryPolyline", { paths: [[[0, 0, 0], position]] }],
+      ["esriGeometryPolygon", { rings: [[[0, 0, 0], [2, 0, 0], position, [0, 0, 0]]] }],
+    ] as const)("refuses invalid preserved positions for %s", (declared, geometry) => {
+      for (const metadata of [undefined, "esriGeometryNull", declared] as const) {
+        expect(esriGeometryToGeoJson(geometry, metadata)).toBeNull();
+      }
+    });
+  }
+});

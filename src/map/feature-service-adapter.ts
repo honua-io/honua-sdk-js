@@ -105,7 +105,7 @@ function isValidGenericGeometry(geometry: Record<string, unknown>): boolean {
     return (
       Array.isArray(geometry.points) &&
       geometry.points.length > 0 &&
-      geometry.points.every((point) => asCoordinatePair(point) !== undefined)
+      geometry.points.every((point) => asPosition(point) !== undefined)
     );
   if (shapes[2] || shapes[3]) {
     const parts = shapes[2] ? geometry.paths : geometry.rings;
@@ -117,12 +117,12 @@ function isValidGenericGeometry(geometry: Record<string, unknown>): boolean {
         if (
           !Array.isArray(part) ||
           part.length < (polygon ? 4 : 2) ||
-          !part.every((point) => asCoordinatePair(point) !== undefined)
+          !part.every((point) => asPosition(point) !== undefined)
         )
           return false;
         if (!polygon) return true;
-        const first = asCoordinatePair(part[0])!;
-        const last = asCoordinatePair(part[part.length - 1])!;
+        const first = asPosition(part[0])!;
+        const last = asPosition(part[part.length - 1])!;
         return first[0] === last[0] && first[1] === last[1];
       })
     );
@@ -146,7 +146,6 @@ export function esriGeometryToGeoJson(
 
   let shape: Record<string, unknown>;
   if (geometryType === undefined || geometryType === null || geometryType === "esriGeometryNull") {
-    if (!isValidGenericGeometry(geometry)) return null;
     shape = geometry;
   } else if (geometryType === "esriGeometryPoint" || (geometry.x !== undefined && geometry.y !== undefined)) {
     shape = { x: geometry.x, y: geometry.y, z: geometry.z };
@@ -162,6 +161,7 @@ export function esriGeometryToGeoJson(
 
   // One converter owns exterior/hole grouping, winding and coordinate ordinates
   // for both metadata-declared and structurally inferred feature geometry.
+  if (!isValidGenericGeometry(shape)) return null;
   const converted = esriGeometryToGeoJSON(shape);
   return converted && "coordinates" in converted ? converted : null;
 }
@@ -388,10 +388,8 @@ function asFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function asCoordinatePair(value: unknown): [number, number] | undefined {
-  if (!Array.isArray(value) || value.length < 2) return undefined;
-  const x = asFiniteNumber(value[0]);
-  const y = asFiniteNumber(value[1]);
-  if (x === undefined || y === undefined) return undefined;
-  return [x, y];
+function asPosition(value: unknown): [number, number, ...number[]] | undefined {
+  return Array.isArray(value) && value.length >= 2 && value.every((ordinate) => asFiniteNumber(ordinate) !== undefined)
+    ? (value as [number, number, ...number[]])
+    : undefined;
 }
