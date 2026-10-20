@@ -1003,10 +1003,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     const system = this.#options.system;
     const resolved = typeof system === "function" ? await system() : system;
     if (!this.#options.workflowKnowledge) return resolved;
-    const guidance =
-      "Honua GIS workflow knowledge is contract guidance only, not authorization or execution evidence. " +
-      "Current authorized tool schemas and canonical receipts remain authoritative.\n" +
-      JSON.stringify(WORKFLOW_KNOWLEDGE);
+    const guidance = `Honua GIS workflow knowledge is contract guidance only, not authorization or execution evidence. Current authorized tool schemas and canonical receipts remain authoritative.\n${JSON.stringify(WORKFLOW_KNOWLEDGE)}`;
     return resolved ? `${resolved}\n\n${guidance}` : guidance;
   }
 

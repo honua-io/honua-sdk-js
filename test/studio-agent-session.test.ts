@@ -297,7 +297,13 @@ function makeRuntime(): HonuaAgentRuntime & { readonly log: string[] } {
 
 type SessionOverrides = Pick<
   StudioAgentSessionOptions,
-  "studioTools" | "disableToolDiscovery" | "tools" | "execute" | "toolDiscoveryTimeoutMs" | "workflowKnowledge" | "system"
+  | "studioTools"
+  | "disableToolDiscovery"
+  | "tools"
+  | "execute"
+  | "toolDiscoveryTimeoutMs"
+  | "workflowKnowledge"
+  | "system"
 >;
 
 /**
