@@ -255,6 +255,45 @@ function isAbsoluteHttpUrl(value: string): boolean {
   return value.startsWith("http://") || value.startsWith("https://");
 }
 
+/**
+ * Re-encode an interceptor-processed automatic query GET as a form POST once
+ * its request target exceeds `maxTargetLength`. Replay stays permitted only
+ * when interceptors kept the endpoint, so the POST carries the same read query
+ * the caller built.
+ */
+function moveOversizedQueryToPost(
+  initialRequest: HonuaRequestContext,
+  request: HonuaRequestContext,
+  maxTargetLength: number,
+): { request: HonuaRequestContext; replaySafe: boolean } | undefined {
+  if (initialRequest.method !== "GET" || request.method !== "GET" || request.init.body != null) {
+    return undefined;
+  }
+  const fallbackBase = globalThis.location?.href ?? "https://honua.invalid";
+  const target = new URL(request.url, fallbackBase);
+  if (target.pathname.length + target.search.length <= maxTargetLength) {
+    return undefined;
+  }
+  const body = new URLSearchParams(target.search);
+  // Binary negotiation is GET-only; a POSTed query asks for JSON.
+  if (body.get("f") === "pbf") body.set("f", "json");
+  const url = stripQuery(request.url);
+  return {
+    request: {
+      ...request,
+      url,
+      method: "POST",
+      init: {
+        ...request.init,
+        method: "POST",
+        headers: mergeHeaders(request.init.headers, { "Content-Type": "application/x-www-form-urlencoded" }),
+        body: body.toString(),
+      },
+    },
+    replaySafe: new URL(stripQuery(initialRequest.url), fallbackBase).pathname === new URL(url, fallbackBase).pathname,
+  };
+}
+
 function resolveRequestUrl(baseUrl: string, path: string): string {
   if (isAbsoluteHttpUrl(path)) {
     if (!isAbsoluteHttpUrl(baseUrl)) {
@@ -487,7 +526,8 @@ export class HonuaClient {
         path: string,
         params: URLSearchParams,
         signal?: AbortSignal,
-      ) => this.requestBinaryWithJsonFallback(method, path, params, signal) as Promise<T>,
+        policy?: HonuaJsonRequestPolicy,
+      ) => this.requestBinaryWithJsonFallback(method, path, params, signal, policy) as Promise<T>,
     };
   }
 
@@ -1855,6 +1895,7 @@ export class HonuaClient {
       deadlineThroughFinalize: true,
       readOnlyQuery: policy?.readOnlyQuery,
       redirect: policy?.readOnlyQuery ? "preserve-method" : undefined,
+      autoPostAboveTargetLength: policy?.autoPostAboveTargetLength,
       finalize: async (response, _durationMs, _currentRequest, runAfter) => {
         // Parse the original body directly when no after-interceptor will read
         // it; only clone when an interceptor needs an independent copy.
@@ -1886,6 +1927,7 @@ export class HonuaClient {
     path: string,
     params: URLSearchParams,
     callerSignal?: AbortSignal,
+    policy?: HonuaJsonRequestPolicy,
   ): Promise<unknown> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
@@ -1900,6 +1942,7 @@ export class HonuaClient {
     return this.executeRequest<unknown>(request, {
       callerSignal,
       deadlineThroughFinalize: true,
+      autoPostAboveTargetLength: policy?.autoPostAboveTargetLength,
       finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
         await runAfter();
 
@@ -2085,6 +2128,7 @@ export class HonuaClient {
       okStatuses?: readonly number[];
       redirect?: "safe-follow" | "error" | "manual" | "preserve-method";
       readOnlyQuery?: true;
+      autoPostAboveTargetLength?: number;
       beforeAttempt?: (request: Readonly<HonuaRequestContext>, attempt: number) => void | Promise<void>;
       beforeReplay?: (
         request: Readonly<HonuaRequestContext>,
@@ -2113,12 +2157,24 @@ export class HonuaClient {
     let request = await this.applyBeforeInterceptors(initialRequest);
     // A before-interceptor that changes the endpoint/method or supplies a
     // streaming body cannot inherit this narrow read-query replay permission.
-    const readOnlyQuery =
+    let readOnlyQuery =
       options.readOnlyQuery === true &&
       request.method === "POST" &&
       request.method === initialRequest.method &&
       request.url === initialRequest.url &&
       typeof request.init.body === "string";
+    let redirect = options.redirect;
+    // The caller sized its automatic GET before interceptors ran; re-measure
+    // so an appended query-mode token cannot push the target over the limit.
+    const autoPost =
+      options.autoPostAboveTargetLength === undefined
+        ? undefined
+        : moveOversizedQueryToPost(initialRequest, request, options.autoPostAboveTargetLength);
+    if (autoPost) {
+      request = autoPost.request;
+      readOnlyQuery = autoPost.replaySafe;
+      redirect = "preserve-method";
+    }
     const retrySignal = options.callerSignal ?? request.init.signal ?? undefined;
     let refreshedAuth = false;
 
@@ -2136,7 +2192,7 @@ export class HonuaClient {
             method: request.method,
             signal: timeout.signal,
           },
-          options.redirect,
+          redirect,
         );
         fetchCompleted = true;
       } catch (error) {

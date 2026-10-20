@@ -20,6 +20,11 @@ import type { QueryMethod } from "./types.js";
 export interface HonuaJsonRequestPolicy {
   /** Retain read-query replay semantics and reject redirects that discard the body. */
   readonly readOnlyQuery?: true;
+  /**
+   * Move an automatic read-query GET into a form POST when request
+   * interceptors (e.g. a query-mode token) push its target past this length.
+   */
+  readonly autoPostAboveTargetLength?: number;
 }
 
 /**
@@ -104,5 +109,6 @@ export interface HonuaProtocolTransport {
     path: string,
     params: URLSearchParams,
     signal?: AbortSignal,
+    policy?: HonuaJsonRequestPolicy,
   ): Promise<T>;
 }

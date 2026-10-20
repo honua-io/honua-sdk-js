@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
 import { polygon } from "../src/core/spatial-filter.js";
-import type { QueryMethod } from "../src/core/types.js";
+import type { HonuaRequestInterceptor, QueryMethod } from "../src/core/types.js";
+import { createArcGisTokenInterceptor } from "../src/esri-compat/request.js";
 
 const ring = Array.from({ length: 401 }, (_, i) => {
   const angle = ((i % 400) / 400) * Math.PI * 2;
@@ -11,17 +12,23 @@ const ring = Array.from({ length: 401 }, (_, i) => {
 });
 const geometry = { rings: [ring], spatialReference: { wkid: 4326 } };
 
-function fixture(preferBinary = false, enforceUrlLimit = true) {
+function fixture(
+  preferBinary = false,
+  enforceUrlLimit = true,
+  options: { interceptors?: HonuaRequestInterceptor[]; failFirst?: number } = {},
+) {
   const requests: Array<{ url: URL; init: RequestInit; params: URLSearchParams }> = [];
   const client = new HonuaClient({
     baseUrl: "https://mock.honua.test",
     apiKey: "test-key",
     preferBinary,
-    retry: { maxRetries: 0 },
+    interceptors: options.interceptors,
+    retry: options.failFirst ? { maxRetries: 1, baseDelayMs: 0, maxDelayMs: 0 } : { maxRetries: 0 },
     fetchFn: async (input, init = {}) => {
       const url = new URL(String(input));
       const params = init.method === "POST" ? new URLSearchParams(String(init.body)) : url.searchParams;
       requests.push({ url, init, params });
+      if (requests.length <= (options.failFirst ?? 0)) return new Response("busy", { status: 503 });
       if (enforceUrlLimit && url.pathname.length + url.search.length > 2_000)
         return new Response("Request target too large", { status: 431 });
       const payload =
@@ -127,4 +134,83 @@ describe("GeoServices large query transport", () => {
       }
     },
   );
+});
+
+describe("GeoServices large query transport with request interceptors", () => {
+  const token = "t".repeat(200);
+  const entryPoints = [
+    ["queryFeatures", false],
+    ["queryFeatures", true],
+    ["queryMapLayer", false],
+  ] as const;
+
+  // Size `where` so the caller-measured GET target is 1,990 characters: under
+  // the 2,000 budget until an interceptor appends the token.
+  async function nearLimitWhere(entry: "queryFeatures" | "queryMapLayer", preferBinary: boolean) {
+    const probe = fixture(preferBinary);
+    await probe.client[entry]({ serviceId: "Flights", layerId: 0, where: "kind = ''" });
+    const base = probe.requests[0]!.url;
+    const where = `kind = '${"a".repeat(1_990 - (base.pathname.length + base.search.length))}'`;
+    const sized = fixture(preferBinary);
+    await sized.client[entry]({ serviceId: "Flights", layerId: 0, where });
+    const target = sized.requests[0]!.url;
+    expect(sized.requests[0]!.init.method).toBe("GET");
+    expect(target.pathname.length + target.search.length).toBe(1_990);
+    return where;
+  }
+
+  it.each(entryPoints)("%s (binary %s) moves an interceptor-grown target into the POST body", async (entry, binary) => {
+    const where = await nearLimitWhere(entry, binary);
+    const { client, requests } = fixture(binary, true, {
+      interceptors: [createArcGisTokenInterceptor({ getToken: () => token })],
+    });
+    const response = await client[entry]({ serviceId: "Flights", layerId: 0, where });
+    expect(response.features).toHaveLength(1);
+    expect(requests).toHaveLength(1);
+    const request = requests[0]!;
+    expect(request.init.method).toBe("POST");
+    expect(request.url.search).toBe("");
+    expect(new Headers(request.init.headers).get("content-type")).toBe("application/x-www-form-urlencoded");
+    expect(request.params.get("token")).toBe(token);
+    expect(request.params.get("where")).toBe(where);
+    expect(request.params.get("f")).toBe("json");
+  });
+
+  it.each(entryPoints)("%s (binary %s) keeps transient retry for the converted POST", async (entry, binary) => {
+    const where = await nearLimitWhere(entry, binary);
+    const { client, requests } = fixture(binary, true, {
+      interceptors: [createArcGisTokenInterceptor({ getToken: () => token })],
+      failFirst: 1,
+    });
+    await client[entry]({ serviceId: "Flights", layerId: 0, where });
+    expect(requests.map((request) => request.init.method)).toEqual(["POST", "POST"]);
+    expect(requests[1]!.params.get("where")).toBe(where);
+    expect(requests[1]!.params.get("token")).toBe(token);
+  });
+
+  it("does not grant replay when an interceptor moves the query to another endpoint", async () => {
+    const where = await nearLimitWhere("queryFeatures", false);
+    const rewrite: HonuaRequestInterceptor = {
+      before: (context) => ({
+        url: `${context.url.replace("/FeatureServer/0/query", "/FeatureServer/1/query")}&token=${token}`,
+      }),
+    };
+    const { client, requests } = fixture(false, true, { interceptors: [rewrite], failFirst: 1 });
+    await expect(client.queryFeatures({ serviceId: "Flights", layerId: 0, where })).rejects.toMatchObject({
+      statusCode: 503,
+    });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.init.method).toBe("POST");
+    expect(requests[0]!.url.pathname).toContain("/FeatureServer/1/query");
+  });
+
+  it("leaves an explicit GET on the URL even when an interceptor grows it", async () => {
+    const where = await nearLimitWhere("queryFeatures", false);
+    const { client, requests } = fixture(false, false, {
+      interceptors: [createArcGisTokenInterceptor({ getToken: () => token })],
+    });
+    await client.queryFeatures({ serviceId: "Flights", layerId: 0, where, method: "GET" });
+    expect(requests[0]!.init.method).toBe("GET");
+    expect(requests[0]!.url.searchParams.get("token")).toBe(token);
+  });
 });

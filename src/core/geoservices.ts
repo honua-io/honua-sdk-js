@@ -12,7 +12,7 @@
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import { encodeServiceIdPath } from "./path-utils.js";
-import type { HonuaProtocolTransport } from "./protocol-transport.js";
+import type { HonuaJsonRequestPolicy, HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   ApplyEditsRequest,
   ExportMapRequest,
@@ -113,6 +113,8 @@ export async function getMapLayerMetadata(
 // coordinates, and a deployment prefix (e.g. `/honua`) can all expand the
 // actual request target that `resolveRequestUrl` sends. Explicit caller
 // choices remain authoritative.
+const QUERY_MAX_TARGET_LENGTH = 2_000;
+
 function queryMethod(
   method: QueryMethod | undefined,
   path: string,
@@ -121,7 +123,13 @@ function queryMethod(
 ): QueryMethod {
   if (method !== undefined) return method;
   const url = new URL(`${baseUrl}${path}?${params.toString()}`, globalThis.location?.href ?? "https://honua.invalid");
-  return url.pathname.length + url.search.length > 2_000 ? "POST" : "GET";
+  return url.pathname.length + url.search.length > QUERY_MAX_TARGET_LENGTH ? "POST" : "GET";
+}
+
+// An automatic GET is re-measured after request interceptors run, since a
+// query-mode token can push it past the budget measured here.
+function autoQueryGetPolicy(method: QueryMethod | undefined): HonuaJsonRequestPolicy | undefined {
+  return method === undefined ? { autoPostAboveTargetLength: QUERY_MAX_TARGET_LENGTH } : undefined;
 }
 
 /**
@@ -155,11 +163,18 @@ export async function queryFeaturesRest(
       `${path}?${params.toString()}`,
       params,
       request.signal,
+      autoQueryGetPolicy(request.method),
     );
   }
 
   if (method === "GET") {
-    return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
+    return transport.requestJson<HonuaQueryResponse>(
+      "GET",
+      `${path}?${params.toString()}`,
+      undefined,
+      request.signal,
+      autoQueryGetPolicy(request.method),
+    );
   }
 
   return transport.requestJson<HonuaQueryResponse>(
@@ -192,7 +207,13 @@ export async function queryMapLayer(
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
   const method = queryMethod(request.method, path, params, transport.baseUrl);
   if (method === "GET") {
-    return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
+    return transport.requestJson<HonuaQueryResponse>(
+      "GET",
+      `${path}?${params.toString()}`,
+      undefined,
+      request.signal,
+      autoQueryGetPolicy(request.method),
+    );
   }
 
   return transport.requestJson<HonuaQueryResponse>(
