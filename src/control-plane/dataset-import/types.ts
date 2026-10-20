@@ -11,13 +11,69 @@ export interface DatasetImportArtifactSource {
   readonly path: string;
 }
 export interface DatasetImportSource {
-  readonly kind: "browser-file" | "local-process-artifact";
+  readonly kind: "browser-file" | "local-process-artifact" | "server-job-artifact";
   readonly fileName: string;
   readonly totalBytes: number;
   readonly expectedSha256?: string | null;
   readonly artifact?: DatasetImportArtifactSource | null;
   /** Original human file selection captured by the immutable originating turn. */
   readonly browserSelectionId?: string | null;
+  readonly serverJobArtifact?: DatasetImportServerJobArtifactSource | null;
+}
+
+/** Exact Server-owned result identity; no caller-supplied location or bulk content. */
+export interface DatasetImportServerJobArtifactReference {
+  readonly targetId: string;
+  readonly jobId: string;
+  readonly resultPackageId: string;
+  readonly artifactId: string;
+  readonly referenceSha256: string;
+}
+
+/** Server recomputes this description at task creation; it is not execution authority. */
+export interface DatasetImportServerJobArtifactSource {
+  readonly reference: DatasetImportServerJobArtifactReference;
+  readonly producerActorId: string;
+  readonly producerTenantId: string | null;
+  readonly crsState: "known" | "unknown";
+  readonly sourceSrid: number | null;
+  readonly featureCount: number;
+}
+
+export interface DatasetImportServerJobSource extends DatasetImportSource {
+  readonly kind: "server-job-artifact";
+  readonly expectedSha256: string;
+  readonly serverJobArtifact: DatasetImportServerJobArtifactSource;
+}
+
+export interface ListServerJobImportSources {
+  readonly jobId: string;
+  readonly offset?: number;
+  /** Required for continuation, preserving the exact original result version. */
+  readonly resultPackageId?: string | null;
+}
+
+export interface DescribeServerJobImportSource {
+  readonly jobId: string;
+  readonly resultPackageId: string;
+  readonly artifactId: string;
+}
+
+export interface ServerJobImportSourceChoice {
+  readonly artifactId: string;
+  readonly kind: string;
+  readonly label: string;
+  /** Envelope eligibility only; describe still verifies content, CRS and current access. */
+  readonly canDescribeForImport: boolean;
+}
+
+export interface ServerJobImportSourcePage {
+  readonly targetId: string;
+  readonly jobId: string;
+  readonly resultPackageId: string;
+  readonly artifacts: readonly ServerJobImportSourceChoice[];
+  readonly totalArtifacts: number;
+  readonly nextOffset: number | null;
 }
 export interface DatasetImportTaskOptions {
   /** Current new-table slice supports Append (1); occupied destinations remain unsupported. */
