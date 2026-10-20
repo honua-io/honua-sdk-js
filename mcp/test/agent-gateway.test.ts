@@ -26,7 +26,13 @@ afterEach(async () => {
 });
 
 async function setup(
-  options: { installed?: boolean; collision?: boolean; fail?: boolean; devops?: DevOpsExtension } = {},
+  options: {
+    installed?: boolean;
+    collision?: boolean;
+    fail?: boolean;
+    devops?: DevOpsExtension;
+    workflowView?: unknown;
+  } = {},
 ) {
   let installed = options.installed ?? false;
   const calls: unknown[] = [];
@@ -149,17 +155,25 @@ async function setup(
     options.devops,
   );
   const [a, b] = InMemoryTransport.createLinkedPair();
+  const send = a.send.bind(a);
+  a.send = (message, transportOptions) =>
+    send(
+      "method" in message && message.method === "initialize" && "workflowView" in options
+        ? { ...message, params: { ...message.params, _meta: { "honua.io/workflow-view": options.workflowView } } }
+        : message,
+      transportOptions,
+    );
   const client = new Client({ name: "test-host", version: "1" });
   client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
     notified++;
   });
-  await gateway.connect(b);
-  await client.connect(a);
   cleanup.push(
     () => upstream.close(),
     () => gateway.close(),
     () => client.close(),
   );
+  await gateway.connect(b);
+  await client.connect(a);
   await vi.waitFor(async () => {
     const status = await client.callTool({ name: "honua_agent_status" });
     expect(status.structuredContent?.state).not.toBe("connecting");
@@ -178,6 +192,66 @@ async function setup(
 }
 
 describe("persistent Honua agent gateway", () => {
+  it.each([
+    [undefined, "full"],
+    [null, "full"],
+    ["", "full"],
+    ["   ", "full"],
+    ["setup", "setup"],
+    ["workspace", "workspace"],
+    ["processes", "processes"],
+  ])("selects upstream view %s as %s without changing the target", async (workflowView, expected) => {
+    const fixture = await setup({ installed: true, workflowView });
+    expect(fixture.views).toEqual([expected]);
+    const status = await fixture.client.callTool({ name: "honua_agent_status" });
+    expect(status.structuredContent?.target).toEqual({
+      id: "target-1",
+      endpoint: "http://127.0.0.1:8080/mcp",
+      credentialId: "credential-1",
+    });
+    await fixture.upstream.close();
+    const reconnected = await fixture.client.callTool({ name: "honua_agent_connect" });
+    expect(reconnected.structuredContent?.state).toBe("attached");
+    expect(fixture.views).toEqual([expected, expected]);
+  });
+
+  it.each([false, { invalid: "setup" }, "x".repeat(65)])("refuses malformed view metadata %s", async (workflowView) => {
+    await expect(setup({ installed: true, workflowView })).rejects.toThrow("Invalid workflow view");
+  });
+
+  it("advertises the canonical full HTTP catalog to an ordinary host with no view metadata", async () => {
+    const remote = await startFixture();
+    cleanup.push(() => remote.close());
+    const gateway = new HonuaAgentGateway({
+      inspect: vi.fn(),
+      install: vi.fn(),
+      resolve: vi.fn(async () => ({
+        target: { id: "http-fixture", endpoint: remote.url, credentialId: "fixture" },
+        transport: { remoteUrl: remote.url, apiKey: "test-credential" },
+      })),
+    });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "ordinary-mcp-host", version: "1" });
+    cleanup.push(
+      () => gateway.close(),
+      () => client.close(),
+    );
+    await gateway.connect(b);
+    await client.connect(a);
+    await vi.waitFor(async () => {
+      expect((await client.callTool({ name: "honua_agent_status" })).structuredContent?.state).toBe("attached");
+    });
+    const catalog = await client.listTools();
+    expect(catalog.tools.filter((tool) => !tool.name.startsWith("honua_agent_"))).toHaveLength(32);
+    expect(catalog._meta?.revision).toBe("full.v1");
+    expect([...remote.sessions.values()]).toEqual(["full"]);
+    const initialize = JSON.parse(
+      remote.traffic.find((event: { direction: string }) => event.direction === "http-request").body,
+    );
+    expect(initialize.params._meta).toEqual({ "honua.io/workflow-view": "full" });
+    expect(initialize.params.clientInfo.name).toBe("honua-agent-gateway");
+  });
+
   it("serves versioned workflow knowledge before installation and after attachment", async () => {
     const fixture = await setup();
     expect((await fixture.client.listResources()).resources).toContainEqual(
