@@ -174,3 +174,30 @@ describe.each([undefined, "esriGeometryNull"])("inferred multipart polygons with
     });
   });
 });
+
+it("uses canonical topology for metadata-declared polygon parts too", () => {
+  const first = [
+    [0, 0],
+    [0, 4],
+    [4, 4],
+    [4, 0],
+    [0, 0],
+  ];
+  const second = [
+    [10, 0],
+    [10, 4],
+    [14, 4],
+    [14, 0],
+    [10, 0],
+  ];
+  expect(esriGeometryToGeoJson({ rings: [first, second] }, "esriGeometryPolygon")).toEqual({
+    type: "MultiPolygon",
+    coordinates: [[[...first].reverse()], [[...second].reverse()]],
+  });
+});
+
+it("retains point elevation through the same canonical declared/inferred conversion", () => {
+  for (const metadata of [undefined, "esriGeometryNull", "esriGeometryPoint"]) {
+    expect(esriGeometryToGeoJson({ x: 1, y: 2, z: 3 }, metadata)).toEqual({ type: "Point", coordinates: [1, 2, 3] });
+  }
+});

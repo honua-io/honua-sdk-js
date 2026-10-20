@@ -90,8 +90,8 @@ interface MapLibreGeoJsonSourceHandle {
   setData(data: AdapterGeoJsonFeatureCollection): void;
 }
 
-/** Infer only an unambiguous, valid shape when the service cannot declare its geometry type. */
-function inferGenericGeometryType(geometry: Record<string, unknown>): EsriGeometryType | undefined {
+/** Validate an unambiguous shape when the service cannot declare its geometry type. */
+function isValidGenericGeometry(geometry: Record<string, unknown>): boolean {
   const shapes = [
     "x" in geometry || "y" in geometry,
     "points" in geometry,
@@ -99,39 +99,36 @@ function inferGenericGeometryType(geometry: Record<string, unknown>): EsriGeomet
     "rings" in geometry,
     ["xmin", "ymin", "xmax", "ymax"].some((key) => key in geometry),
   ];
-  if (shapes.filter(Boolean).length !== 1) return undefined;
-  if (shapes[0])
-    return asFiniteNumber(geometry.x) !== undefined && asFiniteNumber(geometry.y) !== undefined
-      ? "esriGeometryPoint"
-      : undefined;
+  if (shapes.filter(Boolean).length !== 1) return false;
+  if (shapes[0]) return asFiniteNumber(geometry.x) !== undefined && asFiniteNumber(geometry.y) !== undefined;
   if (shapes[1])
-    return Array.isArray(geometry.points) &&
+    return (
+      Array.isArray(geometry.points) &&
       geometry.points.length > 0 &&
       geometry.points.every((point) => asCoordinatePair(point) !== undefined)
-      ? "esriGeometryMultipoint"
-      : undefined;
+    );
   if (shapes[2] || shapes[3]) {
     const parts = shapes[2] ? geometry.paths : geometry.rings;
     const polygon = shapes[3];
-    if (!Array.isArray(parts) || !parts.length) return undefined;
-    const valid = parts.every((part) => {
-      if (
-        !Array.isArray(part) ||
-        part.length < (polygon ? 4 : 2) ||
-        !part.every((point) => asCoordinatePair(point) !== undefined)
-      )
-        return false;
-      if (!polygon) return true;
-      const first = asCoordinatePair(part[0])!;
-      const last = asCoordinatePair(part[part.length - 1])!;
-      return first[0] === last[0] && first[1] === last[1];
-    });
-    return valid ? (polygon ? "esriGeometryPolygon" : "esriGeometryPolyline") : undefined;
+    return (
+      Array.isArray(parts) &&
+      parts.length > 0 &&
+      parts.every((part) => {
+        if (
+          !Array.isArray(part) ||
+          part.length < (polygon ? 4 : 2) ||
+          !part.every((point) => asCoordinatePair(point) !== undefined)
+        )
+          return false;
+        if (!polygon) return true;
+        const first = asCoordinatePair(part[0])!;
+        const last = asCoordinatePair(part[part.length - 1])!;
+        return first[0] === last[0] && first[1] === last[1];
+      })
+    );
   }
   const bounds = [geometry.xmin, geometry.ymin, geometry.xmax, geometry.ymax].map(asFiniteNumber);
-  return bounds.every((value) => value !== undefined) && bounds[0]! <= bounds[2]! && bounds[1]! <= bounds[3]!
-    ? "esriGeometryEnvelope"
-    : undefined;
+  return bounds.every((value) => value !== undefined) && bounds[0]! <= bounds[2]! && bounds[1]! <= bounds[3]!;
 }
 
 /**
@@ -145,79 +142,28 @@ export function esriGeometryToGeoJson(
   geometry: Record<string, unknown> | null | undefined,
   geometryType: EsriGeometryType | undefined,
 ): AdapterGeoJsonGeometry | null {
-  if (!geometry || typeof geometry !== "object" || Array.isArray(geometry)) {
-    return null;
-  }
+  if (!geometry || typeof geometry !== "object" || Array.isArray(geometry)) return null;
+
+  let shape: Record<string, unknown>;
   if (geometryType === undefined || geometryType === null || geometryType === "esriGeometryNull") {
-    geometryType = inferGenericGeometryType(geometry);
-    if (!geometryType) return null;
-    if (geometryType === "esriGeometryPolygon") {
-      // Esri can encode several independent exterior rings and holes in one
-      // rings array. Reuse the canonical topology/winding conversion rather
-      // than treating every ring after the first as a GeoJSON interior.
-      const polygon = esriGeometryToGeoJSON(geometry);
-      return polygon?.type === "Polygon" || polygon?.type === "MultiPolygon" ? polygon : null;
-    }
-  }
+    if (!isValidGenericGeometry(geometry)) return null;
+    shape = geometry;
+  } else if (geometryType === "esriGeometryPoint" || (geometry.x !== undefined && geometry.y !== undefined)) {
+    shape = { x: geometry.x, y: geometry.y, z: geometry.z };
+  } else if (geometryType === "esriGeometryMultipoint") {
+    shape = { points: geometry.points };
+  } else if (geometryType === "esriGeometryPolyline") {
+    shape = { paths: geometry.paths };
+  } else if (geometryType === "esriGeometryPolygon") {
+    shape = { rings: geometry.rings };
+  } else if (geometryType === "esriGeometryEnvelope") {
+    shape = { xmin: geometry.xmin, ymin: geometry.ymin, xmax: geometry.xmax, ymax: geometry.ymax };
+  } else return null;
 
-  // Point geometries are recognisable structurally even without a declared
-  // type (queries that elide geometryType still return {x, y}).
-  if (geometryType === "esriGeometryPoint" || (geometry.x !== undefined && geometry.y !== undefined)) {
-    const x = asFiniteNumber(geometry.x);
-    const y = asFiniteNumber(geometry.y);
-    if (x === undefined || y === undefined) return null;
-    return { type: "Point", coordinates: [x, y] };
-  }
-
-  if (geometryType === "esriGeometryMultipoint") {
-    const points = asArray(geometry.points)
-      .map(asCoordinatePair)
-      .filter((value): value is [number, number] => value !== undefined);
-    return { type: "MultiPoint", coordinates: points };
-  }
-
-  if (geometryType === "esriGeometryPolyline") {
-    const paths = asArray(geometry.paths)
-      .map(asCoordinateArray)
-      .filter((path) => path.length > 0);
-    if (paths.length === 1) {
-      return { type: "LineString", coordinates: paths[0] };
-    }
-    return { type: "MultiLineString", coordinates: paths };
-  }
-
-  if (geometryType === "esriGeometryPolygon") {
-    const rings = asArray(geometry.rings)
-      .map(asCoordinateArray)
-      .filter((ring) => ring.length > 0);
-    // MapLibre does not enforce GeoJSON ring winding for rendering, so the
-    // adapter passes Esri rings through as a Polygon without re-nesting.
-    return { type: "Polygon", coordinates: rings };
-  }
-
-  if (geometryType === "esriGeometryEnvelope") {
-    const xmin = asFiniteNumber(geometry.xmin);
-    const ymin = asFiniteNumber(geometry.ymin);
-    const xmax = asFiniteNumber(geometry.xmax);
-    const ymax = asFiniteNumber(geometry.ymax);
-    if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) {
-      return null;
-    }
-    return {
-      type: "Polygon",
-      coordinates: [
-        [
-          [xmin, ymin],
-          [xmax, ymin],
-          [xmax, ymax],
-          [xmin, ymax],
-          [xmin, ymin],
-        ],
-      ],
-    };
-  }
-
-  return null;
+  // One converter owns exterior/hole grouping, winding and coordinate ordinates
+  // for both metadata-declared and structurally inferred feature geometry.
+  const converted = esriGeometryToGeoJSON(shape);
+  return converted && "coordinates" in converted ? converted : null;
 }
 
 /**
@@ -442,20 +388,10 @@ function asFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
 function asCoordinatePair(value: unknown): [number, number] | undefined {
   if (!Array.isArray(value) || value.length < 2) return undefined;
   const x = asFiniteNumber(value[0]);
   const y = asFiniteNumber(value[1]);
   if (x === undefined || y === undefined) return undefined;
   return [x, y];
-}
-
-function asCoordinateArray(value: unknown): [number, number][] {
-  return asArray(value)
-    .map(asCoordinatePair)
-    .filter((pair): pair is [number, number] => pair !== undefined);
 }
