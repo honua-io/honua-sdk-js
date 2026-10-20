@@ -148,6 +148,12 @@ export interface McpClientOptions {
 }
 
 let requestSeq = 0;
+interface McpInitialization {
+  readonly controller: AbortController;
+  readonly promise: Promise<McpInitializeResult>;
+  waiters: number;
+}
+
 function nextRequestId(): string {
   requestSeq += 1;
   return `honua-sdk-js-mcp-${requestSeq}`;
@@ -172,7 +178,7 @@ export class McpClient {
   readonly #fetchImpl: typeof fetch;
   #sessionId: string | undefined;
   #initializeResult: McpInitializeResult | undefined;
-  #initializing: Promise<McpInitializeResult> | undefined;
+  #initializing: McpInitialization | undefined;
 
   public constructor(options: McpClientOptions = {}) {
     if (options.apiKey && options.auth) {
@@ -208,16 +214,66 @@ export class McpClient {
    * Runs the `initialize` handshake, capturing the `Mcp-Session-Id` response
    * header for every later call. Safe to call more than once — concurrent
    * callers share one in-flight request; a session already established is NOT
-   * re-initialized.
+   * re-initialized. Each caller can cancel independently. The shared request
+   * is aborted when every waiter has cancelled or the session is reset.
    */
   public async initialize(signal?: AbortSignal): Promise<McpInitializeResult> {
+    if (signal?.aborted) {
+      throw new McpTransportError(`Could not reach the MCP endpoint at ${this.#baseUrl}/mcp.`, signal.reason);
+    }
     if (this.#initializeResult) return this.#initializeResult;
     if (!this.#initializing) {
-      this.#initializing = this.#doInitialize(signal).finally(() => {
-        this.#initializing = undefined;
-      });
+      const controller = new AbortController();
+      const state: McpInitialization = { controller, promise: this.#doInitialize(controller.signal), waiters: 0 };
+      this.#initializing = state;
+      const clear = (): void => {
+        if (this.#initializing === state) this.#initializing = undefined;
+      };
+      void state.promise.then(clear, clear);
     }
-    return this.#initializing;
+    const state = this.#initializing;
+    return new Promise<McpInitializeResult>((resolve, reject) => {
+      state.waiters += 1;
+      let settled = false;
+      const finish = (): boolean => {
+        if (settled) return false;
+        settled = true;
+        signal?.removeEventListener("abort", abort);
+        state.controller.signal.removeEventListener("abort", abortShared);
+        state.waiters -= 1;
+        if (state.waiters === 0 && this.#initializing === state && !this.#initializeResult) {
+          this.#initializing = undefined;
+          state.controller.abort();
+        }
+        return true;
+      };
+      const abort = (): void => {
+        if (finish()) {
+          reject(new McpTransportError(`Could not reach the MCP endpoint at ${this.#baseUrl}/mcp.`, signal?.reason));
+        }
+      };
+      const abortShared = (): void => {
+        if (finish()) {
+          reject(
+            new McpTransportError(
+              `Could not reach the MCP endpoint at ${this.#baseUrl}/mcp.`,
+              state.controller.signal.reason,
+            ),
+          );
+        }
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      state.controller.signal.addEventListener("abort", abortShared, { once: true });
+      if (signal?.aborted) abort();
+      state.promise.then(
+        (result) => {
+          if (finish()) resolve(result);
+        },
+        (error: unknown) => {
+          if (finish()) reject(error);
+        },
+      );
+    });
   }
 
   async #doInitialize(signal: AbortSignal | undefined): Promise<McpInitializeResult> {
@@ -231,6 +287,7 @@ export class McpClient {
       },
       signal,
     );
+    signal?.throwIfAborted();
     this.#initializeResult = result;
     return result;
   }
@@ -345,6 +402,8 @@ export class McpClient {
    * (`StudioAgentSession.reconnect` invalidates its tool catalog here).
    */
   public resetSession(): void {
+    this.#initializing?.controller.abort();
+    this.#initializing = undefined;
     this.#sessionId = undefined;
     this.#initializeResult = undefined;
   }
@@ -409,7 +468,7 @@ export class McpClient {
     }
 
     const sessionHeader = response.headers.get("mcp-session-id");
-    if (sessionHeader) this.#sessionId = sessionHeader;
+    if (sessionHeader && !signal?.aborted) this.#sessionId = sessionHeader;
 
     if (!response.ok && response.status !== 200) {
       // A handful of honua-server error paths (unauthenticated, malformed
