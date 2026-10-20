@@ -103,3 +103,19 @@ automatically reachable from Docker. The installer does not guess a Docker host
 address, alter host listeners, or open a public gateway port. Without this opt-in,
 Console uses the server's canonical MCP tools directly; optional infrastructure
 extension tools are not advertised to native chat.
+
+When the installed Server advertises the optional Server-job import tools, the
+control-plane SDK's `DatasetImportServerJobSourceClient` discovers bounded
+artifact metadata and describes the selected output. Continuation retains the
+original result-package version. The description carries a canonical reference,
+content hash, producer identity and verified coordinate frame; it contains no
+artifact URI or feature bytes. Capture that exact reference in the originating
+workspace turn before creating its import task. Unknown CRS requires an explicit
+source SRID choice; ordinary feature properties do not establish the CRS.
+
+`DatasetImportUploadClient.transferServerJobArtifact` copies the original task's
+output through the Server's existing upload coordinator and returns a sealed,
+retained source receipt. Submission and any approval remain separate. A lost
+transfer reply is unknown: read or reconcile that original upload before
+explicitly resuming it. These optional APIs do not advance public installer pins
+or qualify an installed output-to-query-to-map journey.

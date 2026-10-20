@@ -6,12 +6,20 @@ export type {
   DatasetImportAuthorityDescriptor,
   DatasetImportAuthorityRenewal,
   DatasetImportDestination,
+  DatasetImportServerJobArtifactReference,
+  DatasetImportServerJobArtifactSource,
+  DatasetImportServerJobSource,
   DatasetImportSource,
   DatasetImportTask,
   DatasetImportTaskOptions,
   DatasetImportTaskReference,
   RenewDatasetImportAuthority,
+  DescribeServerJobImportSource,
+  ListServerJobImportSources,
+  ServerJobImportSourceChoice,
+  ServerJobImportSourcePage,
 } from "./types.js";
+export { DatasetImportServerJobSourceClient } from "./server-job-source-client.js";
 export {
   DatasetImportTaskApiError,
   DatasetImportTaskClient,
