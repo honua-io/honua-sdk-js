@@ -89,6 +89,50 @@ interface MapLibreGeoJsonSourceHandle {
   setData(data: AdapterGeoJsonFeatureCollection): void;
 }
 
+/** Infer only an unambiguous, valid shape when the service cannot declare its geometry type. */
+function inferGenericGeometryType(geometry: Record<string, unknown>): EsriGeometryType | undefined {
+  const shapes = [
+    "x" in geometry || "y" in geometry,
+    "points" in geometry,
+    "paths" in geometry,
+    "rings" in geometry,
+    ["xmin", "ymin", "xmax", "ymax"].some((key) => key in geometry),
+  ];
+  if (shapes.filter(Boolean).length !== 1) return undefined;
+  if (shapes[0])
+    return asFiniteNumber(geometry.x) !== undefined && asFiniteNumber(geometry.y) !== undefined
+      ? "esriGeometryPoint"
+      : undefined;
+  if (shapes[1])
+    return Array.isArray(geometry.points) &&
+      geometry.points.length > 0 &&
+      geometry.points.every((point) => asCoordinatePair(point) !== undefined)
+      ? "esriGeometryMultipoint"
+      : undefined;
+  if (shapes[2] || shapes[3]) {
+    const parts = shapes[2] ? geometry.paths : geometry.rings;
+    const polygon = shapes[3];
+    if (!Array.isArray(parts) || !parts.length) return undefined;
+    const valid = parts.every((part) => {
+      if (
+        !Array.isArray(part) ||
+        part.length < (polygon ? 4 : 2) ||
+        !part.every((point) => asCoordinatePair(point) !== undefined)
+      )
+        return false;
+      if (!polygon) return true;
+      const first = asCoordinatePair(part[0])!;
+      const last = asCoordinatePair(part[part.length - 1])!;
+      return first[0] === last[0] && first[1] === last[1];
+    });
+    return valid ? (polygon ? "esriGeometryPolygon" : "esriGeometryPolyline") : undefined;
+  }
+  const bounds = [geometry.xmin, geometry.ymin, geometry.xmax, geometry.ymax].map(asFiniteNumber);
+  return bounds.every((value) => value !== undefined) && bounds[0]! <= bounds[2]! && bounds[1]! <= bounds[3]!
+    ? "esriGeometryEnvelope"
+    : undefined;
+}
+
 /**
  * Convert a single Esri geometry into a GeoJSON geometry.
  *
@@ -100,8 +144,12 @@ export function esriGeometryToGeoJson(
   geometry: Record<string, unknown> | null | undefined,
   geometryType: EsriGeometryType | undefined,
 ): AdapterGeoJsonGeometry | null {
-  if (!geometry) {
+  if (!geometry || typeof geometry !== "object" || Array.isArray(geometry)) {
     return null;
+  }
+  if (geometryType === undefined || geometryType === null || geometryType === "esriGeometryNull") {
+    geometryType = inferGenericGeometryType(geometry);
+    if (!geometryType) return null;
   }
 
   // Point geometries are recognisable structurally even without a declared
