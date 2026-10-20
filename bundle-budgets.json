@@ -1,5 +1,6 @@
 {
  "$comment": [
+  "/studio-agent is reset for #2137: the experimental subpath now carries shared versioned GIS workflow guidance, resource continuation/cancellation and independently cancellable MCP initialization. Normal CI at 5f0ec31 measures 59,668 minified and 19,394 gzip bytes. Only these exceeded ceilings change to ceil(actual * 1.1): 65,635 and 21,334 bytes. Root/browser surfaces and every other ceiling are unchanged. Shared generated reports remain owned by the normal derived-artifact workflow.",
   "/studio-agent min was reset for #2164: switching workspace/process tool views on one MCP session adds paginated tool discovery, session view metadata, and rejection of stale in-flight dispatch after navigation. CI measures 48,002 minified bytes, 13 over the prior ceiling. The new ceiling is 52,803 bytes, ceil(actual * 1.1); gzip and every other entrypoint ceiling are unchanged.",
   "/react gzip was reset for #2067: complete-set gRPC client-side aggregation preserves exact counts, schema validation, pagination/identity checks, SQL null/sample-variance semantics, and finite-budget failures without a new dependency. Same-toolchain baseline 152646 gzip bytes versus optimized feature 153806 (+1160); shared error/evaluator reuse reduced the initial 153895-byte feature. Only the exceeded gzip ceiling changes to 169187, ceil(actual * 1.1); the minified ceiling and all other entrypoint ceilings remain unchanged.",
   "/runtime gzip was reset for configurable online basemaps (#1717) after renderer tree-shaking, private-state consolidation, and generated-validator optimization. The compiled entrypoint measures 184,885 gzip bytes, 186 above its previous ceiling; the new ceiling is 203,374 bytes, ceil(actual * 1.1). Only the exceeded runtime entrypoint metric changes. The separate installed First Map gzip ceiling is explicitly adjusted by 1,000 bytes for MapLibre 6.14.0; its evidence and unchanged raw-byte and CPU ceilings are documented in docs/installed-first-map-budget.md.",
@@ -162,8 +163,8 @@
    "gzip": 5662
   },
   "/studio-agent": {
-   "min": 52803,
-   "gzip": 15397
+   "min": 65635,
+   "gzip": 21334
   },
   "/runtime": {
    "min": 770607,

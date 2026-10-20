@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -21,17 +22,28 @@ import {
   McpError,
   PromptListChangedNotificationSchema,
   ReadResourceRequestSchema,
+  type ReadResourceResult,
   ReadResourceResultSchema,
   ResourceListChangedNotificationSchema,
   type Tool,
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { z as protocolZod } from "zod/v4";
 import { SERVER_VERSION } from "../index.js";
 import { WORKFLOW_VIEW_META_KEY, buildUpstreamHeaders, readWorkflowView } from "../proxy.js";
 import type { DevOpsExtension } from "./devops-runtime.js";
 import type { AgentConnection, AgentRuntime, AgentTarget } from "./local-runtime.js";
 import { WORKFLOW_KNOWLEDGE, WORKFLOW_KNOWLEDGE_URI } from "./workflow-knowledge.js";
+
+// Honua chunks large resource documents. The standard MCP schema strips
+// these extension fields before the handler runs, so declare them explicitly.
+const honuaReadResourceRequestSchema = ReadResourceRequestSchema.extend({
+  params: ReadResourceRequestSchema.shape.params.extend({
+    cursor: protocolZod.string().optional(),
+    maxChars: protocolZod.number().int().min(1).max(1_000_000).optional(),
+  }),
+});
 
 const PREFIX = "honua_agent_";
 const DEVOPS_PREFIX = "honua_agent_devops_";
@@ -41,6 +53,30 @@ const knowledgeResource = {
   description: "Versioned workflow semantics and evidence requirements; canonical tools remain authoritative.",
   mimeType: "application/json",
 };
+const knowledgeText = JSON.stringify(WORKFLOW_KNOWLEDGE);
+const knowledgeDigest = createHash("sha256").update(knowledgeText).digest("hex");
+
+function readKnowledgeWindow(params: { cursor?: string; maxChars?: number }): ReadResourceResult {
+  let offset = 0;
+  if (params.cursor !== undefined) {
+    const invalid = () => new McpError(ErrorCode.InvalidParams, "Invalid workflow knowledge continuation cursor");
+    if (!/^[A-Za-z0-9_-]{1,256}$/.test(params.cursor)) throw invalid();
+    const decoded = Buffer.from(params.cursor, "base64url");
+    if (decoded.toString("base64url") !== params.cursor) throw invalid();
+    const [digest, position, ...extra] = decoded.toString("utf8").split(":");
+    if (digest !== knowledgeDigest || extra.length !== 0 || !/^[1-9][0-9]*$/.test(position ?? "")) throw invalid();
+    offset = Number(position);
+    if (!Number.isSafeInteger(offset) || offset >= knowledgeText.length) throw invalid();
+  }
+  const end = Math.min(offset + (params.maxChars ?? 64_000), knowledgeText.length);
+  return {
+    contents: [{ uri: WORKFLOW_KNOWLEDGE_URI, mimeType: "application/json", text: knowledgeText.slice(offset, end) }],
+    ...(end < knowledgeText.length
+      ? { nextCursor: Buffer.from(`${knowledgeDigest}:${end}`).toString("base64url") }
+      : {}),
+  };
+}
+
 const installInput = z
   .object({
     confirm: z.literal(true),
@@ -227,13 +263,9 @@ export class HonuaAgentGateway {
             client.request(request, ListResourceTemplatesResultSchema, { signal: extra.signal }),
           ),
     );
-    this.server.setRequestHandler(ReadResourceRequestSchema, (request, extra) =>
+    this.server.setRequestHandler(honuaReadResourceRequestSchema, (request, extra) =>
       request.params.uri === WORKFLOW_KNOWLEDGE_URI
-        ? {
-            contents: [
-              { uri: WORKFLOW_KNOWLEDGE_URI, mimeType: "application/json", text: JSON.stringify(WORKFLOW_KNOWLEDGE) },
-            ],
-          }
+        ? readKnowledgeWindow(request.params)
         : this.#withClient((client) => client.request(request, ReadResourceResultSchema, { signal: extra.signal })),
     );
     this.server.setRequestHandler(ListPromptsRequestSchema, (request, extra) =>

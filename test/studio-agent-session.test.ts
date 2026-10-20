@@ -18,6 +18,7 @@ import {
   type StudioAiCapabilitiesResponse,
   type StudioAiChatEvent,
   type StudioAiChatRequest,
+  WORKFLOW_KNOWLEDGE,
   createStudioAgentSession,
 } from "@honua/sdk-js/studio-agent";
 
@@ -305,7 +306,13 @@ function makeRuntime(): HonuaAgentRuntime & { readonly log: string[] } {
 
 type SessionOverrides = Pick<
   StudioAgentSessionOptions,
-  "studioTools" | "disableToolDiscovery" | "tools" | "execute" | "toolDiscoveryTimeoutMs"
+  | "studioTools"
+  | "disableToolDiscovery"
+  | "tools"
+  | "execute"
+  | "toolDiscoveryTimeoutMs"
+  | "workflowKnowledge"
+  | "system"
 >;
 
 /**
@@ -641,6 +648,50 @@ describe("createStudioAgentSession turn loop", () => {
     await session.chat("two");
 
     expect(server.chatRequests.map((request) => request.system)).toEqual(["prompt-1", "prompt-2"]);
+  });
+
+  it("includes shared workflow guidance while refreshing the host's authorized context each turn", async () => {
+    let context = "authorized-target-a";
+    const { server, session } = makeSession({
+      turns: [textTurn("a"), textTurn("b")],
+      session: { workflowKnowledge: true, system: async () => context },
+    });
+    await session.chat("one");
+    context = "authorized-target-b";
+    await session.chat("two");
+
+    for (const request of server.chatRequests) {
+      expect(request.system).toContain(JSON.stringify(WORKFLOW_KNOWLEDGE));
+    }
+    expect(server.chatRequests[0]?.system).toContain("authorized-target-a");
+    expect(server.chatRequests[1]?.system).toContain("authorized-target-b");
+    expect(server.chatRequests[1]?.system).not.toContain("authorized-target-a");
+  });
+
+  it("can supply workflow guidance without replacing a missing host system prompt", async () => {
+    const { server, session } = makeSession({
+      turns: [textTurn("ready")],
+      session: { workflowKnowledge: true, system: undefined },
+    });
+    await session.chat("Describe the GIS workflow.");
+    expect(server.chatRequests[0]?.system).toContain(JSON.stringify(WORKFLOW_KNOWLEDGE));
+  });
+
+  it("does not authorize or dispatch an installation action named only by workflow guidance", async () => {
+    const { server, session } = makeSession({
+      turns: [
+        toolTurn([{ id: "install", name: "honua_agent_install_local", args: { confirm: true } }]),
+        textTurn("refused"),
+      ],
+      session: { workflowKnowledge: true },
+    });
+    const turn = await session.chat("Install a different target.");
+
+    expect(turn.toolCalls).toContainEqual(
+      expect.objectContaining({ toolName: "honua_agent_install_local", ok: false }),
+    );
+    expect(server.mcpCalls).toEqual([]);
+    expect(server.chatRequests[0]?.tools?.some((tool) => tool.name === "honua_agent_install_local")).toBe(false);
   });
 });
 
@@ -1063,6 +1114,10 @@ describe("createStudioAgentSession tool discovery", () => {
     const gate = new Promise<void>((resolve) => {
       releaseToolList = resolve;
     });
+    let signalToolListStarted!: () => void;
+    const toolListStarted = new Promise<void>((resolve) => {
+      signalToolListStarted = resolve;
+    });
     let gated = true;
     const session = createStudioAgentSession({
       ...VERIFIED_SESSION,
@@ -1070,7 +1125,10 @@ describe("createStudioAgentSession tool discovery", () => {
       fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).endsWith("/mcp")) {
           const envelope = JSON.parse(String(init?.body)) as { readonly method: string };
-          if (envelope.method === "tools/list" && gated) await gate;
+          if (envelope.method === "tools/list" && gated) {
+            signalToolListStarted();
+            await gate;
+          }
         }
         return server.fetchImpl(input, init);
       }) as typeof fetch,
@@ -1079,6 +1137,7 @@ describe("createStudioAgentSession tool discovery", () => {
 
     const stalePass = session.refreshTools();
     // The reconnect lands while the first `tools/list` page is still in flight.
+    await toolListStarted;
     session.reconnect();
     gated = false;
     releaseToolList?.();
