@@ -257,6 +257,7 @@ jobs:
               "setupNode": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
               "uploadArtifact": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
               "downloadArtifact": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
+              "createGithubAppToken": "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
               "attestBuildProvenance": "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
           }
 
@@ -635,7 +636,7 @@ jobs:
           print("privileged byte and provenance validation: PASS")
           PY
 
-      - name: Gate current trunk and immutable releases
+      - name: Gate current trunk and source epoch
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_COMMIT: ${{ github.sha }}
@@ -658,9 +659,45 @@ jobs:
           SOURCE_DATE="$($GH api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_COMMIT" --jq .commit.committer.date)"
           SOURCE_EPOCH="$(date -u -d "$SOURCE_DATE" +%s)"
           test "$(jq -r .source.sourceDateEpoch staged/sample-bundles-attestation.v1.json)" = "$SOURCE_EPOCH"
-          IMMUTABLE="$($GH api "repos/$GITHUB_REPOSITORY/immutable-releases")"
-          test "$(jq -r .enabled <<<"$IMMUTABLE")" = "true"
-          test "$(jq -r .enforced_by_owner <<<"$IMMUTABLE")" = "true"
+
+      # The immutable-release policy endpoint requires Administration read.
+      # GITHUB_TOKEN cannot be granted that permission. Keep this installation
+      # token scoped to this repository and this one read-only policy call;
+      # the existing GITHUB_TOKEN remains the publication/attestation actor.
+      - name: Require dedicated immutable-policy reader credentials
+        env:
+          SAMPLE_BUNDLE_POLICY_APP_ID: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_ID }}
+          SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SAMPLE_BUNDLE_POLICY_APP_ID" ] || [ -z "$SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY" ]; then
+            echo "dedicated immutable-policy reader App credentials are required" >&2
+            exit 1
+          fi
+
+      - name: Mint SDK-scoped immutable-policy reader
+        id: immutable-policy-reader
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_ID }}
+          private-key: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY }}
+          owner: honua-io
+          repositories: honua-sdk-js
+          permission-administration: read
+
+      - name: Require owner-enforced immutable releases
+        env:
+          GH_TOKEN: ${{ steps.immutable-policy-reader.outputs.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          readonly GH="$RUNNER_TEMP/trusted-gh/bin/gh"
+          test -x "$GH"
+          IMMUTABLE="$("$GH" api "repos/$GITHUB_REPOSITORY/immutable-releases")"
+          jq -e 'type == "object" and .enabled == true and .enforced_by_owner == true' <<<"$IMMUTABLE" >/dev/null || {
+            echo "owner-enforced immutable releases are required" >&2
+            exit 1
+          }
 
       - name: Attest sample-bundles.v2.json
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

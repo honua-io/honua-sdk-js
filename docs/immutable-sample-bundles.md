@@ -16,9 +16,17 @@ publication.
 
 An organization owner must enable immutable releases for `honua-io/honua-sdk-js` and enforce the
 setting at the owner level before the first dispatch. This is an external administrative prerequisite,
-not something the publisher enables. The workflow queries the immutable-releases API before using
-its write token and after publication, and fails unless both `enabled` and `enforced_by_owner` are
-true. Do not dispatch while either value is false.
+not something the publisher enables. The policy-read endpoint requires repository Administration
+read, which the workflow's `GITHUB_TOKEN` cannot obtain. An owner must install a GitHub App with
+**Administration: read** on `honua-io/honua-sdk-js` and configure the repository Actions secrets
+`SAMPLE_BUNDLE_POLICY_APP_ID` and `SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY` for that App. The publisher
+mints a token restricted to this repository and Administration read, uses it only for the
+immutable-release policy GET, and fails before attestation when either credential or permission is
+missing. It never falls back to `GITHUB_TOKEN` for that read. Its existing `GITHUB_TOKEN` remains
+the release-creation and attestation identity. The policy response must have both `enabled` and
+`enforced_by_owner` as JSON `true` before publication. Do not dispatch while the App is unconfigured
+or either policy value is false. Configuring the App and secrets is a separate owner action; this
+source change neither creates them nor grants permissions.
 
 ## Build and trust boundaries
 
@@ -62,7 +70,8 @@ provenance predicate, and a GitHub-hosted runner.
 1. Merge the independently reviewed publisher before the Release Please PR.
 2. Refresh the Release Please PR on the resulting `trunk`.
 3. Merge the final release PR.
-4. Confirm owner-enforced immutable releases remain enabled.
+4. Confirm the dedicated SDK-repository policy-reader App and two Actions secrets are configured,
+   and owner-enforced immutable releases remain enabled.
 5. Dispatch the publisher exactly once from that exact current `trunk` SHA.
 6. Verify the release assets and attestations before making consumers bind the exact object.
 
