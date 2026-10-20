@@ -76,7 +76,11 @@ export interface StudioAiToolChoice {
 
 /** Request body for `POST /v1/studio/ai/chat`. */
 export interface StudioAiChatRequest {
-  /** Release bindings that require a signed, replay-resistant transcript. */
+  /**
+   * Candidate certification. The server signs the transcript only when this
+   * is present, and returns 403 when a non-admin caller sends it. End-user
+   * sessions omit it. Admin model and token overrides are separate fields.
+   */
   readonly certification?: StudioAiTranscriptCertification;
   /** Name of the configured provider to route to. Omit to use the server's configured default. */
   readonly provider?: string;

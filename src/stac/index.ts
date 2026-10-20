@@ -35,6 +35,13 @@ export type {
   StacSearchRequest,
   StacSortField,
 } from "../core/types.js";
+export {
+  HonuaStacConformanceError,
+  STAC_CONFORMANCE_CLASS,
+  hasStacConformance,
+  stacSearchExtensionRequirements,
+} from "../core/stac-conformance.js";
+export type { StacConformanceKind } from "../core/stac-conformance.js";
 
 export const DYNAMIC_STAC_CAPABILITY_STATUS = Object.freeze({
   catalog: { client: "supported", server: "required", endToEnd: "supported-when-advertised" },
