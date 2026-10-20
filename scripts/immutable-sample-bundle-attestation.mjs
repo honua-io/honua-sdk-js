@@ -31,6 +31,8 @@ export const ACTIONS = Object.freeze({
     "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
   downloadArtifact:
     "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
+  createGithubAppToken:
+    "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
   attestBuildProvenance:
     "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 });
@@ -62,9 +64,13 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "acfaf054dabfa026dfd160b2e52c6f22c06718d5022b0a7460410c87e1f11107",
-  "attest-and-publish/Gate current trunk and immutable releases":
-    "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
+    "44983b17a0be4b2eb192b410c0419b1ed1b1374c1ee65bc9f0a4324a0bce87ad",
+  "attest-and-publish/Gate current trunk and source epoch":
+    "ad239ec9400281d2942ca84f60742b45988cbc368f0b71c81a9733ae91aabe1b",
+  "attest-and-publish/Require dedicated immutable-policy reader credentials":
+    "c10217ca534e8bcb31b43e7d069e6da55d4c47d19bac00a4cb8602bedf7c2fcf",
+  "attest-and-publish/Require owner-enforced immutable releases":
+    "898d13c4e4b24a1f77760dacdda7398eb8d39e0d242155fe6df1b952eb5369eb",
   "attest-and-publish/Create or accept exact immutable release":
     "f72f5efcc7a13db37e969a6135ecba8fbb35e5b49a641ad4421f466301044ca0",
   "attest-and-publish/Redownload, compare, and verify attestations":
@@ -1830,7 +1836,10 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
   const privilegedNames = [
     "Download governed publication",
     "Validate all bytes before tokens",
-    "Gate current trunk and immutable releases",
+    "Gate current trunk and source epoch",
+    "Require dedicated immutable-policy reader credentials",
+    "Mint SDK-scoped immutable-policy reader",
+    "Require owner-enforced immutable releases",
     `Attest ${MANIFEST_NAME}`,
     `Attest ${ARCHIVE_NAME}`,
     `Attest ${DETERMINISTIC_NAME}`,
@@ -1853,7 +1862,7 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     { name: "content-addressed-sample-bundles", path: "staged" },
     "download-artifact inputs",
   );
-  for (let index = 3; index <= 6; index += 1)
+  for (let index = 6; index <= 9; index += 1)
     action(
       privileged.steps[index].uses,
       ACTIONS.attestBuildProvenance,
@@ -1899,6 +1908,9 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     ["name", "uses", "with"],
     ["name", "env", "run"],
     ["name", "env", "run"],
+    ["name", "env", "run"],
+    ["name", "id", "uses", "with"],
+    ["name", "env", "run"],
     ["name", "uses", "with"],
     ["name", "uses", "with"],
     ["name", "uses", "with"],
@@ -1917,7 +1929,7 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     },
     "byte validation environment",
   );
-  for (const index of [2, 7, 8])
+  for (const index of [2, 10, 11])
     exactObject(
       privileged.steps[index].env,
       { GH_TOKEN: "${{ github.token }}", SOURCE_COMMIT: "${{ github.sha }}" },
@@ -1929,10 +1941,10 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     DETERMINISTIC_NAME,
     RUN_NAME,
   ];
-  for (let index = 3; index <= 6; index += 1)
+  for (let index = 6; index <= 9; index += 1)
     exactObject(
       privileged.steps[index].with,
-      { "subject-path": `staged/${attestationSubjects[index - 3]}` },
+      { "subject-path": `staged/${attestationSubjects[index - 6]}` },
       `attestation input ${index}`,
     );
   invariant(
@@ -1942,14 +1954,62 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     "pre-token validator is not independent or token-free",
   );
   invariant(
-    privileged.steps[2].run.includes("immutable-releases") &&
-      privileged.steps[2].run.includes("enforced_by_owner") &&
-      privileged.steps[2].run.includes(
-        "repos/$GITHUB_REPOSITORY/commits/trunk",
-      ),
-    "privileged owner/trunk preflight drifted",
+    privileged.steps[2].run.includes("repos/$GITHUB_REPOSITORY/commits/trunk"),
+    "privileged trunk preflight drifted",
   );
-  const releaseRun = privileged.steps[7].run;
+  exactObject(
+    privileged.steps[3].env,
+    {
+      SAMPLE_BUNDLE_POLICY_APP_ID: "${{ secrets.SAMPLE_BUNDLE_POLICY_APP_ID }}",
+      SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY:
+        "${{ secrets.SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY }}",
+    },
+    "dedicated policy-reader credential environment",
+  );
+  invariant(
+    privileged.steps[3].run.includes(
+      'if [ -z "$SAMPLE_BUNDLE_POLICY_APP_ID" ] || [ -z "$SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY" ]',
+    ) && privileged.steps[3].run.includes("exit 1"),
+    "missing dedicated policy-reader credentials must refuse",
+  );
+  invariant(
+    privileged.steps[4].id === "immutable-policy-reader",
+    "dedicated policy-reader token output drifted",
+  );
+  action(
+    privileged.steps[4].uses,
+    ACTIONS.createGithubAppToken,
+    "create-github-app-token",
+  );
+  exactObject(
+    privileged.steps[4].with,
+    {
+      "app-id": "${{ secrets.SAMPLE_BUNDLE_POLICY_APP_ID }}",
+      "private-key": "${{ secrets.SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY }}",
+      owner: "honua-io",
+      repositories: "honua-sdk-js",
+      "permission-administration": "read",
+    },
+    "dedicated policy-reader App token scope",
+  );
+  exactObject(
+    privileged.steps[5].env,
+    { GH_TOKEN: "${{ steps.immutable-policy-reader.outputs.token }}" },
+    "dedicated policy-read environment",
+  );
+  invariant(
+    privileged.steps[5].run.includes('test -n "$GH_TOKEN"') &&
+      privileged.steps[5].run.includes('api "repos/$GITHUB_REPOSITORY/immutable-releases"') &&
+      privileged.steps[5].run.includes('.enabled == true and .enforced_by_owner == true'),
+    "owner-enforced immutable-release policy gate drifted",
+  );
+  invariant(
+    privileged.steps.filter((step) =>
+      step.run?.includes('api "repos/$GITHUB_REPOSITORY/immutable-releases"'),
+    ).length === 1,
+    "immutable-release policy must be read only with the dedicated token",
+  );
+  const releaseRun = privileged.steps[10].run;
   const lateRef = releaseRun.lastIndexOf(
     'test "$GITHUB_REF" = "refs/heads/trunk"',
   );
