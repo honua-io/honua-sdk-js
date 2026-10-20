@@ -13,12 +13,12 @@ import {
   type McpToolDescriptor,
   type McpToolsListResult,
   SseFrameParser,
-  WORKFLOW_KNOWLEDGE,
   type StudioAgentSessionEvent,
   type StudioAgentSessionOptions,
   type StudioAiCapabilitiesResponse,
   type StudioAiChatEvent,
   type StudioAiChatRequest,
+  WORKFLOW_KNOWLEDGE,
   createStudioAgentSession,
 } from "@honua/sdk-js/studio-agent";
 
@@ -297,7 +297,7 @@ function makeRuntime(): HonuaAgentRuntime & { readonly log: string[] } {
 
 type SessionOverrides = Pick<
   StudioAgentSessionOptions,
-  "studioTools" | "disableToolDiscovery" | "tools" | "execute" | "toolDiscoveryTimeoutMs"
+  "studioTools" | "disableToolDiscovery" | "tools" | "execute" | "toolDiscoveryTimeoutMs" | "workflowKnowledge" | "system"
 >;
 
 /**
@@ -664,12 +664,17 @@ describe("createStudioAgentSession turn loop", () => {
 
   it("does not authorize or dispatch an installation action named only by workflow guidance", async () => {
     const { server, session } = makeSession({
-      turns: [toolTurn([{ id: "install", name: "honua_agent_install_local", args: { confirm: true } }]), textTurn("refused")],
+      turns: [
+        toolTurn([{ id: "install", name: "honua_agent_install_local", args: { confirm: true } }]),
+        textTurn("refused"),
+      ],
       session: { workflowKnowledge: true },
     });
     const turn = await session.chat("Install a different target.");
 
-    expect(turn.toolCalls).toContainEqual(expect.objectContaining({ toolName: "honua_agent_install_local", ok: false }));
+    expect(turn.toolCalls).toContainEqual(
+      expect.objectContaining({ toolName: "honua_agent_install_local", ok: false }),
+    );
     expect(server.mcpCalls).toEqual([]);
     expect(server.chatRequests[0]?.tools?.some((tool) => tool.name === "honua_agent_install_local")).toBe(false);
   });

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { McpClient } from "@honua/sdk-js/studio-agent";
+import { describe, expect, it } from "vitest";
 
 describe("McpClient resource windows", () => {
   it("retains continuation results and sends the next window with fresh authority", async () => {
@@ -12,14 +12,18 @@ describe("McpClient resource windows", () => {
       fetchImpl: async (_input, init) => {
         const request = JSON.parse(String(init?.body));
         calls.push({ method: request.method, params: request.params, headers: new Headers(init?.headers) });
-        const result = request.method === "initialize"
-          ? { protocolVersion: "2025-03-26", capabilities: {} }
-          : request.params.cursor
-            ? { contents: [{ uri, text: '"last"}]}' }] }
-            : { contents: [{ uri, text: '{"processes":[{"processId":' }], nextCursor: "opaque-window:64,000" };
-        return Response.json({ jsonrpc: "2.0", id: request.id, result }, {
-          headers: { "mcp-session-id": "fixture-session" },
-        });
+        const result =
+          request.method === "initialize"
+            ? { protocolVersion: "2025-03-26", capabilities: {} }
+            : request.params.cursor
+              ? { contents: [{ uri, text: '"last"}]}' }] }
+              : { contents: [{ uri, text: '{"processes":[{"processId":' }], nextCursor: "opaque-window:64,000" };
+        return Response.json(
+          { jsonrpc: "2.0", id: request.id, result },
+          {
+            headers: { "mcp-session-id": "fixture-session" },
+          },
+        );
       },
     });
     const first = await client.readResource(uri);
@@ -31,7 +35,7 @@ describe("McpClient resource windows", () => {
     expect(calls.at(-1)?.params).toEqual({ uri, cursor: "opaque-window:64,000", maxChars: 1_000_000 });
     expect(calls.at(-1)?.headers.get("authorization")).toBe("Bearer second-fixture-token");
     expect(calls.at(-1)?.headers.get("mcp-session-id")).toBe("fixture-session");
-    expect(calls.map(call => call.method)).toEqual(["initialize", "resources/read", "resources/read"]);
+    expect(calls.map((call) => call.method)).toEqual(["initialize", "resources/read", "resources/read"]);
     expect(JSON.parse(String(first.contents?.[0].text) + String(last.contents?.[0].text))).toEqual({
       processes: [{ processId: "last" }],
     });
@@ -53,8 +57,9 @@ describe("McpClient resource windows", () => {
         });
       },
     });
-    await expect(client.readResource("honua://catalog/processes", { signal: controller.signal }))
-      .rejects.toThrow("Could not reach the MCP endpoint");
+    await expect(client.readResource("honua://catalog/processes", { signal: controller.signal })).rejects.toThrow(
+      "Could not reach the MCP endpoint",
+    );
     expect(resourceSignal).toBe(controller.signal);
     expect(controller.signal.aborted).toBe(true);
   });
@@ -71,8 +76,9 @@ describe("McpClient resource windows", () => {
         throw new Error("Expected an aborted initialization");
       },
     });
-    await expect(client.readResource("honua://catalog/processes", { signal: controller.signal }))
-      .rejects.toThrow("Could not reach the MCP endpoint");
+    await expect(client.readResource("honua://catalog/processes", { signal: controller.signal })).rejects.toThrow(
+      "Could not reach the MCP endpoint",
+    );
     expect(methods).toEqual(["initialize"]);
   });
 });

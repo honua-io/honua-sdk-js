@@ -75,7 +75,6 @@ import type {
 } from "./ai-contract.js";
 import { McpClient, type McpToolListing } from "./mcp-client.js";
 import { isMcpGenerationConflict, isMcpToolError } from "./mcp-errors.js";
-import { WORKFLOW_KNOWLEDGE } from "./workflow-knowledge.js";
 import {
   MCP_TOOL_LIST_CHANGED_NOTIFICATION,
   type McpNotificationStream,
@@ -97,6 +96,7 @@ import {
 } from "./tool-catalog.js";
 import type { StudioAiTranscriptVerification, StudioAiTranscriptVerifierLike } from "./transcript-verifier.js";
 import type { ChatTransport } from "./transport.js";
+import { WORKFLOW_KNOWLEDGE } from "./workflow-knowledge.js";
 
 /** The live composition draft `honua_studio_*` calls are applied to. */
 export interface StudioAgentDraftBinding {

@@ -1,3 +1,4 @@
+import { WORKFLOW_KNOWLEDGE as SDK_WORKFLOW_KNOWLEDGE } from "@honua/sdk-js/studio-agent";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -13,7 +14,6 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
-import { WORKFLOW_KNOWLEDGE as SDK_WORKFLOW_KNOWLEDGE } from "@honua/sdk-js/studio-agent";
 import type { DevOpsExtension } from "../src/agent/devops-runtime.js";
 import { HonuaAgentGateway, connectAgentUpstream } from "../src/agent/gateway.js";
 import type { AgentRuntime } from "../src/agent/local-runtime.js";
