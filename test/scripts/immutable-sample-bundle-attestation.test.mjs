@@ -510,16 +510,22 @@ test("the dedicated publisher identity fails closed and reads only owner-enforce
     SAMPLE_BUNDLE_POLICY_APP_ID: id,
     SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY: key,
   });
-  for (const [id, key] of [["", ""], ["dummy-app", ""], ["", "dummy-key"]]) {
-    assert.notEqual(spawnSync("bash", ["-c", credentials.run], { env: credentialEnv(id, key) }).status, 0);
-  }
-  assert.equal(
-    spawnSync("bash", ["-c", credentials.run], { env: credentialEnv("dummy-app", "dummy-key") }).status,
-    0,
-  );
-
   const temp = await mkdtemp(path.join(os.tmpdir(), "immutable-policy-reader-"));
   try {
+    // Execute the exact workflow step bytes from fixture files. Dynamic
+    // `bash -c` hides the command from the repository's build-ownership check.
+    const credentialsScript = path.join(temp, "credentials.sh");
+    const policyScript = path.join(temp, "policy.sh");
+    await writeFile(credentialsScript, `${credentials.run}\n`);
+    await writeFile(policyScript, `${policy.run}\n`);
+    for (const [id, key] of [["", ""], ["dummy-app", ""], ["", "dummy-key"]]) {
+      assert.notEqual(spawnSync("bash", [credentialsScript], { env: credentialEnv(id, key) }).status, 0);
+    }
+    assert.equal(
+      spawnSync("bash", [credentialsScript], { env: credentialEnv("dummy-app", "dummy-key") }).status,
+      0,
+    );
+
     const bin = path.join(temp, "trusted-gh/bin");
     await mkdir(bin, { recursive: true });
     const gh = path.join(bin, "gh");
@@ -531,7 +537,7 @@ test "\${FAKE_POLICY_EXIT:-0}" = 0 || exit 22
 printf '%s\\n' "$FAKE_POLICY_JSON"
 `);
     await chmod(gh, 0o700);
-    const runPolicy = (json, exit = 0, token = "dummy-policy-token") => spawnSync("bash", ["-c", policy.run], {
+    const runPolicy = (json, exit = 0, token = "dummy-policy-token") => spawnSync("bash", [policyScript], {
       env: {
         PATH: process.env.PATH,
         RUNNER_TEMP: temp,
