@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.6](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.5...mcp-server-v0.2.6) (2026-10-20)
+
+
+### Bug Fixes
+
+* **agent:** discover complete GIS workflows by default ([#2180](https://github.com/honua-io/honua-sdk-js/issues/2180)) ([#2181](https://github.com/honua-io/honua-sdk-js/issues/2181)) ([3c5d23a](https://github.com/honua-io/honua-sdk-js/commit/3c5d23a6fc622dd4523edaebb5ed7628ef6b1d79))
+* **agent:** preserve resource windows and share GIS workflow guidance ([#2179](https://github.com/honua-io/honua-sdk-js/issues/2179)) ([4124550](https://github.com/honua-io/honua-sdk-js/commit/4124550556be29f9833c7bc9ce25720663074a2f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.2.6
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.17 || ^0.2.0 to ^0.2.6
+
 ## [0.2.5](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.4...mcp-server-v0.2.5) (2026-10-19)
 
 
