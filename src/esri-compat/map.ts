@@ -16,6 +16,10 @@ export interface MapCompatHandle {
   remove(): void;
 }
 
+type MapLayerCollection = readonly unknown[] & {
+  add(layer: unknown, index?: number): MapLayerCollection;
+};
+
 export class MapCompat {
   public basemap: unknown;
   public ground: unknown;
@@ -37,6 +41,16 @@ export class MapCompat {
     this.loaded = false;
     this.loadStatus = "not-loaded";
     this.layersInternal = Array.isArray(options.layers) ? [...options.layers] : [];
+    // Callers chain this, as in layers.add(first).add(second).
+    Object.defineProperty(this.layersInternal, "add", {
+      configurable: true,
+      enumerable: false,
+      writable: false,
+      value: (layer: unknown, index?: number): MapLayerCollection => {
+        this.add(layer, index);
+        return this.layers;
+      },
+    });
     this.eventBus = options.eventBus ?? resolveCompatEventBus(options.layers) ?? new CompatEventBus();
     this.watchListeners = new Map();
   }
@@ -80,8 +94,8 @@ export class MapCompat {
     };
   }
 
-  public get layers(): readonly unknown[] {
-    return this.layersInternal;
+  public get layers(): MapLayerCollection {
+    return this.layersInternal as unknown as MapLayerCollection;
   }
 
   public get allLayers(): readonly unknown[] {

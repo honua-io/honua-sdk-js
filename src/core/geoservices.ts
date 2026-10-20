@@ -10,6 +10,7 @@
  */
 
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
+import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import { encodeServiceIdPath } from "./path-utils.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
@@ -34,8 +35,6 @@ import type {
   QueryMethod,
   QueryRelatedRecordsRequest,
 } from "./types.js";
-
-const GEOSERVICES_QUERY_AUTO_METHOD_TARGET_LENGTH = 2_000;
 
 // ── Metadata ────────────────────────────────────────────────────
 
@@ -139,7 +138,7 @@ export async function queryFeaturesRest(
   const params = new URLSearchParams();
   params.set("f", preferBinary && (request.method === undefined || request.method === "GET") ? "pbf" : "json");
   params.set("where", request.where ?? "1=1");
-  params.set("outFields", normalizeOutFields(request.outFields));
+  applyOutFields(params, request);
   params.set("returnGeometry", String(request.returnGeometry ?? true));
 
   serializeQueryParams(params, request);
@@ -149,16 +148,6 @@ export async function queryFeaturesRest(
   const method = queryMethod(request.method, path, params, transport.baseUrl);
   const usePbf = preferBinary && method === "GET";
   if (request.method === undefined && method === "POST" && params.get("f") === "pbf") params.set("f", "json");
-  const autoMethodPolicy =
-    request.method === undefined
-      ? {
-          readOnlyQuery: true as const,
-          autoMethodPolicy: {
-            maxRequestTargetLength: GEOSERVICES_QUERY_AUTO_METHOD_TARGET_LENGTH,
-            ...(preferBinary ? { convertPbfToJson: true as const } : {}),
-          },
-        }
-      : undefined;
 
   if (usePbf) {
     return transport.requestBinaryWithJsonFallback<HonuaQueryResponse>(
@@ -166,18 +155,11 @@ export async function queryFeaturesRest(
       `${path}?${params.toString()}`,
       params,
       request.signal,
-      autoMethodPolicy,
     );
   }
 
   if (method === "GET") {
-    return transport.requestJson<HonuaQueryResponse>(
-      "GET",
-      `${path}?${params.toString()}`,
-      undefined,
-      request.signal,
-      autoMethodPolicy,
-    );
+    return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
   }
 
   return transport.requestJson<HonuaQueryResponse>(
@@ -190,7 +172,7 @@ export async function queryFeaturesRest(
       body: params.toString(),
     },
     request.signal,
-    autoMethodPolicy,
+    request.method === undefined ? { readOnlyQuery: true } : undefined,
   );
 }
 
@@ -201,7 +183,7 @@ export async function queryMapLayer(
   const params = new URLSearchParams();
   params.set("f", "json");
   params.set("where", request.where ?? "1=1");
-  params.set("outFields", normalizeOutFields(request.outFields));
+  applyOutFields(params, request);
   params.set("returnGeometry", String(request.returnGeometry ?? true));
 
   serializeQueryParams(params, request);
@@ -209,22 +191,8 @@ export async function queryMapLayer(
 
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
   const method = queryMethod(request.method, path, params, transport.baseUrl);
-  const autoMethodPolicy =
-    request.method === undefined
-      ? {
-          readOnlyQuery: true as const,
-          autoMethodPolicy: { maxRequestTargetLength: GEOSERVICES_QUERY_AUTO_METHOD_TARGET_LENGTH },
-        }
-      : undefined;
-
   if (method === "GET") {
-    return transport.requestJson<HonuaQueryResponse>(
-      "GET",
-      `${path}?${params.toString()}`,
-      undefined,
-      request.signal,
-      autoMethodPolicy,
-    );
+    return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
   }
 
   return transport.requestJson<HonuaQueryResponse>(
@@ -237,7 +205,7 @@ export async function queryMapLayer(
       body: params.toString(),
     },
     request.signal,
-    autoMethodPolicy,
+    request.method === undefined ? { readOnlyQuery: true } : undefined,
   );
 }
 
@@ -559,6 +527,49 @@ function normalizeOutFields(outFields: string | string[] | undefined): string {
   return outFields;
 }
 
+/**
+ * Count-only and IDs-only queries must not send `outFields`. Some servers
+ * reject the combination. Flag values follow `parseExtraBoolean` in
+ * `grpc-adapter.ts`: boolean, non-zero numbers, and the strings
+ * `true` / `1` / `yes` (trimmed, case-insensitive).
+ */
+function querySuppressesOutFields(
+  extraParams: QueryFeaturesRequest["extraParams"] | MapLayerQueryRequest["extraParams"],
+): boolean {
+  return extraParamIsTrue(extraParams, "returnCountOnly") || extraParamIsTrue(extraParams, "returnIdsOnly");
+}
+
+function extraParamIsTrue(
+  params: QueryFeaturesRequest["extraParams"] | MapLayerQueryRequest["extraParams"],
+  key: string,
+): boolean {
+  if (params === undefined) {
+    return false;
+  }
+  const value = params[key];
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+function applyOutFields(
+  params: URLSearchParams,
+  request: Pick<QueryFeaturesRequest | MapLayerQueryRequest, "outFields" | "extraParams">,
+): void {
+  if (querySuppressesOutFields(request.extraParams)) {
+    return;
+  }
+  params.set("outFields", normalizeOutFields(request.outFields));
+}
+
 function encodeFormValue(value: unknown): string {
   if (typeof value === "string") {
     return value;
@@ -629,6 +640,7 @@ function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesReq
     params.set("objectIds", Array.isArray(request.objectIds) ? request.objectIds.join(",") : String(request.objectIds));
   }
   if (request.geometry !== undefined) {
+    params.set("inSR", String(request.extraParams?.inSR ?? geometryInputSpatialReference(request.geometry)));
     params.set(
       "geometry",
       typeof request.geometry === "object" && request.geometry !== null
@@ -641,6 +653,18 @@ function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesReq
   }
   if (request.spatialRel !== undefined) {
     params.set("spatialRel", request.spatialRel);
+  }
+  if (request.distance !== undefined) {
+    params.set("distance", String(request.distance));
+  }
+  if (request.units !== undefined) {
+    params.set("units", request.units);
+  }
+  if (request.nearestCount !== undefined) {
+    params.set("nearestCount", String(request.nearestCount));
+  }
+  if (request.returnDistance !== undefined) {
+    params.set("returnDistance", String(request.returnDistance));
   }
   if (request.returnDistinctValues !== undefined) {
     params.set("returnDistinctValues", String(request.returnDistinctValues));
@@ -673,8 +697,12 @@ function appendQueryExtraParams(
     return;
   }
 
+  const suppressOutFields = querySuppressesOutFields(request.extraParams);
   for (const [key, value] of Object.entries(request.extraParams)) {
     if (request.outSr !== undefined && (key === "outSr" || key === "outSR")) {
+      continue;
+    }
+    if (suppressOutFields && key === "outFields") {
       continue;
     }
     params.set(key, String(value));

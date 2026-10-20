@@ -1,6 +1,7 @@
 import type { FeatureId } from "../contract/index.js";
 import type { HonuaClient } from "../core/client.js";
 import type { HonuaMapPackage, HonuaMapRuntime, MaplibreMap } from "../runtime/index.js";
+import { isMapPointerClaimed } from "./map-pointer-claim.js";
 import type {
   HonuaFeatureRecord,
   HonuaFeatureStateEntry,
@@ -315,7 +316,10 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
             originalEvent: event.originalEvent,
           };
           this.#options.onClick(detail);
-          if (featureId === undefined) return;
+          // A component using clicks as its own input (e.g. measurement
+          // vertices) claims the map pointer; its clicks must not rewrite the
+          // shared selection other components are bound to (#1419).
+          if (featureId === undefined || isMapPointerClaimed(runtime.map)) return;
           const selection: HonuaSelectionChangeDetail<T> = {
             sourceId,
             ...(sourceLayer !== undefined ? { sourceLayer } : {}),

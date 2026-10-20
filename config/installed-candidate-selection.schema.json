@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Approved current installed-package certification selection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "reviewedReleaseSha", "candidateRef"],
+  "properties": {
+    "schema": { "const": "honua.installed-candidate-selection/v1" },
+    "reviewedReleaseSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "candidateRef": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+  }
+}

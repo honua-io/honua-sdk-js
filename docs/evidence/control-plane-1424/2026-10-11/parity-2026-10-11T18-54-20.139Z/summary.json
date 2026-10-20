@@ -1,0 +1,107 @@
+{
+  "sourceRoot": "/home/mike/honua-io/sdk-1424-bearer-20261011",
+  "sourceSha": "70566967348b3a78f6abc107c205538cad67e3b3",
+  "server": {
+    "image": "ghcr.io/honua-io/honua-server:nightly-93cad86@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "imageId": "sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "environment": "Production",
+    "licensing": {
+      "mode": "disabled",
+      "status": "pass",
+      "surface": "/api/v1/admin/license"
+    },
+    "durableRedisAttested": true,
+    "keyRingCertificateConfigured": true,
+    "productionOverlaySha256": "cca18327972caebc1a592363d8140716caa5c272595922b1de80d4526b0d5966",
+    "auditChainKeyConfigured": true,
+    "auditIntegrity": {
+      "verified": true,
+      "rowsChecked": 82,
+      "unhashedRows": 0
+    }
+  },
+  "commandId": "import.create",
+  "scope": "Real MCP protocol roundtrip, actual CLI executable, Studio adapter and direct SDK for the declared command. Persisted actor/tenant audit and negative-control diagnostics; each run is one bounded journey stage, not full release certification.",
+  "cases": [
+    {
+      "user": "viewer-a",
+      "identity": {
+        "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+        "tenantId": "tenant-a"
+      },
+      "connectionId": "ed1209e7-50a0-4e4b-a83c-68591368da01",
+      "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+      "status": 403,
+      "errorKind": "authorization",
+      "auditApiRows": 8,
+      "persistedRows": 8,
+      "results": [
+        {
+          "surface": "cli",
+          "exitCode": 2,
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "import.create",
+            "retryable": false,
+            "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+            "idempotencyKey": "honua-cmd-339f7684b3c30e76f2e5d40b4a48e874",
+            "statusCode": 403,
+            "message": "Command import.create failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "mcp",
+          "isError": true,
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "import.create",
+            "retryable": false,
+            "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+            "idempotencyKey": "honua-cmd-339f7684b3c30e76f2e5d40b4a48e874",
+            "statusCode": 403,
+            "message": "Command import.create failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "studio",
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "import.create",
+            "retryable": false,
+            "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+            "idempotencyKey": "honua-cmd-339f7684b3c30e76f2e5d40b4a48e874",
+            "statusCode": 403,
+            "message": "Command import.create failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "sdk",
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "import.create",
+            "retryable": false,
+            "correlationId": "honua-corr-03c260614670dd88a71e0c2686fa3744",
+            "idempotencyKey": "honua-cmd-339f7684b3c30e76f2e5d40b4a48e874",
+            "statusCode": 403,
+            "message": "Command import.create failed with HTTP 403."
+          }
+        }
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "user": "admin-a",
+      "error": "AssertionError [ERR_ASSERTION]: idempotent import job differs\n\n4 !== 1\n"
+    },
+    {
+      "user": "admin-read-a",
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\nundefined !== 403\n"
+    }
+  ],
+  "status": "failed"
+}

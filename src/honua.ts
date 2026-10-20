@@ -6,7 +6,7 @@
  * (`HonuaFeatureLayer`, `HonuaMapService`, `HonuaOgcFeatures`, `HonuaWfs`, ...).
  *
  * Use this entrypoint for new code. For migration code that talks the legacy
- * Esri shape, import from `@honua/sdk-js/esri-compat`. For protocol-neutral
+ * Esri shape, import from `@honua/sdk-js/client-compat`. For protocol-neutral
  * cross-protocol code, import from `@honua/sdk-js/contract`.
  *
  * @example
@@ -506,6 +506,13 @@ export type {
   HonuaStacSearchAllRequest,
   HonuaStacSearchOptions,
 } from "./core/stac.js";
+export {
+  HonuaStacConformanceError,
+  STAC_CONFORMANCE_CLASS,
+  hasStacConformance,
+  stacSearchExtensionRequirements,
+} from "./core/stac-conformance.js";
+export type { StacConformanceKind } from "./core/stac-conformance.js";
 export {
   HonuaOdataEntitySet,
   buildOdataSpatialFilter,

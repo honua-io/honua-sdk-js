@@ -1,7 +1,8 @@
 // Template manifest reader for `create-honua-app`.
 //
 // `templates.manifest.json` is the single source of truth for which starters
-// exist, which published SDK version they pin, and where their zero-install
+// exist, which release channel and certified SDK version they follow, and
+// where their zero-install
 // playgrounds live. The CLI, the repository verifier
 // (scripts/verify-create-honua-app.mjs) and the generated playground page
 // (scripts/playgrounds.mjs) all read it through this module so a template can
@@ -11,10 +12,25 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isStableVersion } from "./sdk-version.mjs";
+
 export const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MANIFEST_FILE = "templates.manifest.json";
 export const MANIFEST_FORMAT = "honua.sdk.create-honua-app-templates.v1";
 export const TEMPLATE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/**
+ * npm dist-tag names the manifest may follow: lowercase, dot-separated words.
+ * npm refuses a tag that is also a valid semver range, which is why the
+ * 2026.1 channel is `release-2026.1` and not `2026.1`, so a name whose first
+ * segment is a range token (`x`, `v1`) is refused as well.
+ */
+export const CHANNEL_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)*$/;
+const RANGE_LIKE_CHANNEL = /^(?:x|v\d+)(?:\.|$)/;
+
+/** True for a channel name npm can publish as a dist-tag. */
+export function isChannelName(name) {
+  return typeof name === "string" && CHANNEL_PATTERN.test(name) && !RANGE_LIKE_CHANNEL.test(name);
+}
 
 function fail(message) {
   throw new Error(`${MANIFEST_FILE} is invalid: ${message}`);
@@ -33,6 +49,13 @@ export function loadTemplateManifest(packageRoot = PACKAGE_ROOT) {
   if (manifest.schemaVersion !== 1) fail("schemaVersion must be 1");
   nonEmptyString(manifest.sdk?.package, "sdk.package");
   nonEmptyString(manifest.sdk?.version, "sdk.version");
+  if (!isStableVersion(manifest.sdk.version)) {
+    fail(`sdk.version must be a stable release version, found ${JSON.stringify(manifest.sdk.version)}`);
+  }
+  nonEmptyString(manifest.sdk?.channel, "sdk.channel");
+  if (!isChannelName(manifest.sdk.channel)) {
+    fail(`sdk.channel must be an npm dist-tag name, found ${JSON.stringify(manifest.sdk.channel)}`);
+  }
   for (const field of ["owner", "name", "branch"]) nonEmptyString(manifest.repository?.[field], `repository.${field}`);
   if (!Array.isArray(manifest.playgroundProviders) || manifest.playgroundProviders.length === 0) {
     fail("playgroundProviders must be a non-empty array");

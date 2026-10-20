@@ -1,12 +1,10 @@
 ---
 type: reference
 title: "Generated App Runtime (`@honua/sdk-js/generated-app`)"
-description: "The generated-app subpath is the SDK browser projection for the first"
+description: "The browser runtime for generated operations dashboards: manifest profile, canonical mapping, preview host, response contract and runtime interactions."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Generated App Runtime (`@honua/sdk-js/generated-app`)
-
-Status: implemented for ticket `honua-sdk-js#140`.
 
 The generated-app subpath is the SDK browser projection for the first
 AI-generated operations dashboard proof. It consumes a versioned manifest from

@@ -325,7 +325,7 @@ Public navigation will emphasize seven golden workflows:
 | Realtime incident operations | `realtime-incident-dashboard` | Live snapshot/delta, reconnect, ordering, cache/render reconciliation |
 | Imagery, catalog, and terrain | `imagery-cog-quickstart`, `stac-imagery-browser`, `terrain-rgb-elevation`, `storytelling-25d-map` | STAC discovery, COG/raster, terrain and explicit fidelity |
 | Large-data spatial analytics | `spatial-analytics-workbench`, `overture-geoparquet`, `kepler-analytics` | Planner, GeoParquet/GeoArrow, aggregation, deck.gl-scale rendering |
-| ArcGIS migration workbench | `migration-workbench`, `arcgis-source-app`, migration fixtures | Scan, transform, report, exact/assisted/manual outcome |
+| ArcGIS migration workbench | `migration-workbench`, `geoservices-source-app`, migration fixtures | Scan, transform, report, exact/assisted/manual outcome |
 
 Focused recipes remain for Node, React, OAuth, PMTiles, geocoding, sketching,
 process execution, and temporal playback. AI/MCP, offline, and Cesium samples are

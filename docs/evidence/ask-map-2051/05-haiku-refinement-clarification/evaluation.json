@@ -1,0 +1,150 @@
+{
+  "schema": "honua.ask-map-evaluation-result/v1",
+  "metrics": {
+    "supportedCorrect": 5,
+    "supportedTotal": 6,
+    "safeOutcomesCorrect": 4,
+    "safeOutcomesTotal": 4,
+    "unexpectedExecutions": 0,
+    "failures": [
+      "distance-500"
+    ],
+    "latencyFailures": [],
+    "latencyMs": {
+      "median": 4587.0999999940395,
+      "maximum": 6948.0999999940395
+    }
+  },
+  "mode": "live",
+  "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+  "identity": {
+    "provider": "https://bedrock-runtime.us-west-2.amazonaws.com",
+    "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+    "sourceCommit": "a0abbd080482e70bd29ceac36a152b8eda369875",
+    "sourceDirty": false,
+    "harnessSha256": "306d4ce64b912a2d3a2725855a37366c384ed133ff5b2a42b1b12aaf343f9929"
+  },
+  "fixture": "ask-map-incidents-v1",
+  "engine": {
+    "name": "DuckDB-WASM",
+    "version": "v1.4.3"
+  },
+  "schemaFingerprint": "sha256:ef9e469826e0d2b0e36a7c044dbfb01d134fb37bae0537b9e8b2a352b985883c",
+  "results": [
+    {
+      "id": "open-wide-view",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        4,
+        5
+      ],
+      "elapsedMs": 5874.199999988079,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:07166a646ef84078d56955e825b0057cce64fb15b090af119e21ec5b79fb2dbf",
+      "receiptDigest": "sha256:72b183f9d2115f7335e7ea897a65a0558332c32c846b3a262366ee5ae9e8cc89",
+      "latencyExceeded": false
+    },
+    {
+      "id": "open-east-view",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        2,
+        4
+      ],
+      "elapsedMs": 4680.5,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:9de0141ebb9d8889e5f59d111894eecab46134fd09af3c4f727d2fb169445fdc",
+      "receiptDigest": "sha256:f5f84aceb3f3e986a96689315ef8547408eee9979dc805855d2d8313cff676eb",
+      "latencyExceeded": false
+    },
+    {
+      "id": "group-wide-view",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        4,
+        5
+      ],
+      "groups": {
+        "fire": 1,
+        "medical": 2,
+        "hazmat": 1
+      },
+      "elapsedMs": 5149.800000011921,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:dff66174ea02a46b026479e92e7b2c31aa38bccb91f0ebf97a0b92c93890b37a",
+      "receiptDigest": "sha256:38ffd576152d2c0d5ed04b95ba44632accdb2687a59f37825a15a05b435c98c4",
+      "latencyExceeded": false
+    },
+    {
+      "id": "distance-500",
+      "passed": false,
+      "outcome": "clarification",
+      "elapsedMs": 6948.0999999940395,
+      "latencyExceeded": false
+    },
+    {
+      "id": "polygon",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "elapsedMs": 4587.0999999940395,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:f720932b4a844ff11289103617a88e5d5dc6ff6406c7bd3155899fc47777e9d2",
+      "receiptDigest": "sha256:79cf8b51802bf8f687213d5792ba00d18801d7ab4d3216534270460a99ed0fe7",
+      "latencyExceeded": false
+    },
+    {
+      "id": "missing-location",
+      "passed": true,
+      "outcome": "clarification",
+      "elapsedMs": 3352.2000000178814,
+      "latencyExceeded": false
+    },
+    {
+      "id": "nearby",
+      "passed": true,
+      "outcome": "clarification",
+      "elapsedMs": 2645.300000011921,
+      "latencyExceeded": false
+    },
+    {
+      "id": "date-unavailable",
+      "passed": true,
+      "outcome": "refused",
+      "elapsedMs": 2447.2999999821186,
+      "latencyExceeded": false
+    },
+    {
+      "id": "sql-refused",
+      "passed": true,
+      "outcome": "refused",
+      "elapsedMs": 2844.4000000059605,
+      "latencyExceeded": false
+    },
+    {
+      "id": "quoted-literal",
+      "passed": true,
+      "outcome": "succeeded",
+      "ids": [],
+      "elapsedMs": 2879.4000000059605,
+      "modelAttempts": 1,
+      "planFingerprint": "sha256:cd1edd87e8c5d1f2fb1c7d4323da2e2d5c166984aad13cec35587bdab702dc43",
+      "receiptDigest": "sha256:f94071dd89f56521fc5fdd3601626b35810b2e426937b1270296c77023aa7ed7",
+      "latencyExceeded": false
+    }
+  ],
+  "passed": false,
+  "liveModelEvidence": true
+}

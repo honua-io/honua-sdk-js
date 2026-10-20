@@ -99,6 +99,7 @@ function assertFixedPublicRequest(url, method) {
     "f",
     "geometry",
     "geometryType",
+    "inSR",
     "outFields",
     "resultRecordCount",
     "returnGeometry",
@@ -106,6 +107,7 @@ function assertFixedPublicRequest(url, method) {
     "where",
   ]);
   invariant([...url.searchParams.keys()].every((name) => allowed.has(name)), "Hawaii zoning query contains an unreviewed parameter.");
+  invariant(url.searchParams.get("inSR") === "4326", "Hawaii zoning query must declare the reviewed WGS84 input CRS.");
   invariant(url.searchParams.get("f") === "json", "Hawaii zoning query must request JSON.");
   invariant(url.searchParams.get("where") === "1=1", "Hawaii zoning query predicate drifted.");
   invariant(url.searchParams.get("returnGeometry") === "false", "Hawaii zoning live evidence must not transfer polygons.");

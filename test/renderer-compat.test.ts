@@ -4,7 +4,7 @@ import {
   ClassBreaksRendererCompat,
   SimpleRendererCompat,
   UniqueValueRendererCompat,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
 
 describe("renderer compat", () => {
   it("supports simple renderer payloads", async () => {

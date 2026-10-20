@@ -4,6 +4,8 @@ import { maplibreRenderer } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
+import { mountSampleOnlineBasemap } from "./online-basemap.js";
+import { STARTER_SOURCE_ID, observeRenderedFeatures } from "./rendered-features.js";
 
 import { FIXTURE_LAYER_PATH } from "./fixture-endpoint.js";
 
@@ -54,11 +56,17 @@ function useExternalMap(): { containerRef: RefObject<HTMLDivElement | null>; map
       style: BASEMAP_STYLE,
       center: INITIAL_VIEW.center,
       zoom: INITIAL_VIEW.zoom,
-      attributionControl: false,
+      attributionControl: { compact: true },
     });
+    const disposeBasemap = configuredEndpoint
+      ? mountSampleOnlineBasemap(created, {
+          styleUrl: import.meta.env.VITE_HONUA_BASEMAP_STYLE?.trim() || undefined,
+        })
+      : () => {};
     setMap(created);
     return () => {
       setMap(null);
+      disposeBasemap();
       created.remove();
     };
   }, []);
@@ -74,6 +82,7 @@ function useHonuaMap(map: maplibregl.Map | null): ConnectionState {
     if (!map) return;
     const honua = createHonua();
     const cancellation = new AbortController();
+    let stopObserving = () => {};
     void (async () => {
       try {
         const connection = await honua.connect(
@@ -86,11 +95,14 @@ function useHonuaMap(map: maplibregl.Map | null): ConnectionState {
         const plan = await connection.explain(QUERY, { sourceId, signal: cancellation.signal });
         const mounted = await connection.mount(map, {
           renderer: maplibreRenderer(maplibregl),
+          rendererOptions: { sourceId: STARTER_SOURCE_ID },
           query: plan,
           sourceId,
           signal: cancellation.signal,
         });
         await mounted.ready;
+        if (cancellation.signal.aborted) return;
+        stopObserving = observeRenderedFeatures(map);
         setState({
           sourceId,
           protocol: inspection.protocol,
@@ -104,6 +116,7 @@ function useHonuaMap(map: maplibregl.Map | null): ConnectionState {
       }
     })();
     return () => {
+      stopObserving();
       cancellation.abort();
       void honua.dispose();
     };

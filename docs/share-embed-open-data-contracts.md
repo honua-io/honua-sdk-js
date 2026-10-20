@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Share, Embed, and Open-Data Browser Contracts"
-description: "`@honua/sdk-js/share` is a browser-safe projection of the canonical honua-server"
+description: "Browser-safe projections of the Console share, embed-token, public-link and open-data contracts, with fragment-only embed tokens and anonymous-safe denial states."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Share, Embed, and Open-Data Browser Contracts

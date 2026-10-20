@@ -1,7 +1,7 @@
 ---
 type: index
 title: "Shared MapLibre and Cesium application state"
-description: "This deterministic browser fixture runs a real MapLibre `Map` and a real Cesium `Viewer` in one page against one renderer-neutral Honua state synchronizer. Nothing here hand-rolls a port: the two bindings are the SDK's shipped…"
+description: "Browser example that runs a real MapLibre map and a real Cesium viewer against one renderer-neutral state synchronizer, reading camera, selection, filter, time and attribution back from each renderer."
 ---
 # Shared MapLibre and Cesium application state
 
@@ -22,4 +22,4 @@ Every fact the fixture reports is read back out of a renderer, not out of a dict
 
 It also drives one globe pose a Web Mercator plane cannot hold (latitude 88, near-horizon pitch) to show the clamps being reported as typed degradations while the shared 3D state is left intact.
 
-Build the SDK and serve the repository root so `/dist`, `/node_modules`, and this directory share an origin. The browser assertions live in `test/playwright/shared-renderer-state.spec.mjs`, which recomputes the expected camera values from the SDK's own exported correspondence (`mapLibreZoomToCameraHeight` / `mapLibreCameraHeightToZoom`) against the viewport the live map reported. No MapLibre or Cesium dependency is statically imported by the SDK entrypoint; both remain optional peer/runtime choices owned by the application.
+Build the SDK and serve the repository root so `/dist`, `/node_modules`, and this directory share an origin. No MapLibre or Cesium dependency is statically imported by the SDK entrypoint; both remain optional peer/runtime choices owned by the application.

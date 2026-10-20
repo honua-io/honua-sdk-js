@@ -32,6 +32,11 @@ and validated by the drift gate
 ([`test/contract/sdk-contract-fixtures.test.ts`](../test/contract/sdk-contract-fixtures.test.ts)).
 Renaming a noun without updating both sites trips CI.
 
+The fixture's default `grpc` capabilities exclude `queryAggregate`: the
+FeatureService wire contract has no aggregation request shape. Aggregation is
+rejected before a request is sent, and discovery does not probe an operation
+the adapter does not claim.
+
 ## Language Bindings
 
 Language bindings must be idiomatic. The binding table below is guidance for

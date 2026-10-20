@@ -70,7 +70,8 @@ export async function freezeCertification(candidate, denominator, root) {
     "test/integration/seed/places-roads-v1.sql", "scripts/fixtures/installed-features.mjs", "scripts/installed-candidate-fixture.mjs"]) {
     inputs[relative] = sha256(await readFile(path.join(root, relative)));
   }
-  return { candidateDigest: sha256(canonical({ release: candidate.release, packages: candidate.packages, server: candidate.server })),
+  return { candidateDigest: sha256(canonical({ release: candidate.release, packages: candidate.packages, server: candidate.server,
+    ...(candidate.releaseInput ? { releaseInput: candidate.releaseInput } : {}) })),
     denominatorDigest: sha256(canonical(denominator)), inputs };
 }
 

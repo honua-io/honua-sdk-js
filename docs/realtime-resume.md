@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Resumable realtime delivery"
-description: "The `@honua/sdk-js/realtime` subpath includes an opt-in, transport-neutral"
+description: "An opt-in delivery gate for snapshot-plus-delta streams: safety model, backpressure, durable checkpoint stores, reconnecting SSE/WebSocket transports and the OData delta-link adapter."
 resource: "honua://capability/streaming.feature-subscriptions"
 ---
 # Resumable realtime delivery
@@ -63,8 +63,8 @@ A `honua.realtime-checkpoint@1` binds all resume positions to:
 - a bounded recent event-id window.
 
 The plan fingerprint is the planner's own, so a planner contract change rotates
-it: adding the result-representation axis (#1042) changes every plan
-fingerprint, and checkpoints stored against a pre-#1042 plan resolve to
+it: adding the result-representation axis changes every plan
+fingerprint, and checkpoints stored against an older plan resolve to
 `resnapshot-required` rather than silently resuming under a different plan.
 
 Changing any bound identity produces `resnapshot-required`; the SDK never
@@ -125,7 +125,7 @@ Without a `checkpointStore`, accepted checkpoints remain available in memory
 but `checkpointPersisted` stays false. Callers may persist them as part of their
 own atomic application transaction; the SDK does not claim durability it did
 not observe. See
-[Durable checkpoint persistence](#durable-checkpoint-persistence-937) for the
+[Durable checkpoint persistence](#durable-checkpoint-persistence) for the
 shipped stores.
 
 Checkpoint persistence occurs after successful consumer application. This is
@@ -134,12 +134,11 @@ store and checkpoint database. Applications that require atomic exactly-once
 effects must persist their materialized state and checkpoint transactionally,
 or use event ids/versions to make replay idempotent.
 
-## Durable checkpoint persistence (#937)
+## Durable checkpoint persistence
 
 `RealtimeCheckpointStore` used to be an interface with no shipped
 implementation, so a tab reload always resnapshotted even when a valid cursor
-had been accepted a second earlier. `src/realtime/checkpoint-store.ts` closes
-that gap without changing any cursor semantics:
+had been accepted a second earlier. Three shipped stores close that gap without changing any cursor semantics:
 
 - `createIndexedDbRealtimeCheckpointStore(...)` persists checkpoints in the
   browser (default database `honua-realtime-checkpoints`);
@@ -189,8 +188,7 @@ state, not resume state, so a restored checkpoint starts with an empty id
 window while its ordering guarantees are unchanged. Snapshot bytes remain the
 offline region store's responsibility.
 
-Every remaining persisted string is screened with the shared persisted-string
-screen in `src/connect-url-safety.ts` — the same denylist and shape rules the
+Every remaining persisted string is screened with the same persisted-string screen — denylist and shape rules the
 offline region store applies through `assertCredentialFreeManifest`. A resume
 position that is a full request link (an OData delta link, for example) or that
 carries credential-shaped material is **refused**, not rewritten: the record is
@@ -233,13 +231,13 @@ durable record does not exist; `state.checkpointPersisted` only reports that
 Persistence stays opt-in. A subscription without a `checkpointStore` behaves
 exactly as it did before this slice.
 
-## Bounded, reconnecting transports (#557)
+## Bounded, reconnecting transports
 
 `createResumableRealtimeTransport` (and the `createResumableServerSentEventsTransport` /
 `createResumableWebSocketTransport` convenience factories) wrap a raw
 `RealtimeFeatureTransport` — `sse.ts` or `websocket.ts` — with this gate, plus
 reconnect ownership, a heartbeat/liveness timeout, and redacted telemetry. See
-[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#bounded-resumable-transports-557)
+[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#bounded-resumable-transports)
 for usage. That module is the transport adapter this document's "Scope and
 remaining work" section originally deferred: it owns reconnect/backoff and
 projects a detected gap through `requireResnapshot(...)` on the caller's
@@ -248,9 +246,9 @@ behalf, so application code enqueuing events directly against
 lower-level, transport-neutral building block for callers that want to own
 reconnect themselves.
 
-## OData v4 delta-link pull adapter (#558)
+## OData v4 delta-link pull adapter
 
-`createOdataDeltaTransport` (`src/realtime/odata-delta.ts`) is a pull-based
+`createOdataDeltaTransport` is a pull-based
 `RealtimeFeatureTransport`, not a socket transport: it polls an OData v4
 entity set's `@odata.deltaLink` on a caller-configured interval instead of
 holding an open connection. It follows `@odata.nextLink` pages to establish
@@ -265,22 +263,20 @@ followed. An expired or rejected delta link (HTTP 410 by default, overridable
 via `isDeltaLinkExpiredResponse`) is recovered by re-running a full snapshot
 cycle — an explicit resnapshot, bounded by `maxConsecutiveResnapshots` so a
 server that keeps rejecting the token cannot loop forever. See
-[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#odata-v4-delta-link-pull-adapter-558)
+[`docs/realtime-subscriptions.md`](realtime-subscriptions.md#odata-v4-delta-link-pull-adapter)
 for the honesty model behind its `capabilities.kind: "polling"` /
 `onPoll` telemetry, and why it does not compose with
 `resumable-transport.ts`'s reconnect wrapper.
 
 ## Cross-transport conformance and remaining work
 
-The delivery gate began as the first production slice of issue
-[#393](https://github.com/honua-io/honua-sdk-js/issues/393). The public SSE,
+The public SSE,
 WebSocket, and OData delta compositions now share the versioned fixture and
 scheduled capability evidence described in
 [`docs/realtime-conformance.md`](realtime-conformance.md). The remaining scope
 does not claim:
 
-- protocol-feed reconnection beyond SSE, WebSocket (`resumable-transport.ts`,
-  #557), and OData delta-link polling (`odata-delta.ts`, #558);
+- protocol-feed reconnection beyond SSE, WebSocket , and OData delta-link polling ;
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, PrintCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, PrintCompat } from "../src/client-compat-entry.js";
 
 describe("PrintCompat", () => {
   it("supports when() and watch() lifecycle and last result", async () => {

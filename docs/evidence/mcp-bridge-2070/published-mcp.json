@@ -1,0 +1,36 @@
+{
+  "status": "pass",
+  "scope": "single published artifact identity and byte verification; not full cohort or server certification",
+  "verifierSource": "911096d932136fdea398c7038efea6d33da8b0d9",
+  "tag": "mcp-server-v0.1.19",
+  "sourceSha": "ae6a835b5334a14c380b085d1af57161243ae0d5",
+  "artifact": {
+    "ecosystem": "npm",
+    "package": "@honua/mcp-server",
+    "version": "0.1.19",
+    "integrity": "sha512-8a97LvOY2iBgnei7/TVf7KNxCTGB78sd4lRquIcvIqO0tQOMxAiWWYRcrSfPXmE6ZK+ltS8td0QPHWpiOpHLpg==",
+    "repository": "honua-io/honua-sdk-js",
+    "sourceSha": "ae6a835b5334a14c380b085d1af57161243ae0d5",
+    "publicationState": "published",
+    "targets": [
+      "node",
+      "honua-mcp-proxy"
+    ],
+    "filename": "mcp-server-0.1.19.tgz"
+  },
+  "verifiedIdentity": {
+    "honua-mcp-server": {
+      "version": "0.1.19",
+      "sourceRevision": "ae6a835b5334a14c380b085d1af57161243ae0d5",
+      "sha256": "sha256:1b1d41dfbe1308b796757d829c37a51dfced0cba749c46c47720160731ae61b4"
+    }
+  },
+  "tarballSha256": "1b1d41dfbe1308b796757d829c37a51dfced0cba749c46c47720160731ae61b4",
+  "packageEngines": {
+    "node": ">=20.19.0"
+  },
+  "packagePeerDependencies": {
+    "@honua/sdk-js": "^0.1.17 || ^0.2.0"
+  },
+  "registryGitHead": "ae6a835b5334a14c380b085d1af57161243ae0d5"
+}

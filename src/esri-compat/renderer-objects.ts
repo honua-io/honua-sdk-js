@@ -12,11 +12,18 @@
  */
 
 import type { ClassBreaksRenderer, UniqueValueRenderer } from "../style/renderers.js";
-import { classBreaksRendererFromWebMap, uniqueValueRendererFromWebMap } from "../webmap/convert-renderer.js";
+import type { RendererConversionOptions } from "../style/visual-variables.js";
+import {
+  type RendererConversionResult,
+  classBreaksRendererFromWebMap,
+  convertRenderer,
+  uniqueValueRendererFromWebMap,
+} from "../webmap/convert-renderer.js";
 import type { WebMapSymbol } from "../webmap/types.js";
 import type { WarningCollector } from "../webmap/warnings.js";
 import { createWarningCollector } from "../webmap/warnings.js";
 import type { ClassBreaksRendererCompat } from "./class-breaks-renderer.js";
+import type { SimpleRendererCompat } from "./simple-renderer.js";
 import type { UniqueValueRendererCompat } from "./unique-value-renderer.js";
 
 /** Result of projecting a compat renderer to a renderer object. @experimental */
@@ -37,11 +44,16 @@ export interface CompatRendererProjection<R> {
  */
 export function rendererObjectFromClassBreaksCompat(
   compat: ClassBreaksRendererCompat,
+  options: RendererConversionOptions = {},
 ): CompatRendererProjection<ClassBreaksRenderer> {
   const warn = createWarningCollector();
   const renderer = classBreaksRendererFromWebMap(
     {
       type: "classBreaks",
+      visualVariables: compat.visualVariables,
+      valueExpression: compat.valueExpression,
+      normalizationField: compat.normalizationField,
+      normalizationTotal: compat.normalizationTotal,
       field: compat.field,
       minValue: compat.minValue,
       defaultSymbol: compat.defaultSymbol as WebMapSymbol | undefined,
@@ -54,6 +66,7 @@ export function rendererObjectFromClassBreaksCompat(
       })),
     },
     warn,
+    options,
   );
   return { renderer, warnings: warn.warnings };
 }
@@ -66,11 +79,13 @@ export function rendererObjectFromClassBreaksCompat(
  */
 export function rendererObjectFromUniqueValueCompat(
   compat: UniqueValueRendererCompat,
+  options: RendererConversionOptions = {},
 ): CompatRendererProjection<UniqueValueRenderer> {
   const warn = createWarningCollector();
   const renderer = uniqueValueRendererFromWebMap(
     {
       type: "uniqueValue",
+      visualVariables: compat.visualVariables,
       field1: compat.field,
       field2: compat.field2,
       field3: compat.field3,
@@ -83,6 +98,21 @@ export function rendererObjectFromUniqueValueCompat(
       })),
     },
     warn,
+    options,
+  );
+  return { renderer, warnings: warn.warnings };
+}
+
+/** Convert a simple compatibility renderer with the shared WebMap compiler. */
+export function convertSimpleRendererCompat(
+  compat: SimpleRendererCompat,
+  options: RendererConversionOptions = {},
+): CompatRendererProjection<RendererConversionResult> {
+  const warn = createWarningCollector();
+  const renderer = convertRenderer(
+    { ...compat.toJSON(), type: "simple", symbol: compat.symbol as WebMapSymbol | undefined },
+    warn,
+    options,
   );
   return { renderer, warnings: warn.warnings };
 }

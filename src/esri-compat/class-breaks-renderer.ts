@@ -8,6 +8,7 @@ export interface ClassBreakInfoCompat {
 }
 
 export interface ClassBreaksRendererCompatOptions {
+  visualVariables?: unknown[];
   field?: string;
   normalizationField?: string;
   normalizationTotal?: number;
@@ -27,6 +28,7 @@ export interface ClassBreaksRendererHandleCompat {
 }
 
 export class ClassBreaksRendererCompat {
+  public visualVariables: unknown[];
   public loaded: boolean;
   public loadStatus: ClassBreaksRendererLoadStatusCompat;
   public field: string | undefined;
@@ -42,6 +44,7 @@ export class ClassBreaksRendererCompat {
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
 
   public constructor(options: ClassBreaksRendererCompatOptions = {}) {
+    this.visualVariables = structuredClone(options.visualVariables ?? []);
     this.loaded = false;
     this.loadStatus = "not-loaded";
     this.field = options.field;
@@ -99,6 +102,10 @@ export class ClassBreaksRendererCompat {
   }
 
   public update(options: ClassBreaksRendererCompatOptions): void {
+    if (options.visualVariables !== undefined) {
+      this.visualVariables = structuredClone(options.visualVariables);
+      this.notifyWatchers("visualVariables", this.visualVariables);
+    }
     if (options.field !== undefined) {
       this.field = options.field;
       this.notifyWatchers("field", this.field);
@@ -167,6 +174,7 @@ export class ClassBreaksRendererCompat {
 
   public toJSON(): ClassBreaksRendererCompatOptions {
     return {
+      visualVariables: structuredClone(this.visualVariables),
       field: this.field,
       normalizationField: this.normalizationField,
       normalizationTotal: this.normalizationTotal,

@@ -10,6 +10,7 @@ import { canonical, sha256, freezeCertification, validateInstalledLock, validate
 import { executeCandidateFixture } from "./installed-candidate-fixture.mjs";
 import { verifyPublishedRelease } from "./verify-published-release.mjs";
 import { runNpmSync } from "./lib/npm-cli.mjs";
+import { readInstalledCandidateInput } from "./installed-candidate-input.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 export const runInstalledCommand = (command, args, options = {}) => {
@@ -47,12 +48,13 @@ export function buildReceipt({ candidate, denominator, observations = [], bindin
     fail: operations.filter((x) => x.verdict === "fail").length, blocked: operations.filter((x) => x.verdict === "blocked").length };
   const receipt = { schema: "honua.sdk-installed-package-certification-receipt/v1", generatedAt,
     release: candidate.release, server: candidate.server, package: candidate.package,
+    ...(candidate.releaseInput ? { releaseInput: candidate.releaseInput } : {}),
     install: candidate.install, binding, nonCounting: denominator.rows.filter((row) => !row.counts).map((row) => ({ id: row.id, tier: row.tier, verdict: "not-counted" })), verdict: summary.fail || summary.blocked ? "not-certified" : "certified", summary, operations };
   return { ...receipt, receiptDigest: sha256(canonical(receipt)) };
 }
 
 export async function readInstalledCandidate() {
-  return JSON.parse(await readFile(path.join(root, "config/installed-package-certification.v1.json"), "utf8"));
+  return readInstalledCandidateInput();
 }
 
 export async function withInstalledCandidate(candidate, callback, { consumerDependencies = {} } = {}) {
@@ -70,13 +72,14 @@ export async function withInstalledCandidate(candidate, callback, { consumerDepe
   const targets = candidate.packages.map((p) => {
     const artifact = manifest.included.find((a) => a.npmName === p.coordinate);
     const tag = `${artifact.publish.releaseTagPrefix}v${p.version}`;
-    return { id: artifact.id, npmName: p.coordinate, version: p.version, distTag: "latest", tag,
-      commit: p.sourceRevision, expectedRef: `refs/tags/${tag}`, workflow: artifact.publish.workflow,
+    return { id: artifact.id, npmName: p.coordinate, version: p.version, distTag: candidate.releaseInput ? null : "latest", tag,
+      commit: p.sourceRevision, expectedRef: p.sourceRef ?? `refs/tags/${tag}`, workflow: artifact.publish.workflow,
       sourceBinding: artifact.sourceBinding };
   });
   const provenance = await verifyPublishedRelease({ targets, sealedTag: `js-sdk-v${candidate.package.version}`,
     sealedCommit: candidate.packages.find((p) => p.coordinate === candidate.package.coordinate).sourceRevision,
-    registry: candidate.package.registry, repository: manifest.repository });
+    registry: candidate.package.registry, repository: manifest.repository,
+    selection: candidate.releaseInput ? "exact-version" : "release-channel" });
   if (provenance.status !== "verified") throw new Error(`package provenance failed: ${provenance.failures.join("; ")}`);
   const work = await mkdtemp(path.join(tmpdir(), "honua-sdk-installed-cert-"));
   try {
@@ -105,11 +108,11 @@ export async function withInstalledCandidate(candidate, callback, { consumerDepe
 }
 
 export async function certify({ output, observationsPath, executeFixture = false, admit = withInstalledCandidate, freeze = freezeCertification } = {}) {
-  const candidate = await readInstalledCandidate();
-  const denominator = JSON.parse(await readFile(path.join(root, "config/certification-denominator.v1.json"), "utf8"));
   // The committed receipt is a prior candidate's evidence; drop it first so an aborted or
   // rejected run cannot publish it as this candidate's result.
   await rm(path.resolve(output), { force: true });
+  const candidate = await readInstalledCandidate();
+  const denominator = JSON.parse(await readFile(path.join(root, "config/certification-denominator.v1.json"), "utf8"));
   let binding;
   try {
     binding = await freeze(candidate, denominator, root);

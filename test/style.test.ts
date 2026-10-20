@@ -18,8 +18,8 @@ import {
   validateHonuaStyle,
 } from "@honua/sdk-js/style";
 import type { HonuaStyleSpecification } from "@honua/sdk-js/style";
+import { parseFeatureLayerUrl, parseMapServiceUrl } from "../src/client-compat-entry.js";
 import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
-import { parseFeatureLayerUrl, parseMapServiceUrl } from "../src/esri-compat-entry.js";
 import { HonuaClient } from "../src/index.js";
 
 describe("Type guards", () => {

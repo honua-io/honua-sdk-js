@@ -4,12 +4,16 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { RESEAL_OWNED_LIVE_EVIDENCE } from "../../scripts/release-seal.mjs";
+
 import {
   buildDocsVersions,
+  checkScaffoldCommandVersions,
   expandDocsVersionTokens,
   missingReleaseTags,
   parseChangelogReleases,
   serializeDocsVersions,
+  SCAFFOLD_COMMAND_DOCS,
 } from "../../scripts/docs-versions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -27,6 +31,45 @@ const changelog = `# Changelog
 ## [0.0.5-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.4-alpha.0...js-sdk-vv0.0.5-alpha.0) (2025-01-01)
 ## [0.0.1-alpha.0] - Unreleased
 `;
+
+test("scaffold commands track release versions without advancing certified or published pins", () => {
+  const config = JSON.parse(fs.readFileSync(path.join(ROOT, "release-please-config.json"), "utf8"));
+  const current = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+  const documents = Object.fromEntries(SCAFFOLD_COMMAND_DOCS.map((name) => [
+    name, fs.readFileSync(path.join(ROOT, name), "utf8"),
+  ]));
+  checkScaffoldCommandVersions(documents, current);
+  for (const name of SCAFFOLD_COMMAND_DOCS) {
+    const owners = Object.entries(config.packages).filter(([, component]) =>
+      component["extra-files"]?.some((entry) => entry.type === "generic" && entry.path === name),
+    );
+    assert.deepEqual(owners.map(([name]) => name), ["."], `${name} must follow only the SDK release`);
+  }
+  // Match Generic's first-semver-per-annotated-line replacement. In particular,
+  // a scaffold semver before --sdk-version would receive the SDK bump instead.
+  const nextVersion = "0.1.999";
+  const bumped = Object.fromEntries(Object.entries(documents).map(([name, markdown]) => [
+    name, markdown.split("\n").map((line) => line.includes("x-release-please-version")
+      ? line.replace(/\d+\.\d+\.\d+(?:-[\w.]+)?/, nextVersion)
+      : line).join("\n"),
+  ]));
+  checkScaffoldCommandVersions(bumped, nextVersion);
+  assert.throws(() => checkScaffoldCommandVersions(documents, nextVersion), /explicitly pin SDK/);
+  assert.throws(() => checkScaffoldCommandVersions({ doc: "npm create honua-app@latest app" }, current), /explicitly pin SDK/);
+  assert.throws(() => checkScaffoldCommandVersions({ doc: "no commands" }, current), /no documented scaffold command/);
+  for (const component of Object.values(config.packages)) {
+    for (const entry of component["extra-files"] ?? []) {
+      const name = typeof entry === "string" ? entry : entry.path;
+      assert.ok(![
+        "src/local-install.ts",
+        "packages/create-honua-app/templates.manifest.json",
+        "packages/create-honua-app/templates/vanilla-ts/package.json",
+        "packages/create-honua-app/templates/react-ts/package.json",
+      ].includes(name) && !name.startsWith("mcp/release/zero-to-map/configs/"),
+      `${name} must remain owned by postpublication sync:mcp-pin`);
+    }
+  }
+});
 
 test("builds current and archived documentation destinations from release metadata", () => {
   const result = buildDocsVersions({ packageJson, releaseManifest, changelog });
@@ -114,6 +157,8 @@ test("release projection updates without a committed generated manifest", () => 
   const sdkVersionFiles = config.packages["."]["extra-files"].filter(
     (entry) => entry.type === "json" && entry.jsonpath === "$.sdk.version",
   );
+  // The create-honua-app manifest is the certified starter fallback. Release
+  // Please must not rewrite it; that pin moves only after a release is certified.
   assert.deepEqual(
     sdkVersionFiles.map((entry) => entry.path).sort(),
     [
@@ -124,21 +169,39 @@ test("release projection updates without a committed generated manifest", () => 
       "samples/contract/v1/fixtures/sample-evidence.fixture.json",
       "samples/contract/v1/fixtures/sample-evidence.live.json",
       "samples/contract/v1/fixtures/sample-evidence.skipped.json",
-      "samples/evidence/imagery-cog-quickstart/live.v1.json",
-      "samples/evidence/maplibre-quickstart/live.v1.json",
-      "samples/evidence/migration-workbench/live.v1.json",
-      "samples/evidence/service-explorer/live.v1.json",
       "support/projections/sdk-support.v1.json",
     ],
   );
 
+  // Every catalog live evidence file is version-stamped by exactly one owner:
+  // Release Please (extra-files) or the post-merge reseal. Reseal-owned files
+  // must stay out of extra-files -- the reseal rewrites their sdk.gitCommit on
+  // every regeneration, directly below sdk.version, so a release pull request
+  // that also bumped them conflicted with every regeneration merge
+  // (honua-io/honua-release#376).
   const managedEvidencePaths = new Set(sdkVersionFiles.map((entry) => entry.path));
+  const resealOwnedPaths = new Set(RESEAL_OWNED_LIVE_EVIDENCE);
   const catalogEvidencePaths = catalog.samples.flatMap((sample) =>
     sample.evidence?.live?.evidencePath ? [sample.evidence.live.evidencePath] : [],
   );
   assert.ok(catalogEvidencePaths.length > 0);
   for (const evidencePath of catalogEvidencePaths) {
-    assert.ok(managedEvidencePaths.has(evidencePath), `${evidencePath} must be release-managed`);
+    assert.notEqual(
+      managedEvidencePaths.has(evidencePath),
+      resealOwnedPaths.has(evidencePath),
+      `${evidencePath} must be either release-managed or reseal-owned, not both or neither`,
+    );
+  }
+  for (const evidencePath of RESEAL_OWNED_LIVE_EVIDENCE) {
+    assert.ok(catalogEvidencePaths.includes(evidencePath), `${evidencePath} is reseal-owned but not catalog live evidence`);
+  }
+  // The reseal rewrites everything under samples/evidence and samples/dist
+  // wholesale, so no Release Please extra-file may live there.
+  for (const entry of config.packages["."]["extra-files"]) {
+    assert.ok(
+      !/^samples\/(?:evidence|dist)\//u.test(entry.path),
+      `${entry.path} is rewritten by every reseal and must not be a Release Please extra-file`,
+    );
   }
 
   const benchmarkVersionFile = config.packages["."]["extra-files"].find(

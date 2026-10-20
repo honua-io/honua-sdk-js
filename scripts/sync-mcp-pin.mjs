@@ -15,12 +15,11 @@
  * - it must name a version the registry actually serves (#1401 -- a pin that
  *   exists only in this repository's release lineage cannot install on a clean
  *   machine), and
- * - it must sit on the same `major.minor.patch` tuple as the SDK shipping
- *   beside it (#1529 -- `@honua/mcp-server` peer-depends on `@honua/sdk-js`,
- *   and a caret range over a prerelease admits exactly one tuple, so a lagging
- *   pin makes the pair fail `npm install` with ERESOLVE).
+ * - its SDK peer range must admit the SDK under default npm resolution.
+ *   Stable 0.x patches can share a compatible MCP cut; the earlier prerelease
+ *   scheme required the same tuple (#1529).
  *
- * Only a real coordinated publish satisfies both, which is why the pin cannot
+ * Only a verified registry publication satisfies both, which is why the pin cannot
  * be a release-please `extra-files` bump: release-please would advance the
  * version at release-PR time, before either half is published, and it cannot
  * compute the tarball integrity recorded next to it. So the pin advances here
@@ -32,19 +31,36 @@
  *     npm run sync:mcp-pin           # rewrite the pin and its integrity
  *     npm run sync:mcp-pin -- --check  # report drift without writing
  *
+ * To select a reviewed, published compatible patch instead of the default
+ * exact-version preference, add `--mcp-version 0.1.16` to either command.
+ * Subsequent default runs retain a newer recorded pin while it stays published
+ * and compatible, so synchronization never silently undoes that selection.
+ * This never admits an unpublished version or bypasses peer/integrity checks.
+ * Scaffold templates retain the independently certified fallback declared in
+ * templates.manifest.json; publishing an MCP patch does not certify a new starter SDK.
+ *
  * This lane queries the public npm registry and is never part of PR CI.
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  CREATE_APP_PIN_SITES,
   ZERO_TO_MAP_CONFIGS,
+  compareVersions,
   parseSemver,
+  parsePackagePin,
+  readCreateAppSdkPin,
+  satisfiesUnderNpmDefaults,
   verifyClientPairCoInstallable,
+  verifyMcpPinPublication,
+  verifyCreateAppPins,
   verifyZeroToMapConfigPins,
 } from "./verify-mcp-pin.mjs";
+
+import { MCP_PEER_RECEIPT_PATH, verifyMcpPeerArtifact, verifyRecordedMcpPeer } from "./lib/mcp-peer-artifact.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PIN_SOURCE_RELATIVE = "src/local-install.ts";
@@ -62,31 +78,62 @@ function sameTuple(left, right) {
 }
 
 /**
- * The published `@honua/mcp-server` release on the SDK's own tuple.
+ * The published `@honua/mcp-server` release the SDK should be pinned beside.
  *
- * Deliberately not "the newest published version": pinning ahead of the SDK
- * would be just as uninstallable as lagging behind it, in the other direction.
+ * A release qualifies when its `@honua/sdk-js` peer range admits the SDK under
+ * npm's default resolution. On stable `0.x` releases a caret range such as
+ * `^0.1.12` admits every later `0.1.x` patch, so an SDK patch (0.1.13) pairs with
+ * the MCP release it already co-installs with (0.1.12) and no coordinated MCP
+ * republish is needed. Under the earlier prerelease scheme only a release on
+ * the SDK's own `major.minor.patch` tuple satisfied the range, which is the
+ * same rule falling out of npm's prerelease semantics.
+ *
+ * A packument entry that does not declare the peer falls back to the tuple
+ * rule, so an unknown release is never treated as compatible.
+ *
+ * The SDK's exact version is preferred when that release qualifies. Otherwise
+ * the newest qualifying release wins. A newer recorded pin is retained when
+ * still published and compatible; an explicit version can deliberately replace it.
+ * A release whose range excludes the SDK
+ * (for example a later MCP cut that requires a newer SDK) is never chosen, so
+ * the pin cannot run ahead into an uninstallable pair.
  */
-export function selectCoordinatedRelease(packument, sdkVersion, mcpName) {
+export function selectCoordinatedRelease(packument, sdkVersion, mcpName, sdkName = "@honua/sdk-js", requestedVersion, currentVersion) {
+  if (requestedVersion !== undefined) {
+    parsePackagePin(`${mcpName}@${requestedVersion}`);
+    invariant(
+      Object.hasOwn(packument?.versions ?? {}, requestedVersion),
+      `${mcpName}@${requestedVersion} is not published in the registry; publish it before selecting this pin.`,
+    );
+    verifyClientPairCoInstallable({
+      sdkName, sdkVersion, mcpName, mcpVersion: requestedVersion,
+      peerRange: packument.versions[requestedVersion]?.peerDependencies?.[sdkName],
+    });
+    return requestedVersion;
+  }
   const target = parseSemver(sdkVersion);
-  const candidates = Object.keys(packument?.versions ?? {}).filter((version) => {
-    try {
-      return sameTuple(parseSemver(version), target);
-    } catch {
-      return false;
-    }
-  });
+  const candidates = Object.entries(packument?.versions ?? {})
+    .filter(([version, manifest]) => {
+      try {
+        const peerRange = manifest?.peerDependencies?.[sdkName];
+        if (typeof peerRange === "string") return satisfiesUnderNpmDefaults(sdkVersion, peerRange);
+        return sameTuple(parseSemver(version), target);
+      } catch {
+        return false;
+      }
+    })
+    .map(([version]) => version)
+    .sort(compareVersions);
   invariant(
     candidates.length > 0,
-    `no published ${mcpName} sits on ${sdkVersion}'s ${target.major}.${target.minor}.${target.patch} tuple. The ` +
+    `no published ${mcpName} declares a ${sdkName} peer range that admits ${sdkVersion}. The ` +
       "coordinated cut has not published its MCP half yet; publish it, then re-run this command. Do not hand-edit " +
       "the pin to a version the registry does not serve.",
   );
-  // One tuple can carry several prereleases (0.1.9-beta.0, 0.1.9-beta.1);
-  // the SDK's own prerelease identifier picks the coordinated one when it is
-  // present, otherwise the lexically last candidate on the tuple.
   const exact = candidates.find((version) => version === sdkVersion);
-  return exact ?? candidates[candidates.length - 1];
+  const preferred = exact ?? candidates[candidates.length - 1];
+  if (candidates.includes(currentVersion) && compareVersions(currentVersion, preferred) > 0) return currentVersion;
+  return preferred;
 }
 
 async function fetchPackument(name, fetchFn) {
@@ -156,6 +203,30 @@ export function applyConfigPin(source, nextPin, relativePath) {
   return updated;
 }
 
+/** Repoint one create-honua-app JSON pin while preserving its formatting. */
+export function applyCreateAppPin(source, sdkName, nextVersion, relativePath) {
+  let config;
+  try {
+    config = JSON.parse(source);
+  } catch (error) {
+    throw new Error(`${relativePath} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const current = readCreateAppSdkPin(config, relativePath, sdkName);
+  if (current === nextVersion) return source;
+  const token = JSON.stringify(current);
+  const occurrences = source.split(token).length - 1;
+  invariant(
+    occurrences === 1,
+    `${relativePath} must name ${current} exactly once so the rewrite is unambiguous; found ${occurrences}`,
+  );
+  const updated = source.replace(token, JSON.stringify(nextVersion));
+  invariant(
+    readCreateAppSdkPin(JSON.parse(updated), relativePath, sdkName) === nextVersion,
+    `${relativePath} pin rewrite did not take effect`,
+  );
+  return updated;
+}
+
 /**
  * Compute every rewrite, running every invariant, before anything is written.
  *
@@ -167,7 +238,17 @@ export function applyConfigPin(source, nextPin, relativePath) {
  * the half-migrated tree this command exists to prevent. Planning first makes
  * the write phase pure I/O over contents that have all already been proven.
  */
-export function planPinWrites({ source, sourceStale, version, integrity, staleConfigs, expectedPin }) {
+export function planPinWrites({
+  source,
+  sourceStale,
+  version,
+  sdkVersion,
+  integrity,
+  staleConfigs,
+  expectedPin,
+  sdkName,
+  staleCreateAppPins = [],
+}) {
   const writes = [];
   if (sourceStale) {
     writes.push({
@@ -183,7 +264,19 @@ export function planPinWrites({ source, sourceStale, version, integrity, staleCo
       contents: applyConfigPin(config.source, expectedPin, config.relativePath),
     });
   }
+  for (const site of staleCreateAppPins) {
+    writes.push({
+      relativePath: site.relativePath,
+      file: site.file,
+      contents: applyCreateAppPin(site.source, sdkName, sdkVersion, site.relativePath),
+    });
+  }
   return writes;
+}
+
+/** Write a completely validated plan. Kept separate so tests exercise real I/O. */
+export function writePinPlan(writes, writeFile = fs.writeFileSync) {
+  for (const write of writes) writeFile(write.file, write.contents);
 }
 
 /** Every file that carries the pin, with what it names today. */
@@ -196,21 +289,49 @@ function readPinSites(expectedPin) {
   });
 }
 
-async function main(argv) {
-  const check = argv.includes("--check");
-  for (const arg of argv) {
-    invariant(arg === "--check", `unrecognised argument ${arg}`);
+function readCreateAppPinSites(sdkName, expectedVersion) {
+  return CREATE_APP_PIN_SITES.map((relativePath) => {
+    const file = path.join(PROJECT_ROOT, relativePath);
+    const source = fs.readFileSync(file, "utf8");
+    const version = readCreateAppSdkPin(JSON.parse(source), relativePath, sdkName);
+    return { relativePath, file, source, version, stale: version !== expectedVersion };
+  });
+}
+
+export function parseSyncArguments(argv) {
+  let check = false;
+  let requestedVersion;
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--check") {
+      check = true;
+    } else if (arg === "--mcp-version") {
+      invariant(requestedVersion === undefined, "--mcp-version must be supplied at most once");
+      requestedVersion = argv[++index];
+      invariant(typeof requestedVersion === "string", "--mcp-version requires an exact version");
+      parsePackagePin(`@honua/mcp-server@${requestedVersion}`);
+    } else {
+      throw new Error(`unrecognised argument ${arg}`);
+    }
   }
+  return { check, requestedVersion };
+}
+
+async function main(argv) {
+  const { check, requestedVersion } = parseSyncArguments(argv);
   const sdk = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
   const source = fs.readFileSync(PIN_SOURCE, "utf8");
   const current = readPin(source);
-  const { LOCAL_INSTALL_MCP_PACKAGE_NAME } = await import(path.join(PROJECT_ROOT, "dist/src/local-install.js"));
+  const { LOCAL_INSTALL_MCP_PACKAGE_NAME } = await import(pathToFileURL(path.join(PROJECT_ROOT, "dist/src/local-install.js")).href);
 
   const packument = await fetchPackument(LOCAL_INSTALL_MCP_PACKAGE_NAME, fetch);
-  const version = selectCoordinatedRelease(packument, sdk.version, LOCAL_INSTALL_MCP_PACKAGE_NAME);
+  const version = selectCoordinatedRelease(packument, sdk.version, LOCAL_INSTALL_MCP_PACKAGE_NAME, sdk.name, requestedVersion, current.version);
   const manifest = packument.versions[version];
   const integrity = manifest?.dist?.integrity;
-  invariant(typeof integrity === "string", `registry served no tarball integrity for ${version}`);
+  invariant(
+    typeof integrity === "string" && /^sha512-[A-Za-z0-9+/]{86}==$/.test(integrity),
+    `registry served no valid sha512 tarball integrity for ${version}`,
+  );
 
   // Never write a pin that does not solve the problem it exists to solve.
   verifyClientPairCoInstallable({
@@ -227,17 +348,41 @@ async function main(argv) {
   // them to name the identical pin, so advancing only the source constant would
   // leave the tree failing its own gate the moment this command succeeded.
   const expectedPin = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${version}`;
+  const published = await verifyMcpPinPublication({ pin: expectedPin, integrity });
+  const peerReceipt = await verifyMcpPeerArtifact(published);
+  verifyRecordedMcpPeer(peerReceipt, { pin: expectedPin, integrity });
+  // Selection metadata can change independently. The bytes actually verified
+  // must also admit this SDK before any source, config, or receipt is written.
+  verifyClientPairCoInstallable({
+    sdkName: sdk.name,
+    sdkVersion: sdk.version,
+    mcpName: published.name,
+    mcpVersion: published.version,
+    peerRange: peerReceipt.sdkPeerRange,
+  });
+  const peerReceiptFile = path.join(PROJECT_ROOT, MCP_PEER_RECEIPT_PATH);
+  const peerContents = `${JSON.stringify(peerReceipt, null, 2)}\n`;
+  const peerStale = !fs.existsSync(peerReceiptFile) || fs.readFileSync(peerReceiptFile, "utf8") !== peerContents;
   const configs = readPinSites(expectedPin);
   const staleConfigs = configs.filter((config) => config.stale);
+  const starterManifestPath = CREATE_APP_PIN_SITES.find((site) => site.endsWith("templates.manifest.json"));
+  const certifiedStarterVersion = readCreateAppSdkPin(
+    JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, starterManifestPath), "utf8")),
+    starterManifestPath,
+    sdk.name,
+  );
+  const createAppPins = readCreateAppPinSites(sdk.name, certifiedStarterVersion);
+  const staleCreateAppPins = createAppPins.filter((site) => site.stale);
   const sourceStale = current.version !== version || current.integrity !== integrity;
 
-  if (!sourceStale && staleConfigs.length === 0) {
+  if (!sourceStale && !peerStale && staleConfigs.length === 0 && staleCreateAppPins.length === 0) {
     process.stdout.write(
-      `mcp pin already current: ${expectedPin} in src/local-install.ts and ${configs.length} shipped configs\n`,
+      `mcp pin already current: ${expectedPin} in src/local-install.ts, ${configs.length} shipped configs, and ${createAppPins.length} create-app sites\n`,
     );
     return;
   }
   if (check) {
+    if (peerStale) process.stderr.write(`mcp peer receipt is stale: ${MCP_PEER_RECEIPT_PATH}\n`);
     if (sourceStale) {
       process.stderr.write(
         `mcp pin is stale: src/local-install.ts records ${current.version}, coordinated cut is ${version}.\n`,
@@ -246,21 +391,42 @@ async function main(argv) {
     for (const config of staleConfigs) {
       process.stderr.write(`mcp pin is stale: ${config.relativePath} pins ${config.pin}, coordinated cut is ${expectedPin}.\n`);
     }
-    process.stderr.write("Run `npm run sync:mcp-pin`.\n");
+    for (const site of staleCreateAppPins) {
+      process.stderr.write(
+        `mcp pin is stale: ${site.relativePath} pins ${sdk.name}@${site.version}, certified starter fallback is ${sdk.name}@${certifiedStarterVersion}.\n`,
+      );
+    }
+    process.stderr.write(`Run \`npm run sync:mcp-pin${requestedVersion ? ` -- --mcp-version ${requestedVersion}` : ""}\`.\n`);
     process.exitCode = 1;
     return;
   }
 
   // Validate every rewrite first; a refusal here leaves the tree untouched.
-  const writes = planPinWrites({ source, sourceStale, version, integrity, staleConfigs, expectedPin });
-  for (const write of writes) fs.writeFileSync(write.file, write.contents);
+  const writes = planPinWrites({
+    source,
+    sourceStale,
+    version,
+    sdkVersion: certifiedStarterVersion,
+    integrity,
+    staleConfigs,
+    expectedPin,
+    sdkName: sdk.name,
+    staleCreateAppPins,
+  });
+  if (peerStale) writes.push({ relativePath: MCP_PEER_RECEIPT_PATH, file: peerReceiptFile, contents: peerContents });
+  writePinPlan(writes);
   // Same discipline as the pre-write co-install check: prove the bytes just
   // written actually satisfy the gate rather than trusting the edit.
   verifyZeroToMapConfigPins({ expectedPin });
+  verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: certifiedStarterVersion });
 
   const advanced = [
+    peerStale ? MCP_PEER_RECEIPT_PATH : null,
     sourceStale ? `src/local-install.ts ${current.version} -> ${version}` : null,
     staleConfigs.length > 0 ? `${staleConfigs.length} shipped config${staleConfigs.length === 1 ? "" : "s"}` : null,
+    staleCreateAppPins.length > 0
+      ? `${staleCreateAppPins.length} create-app pin${staleCreateAppPins.length === 1 ? "" : "s"}`
+      : null,
   ].filter(Boolean);
   process.stdout.write(
     `mcp pin advanced: ${advanced.join(", ")} (integrity recorded from ${REGISTRY})\n` +

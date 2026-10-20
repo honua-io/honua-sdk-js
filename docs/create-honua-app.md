@@ -10,14 +10,34 @@ resource: "https://www.npmjs.com/package/create-honua-app"
 a source on MapLibre. It exists so the first minute with the SDK is spent reading a working workflow instead of
 assembling peer dependencies.
 
+<!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map
+npm create honua-app@latest my-map -- --sdk-version 0.2.7 # x-release-please-version
 cd my-map
 npm install
 npm run dev
 ```
 
-The starter package lives in this repository at `packages/create-honua-app`.
+The starter package lives in this repository at `packages/create-honua-app`. The commands on this page explicitly
+pin the SDK version documented here; omit `--sdk-version` to use the promoted channel or certified fallback below.
+
+## Which SDK version a scaffold pins
+
+`templates.manifest.json` names the release channel the starters follow (`sdk.channel`, the `release-2026.1` npm
+dist-tag) and a certified fallback (`sdk.version`). At scaffold time the CLI reads the channel from the registry npm is
+configured to use. Under `npm create` or `npx` it asks npm itself (`npm view`), so scope registries, `.npmrc`
+authentication, and proxy settings apply exactly as they will for `npm install`. It pins the channel's version only when that version is a stable release on the starter's SDK line:
+the same major, and the same minor while the SDK is `0.x`. Release promotion is the only thing that moves the tag, so
+an SDK promotion reaches new scaffolds without a `create-honua-app` republish.
+
+In every other case the scaffold pins the certified fallback and prints why: the channel is not promoted yet, it names
+a prerelease or another line, or the registry cannot be read. A registry that answers but has no SDK package, or lists
+neither the channel version nor the certified fallback, fails the scaffold, because that app could never install. The tag is not named `2026.1` because npm refuses a
+dist-tag that is also a valid semver range. `--sdk-version <exact>` overrides the channel. It is the only way to
+scaffold a prerelease, and the CLI refuses a version the registry does not list.
+
+`npm run create-app:verify:package` and `test/scripts/create-honua-app-package.test.mjs` scaffold from the packed
+tarball against a loopback registry and assert the pinned version for each channel state.
 
 ## Templates
 
@@ -26,16 +46,14 @@ The starter package lives in this repository at `packages/create-honua-app`.
 | `vanilla-ts` (default) | `src/main.ts` | `connect → inspect → explain → query → mount`. The SDK owns the MapLibre map and mounts an accepted query plan. |
 | `react-ts` | `src/App.tsx` | The app owns a plain `maplibre-gl` map; the same kernel connection inspects, explains, queries, and mounts onto it. |
 
-Both templates pin **MapLibre GL JS 6.1.0**, the current major, and `npm run create-app:verify` fails if a template
-ever pins a major the SDK does not support. A scaffolded app installs `@honua/sdk-js` **from the registry**, so this
-pin could only move once a published release carried the widened `^5.0.0 || ^6.0.0` peer range (#1004);
-`@honua/sdk-js@0.1.4-beta.0` was the first release to carry it, so anything from that version onward
-(`latest` is `0.1.9-beta.0`) resolves the pair with no `overrides` and no `--legacy-peer-deps`. MapLibre 5 remains supported by the SDK for apps that have not migrated. Because MapLibre 6 is
+Both templates pin **MapLibre GL JS 6.1.0**, the current major. A scaffolded app installs `@honua/sdk-js` from the
+registry, which declares the `^5.0.0 || ^6.0.0` peer range, so `npm install` resolves the pair with no `overrides` and
+no `--legacy-peer-deps`. MapLibre 5 remains supported by the SDK for apps that have not migrated. Because MapLibre 6 is
 ESM-only and loads its worker as a separate module, each starter ships `src/maplibre-worker.ts` and imports it before
 the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
 
 ```bash
-npm create honua-app@latest my-map -- --template react-ts
+npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.2.7 # x-release-please-version
 create-honua-app --list-templates
 ```
 
@@ -69,38 +87,17 @@ Set `VITE_HONUA_ENDPOINT` (and optionally `VITE_HONUA_PROTOCOL`) to run the iden
 CORS-enabled GeoServices FeatureServer layer or OGC API Features landing page. Durable credentials never belong in
 Vite environment variables: Vite embeds them in public JavaScript.
 
-## Publication
+## Published default verification
 
-`create-honua-app` is released by release-please as its own component
-(`packages/create-honua-app` in `release-please-config.json`, tag `create-honua-app-v<version>`) and published by
-`.github/workflows/publish-create-honua-app.yml` through npm trusted publishing — the same OIDC path the SDK and the
-MCP server use, with no `NPM_TOKEN`. Before publishing, that workflow runs the scaffold gates and
-`npm run create-app:verify:package`, which packs the tarball, installs it into a throwaway consumer, and scaffolds
-from the installed copy: a `files` omission or npm's default `.gitignore` exclusion would otherwise ship starters that
-cannot find their own templates while every source-tree gate stayed green.
+The independently managed `create-honua-app@0.2.2` release was verified from the public registry with both starters
+and no SDK override. The observed public `latest` CLI selected its certified SDK `0.2.2` fallback. Vanilla reached
+a rendered map in 88.294 seconds and React in 86.196 seconds; each measurement includes registry resolution, CLI
+installation, scaffolding, fresh default-resolution app installation, production build and browser startup. Both stayed
+inside the unchanged 120-second budget, rendered four fixture features, and recorded no console errors or off-origin requests.
 
-## How the starters stay current
-
-- `packages/create-honua-app/templates.manifest.json` is the single source of truth for the template list, the pinned
-  SDK version, and the playground providers. The CLI, the playground page, and the verifier all read it.
-- `npm run create-app:verify` fails when a template is missing a file, depends on a version range instead of an exact
-  pin, drifts from the reviewed fixture pack, or advertises a playground link that does not address its directory.
-- `npm run create-app:templates:typecheck` compiles both templates against the repository's SDK sources, so an API
-  change that breaks a starter breaks CI.
-- `npm run create-app:test` covers the CLI grammar, the scaffold behaviour, and the evidence contract.
-- `npm run playgrounds:check` fails when `docs/playgrounds.md` drifts from the manifest.
-
-## Time-to-first-map evidence
-
-`npm run create-app:time-to-map` measures the whole path — scaffold, `npm install`, `npm run build`, serve, and a
-Chromium probe that waits for a MapLibre canvas with rendered features — against a two-minute budget and writes
-`test-results/create-honua-app-time-to-map.json`.
-
-The install step reaches the npm registry, so the lane is opt-in:
-
-```bash
-HONUA_CREATE_APP_LIVE_ENABLED=true npm run create-app:time-to-map
-```
-
-Without the flag the script records a skip document instead of a measurement. A passing document requires a mounted
-map, at least one rendered feature, zero console errors, and zero off-origin requests.
+The [retained default proof](../packages/create-honua-app/evidence/default-022/README.md) binds the actual npm tarballs,
+installed lockfiles and independent source tags. The published scaffold README is byte-identical to its own
+`create-honua-app-v0.2.2` source, independently of `js-sdk-v0.2.2`. The original
+[SDK 0.2.1 explicit-template proofs](../packages/create-honua-app/evidence/sdk-021/explicit-template-proof.json) and
+later [SDK 0.2.2 proofs](../packages/create-honua-app/evidence/sdk-022/explicit-template-proof.json) remain unchanged.
+These starter fixture journeys do not qualify a live server candidate.

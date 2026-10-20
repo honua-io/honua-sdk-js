@@ -12,6 +12,7 @@ const expectedEntrypoints = [
   "@honua/sdk-js/honua",
   "@honua/sdk-js/interactions",
   "@honua/sdk-js/realtime",
+  "@honua/sdk-js/runtime",
   "@honua/sdk-js/style",
 ];
 
@@ -389,6 +390,59 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     expect(consoleErrors).toEqual([]);
     expect(expectedConflictConsole).toHaveLength(1);
     expect(externalRequests).toEqual([]);
+  } finally {
+    await fixtureServer.close();
+  }
+});
+
+test("background incident updates preserve keyboard focus and explain paused editing", async ({ page }) => {
+  const fixtureServer = await startIncidentDashboardFixtureServer();
+  try {
+    await page.goto(fixtureServer.url);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.ready)).toBe(true);
+    const assigned = page.locator("#edit-assigned");
+    const reason = page.locator("#edit-guard-reason");
+    const popupClose = page.locator(".maplibregl-popup-close-button");
+    await expect(assigned).toBeEnabled();
+    await expect(popupClose).toBeVisible();
+    const originalClose = await popupClose.elementHandle();
+
+    await assigned.focus();
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__.step());
+    await expect(page.locator("#last-scenario-step")).toHaveText("Escalate outage");
+    await expect(assigned).toBeFocused();
+    expect(await popupClose.evaluate((element, original) => element === original, originalClose)).toBe(true);
+
+    await popupClose.focus();
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__.duplicateLast());
+    await expect(page.locator("#stream-ignored")).toHaveText("1");
+    await expect(popupClose).toBeFocused();
+
+    await assigned.focus();
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__.markStale());
+    await expect(assigned).toBeDisabled();
+    await expect(reason).toBeFocused();
+    await expect(reason).toContainText(/not authoritative/i);
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__.resume());
+    await expect(assigned).toBeEnabled();
+    await expect(reason).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.locator("#edit-status")).toBeFocused();
+
+    await assigned.focus();
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__.markStale());
+    await expect(reason).toBeFocused();
+    await page.locator("#status-filter").focus();
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__.resume());
+    await expect(assigned).toBeEnabled();
+    await expect(page.locator("#status-filter")).toBeFocused();
+
+    await popupClose.click();
+    await assigned.focus();
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__.step());
+    await expect(page.locator("#last-scenario-step")).toHaveText("Create brush response");
+    await expect(page.locator(".maplibregl-popup")).toHaveCount(0);
+    await expect(assigned).toBeFocused();
   } finally {
     await fixtureServer.close();
   }

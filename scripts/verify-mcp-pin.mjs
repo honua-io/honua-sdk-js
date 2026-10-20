@@ -34,6 +34,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { MCP_PEER_RECEIPT_PATH, verifyMcpPeerArtifact, verifyRecordedMcpPeer } from "./lib/mcp-peer-artifact.mjs";
+
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const NETWORK_GATE = "HONUA_MCP_PIN_LIVE_ENABLED";
 const REGISTRY = "https://registry.npmjs.org";
@@ -52,6 +54,43 @@ export const ZERO_TO_MAP_CONFIGS = [
   "mcp/release/zero-to-map/configs/claude-desktop.json",
   "mcp/release/zero-to-map/configs/cursor.json",
 ];
+export const CREATE_APP_PIN_SITES = [
+  "packages/create-honua-app/templates.manifest.json",
+  "packages/create-honua-app/templates/vanilla-ts/package.json",
+  "packages/create-honua-app/templates/react-ts/package.json",
+];
+
+/** A reviewed adjacent-minor bridge must survive managed version updates. */
+export function verifyManagedMcpPeerPolicy({ policy, releaseConfig, sdk, mcp, mcpLock }) {
+  invariant(
+    policy?.schema === "honua.mcp-sdk-peer-policy/v1" && policy.sdk === "@honua/sdk-js",
+    "MCP SDK peer policy must name the supported schema and SDK",
+  );
+  const range = /^\^0\.(\d+)\.\d+ \|\| \^0\.(\d+)\.0$/.exec(policy.range ?? "");
+  invariant(
+    range && Number(range[2]) === Number(range[1]) + 1,
+    "MCP SDK peer policy must bound two adjacent stable pre-1.0 minor lines",
+  );
+  const plugins = releaseConfig?.plugins?.filter((plugin) => plugin?.type === "node-workspace") ?? [];
+  invariant(
+    plugins.length === 1 && plugins[0].updatePeerDependencies === false,
+    "Release Please must preserve the reviewed MCP peer range instead of replacing it",
+  );
+  invariant(
+    sdk?.name === policy.sdk && mcp?.name === "@honua/mcp-server",
+    "MCP SDK peer policy package identity mismatch",
+  );
+  invariant(
+    mcp.peerDependencies?.[policy.sdk] === policy.range &&
+      mcpLock?.packages?.[""]?.peerDependencies?.[policy.sdk] === policy.range,
+    "MCP package and lockfile must declare the reviewed SDK peer range",
+  );
+  invariant(
+    satisfiesUnderNpmDefaults(sdk.version, policy.range),
+    `SDK ${sdk.version} falls outside the reviewed MCP peer policy; review compatibility before extending it`,
+  );
+  return { sdkVersion: sdk.version, peerRange: policy.range };
+}
 
 /** The dedicated live gate for the registry lane. Never enabled in PR CI. */
 export function isMcpPinLiveVerificationEnabled(env = process.env) {
@@ -136,6 +175,36 @@ export function verifyZeroToMapConfigPins({ expectedPin, readConfig = readJson }
         "config to the coordinated, registry-served pair.",
     );
     return { relativePath, pin };
+  });
+}
+
+/** Read the SDK coordinate carried by a create-honua-app pin site. */
+export function readCreateAppSdkPin(config, relativePath, sdkName) {
+  const version = relativePath.endsWith("templates.manifest.json")
+    ? config?.sdk?.package === sdkName
+      ? config.sdk.version
+      : undefined
+    : config?.dependencies?.[sdkName];
+  invariant(
+    typeof version === "string",
+    `${relativePath} must pin ${sdkName} in ${
+      relativePath.endsWith("templates.manifest.json") ? "sdk.version" : "dependencies"
+    }`,
+  );
+  invariant(EXACT_VERSION.test(version), `${relativePath} must pin ${sdkName} to an exact version, found ${version}`);
+  return version;
+}
+
+/** Keep every scaffold on the certified starter fallback, which may lag package.json. */
+export function verifyCreateAppPins({ sdkName, expectedVersion, readConfig = readJson }) {
+  return CREATE_APP_PIN_SITES.map((relativePath) => {
+    const version = readCreateAppSdkPin(readConfig(relativePath), relativePath, sdkName);
+    invariant(
+      version === expectedVersion,
+      `${relativePath} pins ${sdkName}@${version}, but the certified starter fallback is ${sdkName}@${expectedVersion}. ` +
+        "The scaffold sites must match templates.manifest.json, and that fallback moves only when a release certifies a new SDK.",
+    );
+    return { relativePath, pin: `${sdkName}@${version}` };
   });
 }
 
@@ -335,9 +404,9 @@ export function verifyClientPairCoInstallable({ sdkName, sdkVersion, mcpName, mc
     satisfiesUnderNpmDefaults(sdkVersion, peerRange),
     `${mcpName}@${mcpVersion} peer-depends on ${sdkName}@"${peerRange}", which npm's default resolver does NOT ` +
       `consider satisfied by ${sdkName}@${sdkVersion}. Installing the pair fails ERESOLVE unless the consumer ` +
-      "passes --legacy-peer-deps or --force, so the documented install is broken. A prerelease satisfies a range " +
-      "only when a comparator in it carries a prerelease on the same major.minor.patch tuple, so widening the " +
-      `range cannot fix this -- the pair has to be cut, pinned, and published on one tuple.${
+      "passes --legacy-peer-deps or --force, so the documented install is broken. Select published versions " +
+      "whose declared SDK peer range admits the SDK under default resolution; stable package versions " +
+      `need not share a patch number.${
         remedy ? `\n\nTo fix: ${remedy}` : ""
       }`,
   );
@@ -430,11 +499,23 @@ async function main() {
   process.stdout.write(`mcp pin lineage ok: ${lineage.name}@${lineage.version}\n`);
   const zeroToMapConfigs = verifyZeroToMapConfigPins({ expectedPin: LOCAL_INSTALL_MCP_PACKAGE });
   process.stdout.write(`zero-to-map config pins ok: ${zeroToMapConfigs.length} configs name ${LOCAL_INSTALL_MCP_PACKAGE}\n`);
+  const { name: sdkName, version: sdkVersion } = readJson("package.json");
+  // Release Please bumps package.json before that version is certified. The
+  // starter fallback stays on the last certified SDK until a deliberate edit.
+  const certifiedSdkVersion = readJson("packages/create-honua-app/templates.manifest.json")?.sdk?.version;
+  const createAppPins = verifyCreateAppPins({ sdkName, expectedVersion: certifiedSdkVersion });
+  process.stdout.write(`create-honua-app pins ok: ${createAppPins.length} sites name ${sdkName}@${certifiedSdkVersion}\n`);
 
   // The pair this working tree would cut: mcp/package.json's declared peer
   // range against the SDK version sitting beside it.
-  const { name: sdkName, version: sdkVersion } = readJson("package.json");
   const mcpManifest = readJson("mcp/package.json");
+  verifyManagedMcpPeerPolicy({
+    policy: readJson("config/mcp-sdk-peer-policy.v1.json"),
+    releaseConfig: readJson("release-please-config.json"),
+    sdk: { name: sdkName, version: sdkVersion },
+    mcp: mcpManifest,
+    mcpLock: readJson("mcp/package-lock.json"),
+  });
   verifyClientPairCoInstallable({
     sdkName,
     sdkVersion,
@@ -446,48 +527,41 @@ async function main() {
     `source pair co-installable: ${mcpManifest.name}@${mcpManifest.version} + ${sdkName}@${sdkVersion}\n`,
   );
 
-  // The pair a customer actually gets: the *pinned* published MCP artifact
-  // against the SDK this tree ships. release-please writes the peer range as a
-  // caret on the MCP version at the commit that cut it, so that is the range
-  // the published tarball carries; the live lane below re-reads it from the
-  // registry rather than trusting this reconstruction.
-  //
-  // This check is a publish gate, not a PR gate. Between a release-please bump
-  // and the coordinated MCP publish the pin legitimately lags the SDK version,
-  // and no edit can fix that until the MCP half is on the registry -- so
-  // reddening every release PR here would only make releases impossible. PR CI
-  // asserts the source pair above (which release-please keeps in lockstep) and
-  // that this rule rejects the lagging pin; `verify:client-pair` in
-  // publish-js-sdk.yml is what stops a lagging pin from actually shipping.
+  // The recorded peer comes from integrity-verified package bytes, never an
+  // inferred caret on the independently versioned MCP release.
+  const recordedPeer = readJson(MCP_PEER_RECEIPT_PATH);
+  const pinnedPeerRange = verifyRecordedMcpPeer(recordedPeer, {
+    pin: LOCAL_INSTALL_MCP_PACKAGE,
+    integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
+  });
+  const published = isMcpPinLiveVerificationEnabled()
+    ? await verifyMcpPinPublication({
+        pin: LOCAL_INSTALL_MCP_PACKAGE,
+        integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
+      })
+    : undefined;
+  if (published) {
+    const actual = await verifyMcpPeerArtifact(published);
+    invariant(JSON.stringify(actual) === JSON.stringify(recordedPeer),
+      "MCP peer receipt differs from the verified public tarball; run canonical sync:mcp-pin");
+  }
   verifyClientPairCoInstallable({
     sdkName,
     sdkVersion,
     mcpName: lineage.name,
     mcpVersion: lineage.version,
-    peerRange: `^${lineage.version}`,
+    peerRange: pinnedPeerRange,
     remedy: PIN_SYNC_REMEDY,
   });
-  process.stdout.write(`pinned pair co-installable: ${lineage.name}@${lineage.version} + ${sdkName}@${sdkVersion}\n`);
+  process.stdout.write(`pinned pair metadata compatible: ${lineage.name}@${lineage.version} + ${sdkName}@${sdkVersion} ` +
+    `peer="${pinnedPeerRange}" source=${published ? "registry" : "offline"}\n`);
 
-  if (!isMcpPinLiveVerificationEnabled()) {
+  if (!published) {
     process.stdout.write(`registry lane skipped: set ${NETWORK_GATE}=true to query the public registry\n`);
     return;
   }
-  const published = await verifyMcpPinPublication({
-    pin: LOCAL_INSTALL_MCP_PACKAGE,
-    integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
-  });
   process.stdout.write(`mcp pin published: ${published.tarball}\n`);
   process.stdout.write(`zero-to-map config pins published: ${zeroToMapConfigs.length} configs resolve to ${published.tarball}\n`);
-  // The published peer range, not the one reconstructed above.
-  verifyClientPairCoInstallable({
-    sdkName,
-    sdkVersion,
-    mcpName: published.name,
-    mcpVersion: published.version,
-    peerRange: published.peerDependencies?.[sdkName],
-    remedy: PIN_SYNC_REMEDY,
-  });
   process.stdout.write(
     `published pair co-installable: ${published.name}@${published.version} peer ${sdkName}@"${published.peerDependencies?.[sdkName]}"\n`,
   );

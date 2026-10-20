@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, MapCompat, MapViewCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, MapCompat, MapViewCompat } from "../src/client-compat-entry.js";
 
 describe("MapCompat", () => {
   it("supports map load/when lifecycle state", async () => {
@@ -44,6 +44,16 @@ describe("MapCompat", () => {
     expect(map.remove(layerA)).toBe(true);
     expect(map.layers).toEqual([layerB]);
     expect(map.remove(layerA)).toBe(false);
+  });
+
+  it("accepts Collection.add on layers", () => {
+    const map = new MapCompat();
+    const layer = { id: "owls" };
+    const added = map.layers.add(layer);
+    expect(added).toBe(map.layers);
+    expect(map.layers).toEqual([layer]);
+    added.add({ id: "under" }, 0);
+    expect(map.layers.map((item) => (item as { id: string }).id)).toEqual(["under", "owls"]);
   });
 
   it("supports watch handles for map property changes", async () => {
@@ -186,6 +196,45 @@ describe("MapCompat", () => {
 });
 
 describe("MapViewCompat", () => {
+  it("mounts the named default widgets and leaves the popup closed when popupEnabled is false", async () => {
+    const withZoom = new MapViewCompat({ ui: { components: ["zoom"] } });
+    const withoutDefaults = new MapViewCompat({ ui: { components: [] } });
+    const untouched = new MapViewCompat();
+    expect(withZoom.ui.components).toHaveLength(1);
+    expect(withZoom.ui.components[0]?.position).toBe("top-left");
+    expect(withoutDefaults.ui.components).toHaveLength(0);
+    expect(untouched.ui.components).toHaveLength(0);
+
+    const view = new MapViewCompat({ popupEnabled: false });
+    view.graphics.add({
+      geometry: { longitude: -82.44, latitude: 35.61 },
+      attributes: { name: "Oak" },
+    });
+    const opened: string[] = [];
+    view.on("click", () => opened.push("click"));
+    view.on("popup-open", () => opened.push("popup"));
+    await (
+      view as unknown as {
+        handleMapClick(event: { x: number; y: number; longitude: number; latitude: number }): Promise<void>;
+      }
+    ).handleMapClick({ x: 10, y: 10, longitude: -82.44, latitude: 35.61 });
+    expect(opened).toEqual(["click"]);
+    expect(view.popup.visible).not.toBe(true);
+
+    const openView = new MapViewCompat();
+    openView.graphics.add({
+      geometry: { longitude: -82.44, latitude: 35.61 },
+      attributes: { name: "Oak" },
+    });
+    await (
+      openView as unknown as {
+        handleMapClick(event: { x: number; y: number; longitude: number; latitude: number }): Promise<void>;
+      }
+    ).handleMapClick({ x: 10, y: 10, longitude: -82.44, latitude: 35.61 });
+    expect(openView.popup.visible).toBe(true);
+    expect(openView.popup.title).toBe("Oak");
+  });
+
   it("supports load/when lifecycle state and watch handles", async () => {
     const eventBus = new CompatEventBus();
     const eventTypes: string[] = [];
@@ -918,5 +967,18 @@ describe("MapViewCompat", () => {
 
     expect(lv1).toBe(lv2);
     expect(view.allLayerViews).toHaveLength(1);
+  });
+
+  it("exposes graphics and fires arcgisViewReadyChange from when()", async () => {
+    const view = new MapViewCompat();
+    const events: string[] = [];
+    view.addEventListener("arcgisViewReadyChange", () => {
+      events.push("ready");
+    });
+    view.graphics.add({ geometry: { x: 1, y: 2 }, symbol: { type: "simple-marker" } });
+    await view.when();
+    expect(view.ready).toBe(true);
+    expect(view.graphics.graphics).toHaveLength(1);
+    expect(events).toEqual(["ready"]);
   });
 });

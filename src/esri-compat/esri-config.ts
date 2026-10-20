@@ -1,3 +1,4 @@
+import type { HonuaRequestInterceptor } from "../core/types.js";
 import { type EsriRequestInterceptorCompat, createEsriRequestInterceptors } from "./request.js";
 
 export interface EsriConfigRequestCompat {
@@ -35,6 +36,6 @@ export function resetEsriConfig(): void {
   esriConfig.request.interceptors.length = 0;
 }
 
-export function getEsriConfigHonuaInterceptors() {
+export function getEsriConfigHonuaInterceptors(): HonuaRequestInterceptor[] {
   return createEsriRequestInterceptors(esriConfig.request.interceptors);
 }

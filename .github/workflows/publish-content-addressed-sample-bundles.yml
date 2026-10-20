@@ -50,9 +50,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: 20.19.0
+          node-version: 22.23.3
           cache: npm
           cache-dependency-path: source-a/package-lock.json
 
@@ -177,13 +177,31 @@ jobs:
           test "$(find staged -mindepth 1 -maxdepth 1 | wc -l)" -eq 6
 
       - name: Upload governed publication
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: content-addressed-sample-bundles
           path: staged
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+
+      - name: Pack independent sample contracts twice
+        run: |
+          set -euo pipefail
+          npm run samples:contract:pack --prefix source-a
+          npm run samples:contract:pack --prefix source-b
+          cmp source-a/.artifacts/sample-contract/sample-contract-artifact.v1.json source-b/.artifacts/sample-contract/sample-contract-artifact.v1.json
+          for archive in source-a/.artifacts/sample-contract/*.tgz; do
+            cmp "$archive" "source-b/.artifacts/sample-contract/$(basename "$archive")"
+          done
+
+      - name: Retain independent sample-consumer contracts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: sample-contract-${{ github.sha }}
+          path: source-a/.artifacts/sample-contract/
+          if-no-files-found: error
+          retention-days: 90
 
   attest-and-publish:
     name: Attest and publish immutable release
@@ -197,7 +215,7 @@ jobs:
       id-token: write
     steps:
       - name: Download governed publication
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: content-addressed-sample-bundles
           path: staged
@@ -209,7 +227,7 @@ jobs:
           # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
           # a release version bump rewrites those and nothing in CI is able
           # to move this constant (#1357).
-          EXPECTED_LOCKFILE_SHA256: d419d2c3c54692654cde8935587a5b70e2d038b1c9c580bd7d01d930f42c00a5
+          EXPECTED_LOCKFILE_SHA256: 850d95c59bfd5808801ff7343f50314228767be7ffa68d05a750955cfb55bd89
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -236,9 +254,10 @@ jobs:
           assert re.fullmatch(r"[0-9a-f]{64}", lock_sha)
           action_map = {
               "checkout": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-              "setupNode": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-              "uploadArtifact": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
-              "downloadArtifact": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+              "setupNode": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
+              "uploadArtifact": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+              "downloadArtifact": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
+              "createGithubAppToken": "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
               "attestBuildProvenance": "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
           }
 
@@ -419,7 +438,7 @@ jobs:
           integer(source_epoch, 1, 4_102_444_800)
           validate_raw_smoke(smoke_raw, source_epoch)
           keys(deterministic["build"], ["node", "lockfileSha256", "workflow", "actions"])
-          assert deterministic["build"] == {"node": "20.19.0", "lockfileSha256": lock_sha, "workflow": ".github/workflows/publish-content-addressed-sample-bundles.yml", "actions": action_map}
+          assert deterministic["build"] == {"node": "22.23.3", "lockfileSha256": lock_sha, "workflow": ".github/workflows/publish-content-addressed-sample-bundles.yml", "actions": action_map}
           keys(deterministic["publication"], ["tag", "fileCount", "memberCount", "assets"])
           assert deterministic["publication"]["tag"] == f"sample-bundles-{source}"
           keys(deterministic["publication"]["assets"], ["sample-bundles.v2.json", "sample-bundles.tar.gz"])
@@ -617,7 +636,7 @@ jobs:
           print("privileged byte and provenance validation: PASS")
           PY
 
-      - name: Gate current trunk and immutable releases
+      - name: Gate current trunk and source epoch
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_COMMIT: ${{ github.sha }}
@@ -640,9 +659,45 @@ jobs:
           SOURCE_DATE="$($GH api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_COMMIT" --jq .commit.committer.date)"
           SOURCE_EPOCH="$(date -u -d "$SOURCE_DATE" +%s)"
           test "$(jq -r .source.sourceDateEpoch staged/sample-bundles-attestation.v1.json)" = "$SOURCE_EPOCH"
-          IMMUTABLE="$($GH api "repos/$GITHUB_REPOSITORY/immutable-releases")"
-          test "$(jq -r .enabled <<<"$IMMUTABLE")" = "true"
-          test "$(jq -r .enforced_by_owner <<<"$IMMUTABLE")" = "true"
+
+      # The immutable-release policy endpoint requires Administration read.
+      # GITHUB_TOKEN cannot be granted that permission. Keep this installation
+      # token scoped to this repository and this one read-only policy call;
+      # the existing GITHUB_TOKEN remains the publication/attestation actor.
+      - name: Require dedicated immutable-policy reader credentials
+        env:
+          SAMPLE_BUNDLE_POLICY_APP_ID: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_ID }}
+          SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SAMPLE_BUNDLE_POLICY_APP_ID" ] || [ -z "$SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY" ]; then
+            echo "dedicated immutable-policy reader App credentials are required" >&2
+            exit 1
+          fi
+
+      - name: Mint SDK-scoped immutable-policy reader
+        id: immutable-policy-reader
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_ID }}
+          private-key: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY }}
+          owner: honua-io
+          repositories: honua-sdk-js
+          permission-administration: read
+
+      - name: Require owner-enforced immutable releases
+        env:
+          GH_TOKEN: ${{ steps.immutable-policy-reader.outputs.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          readonly GH="$RUNNER_TEMP/trusted-gh/bin/gh"
+          test -x "$GH"
+          IMMUTABLE="$("$GH" api "repos/$GITHUB_REPOSITORY/immutable-releases")"
+          jq -e 'type == "object" and .enabled == true and .enforced_by_owner == true' <<<"$IMMUTABLE" >/dev/null || {
+            echo "owner-enforced immutable releases are required" >&2
+            exit 1
+          }
 
       - name: Attest sample-bundles.v2.json
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

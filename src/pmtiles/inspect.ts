@@ -1,6 +1,7 @@
 import { inspectPmtilesDiscovery } from "../connect-pmtiles-inspection.js";
 import type { PmtilesDiscoveryMetadata } from "../connect-pmtiles.js";
 import type { ConnectCacheStatus, ConnectOptions } from "../connect.js";
+import type { PmtilesModuleLike } from "../contract/pmtiles.js";
 import type { PmtilesRendererSourceDescriptor } from "./lifecycle.js";
 import { HonuaPmtilesLifecycleError, registerPmtilesSource } from "./lifecycle.js";
 
@@ -12,6 +13,8 @@ export interface InspectPmtilesArchiveOptions {
   readonly cache?: ConnectOptions["cache"];
   readonly signal?: AbortSignal;
   readonly limits?: NonNullable<ConnectOptions["pmtiles"]>["limits"];
+  /** Bundled `pmtiles` constructor. Required for Vite apps; Node resolves the peer itself. */
+  readonly PMTiles?: PmtilesModuleLike;
 }
 
 export interface PmtilesArchiveInspection {
@@ -32,7 +35,14 @@ export async function inspectPmtilesArchive(options: InspectPmtilesArchiveOption
     ...(options.clientOptions ? { clientOptions: options.clientOptions } : {}),
     ...(options.cache ? { cache: options.cache } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
-    ...(options.limits ? { pmtiles: { limits: options.limits } } : {}),
+    ...(options.limits || options.PMTiles
+      ? {
+          pmtiles: {
+            ...(options.limits ? { limits: options.limits } : {}),
+            ...(options.PMTiles ? { PMTiles: options.PMTiles } : {}),
+          },
+        }
+      : {}),
   });
   const sourceInspection = connection.snapshot.sources[0];
   const metadata = sourceInspection?.metadata?.pmtiles;

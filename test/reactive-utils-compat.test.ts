@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { reactiveUtils, watch, when, whenOnce } from "../src/esri-compat-entry.js";
+import { reactiveUtils, watch, when, whenOnce } from "../src/client-compat-entry.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {

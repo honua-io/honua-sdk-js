@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "GeoParquet / DuckDB-WASM source"
-description: "`@honua/sdk-js/geoparquet` adds a `Source` that runs the **same"
+description: "Run the same protocol-neutral Query against GeoParquet files in the browser with DuckDB-WASM: install, quickstart, SQL compilation, lossless results, aggregation, limits and the Overture recipe."
 resource: "honua://capability/format.geoarrow"
 ---
 # GeoParquet / DuckDB-WASM source
@@ -201,9 +201,7 @@ end-user input (a filter box, a URL parameter) should build the expression from
 typed inputs and treat the validator as a backstop; the typed, parameterized
 semantic compiler (`compileSemanticDuckDbQuery`) removes the raw-text lane
 entirely. `source.protocol("geoparquet").sql(...)` remains an explicit, opt-in
-raw-SQL escape hatch and is deliberately not covered by this validation. The
-compiler is covered by snapshot and rejection tests in
-`test/geoparquet-sql.test.ts`.
+raw-SQL escape hatch and is deliberately not covered by this validation.
 
 ## Both metadata styles
 
@@ -350,11 +348,3 @@ browser driver does not expose its internal HTTP bytes/ranges, rows scanned, or
 row-group pruning metrics. The flagship sample reports those as unverified and
 uses an explicit execution deadline rather than falling back to full
 materialization.
-
-## Regenerating the test fixtures
-
-The tiny committed fixtures under `test/fixtures/geoparquet/` are produced by
-`npm run geoparquet:fixtures` (which drives DuckDB-WASM's Node bindings). They
-include the two spatial fixture styles plus exact wide integer, decimal,
-temporal, binary, and nested values. Only run the generator when a fixture
-schema changes.

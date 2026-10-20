@@ -59,6 +59,15 @@
         "typecheckInclude": ["src/**/*"],
         "typecheckJsx": "react-jsx",
         "notes": "The app ships no TypeScript, so the probe type-checks its JavaScript with `allowJs`/`checkJs` rather than running a config the author maintained. That is why the baseline carries diagnostics the author never saw — and why only the paired delta is reported as the migration's."
+      },
+      {
+        "id": "qg-travel-system",
+        "packageDir": ".",
+        "lockfile": "package-lock.json",
+        "buildScript": "build",
+        "typecheckInclude": ["src/**/*.ts"],
+        "typecheckJsx": "none",
+        "notes": "The app's ArcGIS usage lives entirely in `.ts` modules (`src/components/*.ts`, `src/stores/map.ts`); the UI shell is Vue single-file components, which the codemod scanner and this probe both skip, so `typecheckInclude` is scoped to `.ts` files only rather than all of `src`."
       }
     ]
   },
@@ -228,6 +237,33 @@
         "src/features/map/loadOwlFeatureLayer.jsx"
       ],
       "notes": "The smallest app in the corpus and the fastest end-to-end smoke target; exercises the layer-support modules (`layers/support/FeatureFilter`, `FeatureEffect`) that sit next to codemod scope."
+    },
+    {
+      "id": "qg-travel-system",
+      "title": "QG Travel System — Qinghai-Gansu Grand Loop trip planner",
+      "repo": {
+        "host": "github",
+        "owner": "Zenith-Angle",
+        "name": "QG_TravelSystem",
+        "url": "https://github.com/Zenith-Angle/QG_TravelSystem",
+        "defaultBranch": "master",
+        "commit": "1b79b87a8958f68585687571fbe16e5328e0fad6",
+        "observedAt": "2026-09-14"
+      },
+      "license": {
+        "spdxId": "Apache-2.0",
+        "url": "https://github.com/Zenith-Angle/QG_TravelSystem/blob/1b79b87a8958f68585687571fbe16e5328e0fad6/LICENSE",
+        "holder": "Zenith-Angle"
+      },
+      "provenance": {
+        "authorKind": "individual",
+        "author": "Zenith-Angle",
+        "description": "An individual developer's public-transit trip-planning webgis for the Qinghai-Gansu Grand Loop tourist route in China. Vue 3 + Vite shell around `@arcgis/core` ES modules — imperative `new Map()` / `new MapView()`, `WebTileLayer`, `FeatureLayer`, `GraphicsLayer`, `SketchViewModel`, and `webMercatorUtils` — with the ArcGIS calls isolated in plain `.ts` modules the Vue components import."
+      },
+      "styles": ["featurelayer-centric"],
+      "scanRoot": "src",
+      "evidencePaths": ["src/components/mapConfig.ts", "src/components/map_calculate.ts", "src/stores/map.ts"],
+      "notes": "A second independent featurelayer-centric app beside owls-of-bavaria, and the second deep-validation app in `deepValidation.apps` (#1662): the map/layer logic sits in `.ts` files (`components/*.ts`, `stores/map.ts`), while `.vue` single-file components hold only UI — the codemod scanner does not parse `.vue` files, so `scanRoot` is `src` but only the `.ts` files under it are in scope."
     }
   ]
 }

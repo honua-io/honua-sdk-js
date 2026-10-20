@@ -41,13 +41,6 @@ still blocked by CORS.
   fallback.
 - Use `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` only for a public style whose dependent assets are also reachable.
 
-Required fixture Playwright actively aborts any HTTP(S) request outside its loopback origin. Public network evidence
-runs only from `.github/workflows/first-map-live-evidence.yml` or with explicit local opt-in:
-
-```bash
-HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live
-```
-
 ## Bounds, geometry, and query plans
 
 - Keep `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` a positive integer no greater than the workflow bound.
@@ -81,18 +74,3 @@ Useful runtime fields include `sourceProtocol`, `sourceId`, `sourceAttribution`,
 `cacheStatus`, `degradation`, `planFingerprint`, `featureCount`, `layerIds`, timing-budget fields, and cleanup state.
 Disposal is idempotent and must remove the SDK mount, popup, handlers, and borrowed MapLibre resources within the
 published cleanup budget.
-
-## Validation
-
-```bash
-npm run demo:quickstart:typecheck
-npm run demo:quickstart:test
-npm run demo:quickstart:parity
-npm run demo:quickstart:copyability
-npm run demo:quickstart:build
-npm run test:playwright:quickstart
-```
-
-The focused required command covers Chromium. The release workflow repeats the same test in Chromium, Firefox, and
-WebKit and repeats source and packed SDK modes. If only the packed lane fails, inspect
-`honua-sample-sdk-resolution.json` before changing the sample.

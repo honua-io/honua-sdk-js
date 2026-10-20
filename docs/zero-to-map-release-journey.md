@@ -1,74 +1,120 @@
 ---
 type: guide
 title: "Zero-to-map release journey"
-description: "The 2026.1 release journey answers one end-to-end question: can an operator use"
+description: "The bounded 2026.1 install, configure, process, compose, and separately approved 2D map journey."
 ---
 # Zero-to-map release journey
 
-The 2026.1 release journey answers one end-to-end question: can an operator use
-AI-facing Honua surfaces to install the platform, configure services and
-geoprocessing, then create and save a map app without pretending that an agent
-performed the human publication gate?
+The 2026.1 cut qualifies a bounded setup → configure → published 2D map journey.
+Its acceptance definition and deterministic driver are owned by
+[honua-release#123](https://github.com/honua-io/honua-release/issues/123) and
+[the terminal journey](https://github.com/honua-io/honua-release/tree/trunk/certification/terminal-journey).
+Record the exact release-driver commit used; a moving branch URL is guidance,
+not an immutable evidence pin.
 
-The executable bundle lives at
-[`mcp/release/zero-to-map`](../mcp/release/zero-to-map/README.md). It implements
-the seven stages from `honua-release#123` D9.3:
+## Current bounded path
 
-1. Run the control-plane Docker installer and verify API, MCP, and Console.
-2. Use the generated admin MCP surface to test a connection, import fixtures,
-   publish layers, set access, and create a scoped key.
-3. Discover and execute the Esri-compatible Buffer task through MCP, poll its
-   job/result resources to a retained artifact, prove the same task through the
-   SDK's GPServer adapter, then run and poll the dataset-oriented MCP Buffer
-   verb separately.
-4. Use Studio MCP tools to create a draft, add layers and the retained GP
-   artifact, style and show it, set the view, add a chart/control/interaction,
-   validate, and reopen the saved draft.
-5. Record publication intent while structurally requiring human confirmation.
-6. Import a Console receipt bound to the exact connection/service/layers, all
-   three GP jobs and result identities, draft, real admin proposal, execution
-   operation, audit correlation, and approved release candidate, including
-   health and recovery checks.
-7. Require HTTP 200 from the stable approved share URL.
+1. Install the manifest-pinned published SDK/MCP pair under default npm peer
+   resolution and the immutable server image. Retain package integrities,
+   source commits, image digest, readiness, authentication, and effective grants.
+2. Compare the server-authored bounded workflow view over HTTP and the installed
+   stdio proxy against the independently reviewed catalog manifest. Compare
+   every descriptor, schema, annotation, and output contract. Neither a guessed
+   profile nor a fixed tool count proves parity. Use
+   [setup parity certification](../mcp/certification/setup-parity.md) and
+   `honua admin qualify`; preserve failures when a required operation is absent.
+3. Configure the supported datasource, import the bounded fixture, poll its real
+   job, and publish the resulting layer with the intended access policy. Join
+   job, source, layer, operation, and audit identities; preserve schema, geometry,
+   CRS, row, and failure evidence, not just an accepted HTTP response.
+4. Discover and execute the existing `geometry.buffer` process using its actual
+   input schema and a bounded geometry. For the advertised GPServer WKB path,
+   provide `wkb`, `srid`, and `distance`; EPSG:4326 distance is in degrees. A
+   `layerId` is not a geometry input. Retain the terminal job and result identity.
+   See [geoprocessing guidance](../skills/honua-geoprocessing/SKILL.md).
+5. Prove the published layer's style through get-style → apply-preset → read-back
+   → render → MCP `resources/read`. Verify style identity and nonempty rendered
+   pixels, not merely PNG byte length. `honua admin qualify` joins the catalog
+   receipt and this style proof to the local install.
+6. Compose one 2D map with the imported layer, style, view, and basic controls.
+   Validate, save an immutable version, read it back, reopen it, and prove the
+   same content survives restart and a distinct replica read. Retain item,
+   version, and content hash. See
+   [map composition](../skills/honua-map-composition/SKILL.md).
+7. Propose publication of that exact saved version under the supported proposer
+   policy. Require a durable pending proposal. Prove separation of duties with
+   an independently approval-capable proposer under a supported policy that
+   still requires review: retain its effective approval authority, then require
+   HTTP 403 with `Separation of duties: the requester of a proposal cannot approve it.`
+   and unchanged pending proposal state. A refusal of the default local key,
+   which lacks `admin:approve`, proves only its limited permissions. If the
+   candidate cannot establish the approval-capable control, report it blocked.
+   An immediate admin publication does not establish this approval boundary.
+8. A separate human approver reviews the proposal and uses the typed CLI with
+   their own authenticated profile. Approval takes no request body:
 
-The GP story is deliberately dual-surface. `honua_esri_gp_list_tasks`,
-`honua_esri_gp_describe_task`, and `honua_esri_gp_execute_task` are the
-AI-facing Esri compatibility roster; the third tool is executed, then its
-`honua://jobs/{id}` and `/results` resources are joined before the gate passes.
-`HonuaClient.geoprocessingRunner()` separately drives the GPServer task with the
-same `IJobRun` lifecycle used elsewhere in the SDK.
-`honua_buffer_features` is the native MCP dataset-reference verb. Honua's server
-owns the process catalog and translation; the journey does not invent external
-ArcGIS Server federation.
+   ```bash
+   (
+     unset HONUA_ADMIN_KEY HONUA_API_KEY HONUA_BEARER_TOKEN HONUA_BASE_URL
+     honua admin operate approveOperationProposal --path id=<proposal-id> --profile approver --yes
+     honua admin operate getOperationProposal --path id=<proposal-id> --profile approver --json
+   )
+   ```
 
-All four are members of opt-in conformance profiles - `esri-gp` and `analysis`
-respectively - that this journey *requires of a candidate server* and preflights
-before the first mutation. They are not tools you can call on a stock
-deployment: neither honua-server's `/mcp` nor
-[`@honua/mcp-server`](mcp-server.md) advertises them today. If you are not
-running this release journey, geoprocessing goes through `honua_plan_analysis` →
-`honua_validate_plan` → `honua_execute_plan`, or through
-[`HonuaClient.geoprocessingRunner()`](geoprocessing.md).
+   The human must configure `approver` with their own credential and the target
+   base URL. The subshell clears environment overrides that otherwise take
+   precedence over that profile; its name alone does not prove identity.
+   `--yes` is CLI mutation consent, not proof of human identity. Poll the actual
+   proposal to terminal success, retain server-issued approval and audit joins,
+   and read the authorized final map. Compare its item, version, hash, and body
+   with the saved map. A share URL returning HTTP 200 alone is insufficient.
+   Until the human acts, retain `AwaitingApproval`; do not invent a completed run.
 
-Contract mode is the default and is safe to run in CI. It validates the plan,
-records live execution as blocked, and skips dependent stages. Live mode is
-explicit (`--execute --yes`), preflights the complete MCP catalog before the
-first MCP mutation, blocks on missing deployment capabilities, and accepts a
-Console receipt only when its journey, resource, job, result, proposal,
-execution-operation, audit-correlation, candidate, and release identities
-match.
+Full Admin MCP exposure, additional analysis families, `analytics.buffer-aggregate`,
+`analysis`/`esri-gp` profile switches, dashboards, and a 441-tool count are not
+requirements for this bounded cut. Missing required support is a blocker to
+report, not permission to substitute a broader workflow.
 
-The catalog preflight verifies the `base`, `analysis`, and `esri-gp` server
-profiles independently and derives the expected total (432 + 6 + 3 = 441)
-instead of asserting one hardcoded number; it records the active profiles and
-the roster digests on the journey receipt. Enabling those profiles on a local
-candidate still depends on honua-server#3363/#3430/#3431: the server
-configuration key that turns them on is not yet published, so
-`honua admin install local --profile gp-dev --yes` grants the Pro edition but cannot
-yet request the profiles. (`--yes` is required: the command creates files and starts
-Docker containers, so without it, or without `--dry-run`, it refuses to run.) The Studio `PublicationIntent` is not mislabeled as the separate admin
-approval proposal.
+## Versioned guidance and receipt consumers
 
-The checked-in fixtures and simulated tests are contract evidence, not a live
-candidate recording. A release owner must retain the driver receipt, Console
-receipt hash, and the final URL response as the release evidence bundle.
+Use the [task skills](../skills/README.md) and local docs from the exact reviewed
+SDK source commit associated with the candidate; retain that commit and the
+corpus digest alongside package versions. The npm packages do not currently
+ship the complete repository skills/docs corpus. A registry-installed docs
+search tool may therefore return `available: false`. Supply the matching
+versioned source documentation separately; do not silently search a newer
+checkout or describe an unavailable local corpus as successful retrieval.
+
+The setup/style qualification receipt is one input to the full journey. It does
+not certify import fidelity, restart durability, human approval, or model use.
+Retain a redacted evidence URI and content digest with the exact candidate tuple,
+client integrities, server digest, tool-view revision, and rendered artifact.
+The release-owned consumers have distinct responsibilities:
+
+- [Release#123](https://github.com/honua-io/honua-release/issues/123) joins that
+  receipt to the deterministic eight-stage live journey and its durable IDs.
+- [Release#129](https://github.com/honua-io/honua-release/issues/129) reuses the
+  same journey on the verified AWS target and adds provisioning, handoff, and
+  authorized cleanup receipts. A local run does not prove the AWS wrapper.
+- [Release#161](https://github.com/honua-io/honua-release/issues/161) records the
+  genuine model-driven canary with reviewed skills/docs, ambiguity handling,
+  recoverable-error behavior, and separate human approval. A deterministic
+  driver is not evidence of model calls or human actions.
+
+None of these receipts advances a certified manifest or proves a published
+candidate while it uses source builds, hand-repinned images, or unpublished
+clients. Keep such engineering evidence explicit and replay the immutable pair
+once the release artifacts and reviewed manifests are available.
+
+## Retained repository integration bundle
+
+[`mcp/release/zero-to-map`](../mcp/release/zero-to-map/README.md) retains a broader
+engineering driver. It exercises an older map/app/dashboard workflow,
+`analytics.buffer-aggregate`, a separate GPServer buffer proof, and immediate
+admin share URLs. Its checked-in contract fixtures and simulated tests are not
+a recording of the current bounded candidate or separate-human approval.
+
+Contract mode validates that legacy plan, records live execution as blocked,
+and never starts Docker. Its explicit live mode (`--execute --yes`) may still
+be used for that broader engineering contract. Preserve its actual outputs and
+limitations; do not relabel them as satisfying the current release journey.

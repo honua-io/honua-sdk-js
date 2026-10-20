@@ -8,6 +8,9 @@ bound to their own platform; this one is bound to none.
 
 **Release status: beta.** Tool contracts are certified against live and fixture
 targets on every release; remaining pre-1.0 work is hardening, not surface change.
+"Beta" is a maturity label, not part of the version: releases are stable `0.x`
+versions, and the `@honua/sdk-js` peer is a caret range (for example `^0.1.12`),
+so a later `@honua/sdk-js` patch installs beside this package without a republish.
 
 **Scores are published, not claimed.** How well different client models actually
 drive this surface — and where they fail — is in the
@@ -26,7 +29,73 @@ Two modes:
 
 ## Requirements
 
-- Node.js `>=20.19`
+### Persistent local agent connector — source preview
+
+This branch adds `honua-agent-mcp`: one stdio connection that starts with local
+setup tools and attaches the installed Honua server's canonical MCP surface
+without replacing the client's registration. It is a source preview, not yet
+the qualified public Docker-to-map getting-started path.
+
+Start the built `dist/src/agent/cli.js` with Node from this package. The host sets
+`HONUA_AGENT_INSTALL_DIRECTORY` (default `~/.honua/local`); the agent cannot
+choose arbitrary credential files or remote URLs. Node and a local Unix-socket
+Docker engine with Compose 2.23.1 or later are required. Linux/WSL is the initial
+lane; Windows named pipes and remote Docker contexts are refused.
+
+Prompt: **"Check this machine, then set up Honua locally in Docker. Show me the
+target and available workflows when it is ready."** The agent calls
+`honua_agent_inspect_local`, obtains installation authorization, and calls
+`honua_agent_install_local` with `confirm: true`. Keep the installation tool
+timeout long enough for image pulls and database initialization (ten minutes is
+a useful starting point). If the client times out, inspect `honua_agent_status`
+and the installation before issuing another install. Cancellation of a local
+installation does not undo Docker work already started.
+
+The connector verifies readiness and the installed credential before announcing
+the server's tools. Existing installations attach on startup; after a transport
+disconnect, `honua_agent_connect` verifies the same target again. A changed
+credential identity requires a host restart. It never retries an upstream
+mutation after an uncertain response.
+
+Credentials stay in the installer's protected file and the HTTP transport. The
+local agent key has `admin:read`, `admin:write`, and `read:*`; it has no
+`admin:approve` or feature-write grant. Every upstream request carries that key,
+and the server enforces current RBAC, resource access, and governance. Discovery
+is not authorization; a denied operation remains denied. Browser human sessions
+and their approval authority are separate.
+
+This preview forwards canonical paginated tools, resources, resource templates,
+prompts, request metadata, tool progress, cancellation, and catalog-change
+notifications. It negotiates its own MCP identity and preserves the configured
+workflow view. When a client omits its view, the persistent connector selects
+the server's `full` view so Studio and the other GIS workflows remain
+discoverable on the same registration. This changes discovery only; Server
+RBAC and approval policy still govern every operation. It does not advertise subscriptions, sampling, roots,
+completions, or tasks. Durable workflow context, command reconciliation, browser
+pairing, and coordinated Console/Studio artifacts remain tracked in
+[the unified workspace workstream](https://github.com/honua-io/honua-server/issues/6297).
+
+After building the SDK and this package, maintainers can run the opt-in Docker
+handoff and process-restart check with
+`HONUA_AGENT_LIVE_ENABLED=true npm run test:unit --prefix mcp -- test/agent-local-live.test.ts`
+from the repository root. It creates and removes its own isolated Compose project.
+This tests the built connector against the installer's pinned server image; it
+does not certify the full map-making or browser journey.
+
+The packaged workflow guide is available as the MCP resource
+`honua://agent/knowledge/workflows/v1`, even before installation. Optional private
+DevOps tools can share this registration through host configuration; see
+[the host reference](../docs/unified-agent-host-configuration.md) for target and
+credential requirements and the current qualification limits.
+
+Native Console chat can use the preview `honua-agent-gateway` backend HTTP
+transport to reach this same public/private catalog. Its separate bridge key,
+workspace-turn checks and host configuration are described in that reference.
+External agents continue to use their single `honua-agent-mcp` registration.
+
+### Existing standalone and proxy modes
+
+- Node.js `>=22.12`
 - Any reachable FeatureServer/OGC endpoint (public or Honua)
 
 ## Install
@@ -110,6 +179,15 @@ The tool requires `confirm: true`. Stop and remove this bootstrap server from
 the MCP client configuration after installation; the normal platform-free
 server remains read-only and cannot invoke the installer.
 
+Choose a new directory for each installation. The installer checks Docker Engine
+and Compose before writing files, refuses existing compose/bootstrap files it
+cannot recognize, and preserves unrelated keys in an installer-owned private
+`.env`. New installations keep an isolated Compose project identity in that file;
+keep `.env` with the installation to retain its credentials and volumes. Existing
+legacy installations keep their original project after verifying that its
+containers belong to the chosen directory. Restore the original files when that
+check refuses a conflicting or incomplete legacy installation.
+
 ## Environment Variables
 
 - `HONUA_BASE_URL` (required in normal mode): absolute base URL — a public ArcGIS folder
@@ -119,6 +197,10 @@ server remains read-only and cannot invoke the installer.
   isolated local-install catalog instead of the ordinary read-only server.
 - `HONUA_TRANSPORT` (optional): `grpc-web` (default, Honua deployments) or `rest`.
   Use `rest` for plain public ArcGIS/OGC endpoints.
+  Feature counts use the selected transport's count operation. With `grpc-web`,
+  statistics materialize the complete matching set through feature RPCs and
+  report client-side execution as `degraded`; they fail rather than return a
+  partial aggregate when the 100-page / 200,000-feature budget is exceeded.
 - `HONUA_API_KEY` (optional): API key when your deployment requires it. Public
   endpoints need none.
 - `HONUA_TIMEOUT_MS` (optional): request timeout in milliseconds (default `30000`)
@@ -133,12 +215,12 @@ All read-only:
 - `honua_list_sources` — **protocol-neutral discovery.** Returns `<protocol>:<address>` source references plus each source's real capabilities. Every protocol family degrades independently with a reason.
 - `honua_list_services` — GeoServices-specific service catalog (prefer `honua_list_sources`)
 - `honua_describe_layer` — source schema, protocol, and advertised capabilities
-- `honua_query_features`
+- `honua_query_features` — includes geometry by default; `resultOffset` and `outSrid` are aliases for `offset` and `outSr`. Pass one spelling of each field. Count-only and geometry-precision inputs are refused; use `honua_count_features` for counts.
 - `honua_count_features`
 - `honua_get_extent`
 - `honua_statistics`
 - `honua_explain_capability_gap`
-- `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
+- `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer. Preset resolution is read-only and returns a stylesheet for client-side application; persisted `serviceId`/`layerId` binding arguments are refused.
 - `honua_docs_search` — answer a Honua documentation question from the local versioned docs corpus (`llms-full.txt`), with a source-file and release-version citation per hit. Each citation is pinned to the exact commit the corpus bytes come from, so it keeps naming the text that was searched after `trunk` moves; when that commit cannot be established (an installed package with no checkout, or a locally regenerated corpus) the citation reports `sourceRevision: null` and links to `trunk` rather than claiming a pin it cannot back. Offline: reads committed files, never the network, and reports structured-unavailable when the corpus is not present in the installation. Point `HONUA_DOCS_CORPUS_PATH` at a corpus file (any name) or at a directory holding `llms-full.txt` to supply the corpus explicitly; `HONUA_SOURCE_REVISION` declares the commit when git is unavailable.
 
 ### Protocol-neutral tool contract
@@ -253,8 +335,33 @@ atomic approval-use store can opt into two additional tools:
   expiry, single-use, cancellation, and plan-identity checks. The envelope is required for effects and for every
   read step that names a `sourceId`; only non-source inspection may use read-only auto-execution.
 
-```ts
+Embedding the server in your own Node.js host needs the packages as local
+dependencies of that host project:
+
+```bash
+npm install @honua/mcp-server @honua/sdk-js
+```
+
+The map runtime, model callback, approval verifier, receipt signer, and
+approval-use store are yours to supply; the `declare const` lines stand in for them:
+
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js";
+import type {
+  AgentApprovalUseConsumer,
+  AgentEnvelopeSigner,
+  AgentEnvelopeVerifier,
+} from "@honua/sdk-js/agent-safety";
+import type { CreateNlMapControlOptions, NlMapControlToolsOptions } from "@honua/sdk-js/nl-map-control";
 import { createNlMapControlMcpHost, createServer } from "@honua/mcp-server";
+
+declare const runtime: NlMapControlToolsOptions["runtime"];
+declare const callYourModel: CreateNlMapControlOptions["llm"];
+declare const approvalVerifier: AgentEnvelopeVerifier;
+declare const receiptSigner: AgentEnvelopeSigner;
+declare const approvalUseConsumer: AgentApprovalUseConsumer;
+
+const honuaClient = new HonuaClient({ baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis" });
 
 const nlMapControl = createNlMapControlMcpHost({
   control: {
@@ -308,6 +415,26 @@ For each tool the server advertises (over an in-memory MCP transport) it:
 It emits a stable machine-readable JSON report plus a human-readable Markdown
 summary, and exits non-zero on any conformance/round-trip failure.
 
+The certification and eval scripts in this section and the next run from a clone
+of this repository (Node.js `>=22.12` and git). `mcp/` links to the SDK at the
+repository root, so build the SDK first:
+
+```bash
+git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git
+cd honua-sdk-js
+npm ci
+```
+
+<!-- doc-run: checkout -->
+```bash
+npm run build   # the SDK that mcp/ links to; takes a few minutes
+cd mcp
+npm ci
+```
+
+From `mcp/`:
+
+<!-- doc-run: checkout=mcp -->
 ```bash
 # Run the certifier against the offline fixture backend and write artifacts:
 npm run certify
@@ -333,9 +460,14 @@ apportionment layer from `services.arcgis.com`, with **no** Honua surfaces. It
 proves the tools certify **green with honest skips** against a non-Honua endpoint:
 the data tools round-trip against real recorded data, the Honua-only style tools
 degrade to structured "not available" results, and the auth/mutation/job contracts
-skip-with-reason. Fixture-backed and deterministic — no network.
+skip-with-reason. Fixture-backed and deterministic — no network — as long as
+`HONUA_BASE_URL` is unset: when it is set, this lane certifies that live endpoint
+instead (the scheduled live variant). Unset it if you exported it for `honua-mcp`
+above:
 
+<!-- doc-run: checkout=mcp -->
 ```bash
+unset HONUA_BASE_URL
 npm run certify:standalone            # platform-free cert (plain FeatureServer fixture)
 npm run test:certification:standalone # CI gate variant
 ```
@@ -356,6 +488,7 @@ in `config/live-conformance-endpoints.v1.json`). Nothing Esri exists there: the
 GeoServices entry points all reject, so a tool that still secretly required
 `serviceId`/`layerId` fails loudly instead of passing by accident.
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 npm run certify:standalone-ogc            # non-GeoServices cert (OGC API Features fixture)
 npm run test:certification:standalone-ogc # CI gate variant
@@ -387,8 +520,8 @@ The honua server exposes one MCP catalog over streamable-HTTP/SSE at `/mcp`.
 Claude-Desktop-style clients speak **stdio**. Rather than reimplement that
 catalog (which is how the HTTP and stdio surfaces historically drifted apart),
 this package ships a **stdio proxy** (`honua-mcp-proxy`) that bridges a local
-stdio MCP client to the remote HTTP-SSE MCP server. It connects upstream as an
-MCP client and re-exposes the *same* catalog downstream over stdio — identical
+stdio MCP client to the remote HTTP-SSE MCP server. It forwards MCP messages
+between the transports and exposes the *same* catalog downstream over stdio — identical
 tools, identical input/output schemas, identical resources and prompts, and live
 `tools/list_changed` notifications. There is one source-of-truth catalog (the
 server's `/mcp`); the SDK proxies it, so the two transports are symmetric by
@@ -414,8 +547,33 @@ or `[::1]` HTTP development endpoints. Userinfo, query parameters, fragments,
 non-HTTP(S) URLs are rejected before connect, and redirect targets are never
 followed or sent credentials.
 
-A parity test (`test/proxy.test.ts`) asserts the tool/resource/template catalog
-the downstream client sees is byte-identical to the upstream surface, that
+The proxy forwards the caller's `initialize` request before opening an initialized
+upstream session, including `_meta["honua.io/workflow-view"]`. That HTTP session
+is retained for subsequent requests, so initializing with `setup` makes a later
+selector-free `tools/list` return the server's setup catalog. A temporary
+per-request catalog override leaves the initialized view intact; separate proxy
+processes have separate sessions.
+
+The view selector is the only `initialize` metadata the server reads, and the
+only metadata the proxy forwards: other `_meta` keys stay local rather than
+entering the credentialed upstream session. The handshake fails closed. A
+request before `initialize`, an `initialize` the server's selector contract
+would refuse (a non-string or longer-than-64-character view), or a second
+`initialize` is answered with JSON-RPC `-32600` without reaching the server,
+and the proxy exits. If `initialize` does not arrive, or the server does not
+answer it, within 30 seconds, the proxy exits as well.
+
+Executable protocol tests (`test/proxy-session.test.ts`) exercise setup/default
+initialization, concurrent sessions, authenticated full-catalog override and
+restoration, `tools/list_changed` relay, and the fail-closed handshake against a
+loopback fixture. The `MCP session contract` workflow also runs them against the
+`honua-mcp-proxy` executable npm installs from the packed tarballs. The
+published 0.1.12 reproduction and exact JSON wire captures are under
+`test/fixtures/initialize-view/`.
+
+A parity test (`test/proxy.test.ts`) runs the same bridge against the canonical
+server over streamable HTTP. It asserts the tool/resource/template catalog the
+downstream client sees is byte-identical to a direct HTTP client's, that
 `tools/call` and resource reads round-trip identically, and that `list_changed`
 notifications are forwarded.
 
@@ -446,6 +604,7 @@ honua-io/honua-server#1956.)
   dependencies); keys come from the environment and are never hardcoded. Set
   `HONUA_MCP_REMOTE_URL` to drive a live remote `/mcp` instead of the fixture.
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 npm run eval            # run the eval (live models join if their keys are set)
 npm run eval:offline    # force the deterministic control + fixture surface
@@ -471,6 +630,7 @@ guards. Because the fixture replays real recorded data, a wrong number or a
 hallucinated place name fails. The grading taxonomy is documented in
 [`evals/README.md`](evals/README.md).
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 npm run eval:standalone       # deterministic control over the census fixture (offline)
 ```
@@ -489,6 +649,7 @@ an extent that came from the declared collection extent must say so, and a CQL2
 spatial predicate the endpoint does not publish must come back as a structured
 capability refusal — never as an empty result set.
 
+<!-- doc-run: checkout=mcp -->
 ```bash
 npm run eval:ogc              # deterministic control over the OGC API Features fixture (offline)
 ```
@@ -524,6 +685,12 @@ Shared env for every live run:
 Set exactly one of `HONUA_MCP_AUTH_TOKEN` or `HONUA_API_KEY` for authenticated
 live runs; ambiguous authentication fails closed.
 
+The commands below read three values you supply from your own accounts: `HONUA_TOKEN`
+(a bearer token your operator deployment issued), and the model provider's
+`ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (the Bedrock driver uses the AWS credential
+chain instead). Export the ones your driver needs before you run it, and run from `mcp/`:
+
+<!-- doc-run: skip reason="billable live-model lane: needs the reader's own operator token and Anthropic, OpenAI or AWS model credentials; the offline control above (npm run eval:offline) is the runnable lane" -->
 ```bash
 # Anthropic Claude (default claude-opus-4-8; override with HONUA_EVAL_ANTHROPIC_MODEL):
 HONUA_MCP_REMOTE_URL="https://demo.honua.io/mcp" \

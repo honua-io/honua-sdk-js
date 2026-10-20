@@ -455,9 +455,9 @@ test("configDefaults describes only the browser-public config surface", () => {
   // `data.config` is a sample's whole configuration surface and mixes in
   // server-only settings; publishing those in a field the schema documents as
   // the browser-public surface overstates what a consumer can influence and
-  // leaks backend topology. Two published samples (ai-spatial-app-builder,
-  // service-explorer) have an entirely server-only surface, so they are the
-  // regression canaries.
+  // leaks backend topology. The AI builder has an entirely server-only
+  // surface; service-explorer also exposes its optional browser basemap style.
+  // Both remain regression canaries for server-only settings.
   for (const included of INCLUDED_SAMPLES) {
     const entry = catalogById.get(included.id);
     const browserPublic = browserPublicConfigNames(entry);
@@ -472,7 +472,7 @@ test("configDefaults describes only the browser-public config surface", () => {
     }
   }
   assert.deepEqual(browserPublicConfigNames(catalogById.get("ai-spatial-app-builder")), []);
-  assert.deepEqual(browserPublicConfigNames(catalogById.get("service-explorer")), []);
+  assert.deepEqual(browserPublicConfigNames(catalogById.get("service-explorer")), ["VITE_HONUA_BASEMAP_STYLE"]);
   assert.deepEqual(browserPublicConfigNames(catalogById.get("imagery-cog-quickstart")), ["VITE_HONUA_IMAGERY_BASE_URL"]);
 });
 

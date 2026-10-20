@@ -1,0 +1,42 @@
+[
+  {
+    "audit_id": 120,
+    "actor": "operatorbearer:subject:honua-operator-bearer:8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+    "action": "admin.post",
+    "outcome": "Failure",
+    "correlation_id": "honua-corr-61862d735f0ccfdcb4bf01447843e90c",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":500,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "51a48418494e6be8c726fb406e6f208521db177c9b19308ff44deaf047367e15"
+  },
+  {
+    "audit_id": 121,
+    "actor": "operatorbearer:subject:honua-operator-bearer:8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+    "action": "admin.post",
+    "outcome": "Failure",
+    "correlation_id": "honua-corr-61862d735f0ccfdcb4bf01447843e90c",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":500,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "d738ab5459f8e2e58cb02ae796d8f934b660ac32241c41fe072ab44bc83df7d3"
+  },
+  {
+    "audit_id": 122,
+    "actor": "operatorbearer:subject:honua-operator-bearer:8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+    "action": "admin.post",
+    "outcome": "Failure",
+    "correlation_id": "honua-corr-61862d735f0ccfdcb4bf01447843e90c",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":500,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "ce758d6b8e2729de875d1b53121b4d18bc6d9e4c0b1a1bf115556b89fa146044"
+  },
+  {
+    "audit_id": 123,
+    "actor": "operatorbearer:subject:honua-operator-bearer:8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+    "action": "admin.post",
+    "outcome": "Failure",
+    "correlation_id": "honua-corr-61862d735f0ccfdcb4bf01447843e90c",
+    "resource_id": "/api/v1/admin/packages",
+    "details": "{\"status\":500,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}",
+    "entry_hash": "a73e850581665f8a65b79b67d637d4cc2d2a20a6e196544418da07dcc9f6090e"
+  }
+]

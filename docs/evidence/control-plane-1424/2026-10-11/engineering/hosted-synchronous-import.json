@@ -1,0 +1,44 @@
+{
+  "sourceCommit": "38590f602b423845c5b2fff967fb9af1fa419934",
+  "run": "https://github.com/honua-io/honua-server/actions/runs/38175445020",
+  "job": "https://github.com/honua-io/honua-server/actions/runs/38175445020/job/114576972082",
+  "artifactId": 11715718504,
+  "artifactZipSha256": "3c0c2b6b34a7c18b6a786e71bf7e6b2cc5e59b53e0ccad34b44a706e7cf0f8f9",
+  "trxSha256": "ae96d854a6452c044a9ff34232a32245abfd5b39ef7716dac46b593e56f53439",
+  "shardResults": {
+    "passed": 63,
+    "failed": 0
+  },
+  "exactTestResults": [
+    {
+      "executionId": "8d326063-bab1-400f-a1ac-b55c6d49841d",
+      "testId": "4b044a8c-6526-3862-5c66-44c78c5398b0",
+      "testName": "SameKeyAcrossRoutes DownloadsAndPersistsOnlyOnce(firstPath: \"/api/v1/admin/imports\", retryPath: \"/api/v1/admin/import/upload-url\")",
+      "computerName": "runnervmmprz5",
+      "duration": "00:00:02.2738757",
+      "startTime": "2026-10-11T21:22:54.3279330+00:00",
+      "endTime": "2026-10-11T21:23:02.2637955+00:00",
+      "testType": "13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b",
+      "outcome": "Passed",
+      "testListId": "8c84fa94-04c1-424b-9868-57a2d4851a1d",
+      "relativeResultsDirectory": "8d326063-bab1-400f-a1ac-b55c6d49841d"
+    },
+    {
+      "executionId": "4950568a-1d15-4184-8dcc-a593dfc59e38",
+      "testId": "2b3ed92e-8526-adf5-ac91-7c2939a28f53",
+      "testName": "SameKeyAcrossRoutes DownloadsAndPersistsOnlyOnce(firstPath: \"/api/v1/admin/import/upload-url\", retryPath: \"/api/v1/admin/imports\")",
+      "computerName": "runnervmmprz5",
+      "duration": "00:00:02.3795221",
+      "startTime": "2026-10-11T21:22:45.5306341+00:00",
+      "endTime": "2026-10-11T21:22:54.3273674+00:00",
+      "testType": "13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b",
+      "outcome": "Passed",
+      "testListId": "8c84fa94-04c1-424b-9868-57a2d4851a1d",
+      "relativeResultsDirectory": "4950568a-1d15-4184-8dcc-a593dfc59e38"
+    }
+  ],
+  "scope": "Synchronous imports through real Kestrel, operation dispatcher, HTTP loopback and PostGIS; only public GeoJSON download is stubbed. Both route orders assert one download and stored row, matching accepted response and operation, and changed-payload conflict.",
+  "productionBackgroundReplay": false,
+  "selectedCandidateQualification": false,
+  "remaining": "Current-head review fixes, complete required checks, and genuine signed Production background replay on supported immutable candidate."
+}

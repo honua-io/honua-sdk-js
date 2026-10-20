@@ -1,0 +1,105 @@
+{
+  "measurement": "diagnostic canonical esbuild options on preserved exact-head compiled artifacts; not artifact admission",
+  "receipts": [
+    {
+      "sourceRevision": "5aac8654325f20845dc37a386f0f8999d683bb83",
+      "artifactFingerprint": "e4f983724dd4314eb26fcb138492fb2cc3a3d2218a47c83cf08ab4c7e9de100f",
+      "entry": "index.js",
+      "minBytes": 766938,
+      "gzipBytes": 204193
+    },
+    {
+      "sourceRevision": "5aac8654325f20845dc37a386f0f8999d683bb83",
+      "artifactFingerprint": "e4f983724dd4314eb26fcb138492fb2cc3a3d2218a47c83cf08ab4c7e9de100f",
+      "entry": "honua.js",
+      "minBytes": 943371,
+      "gzipBytes": 252546
+    },
+    {
+      "sourceRevision": "5aac8654325f20845dc37a386f0f8999d683bb83",
+      "artifactFingerprint": "e4f983724dd4314eb26fcb138492fb2cc3a3d2218a47c83cf08ab4c7e9de100f",
+      "entry": "contract/index.js",
+      "minBytes": 384841,
+      "gzipBytes": 104127
+    },
+    {
+      "sourceRevision": "5aac8654325f20845dc37a386f0f8999d683bb83",
+      "artifactFingerprint": "e4f983724dd4314eb26fcb138492fb2cc3a3d2218a47c83cf08ab4c7e9de100f",
+      "entry": "source-schema.js",
+      "minBytes": 901833,
+      "gzipBytes": 201663
+    },
+    {
+      "sourceRevision": "5aac8654325f20845dc37a386f0f8999d683bb83",
+      "artifactFingerprint": "e4f983724dd4314eb26fcb138492fb2cc3a3d2218a47c83cf08ab4c7e9de100f",
+      "entry": "runtime/index.js",
+      "minBytes": 711182,
+      "gzipBytes": 182719
+    },
+    {
+      "sourceRevision": "8b5b0a0580c9bc95561a2eee4709fc94be0775ca",
+      "artifactFingerprint": "1fdea529a20f7bb05679e77870fa365efb8c3146ab8ef9c23c698eb7a378cd48",
+      "entry": "index.js",
+      "minBytes": 766938,
+      "gzipBytes": 204198
+    },
+    {
+      "sourceRevision": "8b5b0a0580c9bc95561a2eee4709fc94be0775ca",
+      "artifactFingerprint": "1fdea529a20f7bb05679e77870fa365efb8c3146ab8ef9c23c698eb7a378cd48",
+      "entry": "honua.js",
+      "minBytes": 943371,
+      "gzipBytes": 252543
+    },
+    {
+      "sourceRevision": "8b5b0a0580c9bc95561a2eee4709fc94be0775ca",
+      "artifactFingerprint": "1fdea529a20f7bb05679e77870fa365efb8c3146ab8ef9c23c698eb7a378cd48",
+      "entry": "contract/index.js",
+      "minBytes": 384841,
+      "gzipBytes": 104139
+    },
+    {
+      "sourceRevision": "8b5b0a0580c9bc95561a2eee4709fc94be0775ca",
+      "artifactFingerprint": "1fdea529a20f7bb05679e77870fa365efb8c3146ab8ef9c23c698eb7a378cd48",
+      "entry": "source-schema.js",
+      "minBytes": 833853,
+      "gzipBytes": 196387
+    },
+    {
+      "sourceRevision": "8b5b0a0580c9bc95561a2eee4709fc94be0775ca",
+      "artifactFingerprint": "1fdea529a20f7bb05679e77870fa365efb8c3146ab8ef9c23c698eb7a378cd48",
+      "entry": "runtime/index.js",
+      "minBytes": 711182,
+      "gzipBytes": 182708
+    }
+  ],
+  "toolchain": {
+    "node": "v20.19.0",
+    "esbuild": "0.28.1",
+    "platform": "linux",
+    "architecture": "x64",
+    "gzipLevel": 9
+  },
+  "esbuildOptions": {
+    "bundle": true,
+    "minify": true,
+    "platform": "browser",
+    "target": [
+      "es2020"
+    ],
+    "format": "esm",
+    "legalComments": "none",
+    "external": [
+      "maplibre-gl",
+      "cesium",
+      "pmtiles",
+      "@bufbuild/protobuf",
+      "@connectrpc/connect",
+      "@connectrpc/connect-web",
+      "@duckdb/duckdb-wasm",
+      "@deck.gl/layers",
+      "apache-arrow",
+      "terra-draw",
+      "terra-draw-maplibre-gl-adapter"
+    ]
+  }
+}

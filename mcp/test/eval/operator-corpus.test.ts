@@ -2,8 +2,18 @@ import { describe, expect, it } from "vitest";
 import { CORPUS, resolveCorpus } from "../../src/eval/corpus.js";
 import { NORTHSTAR_CORPUS } from "../../src/eval/northstar-corpus.js";
 import { OPERATOR_CORPUS } from "../../src/eval/operator-corpus.js";
+import { RETIRED_PROPOSAL_TOOL, TYPED_PROPOSAL_TOOLS } from "../../src/eval/proposal-tools.js";
+import { WORKFLOW_CORPUS } from "../../src/eval/workflow-corpus.js";
 
-const MUTATING_TOOLS = ["honua_execute_plan", "honua_propose_operation"];
+const MUTATING_TOOLS = [
+  "honua_execute_plan",
+  "honua_propose_finding",
+  "honua_propose_deploy_plan",
+  "honua_propose_deploy_operation",
+  "honua_propose_rollback",
+  "honua_propose_platform_release_convergence",
+  "honua_propose_metadata_release",
+];
 
 describe("operator corpus (#1956)", () => {
   it("is a non-empty held-out set with unique ids", () => {
@@ -18,7 +28,7 @@ describe("operator corpus (#1956)", () => {
       "honua_ground_candidates",
       "honua_clarify_intent",
       "honua_plan_analysis",
-      "honua_propose_operation",
+      ...TYPED_PROPOSAL_TOOLS,
       "honua_dry_run_plan",
       "honua_execute_plan",
       "honua_validate_plan",
@@ -80,6 +90,21 @@ describe("operator corpus (#1956)", () => {
   });
 });
 
+describe("retired proposal tool", () => {
+  it("no corpus names the retired honua_propose_operation", () => {
+    const all = resolveCorpus({ HONUA_EVAL_CORPUS: "all" });
+    for (const scenario of all) {
+      const named = [
+        ...scenario.criteria.requiredTools,
+        ...(scenario.criteria.expectedToolSequence ?? []),
+        ...(scenario.criteria.forbiddenTools ?? []),
+        ...scenario.script.map((step) => step.tool),
+      ];
+      expect(named).not.toContain(RETIRED_PROPOSAL_TOOL);
+    }
+  });
+});
+
 describe("corpus resolution (#1956)", () => {
   it("defaults to the analyst corpus when HONUA_EVAL_CORPUS is unset or unknown", () => {
     expect(resolveCorpus({})).toBe(CORPUS);
@@ -99,9 +124,12 @@ describe("corpus resolution (#1956)", () => {
 
   it("concatenates every corpus for 'all'", () => {
     const all = resolveCorpus({ HONUA_EVAL_CORPUS: "all" });
-    expect(all.length).toBe(CORPUS.length + OPERATOR_CORPUS.length + NORTHSTAR_CORPUS.length);
+    const afterOperator = CORPUS.length + OPERATOR_CORPUS.length;
+    const afterNorthstar = afterOperator + NORTHSTAR_CORPUS.length;
+    expect(all.length).toBe(afterNorthstar + WORKFLOW_CORPUS.length);
     expect(all.slice(0, CORPUS.length)).toEqual(CORPUS);
-    expect(all.slice(CORPUS.length, CORPUS.length + OPERATOR_CORPUS.length)).toEqual(OPERATOR_CORPUS);
-    expect(all.slice(CORPUS.length + OPERATOR_CORPUS.length)).toEqual(NORTHSTAR_CORPUS);
+    expect(all.slice(CORPUS.length, afterOperator)).toEqual(OPERATOR_CORPUS);
+    expect(all.slice(afterOperator, afterNorthstar)).toEqual(NORTHSTAR_CORPUS);
+    expect(all.slice(afterNorthstar)).toEqual(WORKFLOW_CORPUS);
   });
 });

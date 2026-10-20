@@ -1,4 +1,5 @@
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export interface BookmarkCompatItem {
   name: string;
@@ -28,6 +29,7 @@ export class BookmarksCompat {
   public bookmarks: BookmarkCompatItem[];
   public activeBookmark: BookmarkCompatItem | undefined;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: BookmarksCompatOptions = {}) {
     this.view = options.view;
@@ -38,6 +40,8 @@ export class BookmarksCompat {
     this.bookmarks = options.bookmarks ? [...options.bookmarks] : [];
     this.activeBookmark = undefined;
     this.watchListeners = new Map();
+    this.widgetHost = bindHonuaWidgetHost("honua-bookmarks", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public async load(): Promise<BookmarksCompat> {
@@ -83,6 +87,7 @@ export class BookmarksCompat {
     this.bookmarks.push(bookmark);
     this.notifyWatchers("bookmarks", this.bookmarks);
     this.eventBus.emit("bookmarks.updated", { bookmarkCount: this.bookmarks.length }, this);
+    this.pushWidgetHost();
   }
 
   public remove(nameOrBookmark: string | BookmarkCompatItem): boolean {
@@ -123,6 +128,14 @@ export class BookmarksCompat {
 
   public destroy(): void {
     this.watchListeners.clear();
+    this.widgetHost?.destroy();
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      bookmarkList: this.bookmarks,
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {

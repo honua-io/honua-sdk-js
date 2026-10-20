@@ -11,33 +11,14 @@ import {
   resetPmtilesProtocol,
 } from "../src/runtime/pmtiles-protocol.js";
 
-/**
- * MapLibre peer-major compatibility (issue #1004).
- *
- * The SDK advertises `maplibre-gl` `^5.0.0 || ^6.0.0` as an optional peer. This
- * spec is the machine-checked half of that claim: it imports the *real*
- * installed `maplibre-gl` module and asserts every symbol the SDK reaches for
- * (see `src/runtime/pmtiles-protocol.ts`, `src/web-components/maplibre-renderer.ts`,
- * `src/react/honua-map.tsx`, `examples/shared/maplibre-vite-worker.ts`) exists on it.
- *
- * The default `vitest.config.ts` run resolves `maplibre-gl` to the 6.x
- * devDependency. `vitest.maplibre-v5.config.ts` re-runs this same file with
- * `maplibre-gl` aliased to the `maplibre-gl-v5` (5.24.x) devDependency, so both
- * supported majors are exercised by the same assertions rather than one being
- * claimed. `npm run test:maplibre-majors` runs both legs.
- */
-
+/** Validates the patched MapLibre peer contract and the real runtime module. */
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The declared optional-peer range. Widening or narrowing it is a product decision, not a refactor. */
-const DECLARED_PEER_RANGE = "^5.0.0 || ^6.0.0";
-const SUPPORTED_MAJORS: readonly number[] = [5, 6];
+const DECLARED_PEER_RANGE = "^6.4.1";
+const SUPPORTED_MAJORS: readonly number[] = [6];
 
-/**
- * Installed directory backing the `maplibre-gl` specifier for this run. The v5
- * leg aliases the specifier, so file-level assertions must follow the alias
- * instead of always reading the 6.x devDependency.
- */
+/** Installed package used by the supported runtime lane. */
 const PEER_PACKAGE = process.env.HONUA_MAPLIBRE_PACKAGE ?? "maplibre-gl";
 
 interface MapLibreModuleLike {
@@ -72,24 +53,23 @@ function symbol(mod: MapLibreModuleLike, name: keyof MapLibreModuleLike): unknow
 }
 
 describe("maplibre-gl peer major compatibility", () => {
-  it("declares both supported majors as an optional peer", () => {
+  it("requires a patched MapLibre runtime as an optional peer", () => {
     const rootPackage = readJson("package.json");
     const peers = rootPackage.peerDependencies as Record<string, string>;
     const devs = rootPackage.devDependencies as Record<string, string>;
     expect(peers["maplibre-gl"]).toBe(DECLARED_PEER_RANGE);
-    // The 5.x alias is what makes the second CI leg possible; if it is dropped,
-    // dual-major support silently degrades to a claim.
-    expect(devs["maplibre-gl-v5"]).toMatch(/^npm:maplibre-gl@\^5\./);
+    expect(devs["maplibre-gl-v5"]).toBeUndefined();
     expect(devs["maplibre-gl"]).toMatch(/^\^6\./);
   });
 
   it("resolves to a major inside the declared peer range", async () => {
     const mod = (await import("maplibre-gl")) as MapLibreModuleLike;
     const version = resolveVersion(mod);
-    // Proves the leg under test actually loaded the package it claims to: a
-    // broken alias would silently re-run the 6.x leg twice.
+    // Bind runtime behavior to the actual installed package version.
     expect(version).toBe(installedPeerVersion());
     expect(SUPPORTED_MAJORS).toContain(Number.parseInt(version.split(".")[0] ?? "", 10));
+    const [, minor, patch] = version.split(".").map(Number);
+    expect(minor > 4 || (minor === 4 && patch >= 1)).toBe(true);
   });
 
   it("exposes every symbol the SDK reaches for on the installed major", async () => {

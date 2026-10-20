@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Choose server pushdown or bounded browser execution"
-description: "Use this walkthrough when the same map workflow may begin with a Honua feature layer or a direct GeoParquet object. Make the execution boundary and ceilings visible before bytes move, then compare measured evidence rather than assuming the…"
+description: "Decide between server pushdown of a Honua Arrow query and bounded DuckDB-WASM execution over a direct GeoParquet object, with ceilings visible before bytes move and measured evidence for each lane."
 ---
 # Choose server pushdown or bounded browser execution
 
@@ -99,8 +99,6 @@ for await (const { batch, evidence } of session.stream({
 Expected outcome: evidence reports cumulative rows, batches, admitted payload bytes, elapsed time, peak backing bytes, and governing ceilings. Cancellation, an exceeded ceiling, or an unsupported layout is a typed `ColumnarWorkflowError`, never partial success.
 
 The built-in bridge decodes a bounded GeoArrow 0.2 WKB subset: Binary/LargeBinary Point, LineString, or Polygon in XY/XYZ, plus one object-id, one UTF-8/dictionary field, and one timestamp field. It ignores embedded EWKB SRIDs, preserves validated optional column-level `crs`/`crs_type` metadata, and reads the geometry declaration from schema-level GeoParquet metadata when no row can establish it. It never invents a CRS84 default. BinaryView, multi-geometries, GeometryCollection, M/ZM coordinates, ambiguous or additional fields, and Parquet responses require an application decoder and fail closed otherwise.
-
-The checked-in interoperability fixture and its exact producer receipt were emitted by reviewed Honua Server head `66a9d34496c6f6a03dd571957062f773bfef7f0a`, merged as `4ef53ce7f49b78aad3572db1dfc3be88a6654a43`. It is fixture evidence, not a live deployment claim.
 
 ## 4. Switch to direct GeoParquet for browser analysis
 

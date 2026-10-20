@@ -19,9 +19,11 @@
  * @module
  */
 
+import type { HonuaStyleSpecification } from "../style/specification.js";
 import { HONUA_MAP_PACKAGE_SCHEMA_PROTOCOLS } from "./generated/map-package-schema-meta.js";
 import validateAgainstSchema from "./generated/map-package-schema-validator.js";
-import type { HonuaMapPackage } from "./map-package.js";
+import type { HonuaMapPackage, HonuaStyleRefBody } from "./map-package.js";
+import { readStyleLayerBindings, validateBoundStyleBody, validateStyleBindingTargets } from "./style-ref-bindings.js";
 
 export type HonuaMapPackageDiagnosticSeverity = "error" | "warning";
 
@@ -40,6 +42,7 @@ export type HonuaMapPackageDiagnosticCode =
   | "stale-package"
   | "expired-package"
   | "style-ref-missing-layer"
+  | "style-ref-invalid-binding"
   | "style-ref-unresolved"
   | "style-ref-resolution-failed";
 
@@ -283,6 +286,7 @@ function validateStyleRefTargets(
 ): void {
   if (!Array.isArray(pkg.styleRefs)) return;
   const layerIds = new Set<string>();
+  const boundTargets = new Set<string>();
   if (Array.isArray(mapSpec.layers)) {
     for (const layer of mapSpec.layers) {
       if (isRecord(layer) && typeof layer.id === "string") layerIds.add(layer.id);
@@ -291,7 +295,27 @@ function validateStyleRefTargets(
 
   for (let i = 0; i < pkg.styleRefs.length; i += 1) {
     const ref = pkg.styleRefs[i];
-    if (!isRecord(ref) || !isRecord(ref.body)) continue;
+    if (!isRecord(ref)) continue;
+    try {
+      const bindings = readStyleLayerBindings(ref.layerBindings);
+      if (bindings) {
+        validateStyleBindingTargets(bindings, mapSpec as unknown as HonuaStyleSpecification);
+        if (ref.body !== undefined) validateBoundStyleBody(bindings, ref.body as HonuaStyleRefBody);
+        for (const binding of bindings) {
+          if (boundTargets.has(binding.targetLayerId)) throw new Error("Ambiguous shared style target.");
+          boundTargets.add(binding.targetLayerId);
+        }
+      }
+    } catch {
+      add({
+        code: "style-ref-invalid-binding",
+        severity: "error",
+        message: "Shared style render bindings are invalid or stale.",
+        path: `styleRefs[${i}].layerBindings`,
+        detail: { styleId: ref.styleId },
+      });
+    }
+    if (!isRecord(ref.body)) continue;
     for (const layerId of Object.keys(ref.body)) {
       if (layerIds.has(layerId)) continue;
       add({

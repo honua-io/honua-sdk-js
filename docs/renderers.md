@@ -1,14 +1,14 @@
 ---
 type: reference
 title: "Renderer objects and temporal playback"
-description: "First-class renderer objects give standalone MapLibre users the smart-mapping"
+description: "Experimental renderer objects for standalone MapLibre users: class breaks, unique values, heatmaps and clustering as serializable descriptors that compile deterministically to MapLibre style fragments, plus temporal playback."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Renderer objects and temporal playback
 
 > Status: `@experimental` — the surfaces ship on the stable `/style` and
 > `/map` entrypoints but the descriptor shapes may still change in minor
-> releases. (Issue #497.)
+> releases.
 
 First-class renderer objects give standalone MapLibre users the smart-mapping
 vocabulary Esri/CARTO users expect — class breaks, unique values, heatmaps,
@@ -75,7 +75,7 @@ const revived = rendererFromJSON(descriptor); // identical compile output
 ## One implementation everywhere
 
 WebMap JSON conversion (`@honua/sdk-js/webmap`'s `convertRenderer`) and the
-esri-compat renderer shims emit these objects and compile through the same
+client-compat renderer shims emit these objects and compile through the same
 `/expr` path — there is exactly one class-breaks/unique-value compiler in the
 SDK, and the WebMap converter's style output is unchanged byte for byte.
 
@@ -83,7 +83,7 @@ SDK, and the WebMap converter's style output is unchanged byte for byte.
   `classBreaksRendererFromWebMap(renderer, warn)` build renderer objects from
   WebMap renderer JSON.
 - `rendererObjectFromClassBreaksCompat(compat)` /
-  `rendererObjectFromUniqueValueCompat(compat)` (on `/esri-compat`) project a
+  `rendererObjectFromUniqueValueCompat(compat)` (on `/client-compat`) project a
   `ClassBreaksRendererCompat` / `UniqueValueRendererCompat` shim to a renderer
   object plus any symbol-conversion warnings.
 
@@ -146,13 +146,13 @@ playback.setWindow(3 * 24 * 60 * 60 * 1000);
 playback.dispose();
 ```
 
-Memory is bounded by construction (issue #497 REQ-004): the controller keeps
+Memory is bounded by construction: the controller keeps
 only the current window, and filter application is coalesced — at most one
 request in flight plus the single latest pending window; intermediate windows
 are dropped, never queued. No window data is pre-fetched or cached by the
 controller. Playback over static data has no realtime dependency; layering it
-over a live feed is where #393's snapshot-plus-delta resume vocabulary
-applies, and that integration is intentionally out of scope here.
+over a live feed is the realtime resume contract's concern, and that
+integration is intentionally out of scope here.
 
 For the `layer` binding the time property must be numeric (epoch
 milliseconds) because MapLibre filters compare numbers; the `handle` binding

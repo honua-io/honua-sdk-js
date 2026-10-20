@@ -19,7 +19,7 @@
  * @example Back an esri-compat `RouteTaskCompat` with OSRM
  * ```ts
  * import { osrmRoutingProvider, routingProviderToCompatRouteProvider } from "@honua/sdk-js/routing";
- * import { RouteTaskCompat } from "@honua/sdk-js/esri-compat";
+ * import { RouteTaskCompat } from "@honua/sdk-js/client-compat";
  *
  * const task = new RouteTaskCompat({
  *   routeProvider: routingProviderToCompatRouteProvider(

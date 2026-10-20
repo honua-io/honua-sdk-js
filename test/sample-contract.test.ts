@@ -245,7 +245,7 @@ describe("sample publication contract", () => {
       3,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
-      lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
+      lifecycle: { state: "rework", targetRelease: "0.3.0" },
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
     expect(
@@ -937,6 +937,20 @@ describe("sample publication contract", () => {
     expect(isRunnableRootExampleDirectory("shared-test-helpers", ["README.md", "tsconfig.json"])).toBe(false);
   });
 
+  it("refuses unfinished sample transitions at the approved 0.3 deadline", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const packageJson = await readJson("package.json");
+    // Apply the actual pending policy to the first sorted fixture entry so the
+    // deadline guard runs before unrelated current-version live receipts. This
+    // synthetic negative fixture changes no receipt or production catalog.
+    const pending = catalog.samples.find((sample: { id: string }) => sample.id === "app-bootstrap-basic");
+    expect(pending.lifecycle.targetRelease).toBe("0.3.0");
+    catalog.samples[0].lifecycle = structuredClone(pending.lifecycle);
+    await expect(validateCatalog(catalog, { ...packageJson, version: "0.3.0" }, validationTime)).rejects.toThrow(
+      `${catalog.samples[0].id}: lifecycle retire expired at 0.3.0`,
+    );
+  });
+
   it("compares lifecycle targets with full semantic prerelease precedence", () => {
     expect(compareReleases("0.2.0-alpha.9", "0.2.0-beta.0")).toBeLessThan(0);
     expect(compareReleases("0.2.0-beta.0", "0.2.0-beta.0")).toBe(0);
@@ -1044,6 +1058,10 @@ describe("sample publication contract", () => {
       await expect(validateSiteProjection(future)).rejects.toThrow(/unsupported site projection/u);
     });
 
+    // generatedOutputs() reads real qualification evidence for all four golden
+    // journeys, like the tests below that carry their own budget; on a loaded
+    // runner it has exceeded the file's 40s default, so give it the same
+    // single-generation headroom rather than inflating every test in the file.
     it("is emitted as a generated artifact and sealed to the release version", async () => {
       const catalog = await readJson("samples/catalog.v2.json");
       const packageJson = await readJson("package.json");
@@ -1056,7 +1074,7 @@ describe("sample publication contract", () => {
       // a release strands a stale pointer, so the seal must cover v4 too.
       expect(SEALED_VERSION_STAMPS.map((stamp) => stamp.path)).toContain("samples/dist/honua-site-samples.v4.json");
       expect(JSON.parse(emitted!).catalog.version).toBe(packageJson.version);
-    });
+    }, 80_000);
   });
 
   // Reads real qualification evidence for all four golden journeys
@@ -1450,6 +1468,64 @@ describe("sample publication contract", () => {
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
   }, 100_000);
 
+  // A full strict validateCatalog is expensive; this test runs three, so it
+  // carries its own budget rather than inflating the version-derivation test.
+  it("tolerates stale reseal-owned evidence versions only for qualification bootstrap targets", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const packageJson = await readJson("package.json");
+    const versionMatch = /^(\d+)\.(\d+)\.(\d+)([-+].+)?$/.exec(packageJson.version);
+    if (!versionMatch) {
+      throw new Error(`Expected a semantic package version, received ${packageJson.version}`);
+    }
+    const bumpedVersion = `${versionMatch[1]}.${versionMatch[2]}.${Number(versionMatch[3]) + 1}${versionMatch[4] ?? ""}`;
+    const bumpedPackage = { ...packageJson, version: bumpedVersion };
+    // The strict reseal names the reseal-owned golden lanes as qualification
+    // bootstrap targets while it re-observes them, so their pre-bump version
+    // is tolerated for exactly those samples (honua-io/honua-release#376).
+    // Release-please-owned lab evidence is also stale after a bare package
+    // bump, so take those lanes off evidence to isolate the golden ones.
+    const goldenOnlyEvidence = structuredClone(catalog);
+    for (const sample of goldenOnlyEvidence.samples) {
+      if (sample.track === "golden") continue;
+      const { evidencePath: _path, expiresAt: _expires, targetMode: _target, ...live } = sample.evidence.live;
+      sample.evidence.live = { ...live, status: "not-applicable", mode: "unavailable" };
+    }
+    const resealOwnedGoldenSamples = goldenOnlyEvidence.samples.filter(
+      (sample: { track: string }) => sample.track === "golden",
+    );
+    const resealOwnedGoldenIds = resealOwnedGoldenSamples.map((sample: { id: string }) => sample.id);
+    // The reseal, not Release Please, stamps this evidence, so on a release
+    // pull request it still carries the previous version while package.json
+    // already carries the new one. Expect the version the evidence records.
+    const resealOwnedEvidenceVersion = (await readJson(resealOwnedGoldenSamples[0].evidence.live.evidencePath)).sdk
+      .version;
+    // The reseal runs strictly; PR CI relaxes derived artifacts, so pin strict.
+    vi.stubEnv("HONUA_DERIVED_ARTIFACTS_RELAX", "");
+    try {
+      await expect(validateCatalog(goldenOnlyEvidence, bumpedPackage, validationTime)).rejects.toThrow(
+        `${resealOwnedGoldenIds[0]}: live evidence SDK version ${resealOwnedEvidenceVersion} does not match ${bumpedVersion}`,
+      );
+      await expect(
+        validateCatalog(goldenOnlyEvidence, bumpedPackage, {
+          ...validationTime,
+          qualificationBootstrapSampleId: resealOwnedGoldenIds.slice(1),
+        }),
+      ).rejects.toThrow(
+        `${resealOwnedGoldenIds[0]}: live evidence SDK version ${resealOwnedEvidenceVersion} does not match ${bumpedVersion}`,
+      );
+      const bootstrapped = await validateCatalog(goldenOnlyEvidence, bumpedPackage, {
+        ...validationTime,
+        qualificationBootstrapSampleId: resealOwnedGoldenIds,
+      }).then(
+        () => undefined,
+        (error: Error) => error.message,
+      );
+      expect(bootstrapped ?? "").not.toContain("live evidence SDK version");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 240_000);
+
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
     const packageJson = await readJson("package.json");
 
@@ -1493,7 +1569,7 @@ describe("sample publication contract", () => {
     const second = replacementCycle.samples.find((sample: { id: string }) => sample.id === "stac-imagery-browser");
     first.lifecycle.replacement = { kind: "sample", id: second.id };
     second.lifecycle.state = "merge";
-    second.lifecycle.targetRelease = "0.2.0-beta.0";
+    second.lifecycle.targetRelease = first.lifecycle.targetRelease;
     second.lifecycle.replacement = { kind: "sample", id: first.id };
     await expect(validateCatalog(replacementCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:geoprocessing-job-runner -> sample:stac-imagery-browser -> sample:geoprocessing-job-runner",
@@ -1504,7 +1580,9 @@ describe("sample publication contract", () => {
       (sample: { id: string }) => sample.id === "imagery-cog-quickstart",
     );
     imagery.lifecycle.state = "merge";
-    imagery.lifecycle.targetRelease = "0.2.0-beta.0";
+    imagery.lifecycle.targetRelease = expandedJourneyCycle.samples.find(
+      (sample: { id: string }) => sample.id === "storytelling-25d-map",
+    ).lifecycle.targetRelease;
     imagery.lifecycle.replacement = { kind: "journey", id: "imagery-terrain" };
     await expect(validateCatalog(expandedJourneyCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:imagery-cog-quickstart -> journey:imagery-terrain -> sample:imagery-cog-quickstart",
@@ -2346,7 +2424,7 @@ runNpmScriptSync("demo:wrong:build", {
     inactive.sample.lifecycle = {
       state: "rework",
       reason: "Promotion regression fixture.",
-      targetRelease: "0.2.0-beta.0",
+      targetRelease: "0.3.0",
     };
     await expect(validateCatalog(inactive.catalog, packageJson, validationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples must be active",

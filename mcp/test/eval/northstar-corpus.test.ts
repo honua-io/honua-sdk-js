@@ -25,8 +25,17 @@ const STANDARD_TOOLS = new Set([
   "honua_geocode_addresses",
   "honua_ingest_dataset",
   "honua_publish_service",
-  "honua_propose_operation",
 ]);
+
+/** The typed governed-proposal roster that replaced the retired honua_propose_operation. */
+const PROPOSAL_TOOLS = [
+  "honua_propose_finding",
+  "honua_propose_deploy_plan",
+  "honua_propose_deploy_operation",
+  "honua_propose_rollback",
+  "honua_propose_platform_release_convergence",
+  "honua_propose_metadata_release",
+];
 
 /** P1 tools not yet advertised by servers predating the north-star surface. */
 const P1_PENDING_TOOLS = ["honua_publish_result", "honua_apply_style_preset"];
@@ -106,9 +115,12 @@ describe("north-star corpus (#1948, P1.7)", () => {
     }
   });
 
-  it("forbids the generic propose_operation escape-hatch on every workflow", () => {
+  it("forbids every typed control-plane proposal tool on every workflow", () => {
     for (const s of NORTHSTAR_CORPUS) {
-      expect(s.criteria.forbiddenTools ?? []).toContain("honua_propose_operation");
+      for (const tool of PROPOSAL_TOOLS) {
+        expect(s.criteria.forbiddenTools ?? []).toContain(tool);
+      }
+      expect(s.criteria.forbiddenTools ?? []).not.toContain("honua_propose_operation");
     }
   });
 
@@ -142,7 +154,7 @@ describe("north-star grading (#1948, P1.7)", () => {
     expect(g.violations).toEqual([]);
   });
 
-  it("fails a transcript that skips publish and reaches for propose_operation", () => {
+  it("fails a transcript that skips publish and files a deploy proposal instead", () => {
     const scenario = findScenario("northstar-styled-map");
     const g = grade(
       scenario,
@@ -150,7 +162,7 @@ describe("north-star grading (#1948, P1.7)", () => {
         steps: [
           { tool: "honua_resolve_entity", args: {}, isError: false },
           { tool: "honua_execute_plan", args: {}, isError: false },
-          { tool: "honua_propose_operation", args: {}, isError: false },
+          { tool: "honua_propose_deploy_operation", args: {}, isError: false },
           { tool: "honua_render_map", args: {}, isError: false },
         ],
         finalAnswer: "done",
@@ -158,7 +170,9 @@ describe("north-star grading (#1948, P1.7)", () => {
     );
     expect(g.outcome).toBe("fail");
     expect(g.violations.some((v) => v.includes("honua_publish_result"))).toBe(true);
-    expect(g.violations.some((v) => v.includes("forbidden") && v.includes("honua_propose_operation"))).toBe(true);
+    expect(g.violations.some((v) => v.includes("forbidden") && v.includes("honua_propose_deploy_operation"))).toBe(
+      true,
+    );
   });
 
   it("fails the buffer-stats job when the answer shows no job evidence", () => {

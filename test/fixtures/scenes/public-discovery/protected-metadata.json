@@ -1,0 +1,45 @@
+{
+  "id": "downtown-honolulu",
+  "name": "Downtown Honolulu",
+  "description": "Minimal hosted 3D Tiles fixture for mobile live-image scene discovery and asset download tests.",
+  "tileset": {
+    "kind": "3d-tiles",
+    "url": "https://scenes.example.test/scenes/downtown-honolulu/tileset.json",
+    "mediaType": "application/json",
+    "format": "3d-tiles",
+    "requiresAuthentication": true
+  },
+  "center": {
+    "latitude": 21.3075,
+    "longitude": -157.855,
+    "height": 1200
+  },
+  "bounds": {
+    "west": -157.875,
+    "south": 21.29,
+    "east": -157.835,
+    "north": 21.325
+  },
+  "capabilities": ["3d-tiles"],
+  "attribution": [],
+  "auth": {
+    "requiresAuthentication": true,
+    "schemes": ["Bearer", "ApiKey"],
+    "policy": "project-members"
+  },
+  "links": [
+    {
+      "rel": "self",
+      "href": "https://scenes.example.test/api/scenes/downtown-honolulu",
+      "type": "application/json",
+      "title": "Scene metadata"
+    },
+    {
+      "rel": "resolve",
+      "href": "https://scenes.example.test/api/scenes/downtown-honolulu/resolve",
+      "type": "application/json",
+      "title": "Scene render endpoint resolution"
+    }
+  ],
+  "updatedAt": "2026-05-01T00:00:00Z"
+}

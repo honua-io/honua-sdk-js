@@ -1,8 +1,8 @@
 {
   "format": "honua.sdk.oss-arcgis-corpus-readiness.v1",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-04T02:41:27.182Z",
-  "manifestRevision": "2026-08-03",
+  "generatedAt": "2026-09-15T00:35:57.619Z",
+  "manifestRevision": "2026-08-04",
   "codemodTarget": "honua-compat",
   "lane": {
     "optInEnvVar": "HONUA_OSS_ARCGIS_CORPUS_ENABLED",
@@ -10,17 +10,17 @@
     "noLiveEsriServiceContact": true
   },
   "summary": {
-    "appCount": 6,
-    "observed": 6,
+    "appCount": 7,
+    "observed": 7,
     "errored": 0,
     "ready": 0,
-    "assisted": 6,
+    "assisted": 7,
     "blocked": 0,
-    "totalCallSites": 171,
-    "autoMigratedCallSites": 75,
-    "manualCallSites": 96,
-    "autoMigratedRatio": 0.4386,
-    "unhandledUsageHits": 146,
+    "totalCallSites": 214,
+    "autoMigratedCallSites": 107,
+    "manualCallSites": 107,
+    "autoMigratedRatio": 0.5,
+    "unhandledUsageHits": 151,
     "topManualTodoKinds": [
       {
         "kind": "label-class",
@@ -48,7 +48,7 @@
     "styleCoverage": {
       "widget-heavy": 4,
       "amd-require": 3,
-      "featurelayer-centric": 4
+      "featurelayer-centric": 5
     }
   },
   "apps": [
@@ -63,7 +63,7 @@
         "amd-require",
         "widget-heavy"
       ],
-      "observedAt": "2026-08-04",
+      "observedAt": "2026-09-15",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
@@ -157,7 +157,7 @@
         "featurelayer-centric",
         "widget-heavy"
       ],
-      "observedAt": "2026-08-04",
+      "observedAt": "2026-09-15",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
@@ -166,13 +166,21 @@
       "filesWithArcGisImports": 1,
       "usageDetected": true,
       "totalCallSites": 11,
-      "autoMigratedCallSites": 6,
-      "manualCallSites": 5,
-      "autoMigratedRatio": 0.5455,
-      "manualRewriteRatio": 0.4545,
-      "manualInterventionRatio": 0.7692,
+      "autoMigratedCallSites": 3,
+      "manualCallSites": 8,
+      "autoMigratedRatio": 0.2727,
+      "manualRewriteRatio": 0.7273,
+      "manualInterventionRatio": 0.8846,
       "unhandledUsageHits": 15,
       "topManualTodoKinds": [
+        {
+          "kind": "color",
+          "count": 2
+        },
+        {
+          "kind": "extent-geometry",
+          "count": 2
+        },
         {
           "kind": "feature-layer",
           "count": 2
@@ -180,10 +188,6 @@
         {
           "kind": "unique-value-renderer",
           "count": 2
-        },
-        {
-          "kind": "extent-geometry",
-          "count": 1
         }
       ],
       "topUnhandledModules": [
@@ -240,7 +244,7 @@
         "amd-require",
         "widget-heavy"
       ],
-      "observedAt": "2026-08-04",
+      "observedAt": "2026-09-15",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
@@ -338,7 +342,7 @@
       "styles": [
         "featurelayer-centric"
       ],
-      "observedAt": "2026-08-04",
+      "observedAt": "2026-09-15",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
@@ -347,11 +351,11 @@
       "filesWithArcGisImports": 6,
       "usageDetected": true,
       "totalCallSites": 48,
-      "autoMigratedCallSites": 41,
-      "manualCallSites": 7,
-      "autoMigratedRatio": 0.8542,
-      "manualRewriteRatio": 0.1458,
-      "manualInterventionRatio": 0.18,
+      "autoMigratedCallSites": 40,
+      "manualCallSites": 8,
+      "autoMigratedRatio": 0.8333,
+      "manualRewriteRatio": 0.1667,
+      "manualInterventionRatio": 0.2,
       "unhandledUsageHits": 2,
       "topManualTodoKinds": [
         {
@@ -364,6 +368,10 @@
         },
         {
           "kind": "map-view",
+          "count": 1
+        },
+        {
+          "kind": "point-geometry",
           "count": 1
         },
         {
@@ -404,7 +412,7 @@
         "featurelayer-centric",
         "widget-heavy"
       ],
-      "observedAt": "2026-08-04",
+      "observedAt": "2026-09-15",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
@@ -462,7 +470,7 @@
       "styles": [
         "featurelayer-centric"
       ],
-      "observedAt": "2026-08-04",
+      "observedAt": "2026-09-15",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
@@ -471,13 +479,17 @@
       "filesWithArcGisImports": 3,
       "usageDetected": true,
       "totalCallSites": 7,
-      "autoMigratedCallSites": 6,
-      "manualCallSites": 1,
-      "autoMigratedRatio": 0.8571,
-      "manualRewriteRatio": 0.1429,
-      "manualInterventionRatio": 0.25,
+      "autoMigratedCallSites": 5,
+      "manualCallSites": 2,
+      "autoMigratedRatio": 0.7143,
+      "manualRewriteRatio": 0.2857,
+      "manualInterventionRatio": 0.375,
       "unhandledUsageHits": 1,
       "topManualTodoKinds": [
+        {
+          "kind": "feature-filter",
+          "count": 1
+        },
         {
           "kind": "feature-layer",
           "count": 1
@@ -500,6 +512,76 @@
         "assistedSites": 0,
         "manualSites": 0,
         "automatedPct": 100,
+        "gatePct": 0,
+        "gatePassed": true,
+        "topManualWidgets": []
+      }
+    },
+    {
+      "appId": "qg-travel-system",
+      "title": "QG Travel System — Qinghai-Gansu Grand Loop trip planner",
+      "repoUrl": "https://github.com/Zenith-Angle/QG_TravelSystem",
+      "commit": "1b79b87a8958f68585687571fbe16e5328e0fad6",
+      "licenseSpdxId": "Apache-2.0",
+      "authorKind": "individual",
+      "styles": [
+        "featurelayer-centric"
+      ],
+      "observedAt": "2026-09-15",
+      "status": "observed",
+      "codemodTarget": "honua-compat",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=13 filesWithArcGisImports=4 importCount=24 esriLeafletImportCount=0 topSymbols=[WebTileLayer:10, Point:8, Graphic:8, PictureMarkerSymbol:8, PopupTemplate:8, GraphicsLayer:5, MapView:4, SimpleMarkerSymbol:4, FeatureLayer:3, MapImageLayer:3] flags=[none]",
+      "filesScanned": 13,
+      "filesWithArcGisImports": 4,
+      "usageDetected": true,
+      "totalCallSites": 43,
+      "autoMigratedCallSites": 37,
+      "manualCallSites": 6,
+      "autoMigratedRatio": 0.8605,
+      "manualRewriteRatio": 0.1395,
+      "manualInterventionRatio": 0.2292,
+      "unhandledUsageHits": 5,
+      "topManualTodoKinds": [
+        {
+          "kind": "point-geometry",
+          "count": 4
+        },
+        {
+          "kind": "reactive-utils",
+          "count": 2
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "@arcgis/core/layers/WebTileLayer",
+          "usageStyle": "static-import",
+          "count": 2
+        },
+        {
+          "modulePath": "@arcgis/core/assets/esri/themes/light/main.css",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "@arcgis/core/geometry/Circle",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "@arcgis/core/geometry/support/webMercatorUtils",
+          "usageStyle": "static-import",
+          "count": 1
+        }
+      ],
+      "blockingFlags": [],
+      "scanFlags": [],
+      "widgets": {
+        "totalSites": 1,
+        "automatedSites": 0,
+        "assistedSites": 1,
+        "manualSites": 0,
+        "automatedPct": 0,
         "gatePct": 0,
         "gatePassed": true,
         "topManualWidgets": []

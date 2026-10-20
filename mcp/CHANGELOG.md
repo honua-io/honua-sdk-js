@@ -1,5 +1,338 @@
 # Changelog
 
+## [0.2.7](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.6...mcp-server-v0.2.7) (2026-10-20)
+
+
+### Bug Fixes
+
+* **agent:** generate configs with verified published MCP 0.2.6 ([#2180](https://github.com/honua-io/honua-sdk-js/issues/2180)) ([#2185](https://github.com/honua-io/honua-sdk-js/issues/2185)) ([8bdda43](https://github.com/honua-io/honua-sdk-js/commit/8bdda43a1e4b64d4743558123b4b59b69327ce8e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.2.6](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.5...mcp-server-v0.2.6) (2026-10-20)
+
+
+### Bug Fixes
+
+* **agent:** discover complete GIS workflows by default ([#2180](https://github.com/honua-io/honua-sdk-js/issues/2180)) ([#2181](https://github.com/honua-io/honua-sdk-js/issues/2181)) ([3c5d23a](https://github.com/honua-io/honua-sdk-js/commit/3c5d23a6fc622dd4523edaebb5ed7628ef6b1d79))
+* **agent:** preserve resource windows and share GIS workflow guidance ([#2179](https://github.com/honua-io/honua-sdk-js/issues/2179)) ([4124550](https://github.com/honua-io/honua-sdk-js/commit/4124550556be29f9833c7bc9ce25720663074a2f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.2.5](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.4...mcp-server-v0.2.5) (2026-10-19)
+
+
+### Bug Fixes
+
+* **mcp:** advance generated client pin to published 0.2.4 ([#2171](https://github.com/honua-io/honua-sdk-js/issues/2171)) ([8103be6](https://github.com/honua-io/honua-sdk-js/commit/8103be65aa8fbafe9853c3cd7d5be41babdef53e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.2.4](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.3...mcp-server-v0.2.4) (2026-10-19)
+
+
+### Features
+
+* **agent:** bind cloud operations to verified runtime backends ([#2144](https://github.com/honua-io/honua-sdk-js/issues/2144)) ([f3fcb90](https://github.com/honua-io/honua-sdk-js/commit/f3fcb9061ce3355fa06e567c0d173e8d38a1c098))
+* **agent:** integrate native workspace gateway and private workflows ([#2141](https://github.com/honua-io/honua-sdk-js/issues/2141)) ([afa8548](https://github.com/honua-io/honua-sdk-js/commit/afa85488c12a0239e89e2d0bc8a442cb76acc0c1))
+* **mcp:** add persistent local Honua agent gateway ([#2138](https://github.com/honua-io/honua-sdk-js/issues/2138)) ([160a17d](https://github.com/honua-io/honua-sdk-js/commit/160a17d50a5e2bfd8350357e30cae5fb1e240578))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.2.3](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.2...mcp-server-v0.2.3) (2026-10-14)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.2.2](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.1...mcp-server-v0.2.2) (2026-10-13)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.2.1](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.0...mcp-server-v0.2.1) (2026-10-13)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.2.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.19...mcp-server-v0.2.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **release:** SDK and MCP require Node 22.12 or newer; Node 20 is unsupported in the next managed release. Preserve the recovered Node 20 bridge as its existing immutable release.
+
+### Miscellaneous
+
+* **release:** advance verified MCP bridge for Node 22 ([#2084](https://github.com/honua-io/honua-sdk-js/issues/2084)) ([9485939](https://github.com/honua-io/honua-sdk-js/commit/9485939daf567053597e7e0bf339c4bb505e8c1c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
+## [0.1.19](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.18...mcp-server-v0.1.19) (2026-10-12)
+
+
+### Features
+
+* **cli:** expose shared Studio draft save-version command ([#2050](https://github.com/honua-io/honua-sdk-js/issues/2050)) ([deed74d](https://github.com/honua-io/honua-sdk-js/commit/deed74d950203a91d5ae122a52c0e9b9a8e0917b))
+* **control-plane:** preserve requested map publication intent ([#2046](https://github.com/honua-io/honua-sdk-js/issues/2046)) ([d879a70](https://github.com/honua-io/honua-sdk-js/commit/d879a706495599b95189702fb1b57019722b5c56))
+
+
+### Bug Fixes
+
+* **mcp:** isolate offline certification and materialize gRPC statistics ([#2068](https://github.com/honua-io/honua-sdk-js/issues/2068)) ([584551c](https://github.com/honua-io/honua-sdk-js/commit/584551c20dc059223814990d0a4964bbc7a5b8a2))
+* **mcp:** preserve reviewed peer bridge across minor releases ([#2070](https://github.com/honua-io/honua-sdk-js/issues/2070)) ([3dbfac7](https://github.com/honua-io/honua-sdk-js/commit/3dbfac7b4eb637de4915a3d6ab819f79319f40e4))
+* **mcp:** preserve the peer bridge for the Node 22 transition ([dbdc6d3](https://github.com/honua-io/honua-sdk-js/commit/dbdc6d37bb8c880936235033218fea2e3d723add))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.18
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.17 || ^0.2.0 to ^0.1.18
+
+## [0.1.18](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.17...mcp-server-v0.1.18) (2026-10-12)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.17
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.16 to ^0.1.17
+
+## [0.1.17](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.16...mcp-server-v0.1.17) (2026-10-12)
+
+
+### Bug Fixes
+
+* **installer:** select and pin the published MCP 0.1.16 client ([#2026](https://github.com/honua-io/honua-sdk-js/issues/2026)) ([05fca2c](https://github.com/honua-io/honua-sdk-js/commit/05fca2c688f877baf433ef7a2bdd8885b04deb09))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.16
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.15 to ^0.1.16
+
+## [0.1.16](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.15...mcp-server-v0.1.16) (2026-10-11)
+
+
+### Bug Fixes
+
+* align local installer and bounded qualification with 2026.1 contracts ([#2020](https://github.com/honua-io/honua-sdk-js/issues/2020)) ([16074c4](https://github.com/honua-io/honua-sdk-js/commit/16074c49635c3cf8d84c2a90a57fbfd96dac509b))
+
+## [0.1.15](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.14...mcp-server-v0.1.15) (2026-10-11)
+
+
+### Bug Fixes
+
+* **ci:** resume release checks without polling and reduce reseal churn ([#1977](https://github.com/honua-io/honua-sdk-js/issues/1977)) ([b56b988](https://github.com/honua-io/honua-sdk-js/commit/b56b988cb498cd9417cf57a30073723990ba76e8))
+* complete query and installer audits and preserve dashboard focus ([#2008](https://github.com/honua-io/honua-sdk-js/issues/2008)) ([6db2a69](https://github.com/honua-io/honua-sdk-js/commit/6db2a6977807cfab654344f2965829af995186a0))
+* **install:** mint the local agent key with read:* and re-issue legacy keys ([#2002](https://github.com/honua-io/honua-sdk-js/issues/2002)) ([8037630](https://github.com/honua-io/honua-sdk-js/commit/80376300772df954b58b040988ee969241aef149))
+* **mcp-cert:** certify the pinned candidate with a real key; retire honua_propose_operation; add roster parity ([#2005](https://github.com/honua-io/honua-sdk-js/issues/2005)) ([164b32d](https://github.com/honua-io/honua-sdk-js/commit/164b32d5770aa7acea1fa0ece62e4a3aaa2031dd))
+* refresh Admin contract and bind installed MCP identity ([#2018](https://github.com/honua-io/honua-sdk-js/issues/2018)) ([f7bc500](https://github.com/honua-io/honua-sdk-js/commit/f7bc500120431d422cd36c5f5fbbf8db9a9e220b))
+
+
+### Performance
+
+* slim SDK distribution and synchronize published client pins ([#2012](https://github.com/honua-io/honua-sdk-js/issues/2012)) ([eeab917](https://github.com/honua-io/honua-sdk-js/commit/eeab917d13241069937dd8a609de9fdc03aafcb7))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.15
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.14 to ^0.1.15
+
+## [0.1.14](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.13...mcp-server-v0.1.14) (2026-10-06)
+
+
+### Bug Fixes
+
+* **mcp-proxy:** preserve the initialize-bound setup view across the proxy ([#1950](https://github.com/honua-io/honua-sdk-js/issues/1950)) ([ef1e3bd](https://github.com/honua-io/honua-sdk-js/commit/ef1e3bd909e2f30b2cb19463ede66f7427b86220))
+* **mcp-server:** keep 3D point altitude in esri-json output; WFS extent drains observe cancellation ([1557f9f](https://github.com/honua-io/honua-sdk-js/commit/1557f9f8c6d84a40b5c1dca31d08817aa93a3207))
+* **mcp-server:** query output format must match the payload; standalone aggregation observes MCP cancellation ([c1d2a0a](https://github.com/honua-io/honua-sdk-js/commit/c1d2a0a10f8035d6540f7597e37bb511a285f326))
+* **mcp-server:** query output format must match the payload; standalone aggregation observes MCP cancellation ([5bb9005](https://github.com/honua-io/honua-sdk-js/commit/5bb900551d178e01c14f7c4a880e15001cb89ba2))
+
+
+### Documentation
+
+* **mcp:** make mcp/README.md blocks run against the 2026.1 candidate ([55cd8bd](https://github.com/honua-io/honua-sdk-js/commit/55cd8bd4ecd151c74839d6431acb50a860216fe6))
+* **mcp:** make mcp/README.md blocks run against the 2026.1 candidate ([56991c2](https://github.com/honua-io/honua-sdk-js/commit/56991c24edddc01ab53bc1eeb6612cac00d6a37d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.14
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.13 to ^0.1.14
+
+## [0.1.13](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.12...mcp-server-v0.1.13) (2026-10-04)
+
+
+### Bug Fixes
+
+* **ci:** fail when the JS SDK job skips the browser smoke suite ([3c96e76](https://github.com/honua-io/honua-sdk-js/commit/3c96e7611461dce20bb2bff13a4b633d0c6c25c3))
+* **mcp:** fail closed on invalid proxy initialize and certify the installed executable ([#1877](https://github.com/honua-io/honua-sdk-js/issues/1877)) ([eecea68](https://github.com/honua-io/honua-sdk-js/commit/eecea688b42076f8cff0616e389bc34ecd1fb25d))
+* **mcp:** override fast-uri to 3.1.8 ([55d375f](https://github.com/honua-io/honua-sdk-js/commit/55d375fc4cce4f46d9aad42a6e4d9eb782cef151))
+* **mcp:** preserve initialize-bound views in the published proxy ([#1876](https://github.com/honua-io/honua-sdk-js/issues/1876)) ([94d2fd3](https://github.com/honua-io/honua-sdk-js/commit/94d2fd3f0677dd86ad7c73e47ce08aa59c81ea82))
+
+
+### Documentation
+
+* make the getting-started blocks run against the 2026.1 candidate (R28) ([#1900](https://github.com/honua-io/honua-sdk-js/issues/1900)) ([8715567](https://github.com/honua-io/honua-sdk-js/commit/8715567ff3e6f054a81540e0f521ce346d6a9f73))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.13
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.12 to ^0.1.13
+
+## [0.1.12](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.11-beta.0...mcp-server-v0.1.12) (2026-09-29)
+
+
+### Features
+
+* **release:** release the JS packages as stable 0.x from 0.2.0 ([#1841](https://github.com/honua-io/honua-sdk-js/issues/1841)) ([e588f33](https://github.com/honua-io/honua-sdk-js/commit/e588f338d1779d038f85d577a1187a8792a7eb87))
+
+
+### Bug Fixes
+
+* **control-plane:** refresh and verify the release Admin contract pin ([#1843](https://github.com/honua-io/honua-sdk-js/issues/1843)) ([24a15cf](https://github.com/honua-io/honua-sdk-js/commit/24a15cf2f1759a0be6bb9686fbd0e2db9b73069f))
+
+
+### Miscellaneous
+
+* **release:** cut the first stable release as 0.1.12, not 0.2.0 ([#1845](https://github.com/honua-io/honua-sdk-js/issues/1845)) ([b831ad8](https://github.com/honua-io/honua-sdk-js/commit/b831ad832ca8d764968a6d91af5f699dbfdecdd9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.12
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.11-beta.0 to ^0.1.12
+
+## [0.1.11-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.10-beta.0...mcp-server-v0.1.11-beta.0) (2026-09-29)
+
+
+### Features
+
+* **cli:** qualify bounded local setup and style/render ([#1786](https://github.com/honua-io/honua-sdk-js/issues/1786)) ([0a2a459](https://github.com/honua-io/honua-sdk-js/commit/0a2a459c7c11f518cd796cee2251d7c69768b377))
+* **eval:** grade the full workflow and make local install ready ([#1784](https://github.com/honua-io/honua-sdk-js/issues/1784)) ([e6218d5](https://github.com/honua-io/honua-sdk-js/commit/e6218d52e1ab92c8c07ed19bf0310b91a1a975a2))
+* **mcp:** retarget zero-to-map to the operator roster ([#1780](https://github.com/honua-io/honua-sdk-js/issues/1780)) ([d10ee0c](https://github.com/honua-io/honua-sdk-js/commit/d10ee0c124b6da69273462f4facfa7ff3f9a230b))
+
+
+### Bug Fixes
+
+* **control-plane:** propagate command correlation identity ([0ea481a](https://github.com/honua-io/honua-sdk-js/commit/0ea481a168d9be4557ac02b97bc78518980c9561))
+* **control-plane:** propagate command correlation identity ([3651c1d](https://github.com/honua-io/honua-sdk-js/commit/3651c1dcc314ade61af953ac139747c1c2d85f1e))
+* **esri-compat:** keep leftover FeatureLayer constructor options ([#1805](https://github.com/honua-io/honua-sdk-js/issues/1805)) ([9fb77e6](https://github.com/honua-io/honua-sdk-js/commit/9fb77e625b7873084ea646c6468b8ac25211a6c8))
+* **mcp:** move ip-address past GHSA-rpw4-54j3-4h4q and GHSA-2vr4-cq9g-pvrc ([#1821](https://github.com/honua-io/honua-sdk-js/issues/1821)) ([5ccaa07](https://github.com/honua-io/honua-sdk-js/commit/5ccaa07ccf8fad216d89da38949ee91300ed5a1e))
+* **mcp:** preserve and qualify bounded setup views ([7ae5927](https://github.com/honua-io/honua-sdk-js/commit/7ae59277c6c00ae43bcc425138e62ac0f143c17a))
+* **mcp:** preserve workflow view across stdio proxy requests ([89494fe](https://github.com/honua-io/honua-sdk-js/commit/89494fefea654b388304053b4b0d715e5d88d53f))
+* **mcp:** qualify bounded setup catalogs against pinned descriptors ([e18f905](https://github.com/honua-io/honua-sdk-js/commit/e18f905f37daa093de5912e3f669fda17c44d69b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.11-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.10-beta.0 to ^0.1.11-beta.0
+
+## [0.1.10-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.9-beta.0...mcp-server-v0.1.10-beta.0) (2026-09-22)
+
+
+### Bug Fixes
+
+* **cli:** harden admin and connection command contracts ([#1598](https://github.com/honua-io/honua-sdk-js/issues/1598)) ([b3ad280](https://github.com/honua-io/honua-sdk-js/commit/b3ad28019c865634b9989f7919d6db2d5bb3e7f5))
+* **mcp:** verify zero-to-map config pins ([#1550](https://github.com/honua-io/honua-sdk-js/issues/1550)) ([2ae8bbd](https://github.com/honua-io/honua-sdk-js/commit/2ae8bbd0bca37edf84dfa0695d43fe8317bc3e74))
+* **release:** prove published-layer style rendering and pin the preflight to the full catalog ([#1542](https://github.com/honua-io/honua-sdk-js/issues/1542)) ([f936d37](https://github.com/honua-io/honua-sdk-js/commit/f936d37bf6c41d64f5e7a2daf6d0d89f8faeb8f5))
+* **release:** prove visible decoded pixels in zero-to-map render receipts ([#1644](https://github.com/honua-io/honua-sdk-js/issues/1644)) ([6c1e593](https://github.com/honua-io/honua-sdk-js/commit/6c1e593ce9dee03dcca4c4afde6343a89f53a69c))
+* take trunk green (MCP import contract, Kepler fflate, exception renewal) ([#1623](https://github.com/honua-io/honua-sdk-js/issues/1623)) ([e495f14](https://github.com/honua-io/honua-sdk-js/commit/e495f14f8d04b7c5c6ee570c516be96dbab37815))
+
+
+### Documentation
+
+* **zero-to-map:** state the server allowlist entry the journey's database secret reference needs ([33cff9c](https://github.com/honua-io/honua-sdk-js/commit/33cff9cdb6e81223243a76bc2eff24cda6b8f194))
+* **zero-to-map:** state the server allowlist entry the journey's database secret reference needs ([cec6a4d](https://github.com/honua-io/honua-sdk-js/commit/cec6a4d3eeccc32c5ea2eab1eba56fd229d3eb22))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.10-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.9-beta.0 to ^0.1.10-beta.0
+
 ## [0.1.9-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.8-beta.0...mcp-server-v0.1.9-beta.0) (2026-08-29)
 
 

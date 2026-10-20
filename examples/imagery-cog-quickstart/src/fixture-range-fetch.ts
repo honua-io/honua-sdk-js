@@ -333,6 +333,25 @@ export function createFixtureCogFetch({
     const request = input instanceof Request && init === undefined ? input : new Request(input, init);
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
+    if (
+      method === "GET" &&
+      (identity(url, "/stac") || identity(url, "/stac/")) &&
+      (url.search === "" || (url.searchParams.size === 1 && url.searchParams.get("f") === "json"))
+    ) {
+      serviceRequests.add("stac-landing");
+      return json({
+        type: "Catalog",
+        stac_version: "1.0.0",
+        id: "imagery-cog-fixture",
+        conformsTo: [
+          "https://api.stacspec.org/v1.0.0/core",
+          "https://api.stacspec.org/v1.0.0/item-search",
+          "https://api.stacspec.org/v1.0.0/item-search#filter",
+          "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
+        ],
+        links: [{ rel: "search", href: new URL("stac/search", appRootUrl).href, method: "GET" }],
+      });
+    }
     if (method === "GET" && url.href === fixtureItemUrl) {
       serviceRequests.add("stac-item");
       return json(fixtureItem);

@@ -1,4 +1,5 @@
 import { HonuaClient } from "../core/client.js";
+import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { encodeServiceIdPath } from "../core/path-utils.js";
 import type {
   ApplyEditsRequest,
@@ -16,20 +17,31 @@ import type {
   QueryMethod,
 } from "../core/types.js";
 import { responseExceededTransferLimit } from "../core/wire-shared.js";
+import { applyToFeatures as applyFeatureEdits } from "../widget-capabilities.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { parseFeatureLayerUrl } from "./url.js";
 
 const DEFAULT_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 export interface FeatureLayerCompatOptions {
-  url: string;
+  /** Service layer URL. Omit when {@link source} holds the features in memory. */
+  url?: string;
+  /**
+   * In-memory graphics. When set without {@link url}, the layer does not call
+   * a service. A non-iterable value such as `{}` is an empty client collection,
+   * which is how some ArcGIS apps start a layer before `applyEdits`.
+   */
+  source?: readonly unknown[] | object;
+  fields?: readonly unknown[];
+  objectIdField?: string;
+  geometryType?: string;
   id?: string;
   title?: string;
   outFields?: string | string[];
   definitionExpression?: string;
   renderer?: unknown;
   popupTemplate?: unknown;
-  labelingInfo?: unknown[];
+  labelingInfo?: unknown[] | unknown;
   labelsVisible?: boolean;
   opacity?: number;
   visible?: boolean;
@@ -37,9 +49,12 @@ export interface FeatureLayerCompatOptions {
   maxScale?: number;
   legendEnabled?: boolean;
   listMode?: string;
+  featureEffect?: unknown;
   maxAttachmentBytes?: number;
   client?: HonuaClient;
   eventBus?: CompatEventBus;
+  /** Esri options the codemod leaves on the constructor, such as fieldConfigurations. */
+  [extra: string]: unknown;
 }
 
 export interface FeatureLayerQueryOptions {
@@ -59,8 +74,14 @@ export type FeatureLayerQueryAllOptions = FeatureLayerQueryOptions & {
 
 export interface FeatureLayerEditsOptions {
   adds?: unknown[];
+  /** Esri `FeatureLayer.applyEdits` name for {@link adds}. */
+  addFeatures?: unknown[];
   updates?: unknown[];
-  deletes?: number[] | string;
+  /** Esri `FeatureLayer.applyEdits` name for {@link updates}. */
+  updateFeatures?: unknown[];
+  deletes?: number[] | string | readonly { objectId?: number }[];
+  /** Esri `FeatureLayer.applyEdits` name for {@link deletes}. */
+  deleteFeatures?: readonly unknown[];
   rollbackOnFailure?: boolean;
 }
 
@@ -135,7 +156,11 @@ export interface FeatureLayerHandleCompat {
 }
 
 export class FeatureLayerCompat {
-  public readonly url: string;
+  public readonly url: string | undefined;
+  public readonly source: readonly unknown[] | undefined;
+  public readonly fields: readonly unknown[] | undefined;
+  public readonly objectIdField: string | undefined;
+  public readonly geometryType: string | undefined;
   public id: string;
   public title: string | undefined;
   public readonly serviceId: string;
@@ -144,6 +169,7 @@ export class FeatureLayerCompat {
   public definitionExpression: string | undefined;
   public renderer: unknown;
   public popupTemplate: unknown;
+  private featureEffectValue: unknown;
   public labelingInfo: unknown[];
   public labelsVisible: boolean;
   public opacity: number;
@@ -152,6 +178,8 @@ export class FeatureLayerCompat {
   public maxScale: number;
   public legendEnabled: boolean;
   public listMode: string;
+  /** Populated from layer metadata `extent` when {@link load} succeeds. */
+  public fullExtent: HonuaExtent | undefined;
   public loaded: boolean;
   public loadStatus: FeatureLayerLoadStatusCompat;
   public metadata: unknown;
@@ -164,11 +192,16 @@ export class FeatureLayerCompat {
   private readonly maxAttachmentBytes: number;
 
   public constructor(options: FeatureLayerCompatOptions) {
-    const parsed = parseFeatureLayerUrl(options.url);
+    const inMemory = options.source !== undefined && options.url === undefined;
+    const parsed = inMemory ? undefined : parseFeatureLayerUrl(options.url ?? "");
     this.url = options.url;
-    this.serviceId = parsed.serviceId;
-    this.layerId = parsed.layerId;
-    this.id = options.id ?? `${this.serviceId}-${this.layerId}`;
+    this.source = normalizeFeatureSource(options.source);
+    this.fields = options.fields === undefined ? undefined : [...options.fields];
+    this.objectIdField = options.objectIdField;
+    this.geometryType = options.geometryType;
+    this.serviceId = parsed?.serviceId ?? "memory";
+    this.layerId = parsed?.layerId ?? 0;
+    this.id = options.id ?? (parsed ? `${this.serviceId}-${this.layerId}` : "memory-feature-layer");
     this.title = options.title;
     this.outFields =
       options.outFields === undefined
@@ -178,24 +211,58 @@ export class FeatureLayerCompat {
           : [options.outFields];
     this.definitionExpression = options.definitionExpression;
     this.renderer = options.renderer;
+    this.featureEffectValue = options.featureEffect;
     this.popupTemplate = options.popupTemplate;
-    this.labelingInfo = Array.isArray(options.labelingInfo) ? [...options.labelingInfo] : [];
+    this.labelingInfo = Array.isArray(options.labelingInfo)
+      ? [...options.labelingInfo]
+      : options.labelingInfo === undefined
+        ? []
+        : [options.labelingInfo];
     this.labelsVisible = options.labelsVisible ?? true;
     this.opacity = normalizeOpacity(options.opacity ?? 1);
     this.visible = options.visible ?? true;
     this.minScale = normalizeScale(options.minScale);
     this.maxScale = normalizeScale(options.maxScale);
     this.legendEnabled = options.legendEnabled ?? true;
+    this.fullExtent = undefined;
     this.listMode = options.listMode ?? "show";
     this.loaded = false;
     this.loadStatus = "not-loaded";
     this.metadata = undefined;
     this.timeExtent = undefined;
     this.eventBus = options.eventBus ?? resolveCompatEventBus(options.client) ?? new CompatEventBus();
-    this.client = options.client ?? new HonuaClient({ baseUrl: parsed.baseUrl });
+    this.client = options.client ?? new HonuaClient({ baseUrl: parsed?.baseUrl ?? "https://memory.invalid" });
     this.watchListeners = new Map();
     this.eventListeners = new Map();
     this.maxAttachmentBytes = normalizeAttachmentSizeLimit(options.maxAttachmentBytes);
+  }
+
+  public get featureEffect(): unknown {
+    return this.featureEffectValue;
+  }
+
+  public set featureEffect(value: unknown) {
+    this.featureEffectValue = value;
+    this.notifyWatchers("featureEffect", value);
+    this.eventBus.emit("feature-layer.feature-effect-changed", { featureEffect: value }, this);
+  }
+
+  /**
+   * Symbol the view should paint for one feature. A feature's own symbol wins.
+   * Otherwise the renderer supplies it, and an excluded feature effect replaces
+   * the color.
+   */
+  public symbolForFeature(feature: unknown): unknown | undefined {
+    if (feature && typeof feature === "object" && (feature as { symbol?: unknown }).symbol) {
+      return (feature as { symbol: unknown }).symbol;
+    }
+    const base = symbolFromRenderer(this.renderer, feature);
+    const where = effectWhere(this.featureEffectValue);
+    const excludedEffect = effectString(this.featureEffectValue, "excludedEffect");
+    if (where && !featureMatchesWhere(feature, where) && excludedEffect) {
+      return excludedSymbol(base, excludedEffect);
+    }
+    return base;
   }
 
   public async load(): Promise<FeatureLayerCompat> {
@@ -208,8 +275,12 @@ export class FeatureLayerCompat {
         this,
       );
       try {
-        this.metadata = await this.client.getLayerMetadata(this.serviceId, this.layerId);
+        this.metadata = this.isInMemory
+          ? { fields: this.fields ?? [] }
+          : await this.client.getLayerMetadata(this.serviceId, this.layerId);
         this.notifyWatchers("metadata", this.metadata);
+        this.fullExtent = extentFromMetadata(this.metadata);
+        this.notifyWatchers("fullExtent", this.fullExtent);
         this.loaded = true;
         this.notifyWatchers("loaded", this.loaded);
         this.loadStatus = "loaded";
@@ -222,6 +293,8 @@ export class FeatureLayerCompat {
       } catch (error) {
         this.metadata = undefined;
         this.notifyWatchers("metadata", this.metadata);
+        this.fullExtent = undefined;
+        this.notifyWatchers("fullExtent", this.fullExtent);
         this.loaded = false;
         this.notifyWatchers("loaded", this.loaded);
         this.loadStatus = "failed";
@@ -253,6 +326,8 @@ export class FeatureLayerCompat {
     this.notifyWatchers("loadStatus", this.loadStatus);
     this.metadata = undefined;
     this.notifyWatchers("metadata", this.metadata);
+    this.fullExtent = undefined;
+    this.notifyWatchers("fullExtent", this.fullExtent);
     this.eventBus.emit(
       "feature-layer.refreshed",
       { serviceId: this.serviceId, layerId: this.layerId, id: this.id },
@@ -398,7 +473,7 @@ export class FeatureLayerCompat {
   }
 
   public listFields(): readonly HonuaFieldInfo[] {
-    return extractFieldDefinitions(this.metadata);
+    return extractFieldDefinitions(this.isInMemory ? { fields: this.fields } : this.metadata);
   }
 
   public getField(fieldName: string): HonuaFieldInfo | undefined {
@@ -424,7 +499,60 @@ export class FeatureLayerCompat {
     };
   }
 
+  private get isInMemory(): boolean {
+    return this.source !== undefined && this.url === undefined;
+  }
+
+  private assertSupportedMemoryWhere(where: string | undefined): void {
+    if (where === undefined) {
+      return;
+    }
+    const clause = where.trim();
+    if (clause.length === 0 || /^\s*1\s*=\s*1\s*$/.test(clause)) {
+      return;
+    }
+    for (const part of splitWhereAnd(clause)) {
+      if (!isSupportedWhereComparison(part)) {
+        throw new HonuaCapabilityNotSupportedError("where", "in-memory", this.id);
+      }
+    }
+  }
+
+  private async queryMemory(options: FeatureLayerQueryOptions): Promise<HonuaQueryResponse> {
+    options.signal?.throwIfAborted();
+    this.assertSupportedMemoryWhere(this.definitionExpression);
+    this.assertSupportedMemoryWhere(options.where);
+    if (this.timeExtent) throw new HonuaCapabilityNotSupportedError("time", "in-memory", this.id);
+    for (const key of Object.keys(options.extraParams ?? {})) {
+      if (key !== "resultOffset" && key !== "resultRecordCount") {
+        throw new HonuaCapabilityNotSupportedError(key, "in-memory", this.id);
+      }
+    }
+    const source = ((this.source ?? []) as readonly HonuaFeature[]).filter(
+      (feature) =>
+        featureMatchesWhere(feature, this.definitionExpression) && featureMatchesWhere(feature, options.where),
+    );
+    const offset = Number(options.extraParams?.resultOffset ?? 0);
+    const count = Number(options.extraParams?.resultRecordCount ?? source.length);
+    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(count) || count < 0) {
+      throw new RangeError("In-memory pagination requires nonnegative safe integers");
+    }
+    const requestedFields = options.outFields ?? this.outFields ?? ["*"];
+    const fields = (Array.isArray(requestedFields) ? requestedFields : requestedFields.split(",")).map((f) => f.trim());
+    return {
+      objectIdFieldName: this.objectIdField,
+      features: source.slice(offset, offset + count).map((feature) => ({
+        attributes: Object.fromEntries(
+          Object.entries(feature.attributes).filter(([key]) => fields.includes("*") || fields.includes(key)),
+        ),
+        ...(options.returnGeometry === false ? {} : { geometry: feature.geometry }),
+      })),
+      exceededTransferLimit: offset + count < source.length,
+    };
+  }
+
   public queryFeatures(options: FeatureLayerQueryOptions = {}): Promise<HonuaQueryResponse> {
+    if (this.isInMemory) return this.queryMemory(options);
     const timeParam = buildTimeParam(this.timeExtent, options.extraParams);
     return this.client.queryFeatures({
       serviceId: this.serviceId,
@@ -514,6 +642,14 @@ export class FeatureLayerCompat {
   }
 
   public async queryObjectIds(options: FeatureLayerQueryCountOptions = {}): Promise<number[]> {
+    if (this.isInMemory) {
+      const { features = [] } = await this.queryMemory({ ...options, outFields: ["*"], returnGeometry: false });
+      return features
+        .map((feature) =>
+          this.objectIdField ? Number(feature.attributes[this.objectIdField]) : extractObjectId(feature),
+        )
+        .filter((id): id is number => typeof id === "number" && Number.isFinite(id));
+    }
     const response = (await this.client.queryFeatures({
       serviceId: this.serviceId,
       layerId: this.layerId,
@@ -539,6 +675,7 @@ export class FeatureLayerCompat {
   }
 
   public async queryFeatureCount(options: FeatureLayerQueryCountOptions = {}): Promise<number> {
+    if (this.isInMemory) return (await this.queryMemory(options)).features?.length ?? 0;
     const response = (await this.client.queryFeatures({
       serviceId: this.serviceId,
       layerId: this.layerId,
@@ -559,6 +696,46 @@ export class FeatureLayerCompat {
   }
 
   public async queryExtent(options: FeatureLayerQueryCountOptions = {}): Promise<FeatureLayerQueryExtentResult> {
+    if (this.isInMemory) {
+      const { features = [] } = await this.queryMemory(options);
+      let extent: HonuaExtent | null = null;
+      for (const { geometry } of features) {
+        if (!geometry) continue;
+        const g = geometry as Record<string, unknown>;
+        const coordinates =
+          typeof g.x === "number"
+            ? [[g.x, g.y]]
+            : typeof g.xmin === "number"
+              ? [
+                  [g.xmin, g.ymin],
+                  [g.xmax, g.ymax],
+                ]
+              : Array.isArray(g.points)
+                ? g.points
+                : Array.isArray(g.paths)
+                  ? g.paths.flat()
+                  : Array.isArray(g.rings)
+                    ? g.rings.flat()
+                    : undefined;
+        if (!coordinates) throw new HonuaCapabilityNotSupportedError("geometry extent", "in-memory", this.id);
+        for (const [x, y] of coordinates) {
+          if (!Number.isFinite(x) || !Number.isFinite(y)) throw new TypeError("Invalid in-memory coordinates");
+          if (!extent)
+            extent = {
+              xmin: x,
+              ymin: y,
+              xmax: x,
+              ymax: y,
+              spatialReference: geometry.spatialReference as HonuaExtent["spatialReference"],
+            };
+          extent.xmin = Math.min(extent.xmin, x);
+          extent.ymin = Math.min(extent.ymin, y);
+          extent.xmax = Math.max(extent.xmax, x);
+          extent.ymax = Math.max(extent.ymax, y);
+        }
+      }
+      return { extent, count: features.length };
+    }
     const response = (await this.client.queryFeatures({
       serviceId: this.serviceId,
       layerId: this.layerId,
@@ -579,16 +756,43 @@ export class FeatureLayerCompat {
   }
 
   public async applyEdits(options: FeatureLayerEditsOptions): Promise<HonuaApplyEditsResponse> {
-    const result = await this.client.applyEdits({
-      serviceId: this.serviceId,
-      layerId: this.layerId,
-      adds: options.adds as ApplyEditsRequest["adds"],
-      updates: options.updates as ApplyEditsRequest["updates"],
-      deletes: options.deletes,
-      rollbackOnFailure: options.rollbackOnFailure,
-    });
+    const adds = options.adds ?? options.addFeatures;
+    const updates = options.updates ?? options.updateFeatures;
+    const deletes = normalizeEditDeletes(options.deletes ?? options.deleteFeatures, this.objectIdField);
+    if (this.isInMemory) {
+      const result = withEsriEditNames(
+        applyMemoryEdits(this.source as unknown[], this.objectIdField, adds, updates, deletes),
+      );
+      this.eventBus.emit("feature-layer.edits", { result, layerId: this.id }, this);
+      return result;
+    }
+    const result = withEsriEditNames(
+      await this.client.applyEdits({
+        serviceId: this.serviceId,
+        layerId: this.layerId,
+        adds: adds as ApplyEditsRequest["adds"],
+        updates: updates as ApplyEditsRequest["updates"],
+        deletes,
+        rollbackOnFailure: options.rollbackOnFailure,
+      }),
+    );
     this.eventBus.emit("feature-layer.edits", { result, layerId: this.id }, this);
     return result;
+  }
+
+  /** Applies one attribute change to each feature through {@link applyEdits}. A named edit error rejects that feature only. */
+  public applyToFeatures(
+    features: readonly { attributes?: Record<string, unknown> }[],
+    change: Record<string, unknown>,
+  ): ReturnType<typeof applyFeatureEdits> {
+    return applyFeatureEdits(features, change, async (edit) => {
+      const result = await this.applyEdits({ updates: [edit.update] });
+      const updates = result.updateFeatureResults ?? result.updateResults ?? [];
+      const failed = updates.find((item) => item.success === false || item.error);
+      if (!failed) return {};
+      const reason = failed.error?.description ?? "rejected";
+      return { error: reason, reason };
+    });
   }
 
   public queryRelatedFeatures(options: FeatureLayerQueryRelatedFeaturesOptions): Promise<HonuaRelatedRecordsResponse> {
@@ -720,6 +924,32 @@ export class FeatureLayerCompat {
       safeInvokeCompatListener(listener, value);
     }
   }
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function extentFromMetadata(metadata: unknown): HonuaExtent | undefined {
+  if (!isRecord(metadata) || !isRecord(metadata.extent)) {
+    return undefined;
+  }
+  const xmin = finiteNumber(metadata.extent.xmin);
+  const ymin = finiteNumber(metadata.extent.ymin);
+  const xmax = finiteNumber(metadata.extent.xmax);
+  const ymax = finiteNumber(metadata.extent.ymax);
+  if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) {
+    return undefined;
+  }
+  const spatialReference = isRecord(metadata.extent.spatialReference) ? metadata.extent.spatialReference : undefined;
+  const wkid = spatialReference ? finiteNumber(spatialReference.wkid) : undefined;
+  return {
+    xmin,
+    ymin,
+    xmax,
+    ymax,
+    ...(wkid === undefined ? {} : { spatialReference: { wkid } }),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -950,4 +1180,342 @@ function copyToArrayBuffer(chunk: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(chunk.byteLength);
   copy.set(chunk);
   return copy.buffer;
+}
+
+function normalizeFeatureSource(source: unknown): readonly unknown[] | undefined {
+  if (source === undefined) {
+    return undefined;
+  }
+  if (Array.isArray(source)) {
+    return [...source];
+  }
+  if (source && typeof source === "object") {
+    const record = source as { items?: unknown; toArray?: () => unknown; length?: unknown };
+    if (typeof record.toArray === "function") {
+      const items = record.toArray();
+      return Array.isArray(items) ? [...items] : [];
+    }
+    if (Array.isArray(record.items)) {
+      return [...record.items];
+    }
+    if (typeof record.length === "number" && Number.isFinite(record.length)) {
+      return Array.from(source as ArrayLike<unknown>);
+    }
+  }
+  return [];
+}
+
+function symbolFromRenderer(renderer: unknown, feature: unknown): unknown | undefined {
+  if (!renderer || typeof renderer !== "object") {
+    return undefined;
+  }
+  const record = renderer as {
+    type?: unknown;
+    symbol?: unknown;
+    field?: unknown;
+    defaultSymbol?: unknown;
+    uniqueValueInfos?: unknown;
+    classBreakInfos?: unknown;
+  };
+  const type = typeof record.type === "string" ? record.type : record.symbol ? "simple" : "";
+  if (type === "simple") {
+    return record.symbol;
+  }
+  if (type === "unique-value" && Array.isArray(record.uniqueValueInfos)) {
+    const field = typeof record.field === "string" ? record.field : undefined;
+    const value = field ? featureAttributes(feature)[field] : undefined;
+    for (const info of record.uniqueValueInfos) {
+      if (!info || typeof info !== "object") {
+        continue;
+      }
+      const entry = info as { value?: unknown; symbol?: unknown };
+      if (entry.value === value || String(entry.value) === String(value)) {
+        return entry.symbol ?? record.defaultSymbol;
+      }
+    }
+    return record.defaultSymbol ?? record.symbol;
+  }
+  if (type === "class-breaks" && Array.isArray(record.classBreakInfos)) {
+    const field = typeof record.field === "string" ? record.field : undefined;
+    const raw = field ? featureAttributes(feature)[field] : undefined;
+    const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+    if (!Number.isFinite(value)) {
+      return record.defaultSymbol ?? record.symbol;
+    }
+    for (const info of record.classBreakInfos) {
+      if (!info || typeof info !== "object") {
+        continue;
+      }
+      const entry = info as { minValue?: unknown; maxValue?: unknown; symbol?: unknown };
+      const min = typeof entry.minValue === "number" ? entry.minValue : Number.NEGATIVE_INFINITY;
+      const max = typeof entry.maxValue === "number" ? entry.maxValue : Number.POSITIVE_INFINITY;
+      if (value >= min && value <= max) {
+        return entry.symbol ?? record.defaultSymbol;
+      }
+    }
+    return record.defaultSymbol ?? record.symbol;
+  }
+  return record.symbol;
+}
+
+function effectWhere(effect: unknown): string | undefined {
+  if (!effect || typeof effect !== "object") {
+    return undefined;
+  }
+  const filter = (effect as { filter?: unknown }).filter;
+  if (!filter || typeof filter !== "object") {
+    return undefined;
+  }
+  const where = (filter as { where?: unknown }).where;
+  return typeof where === "string" ? where : undefined;
+}
+
+function effectString(effect: unknown, key: "includedEffect" | "excludedEffect"): string | undefined {
+  if (!effect || typeof effect !== "object") {
+    return undefined;
+  }
+  const value = (effect as Record<string, unknown>)[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function excludedSymbol(base: unknown, excludedEffect: string): unknown {
+  const opacity = opacityFromEffect(excludedEffect);
+  const grayscale = /grayscale\(/i.test(excludedEffect);
+  const alpha = Math.round((opacity ?? 1) * 255);
+  const color = grayscale || opacity !== undefined ? [158, 158, 158, alpha] : undefined;
+  if (!color) {
+    return base;
+  }
+  if (grayscale) {
+    const symbol =
+      base && typeof base === "object" ? { ...(base as Record<string, unknown>) } : { type: "simple-marker", size: 12 };
+    return { ...symbol, color: [158, 158, 158, alpha] };
+  }
+  const rgb = rgbFromColor(base && typeof base === "object" ? (base as { color?: unknown }).color : undefined);
+  const next = rgb ? [rgb[0], rgb[1], rgb[2], alpha] : [158, 158, 158, alpha];
+  const symbol =
+    base && typeof base === "object" ? { ...(base as Record<string, unknown>) } : { type: "simple-marker", size: 12 };
+  return { ...symbol, color: next };
+}
+
+function opacityFromEffect(effect: string): number | undefined {
+  const match = /opacity\(\s*(\d+(?:\.\d+)?)\s*(%?)\s*\)/i.exec(effect);
+  if (!match) {
+    return undefined;
+  }
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) {
+    return undefined;
+  }
+  const ratio = match[2] === "%" || amount > 1 ? amount / 100 : amount;
+  return Math.min(1, Math.max(0, ratio));
+}
+
+function rgbFromColor(value: unknown): [number, number, number] | undefined {
+  if (Array.isArray(value) && value.length >= 3 && value.every((part) => typeof part === "number")) {
+    return [value[0] as number, value[1] as number, value[2] as number];
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const hex = /^#?([0-9a-f]{6})$/i.exec(value.trim());
+  if (!hex?.[1]) {
+    return undefined;
+  }
+  return [
+    Number.parseInt(hex[1].slice(0, 2), 16),
+    Number.parseInt(hex[1].slice(2, 4), 16),
+    Number.parseInt(hex[1].slice(4, 6), 16),
+  ];
+}
+
+function featureAttributes(feature: unknown): Record<string, unknown> {
+  if (!feature || typeof feature !== "object") {
+    return {};
+  }
+  const attributes = (feature as { attributes?: unknown }).attributes;
+  return attributes && typeof attributes === "object" ? (attributes as Record<string, unknown>) : {};
+}
+
+function featureObjectId(feature: unknown, objectIdField: string | undefined): number | undefined {
+  const attributes = featureAttributes(feature);
+  const raw = attributes[objectIdField ?? "OBJECTID"] ?? attributes.OBJECTID ?? attributes.objectId;
+  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function featureMatchesWhere(feature: unknown, where: string | undefined): boolean {
+  const clause = (where ?? "1=1").trim();
+  if (clause.length === 0 || clause === "1=1" || clause.replace(/\s+/g, "").toLowerCase() === "1=1") {
+    return true;
+  }
+  return splitWhereAnd(clause).every((part) => featureMatchesComparison(feature, part));
+}
+
+function splitWhereAnd(where: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let quote: "'" | '"' | undefined;
+  for (let index = 0; index < where.length; index += 1) {
+    const char = where[index] ?? "";
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        if (where[index + 1] === quote) {
+          current += quote;
+          index += 1;
+        } else {
+          quote = undefined;
+        }
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (where.slice(index, index + 5).toLowerCase() === " and ") {
+      parts.push(current.trim());
+      current = "";
+      index += 4;
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim().length > 0) {
+    parts.push(current.trim());
+  }
+  return parts;
+}
+
+function isSupportedWhereComparison(comparison: string): boolean {
+  return /^([A-Za-z_][\w.]*)\s*(=|like)\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|-?\d+(?:\.\d+)?)$/i.test(comparison.trim());
+}
+
+function featureMatchesComparison(feature: unknown, comparison: string): boolean {
+  const match = /^([A-Za-z_][\w.]*)\s*(=|like)\s*('(?:[^']|'')*'|"(?:[^"]|"")*"|-?\d+(?:\.\d+)?)$/i.exec(
+    comparison.trim(),
+  );
+  if (!match) {
+    return false;
+  }
+  const field = match[1] ?? "";
+  const operator = (match[2] ?? "").toLowerCase();
+  const expected = unquoteWhereLiteral(match[3] ?? "");
+  const attributes = featureAttributes(feature);
+  const actual = Object.entries(attributes).find(([name]) => name.toLowerCase() === field.toLowerCase())?.[1];
+  const actualText = actual === undefined || actual === null ? "" : String(actual);
+  if (operator === "like") {
+    const pattern = expected
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/%/g, ".*")
+      .replace(/_/g, ".");
+    return new RegExp(`^${pattern}$`, "i").test(actualText);
+  }
+  return (
+    actualText === expected ||
+    (expected !== "" && Number(actualText) === Number(expected) && Number.isFinite(Number(expected)))
+  );
+}
+
+function unquoteWhereLiteral(value: string): string {
+  const trimmed = value.trim();
+  const quote = trimmed[0];
+  if ((quote === "'" || quote === '"') && trimmed.endsWith(quote) && trimmed.length >= 2) {
+    return trimmed.slice(1, -1).replaceAll(`${quote}${quote}`, quote);
+  }
+  return trimmed;
+}
+
+function normalizeEditDeletes(
+  deletes: FeatureLayerEditsOptions["deletes"] | FeatureLayerEditsOptions["deleteFeatures"],
+  objectIdField: string | undefined,
+): number[] | string | undefined {
+  if (deletes === undefined) {
+    return undefined;
+  }
+  if (typeof deletes === "string") {
+    return deletes;
+  }
+  return deletes
+    .map((entry) => objectIdFromEditEntry(entry, objectIdField))
+    .filter((value): value is number => value !== undefined);
+}
+
+function objectIdFromEditEntry(entry: unknown, objectIdField: string | undefined): number | undefined {
+  if (typeof entry === "number" && Number.isFinite(entry)) {
+    return entry;
+  }
+  if (!entry || typeof entry !== "object") {
+    return undefined;
+  }
+  const record = entry as { objectId?: unknown; attributes?: Record<string, unknown> };
+  if (typeof record.objectId === "number" && Number.isFinite(record.objectId)) {
+    return record.objectId;
+  }
+  const attributes = record.attributes;
+  if (!attributes) {
+    return undefined;
+  }
+  const raw = attributes[objectIdField ?? "OBJECTID"] ?? attributes.OBJECTID ?? attributes.objectId;
+  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function withEsriEditNames(result: HonuaApplyEditsResponse): HonuaApplyEditsResponse {
+  return {
+    ...result,
+    addFeatureResults: result.addResults,
+    updateFeatureResults: result.updateResults,
+    deleteFeatureResults: result.deleteResults,
+  };
+}
+
+function applyMemoryEdits(
+  features: unknown[],
+  objectIdField: string | undefined,
+  adds: readonly unknown[] | undefined,
+  updates: readonly unknown[] | undefined,
+  deletes: number[] | string | undefined,
+): HonuaApplyEditsResponse {
+  const deleteIds = new Set(Array.isArray(deletes) ? deletes : []);
+  const deleteResults = [...deleteIds].map((objectId) => {
+    const index = features.findIndex((feature) => featureObjectId(feature, objectIdField) === objectId);
+    if (index >= 0) {
+      features.splice(index, 1);
+    }
+    return { objectId, success: index >= 0 };
+  });
+  let nextId = 0;
+  for (const feature of features) {
+    nextId = Math.max(nextId, featureObjectId(feature, objectIdField) ?? 0);
+  }
+  const addResults = (adds ?? []).map((feature) => {
+    const existing = featureObjectId(feature, objectIdField);
+    const objectId = existing ?? ++nextId;
+    if (existing === undefined && feature && typeof feature === "object") {
+      const record = feature as { attributes?: Record<string, unknown> };
+      record.attributes = { ...(record.attributes ?? {}), [objectIdField ?? "OBJECTID"]: objectId };
+    }
+    features.push(feature);
+    return { objectId, success: true };
+  });
+  const updateResults = (updates ?? []).map((feature) => {
+    const objectId = featureObjectId(feature, objectIdField);
+    if (objectId === undefined) {
+      return { objectId: -1, success: false, error: { code: 400, description: "Update is missing an object id." } };
+    }
+    const index = features.findIndex((candidate) => featureObjectId(candidate, objectIdField) === objectId);
+    if (index < 0) {
+      return {
+        objectId,
+        success: false,
+        error: { code: 404, description: "Feature was not in the in-memory source." },
+      };
+    }
+    features[index] = feature;
+    return { objectId, success: true };
+  });
+  return { addResults, updateResults, deleteResults };
 }

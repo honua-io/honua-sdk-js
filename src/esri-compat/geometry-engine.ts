@@ -32,6 +32,7 @@ import {
   booleanContains,
   booleanIntersects,
   buffer as bufferOp,
+  centroid as centroidOp,
   convex,
   difference as differenceOp,
   area as geodesicAreaOp,
@@ -280,6 +281,12 @@ export function convexHull(input: GeometryEngineInput): EsriGeometry | null {
   return toEsri(convex(geometry), sr);
 }
 
+/** Centroid of a geometry. Backed by `@turf/centroid`. */
+export function centroid(input: GeometryEngineInput): EsriGeometry | null {
+  const { geometry, sr } = toGeoJson(input);
+  return toEsri(centroidOp(geometry), sr);
+}
+
 // ── Predicates ───────────────────────────────────────────────────
 
 /** True if `container` completely contains `inside`. Backed by `@turf/boolean-contains`. */
@@ -309,6 +316,7 @@ export const geometryEngineCompat = {
   planarLength,
   simplify,
   convexHull,
+  centroid,
   contains,
   intersects,
 } as const;
@@ -332,6 +340,7 @@ export const geometryEngineAsyncCompat = {
   planarLength: (input: GeometryEngineInput, unit?: EsriLinearUnit) => Promise.resolve(planarLength(input, unit)),
   simplify: (input: GeometryEngineInput) => Promise.resolve(simplify(input)),
   convexHull: (input: GeometryEngineInput) => Promise.resolve(convexHull(input)),
+  centroid: (input: GeometryEngineInput) => Promise.resolve(centroid(input)),
   contains: (container: GeometryEngineInput, inside: GeometryEngineInput) =>
     Promise.resolve(contains(container, inside)),
   intersects: (a: GeometryEngineInput, b: GeometryEngineInput) => Promise.resolve(intersects(a, b)),

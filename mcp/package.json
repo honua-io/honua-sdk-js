@@ -1,6 +1,6 @@
 {
   "name": "@honua/mcp-server",
-  "version": "0.1.9-beta.0",
+  "version": "0.2.7",
   "description": "Platform-free MCP server for geospatial services: expose discovery, query, and analysis over any public ArcGIS/Esri FeatureServer or OGC API endpoint to any MCP client, with no platform lock-in",
   "license": "Apache-2.0",
   "author": "Honua",
@@ -24,7 +24,9 @@
   "bin": {
     "honua-mcp": "dist/src/index.js",
     "honua-mcp-proxy": "dist/src/proxy.js",
-    "honua-zero-to-map-release": "dist/src/release/zero-to-map-cli.js"
+    "honua-zero-to-map-release": "dist/src/release/zero-to-map-cli.js",
+    "honua-agent-mcp": "dist/src/agent/cli.js",
+    "honua-agent-gateway": "dist/src/agent/native-cli.js"
   },
   "exports": {
     ".": {
@@ -56,6 +58,7 @@
     "test:certification": "npm run build --silent && vitest run test/certification && node dist/src/certification/cli.js",
     "test:certification:admin": "vitest run test/proxy.test.ts test/certification/admin-parity.test.ts",
     "certify:admin-parity": "npm run build --silent && node dist/src/certification/admin-parity.js",
+    "certify:setup-parity": "npm run build --silent && node dist/src/certification/setup-parity.js",
     "test:certification:artifact": "npm run build --silent && node dist/src/certification/cli.js --artifact-only",
     "test:certification:standalone": "npm run build --silent && node dist/src/certification/cli.js --target standalone",
     "test:certification:standalone-ogc": "npm run build --silent && node dist/src/certification/cli.js --target standalone-ogc",
@@ -84,29 +87,30 @@
   "overrides": {
     "hono": "^4.13.7",
     "@hono/node-server": "^2.0.5",
-    "fast-uri": "^3.1.6",
+    "fast-uri": "^3.1.8",
     "qs": "^6.16.0"
   },
   "peerDependencies": {
-    "@honua/sdk-js": "^0.1.9-beta.0"
+    "@honua/sdk-js": "^0.1.17 || ^0.2.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@honua/sdk-js": "file:..",
     "@types/node": "^24.3.1",
-    "@vitest/coverage-v8": "^4.0.16",
+    "@vitest/coverage-v8": "^4.1.11",
     "typescript": "^5.9.2",
-    "vitest": "^4.0.16"
+    "vitest": "^4.1.11"
   },
   "files": [
     "dist/src",
     "release/zero-to-map",
     "certification/geospatial-mcp-schemas",
+    "certification/setup-parity.md",
     "README.md",
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.12.0"
   },
   "repository": {
     "type": "git",

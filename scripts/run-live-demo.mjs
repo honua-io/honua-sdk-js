@@ -23,7 +23,7 @@ if (missing.length > 0) {
   process.exit(0);
 }
 
-const fixture = env("HONUA_DEMO_FIXTURE", "esri-demo-feature-table-relates-app");
+const fixture = env("HONUA_DEMO_FIXTURE", "client-demo-feature-table-relates-app");
 const fixturesRoot = env("HONUA_DEMO_FIXTURES_ROOT", "test/fixtures");
 const outputDir = env("HONUA_DEMO_OUTPUT_DIR", ".tmp/migration-demo-live");
 const codemodTarget = env("HONUA_DEMO_CODEMOD_TARGET", "honua-compat");

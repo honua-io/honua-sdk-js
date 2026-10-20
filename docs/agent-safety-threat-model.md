@@ -1,7 +1,7 @@
 ---
 type: concept
 title: "Agent-safety threat model"
-description: "`@honua/sdk-js/agent-safety` is the deterministic trust boundary between"
+description: "The threats the agent-safety and agent-tools surfaces are designed to stop, and the mechanism that stops each one: envelope forgery, replay, budget bypass, receipt tampering and plan-fingerprint mismatch."
 ---
 # Agent-safety threat model
 
@@ -15,7 +15,7 @@ this document knowing a breaking change to any envelope or verification step
 requires a major version.
 
 This document enumerates the threats the surface is designed to stop, the
-mechanism that stops each one, and the conformance test that exercises it.
+mechanism that stops each one.
 Companion reference: [`docs/agent-safety.md`](./agent-safety.md) (full API
 walkthrough) and [`docs/nl-map-control.md`](./nl-map-control.md) (the NL layer
 that consumes this boundary end to end).
@@ -38,9 +38,6 @@ that consumes this boundary end to end).
 
 ## Threats and mitigations
 
-Every threat below is exercised by a committed conformance test; the tests run
-in the default `npm test` suite.
-
 ### 1. Envelope forgery
 
 **Threat.** An attacker fabricates or alters an approval envelope (or the dry
@@ -55,14 +52,6 @@ canonical unsigned payload, the signer identity (algorithm + key ID) must match
 the configured verifier, and the host `verifier.verify` must return exactly
 `true`. Any mutated field fails `integrity-failed` or `signature-invalid`
 before an effect is possible.
-
-**Tests.**
-- `test/agent-safety.test.ts` — "rejects forged dry runs, signature tampering,
-  expiry, and context drift"
-- `test/agent-safety.test.ts` — "binds the exact plan/policy/context and
-  permits only budget narrowing"
-- `test/agent-safety.test.ts` — "cannot issue a receipt from public digests
-  without host-authenticated consumption evidence"
 
 ### 2. Replay (single-use consumption)
 
@@ -80,14 +69,6 @@ the receipt so post-hoc verification also proves single use. Expiry
 (`expiresAt`, bounded `maxClockSkewMs`) limits the replay window of any stolen
 envelope.
 
-**Tests.**
-- `test/agent-safety.test.ts` — "binds exact operation input and atomically
-  consumes each approved step once"
-- `test/agent-execution.test.ts` — "does not invoke an effect after
-  start-audit failure, executor mismatch, or replay"
-- `test/agent-safety.test.ts` — "rejects forged dry runs, signature tampering,
-  expiry, and context drift" (expiry arm)
-
 ### 3. Effect-budget bypass
 
 **Threat.** A plan, approval, or execution result exceeds the reviewed
@@ -104,18 +85,6 @@ parameters are bounded by policy byte/node/depth budgets before the replay
 store is touched. Execution evidence and receipts exceeding the approved
 per-step rows/bytes are refused before signing and on verification.
 
-**Tests.**
-- `test/agent-safety.test.ts` — "binds the exact plan/policy/context and
-  permits only budget narrowing"
-- `test/agent-safety.test.ts` — "requires explicit per-step allocation when
-  narrowing a multi-step approval"
-- `test/agent-safety.test.ts` — "enforces the policy operation-parameter budget
-  before replay-store consumption"
-- `test/agent-safety.test.ts` — "rejects over-budget evidence before receipt
-  signing and detects receipt tampering" (over-budget arm)
-- `test/agent-execution.test.ts` — "bounds wide results before reading excess
-  values and uses one captured array length"
-
 ### 4. Receipt tampering
 
 **Threat.** An execution receipt is altered after signing — rows, result
@@ -131,14 +100,6 @@ issuance check (budget, binding, consumption authentication via the host
 `verify` callback, approval signature, digest equality) and rejects any
 modified field. Receipts are append-only evidence: nothing in the SDK mutates
 or re-issues one.
-
-**Tests.**
-- `test/agent-safety.test.ts` — "rejects over-budget evidence before receipt
-  signing and detects receipt tampering"
-- `test/agent-safety.test.ts` — "cannot issue a receipt from public digests
-  without host-authenticated consumption evidence"
-- `test/agent-safety-evidence.test.ts` — "fails closed on plan, discovery,
-  capability, and receipt substitution"
 
 ### 5. Plan-fingerprint mismatch
 
@@ -160,29 +121,16 @@ and verified. In the NL layer, plan execution additionally re-derives effects
 and tool identity from plan content, so recomputed-fingerprint forgeries are
 rejected there too.
 
-**Tests.**
-- `test/agent-safety.test.ts` — "rejects an operation whose query-plan
-  fingerprint differs from the approved step"
-- `test/agent-safety.test.ts` — "binds exact operation input and atomically
-  consumes each approved step once" (query-plan id divergence arm)
-- `test/nl-map-control.test.ts` — "rejects a fingerprint-consistent plan whose
-  executed call differs from its declared tool" / "…that launders action
-  effects as read-only" / "…whose step names an unknown tool"
-
 ## Adjacent hardening (context, not primary threats)
 
 - **Context drift** — approvals are re-verified against the *current* source
   bindings (schema/source versions, data mode, provenance freshness); drift
-  fails `context-mismatch` ("rejects forged dry runs, signature tampering,
-  expiry, and context drift", "rechecks provenance freshness at the execution
-  clock").
+  fails `context-mismatch`.
 - **Secret exfiltration through tool results** — the `/agent-tools` executor
-  deeply redacts credential-bearing metadata before results reach a model
-  (`test/agent-tools.test.ts`), and audit events carry pseudonymous digests
-  only (`test/agent-execution.test.ts` — "persists only digests for every
-  free-text plan and source identity").
+  deeply redacts credential-bearing metadata before results reach a model, and audit events carry pseudonymous digests
+  only.
 - **Hostile host-callback shapes** — accessors on executors, stores, and
-  callbacks are rejected without invocation (`test/agent-execution.test.ts`).
+  callbacks are rejected without invocation.
 
 ## What this model does not cover
 

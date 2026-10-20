@@ -5,7 +5,7 @@ import {
   SimpleFillSymbolCompat,
   SimpleLineSymbolCompat,
   SimpleMarkerSymbolCompat,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
 
 describe("geometry/symbol compat", () => {
   it("creates point geometry payloads", async () => {

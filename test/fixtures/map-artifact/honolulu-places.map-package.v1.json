@@ -1,0 +1,73 @@
+{
+  "mapPackageId": "honolulu-places",
+  "format": "honua_map_package.v1",
+  "status": "Draft",
+  "createdAt": "2026-09-15T00:00:00Z",
+  "sourceBindings": [],
+  "styleRefs": [
+    {
+      "styleId": "places-status",
+      "label": "Places status",
+      "body": {
+        "places": {
+          "paint": {
+            "circle-color": "#d93f3f",
+            "circle-radius": 12,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2
+          }
+        }
+      }
+    },
+    {
+      "styleId": "places-status-dark",
+      "label": "Places status (dark)",
+      "body": {
+        "places": {
+          "paint": {
+            "circle-color": "#1f3b4d",
+            "circle-radius": 12
+          }
+        }
+      }
+    }
+  ],
+  "mapSpec": {
+    "version": 8,
+    "sources": {
+      "places": {
+        "type": "geojson",
+        "data": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "id": 7,
+              "properties": { "name": "Honolulu", "elevation": null },
+              "geometry": { "type": "Point", "coordinates": [-157.8583, 21.3069] }
+            }
+          ]
+        }
+      }
+    },
+    "layers": [
+      {
+        "id": "places",
+        "type": "circle",
+        "source": "places",
+        "paint": { "circle-color": "#d93f3f", "circle-radius": 12 }
+      }
+    ]
+  },
+  "initialView": {
+    "bbox": [-158.3, 20.9, -157.4, 21.7],
+    "center": [-157.8583, 21.3069],
+    "zoom": 5,
+    "crs": "EPSG:4326"
+  },
+  "view": { "center": [-157.8583, 21.3069], "zoom": 5, "crs": "EPSG:4326" },
+  "layers": [],
+  "widgets": [],
+  "controls": [],
+  "interactions": []
+}

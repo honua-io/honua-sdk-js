@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "20.19.0"
+  NODE_VERSION: "22.23.3"
 
 jobs:
   verify-pin:
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -41,3 +41,14 @@ jobs:
       # Install both halves from the registry with no flags at all.
       - name: Verify the published pair co-installs with default npm resolution
         run: npm run verify:client-pair:registry
+
+      - name: Verify the published migration cohort and installed forwarding surfaces
+        run: npm run verify:migration-cohort:registry
+
+      - name: Upload migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-registry
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn

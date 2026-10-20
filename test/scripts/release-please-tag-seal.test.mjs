@@ -4,6 +4,11 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
+
+// Current trunk executes this entrypoint before merge; include ancestor recovery
+// controls here so a new workflow step is not their first actual validation.
+import "./sealed-ancestor-recovery.test.mjs";
 
 // Where a release tag ends up decides whether a published version can ever pass
 // `release-seal check`. It stopped producing publishable tags for three
@@ -16,6 +21,8 @@ import test from "node:test";
 const WORKFLOW = resolve(".github/workflows/release-please.yml");
 const RELEASE_COMMIT = "1".repeat(40);
 const RESEALED_COMMIT = "2".repeat(40);
+// The commit an already-created release tag names, in the half-stranded case.
+const SEALED_TAG_COMMIT = "3".repeat(40);
 const TAG = "js-sdk-v9.9.9-beta.0";
 const RELEASE_ID = "424242";
 
@@ -69,6 +76,23 @@ function runReleaseStep({
   // unfiltered rows. The `headBranch` assertion in the jq must then carry the
   // guarantee on its own.
   runListHonoursBranchFlag = true,
+  // Stranded-draft re-entry (#1337).
+  finishStrandedDraft = "",
+  eventName = "workflow_dispatch",
+  jsSdkReleaseCreated = "false",
+  // Releases the stubbed `gh` lists, so the resolve-by-tag jq is executed.
+  releases = [{ id: Number(RELEASE_ID), tag_name: TAG, draft: true }],
+  // Whether the stranded tag exists (answered through git/matching-refs).
+  strandedTagExists = false,
+  // package.json version at trunk, for the recovery version anchor. The default
+  // matches TAG so recovery proceeds.
+  trunkVersion = "9.9.9-beta.0",
+  // `compare/<tag sha>...<trunk head>` status: "behind" means the tag is an
+  // ancestor of trunk, which is what a real sealed release commit looks like.
+  tagAncestryStatus = "behind",
+  // When false the step's own trailing `if` blocks decide what runs, which is
+  // what the re-entry path needs; the default drives the function directly.
+  directInvoke = true,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), "honua-release-tag-seal-"));
   const bin = join(root, "bin");
@@ -79,6 +103,7 @@ function runReleaseStep({
   writeFileSync(join(root, "tag-resolves"), `${tagResolves.join("\n")}\n`);
   writeFileSync(join(root, "reseal-conclusions"), `${resealConclusions.join("\n")}\n`);
   writeFileSync(join(root, "run-list-ids"), `${runListIds.join("\n")}\n`);
+  writeFileSync(join(root, "releases.json"), JSON.stringify(releases));
 
   // A tiny `gh` that answers only the calls this step makes. Every unexpected
   // call is fatal, so the test cannot pass by accident.
@@ -133,6 +158,33 @@ case "$ARGS" in
   "workflow run regenerate-derived-artifacts.yml"*) echo "reseal-dispatch" >> "${root}/trace" ;;
   "run watch"*) ;;
   *"git/ref/heads/trunk"*) echo "${RESEALED_COMMIT}" ;;
+  *"git/ref/tags/"*)
+    # The exact-ref lookup 404s for an absent tag, and real gh api prints
+    # that error body on stdout. The workflow must not use it.
+    echo '{"message":"Not Found","documentation_url":"https://docs.github.com/rest/git/refs#get-a-reference","status":"404"}'
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+    ;;
+  *"git/matching-refs/tags/"*)
+    # Answers the workflow's --jq selection: the sha when the tag exists,
+    # nothing (an empty list) when it does not.
+    if [[ "${strandedTagExists ? "1" : "0"}" == "1" ]]; then
+      echo "${SEALED_TAG_COMMIT}"
+    fi
+    ;;
+  *"contents/package.json"*) echo "${trunkVersion}" ;;
+  # This call uses gh's own --jq .status, so the stub answers the resolved value.
+  *"compare/${SEALED_TAG_COMMIT}"*) echo "${tagAncestryStatus}" ;;
+  *"/releases --paginate"*)
+    # Evaluate the step's real resolve-by-tag jq against the release fixture.
+    jqexpr=""
+    prev=""
+    for a in "$@"; do
+      case "$prev" in --jq) jqexpr="$a" ;; esac
+      prev="$a"
+    done
+    jq -r "$jqexpr" "${root}/releases.json"
+    ;;
   *"compare/"*)
     echo '{"status":"ahead","merge_base_commit":{"sha":"${RELEASE_COMMIT}"},"files":[{"filename":"llms.txt"}]}'
     ;;
@@ -178,9 +230,10 @@ esac
   chmodSync(join(bin, "gh"), 0o755);
   chmodSync(join(bin, "sleep"), 0o755);
 
-  const script =
-    `${runBlock("Dispatch package publish workflows")}\n` +
-    `dispatch_resealed_js_publish "${TAG}" "${releaseId}" "${releaseDraft}"\n`;
+  const script = directInvoke
+    ? `${runBlock("Dispatch package publish workflows")}\n` +
+      `dispatch_resealed_js_publish "${TAG}" "${releaseId}" "${releaseDraft}"\n`
+    : `${runBlock("Dispatch package publish workflows")}\n`;
   const scriptPath = join(root, "step.sh");
   writeFileSync(scriptPath, script);
   try {
@@ -192,9 +245,11 @@ esac
         GITHUB_SHA: RELEASE_COMMIT,
         GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
         GITHUB_STEP_SUMMARY: summary,
-        JS_SDK_RELEASE_CREATED: "false",
+        JS_SDK_RELEASE_CREATED: jsSdkReleaseCreated,
         MCP_RELEASE_CREATED: "false",
         CREATE_APP_RELEASE_CREATED: "false",
+        FINISH_STRANDED_DRAFT: finishStrandedDraft,
+        GITHUB_EVENT_NAME: eventName,
         JS_SDK_TAG_NAME: TAG,
         JS_SDK_RELEASE_ID: releaseId,
         JS_SDK_RELEASE_DRAFT: releaseDraft,
@@ -484,6 +539,160 @@ test("release runs are serialized so none observes a drafted release without its
   );
 });
 
+function releasePhaseSteps() {
+  const source = readFileSync(WORKFLOW, "utf8");
+  const job = source.split("\n  release-please:\n")[1].split("\n  release-please-refresh:\n")[0];
+  const steps = job.split(/(?=^      - )/mu).slice(1);
+  const step = (id) => {
+    const matches = steps.filter((block) => block.includes(`\n        id: ${id}\n`));
+    assert.equal(matches.length, 1, `exactly one ${id} step`);
+    return matches[0];
+  };
+  return { job, steps, creation: step("release"), history: step("release-history"), generation: step("release-pr"), token: step("release-pr-token"), initialToken: step("app-token") };
+}
+
+test("release PR generation follows the finish path with a fresh token and separate outputs", () => {
+  const { job, steps, creation, history, generation, token, initialToken } = releasePhaseSteps();
+  const finishIndex = steps.findIndex((block) => block.startsWith("      - name: Dispatch package publish workflows\n"));
+  assert.ok(finishIndex >= 0);
+  assert.match(creation, /\n          skip-github-pull-request: true\n/u);
+  assert.doesNotMatch(creation, /skip-github-release: true/u);
+  const action = /uses: (\S+)/u;
+  assert.equal(generation.match(action)[1], creation.match(action)[1]);
+  assert.match(generation, /\n          skip-github-release: true\n/u);
+  assert.doesNotMatch(generation, /skip-github-pull-request: true/u);
+  assert.ok(steps.indexOf(creation) < finishIndex);
+  assert.ok(finishIndex < steps.indexOf(history));
+  assert.ok(steps.indexOf(history) < steps.indexOf(token));
+  assert.ok(steps.indexOf(token) < steps.indexOf(generation));
+  assert.equal(token.match(action)[1], initialToken.match(action)[1]);
+  for (const input of ["app-id", "private-key", "owner"]) {
+    const pattern = new RegExp(`^          ${input}: (.+)$`, "mu");
+    assert.equal(token.match(pattern)[1], initialToken.match(pattern)[1]);
+  }
+  assert.match(generation, /token: \$\{\{ steps\.release-pr-token\.outputs\.token \|\| secrets\.GITHUB_TOKEN \}\}/u);
+  assert.match(job, /prs_created: \$\{\{ steps\.release-pr\.outputs\.prs_created \}\}/u);
+  assert.match(job, /releases_created: \$\{\{ steps\.release\.outputs\.releases_created \}\}/u);
+  assert.match(job, /tag_name: \$\{\{ steps\.release\.outputs\.tag_name \}\}/u);
+});
+
+test("PR generation admits successful cuts and no-release runs but excludes recovery and failed finishes", () => {
+  const { history, generation, token } = releasePhaseSteps();
+  // These actual conditions use the common Boolean subset of Actions and JS.
+  // No explicit status function may override Actions' implicit success() guard.
+  function admitted(step, { event, recovery, credentials, priorSuccess }) {
+    const match = step.match(/\n        if: >-\n          \$\{\{([\s\S]*?)\}\}/u);
+    assert.ok(match, "the phase has an explicit folded expression");
+    const expression = match[1];
+    assert.doesNotMatch(expression, /\b(?:always|success|failure|cancelled)\s*\(/u);
+    return priorSuccess && runInNewContext(expression, {
+      github: { event_name: event },
+      inputs: { finish_stranded_draft: recovery },
+      steps: { creds: { outputs: { available: String(credentials) } } },
+    }, { timeout: 100 });
+  }
+  const ordinary = { event: "push", recovery: "", credentials: true, priorSuccess: true };
+  for (const scenario of [ordinary, { ...ordinary, event: "workflow_dispatch" }]) {
+    assert.equal(admitted(generation, scenario), true);
+    assert.equal(admitted(history, scenario), true);
+    assert.equal(admitted(token, scenario), true);
+    // No-release runs skip publication dispatch without failing the job.
+    assert.equal(admitted(generation, { ...scenario, credentials: false }), true);
+    assert.equal(admitted(token, { ...scenario, credentials: false }), false);
+    // A failed seal or publication leaves the next action unexecuted.
+    assert.equal(admitted(generation, { ...scenario, priorSuccess: false }), false);
+    assert.equal(admitted(history, { ...scenario, priorSuccess: false }), false);
+    assert.equal(admitted(token, { ...scenario, priorSuccess: false }), false);
+  }
+  const recovery = { ...ordinary, event: "workflow_dispatch", recovery: TAG };
+  assert.equal(admitted(generation, recovery), false);
+  assert.equal(admitted(history, recovery), false);
+  assert.equal(admitted(token, recovery), false);
+});
+
+function runHistoryGuard(overrides = {}) {
+  const root = mkdtempSync(join(tmpdir(), "honua-release-history-"));
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  const fixture = {
+    version: "0.2.3",
+    refs: [{ ref: "refs/tags/js-sdk-v0.2.3", object: { sha: RESEALED_COMMIT } }],
+    release: { tag_name: "js-sdk-v0.2.3", draft: false },
+    ...overrides,
+  };
+  const callsPath = join(root, "calls.jsonl");
+  writeFileSync(callsPath, "");
+  const fakeGh = join(bin, "gh");
+  writeFileSync(fakeGh, `#!/usr/bin/env node
+const { execFileSync } = require("node:child_process");
+const { appendFileSync } = require("node:fs");
+const fixture = JSON.parse(process.env.HONUA_HISTORY_CASE);
+const args = process.argv.slice(2);
+appendFileSync(process.env.HONUA_HISTORY_CALLS, JSON.stringify(args) + "\\n");
+if (args[0] !== "api" || args.includes("--method")) throw new Error("read-only api calls only");
+const endpoint = args[1];
+const kind = endpoint.includes("/contents/") ? "package" : endpoint.includes("/git/matching-refs/") ? "tag" : endpoint.includes("/releases/tags/") ? "release" : "unknown";
+if (kind === "unknown") throw new Error("unexpected endpoint");
+if (fixture.failAt === kind) process.exit(1);
+const response = kind === "package" ? { version: fixture.version } : kind === "tag" ? fixture.refs : fixture.release;
+process.stdout.write(execFileSync("jq", ["-r", args[args.indexOf("--jq") + 1]], { input: JSON.stringify(response) }));
+`);
+  chmodSync(fakeGh, 0o755);
+  const script = join(root, "guard.sh");
+  writeFileSync(script, runBlock("Verify release history before generating PRs"));
+  let output;
+  let ok = true;
+  try {
+    output = execFileSync("bash", ["--noprofile", "--norc", "-e", "-u", "-o", "pipefail", script], {
+      encoding: "utf8",
+      stdio: "pipe",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
+        HONUA_HISTORY_CASE: JSON.stringify(fixture),
+        HONUA_HISTORY_CALLS: callsPath,
+      },
+    });
+  } catch (error) {
+    ok = false;
+    output = `${error.stdout ?? ""}${error.stderr ?? ""}`;
+  }
+  const calls = readFileSync(callsPath, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse);
+  rmSync(root, { recursive: true, force: true });
+  return { ok, output, calls };
+}
+
+test("release history permits an exact published tag before ordinary PR generation", () => {
+  const result = runHistoryGuard();
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /anchored by published js-sdk-v0\.2\.3/u);
+  assert.deepEqual(result.calls.map((call) => call[1]), [
+    "repos/honua-io/honua-sdk-js/contents/package.json?ref=trunk",
+    "repos/honua-io/honua-sdk-js/git/matching-refs/tags/js-sdk-v0.2.3",
+    "repos/honua-io/honua-sdk-js/releases/tags/js-sdk-v0.2.3",
+  ]);
+});
+
+for (const [name, fixture, calls] of [
+  ["absent tag", { refs: [] }, 2],
+  ["prefix-only tag", { refs: [{ ref: "refs/tags/js-sdk-v0.2.30", object: { sha: RESEALED_COMMIT } }] }, 2],
+  ["draft release", { release: { tag_name: "js-sdk-v0.2.3", draft: true } }, 3],
+  ["wrong release tag", { release: { tag_name: "js-sdk-v0.2.2", draft: false } }, 3],
+  ["invalid package version", { version: "../other" }, 1],
+  ["package API failure", { failAt: "package" }, 1],
+  ["tag API failure", { failAt: "tag" }, 2],
+  ["release API failure", { failAt: "release" }, 3],
+]) {
+  test(`release history stops PR generation for ${name}`, () => {
+    const result = runHistoryGuard(fixture);
+    assert.equal(result.ok, false);
+    assert.match(result.output, /Release PR generation stopped/u);
+    assert.match(result.output, /finish_stranded_draft/u);
+    assert.equal(result.calls.length, calls);
+  });
+}
+
 test("the js-sdk release is configured to be cut as a draft", () => {
   // The workflow's ordering is only possible because no tag exists when it
   // starts. That is entirely a property of this config flag.
@@ -491,4 +700,176 @@ test("the js-sdk release is configured to be cut as a draft", () => {
   assert.equal(config.packages["."].draft, true);
   // force-tag-creation would put the tag back on the unsealed bump commit.
   assert.equal(config.packages["."]["force-tag-creation"], undefined);
+});
+
+// Stranded-draft re-entry (#1337). Release Please's tag/id/draft outputs exist
+// only in the run that cuts the release, so a draft whose run died afterwards
+// is unreachable: every re-run and re-dispatch skips the finish sequence and
+// reports success having done nothing. js-sdk-v0.1.8-beta.0 sat in exactly that
+// state from 2026-08-26.
+
+test("a stranded draft is resolved by tag and finished through the full seal path", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    releases: [{ id: Number(RELEASE_ID), tag_name: TAG, draft: true }],
+    tagResolves: [RESEALED_COMMIT, RESEALED_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /Re-entering the release finish sequence for stranded draft release 424242/u);
+  assert.match(result.summary, /Finishing stranded draft/u);
+  // The whole sequence runs, not a shortcut: reseal, tag on the sealed commit,
+  // publish the draft, then the gated npm publish and the smoke.
+  assert.deepEqual(result.trace, [
+    "reseal-dispatch",
+    "tag-create",
+    "draft-publish",
+    "npm-publish-dispatch",
+    "smoke-dispatch",
+  ]);
+  assert.match(result.output, /verified on resealed commit/u);
+});
+
+test("the re-entry input is refused when the release is already published", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    releases: [{ id: Number(RELEASE_ID), tag_name: TAG, draft: false }],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /already published, not a stranded draft/u);
+  assert.deepEqual(result.trace, []);
+  assert.match(result.summary, /Nothing was published for this tag/u);
+});
+
+test("a half-stranded release whose tag is already sealed resumes at publication", () => {
+  // The second failure shape: the original run created the tag on a sealed
+  // commit and died before publishing the draft. Nothing needs resealing and
+  // the tag must not be rewritten, so recovery resumes at publication.
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    strandedTagExists: true,
+    tagResolves: [SEALED_TAG_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /already names sealed commit/u);
+  assert.match(result.output, /resuming at the draft publication step/u);
+  assert.match(result.summary, /Resuming half-finished release/u);
+  // No reseal and no tag write -- that is the whole point of this path.
+  assert.deepEqual(result.trace, ["draft-publish", "npm-publish-dispatch", "smoke-dispatch"]);
+});
+
+test("a half-stranded resume is refused when the tag is not an ancestor of trunk", () => {
+  // A tag pointing at a side branch is not a sealed release commit; publishing
+  // it would ship bytes trunk never carried.
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    strandedTagExists: true,
+    tagAncestryStatus: "diverged",
+    tagResolves: [SEALED_TAG_COMMIT],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /is 'diverged' relative to trunk rather than an ancestor of it/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("an already-published release is refused even when its tag exists", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    strandedTagExists: true,
+    releases: [{ id: Number(RELEASE_ID), tag_name: TAG, draft: false }],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /already published, not a stranded draft/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("recovery is refused when trunk has moved to a different version", () => {
+  // On a normal cut GITHUB_SHA is the bump commit, so version consistency is
+  // structural. A recovery dispatch runs on whatever trunk is now, and tagging
+  // this release onto a tree carrying another version would be caught only
+  // after the tag and release are immutable.
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    trunkVersion: "9.9.10-beta.0",
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /Trunk's package\.json is version 9\.9\.10-beta\.0/u);
+  assert.match(result.output, /would publish 9\.9\.9-beta\.0/u);
+  assert.match(result.output, /Re-cut the release instead/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("the release iterator is skipped during a draft recovery", () => {
+  // A stranded draft is by definition inside the draft-no-tag window this
+  // workflow's own concurrency comment calls dangerous: the release iterator
+  // cannot see a tagless draft and would rebuild the release pull request from
+  // far too much history. Recovery must touch nothing but the finish path.
+  const source = readFileSync(WORKFLOW, "utf8");
+  assert.match(
+    source,
+    /uses: googleapis\/release-please-action@[0-9a-f]+ # v5\n\s+id: release\n\s+if: >-\n[\s\S]{0,200}?inputs\.finish_stranded_draft == ''/u,
+  );
+});
+
+test("the re-entry input is refused when no release matches the tag", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    releases: [{ id: 1, tag_name: "js-sdk-v0.0.1-beta.0", draft: true }],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /No release found for tag js-sdk-v9\.9\.9-beta\.0/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("the re-entry input is refused on a non-dispatch event", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    finishStrandedDraft: TAG,
+    eventName: "push",
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /only accepted on a workflow_dispatch run/u);
+  assert.match(result.output, /this run's event is push/u);
+  assert.deepEqual(result.trace, []);
+});
+
+test("a normal-path run ignores the re-entry input instead of double-dispatching", () => {
+  const result = runReleaseStep({
+    directInvoke: false,
+    jsSdkReleaseCreated: "true",
+    finishStrandedDraft: "js-sdk-v0.0.9-beta.0",
+    tagResolves: [RESEALED_COMMIT, RESEALED_COMMIT],
+  });
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /finish_stranded_draft=js-sdk-v0\.0\.9-beta\.0 was ignored/u);
+  assert.match(result.summary, /`finish_stranded_draft` ignored/u);
+  // Exactly one finish sequence, for the tag Release Please actually cut.
+  assert.equal(result.trace.filter((entry) => entry === "tag-create").length, 1);
+  assert.deepEqual(result.trace, [
+    "reseal-dispatch",
+    "tag-create",
+    "draft-publish",
+    "npm-publish-dispatch",
+    "smoke-dispatch",
+  ]);
+});
+
+test("the release step runs on a dispatch that only finishes a stranded draft", () => {
+  // The gap that made the draft unreachable is the STEP-level condition, not
+  // the code inside it: guarded on `releases_created` alone, the step is
+  // skipped outright on a re-dispatch and the job succeeds having done nothing.
+  const source = readFileSync(WORKFLOW, "utf8");
+  assert.match(
+    source,
+    /- name: Dispatch package publish workflows\n\s+if: >-\n[\s\S]{0,400}?inputs\.finish_stranded_draft != ''\) \}\}/u,
+  );
+  // And the input has to exist to be passed in.
+  assert.match(source, /workflow_dispatch:\n\s+inputs:\n\s+finish_stranded_draft:/u);
+  assert.match(source, /FINISH_STRANDED_DRAFT: \$\{\{ inputs\.finish_stranded_draft \}\}/u);
 });

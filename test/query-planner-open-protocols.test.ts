@@ -167,7 +167,7 @@ describe("OData query planning", () => {
         operation: "query",
         entitySet: "Incidents",
         filter:
-          "Severity ge 3 and Status eq 'open' and geo.intersects(Location,geography'SRID=4326;POINT(-157.8 21.3)')",
+          "(Severity ge 3 and Status eq 'open') and (geo.intersects(Location,geography'SRID=4326;POINT(-157.8 21.3)'))",
         select: ["Id", "Status", "Location"],
         expand: ["Reporter($select=Name)"],
         orderBy: ["ReportedAt desc"],
@@ -178,6 +178,29 @@ describe("OData query planning", () => {
     const legacy = compileOdataQuery(plan.ir.source, plan.ir.query);
     expect(legacy).toMatchObject({ compiler: "odata-v4-query-v1", top: 20 });
     expect(legacy).not.toHaveProperty("operation");
+  });
+
+  it("keeps both OR branches constrained by the spatial filter", () => {
+    const plan = explainQuery({
+      descriptor: odataDescriptor(),
+      query: {
+        where: "Status = 'open' OR Status = 'pending'",
+        spatialFilter: {
+          geometry: { x: -157.8, y: 21.3, spatialReference: { wkid: 4326 } },
+          geometryType: "esriGeometryPoint",
+        },
+      },
+    });
+    const filter =
+      "(Status eq 'open' or Status eq 'pending') and (geo.intersects(Location,geography'SRID=4326;POINT(-157.8 21.3)'))";
+    expect(plan.steps[0]).toMatchObject({
+      engine: "remote",
+      compiled: { compiler: "odata-v4-protocol-query-v1", filter },
+    });
+    expect(compileOdataQuery(plan.ir.source, plan.ir.query)).toMatchObject({
+      compiler: "odata-v4-query-v1",
+      filter,
+    });
   });
 
   it("rejects unsupported operators and non-finite spatial coordinates before execution", () => {

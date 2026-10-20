@@ -10,6 +10,7 @@ import {
   EXECUTION_MODE_VOCABULARY,
   MANIFEST_PATH,
   PROJECT_ROOT,
+  RASTER_SOURCE_REGISTRY_PATH,
   STATUS_VOCABULARY,
   buildPublicSurface,
   buildSupportProjection,
@@ -40,6 +41,18 @@ test("the support manifest satisfies its versioned schema", () => {
   assert.equal(validateManifestSchema(manifest), true, JSON.stringify(validateManifestSchema.errors));
 });
 
+test("the authoritative raster source registry satisfies its versioned schema", () => {
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const schema = JSON.parse(
+    fs.readFileSync(path.join(PROJECT_ROOT, "config/raster-source-registry.schema.json"), "utf8"),
+  );
+  const registry = JSON.parse(
+    fs.readFileSync(path.join(PROJECT_ROOT, RASTER_SOURCE_REGISTRY_PATH), "utf8"),
+  );
+  const validate = ajv.compile(schema);
+  assert.equal(validate(registry), true, JSON.stringify(validate.errors));
+});
+
 test("the generic projection schema compiles and validates in an isolated offline Ajv", () => {
   const projectionSchema = JSON.parse(
     fs.readFileSync(
@@ -59,6 +72,13 @@ test("all support statuses are explicit and the repository evidence exists", () 
   assert.deepEqual(manifest.environmentVocabulary, ENVIRONMENT_VOCABULARY);
   assert.deepEqual(manifest.executionModeVocabulary, EXECUTION_MODE_VOCABULARY);
   assert.deepEqual(validateSupportManifest(manifest), []);
+});
+
+test("raster source registry drift fails the support-manifest check", () => {
+  assert.equal(manifest.rasterSourceRegistry, RASTER_SOURCE_REGISTRY_PATH);
+  const wrong = clone(manifest);
+  wrong.rasterSourceRegistry = "config/another-raster-registry.json";
+  assert.match(validateSupportManifest(wrong).join("\n"), /must reference config\/raster-source-registry\.v1\.json/);
 });
 
 test("the discovery inventory covers every protocol and keeps static ownership fail-closed", () => {
@@ -276,8 +296,9 @@ test("the generated public surface preserves package export parity", () => {
   for (const publishedPath of [
     "config/support-manifest.v1.json",
     "config/support-manifest.schema.json",
-    "support/projections",
-    "support/contract/v1/schemas",
+    "support/projections/sdk-support.v1.json",
+    "support/projections/connect-discovery-inventory.v1.json",
+    "support/contract/v1/schemas/support-projection.schema.json",
   ]) {
     assert.ok(packageJson.files.includes(publishedPath), `package.json must publish ${publishedPath}`);
   }
@@ -333,7 +354,7 @@ test("the Cesium scene surface is beta with an explicit, exhaustive export list"
   assert.equal(forwarder.status, "deprecated");
   assert.equal(forwarder.replacement, "@honua/app-platform/scene-workspace");
   assert.equal(forwarder.replacementStatus, "beta");
-  assert.equal(forwarder.removeIn, "0.2.0");
+  assert.equal(forwarder.removeIn, "0.3.0");
 
   // Nothing is promoted by proximity: the barrel is partitioned exactly.
   const barrelExports = readBarrelExports(tier.barrel);

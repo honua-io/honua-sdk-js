@@ -46,10 +46,10 @@ endpoint or a server-side proxy.
 `@connectrpc` packages are the SDK's optional transport peers: they are installed and pinned here so the bundle builds
 without any peer-dependency assembly, and they are what a Honua-server connection uses.
 
-This starter pins **MapLibre GL JS 6.1.0**, which the published `@honua/sdk-js` release accepts as an optional peer
-(`^5.0.0 || ^6.0.0`). MapLibre 6 is ESM-only and loads its worker as a separate module, so `src/maplibre-worker.ts`
+This starter pins **MapLibre GL JS 6.4.1**, which satisfies the published `@honua/sdk-js` optional peer
+(`^6.4.1`). MapLibre 6 is ESM-only and loads its worker as a separate module, so `src/maplibre-worker.ts`
 calls `setWorkerUrl` with Vite's `?worker&url` import before the first map is created; `src/main.ts` imports it first.
-Downgrading to MapLibre 5 is supported by the SDK and means deleting that module and its import.
+Versions below 6.4.1 do not satisfy the SDK peer. Deleting the worker module is only for a renderer other than MapLibre 6.
 
 ## Checks
 
@@ -59,3 +59,7 @@ npm run build
 ```
 
 The fixture data is synthetic demonstration data from the Honua SDK sample fixtures (Apache-2.0).
+
+## Live basemap
+
+The default fixture lane stays offline. When `VITE_HONUA_ENDPOINT` selects a live endpoint, the map uses keyless OpenFreeMap Positron (or Dark for the system theme) and keeps source attribution visible. Set `VITE_HONUA_BASEMAP_STYLE` to a custom/self-hosted style URL. A basemap asset failure leaves operational data and controls available with an actionable status. Keep the expanded source credits in screenshots and exports.

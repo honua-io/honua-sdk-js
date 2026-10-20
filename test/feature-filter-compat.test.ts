@@ -5,7 +5,7 @@ import {
   GeoJSONLayerCompat,
   ImageryLayerCompat,
   WFSLayerCompat,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
 
 // #1013 — the compat surface used to declare `objectIds` (and a family of
 // sibling array properties) as `ReadonlyArray`, an undocumented divergence

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { HonuaClient } from "@honua/sdk-js";
 import type { HonuaTransport } from "@honua/sdk-js";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -73,7 +74,9 @@ export const SERVER_VERSION = resolveServerVersion();
 
 function resolveServerVersion(): string {
   try {
-    const packageJsonPath = new URL("../../package.json", import.meta.url);
+    // Self-reference resolves this package in both src/ and dist/src/. A
+    // relative ../../ path reads the SDK's manifest when Vitest loads src/.
+    const packageJsonPath = createRequire(import.meta.url).resolve("@honua/mcp-server/package.json");
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { version?: unknown };
     if (typeof packageJson.version === "string" && packageJson.version.length > 0) {
       return packageJson.version;
@@ -259,32 +262,35 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     async (args) => describeLayer.execute(client, describeLayer.schema.parse(args)),
   );
 
-  server.tool(
+  server.registerTool(
     "honua_query_features",
-    "Query features from any supported protocol. Address the source with `source`; filter with the typed protocol-neutral `filter`, a GeoJSON `geometry` or `bbox` plus `spatialRel`, and `temporal`. returnGeometry defaults to false to save tokens. A construct the backing protocol cannot express returns a structured capability error, never a silently empty result.",
-    queryFeatures.schema.shape,
-    async (args) => queryFeatures.execute(client, queryFeatures.schema.parse(args)),
+    {
+      description:
+        "Query features from any supported protocol. Address the source with source; use the typed filter, GeoJSON geometry or bbox, and temporal. returnGeometry defaults to true. resultOffset/outSrid alias offset/outSr; use honua_count_features for count-only requests. Unsupported inputs fail explicitly.",
+      inputSchema: queryFeatures.schema,
+    },
+    async (args, extra) => queryFeatures.execute(client, queryFeatures.schema.parse(args), extra?.signal),
   );
 
   server.tool(
     "honua_count_features",
     "Count features matching a filter without returning data. Use before querying to check cardinality.",
     countFeatures.schema.shape,
-    async (args) => countFeatures.execute(client, countFeatures.schema.parse(args)),
+    async (args, extra) => countFeatures.execute(client, countFeatures.schema.parse(args), extra?.signal),
   );
 
   server.tool(
     "honua_get_extent",
     "Get the spatial bounding box of features matching a filter.",
     getExtent.schema.shape,
-    async (args) => getExtent.execute(client, getExtent.schema.parse(args)),
+    async (args, extra) => getExtent.execute(client, getExtent.schema.parse(args), extra?.signal),
   );
 
   server.tool(
     "honua_statistics",
     "Compute aggregate statistics (count, sum, avg, min, max, stddev, var) on a field, optionally grouped. Protocols without server-side aggregation answer client-side and report the degradation.",
     statistics.schema.shape,
-    async (args) => statistics.execute(client, statistics.schema.parse(args)),
+    async (args, extra) => statistics.execute(client, statistics.schema.parse(args), extra?.signal),
   );
 
   server.tool(
@@ -301,10 +307,13 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     async (args) => getStyle.execute(client, getStyle.schema.parse(args)),
   );
 
-  server.tool(
+  server.registerTool(
     "honua_apply_style_preset",
-    "Resolve a style preset and its MapLibre stylesheet for client-side application. Read-only: returns the stylesheet to apply locally; it does not mutate server state. Degrades gracefully on a target with no styling surface.",
-    applyStylePreset.schema.shape,
+    {
+      description:
+        "Resolve a style preset for client-side application. Returns its stylesheet without persisting a layer binding; serviceId/layerId targets are unsupported.",
+      inputSchema: applyStylePreset.schema,
+    },
     async (args) => applyStylePreset.execute(client, applyStylePreset.schema.parse(args)),
   );
 

@@ -207,7 +207,7 @@ describe("migration workbench artifact supply chain", () => {
       path.join(repositoryRoot, "examples/migration-workbench/fixtures/expected-behavior.v1.json"),
     );
     const expectedBehaviorSha256 = createHash("sha256").update(expectedBehaviorBytes).digest("hex");
-    const fixtureTreeSha256 = hashRegularTree(path.join(repositoryRoot, "examples/arcgis-source-app"));
+    const fixtureTreeSha256 = hashRegularTree(path.join(repositoryRoot, "examples/geoservices-source-app"));
     expect(migration.provenance.sourceSnapshot).toEqual({
       fixtureTreeSha256,
       expectedBehaviorPath: "examples/migration-workbench/fixtures/expected-behavior.v1.json",

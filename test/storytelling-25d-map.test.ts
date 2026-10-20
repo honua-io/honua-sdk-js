@@ -81,7 +81,7 @@ describe("storytelling 2.5D map startup", () => {
         },
       } as never,
       config: {
-        basemapStyle: "https://example.test/style.json",
+        basemapStyle: "/__honua-25d__/missing-style.json",
         initialPitch: 60,
         initialBearing: -18,
         sourceIds: {
@@ -103,7 +103,7 @@ describe("storytelling 2.5D map startup", () => {
     globalThis.__HONUA_25D_TEST_LAST_MAP__?.emit("error", { error: { message: "Style JSON 404" } });
 
     await expect(mapPromise).rejects.toThrow(
-      'Failed to load the basemap style "https://example.test/style.json": Style JSON 404',
+      'Failed to load the basemap style "/__honua-25d__/missing-style.json": Style JSON 404',
     );
   });
 });

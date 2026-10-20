@@ -10,6 +10,7 @@ import type { ParsedArgs } from "./args.js";
 export interface CommandContext {
   baseUrl?: string;
   apiKey?: string;
+  bearerToken?: string;
   adminKey?: string;
   profile?: string;
 }

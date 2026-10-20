@@ -34,7 +34,6 @@ async function copyDocumentation(packageRoot) {
 }
 
 export async function certifyInstalledExamples({ output = "test-results/installed-example-certification.json", admit = withInstalledCandidate } = {}) {
-  const candidate = await readInstalledCandidate();
   const target = path.resolve(root, output);
   const emit = async (receipt) => {
     const complete = { ...receipt, receiptDigest: digest(receipt) };
@@ -45,6 +44,7 @@ export async function certifyInstalledExamples({ output = "test-results/installe
   // The committed receipt is a prior candidate's evidence; drop it first so an aborted or
   // rejected run cannot publish it as this candidate's result.
   await rm(target, { force: true });
+  const candidate = await readInstalledCandidate();
   try {
     return await admit(candidate, async ({ installed, packageRoot }) => {
       await copyDocumentation(packageRoot);
@@ -90,6 +90,7 @@ export async function certifyInstalledExamples({ output = "test-results/installe
         schema: "honua.sdk-installed-example-certification-receipt/v1",
         generatedAt: new Date().toISOString(),
         release: candidate.release,
+        ...(candidate.releaseInput ? { releaseInput: candidate.releaseInput } : {}),
         package: { ...candidate.package, resolved: installed.resolved },
         server: candidate.server,
         summary: { total: verdicts.length, examples: examples.length, snippets: snippets.length, ...summary },
@@ -103,6 +104,7 @@ export async function certifyInstalledExamples({ output = "test-results/installe
       schema: "honua.sdk-installed-example-certification-receipt/v1",
       generatedAt: new Date().toISOString(),
       release: candidate.release,
+      ...(candidate.releaseInput ? { releaseInput: candidate.releaseInput } : {}),
       package: candidate.package,
       server: candidate.server,
       admission: { status: "failed", diagnostic: String(error?.message ?? error).slice(0, 2_000) },

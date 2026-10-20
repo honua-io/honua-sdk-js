@@ -1,16 +1,17 @@
 ---
 name: honua-map-composition
-description: Use when composing a Honua map, app, or dashboard through Studio MCP tools and getting it toward publication — creating a draft, adding layers/widgets/controls/interactions, validating, saving an immutable version, reopening it, and recording publication intent without bypassing the human approval gate. Covers 2026.1 zero-to-map stage 4 (studio) and stage 5 (proposal).
+description: Use when composing a bounded 2D Honua map through Studio MCP tools — creating a draft, adding layers/style/view/basic controls, saving and reopening an immutable version, and proposing publication for a separate human approver. Covers 2026.1 zero-to-map stages studio and proposal.
 release: "2026.1"
 stages: [studio, proposal]
 ---
 
-# Map/dashboard composition, save/reopen, and proposal (stages 4–5)
+# Compose a 2D map, save/reopen, and propose publication
 
-Three package families are composed the same way and are **distinct artifacts**:
-`map`, `app`, and `dashboard`. Composing one does not produce the others — the
-journey builds all three separately
-(`mcp/release/zero-to-map/journey.v1.json`, stage `studio`).
+The bounded 2026.1 release journey requires one `map` artifact with published
+layers, style, view, and basic controls. The broader repository integration
+bundle also exercises `app` and `dashboard`; those are distinct artifacts and
+are outside this release qualification. See `docs/zero-to-map-release-journey.md`
+for the release-owned deterministic driver and model-canary boundaries.
 
 ## The draft loop
 
@@ -19,7 +20,7 @@ is optimistic concurrency: pass the value returned by the previous call. A
 stale `generation` is a conflict, not a retryable error — re-read the draft.
 
 ```
-honua_studio_create_draft   { packageKey, family: "map" | "app" | "dashboard", schemaVersion, body }
+honua_studio_create_draft   { packageKey, family: "map", schemaVersion, body }
 honua_studio_add_layer      { draftId, generation, layer: { id, sourceId, type, title, visible } }
 honua_studio_set_layer_style      { draftId, generation, layerId, styleRef }
 honua_studio_set_layer_visibility { draftId, generation, layerId, visible }
@@ -42,9 +43,24 @@ honua_studio_validate_draft { draftId, generation }
 `honua_generated_app_manifest.v1` for dashboards. A loader refuses any other
 value. The full family table is in `docs/studio-package-contracts.md`.
 
-Widgets and controls bind to a layer by `sourceId`; `honua_studio_bind_interaction`
-is what makes a chart selection drive the map. A dashboard with an unbound chart
-is a screenshot, not a dashboard.
+## From the terminal
+
+`honua_studio_create_draft` and `honua_studio_validate_draft` are MCP tools.
+The `honua` CLI has no `studio` command. The same two calls over HTTP, with
+`HONUA_ADMIN_KEY` set and never printed, are:
+
+- create: `POST /api/v1/studio/package-drafts`
+- validate: `POST /api/v1/studio/package-drafts/{draftId}/validate`
+
+`honua_studio_add_layer` has no separate route. Put the layer in the draft
+body. A published layer's `sourceId` is
+`honua://services/<serviceName>/layers/<layerId>`.
+
+Use the candidate's discovered input schema and the map package contract in
+`docs/studio-package-contracts.md`. Retain a real validation result; do not
+add guessed loader fields or substitute an app/dashboard body. Widgets and
+cross-widget interactions belong to the broader composition surface and are
+not additional requirements for this bounded map.
 
 ## Validate, save, read, reopen
 
@@ -60,33 +76,63 @@ then working on the new draft id/generation it returns — never mutating the
 saved version in place. Always `get_version` after `save_version`: that
 round-trip is what proves the save actually persisted what you composed.
 
-## Publication intent is not publication
+## Publish the saved version
 
-Stage `proposal` records intent and structurally requires human confirmation:
+Save first. `honua_studio_save_version` nests `versionId`, `contentHash`, and
+`versionNumber` under `version`. `honua_studio_get_version` still returns
+top-level `versionId` and `contentHash`. Then propose that exact version:
 
 ```
 honua_studio_propose_publication
-{ draftId, generation, route: "<route>", visibility: "public", embed: true, note: "<why>" }
-
-honua_studio_save_version
-{ draftId, generation, changeNote: "<publication intent>" }
+{ itemId, versionId, contentHash, route: "<route>", visibility: "public", note: "<why>" }
 ```
 
-The hard rules:
+Do not send `draftId`, `generation`, or `embed`.
 
-- The propose response **does not** return `publicationId`, `publicUrl`, or
-  `shareUrl` — the journey declares those as forbidden pointers. If you find
-  yourself constructing a public URL, you have skipped the gate.
-- A Studio `PublicationIntent` is *not* the admin approval proposal, and not
-  Console approval. Do not describe it as "published".
-- `visibility: "public"` is a human decision. Ask; do not infer it.
-- An agent never self-approves. Approval happens in Console (stage `console`),
-  and only then does the stable URL exist for stage `artifact` to verify.
-- The intent must be saved as a version to be governed — propose then save.
+The release-qualified path must retain a durable proposal in `AwaitingApproval`
+(or its documented pending equivalent), bound to the saved item, version, and
+content hash. Use the candidate's supported proposer role and policy. An
+immediate admin publication with `humanConfirmationRequired: false` may be a
+supported general operation, but it does not prove this governed journey. If
+that is all the candidate supports, report the missing approval boundary.
+Never invent a proposal, approval ID, or a second principal.
 
-This boundary is the SDK's documented agent-safety posture: plans are proposed,
-signed, and approved out of band, and receipts record what actually ran. See
-`docs/agent-safety.md`.
+A separate human with the required approval authority reviews the actual
+proposal and runs the typed CLI under their own authenticated profile:
+
+```bash
+(
+  unset HONUA_ADMIN_KEY HONUA_API_KEY HONUA_BEARER_TOKEN HONUA_BASE_URL
+  honua admin operate approveOperationProposal --path id=<proposal-id> --profile approver --yes
+  honua admin operate getOperationProposal --path id=<proposal-id> --profile approver --json
+)
+```
+
+Approval takes no request body. The profile name alone does not change identity:
+configure it with the approver's own credential and target base URL. The subshell
+clears the environment credentials and base URL that would override the profile. API keys need full admin or `admin:approve`; operator bearers need
+RBAC approval authority. Do not mint, reuse, or impersonate that human credential
+from the proposing agent session. `--yes` permits the CLI mutation; it does not
+establish separate human approval.
+
+A separation-of-duties control must use a proposer that independently has
+approval authority, under a supported qualification policy that still requires
+review. Retain that effective authority, require HTTP 403 with
+`Separation of duties: the requester of a proposal cannot approve it.`, and
+verify that the same proposal remains pending with unchanged state. The default
+local key lacks `admin:approve`; its generic refusal proves limited permissions,
+not separation of duties. If an approval-capable proposer cannot be established,
+retain that control as blocked instead of claiming a pass.
+
+After actual human approval, poll the authoritative
+proposal to terminal success and retain the server-issued approval identity,
+requester/resolver identities, and operation/audit/correlation joins. Read the
+final published map and compare its item, version, hash, and content with the
+saved map. An HTTP 200 or share URL alone does not prove approved publication.
+Until the human acts, report `AwaitingApproval`, not a completed journey.
+
+This is the SDK's documented agent-safety boundary: proposals and approval are
+separate, and receipts record what actually ran. See `docs/agent-safety.md`.
 
 ## Real-time and collaboration
 

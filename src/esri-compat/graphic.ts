@@ -1,10 +1,13 @@
 import { safeInvokeCompatListener } from "./event-bus.js";
 
-/** Structural type for geometry-like objects (point, polyline, polygon, extent, etc.). */
-export type CompatGeometryLike = Record<string, unknown>;
+/**
+ * Geometry passed to a graphic. Class instances such as `PointCompat` are
+ * values, so this is not an index signature (that would reject private fields).
+ */
+export type CompatGeometryLike = object;
 
-/** Structural type for symbol-like objects (marker, line, fill, text, etc.). */
-export type CompatSymbolLike = Record<string, unknown>;
+/** Symbol passed to a graphic. Class instances such as `SimpleMarkerSymbolCompat` are values. */
+export type CompatSymbolLike = object;
 
 /** Structural type for popup template-like objects. */
 export type CompatPopupTemplateLike = Record<string, unknown>;

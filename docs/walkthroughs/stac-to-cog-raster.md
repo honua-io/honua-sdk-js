@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "From a STAC asset to a bounded COG render"
-description: "Use this walkthrough when a STAC search has returned an imagery asset and you"
+description: "Take an imagery asset returned by a STAC search through inspection, subsetting, styling and display as a bounded COG render without downloading the whole object."
 ---
 # From a STAC asset to a bounded COG render
 

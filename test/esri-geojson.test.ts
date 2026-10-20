@@ -21,6 +21,28 @@ describe("esriGeometryToGeoJSON", () => {
     });
   });
 
+  it.each([12.5, 0, -45.25])("preserves point elevation %s through the public core converter", (z) => {
+    const point = { x: -80.839, y: 35.226, z };
+    const before = structuredClone(point);
+    expect(esriGeometryToGeoJSON(point)).toEqual({ type: "Point", coordinates: [-80.839, 35.226, z] });
+    expect(point).toEqual(before);
+    expect(esriFeatureToGeoJSON({ attributes: { OBJECTID: 1 }, geometry: point }).geometry).toEqual({
+      type: "Point",
+      coordinates: [-80.839, 35.226, z],
+    });
+  });
+
+  it("does not reinterpret a point measure as elevation", () => {
+    expect(esriGeometryToGeoJSON({ x: 1, y: 2, m: 123 })).toEqual({ type: "Point", coordinates: [1, 2] });
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "rejects non-finite point elevation %s",
+    (z) => {
+      expect(esriGeometryToGeoJSON({ x: 1, y: 2, z })).toBeNull();
+    },
+  );
+
   it("converts an Esri multipoint", () => {
     expect(
       esriGeometryToGeoJSON({
@@ -208,6 +230,39 @@ describe("esriGeometryToGeoJSON", () => {
           ],
         ],
       ],
+    });
+  });
+
+  it("assigns a hole to the containing closed exterior rather than the smallest disjoint exterior", () => {
+    const result = esriGeometryToGeoJSON({
+      rings: [
+        [
+          [0, 0],
+          [0, 10],
+          [10, 10],
+          [10, 0],
+          [0, 0],
+        ],
+        [
+          [20, 0],
+          [20, 2],
+          [22, 2],
+          [22, 0],
+          [20, 0],
+        ],
+        [
+          [1, 1],
+          [2, 1],
+          [2, 2],
+          [1, 2],
+          [1, 1],
+        ],
+      ],
+    });
+
+    expect(result).toMatchObject({
+      type: "MultiPolygon",
+      coordinates: [[expect.any(Array), expect.any(Array)], [expect.any(Array)]],
     });
   });
 

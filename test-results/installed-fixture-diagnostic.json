@@ -1,15 +1,15 @@
 {
   "mode": "harness-diagnostic-only",
-  "generatedAt": "2026-09-06T11:05:16.391Z",
+  "generatedAt": "2026-09-15T02:44:25.476Z",
   "binding": {
-    "candidateDigest": "sha256:3ce599b9d8092ba04db5fb6cc840448a8f72c15d225658f3397a2b44cc238a63",
-    "denominatorDigest": "sha256:cd7834e8f33e4a76f3245685881e04f08fc47164b108d1aee96847747986675c",
+    "candidateDigest": "sha256:cd7ca76c82ec877f8a0a86effd06d24240d7fce31754743e78c609a92c8530e0",
+    "denominatorDigest": "sha256:c2cc79d1a0f0352eeeef29ba6a7bebd7a0196b90eb9e3bc8030f2b39376d4d54",
     "inputs": {
-      "config/support-manifest.v1.json": "sha256:41e993ec570bf9e053c9ec04a4493b248577e22e7c411d94761c2b948be5c20d",
+      "config/support-manifest.v1.json": "sha256:e1ac66b00a6b0f636c03f15d9fae15225937dc95abc12a8bfeb3561271f4d032",
       "mcp/release/zero-to-map/journey.v1.json": "sha256:5c2b267695e9748a24fc6b72c732b7f71b0a764e8239691b216fdedddb4c313b",
-      "test/integration/seed/places-roads-v1.sql": "sha256:97d35505c77ac4e8c2707364bd499f780cbf63e0e7152e84cd3ef4994ff42914",
+      "test/integration/seed/places-roads-v1.sql": "sha256:0ca9671df1f2f210b82592e1139659943960bf384ff42002f1ecf242dd5b3bf1",
       "scripts/fixtures/installed-features.mjs": "sha256:df0bd581cd60644bb28ef091c29362add1f0ae7501ef29e7ac5aa0cbcd4c0977",
-      "scripts/installed-candidate-fixture.mjs": "sha256:4a3275c36b31fa5fc1dfba24db33e1b31f1aa3ece927ba9a24ec9785e69e460e"
+      "scripts/installed-candidate-fixture.mjs": "sha256:881e32582403e1c93e042ecb7594808eb29be0081e8a15eb4c422c3106b8440f"
     }
   },
   "installedRoot": {
@@ -194,7 +194,7 @@
           {
             "path": "/rest/services/test_service/FeatureServer/0",
             "status": 200,
-            "bytes": 4589
+            "bytes": 4715
           }
         ]
       }
@@ -306,8 +306,8 @@
     }
   ],
   "serverRuntime": {
-    "imageId": "sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72",
-    "image": "ghcr.io/honua-io/honua-server@sha256:373aa1fdf1bd4153df9cb21e25e43dfc463c0e194fcac13b40a39c4bb390eb72",
+    "imageId": "sha256:29974ee7b722e3ae15c3b891024e5e70800f412188aeccf5ec3d32d9dac675c1",
+    "image": "ghcr.io/honua-io/honua-server@sha256:29974ee7b722e3ae15c3b891024e5e70800f412188aeccf5ec3d32d9dac675c1",
     "postgresImageId": "sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5",
     "redisImageId": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
     "fixture": "places-roads-v1",

@@ -11,6 +11,15 @@
  *   suspended while a mode is active when the map exposes the handle);
  * - **Escape** (or the Cancel button) discards the in-progress sketch.
  *
+ * Touch input needs nothing extra: MapLibre reports a tap as `click`, and the
+ * Finish button stands in for double-tap (which MapLibre does not report as
+ * `dblclick`).
+ *
+ * While a mode is active the element claims the map pointer
+ * (`./map-pointer-claim.js`), so a vertex click that lands on a feature does
+ * not also rewrite the shared selection `<honua-map>` feeds to tables,
+ * inspectors, and editors.
+ *
  * Distance and area are computed with the geodesic ops from the public
  * `@honua/geometry` surface (`length` / `area`), so the widget's numbers match
  * `geometryEngine` parity math everywhere else in the SDK.
@@ -25,6 +34,12 @@
  * in-progress sketch renders as a line + fill overlay in a
  * `honua-measurement` GeoJSON source; on plain stubs the overlay is skipped.
  *
+ * ## Units, precision, fidelity, CRS
+ * `unit`, `areaUnit`, `precision`, `fidelity`, and `planarCrs` are
+ * properties, also settable declaratively as the `unit`, `area-unit`,
+ * `precision`, `fidelity`, and `planar-crs` attributes. Unknown values fall
+ * back to the default rather than producing a malformed display.
+ *
  * ## Accessibility
  * Mode buttons are a `role="group"` of toggle buttons with `aria-pressed`;
  * the live result is announced through a `role="status"` region; Finish /
@@ -36,13 +51,25 @@
 
 import { area as geodesicArea, length as geodesicLength } from "../geometry/index.js";
 import { renderCspSafeShadowHtml } from "./csp-styles.js";
-import { formatAreaValue, formatDistanceValue, planarArea, planarLength } from "./measurement-units.js";
+import { claimMapPointer } from "./map-pointer-claim.js";
+import {
+  HONUA_MEASURE_AREA_UNITS,
+  HONUA_MEASURE_DISTANCE_UNITS,
+  HONUA_MEASURE_PLANAR_CRS,
+  formatAreaValue,
+  formatDistanceValue,
+  isValidMeasureVertex,
+  planarArea,
+  planarLength,
+  ringSelfIntersects,
+} from "./measurement-units.js";
 import type {
   HonuaMeasureAreaUnit,
   HonuaMeasureChangeDetail,
   HonuaMeasureDistanceUnit,
   HonuaMeasureFidelity,
   HonuaMeasureMode,
+  HonuaMeasurePlanarCrs,
   HonuaMeasureResult,
   HonuaMeasurementMap,
   HonuaMeasurementMessages,
@@ -62,9 +89,23 @@ const OVERLAY_FILL_LAYER_ID = "honua-measurement-fill";
 
 type LngLat = readonly [number, number];
 
+const PROPERTY_ATTRIBUTES = ["unit", "area-unit", "precision", "fidelity", "planar-crs"] as const;
+
+/**
+ * Distance and area measurement drawn directly on a MapLibre map.
+ *
+ * @attr {string} for - `id` of the `<honua-map>` (or any element exposing `.map`) to measure on.
+ * @attr {string} label - Heading and accessible name of the panel; `messages.label` wins when set.
+ * @fires {CustomEvent<HonuaMeasureChangeDetail>} honua-measure-change - A mode, vertex, result, fidelity, or planar CRS change. Bubbles and is composed.
+ * @csspart panel - The measurement panel.
+ * @csspart mode - Each mode toggle button.
+ * @csspart value - The live result readout (`role="status"`).
+ * @csspart finish - The Finish button.
+ * @csspart cancel - The Cancel button.
+ */
 export class HonuaMeasurementElement extends HTMLElementBase {
   public static get observedAttributes(): string[] {
-    return ["for", "label"];
+    return ["for", "label", ...PROPERTY_ATTRIBUTES];
   }
 
   #map: HonuaMeasurementMap | undefined;
@@ -77,7 +118,9 @@ export class HonuaMeasurementElement extends HTMLElementBase {
   #areaUnit: HonuaMeasureAreaUnit = "auto";
   #precision: number | undefined;
   #fidelity: HonuaMeasureFidelity = "geodesic";
+  #planarCrs: HonuaMeasurePlanarCrs = "local";
 
+  /** Caller-supplied labels, statuses, and ARIA text; unset entries keep the English defaults. */
   public get messages(): HonuaMeasurementMessages {
     return this.#messages;
   }
@@ -95,7 +138,7 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     return this.#unit;
   }
   public set unit(unit: HonuaMeasureDistanceUnit | undefined) {
-    this.#unit = unit ?? "auto";
+    this.#unit = oneOf(unit, HONUA_MEASURE_DISTANCE_UNITS, "auto");
     this.render();
   }
 
@@ -108,7 +151,7 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     return this.#areaUnit;
   }
   public set areaUnit(unit: HonuaMeasureAreaUnit | undefined) {
-    this.#areaUnit = unit ?? "auto";
+    this.#areaUnit = oneOf(unit, HONUA_MEASURE_AREA_UNITS, "auto");
     this.render();
   }
 
@@ -117,24 +160,47 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     return this.#precision;
   }
   public set precision(precision: number | undefined) {
-    this.#precision = precision === undefined || Number.isNaN(precision) ? undefined : Math.max(0, precision | 0);
+    // toFixed accepts 0..100; clamp so a hostile or mistyped value cannot throw from render.
+    const numeric = typeof precision === "string" ? Number(precision) : precision;
+    this.#precision =
+      typeof numeric !== "number" || !Number.isFinite(numeric)
+        ? undefined
+        : Math.min(20, Math.max(0, Math.trunc(numeric)));
     this.render();
   }
 
   /**
    * Which math computes `result.distance` / `result.area`: `"geodesic"`
-   * (default, great-circle over WGS84) or `"planar"` (Euclidean, over a local
-   * flat-earth approximation centered on the sketch's mean latitude — see
-   * `./measurement-units.js`). Changing this recomputes from the drawn
-   * vertices, since it changes which math produces the canonical value.
+   * (default, great-circle over WGS84) or `"planar"` (Euclidean, in the
+   * {@link planarCrs} frame — see `./measurement-units.js`). Changing this
+   * recomputes from the drawn vertices, since it changes which math produces
+   * the canonical value.
    */
   public get fidelity(): HonuaMeasureFidelity {
     return this.#fidelity;
   }
   public set fidelity(fidelity: HonuaMeasureFidelity | undefined) {
-    const next = fidelity ?? "geodesic";
+    const next = oneOf(fidelity, ["geodesic", "planar"] as const, "geodesic");
     if (this.#fidelity === next) return;
     this.#fidelity = next;
+    this.#recompute();
+    this.#dispatchChange();
+    this.render();
+  }
+
+  /**
+   * Planar frame used when {@link fidelity} is `"planar"`: `"local"` (default,
+   * flat-earth meters around the sketch) or `"EPSG:3857"` (Web Mercator
+   * meters, not scale-corrected). Recomputes like {@link fidelity} does.
+   */
+  public get planarCrs(): HonuaMeasurePlanarCrs {
+    return this.#planarCrs;
+  }
+  public set planarCrs(crs: HonuaMeasurePlanarCrs | undefined) {
+    const next = oneOf(crs, HONUA_MEASURE_PLANAR_CRS, "local");
+    if (this.#planarCrs === next) return;
+    this.#planarCrs = next;
+    if (this.#fidelity !== "planar") return;
     this.#recompute();
     this.#dispatchChange();
     this.render();
@@ -153,6 +219,9 @@ export class HonuaMeasurementElement extends HTMLElementBase {
   #clickListener: ((event?: unknown) => void) | undefined;
   #dblclickListener: ((event?: unknown) => void) | undefined;
   #keydownListener: ((event: KeyboardEvent) => void) | undefined;
+  #removeListener: (() => void) | undefined;
+  #releasePointerClaim: (() => void) | undefined;
+  #restoreDoubleClickZoom = false;
 
   /** The MapLibre map this widget draws on. */
   public get map(): HonuaMeasurementMap | undefined {
@@ -200,9 +269,13 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     this.render();
   }
 
-  /** Adds a vertex programmatically (same as a map click). */
-  public addVertex(lngLat: LngLat): void {
-    if (this.#mode === "off") return;
+  /**
+   * Adds a vertex programmatically (same as a map click). Returns `false`,
+   * changing nothing, when no mode is active or the position is not a usable
+   * WGS84 vertex (non-finite, or latitude outside `[-90, 90]`).
+   */
+  public addVertex(lngLat: LngLat): boolean {
+    if (this.#mode === "off" || !isValidMeasureVertex(lngLat)) return false;
     if (this.#finished) {
       this.#vertices = [];
       this.#finished = false;
@@ -212,6 +285,7 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     this.#syncOverlay();
     this.#dispatchChange();
     this.render();
+    return true;
   }
 
   /** Finishes the in-progress sketch (same as double-click). */
@@ -235,12 +309,31 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     this.render();
   }
 
-  public attributeChangedCallback(name: string): void {
+  public attributeChangedCallback(name: string, _previous?: string | null, value?: string | null): void {
     if (name === "for") {
       this.#resolveMapFromContext();
       return;
     }
-    this.render();
+    const next = value ?? undefined;
+    switch (name) {
+      case "unit":
+        this.unit = next as HonuaMeasureDistanceUnit | undefined;
+        return;
+      case "area-unit":
+        this.areaUnit = next as HonuaMeasureAreaUnit | undefined;
+        return;
+      case "precision":
+        this.precision = next === undefined || next.trim() === "" ? undefined : Number(next);
+        return;
+      case "fidelity":
+        this.fidelity = next as HonuaMeasureFidelity | undefined;
+        return;
+      case "planar-crs":
+        this.planarCrs = next as HonuaMeasurePlanarCrs | undefined;
+        return;
+      default:
+        this.render();
+    }
   }
 
   public connectedCallback(): void {
@@ -248,6 +341,12 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     this.#ensureShadowRoot();
     this.#listenForMapReady();
     this.#resolveMapFromContext();
+    // Moving the element in the DOM disconnects then reconnects it; an active
+    // mode must keep drawing rather than silently stop listening to the map.
+    if (this.#mode !== "off" && this.#map) {
+      this.#activateDrawing();
+      this.#syncOverlay();
+    }
     this.render();
   }
 
@@ -262,7 +361,7 @@ export class HonuaMeasurementElement extends HTMLElementBase {
 
   #activateDrawing(): void {
     const map = this.#map;
-    if (!map || this.#clickListener) return;
+    if (!map || !this.#connected || this.#clickListener) return;
     const onClick = (event?: unknown): void => {
       const lngLat = eventLngLat(event);
       if (lngLat) this.addVertex(lngLat);
@@ -280,14 +379,32 @@ export class HonuaMeasurementElement extends HTMLElementBase {
       }
       this.finish();
     };
+    const onRemove = (): void => {
+      // The map is being destroyed: drop every reference without calling back
+      // into it, and wait for another map.
+      this.#clickListener = undefined;
+      this.#dblclickListener = undefined;
+      this.#removeListener = undefined;
+      this.#releasePointerClaim?.();
+      this.#releasePointerClaim = undefined;
+      this.#map = undefined;
+      this.render();
+    };
     map.on("click", onClick);
     map.on("dblclick", onDblclick);
+    map.on("remove", onRemove);
+    this.#restoreDoubleClickZoom = map.doubleClickZoom?.isEnabled?.() ?? true;
     map.doubleClickZoom?.disable?.();
     this.#clickListener = onClick;
     this.#dblclickListener = onDblclick;
+    this.#removeListener = onRemove;
+    this.#releasePointerClaim = claimMapPointer(map, this);
     if (typeof window !== "undefined" && !this.#keydownListener) {
       const onKeydown = (event: KeyboardEvent): void => {
-        if (event.key === "Escape") this.cancel();
+        if (event.key !== "Escape" || event.defaultPrevented) return;
+        // Escape inside another text field belongs to that field.
+        if (isForeignEditableTarget(event, this)) return;
+        this.cancel();
       };
       window.addEventListener("keydown", onKeydown);
       this.#keydownListener = onKeydown;
@@ -299,11 +416,15 @@ export class HonuaMeasurementElement extends HTMLElementBase {
     if (map) {
       if (this.#clickListener) map.off?.("click", this.#clickListener);
       if (this.#dblclickListener) map.off?.("dblclick", this.#dblclickListener);
-      map.doubleClickZoom?.enable?.();
+      if (this.#removeListener) map.off?.("remove", this.#removeListener);
+      if (this.#clickListener && this.#restoreDoubleClickZoom) map.doubleClickZoom?.enable?.();
       this.#removeOverlay(map);
     }
     this.#clickListener = undefined;
     this.#dblclickListener = undefined;
+    this.#removeListener = undefined;
+    this.#releasePointerClaim?.();
+    this.#releasePointerClaim = undefined;
     if (this.#keydownListener && typeof window !== "undefined") {
       window.removeEventListener("keydown", this.#keydownListener);
       this.#keydownListener = undefined;
@@ -318,24 +439,34 @@ export class HonuaMeasurementElement extends HTMLElementBase {
       return;
     }
     const fidelity = this.#fidelity;
-    const result: HonuaMeasureResult = { mode, coordinates, fidelity };
+    const planarCrs = this.#planarCrs;
+    const result: HonuaMeasureResult = {
+      mode,
+      coordinates,
+      fidelity,
+      crs: fidelity === "planar" ? planarCrs : "EPSG:4326",
+    };
     try {
       if (mode === "distance" && coordinates.length >= 2) {
         this.#result = {
           ...result,
           distance:
             fidelity === "planar"
-              ? planarLength(coordinates)
+              ? planarLength(coordinates, planarCrs)
               : geodesicLength({ type: "LineString", coordinates: coordinates.map(toPosition) }, "meters"),
         };
         return;
       }
       if (mode === "area" && coordinates.length >= 3) {
+        if (ringSelfIntersects(coordinates)) {
+          this.#result = { ...result, invalid: "self-intersecting-ring" };
+          return;
+        }
         this.#result = {
           ...result,
           area:
             fidelity === "planar"
-              ? planarArea(coordinates)
+              ? planarArea(coordinates, planarCrs)
               : geodesicArea({
                   type: "Polygon",
                   coordinates: [[...coordinates.map(toPosition), toPosition(coordinates[0] as LngLat)]],
@@ -539,6 +670,9 @@ export class HonuaMeasurementElement extends HTMLElementBase {
         this.#messages.distance?.(value, this.#finished) ?? `Distance: ${value}${this.#finished ? " (finished)" : ""}`
       );
     }
+    if (result.invalid === "self-intersecting-ring") {
+      return this.#messages.invalidArea ?? "The outline crosses itself, so it has no single area. Cancel and redraw.";
+    }
     if (result.area === undefined) {
       return (
         this.#messages.vertexArea?.(this.#vertices.length) ??
@@ -570,6 +704,25 @@ export function defineHonuaMeasurement(registry = globalDom.customElements): voi
   if (!registry.get("honua-measurement")) {
     registry.define("honua-measurement", HonuaMeasurementElement);
   }
+}
+
+function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+}
+
+function isForeignEditableTarget(event: KeyboardEvent, host: HTMLElement): boolean {
+  const target = (typeof event.composedPath === "function" ? event.composedPath()[0] : event.target) as
+    | (Element & { isContentEditable?: boolean })
+    | null
+    | undefined;
+  if (!target || typeof target.tagName !== "string") return false;
+  if (host.shadowRoot?.contains?.(target) || host.contains?.(target)) return false;
+  return (
+    target.isContentEditable === true ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
 }
 
 function toPosition(lngLat: LngLat): [number, number] {

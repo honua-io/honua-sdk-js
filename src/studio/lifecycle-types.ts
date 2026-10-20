@@ -461,13 +461,15 @@ export interface StudioReopenVersionRequest {
 /** Which content-item pointer(s) a rollback request moves. */
 export type StudioRollbackPointer = "current" | "published" | "both";
 
-/** `POST /content-items/{itemId}/rollback-requests` request body. */
-export interface StudioRollbackRequestInput {
-  readonly versionId: string;
-  readonly pointer: StudioRollbackPointer;
-  readonly message?: string;
+/**
+ * `POST /content-items/{itemId}/rollback-requests` request body, exactly the
+ * canonical `CreateStudioRollbackRequest` wire contract. The server binds the
+ * target from `targetVersionId` and the pointer from `pointer`; an omitted
+ * `pointer` moves only the current pointer.
+ */
+export type StudioRollbackRequestInput = StudioOpenApiSchemas["CreateStudioRollbackRequest"] & {
   readonly [extra: string]: unknown;
-}
+};
 
 /** The Studio content item's current/published version pointers. */
 export interface StudioContentItemPointers {
@@ -481,11 +483,12 @@ export interface StudioContentItemPointers {
 export interface StudioRollbackRequest {
   readonly requestId: string;
   readonly itemId: string;
-  readonly versionId: string;
+  readonly targetVersionId: string;
   readonly pointer: StudioRollbackPointer;
   readonly pointers: StudioContentItemPointers;
+  readonly requestedBy?: string;
+  readonly reason?: string;
   readonly createdAt?: string;
-  readonly createdBy?: string;
   readonly [extra: string]: unknown;
 }
 

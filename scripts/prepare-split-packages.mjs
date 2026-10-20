@@ -18,7 +18,7 @@ const version = rootPackageJson.version;
 const ROOT_LICENSE_PATH = path.join(PROJECT_ROOT, "LICENSE");
 // Keep published package install support aligned with the SDK runtime floor,
 // even when repo-only tooling or example dependencies need a newer Node patch.
-const publishedEngines = { node: ">=20.0.0" };
+const publishedEngines = { node: ">=22.12.0" };
 const OPTIONAL_GRPC_RUNTIME_PEERS = [
   "@bufbuild/protobuf",
   "@connectrpc/connect",
@@ -110,6 +110,14 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-safety"), path.join(packageRoot, "agent-safety"));
   copyDirectory(path.join(DIST_SRC_ROOT, "nl-map-control"), path.join(packageRoot, "nl-map-control"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
+  // geometry-engine.js imports ../geometry/index.js, and feature-layer.js imports
+  // ../widget-capabilities.js. The SDK entry does not load either module, so
+  // turf stays a dependency of the packages whose entry does.
+  copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
+  copyEmittedModule(packageRoot, "widget-capabilities");
+  // Offline declarations type-import this module. Its implementation stays on
+  // @honua/app-platform; the type module only imports contract/types.js.
+  copyEmittedModule(packageRoot, "replica-sync/types");
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "filter-registry"), path.join(packageRoot, "filter-registry"));
@@ -385,8 +393,15 @@ function createCompatPackage() {
   // so the compat tarball ships both directories (issue #497).
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
-  copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.js"), path.join(packageRoot, "index.js"));
-  copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
+  // esri-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.
+  // That module sits beside esri-compat/ in dist/src, so the tarball has to ship it.
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
+  copyContractRuntimeClosure(packageRoot);
+  // The split package is the renamed entry itself, not the deprecated
+  // `./esri-compat` shim, so importing it never emits the subpath warning.
+  copyFile(path.join(DIST_SRC_ROOT, "client-compat-entry.js"), path.join(packageRoot, "index.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "client-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
 
   writePackageJson(packageRoot, {
     name: "@honua/sdk-esri-compat",
@@ -395,20 +410,24 @@ function createCompatPackage() {
     keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "compatibility"]),
     main: "./index.js",
     types: "./index.d.ts",
+    sideEffects: false,
     exports: {
       ".": {
         types: "./index.d.ts",
         default: "./index.js",
       },
     },
-    dependencies: {
-      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
-      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
-      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
-      ...geometryRuntimeDependencies(),
-    },
+    dependencies: geometryRuntimeDependencies(),
     peerDependencies: {
       "@honua/sdk": version,
+      ...optionalGrpcRuntimePeerDependencies(),
+      // MapView's loader is a literal dynamic import. Declaring the renderer
+      // optional lets a REST Vite build omit it; installing it still bundles it.
+      "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
+    },
+    peerDependenciesMeta: {
+      ...optionalGrpcRuntimePeerDependenciesMeta(),
+      "maplibre-gl": { optional: true },
     },
   });
 
@@ -418,6 +437,8 @@ function createCompatPackage() {
       "# @honua/sdk-esri-compat",
       "",
       "Compatibility bridge APIs for migrating ArcGIS JavaScript apps to Honua.",
+      "",
+      "`maplibre-gl` is an optional peer used when a compat map view is mounted.",
       "",
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),
@@ -437,6 +458,7 @@ function createGeometryPackage() {
   copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
+  copyContractRuntimeClosure(packageRoot);
 
   writePackageJson(packageRoot, {
     name: "@honua/geometry",
@@ -500,10 +522,20 @@ function createReactPackage() {
     "studio",
     "style",
     "webmap",
+    // LocatorCompat imports geocoding/provider.js. geometry-engine.js imports
+    // geometry/index.js. Turf stays declared on @honua/geometry and the compat
+    // package, whose entries are what load that shim.
+    "geocoding",
+    "geometry",
   ];
   for (const directory of reactClosureDirectories) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  copyColumnarRuntimeClosure(packageRoot);
+  copyEmittedModule(packageRoot, "widget-capabilities");
+  // runtime/maplibre-renderer.d.ts type-imports this module. The rest of kernel
+  // imports connect.js, which this package does not ship.
+  copyEmittedModule(packageRoot, "kernel/renderer");
   copySourceCapabilityContractSupport(packageRoot);
 
   writePackageJson(packageRoot, {
@@ -519,19 +551,18 @@ function createReactPackage() {
       },
     },
     dependencies: {
-      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
-      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
-      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
       "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
     },
     peerDependencies: {
       "@honua/sdk": version,
+      ...optionalGrpcRuntimePeerDependencies(),
       react: rootPackageJson.peerDependencies.react,
       "react-dom": rootPackageJson.peerDependencies["react-dom"],
       "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
     },
     peerDependenciesMeta: {
+      ...optionalGrpcRuntimePeerDependenciesMeta(),
       react: { optional: true },
       "react-dom": { optional: true },
       "maplibre-gl": { optional: true },
@@ -563,15 +594,18 @@ function createAppPlatformPackage() {
   // esri-compat / migration / react split targets: the app-platform entrypoints
   // plus their downward stable-tier closure are copied so the package resolves
   // without a separate `@honua/sdk-js` install.
-  const movedSubpaths = entrypointsInTier(publicSurface, "deprecated").map((entrypoint) => {
-    const prefix = "@honua/app-platform/";
-    if (!entrypoint.replacement.startsWith(prefix)) {
-      throw new Error(
-        `${entrypoint.subpath} has invalid app-platform replacement ${entrypoint.replacement}`,
-      );
-    }
-    return entrypoint.replacement.slice(prefix.length);
-  });
+  // A deprecated subpath either moved to the app platform or was renamed inside
+  // `@honua/sdk-js` (`./esri-compat` -> `./client-compat`); only the former
+  // belongs in this package.
+  const movedSubpaths = entrypointsInTier(publicSurface, "deprecated")
+    .filter((entrypoint) => !entrypoint.replacement.startsWith("@honua/sdk-js/"))
+    .map((entrypoint) => {
+      const prefix = "@honua/app-platform/";
+      if (!entrypoint.replacement.startsWith(prefix)) {
+        throw new Error(`${entrypoint.subpath} has invalid app-platform replacement ${entrypoint.replacement}`);
+      }
+      return entrypoint.replacement.slice(prefix.length);
+    });
   const appPlatformDirectories = [...new Set(movedSubpaths.map((subpath) => subpath.split("/")[0]))];
   const stableClosureDirectories = [
     "contract",
@@ -591,6 +625,11 @@ function createAppPlatformPackage() {
     "interactions",
     "map",
     "query-planner",
+    // The planner barrel imports columnar. Web-component declarations import
+    // offline/edit-queue.js, and the columnar batch cache imports the offline
+    // digest modules in that same directory.
+    "columnar",
+    "offline",
     "realtime",
     "runtime",
     "style",
@@ -603,7 +642,21 @@ function createAppPlatformPackage() {
   // the app-platform package must carry this internal stable-tier dependency.
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.js"), path.join(packageRoot, "connect-url-safety.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.d.ts"), path.join(packageRoot, "connect-url-safety.d.ts"));
+  // web-components/elements.js and esri-compat/feature-layer.js import
+  // ../widget-capabilities.js, which lives beside those directories in dist/src.
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
+  // runtime/maplibre-renderer.d.ts type-imports this module. The rest of kernel
+  // imports connect.js, which this package does not ship.
+  copyEmittedModule(packageRoot, "kernel/renderer");
   copySourceCapabilityContractSupport(packageRoot);
+  // Custom Elements Manifest for the web components this package registers
+  // (issue #1419), advertised through the conventional `customElements` key so
+  // IDEs, framework binding generators, and agent registries can find it.
+  copyFile(
+    path.join(PROJECT_ROOT, "config", "custom-elements.json"),
+    path.join(packageRoot, "custom-elements.json"),
+  );
 
   const subpathExport = (dir) => ({
     types: `./${dir}/index.d.ts`,
@@ -620,24 +673,25 @@ function createAppPlatformPackage() {
       "Honua application-platform surfaces: app-shell, workspace, scene, operator, studio, and hosted-product clients",
     main: "./app-workspace/index.js",
     types: "./app-workspace/index.d.ts",
+    customElements: "./custom-elements.json",
     exports: {
       ".": subpathExport("app-workspace"),
       ...appPlatformExports,
+      "./custom-elements.json": "./custom-elements.json",
     },
     dependencies: {
-      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
-      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
-      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
       "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
       ...geometryRuntimeDependencies(),
     },
     peerDependencies: {
       "@honua/sdk": version,
+      ...optionalGrpcRuntimePeerDependencies(),
       "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
       cesium: rootPackageJson.peerDependencies.cesium,
     },
     peerDependenciesMeta: {
+      ...optionalGrpcRuntimePeerDependenciesMeta(),
       "maplibre-gl": { optional: true },
       cesium: { optional: true },
     },
@@ -718,6 +772,7 @@ function writePackageJson(packageRoot, overrides) {
     type: "module",
     main: overrides.main,
     types: overrides.types,
+    customElements: overrides.customElements,
     exports: overrides.exports,
     bin: overrides.bin,
     dependencies: overrides.dependencies,
@@ -746,6 +801,31 @@ function writeReadme(packageRoot, contents) {
 function copyFile(sourcePath, destinationPath) {
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
   fs.copyFileSync(sourcePath, destinationPath);
+}
+
+function copyEmittedModule(packageRoot, moduleName) {
+  for (const extension of [".js", ".d.ts"]) {
+    copyFile(
+      path.join(DIST_SRC_ROOT, `${moduleName}${extension}`),
+      path.join(packageRoot, `${moduleName}${extension}`),
+    );
+  }
+}
+
+function copyColumnarRuntimeClosure(packageRoot) {
+  // The planner barrel value-imports columnar, and the batch cache imports
+  // connect-url-safety plus the offline digest, quota, and types modules.
+  copyDirectory(path.join(DIST_SRC_ROOT, "columnar"), path.join(packageRoot, "columnar"));
+  copyEmittedModule(packageRoot, "connect-url-safety");
+  for (const moduleName of ["offline/digest", "offline/quota", "offline/types"]) {
+    copyEmittedModule(packageRoot, moduleName);
+  }
+}
+
+function copyContractRuntimeClosure(packageRoot) {
+  // contract/source.js value-imports the query planner.
+  copyDirectory(path.join(DIST_SRC_ROOT, "query-planner"), path.join(packageRoot, "query-planner"));
+  copyColumnarRuntimeClosure(packageRoot);
 }
 
 function copyDirectory(sourceDirectory, destinationDirectory) {

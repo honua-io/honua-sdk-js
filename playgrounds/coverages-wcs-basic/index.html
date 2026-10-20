@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A fixture-backed OGC API Coverages and WCS workflow rendered through MapLibre."
+    />
+    <title>Coverage field lab | Honua SDK</title>
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <div class="badges" aria-label="Sample classification">
+          <span>Fixture only</span>
+          <span>Experimental API</span>
+          <span>Zero live requests</span>
+        </div>
+        <p class="eyebrow">OGC coverage field lab</p>
+        <h1>One elevation band. Two standards paths.</h1>
+        <p class="lede">
+          Discover the grid, name the band, and request only the 320 x 220 pixels in view. OGC API Coverages
+          and WCS 2.0.1 meet at the same MapLibre image handoff.
+        </p>
+      </header>
+
+      <section class="workspace" aria-labelledby="coverage-title">
+        <div class="map-panel">
+          <div class="map-heading">
+            <div>
+              <p class="step">01 / Rendered subset</p>
+              <h2 id="coverage-title">South Oahu elevation</h2>
+            </div>
+            <span id="active-protocol" class="protocol-pill">Loading fixture</span>
+          </div>
+          <div id="map" aria-label="Map of the bounded South Oahu elevation coverage"></div>
+          <div class="pixel-readout" aria-label="Pinned center pixel evidence">
+            <span class="pixel-dot" aria-hidden="true"></span>
+            <div>
+              <small>Center pixel / fixture truth</small>
+              <strong id="pixel-value">Loading...</strong>
+              <span id="pixel-coordinate">Derived from returned bytes</span>
+            </div>
+          </div>
+          <div class="legend" aria-label="Elevation color legend">
+            <div class="legend-title"><span>Named band</span><strong>elevation</strong></div>
+            <div id="legend-ramp" class="legend-ramp" aria-hidden="true"></div>
+            <div id="legend-labels" class="legend-labels"></div>
+          </div>
+        </div>
+
+        <aside class="evidence-panel" aria-label="Coverage request evidence">
+          <p class="step">02 / Inspect the wire contract</p>
+          <div class="protocol-switch" role="group" aria-label="Rendered coverage protocol">
+            <button type="button" data-protocol="ogc" aria-pressed="true" disabled>OGC API</button>
+            <button type="button" data-protocol="wcs" aria-pressed="false" disabled>WCS 2.0.1</button>
+          </div>
+          <dl class="metadata">
+            <dt>Collection</dt><dd id="collection">Loading...</dd>
+            <dt>Domain axes</dt><dd id="axes">Loading...</dd>
+            <dt>Range fields</dt><dd id="range">Loading...</dd>
+            <dt>WCS describe</dt><dd id="wcs">Loading...</dd>
+            <dt>Response</dt><dd id="response">Loading...</dd>
+          </dl>
+          <article class="request-card">
+            <span>OGC API Coverages</span>
+            <strong>collection -> domainSet -> rangeType -> getCoverage</strong>
+            <code id="ogc-request" tabindex="0">Waiting for properties=elevation</code>
+          </article>
+          <article class="request-card">
+            <span>WCS 2.0.1</span>
+            <strong>GetCapabilities -> DescribeCoverage -> GetCoverage</strong>
+            <code id="wcs-request" tabindex="0">Waiting for RANGESUBSET=elevation</code>
+          </article>
+        </aside>
+      </section>
+
+      <section id="resilience" class="resilience" aria-labelledby="resilience-title">
+        <div>
+          <p class="step">03 / Fail without losing the map</p>
+          <h2 id="resilience-title">Cancellation and degradation are visible.</h2>
+          <p id="safety-status" aria-live="polite">
+            The active raster stays mounted when a superseded request is aborted or WCS rejects an unknown band.
+          </p>
+        </div>
+        <div class="safety-actions">
+          <button id="cancel-proof" type="button" disabled>Prove cancellation</button>
+          <button id="degrade-proof" type="button" disabled>Prove degradation</button>
+        </div>
+      </section>
+
+      <details class="implementation" data-testid="honua-sample-evidence">
+        <summary>Implementation evidence</summary>
+        <div class="implementation-grid">
+          <p><strong>Fixture + digest</strong><span id="fixture-version">Loading...</span></p>
+          <p><strong>Bounds</strong><span>bbox + 320 x 220 + 1 MiB ceiling</span></p>
+          <p><strong>Transport</strong><span>Fail-closed injected fetch; no browser network fallback</span></p>
+          <p><strong>Maturity</strong><span>Experimental until anonymous live canaries exist</span></p>
+        </div>
+      </details>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

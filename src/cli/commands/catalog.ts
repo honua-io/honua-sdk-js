@@ -11,7 +11,7 @@ import type { CommandContext } from "../command.js";
 import { printLine, renderJson, renderTable } from "../output.js";
 
 export async function servicesCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const response = await client.listServices();
   const services = response.services ?? [];
 
@@ -39,7 +39,7 @@ export async function layersCommand(parsed: ParsedArgs, ctx: CommandContext): Pr
   if (!serviceId) {
     throw new Error("Usage: honua layers <service>");
   }
-  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey });
+  const client = createClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const service = client.service(serviceId);
   const metadata = await service.featureServiceMetadata();
   const layers = metadata.layers ?? [];

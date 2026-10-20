@@ -1,0 +1,56 @@
+[
+  {
+    "surface": "cli",
+    "exitCode": 2,
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "connection.test",
+      "retryable": false,
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "idempotencyKey": "honua-cmd-2ac34b43b9dc0e93aa78f41c43ab1c59",
+      "statusCode": 403,
+      "message": "Command connection.test failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "mcp",
+    "isError": true,
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "connection.test",
+      "retryable": false,
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "idempotencyKey": "honua-cmd-2ac34b43b9dc0e93aa78f41c43ab1c59",
+      "statusCode": 403,
+      "message": "Command connection.test failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "studio",
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "connection.test",
+      "retryable": false,
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "idempotencyKey": "honua-cmd-2ac34b43b9dc0e93aa78f41c43ab1c59",
+      "statusCode": 403,
+      "message": "Command connection.test failed with HTTP 403."
+    }
+  },
+  {
+    "surface": "sdk",
+    "value": {
+      "kind": "honua.command.error.v1",
+      "errorKind": "authorization",
+      "commandId": "connection.test",
+      "retryable": false,
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "idempotencyKey": "honua-cmd-2ac34b43b9dc0e93aa78f41c43ab1c59",
+      "statusCode": 403,
+      "message": "Command connection.test failed with HTTP 403."
+    }
+  }
+]

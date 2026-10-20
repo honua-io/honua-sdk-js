@@ -91,24 +91,25 @@ function isExteriorRing(ring: readonly Position[]): boolean {
 
 function isPointOnSegment(point: Position, segmentStart: Position, segmentEnd: Position): boolean {
   const epsilon = 1e-9;
-  const crossProduct =
-    (point[0] - segmentStart[0]) * (segmentEnd[1] - segmentStart[1]) -
-    (point[1] - segmentStart[1]) * (segmentEnd[0] - segmentStart[0]);
+  const segmentDeltaX = segmentEnd[0] - segmentStart[0];
+  const segmentDeltaY = segmentEnd[1] - segmentStart[1];
+  const segmentLengthSquared = segmentDeltaX * segmentDeltaX + segmentDeltaY * segmentDeltaY;
+  if (segmentLengthSquared <= epsilon * epsilon) {
+    const pointDeltaX = point[0] - segmentStart[0];
+    const pointDeltaY = point[1] - segmentStart[1];
+    return pointDeltaX * pointDeltaX + pointDeltaY * pointDeltaY <= epsilon * epsilon;
+  }
+
+  const crossProduct = (point[0] - segmentStart[0]) * segmentDeltaY - (point[1] - segmentStart[1]) * segmentDeltaX;
 
   if (Math.abs(crossProduct) > epsilon) {
     return false;
   }
 
-  const dotProduct =
-    (point[0] - segmentStart[0]) * (segmentEnd[0] - segmentStart[0]) +
-    (point[1] - segmentStart[1]) * (segmentEnd[1] - segmentStart[1]);
+  const dotProduct = (point[0] - segmentStart[0]) * segmentDeltaX + (point[1] - segmentStart[1]) * segmentDeltaY;
   if (dotProduct < -epsilon) {
     return false;
   }
-
-  const segmentLengthSquared =
-    (segmentEnd[0] - segmentStart[0]) * (segmentEnd[0] - segmentStart[0]) +
-    (segmentEnd[1] - segmentStart[1]) * (segmentEnd[1] - segmentStart[1]);
 
   return dotProduct - segmentLengthSquared <= epsilon;
 }
@@ -258,9 +259,16 @@ export function esriGeometryToGeoJSON(
   const candidate = geometry as Record<string, unknown>;
 
   if (hasNumber(candidate, "x") && hasNumber(candidate, "y")) {
+    if (candidate.z !== undefined && !hasNumber(candidate, "z")) {
+      return null;
+    }
     return {
       type: "Point",
-      coordinates: [candidate.x as number, candidate.y as number],
+      coordinates: [
+        candidate.x as number,
+        candidate.y as number,
+        ...(candidate.z === undefined ? [] : [candidate.z as number]),
+      ],
     };
   }
 
@@ -414,11 +422,17 @@ export function geoJsonToEsriGeometry(
 
   switch (geometry.type) {
     case "Point": {
-      const [x, y] = geometry.coordinates;
-      if (typeof x !== "number" || typeof y !== "number") {
+      const [x, y, z] = geometry.coordinates;
+      if (
+        typeof x !== "number" ||
+        typeof y !== "number" ||
+        (z !== undefined && (typeof z !== "number" || !Number.isFinite(z)))
+      ) {
         return null;
       }
-      return { x, y, ...sr } satisfies EsriPoint;
+      // Keep the altitude of a 3D position: dropping it would hand back a
+      // different geometry than the source served.
+      return { x, y, ...(typeof z === "number" && Number.isFinite(z) ? { z } : {}), ...sr } satisfies EsriPoint;
     }
     case "MultiPoint": {
       return { points: geometry.coordinates.map((position) => [...position]), ...sr } satisfies EsriMultipoint;

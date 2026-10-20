@@ -2,17 +2,11 @@ import type { HonuaCacheState, HonuaMetadataRequestOptions } from "./cache-state
 
 export type QueryMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-export interface HonuaRequestAutoMethodPolicy {
-  maxRequestTargetLength: number;
-  convertPbfToJson?: true;
-}
-
 export interface HonuaRequestContext {
   url: string;
   path: string;
   method: QueryMethod;
   init: RequestInit;
-  autoMethodPolicy?: HonuaRequestAutoMethodPolicy;
 }
 
 export interface HonuaRequestMutation {
@@ -1053,6 +1047,10 @@ export interface HonuaApplyEditsResponse {
   addResults?: HonuaEditResult[];
   updateResults?: HonuaEditResult[];
   deleteResults?: HonuaEditResult[];
+  /** Esri FeatureLayer.applyEdits names for the same results. */
+  addFeatureResults?: HonuaEditResult[];
+  updateFeatureResults?: HonuaEditResult[];
+  deleteFeatureResults?: HonuaEditResult[];
 }
 
 // ── Related Records Response ──────────────────
@@ -1781,6 +1779,16 @@ export interface StacSearchRequest {
    * and collection paths resolve directly under the client baseUrl.
    */
   stacBasePath?: string;
+  /**
+   * Landing-page `conformsTo` URIs already read for this catalog. Extension
+   * parameters (`filter`, `filterLang`, `sortby`, `fields`) require it:
+   * omitted means the list was not read and the search fails before HTTP;
+   * `[]` means the landing page was read and declared nothing.
+   * `HonuaStacSearch` fills this from the landing page. The legacy Query
+   * extension is not a request field — test it with
+   * `hasStacConformance(conformsTo, "query")`.
+   */
+  conformsTo?: readonly string[];
 }
 
 /** Structured STAC Item Search sort expression, primarily for POST requests. */

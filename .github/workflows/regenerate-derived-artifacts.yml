@@ -6,7 +6,7 @@ name: Regenerate derived artifacts
 # (sample evidence, samples/dist, consumer fixtures, bench corpus,
 # docs/bundle-sizes.md, llms*.txt, docs/comparison.md, docs/errors.md,
 # api-report, migration-workbench artifacts). Those outputs are regenerated
-# HERE, once, after each relevant trunk merge, and returned through a protected
+# HERE on the six-hour schedule or explicit dispatch, and returned through a protected
 # automation PR. Feature PR CI runs the corresponding gates in relaxed mode
 # (HONUA_DERIVED_ARTIFACTS_RELAX)
 # and this workflow is the strict authority that re-establishes reproducibility:
@@ -66,55 +66,12 @@ name: Regenerate derived artifacts
 # except when a skip attestation is due for renewal (#972), which is a wall-clock
 # obligation the guard must not be able to defer indefinitely on a quiet trunk.
 #
-# Digest-narrowed push trigger (#746 REQ-003): the `paths:` filter below
-# mirrors EVIDENCE_NEUTRAL_INCLUDED_ROOTS / EVIDENCE_NEUTRAL_EXCLUDED_ROOTS in
-# scripts/sample-gate-receipt.mjs exactly, including every SDK build input
-# scripts/lib/prepared-sdk-artifact.mjs itself tracks (src/, test/, bench/,
-# scripts/, config/, examples/, package.json, package-lock.json,
-# tsconfig.json, vitest.config.ts, .nvmrc, LICENSE -- packed-mode sample
-# evidence packs and hashes the real dist/ tsc compiles from these, so all of
-# them can move packed sample bytes even though most individual test/bench
-# changes are unrelated to any one sample), test/playwright/ (every sample's
-# playwrightFile plus shared Playwright helpers), and the root
-# playwright.config.mjs / playwright.first-map.config.mjs the sample harness
-# loads implicitly or via a playwrightConfig override. Only content that can
-# actually invalidate the sample source digest re-triggers a regeneration on
-# push. A merge that only touches docs/ prose (outside docs/examples/), mcp/,
-# conformance/, or eval/ does not match and leaves existing evidence valid,
-# so it no longer costs a reseal at all. The negated samples/evidence,
-# samples/dist, and samples/contract/v2/consumer-fixtures patterns keep this
-# workflow's own automation-PR merge (which touches only those generated
-# paths) from re-triggering itself on push; the loop guard is the backstop
-# for any case that still gets through (e.g. a merge that also carries source
-# changes). Keep this list and EVIDENCE_NEUTRAL_INCLUDED_ROOTS in lockstep --
-# a path missing from one is either a digest gap (evidence can go stale
-# without anyone noticing) or a redundant trigger.
+# Push reseals fired on 57/68 trunk pushes during 2026-09-29..10-05,
+# causing 34 cancelled runs/week and about 600 job-minutes. The six-hour
+# staleness window accepted in #746 applies between scheduled runs. Release
+# Please explicitly dispatches this workflow before tagging a sealed tree;
+# keep that release dispatch and manual recovery path independent of cadence.
 on:
-  push:
-    branches:
-      - trunk
-    paths:
-      - "examples/**"
-      - "docs/examples/**"
-      - "src/**"
-      - "samples/**"
-      - "!samples/evidence/**"
-      - "!samples/dist/**"
-      - "!samples/contract/v2/consumer-fixtures/**"
-      - "!examples/migration-workbench/public/artifacts/**"
-      - "test/**"
-      - "bench/**"
-      - "!bench/cross-sdk/corpus.json"
-      - "scripts/**"
-      - "config/**"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.json"
-      - "vitest.config.ts"
-      - ".nvmrc"
-      - "LICENSE"
-      - "playwright.config.mjs"
-      - "playwright.first-map.config.mjs"
   schedule:
     - cron: "23 1,7,13,19 * * *"
   workflow_dispatch:
@@ -140,7 +97,7 @@ concurrency:
 permissions: read-all
 
 env:
-  NODE_VERSION: "20.19.0"
+  NODE_VERSION: "22.23.3"
   REGEN_MARKER: "chore(evidence): regenerate derived artifacts"
 
 jobs:
@@ -168,7 +125,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -736,7 +693,7 @@ jobs:
 
       - name: Upload local regeneration commits
         if: steps.bundle.outputs.changed == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: derived-artifacts-bundle
           path: derived-artifacts.bundle
@@ -777,7 +734,7 @@ jobs:
       - name: Mint release automation token
         id: app-token
         if: steps.creds.outputs.available == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
@@ -803,7 +760,7 @@ jobs:
 
       - name: Download local regeneration commits
         if: needs.regenerate.outputs.changed == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: derived-artifacts-bundle
           path: .derived-artifacts-bundle
@@ -974,13 +931,13 @@ jobs:
             sleep 10
           done
 
-      - name: Merge validated regeneration PR
+      - name: Wait for exact regeneration validation
         if: needs.regenerate.outputs.changed == 'true'
-        timeout-minutes: 60
+        timeout-minutes: 120
         env:
-          # The merge itself is the operation the trunk ruleset judges, so it
-          # runs under the same bot App identity that opened the pull request.
-          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          # Read-only validation can outlive the App installation token minted
+          # before publication. Keep that short-lived identity out of this wait.
+          GH_TOKEN: ${{ github.token }}
           GENERATED: ${{ steps.publish.outputs.generated }}
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
           STRICT_CI_RUN_ID: ${{ steps.strict.outputs.ci_run_id }}
@@ -1027,6 +984,32 @@ jobs:
             sleep 10
           done
 
+      - name: Refresh release merge identity
+        id: merge-token
+        if: needs.regenerate.outputs.changed == 'true' && steps.creds.outputs.available == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: honua-io
+
+      - name: Refresh merge checkout credentials
+        if: needs.regenerate.outputs.changed == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ steps.merge-token.outputs.token || github.token }}
+
+      - name: Merge validated regeneration PR
+        if: needs.regenerate.outputs.changed == 'true'
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ steps.merge-token.outputs.token || github.token }}
+          GENERATED: ${{ steps.publish.outputs.generated }}
+          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+        run: |
+          set -euo pipefail
           # GENERATED passed the commit-subject and changed-path allowlists before
           # publication. Rebind the still-open same-repository PR and its remote
           # branch to that immutable approved commit after the bounded check wait.

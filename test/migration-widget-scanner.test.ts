@@ -20,7 +20,7 @@ import {
   scanWidgetUsage,
 } from "../src/migration/widget-scanner.js";
 
-const FIXTURE_ROOT = path.join(process.cwd(), "test", "fixtures", "esri-widget-cliff-app");
+const FIXTURE_ROOT = path.join(process.cwd(), "test", "fixtures", "client-widget-cliff-app");
 
 const tempDirs: string[] = [];
 
@@ -379,7 +379,7 @@ describe("evaluateWidgetGate", () => {
   });
 });
 
-describe("widget readiness report on the esri-widget-cliff-app fixture", () => {
+describe("widget readiness report on the client-widget-cliff-app fixture", () => {
   it("matches the JSON report snapshot", () => {
     const report = buildWidgetReadinessReport(scanWidgetUsage(FIXTURE_ROOT));
     expect({ ...report, rootDir: "<fixture>" }).toMatchSnapshot();

@@ -25,6 +25,7 @@
  */
 
 import fs from "node:fs";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import ts from "typescript";
 import { describe, expect, test } from "vitest";
 
@@ -33,6 +34,7 @@ import {
   HONUA_MAP_PACKAGE_SCHEMA_PROTOCOLS,
   HONUA_MAP_PACKAGE_SCHEMA_STATUSES,
 } from "../../src/runtime/generated/map-package-schema-meta.js";
+import validateAgainstSchema from "../../src/runtime/generated/map-package-schema-validator.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, validateMapPackage } from "../../src/runtime/index.js";
 
 const SCHEMA_URL = new URL("../../schemas/honua-map-package.v1.json", import.meta.url);
@@ -52,6 +54,7 @@ const INTERFACE_TO_DEF: Readonly<Record<string, string>> = {
   HonuaMapPackageSourceBinding: "sourceBinding",
   HonuaMapPackageLocator: "locator",
   HonuaMapPackageStyleRef: "styleRef",
+  HonuaStyleRefLayerBinding: "styleRefLayerBinding",
   HonuaStyleRefLayerOverride: "styleRefLayerOverride",
   HonuaMapPackageThemeSpec: "themeSpec",
   HonuaMapPackageInitialView: "initialView",
@@ -137,6 +140,7 @@ const interfaces = parseInterfaces(typesSource);
 
 const ANNOTATION_KEYWORDS = new Set(["title", "description", "$comment"]);
 const SCHEMA_MAP_KEYWORDS = new Set(["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"]);
+const OPAQUE_DATA_KEYWORDS = new Set(["enum", "const", "default", "examples"]);
 
 /**
  * Every JSON Pointer at which the schema declares a *property* whose name
@@ -153,7 +157,12 @@ function collectAnnotationNamedProperties(node: unknown, pointer = "#", insideSc
   for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
     const childPointer = `${pointer}/${key}`;
     if (insideSchemaMap && ANNOTATION_KEYWORDS.has(key)) found.push(childPointer);
-    found.push(...collectAnnotationNamedProperties(value, childPointer, SCHEMA_MAP_KEYWORDS.has(key)));
+    if (!insideSchemaMap && OPAQUE_DATA_KEYWORDS.has(key)) continue;
+    // A schema-map entry's key is a user-chosen name, even when it is "properties".
+    // Its value is an ordinary schema node, not another schema map.
+    found.push(
+      ...collectAnnotationNamedProperties(value, childPointer, !insideSchemaMap && SCHEMA_MAP_KEYWORDS.has(key)),
+    );
   }
   return found;
 }
@@ -192,6 +201,46 @@ describe("honua-map-package.v1 schema ↔ TypeScript drift", () => {
     const generated = fs.readFileSync(VALIDATOR_URL, "utf8");
     expect(generated).not.toMatch(/require\(/);
     expect(generated).not.toMatch(/from\s*["']ajv/);
+  });
+
+  test("compact code generation preserves canonical verdicts and complete diagnostic records", () => {
+    const canonical = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
+    const valid = packageWithPopupTitle("Parcel detail");
+    const cases = [
+      null,
+      {},
+      valid,
+      { ...valid, sourceBindings: [{}], widgets: [{}], labelBindings: [{}], dependencies: [{}] },
+      { ...valid, mapSpec: { sources: { parcels: {} }, layers: [{}] } },
+      { ...valid, status: "unknown", widgets: [{ widgetId: "legend", type: "legend", position: "center" }] },
+      { ...valid, initialView: { bbox: [0, 1, 2], center: [0, "invalid"] } },
+      packageWithPopupTitle("😀".repeat(512)),
+      packageWithPopupTitle("😀".repeat(513)),
+      packageWithPopupTitle(42),
+    ];
+    for (const value of cases) {
+      expect(validateAgainstSchema(value)).toBe(canonical(value));
+      expect((validateAgainstSchema as typeof validateAgainstSchema & { readonly errors?: unknown }).errors).toEqual(
+        canonical.errors,
+      );
+    }
+  });
+
+  test("annotation discovery distinguishes schema-map property names from schema keywords", () => {
+    expect(
+      collectAnnotationNamedProperties({
+        properties: {
+          properties: {
+            description: "Array of override groups, not a declared property",
+            type: "array",
+            items: { type: "string" },
+          },
+          description: { type: "string" },
+          nested: { type: "object", properties: { title: { type: "string" } } },
+        },
+        const: { properties: { title: "literal data" } },
+      }),
+    ).toEqual(["#/properties/description", "#/properties/nested/properties/title"]);
   });
 
   test("a property named like an annotation keyword still constrains the generated validator", () => {

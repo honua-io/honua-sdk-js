@@ -177,6 +177,42 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     }
   });
 
+  it("keeps REST and gRPC layer streams equal beyond 2000 rows", async (ctx) => {
+    if (await skipIfUnavailable(ctx)) return;
+    const restLayer = restClient.featureLayer(config.serviceId, config.layerId);
+    const count = await restLayer.queryFeatureCount({ where: "1=1" });
+    if (count <= 2000) {
+      ctx.skip(`stream-size parity requires more than 2000 seeded rows; configured layer has ${count}`);
+      return;
+    }
+    const metadata = await restLayer.metadata();
+    const objectIdField =
+      metadata.objectIdField ?? metadata.fields?.find((field) => field.type === "esriFieldTypeOID")?.name;
+    if (!objectIdField) throw new Error("Stream parity requires a declared object-id field for stable ordering.");
+    const request = {
+      where: "1=1",
+      outFields: [objectIdField],
+      returnGeometry: false,
+      orderByFields: `${objectIdField} ASC`,
+      pageSize: 1000,
+      maxPages: 3,
+    };
+    const collect = async (client: HonuaClient) => {
+      const ids: string[] = [];
+      for await (const page of client.featureLayer(config.serviceId, config.layerId).queryFeaturesStream(request)) {
+        expect(page.length).toBeLessThanOrEqual(1000);
+        ids.push(...page.map((feature) => exactObjectId(feature.attributes[objectIdField]).toString()));
+      }
+      return ids;
+    };
+    const [restIds, grpcIds] = await Promise.all([
+      runWithDiagnostics(context, "rest stream size parity", () => collect(restClient)),
+      runWithDiagnostics(context, "grpc stream size parity", () => collect(makeGrpcClient())),
+    ]);
+    expect(restIds.length).toBeGreaterThan(2000);
+    expect(grpcIds).toEqual(restIds);
+  });
+
   it("attaches the configured auth credential to gRPC-web requests [cert:grpc-web/authentication#positive] [cert:grpc-web/authentication#auth] [cert:grpc-web/authentication#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     if (!config.apiKey && !config.bearerToken) {

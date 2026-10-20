@@ -9,6 +9,7 @@
  * @packageDocumentation
  */
 
+import { HonuaCommandError } from "../control-plane/index.js";
 import { ArgError, getBoolean, getString, parseArgs } from "./args.js";
 import type { FlagSpec, ParsedArgs } from "./args.js";
 import type { CommandContext, CommandHandler } from "./command.js";
@@ -22,6 +23,7 @@ import { loginCommand, logoutCommand, whoamiCommand } from "./commands/login.js"
 import { mapCommand, tilesCommand } from "./commands/map.js";
 import { queryCommand } from "./commands/query.js";
 import { stacCommand } from "./commands/stac.js";
+import { studioCommand } from "./commands/studio.js";
 import { printLine } from "./output.js";
 
 export const CLI_VERSION = "0.1.0";
@@ -39,6 +41,21 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "secret-output" },
   { name: "directory" },
   { name: "http-port" },
+  { name: "native-server-image" },
+  { name: "native-console-image" },
+  { name: "native-release-id" },
+  { name: "native-gateway-command" },
+  { name: "native-gateway-arg", multiple: true },
+  { name: "native-gateway-url" },
+  { name: "native-gateway-key-env" },
+  { name: "native-gp-workspace-url" },
+  { name: "native-gp-workspace-key-env" },
+  { name: "native-console-port" },
+  { name: "native-model-kind" },
+  { name: "native-model-endpoint" },
+  { name: "native-model-name" },
+  { name: "native-model-region" },
+  { name: "native-model-key-env" },
   { name: "locator" },
   { name: "provider" },
   { name: "user-agent" },
@@ -71,8 +88,17 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "bundle-id" },
   { name: "preview-bytes" },
   { name: "timeout-ms" },
+  { name: "manifest" },
+  { name: "manifest-sha256" },
+  { name: "catalog-receipt" },
+  { name: "service-id" },
+  { name: "layer-id" },
+  { name: "style-evidence" },
+  { name: "style-png" },
   { name: "package" },
+  { name: "intent" },
   { name: "message" },
+  { name: "generation" },
   { name: "source-kind" },
   { name: "source-url" },
   { name: "connection" },
@@ -100,6 +126,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   query: queryCommand,
   explain: explainCommand,
   stac: stacCommand,
+  studio: studioCommand,
   geocode: geocodeCommand,
   map: mapCommand,
   tiles: tilesCommand,
@@ -160,7 +187,11 @@ CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
       --title <text>             Human title for the resulting content
       --options <json|@file>     Import-kind-specific options, passed through verbatim
 
-  Both accept the shared command flags below, as honua map publish does:
+  honua studio draft save-version <draftId> [--generation <nonnegative integer>]
+      Save an immutable version through the shared studio.draft.saveVersion command.
+      --generation <n>          Check draft generation before and after saving
+
+  These accept the shared command flags below, as honua map publish does:
       --if-match / --idempotency-key / --actor / --tenant / --dry-run / --yes / --json
 
 MAPS
@@ -170,6 +201,7 @@ MAPS
   honua map publish [<mapId>] --package <json|@file> [options]
       Publish a map package through the shared control-plane command layer.
       --package <json|@file>     honua_map_package.v1 document (required)
+      --intent <json|@file>      Requested publication route and visibility; server approval still required
       --workspace <id>           Owning workspace
       --message <text>           Publication message recorded with the version
       --if-match <etag>          Optimistic-concurrency validator
@@ -196,12 +228,17 @@ ADMIN CONTROL PLANE
                                                configure/secure/release/operate)
   honua admin api <operationId> [options]      Complete 396-operation escape hatch
   honua admin operations [group]               List generated operation inventory
+  honua admin qualify --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file>
+      Qualify local setup, the bounded workflow view, and style/render.
+      Add --service-id --layer-id --bbox minx,miny,maxx,maxy --yes to apply a discovered preset.
+      Or replay --style-evidence <file> --style-png <file>. --output writes the redacted receipt.
 
 GLOBAL OPTIONS
   --base-url <url>     Server base URL (or env HONUA_BASE_URL)
-  --api-key <key>      API key (or env HONUA_API_KEY; anonymous if omitted)
+  --api-key <key>      API key (or env HONUA_API_KEY)
   --admin-key <key>    Admin key (or env HONUA_ADMIN_KEY; admin commands only)
   --profile <name>     Named connection profile from the Honua config file
+  HONUA_BEARER_TOKEN   Ephemeral bearer credential; replaces saved API/Admin keys
   --json               Machine-readable JSON output
   -h, --help           Show help
   -V, --version        Show version
@@ -256,6 +293,7 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
   const ctx: CommandContext = {
     baseUrl: ctxOverride.baseUrl ?? getString(parsed, "base-url"),
     apiKey: ctxOverride.apiKey ?? getString(parsed, "api-key"),
+    bearerToken: ctxOverride.bearerToken,
     adminKey: ctxOverride.adminKey ?? getString(parsed, "admin-key"),
     profile: ctxOverride.profile ?? getString(parsed, "profile"),
   };
@@ -265,12 +303,17 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
     return 0;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (getBoolean(parsed, "json")) {
+    if (err instanceof HonuaCommandError && getBoolean(parsed, "json")) {
+      // Keep the correlation id in the terminal's failure record. A message-only
+      // error cannot be joined to the server audit row the command just created.
+      printLine(JSON.stringify({ ...err.toJSON(), message }), process.stderr);
+    } else if (getBoolean(parsed, "json")) {
       printLine(JSON.stringify({ error: message }), process.stderr);
     } else {
       printLine(`error: ${message}`, process.stderr);
     }
     if (err instanceof ArgError) return 2;
+    if (err instanceof HonuaCommandError && (err.kind === "validation" || err.kind === "authorization")) return 2;
     return 1;
   }
 }

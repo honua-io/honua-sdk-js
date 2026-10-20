@@ -1,7 +1,7 @@
 ---
 type: guide
 title: "`honua-maplibre` migration target"
-description: "The `honua-maplibre` codemod target rewrites a curated subset of"
+description: "The honua-maplibre codemod target: MapLibre-native output for the layer/map/view core, widget kit registration, CLI flags, report fields and the manual gaps."
 resource: "https://www.npmjs.com/package/@honua/honua-migrate"
 ---
 # `honua-maplibre` migration target
@@ -13,84 +13,76 @@ through the Esri-shaped compat shims. It is the codemod option that
 produces MapLibre-native output for apps that want to leave the
 ArcGIS JS API behind end-to-end.
 
-This page documents the slice that shipped in PR #208 (commit
-`af1ebee`). It does not close issue #205 — open acceptance items are
-called out under [Manual gaps](#manual-gaps).
-
 ## Canonical migration workbench
 
 [`examples/migration-workbench`](../examples/migration-workbench/README.md)
 is the qualified `arcgis-migration` golden journey for the complete migration
 experience. The repository build invokes the real `honua-migrate` CLI against
-the Honua-authored `arcgis-source-app` fixture and commits a deterministic
+the Honua-authored `geoservices-source-app` fixture and commits a deterministic
 report, patch, widget guidance, MapLibre assessment, generated compat target,
 and SHA-256 manifest. The browser only projects and revalidates those
 artifacts; it does not contain a second transform, accept uploads, read
 credentials, or perform cloud import.
 
-Use the artifact and browser gates directly, or exercise the same reviewed
-journey through the sample kit in source and packed SDK modes:
+## Which import
 
-```bash
-npm run demo:migration-workbench:artifacts:check
-npm run test:playwright:migration-workbench
-npm run samples:run -- verify --sample migration-workbench --sdk-mode source
-npm run samples:run -- verify --sample migration-workbench --sdk-mode packed
-```
-
-The catalog carries current packed-build, browser, accessibility, console,
-responsive, screenshot, performance, fixture, and live receipts for this
-journey (#549); its live-evidence lane proves liveness by re-running the real
-`honua-migrate` CLI right now, since the workbench itself never makes a
-non-loopback network request. Gallery projection is tracked by #550.
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
 
 ## Widget kit registration
 
-**This is a required step, not a footnote.** A migrated app that constructs
-`LegendCompat` or `LayerListCompat` must register the Honua web-component kit
-once, or those two widgets render nothing.
+**This is a required step, not a footnote.** A shim that constructs a
+`HonuaWidgetHost` paints only after the application registers the kit. A shim
+that does not construct a host stays state-model-only whether or not a kit is
+registered, and it does not emit the missing-kit diagnostic.
 
-Be precise about the scope, because it cuts both ways:
+Importing `@honua/sdk-esri-compat` does not load the kit. The compat entry is
+bundle-budgeted, and any import of the kit from that entry would pull the
+component set into every compat bundle. The application registers the tag.
 
-| Shim | With a registered kit | Without one |
-| --- | --- | --- |
-| `LegendCompat` (`<honua-legend>`) | renders the delegated component | state-model-only, container stays empty, diagnostic fires |
-| `LayerListCompat` (`<honua-layer-list>`) | renders the delegated component | state-model-only, container stays empty, diagnostic fires |
-| every other container-bearing shim (`SearchCompat`, `MeasurementCompat`, `ExpandCompat`, `BasemapGalleryCompat`, `SketchCompat`, …) | **still state-model-only** | state-model-only, no diagnostic |
-
-Registration is *necessary* for the first two and *not sufficient* for the
-rest: about two dozen shims accept a `container` option, but only `LegendCompat`
-and `LayerListCompat` construct a `HonuaWidgetHost` today. The others carry the
-ArcGIS state model — properties, `watch`, events, methods — and expect the
-application to render their state itself. Registering the kit does not give
-them UI, and they never emit the missing-kit diagnostic, so do not read a
-silent `SearchCompat` as a registration problem.
-
-The two delegating shims draw UI through the Honua web components. The compat
-entry point never imports that kit — not even dynamically: `/esri-compat` is
-bundle-budgeted, and any intra-package import would pull the whole component
-set plus its geometry closure into every compat bundle. The application injects
-it instead, as early as the entry module runs:
+Paint one tag through the side-effect-free registry in `src/controls/registry.ts`.
+`registerComponent` dynamically imports `web-components/elements.js`, which does
+not register tags on import, and calls `defineHonuaWebComponent` for that
+catalog id only. Pass the registered constructor to `registerHonuaWidgetKit`
+and omit `defineHonuaWebComponents`. If the kit object includes
+`defineHonuaWebComponents`, the host calls it and every tag in the kit is
+defined.
 
 ```ts doc-test=skip reason="wiring snippet requires an application host"
+import { registerComponent } from "@honua/app-platform/controls";
 import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
 
-// Eager (module object) or lazy (loader) — both work.
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+await registerComponent("web-components.legend");
+registerHonuaWidgetKit({
+  HonuaLegendElement: customElements.get("honua-legend"),
+});
 ```
 
-Register before you construct widgets. The call is idempotent, and passing
-`undefined` unregisters: the delegating shims return to state-model-only mode
-and any component they had already mounted is removed from its container on the
-next refresh, so unregistering never strands stale UI.
+`@honua/app-platform/web-components` is the widget package. Importing it, or
+the deprecated `@honua/sdk-js/web-components` forwarder, evaluates
+`defineHonuaWebComponents()` and defines every tag. Use that import when the
+app wants the whole kit. Use `registerComponent` when it wants one tag.
 
-Without a kit those two shims degrade to state-model-only: `legend.items` is
-populated, `layerList.toggle()` mutates layers, events still fire — and the
-`container` you passed stays empty. Since a migrated app in that state simply
-looks broken, the first mount without a registered kit emits a one-time
-diagnostic (honua-io/honua-sdk-js#957):
+The `honua-compat` codemod in `@honua/honua-migrate` inserts one
+`registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"))` call
+when the file constructs a hosted compat widget (Legend, LayerList, TimeSlider,
+Search, Measurement, Editor, FeatureForm, FeatureTable, Bookmarks,
+BasemapGallery, BasemapToggle, Locate, Sketch, Print, Popup, Zoom, Home,
+ScaleBar, Compass, Fullscreen, Attribution, or Directions). That emitted import
+defines every tag. `esri-leaflet` output does not insert the call.
+`keep-esri` output stays byte-identical. Replace the emitted loader with the
+`registerComponent` call above when one tag is enough.
 
-- a `console.warn` naming `registerHonuaWidgetKit`, quoting the exact call, and
+Register before you construct widgets. `registerHonuaWidgetKit` is idempotent,
+and passing `undefined` unregisters: painting shims return to state-model-only
+mode and any component they had already mounted is removed from its container
+on the next refresh.
+
+Without a kit, a painting shim still keeps its state model — `legend.items`
+stays populated, `layerList.toggle()` still mutates layers, events still fire —
+and the `container` you passed stays empty. The first mount in that state
+emits a one-time diagnostic (honua-io/honua-sdk-js#957):
+
+- a `console.warn` naming `registerComponent` and `registerHonuaWidgetKit`, and
   linking back to this section; and
 - a `widget-kit.missing` event on the shim's `CompatEventBus`, carrying
   `{ tagName, api, docs, message }` for telemetry or a first-run banner.
@@ -103,26 +95,56 @@ legend.eventBus.on("widget-kit.missing", (event) => {
 
 The diagnostic fires **once per runtime**, on the first mount that finds no
 kit — not once per widget instance — so subscribe before constructing widgets.
-It re-arms whenever `registerHonuaWidgetKit` is called again, which keeps
-register-then-unregister cycles honest.
+It re-arms whenever `registerHonuaWidgetKit` is called again.
 
-Three consequences worth planning for:
+`@honua/sdk-esri-compat` does not ship the kit. Install
+`@honua/app-platform` to register tags. `FeaturesCompat`, `AttachmentsCompat`,
+and `ScaleRangeCompat` construct hosts and are not on the stable client-compat
+entry.
 
-- The standalone `@honua/sdk-esri-compat` split package does not ship the kit.
-  An app on that package installs `@honua/sdk-js` (or
-  `@honua/app-platform`) as well to have something to register.
-- The codemod does not insert this call for you yet — it is tracked on
-  honua-io/honua-sdk-js#957 against the `honua-migrate` engine. Until it lands,
-  add the registration to every migrated entry point by hand.
-- Widgets outside the delegation set need a rendering plan of their own. Budget
-  for it during migration rather than discovering it after: read the shim's
-  state model and render it with your own components, or with the Honua web
-  components directly.
+<!-- widget-host-tags:start -->
+
+| Shim | Tag |
+| --- | --- |
+| `AttributionCompat` | `honua-attribution` |
+| `AttachmentsCompat` | `honua-attachments` |
+| `BasemapGalleryCompat`, `BasemapToggleCompat` | `honua-basemap-control` |
+| `BookmarksCompat` | `honua-bookmarks` |
+| `CompassCompat` | `honua-compass` |
+| `DirectionsCompat` | `honua-directions` |
+| `EditorCompat` | `honua-editor` |
+| `FeatureFormCompat` | `honua-feature-editor` |
+| `FeatureTableCompat` | `honua-feature-table` |
+| `FeaturesCompat` | `honua-feature-pager` |
+| `FullscreenCompat` | `honua-fullscreen` |
+| `HomeCompat` | `honua-home` |
+| `LayerListCompat` | `honua-layer-list` |
+| `LegendCompat` | `honua-legend` |
+| `LocateCompat` | `honua-locate-control` |
+| `MeasurementCompat` | `honua-measurement` |
+| `PopupCompat` | `honua-feature-inspection` |
+| `PrintCompat` | `honua-print-export` |
+| `ScaleBarCompat` | `honua-scale-bar` |
+| `ScaleRangeCompat` | `honua-scale-range` |
+| `SearchCompat` | `honua-search` |
+| `SketchCompat` | `honua-sketch-control` |
+| `TimeSliderCompat` | `honua-time-slider` |
+| `ZoomCompat` | `honua-zoom` |
+
+<!-- widget-host-tags:end -->
+
+<!-- widget-host-state-only:start -->
+
+These container-bearing shims do not construct a host. They stay state-model-only: `AreaMeasurement2DCompat`, `BasemapLayerListCompat`, `CoordinateConversionCompat`, `DistanceMeasurement2DCompat`, `ExpandCompat`, `FeatureCompat`, `FeatureTemplatesCompat`, `SwipeCompat`, `TableListCompat`, `TrackCompat`.
+
+<!-- widget-host-state-only:end -->
 
 ## How it differs from the other targets
 
-The migration codemod (`src/migration/codemod.ts`) exposes three
-targets selected with `--target` on the CLI:
+`src/migration/codemod.ts` is the in-repo suite, not the npm program.
+`@honua/sdk-js/migration` forwards to `@honua/honua-migrate`, and the CLI is
+`npx honua-js-migrate`. The suite exposes three targets selected with
+`--target` on the CLI:
 
 | Target | Output shape | What it rewrites natively |
 | --- | --- | --- |
@@ -224,7 +246,7 @@ except for the `feature-layer`, `map-image-layer`, and the
 `map-view.navigation-go-to` capability which are tagged `native`.
 
 Use the canonical fixture
-[`test/fixtures/esri-maplibre-simple-app/`](../test/fixtures/esri-maplibre-simple-app/src/main.ts)
+[`test/fixtures/client-maplibre-simple-app/`](../test/fixtures/client-maplibre-simple-app/src/main.ts)
 as a worked example — it imports `Map`, `MapView`, `FeatureLayer`,
 `MapImageLayer`, and `TileLayer` from `@arcgis/core` and exercises
 exactly the kinds that `honua-maplibre` can rewrite natively.
@@ -239,25 +261,25 @@ and `esri-leaflet` — anything else is rejected by the parser.
 
 ```bash
 # Dry-run the codemod against the bundled MapLibre fixture
-node dist/src/migration/cli.js codemod test/fixtures/esri-maplibre-simple-app \
+node dist/src/migration/cli.js codemod test/fixtures/client-maplibre-simple-app \
   --target honua-maplibre \
   --report reports/maplibre-fixture-report.json
 
 # Write the rewrite in place with inline TODOs for manual sites
-node dist/src/migration/cli.js codemod test/fixtures/esri-maplibre-simple-app \
+node dist/src/migration/cli.js codemod test/fixtures/client-maplibre-simple-app \
   --target honua-maplibre \
   --write --annotate-todos \
   --report reports/maplibre-fixture-report.json
 
 # Run the codemod against the hand-written parcel viewer example
-node dist/src/migration/cli.js codemod examples/arcgis-source-app \
+node dist/src/migration/cli.js codemod examples/geoservices-source-app \
   --target honua-maplibre \
-  --report reports/arcgis-source-app-maplibre-report.json
+  --report reports/geoservices-source-app-maplibre-report.json
 
 # Per-fixture readiness metrics for a single MapLibre fixture, no gating
 node dist/src/migration/cli.js fixtures test/fixtures \
   --target honua-maplibre \
-  --fixtures esri-maplibre-simple-app \
+  --fixtures client-maplibre-simple-app \
   --report reports/maplibre-fixture-metrics.json
 ```
 
@@ -270,16 +292,6 @@ kinds; manual TODOs and unhandled-module entries are expected to
 appear for any constructor outside that set, and gating flags like
 `--fail-on-manual` will fail closed against apps with widgets,
 renderers, or non-2D-core surfaces.
-
-For contributor validation, use `npm run test:migration:cli`. Its
-prerequisite prepares the SDK once before Vitest starts, and every CLI spec
-executes the same manifest-owned `dist/src/migration/cli.js` artifact. The
-atomic preparation manifest hashes every compiler/control input and the
-complete `dist/` tree, binds workers to one run ID, and revalidates both trees
-at teardown. A direct Vitest invocation may run source-only tests without a
-manifest; a test that consumes built output fails with an actionable
-`npm run prepare:test-sdk` prerequisite error. Composed CI and publish lanes
-use their `:prepared` variants after the single root build.
 
 ## Migration report fields
 
@@ -336,8 +348,7 @@ see `summarizeJsParityMatrix` and `summarizeJsRuntimeParity`.
 
 ## Manual gaps
 
-Issue #205 is a slice ladder, not a single landing. `honua-maplibre`
-ships the native-rewrite path for the layer/map/view core; the
+`honua-maplibre` ships the native-rewrite path for the layer/map/view core; the
 remaining acceptance items live in
 [`docs/migration-punch-list.md`](./migration-punch-list.md) and stay
 open until they ship. The notable ones, framed against the punch
@@ -370,8 +381,6 @@ list:
   `honua-compat` (some shipped as Tasks D/E/F in the punch list)
   but they do not exist as native MapLibre helpers — under
   `honua-maplibre` they remain manual TODO surfaces.
-- **Playwright smoke / runtime evidence lane for MapLibre output.**
-  Open acceptance item on #205.
 
 For the broader migration story — including the `honua-compat`
 parity surface, the codemod gates, and the test corpus — start at

@@ -1,45 +1,79 @@
-import { createServer as createHttpServer } from "node:http";
+import { randomUUID } from "node:crypto";
+import { type IncomingMessage, type ServerResponse, createServer as createHttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
 import { createFixtureClient } from "../src/certification/fixture-client.js";
 import { createServer } from "../src/index.js";
-import { buildUpstreamHeaders, connectUpstream, createProxyServer, resolveProxyOptions } from "../src/proxy.js";
+import { buildUpstreamHeaders, connectProxyTransport, connectUpstream, resolveProxyOptions } from "../src/proxy.js";
 
 /**
  * Parity harness for honua-server #1950: the stdio proxy must expose the SAME
  * tool/resource catalog and behavior as the upstream (HTTP-SSE) MCP surface.
  *
- * We stand up the canonical honua MCP server over an in-memory transport as the
- * "remote" surface, connect the proxy's upstream client to it, then connect a
- * downstream client to the proxy over a second in-memory transport. Anything the
- * downstream client sees must be byte-identical to what the upstream exposes —
- * that is the transport-symmetry contract.
+ * We serve the canonical honua MCP server over streamable HTTP as the "remote"
+ * surface (one server per session), connect a direct HTTP client to it, then
+ * connect a downstream client through the bridge the published stdio proxy
+ * runs (`connectProxyTransport`) over an in-memory transport. Anything the
+ * downstream client sees must be byte-identical to what the direct client
+ * sees — that is the transport-symmetry contract.
  */
 
-async function buildProxyHarness() {
-  const remote = createServer(createFixtureClient());
-  const [upstreamClientT, remoteServerT] = InMemoryTransport.createLinkedPair();
-  const upstream = new Client({ name: "parity-upstream", version: "1.0.0" });
-  await remote.connect(remoteServerT);
-  await upstream.connect(upstreamClientT);
+async function startCanonicalUpstream() {
+  const remotes: ReturnType<typeof createServer>[] = [];
+  const sessions = new Map<string, StreamableHTTPServerTransport>();
+  const http = createHttpServer((req: IncomingMessage, res: ServerResponse) => {
+    void (async () => {
+      const sessionId = req.headers["mcp-session-id"];
+      const existing = typeof sessionId === "string" ? sessions.get(sessionId) : undefined;
+      if (existing) {
+        await existing.handleRequest(req, res);
+        return;
+      }
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (id) => {
+          sessions.set(id, transport);
+        },
+      });
+      const remote = createServer(createFixtureClient());
+      remotes.push(remote);
+      await remote.connect(transport);
+      await transport.handleRequest(req, res);
+    })();
+  });
+  await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
+  return {
+    url: `http://127.0.0.1:${(http.address() as AddressInfo).port}/mcp`,
+    remotes,
+    async close() {
+      await Promise.all(remotes.map((remote) => remote.close().catch(() => {})));
+      await new Promise<void>((resolve) => {
+        http.close(() => resolve());
+        http.closeAllConnections();
+      });
+    },
+  };
+}
 
-  const proxy = createProxyServer(upstream);
+async function buildProxyHarness() {
+  const remote = await startCanonicalUpstream();
+  const upstream = await connectUpstream({ remoteUrl: remote.url });
   const [downstreamClientT, proxyServerT] = InMemoryTransport.createLinkedPair();
+  const bridge = await connectProxyTransport({ remoteUrl: remote.url }, proxyServerT);
   const downstream = new Client({ name: "parity-downstream", version: "1.0.0" });
-  await proxy.connect(proxyServerT);
   await downstream.connect(downstreamClientT);
 
   return {
     remote,
     upstream,
-    proxy,
     downstream,
     async close() {
       await downstream.close();
-      await proxy.close();
+      await bridge.close();
       await upstream.close();
       await remote.close();
     },
@@ -128,10 +162,12 @@ describe("stdio proxy parity (#1950)", () => {
           resolve();
         });
       });
-      // Emit a list_changed from the canonical (upstream) server; it must reach
-      // the downstream stdio client through the proxy.
-      await h.remote.sendToolListChanged();
-      await expect(Promise.race([received, timeout(2000)])).resolves.toBeUndefined();
+      // Emit a list_changed from the proxied session's canonical server; it
+      // must reach the downstream client over the upstream SSE stream.
+      expect(h.remote.remotes).toHaveLength(2);
+      const proxiedSession = h.remote.remotes[1];
+      await expect.poll(() => proxiedSession.isConnected()).toBe(true);
+      await sendWhenStreamOpen(() => proxiedSession.sendToolListChanged(), received);
     } finally {
       await h.close();
     }
@@ -319,6 +355,39 @@ describe("proxy option resolution (#1950)", () => {
     }
   });
 
+  it("does not forward credentials across redirects from the stdio bridge", async () => {
+    let redirectedRequests = 0;
+    const destination = createHttpServer((_request, response) => {
+      redirectedRequests += 1;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end("{}");
+    });
+    await new Promise<void>((resolve) => destination.listen(0, "127.0.0.1", resolve));
+    const destinationPort = (destination.address() as AddressInfo).port;
+    const redirector = createHttpServer((_request, response) => {
+      response.writeHead(302, { location: `http://127.0.0.1:${destinationPort}/stolen` });
+      response.end();
+    });
+    await new Promise<void>((resolve) => redirector.listen(0, "127.0.0.1", resolve));
+    const redirectorPort = (redirector.address() as AddressInfo).port;
+    const [clientTransport, bridgeTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "redirect-probe", version: "1.0.0" });
+    try {
+      await connectProxyTransport(
+        { remoteUrl: `http://127.0.0.1:${redirectorPort}/mcp`, authToken: "redirect-secret-must-not-leak" },
+        bridgeTransport,
+      );
+      await expect(client.connect(clientTransport)).rejects.toThrow();
+      expect(redirectedRequests).toBe(0);
+    } finally {
+      await client.close();
+      await Promise.all([
+        new Promise<void>((resolve, reject) => redirector.close((error) => (error ? reject(error) : resolve()))),
+        new Promise<void>((resolve, reject) => destination.close((error) => (error ? reject(error) : resolve()))),
+      ]);
+    }
+  });
+
   it("rejects non-http programmatic URLs", () => {
     expect(() =>
       buildUpstreamHeaders({
@@ -340,6 +409,21 @@ describe("proxy option resolution (#1950)", () => {
     expect(buildUpstreamHeaders({ remoteUrl: "https://demo.honua.io/mcp" })).toEqual({});
   });
 });
+
+// The server drops a notification sent before the client's standalone SSE
+// GET stream is open, so re-send the (idempotent) list_changed until it lands.
+async function sendWhenStreamOpen(send: () => void, received: Promise<void>): Promise<void> {
+  let delivered = false;
+  void received.then(() => {
+    delivered = true;
+  });
+  const deadline = Date.now() + 2000;
+  while (!delivered && Date.now() < deadline) {
+    send();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  await expect(Promise.race([received, timeout(100)])).resolves.toBeUndefined();
+}
 
 function timeout(ms: number): Promise<never> {
   return new Promise((_resolve, reject) => {

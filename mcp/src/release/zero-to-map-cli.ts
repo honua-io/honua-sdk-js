@@ -25,7 +25,7 @@ import {
 } from "./zero-to-map-checkpoint.js";
 import {
   type AwsEcsProvisionBinding,
-  ZERO_TO_MAP_ACCESS_GRANTS,
+  ZERO_TO_MAP_LOCAL_ACCESS_GRANTS,
   assertAwsEcsProvisionBindings,
   parseAwsEcsProvisionBinding,
 } from "./zero-to-map-provision.js";
@@ -40,6 +40,7 @@ import {
   type RenderedImageExpectation,
   assertRenderedPng,
   parseZeroToMapPlan,
+  resolvePublishedShareUrl,
   runZeroToMapJourney,
 } from "./zero-to-map.js";
 
@@ -266,19 +267,16 @@ class LiveAdapter implements JourneyAdapter {
   }
 
   async checkHttp(url: string, expectedStatus: number): Promise<JourneyExecutionResult> {
-    const requested = new URL(url);
-    if (requested.protocol !== "https:" || requested.username || requested.password) {
-      throw new Error("published artifact URL must be HTTPS and must not embed credentials");
-    }
-    const response = await fetch(url, { method: "GET", redirect: "follow" });
+    const absolute = resolvePublishedShareUrl(url, this.options.mcpUrl);
+    const response = await fetch(absolute, { method: "GET", redirect: "follow" });
     if (response.status !== expectedStatus) {
-      throw new Error(`GET ${url} returned ${response.status}; expected ${expectedStatus}`);
+      throw new Error(`GET ${absolute} returned ${response.status}; expected ${expectedStatus}`);
     }
-    if (normalizeEndpoint(response.url) !== normalizeEndpoint(url)) {
-      throw new Error(`GET ${url} resolved to a different published identity: ${response.url}`);
+    if (normalizeEndpoint(response.url) !== normalizeEndpoint(absolute)) {
+      throw new Error(`GET ${absolute} resolved to a different published identity: ${response.url}`);
     }
     const contentType = response.headers.get("content-type");
-    if (!contentType) throw new Error(`GET ${url} returned no content type`);
+    if (!contentType) throw new Error(`GET ${absolute} returned no content type`);
     return {
       evidence: {
         requestedUrl: url,
@@ -741,6 +739,7 @@ export function parseInstallAccessCredential(stdout: string): {
       "baseUrl",
       "claudeDesktopConfigFile",
       "composeFile",
+      "credentialReissued",
       "directory",
       "envFile",
       "mcpConfigFile",
@@ -749,9 +748,16 @@ export function parseInstallAccessCredential(stdout: string): {
       "reused",
       "serverImage",
       "status",
+      ...(root.reason === undefined ? [] : ["reason"]),
     ],
     "local installer receipt",
   );
+  if (
+    typeof root.credentialReissued !== "boolean" ||
+    (root.credentialReissued ? root.reason !== "legacy-grants" : root.reason !== undefined)
+  ) {
+    throw new Error("local installer receipt credential re-issue fields are inconsistent");
+  }
   const credential = releaseRecord(root.accessCredential, "local installer access credential");
   releaseExactKeys(
     credential,
@@ -783,7 +789,7 @@ export function parseInstallAccessCredential(stdout: string): {
   if (stableStringSet(requestedGrants) !== stableStringSet(effectiveGrants)) {
     throw new Error("local installer requested and effective access grants do not match");
   }
-  if (stableStringSet(requestedGrants) !== stableStringSet(ZERO_TO_MAP_ACCESS_GRANTS)) {
+  if (stableStringSet(requestedGrants) !== stableStringSet(ZERO_TO_MAP_LOCAL_ACCESS_GRANTS)) {
     throw new Error("local installer access credential is not scoped to the required release grants");
   }
   if (

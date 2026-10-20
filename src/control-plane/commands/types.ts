@@ -167,6 +167,7 @@ export interface HonuaCommandReceipt<TOutput = unknown> {
   readonly mode: HonuaCommandMode;
   readonly status: HonuaCommandStatus;
   readonly idempotencyKey?: string;
+  /** Sent as `X-Correlation-ID` on every request belonging to this command. */
   readonly correlationId: string;
   readonly identity: HonuaCommandIdentity;
   /** Surface that issued the call. Recorded for audit; excluded from `auditKey`. */

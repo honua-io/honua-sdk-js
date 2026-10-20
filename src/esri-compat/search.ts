@@ -4,6 +4,7 @@ import {
   resolveCompatEventBus,
   safeInvokeCompatListener,
 } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 /** Structural point-like type used for search result locations. */
 export interface SearchPointLike {
@@ -86,7 +87,7 @@ const DEFAULT_SEARCH_SOURCE_MAX_SUGGESTIONS = 5;
 
 export class SearchCompat {
   public readonly view: unknown;
-  public readonly container: HTMLElement | string | null;
+  public container: HTMLElement | string | null;
   public readonly eventBus: CompatEventBus;
   public readonly autoNavigate: boolean;
   public includeDefaultSources: boolean;
@@ -94,6 +95,7 @@ export class SearchCompat {
   public loaded: boolean;
   public loadStatus: SearchLoadStatusCompat;
   public sources: SearchSourceCompat[];
+  public activeSource: SearchSourceCompat | undefined;
   public searchTerm: string;
   public results: SearchResultCompat[];
   public suggestions: SearchSuggestionCompat[];
@@ -112,6 +114,7 @@ export class SearchCompat {
   private readonly subscriptions: CompatEventSubscription[];
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
   private customSources: SearchSourceCompat[];
+  private widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: SearchCompatOptions = {}) {
     this.view = options.view;
@@ -124,6 +127,8 @@ export class SearchCompat {
     this.loadStatus = "not-loaded";
     this.customSources = [...(options.sources ?? [])];
     this.sources = [];
+    this.activeSource = undefined;
+    this.widgetHost = bindHonuaWidgetHost("honua-search", this.container, this.eventBus);
     this.searchTerm = "";
     this.results = [];
     this.suggestions = [];
@@ -151,6 +156,18 @@ export class SearchCompat {
     this.watchListeners = new Map();
     this.refreshSourceSubscriptions();
     this.rebuildSources(false);
+  }
+
+  public attachContainer(element: HTMLElement): void {
+    this.container = element;
+    this.widgetHost ??= bindHonuaWidgetHost("honua-search", element, this.eventBus);
+    this.pushWidgetHost();
+  }
+
+  public setActiveSource(source: SearchSourceCompat | undefined): void {
+    this.activeSource = source;
+    this.notifyWatchers("activeSource", this.activeSource);
+    this.pushWidgetHost();
   }
 
   public async load(): Promise<SearchCompat> {
@@ -395,6 +412,8 @@ export class SearchCompat {
       subscription.remove();
     }
     this.watchListeners.clear();
+    this.widgetHost?.destroy();
+    this.widgetHost = undefined;
   }
 
   private async navigateToSelectedResult(): Promise<void> {
@@ -425,7 +444,11 @@ export class SearchCompat {
           })
         : []),
     ];
+    if (!this.sources.includes(this.activeSource as SearchSourceCompat)) {
+      this.activeSource = this.sources[0];
+    }
     this.notifyWatchers("sources", this.sources);
+    this.pushWidgetHost();
     if (emitChange) {
       this.eventBus.emit("search.sources-changed", { sourceCount: this.sources.length }, this);
     }
@@ -458,6 +481,14 @@ export class SearchCompat {
         }),
       );
     }
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      sources: this.sources,
+      activeSource: this.activeSource,
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {
@@ -541,10 +572,22 @@ function resolveViewSearchSources(view: unknown, limits: SearchSourceLimits): Se
             response = await layer.queryFeatures(optimizedQueryOptions);
           } catch {
             fieldSearchUnsupported = true;
-            response = await layer.queryFeatures(fallbackQueryOptions);
+            try {
+              response = await layer.queryFeatures(fallbackQueryOptions);
+            } catch {
+              response = await layer.queryFeatures(
+                createLocalSearchQueryOptions(fieldSearchConfig.searchableFields, normalizedTerm),
+              );
+            }
           }
         } else {
-          response = await layer.queryFeatures(fallbackQueryOptions);
+          try {
+            response = await layer.queryFeatures(fallbackQueryOptions);
+          } catch {
+            response = await layer.queryFeatures(
+              createLocalSearchQueryOptions(fieldSearchConfig.searchableFields, normalizedTerm),
+            );
+          }
         }
 
         return extractFeatures(response);
@@ -682,6 +725,19 @@ function createOptimizedLayerSearchQueryOptions(
       resultOffset: 0,
       resultRecordCount: maxFeatureCandidates,
     },
+  };
+}
+
+function createLocalSearchQueryOptions(
+  searchableFields: readonly string[],
+  normalizedTerm: string,
+): Record<string, unknown> {
+  const field = searchableFields[0] ?? "name";
+  const escaped = normalizedTerm.replace(/'/g, "''");
+  return {
+    where: `${field} LIKE '%${escaped}%'`,
+    returnGeometry: true,
+    outFields: ["*"],
   };
 }
 

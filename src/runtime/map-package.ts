@@ -87,6 +87,23 @@ export interface HonuaMapPackageStyleRef {
    * loader instead.
    */
   body?: HonuaStyleRefBody;
+  /** Explicit live catalog-render to map-render mappings; inline bodies are already target-keyed. */
+  layerBindings?: readonly HonuaStyleRefLayerBinding[];
+}
+
+/** A selected catalog render layer applied to a particular render layer in this map. */
+export interface HonuaStyleRefLayerBinding {
+  /** Exact render-layer id in the shared catalog stylesheet. */
+  styleLayerId: string;
+  /** Exact render-layer id in this package's mapSpec. */
+  targetLayerId: string;
+  /** Expected catalog render type; a changed type requires rebinding. */
+  layerType: string;
+  /**
+   * Selected override properties. Omission selects the normal override set.
+   * Cross-type mappings may carry only filter, zoom bounds and visibility.
+   */
+  properties?: readonly ("paint" | "layout" | "filter" | "minzoom" | "maxzoom" | "metadata" | "visibility")[];
 }
 
 /**

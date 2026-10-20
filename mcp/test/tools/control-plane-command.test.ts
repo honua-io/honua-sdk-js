@@ -12,7 +12,11 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createServer } from "../../src/index.js";
-import { controlPlaneCommandToolName, controlPlaneCommandToolSchema } from "../../src/tools/control-plane-command.js";
+import {
+  controlPlaneCommandToolName,
+  controlPlaneCommandToolSchema,
+  execute,
+} from "../../src/tools/control-plane-command.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -26,6 +30,8 @@ interface CapturedRequest {
 }
 
 const MAP_PACKAGE = { id: "pkg-ops", version: "1.0.0", layers: [] } as unknown as Record<string, unknown>;
+
+const PUBLICATION_INTENT = { route: "/maps/operations", visibility: "team" } as const;
 
 const PUBLISH_RESPONSE = {
   packageId: "pkg-ops-42",
@@ -95,6 +101,21 @@ function payloadOf(result: ToolCallResult): Record<string, unknown> {
 }
 
 describe("control-plane command tools are a projection of the shared catalog", () => {
+  it("passes cancellation to the command runtime", async () => {
+    const controller = new AbortController();
+    const runtime = createHonuaCommandRuntime({ client: new HonuaClient({ baseUrl: "https://example.test" }) });
+    const invoked = vi.spyOn(runtime, "execute").mockRejectedValue(new DOMException("Cancelled", "AbortError"));
+    controller.abort();
+    await expect(execute({ runtime }, importCreateCommand, { input: {} }, controller.signal)).rejects.toThrow(
+      /Cancelled/,
+    );
+    expect(invoked).toHaveBeenCalledWith(
+      importCreateCommand,
+      {},
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
   it("publishes one tool per catalog command, named and described from the command itself", async () => {
     const { mcp, close } = await connect(recorder().fetchFn);
     try {
@@ -158,7 +179,13 @@ describe("transports adapt input and output only", () => {
       const result = (await mcp.callTool({
         name: controlPlaneCommandToolName("map-package.publish"),
         arguments: {
-          input: { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it" },
+          input: {
+            mapId: "map-ops",
+            workspaceId: "ws-1",
+            package: MAP_PACKAGE,
+            message: "ship it",
+            intent: PUBLICATION_INTENT,
+          },
         },
       })) as ToolCallResult;
       expect(result.isError).toBeFalsy();
@@ -171,7 +198,7 @@ describe("transports adapt input and output only", () => {
     const jsSide = recorder();
     const jsReceipt = await runtimeFor(jsSide.fetchFn).execute(
       mapPackagePublishCommand,
-      { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it" },
+      { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it", intent: PUBLICATION_INTENT },
       { transport: "sdk", identity: IDENTITY },
     );
 
@@ -187,8 +214,11 @@ describe("transports adapt input and output only", () => {
     expect(mcpSide.requests[0].method).toBe(jsSide.requests[0].method);
     expect(mcpSide.requests[0].path).toBe(jsSide.requests[0].path);
     expect(mcpSide.requests[0].body).toEqual(jsSide.requests[0].body);
+    expect(mcpSide.requests[0].body).toMatchObject({ intent: PUBLICATION_INTENT });
     expect(mcpSide.requests[0].headers["idempotency-key"]).toBe(jsSide.requests[0].headers["idempotency-key"]);
     expect(mcpSide.requests[0].headers["idempotency-key"]).toBe(mcpReceipt.idempotencyKey);
+    expect(mcpSide.requests[0].headers["x-correlation-id"]).toBe(mcpReceipt.correlationId);
+    expect(jsSide.requests[0].headers["x-correlation-id"]).toBe(jsReceipt.correlationId);
   });
 
   it("previews through MCP without contacting the server, exactly as the shared runtime does", async () => {
@@ -197,7 +227,7 @@ describe("transports adapt input and output only", () => {
     try {
       const result = (await mcp.callTool({
         name: controlPlaneCommandToolName("map-package.publish"),
-        arguments: { input: { mapId: "map-ops", package: MAP_PACKAGE }, dryRun: true },
+        arguments: { input: { mapId: "map-ops", package: MAP_PACKAGE, intent: PUBLICATION_INTENT }, dryRun: true },
       })) as ToolCallResult;
       const receipt = payloadOf(result) as unknown as HonuaCommandReceipt;
       expect(side.requests).toHaveLength(0);
@@ -298,4 +328,20 @@ describe("no self-approval by selecting the MCP transport", () => {
       await close();
     }
   });
+});
+
+it("rejects nested publication authority through the actual MCP tool before the wire", async () => {
+  const side = recorder();
+  const { mcp, close } = await connect(side.fetchFn);
+  try {
+    const result = (await mcp.callTool({
+      name: controlPlaneCommandToolName("map-package.publish"),
+      arguments: { input: { package: MAP_PACKAGE, intent: { route: "/maps/operations", approvedBy: "self" } } },
+    })) as ToolCallResult;
+    expect(result.isError).toBe(true);
+    expect(side.requests).toHaveLength(0);
+    expect(JSON.stringify(payloadOf(result))).toContain("intent.approvedBy");
+  } finally {
+    await close();
+  }
 });

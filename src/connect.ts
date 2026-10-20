@@ -110,7 +110,7 @@ import {
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
 } from "./contract/discovery.js";
-import type { PmtilesArchiveDescription } from "./contract/pmtiles.js";
+import type { PmtilesArchiveDescription, PmtilesModuleLike } from "./contract/pmtiles.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
 import { type SchemaIdentity, parseSchemaIdentity } from "./contract/schema.js";
 import { normalizeCapabilityDescriptor } from "./contract/source-capability-support.js";
@@ -131,6 +131,7 @@ import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
 import type { HonuaOdataMetadata } from "./core/odata.js";
 import { negotiateOgcCapabilities } from "./core/ogc-conformance.js";
 import { findOgcLink, ogcApiFeaturesLayout } from "./core/ogc-endpoint-layout.js";
+import { hasStacConformance } from "./core/stac-conformance.js";
 import type {
   HonuaClientOptions,
   HonuaLayerMetadata,
@@ -340,6 +341,12 @@ export interface ConnectOptions {
   };
   /** Bounded direct-PMTiles archive discovery policy. */
   readonly pmtiles?: {
+    /**
+     * Reader constructor from the app's own `pmtiles` import. A Vite build does
+     * not follow the SDK's non-literal import of that optional peer, so browser
+     * discovery passes the constructor it bundled.
+     */
+    readonly PMTiles?: PmtilesModuleLike;
     readonly limits?: {
       /** Physical HTTP attempts, including retries/auth replays; defaults to and cannot exceed 2. */
       readonly maxRequests?: number;
@@ -1366,8 +1373,8 @@ function validateStacLanding(endpoint: string, landing: HonuaStacLandingResponse
       "STAC API landing links must contain string rel and href values.",
     );
   }
-  const core = landing.conformsTo.some((entry) => isStacApiConformance(entry, "core"));
-  const itemSearch = landing.conformsTo.some((entry) => isStacApiConformance(entry, "item-search"));
+  const core = hasStacConformance(landing.conformsTo, "core");
+  const itemSearch = hasStacConformance(landing.conformsTo, "item-search");
   const searchLinks = (landing.links ?? []).filter((link) => link.rel?.toLowerCase() === "search");
   const dataLinks = (landing.links ?? []).filter((link) => link.rel?.toLowerCase() === "data");
   if (!core) {
@@ -1391,23 +1398,6 @@ function validateStacLanding(endpoint: string, landing: HonuaStacLandingResponse
   }
   for (const link of searchLinks) validateStacOperationLink(endpoint, link.href, "search");
   return Object.freeze({ itemSearch });
-}
-
-function isStacApiConformance(value: string, conformance: "core" | "item-search"): boolean {
-  try {
-    const uri = new URL(value);
-    return (
-      uri.protocol === "https:" &&
-      uri.origin === "https://api.stacspec.org" &&
-      uri.username === "" &&
-      uri.password === "" &&
-      uri.search === "" &&
-      uri.hash === "" &&
-      uri.pathname.replace(/\/+$/, "") === `/v1.0.0/${conformance}`
-    );
-  } catch {
-    return false;
-  }
 }
 
 function validateStacOperationLink(endpoint: string, href: string, operation: "search" | "collections"): void {

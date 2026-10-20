@@ -1,5 +1,92 @@
 # Changelog
 
+## [0.2.2](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.1...create-honua-app-v0.2.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **scaffold:** advance certified starter fallback to SDK 0.2.2 ([12060fb](https://github.com/honua-io/honua-sdk-js/commit/12060fb54a08f40757f32ff24dd1d7871023bc89))
+
+## [0.2.1](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.0...create-honua-app-v0.2.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **scaffold:** advance certified starter fallback to SDK 0.2.1 ([544a5c7](https://github.com/honua-io/honua-sdk-js/commit/544a5c7eba9ebc8c686a824e9b01ed8b439d850d))
+* **scaffold:** certify actual rendered data in both starters ([c9c244a](https://github.com/honua-io/honua-sdk-js/commit/c9c244ae3aba82499a724f51b3374eca57344e7e))
+* **scaffold:** observe rendered features in both starter templates ([fc7dfbf](https://github.com/honua-io/honua-sdk-js/commit/fc7dfbfec2333422072de08cf732b424c8f29c92))
+
+## [0.2.0](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.9...create-honua-app-v0.2.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* Node 20 is no longer a supported runtime.
+
+### Miscellaneous
+
+* require Node 22.12 or newer ([96e2050](https://github.com/honua-io/honua-sdk-js/commit/96e2050e7dd187d0d2a3858e8e6fe79d8cf158e2))
+
+## [0.1.9](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.8...create-honua-app-v0.1.9) (2026-10-12)
+
+
+### Documentation
+
+* **create-app:** explain independent published SDK examples ([#2038](https://github.com/honua-io/honua-sdk-js/issues/2038)) ([c73318d](https://github.com/honua-io/honua-sdk-js/commit/c73318d94d604a8a28fe141d501d7efd77c37091))
+
+## [0.1.8](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.7...create-honua-app-v0.1.8) (2026-10-11)
+
+
+### Features
+
+* add configurable free basemaps to samples and starters ([467bc1c](https://github.com/honua-io/honua-sdk-js/commit/467bc1cb1ebc0ed376cb51a63a76582c19a17ae9))
+* share configurable free basemaps across live samples ([7cdd6a1](https://github.com/honua-io/honua-sdk-js/commit/7cdd6a1a51b20569364eabe34fe7418d1f571248))
+
+
+### Bug Fixes
+
+* keep scaffold documentation aligned with SDK releases ([#2017](https://github.com/honua-io/honua-sdk-js/issues/2017)) ([4cc0b31](https://github.com/honua-io/honua-sdk-js/commit/4cc0b319d75f7bf96e36d9364ffa5c545180ac39))
+* retain pending basemap themes and narrow compatibility lookup ([cda8245](https://github.com/honua-io/honua-sdk-js/commit/cda824587bc5fa489f8e407c956244f0bef9410c))
+
+
+### Performance
+
+* slim SDK distribution and synchronize published client pins ([#2012](https://github.com/honua-io/honua-sdk-js/issues/2012)) ([eeab917](https://github.com/honua-io/honua-sdk-js/commit/eeab917d13241069937dd8a609de9fdc03aafcb7))
+
+## [0.1.7](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.6...create-honua-app-v0.1.7) (2026-10-06)
+
+
+### Bug Fixes
+
+* **create-honua-app:** README blocks run against 2026.1; scaffold pins the published @honua/sdk-js ([ce109a5](https://github.com/honua-io/honua-sdk-js/commit/ce109a58f8672a8c7a9bf98f53c1f2de3030ef6a))
+* **create-honua-app:** README blocks run against 2026.1; scaffold pins the published @honua/sdk-js ([c96dcd4](https://github.com/honua-io/honua-sdk-js/commit/c96dcd45f7301398e576c3fe7c11f39f3abdb418))
+
+## [0.1.6](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.5...create-honua-app-v0.1.6) (2026-10-04)
+
+
+### Bug Fixes
+
+* **create-app:** scaffold the certified SDK from the promoted release channel ([#1885](https://github.com/honua-io/honua-sdk-js/issues/1885)) ([ad9a8a8](https://github.com/honua-io/honua-sdk-js/commit/ad9a8a8d7be2eb2640f58c64ac386cf87b6f4c71)), closes [#1824](https://github.com/honua-io/honua-sdk-js/issues/1824)
+
+
+### Documentation
+
+* make the getting-started blocks run against the 2026.1 candidate (R28) ([#1900](https://github.com/honua-io/honua-sdk-js/issues/1900)) ([8715567](https://github.com/honua-io/honua-sdk-js/commit/8715567ff3e6f054a81540e0f521ce346d6a9f73))
+
+## [0.1.5](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.4...create-honua-app-v0.1.5) (2026-09-29)
+
+
+### Bug Fixes
+
+* keep starter MapLibre on the peer minimum and stamp gRPC input CRS ([c37e1bc](https://github.com/honua-io/honua-sdk-js/commit/c37e1bc18e5aa443fccb05c6a5944763550e48df))
+
+## [0.1.4](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.3...create-honua-app-v0.1.4) (2026-09-22)
+
+
+### Bug Fixes
+
+* **create-app:** keep scaffold pins on coordinated pair ([#1574](https://github.com/honua-io/honua-sdk-js/issues/1574)) ([8ff121d](https://github.com/honua-io/honua-sdk-js/commit/8ff121de9566849a37ea562df3cc5d02e7531c5f))
+
 ## [0.1.3](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.1.2...create-honua-app-v0.1.3) (2026-08-26)
 
 

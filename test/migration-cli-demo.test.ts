@@ -54,7 +54,7 @@ describe("migration cli demo", () => {
         "--fixtures-root",
         path.join(getProjectRoot(), "test", "fixtures"),
         "--fixture",
-        "esri-demo-feature-table-relates-app",
+        "client-demo-feature-table-relates-app",
         "--output-dir",
         outputDir,
         "--skip-import",

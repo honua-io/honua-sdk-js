@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Columnar batch transfer contract"
-description: "`@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query"
+description: "The bounded columnar data plane: GeoArrow batches, zero-copy transfer, worker sessions, caching, realtime patches, result conversion and telemetry."
 resource: "honua://capability/format.geoarrow"
 ---
 # Columnar batch transfer contract
@@ -16,8 +16,7 @@ It does not decode Arrow. It ships bounded reprojection and aggregation
 operations that applications register in their own worker module; every other
 operation stays application-owned.
 
-The entrypoint is experimental while the broader planner, streaming, renderer,
-and realtime work in issue #394 is completed.
+The entrypoint is experimental.
 
 ## Normative GeoArrow batches
 
@@ -358,11 +357,6 @@ Because the identity is plan-derived, the batch is admissible to
 change to the plan's source, schema, scope, query, policy, execution mode, or
 representation changes `columnarBatchCacheKey`.
 
-The producer materializes no per-row object, and that is budgeted rather than
-asserted: the `columnar.producer.million-row` benchmark-lab scenario runs this
-path over a 1,000,000-row column under an identity minted from a real plan and
-carries the same per-row retention ceiling the data-plane scenario declares.
-
 ## Memory ceilings
 
 Creation and transfer default to at most 1,000,000 rows and 64 MiB of unique
@@ -526,9 +520,6 @@ things could otherwise make one input produce two different results.
   proof of bit-identity under every conceivable permutation, but it removes the
   cancellation family that makes naive accumulation order-dependent in practice.
 
-The `columnar.aggregate.million-row` benchmark-lab scenario carries the memory
-and throughput budgets for this operation; see [`bench/README.md`](../bench/README.md).
-
 `createColumnarWorkerSession()` supplies the lifecycle missing from a raw
 `postMessage` call: lazy worker creation, a bounded serial queue, exact request
 correlation, monotonic progress, cross-thread cancellation, returned-batch
@@ -595,8 +586,7 @@ request.
 
 ## Session guarantees
 
-These are the guarantees a caller may rely on. Each one is covered by
-`test/columnar-streaming.test.ts`.
+These are the guarantees a caller may rely on.
 
 ### Ownership
 
@@ -796,10 +786,7 @@ aborted traversal rejects with an `AbortError` `DOMException` and never
 materializes the remaining pages. An already-aborted signal is refused before
 the batch is inspected at all.
 
-Conversion is derived and is not cached. The
-`columnar.result.bounded-window` benchmark-lab scenario carries the memory and
-throughput budgets for both directions; see
-[`bench/README.md`](../bench/README.md).
+Conversion is derived and is not cached.
 
 ## Realtime patches and rebuild thresholds
 
@@ -1019,7 +1006,7 @@ is one of:
 
 ## Deliberate remaining scope
 
-This slice does not claim the full #394 workstream. Planner selection and one
+This slice does not claim the full columnar workstream. Planner selection and one
 executable GeoParquet producer now exist (above), but the producer carries only
 geometry plus an optional feature-id column, and no other protocol has a
 columnar path: GeoServices, OGC API Features, WFS, OData, and gRPC all plan
@@ -1037,11 +1024,3 @@ operation per feature id in one patch, and an incremental transport that ships
 only the appended byte range are deliberately not claimed: a patch needing a new
 dictionary value or a second operation on one feature rebuilds or is rejected
 rather than guessing.
-
-Patch latency and rebuild memory *are* budgeted. The
-`columnar.patch.million-row` benchmark-lab scenario applies 1,000-event patches
-to a 1,000,000-row batch and then lets the declared reserve fill so one
-compacting rebuild runs per repetition, carrying an in-place latency ceiling
-plus the per-feature and relative-to-backing memory ceilings the epic sets on a
-rebuild. See [`bench/README.md`](../bench/README.md) for the measured values and
-for why the latency target is the scenario's warning rather than its failure.

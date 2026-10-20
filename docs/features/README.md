@@ -1,11 +1,11 @@
 ---
 type: index
 title: "Honua JS SDK Feature Map"
-description: "This repository owns the JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examples, and MCP server package."
+description: "What the JavaScript SDK ships: the client, the protocol-neutral contract, the MapLibre runtime, Esri compatibility, migration tooling, examples and the MCP server package."
 ---
 # Honua JS SDK Feature Map
 
-This repository owns the JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examples, and MCP server package.
+The JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examples, and MCP server package.
 
 ## Current Capabilities
 
@@ -17,17 +17,8 @@ This repository owns the JavaScript/TypeScript SDK, browser runtime helpers, mig
 - Studio package-family contract projections (query, analysis, map, dashboard, report, form, app, workflow, GP, ETL), a unified `{ valid, diagnostics, pkg? }` validation/preview envelope, capability manifest, and publish/share/embed contracts under `@honua/sdk-js/studio` (MCP/QGIS-safe).
 - Esri compatibility layer for migration-critical layers, views, widgets, controls, routing helpers, search, popup, time slider, measurement, editor/sketch, graphics, groups, web maps, and basic scene-view compatibility.
 - Migration tooling for ArcGIS usage scanning, safe codemods, parity matrices, fixture metrics, content export/import/reconcile, URL rewriting, service reconciliation, migration demo reports, and a fixture-only Esri sample corpus with license/terms guardrails.
-- Example apps for MapLibre quickstart, 2.5D storytelling, kepler analytics, and an exploratory Cesium route-playback spike.
+- Example apps for the MapLibre quickstart, 2.5D storytelling, imagery and terrain, editing, geocoding, and an exploratory Cesium route-playback spike.
 - MCP server package with tools and resources for service listing, layer description, extent, counts, feature queries, and statistics.
-
-## Source Evidence
-
-- SDK source: `src/`
-- MCP package: `mcp/src/`
-- Examples: `examples/`, `docs/examples/`
-- Generated app runtime contract: `docs/generated-app-runtime.md`
-- Studio package contracts: `docs/studio-package-contracts.md`
-- Protocol and compatibility docs: `docs/protocol-capability-matrix.md`, `docs/sdk-surface-alignment.md`, `docs/webmap-json-compatibility.md`
 
 ## 3D Status
 

@@ -312,7 +312,7 @@
       "lifecycle": {
         "state": "retire",
         "reason": "The app-platform split supersedes this SDK-owned compatibility demonstration.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "external",
           "id": "honua-app-platform"
@@ -354,65 +354,11 @@
           "commands": []
         }
       },
-      "expectedDegradation": "Compatibility APIs are removed when the package advances to 0.2.0.",
+      "expectedDegradation": "Compatibility APIs are retained through 0.2.x and removed when the package advances to 0.3.0.",
       "validationProfile": "browser-lab",
       "validation": [
         "npm run demo:app-bootstrap:typecheck",
         "npm run demo:app-bootstrap:build"
-      ]
-    },
-    {
-      "id": "arcgis-source-app",
-      "title": "ArcGIS source migration fixture",
-      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
-      "sourceKind": "root-example",
-      "track": "fixture",
-      "supportTier": "internal",
-      "lifecycle": {
-        "state": "active",
-        "reason": "Retain as a test input, not as a public Honua application."
-      },
-      "sourcePath": "examples/arcgis-source-app",
-      "docsPath": "examples/arcgis-source-app/README.md",
-      "capabilities": [
-        "arcgis",
-        "migration"
-      ],
-      "capabilityKeys": [],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "arcgis"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed migration input fixture.",
-        "attribution": "Synthetic parcel fixture.",
-        "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run test:migration:real-samples"
-          ]
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime.",
-      "validationProfile": "internal-fixture",
-      "validation": [
-        "npm run test:migration:real-samples"
       ]
     },
     {
@@ -483,7 +429,7 @@
       "lifecycle": {
         "state": "rework",
         "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion.",
-        "targetRelease": "0.2.0-beta.0"
+        "targetRelease": "0.3.0"
       },
       "sourcePath": "docs/examples/cesium-route-playback",
       "docsPath": "docs/examples/cesium-route-playback/README.md",
@@ -549,6 +495,21 @@
       },
       "sourcePath": "examples/columnar-query-quickstart",
       "docsPath": "examples/columnar-query-quickstart/README.md",
+      "playground": {
+        "projectPath": "playgrounds/columnar-query-quickstart",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          }
+        ]
+      },
       "capabilities": [
         "cancellation",
         "columnar",
@@ -655,6 +616,21 @@
         "npm run demo:coverages-wcs:build",
         "npm run test:playwright:coverages-wcs"
       ],
+      "playground": {
+        "projectPath": "playgrounds/coverages-wcs-basic",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          }
+        ]
+      },
       "capabilityKeys": [
         "raster.multidim-coverage",
         "serve.ogc-api-coverages",
@@ -671,7 +647,7 @@
       "lifecycle": {
         "state": "replace",
         "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "planning-permitting"
@@ -794,7 +770,7 @@
       "lifecycle": {
         "state": "merge",
         "reason": "Fold into the analysis journey while retaining this focused recipe.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "cloud-native-analysis"
@@ -846,6 +822,60 @@
         "npm run demo:gp-runner:typecheck",
         "npx vitest run test/geoprocessing-job-runner.test.ts",
         "npm run demo:gp-runner:build"
+      ]
+    },
+    {
+      "id": "geoservices-source-app",
+      "title": "ArcGIS source migration fixture",
+      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
+      "sourceKind": "root-example",
+      "track": "fixture",
+      "supportTier": "internal",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as a test input, not as a public Honua application."
+      },
+      "sourcePath": "examples/geoservices-source-app",
+      "docsPath": "examples/geoservices-source-app/README.md",
+      "capabilities": [
+        "arcgis",
+        "migration"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "arcgis"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed migration input fixture.",
+        "attribution": "Synthetic parcel fixture.",
+        "freshness": "Versioned with the repository.",
+        "configurationStatus": "not-required",
+        "configClassifications": []
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
+      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime.",
+      "validationProfile": "internal-fixture",
+      "validation": [
+        "npm run test:migration:real-samples"
       ]
     },
     {
@@ -920,7 +950,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-10-15T08:55:50.239Z"
+          "expiresAt": "2026-11-20T13:15:04.633Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1026,7 +1056,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-10-15T08:53:41.579Z"
+          "expiresAt": "2026-11-20T13:12:53.559Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1047,7 +1077,7 @@
       "lifecycle": {
         "state": "rework",
         "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey.",
-        "targetRelease": "0.2.0-beta.0"
+        "targetRelease": "0.3.0"
       },
       "sourcePath": "examples/mcp-gis-assistant",
       "docsPath": "examples/mcp-gis-assistant/README.md",
@@ -1148,7 +1178,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-10-15T08:56:15.480Z"
+          "expiresAt": "2026-11-20T13:15:29.831Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -1161,8 +1191,8 @@
     },
     {
       "id": "nl-map-control",
-      "title": "Natural-language map control",
-      "summary": "A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects.",
+      "title": "Ask this map",
+      "summary": "Review schema-grounded spatial queries, then synchronize exact fixture results on the map and in a keyboard-accessible table. Recorded suggestions and an optional authenticated live model share the same bounded semantic compiler and execution path.",
       "sourceKind": "root-example",
       "track": "lab",
       "supportTier": "experimental",
@@ -1185,7 +1215,7 @@
         "ai.mcp-discovery"
       ],
       "protocols": [
-        "honua"
+        "geoparquet"
       ],
       "renderers": [
         "maplibre"
@@ -1194,17 +1224,55 @@
         "mode": "fixture",
         "authMode": "none",
         "config": [
-          "VITE_HONUA_NL_MAP_CONTROL_BASEMAP_STYLE"
+          "HONUA_NL_APP_ORIGIN",
+          "HONUA_NL_EVIDENCE_PATH",
+          "HONUA_NL_LIVE_EVIDENCE",
+          "HONUA_NL_MODEL_API_KEY",
+          "HONUA_NL_MODEL_ENDPOINT",
+          "HONUA_NL_MODEL_ID",
+          "HONUA_NL_SESSION_TOKEN"
         ],
-        "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.",
-        "attribution": "Honua demo fixture attribution is shown in the sample.",
+        "provenance": "Versioned six-row incident fixture and independent expected IDs/counts in examples/nl-map-control/evaluation.v1.json; package-locked DuckDB-WASM with pinned spatial and Parquet extensions.",
+        "attribution": "Honua synthetic incident fixture; no external incident data.",
         "freshness": "Deterministic fixture replay time.",
         "configurationStatus": "approved",
         "configClassifications": [
           {
-            "name": "VITE_HONUA_NL_MAP_CONTROL_BASEMAP_STYLE",
-            "exposure": "browser-public",
+            "name": "HONUA_NL_APP_ORIGIN",
+            "exposure": "server-only",
             "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_NL_EVIDENCE_PATH",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_NL_LIVE_EVIDENCE",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_NL_MODEL_API_KEY",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_NL_MODEL_ENDPOINT",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_NL_MODEL_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_NL_SESSION_TOKEN",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
           }
         ]
       },
@@ -1217,12 +1285,12 @@
           ]
         },
         "live": {
-          "mode": "demo-live",
+          "mode": "authenticated",
           "status": "planned",
           "commands": []
         }
       },
-      "expectedDegradation": "Viewport and mutation plans refuse to execute without a verified approval envelope and report approval-required; the recorded LLM answers only the canned demo instructions.",
+      "expectedDegradation": "Recorded mode answers only exact suggestions. Dates, arbitrary SQL and geodesic distance are refused; distance uses explicitly disclosed planar EPSG:3857 metres. Live mode requires an authenticated server adapter.",
       "validationProfile": "browser-lab",
       "validation": [
         "npm run demo:nl-map-control:typecheck",
@@ -1765,6 +1833,7 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
+          "VITE_HONUA_BASEMAP_STYLE",
           "VITE_HONUA_REACT_BASE_URL",
           "VITE_HONUA_REACT_LAYER_ID",
           "VITE_HONUA_REACT_SERVICE_ID",
@@ -1775,6 +1844,11 @@
         "freshness": "Fixture capture metadata or live observation time.",
         "configurationStatus": "approved",
         "configClassifications": [
+          {
+            "name": "VITE_HONUA_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
           {
             "name": "VITE_HONUA_REACT_BASE_URL",
             "exposure": "browser-public",
@@ -1855,6 +1929,7 @@
         "mode": "hybrid",
         "authMode": "anonymous",
         "config": [
+          "VITE_HONUA_BASEMAP_STYLE",
           "VITE_HONUA_INCIDENT_BASE_URL",
           "VITE_HONUA_INCIDENT_CAPABILITIES_URL",
           "VITE_HONUA_INCIDENT_LAYER_ID",
@@ -1867,6 +1942,11 @@
         "freshness": "Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes.",
         "configurationStatus": "approved",
         "configClassifications": [
+          {
+            "name": "VITE_HONUA_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
           {
             "name": "VITE_HONUA_INCIDENT_BASE_URL",
             "exposure": "browser-public",
@@ -1938,7 +2018,7 @@
       "lifecycle": {
         "state": "replace",
         "reason": "Replace parity claims with renderer-specific execution and fidelity reports.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "service-explorer"
@@ -2034,7 +2114,8 @@
         "mode": "hybrid",
         "authMode": "anonymous",
         "config": [
-          "HONUA_SERVICE_EXPLORER_LIVE_ENABLED"
+          "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
+          "VITE_HONUA_BASEMAP_STYLE"
         ],
         "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
         "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
@@ -2044,6 +2125,11 @@
           {
             "name": "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
             "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_BASEMAP_STYLE",
+            "exposure": "browser-public",
             "valueKind": "non-secret"
           }
         ]
@@ -2063,7 +2149,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-10-15T08:57:22.561Z"
+          "expiresAt": "2026-11-20T13:16:38.969Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
@@ -2221,7 +2307,7 @@
       "lifecycle": {
         "state": "rework",
         "reason": "Join the large-data journey and distinguish fixture estimates from executed plans.",
-        "targetRelease": "0.2.0-beta.0"
+        "targetRelease": "0.3.0"
       },
       "sourcePath": "examples/spatial-analytics-workbench",
       "docsPath": "examples/spatial-analytics-workbench/README.md",
@@ -2374,7 +2460,7 @@
             "npm run demo:spatial-analytics:live-evidence"
           ],
           "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-11-01T08:34:51.355Z"
+          "expiresAt": "2026-12-31T14:03:45.765Z"
         }
       },
       "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.",
@@ -2399,6 +2485,21 @@
       },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
+      "playground": {
+        "projectPath": "playgrounds/stac-imagery-browser",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          }
+        ]
+      },
       "capabilities": [
         "cancellation",
         "cog",
@@ -2462,7 +2563,7 @@
       "lifecycle": {
         "state": "merge",
         "reason": "Use its strongest interactions inside the imagery and 3D journey.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "imagery-terrain"
@@ -2640,7 +2741,7 @@
       "lifecycle": {
         "state": "merge",
         "reason": "Combine point/profile proof with the imagery and 3D flagship.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "imagery-terrain"
@@ -2739,7 +2840,7 @@
       "lifecycle": {
         "state": "retire",
         "reason": "Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "journey",
           "id": "incident-operations"
@@ -2803,7 +2904,7 @@
       "lifecycle": {
         "state": "retire",
         "reason": "Controls move with app-platform rather than remaining in the core SDK gallery.",
-        "targetRelease": "0.2.0-beta.0",
+        "targetRelease": "0.3.0",
         "replacement": {
           "kind": "external",
           "id": "honua-app-platform"
@@ -2912,7 +3013,7 @@
       "id": "esri-leaflet",
       "route": "demo-esri-leaflet.html",
       "ownership": "sdk-projection",
-      "sampleId": "arcgis-source-app"
+      "sampleId": "geoservices-source-app"
     },
     {
       "id": "expr-builder",

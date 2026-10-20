@@ -7,6 +7,7 @@ export interface UniqueValueInfoCompat {
 }
 
 export interface UniqueValueRendererCompatOptions {
+  visualVariables?: unknown[];
   field?: string;
   field2?: string;
   field3?: string;
@@ -22,6 +23,7 @@ export interface UniqueValueRendererHandleCompat {
 }
 
 export class UniqueValueRendererCompat {
+  public visualVariables: unknown[];
   public loaded: boolean;
   public loadStatus: UniqueValueRendererLoadStatusCompat;
   public field: string | undefined;
@@ -33,6 +35,7 @@ export class UniqueValueRendererCompat {
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
 
   public constructor(options: UniqueValueRendererCompatOptions = {}) {
+    this.visualVariables = structuredClone(options.visualVariables ?? []);
     this.loaded = false;
     this.loadStatus = "not-loaded";
     this.field = options.field;
@@ -82,6 +85,10 @@ export class UniqueValueRendererCompat {
   }
 
   public update(options: UniqueValueRendererCompatOptions): void {
+    if (options.visualVariables !== undefined) {
+      this.visualVariables = structuredClone(options.visualVariables);
+      this.notifyWatchers("visualVariables", this.visualVariables);
+    }
     if (options.field !== undefined) {
       this.field = options.field;
       this.notifyWatchers("field", this.field);
@@ -129,6 +136,7 @@ export class UniqueValueRendererCompat {
 
   public toJSON(): UniqueValueRendererCompatOptions {
     return {
+      visualVariables: structuredClone(this.visualVariables),
       field: this.field,
       field2: this.field2,
       field3: this.field3,

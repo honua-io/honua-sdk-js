@@ -121,9 +121,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "20.19.0"
+          node-version: "22.23.3"
           registry-url: "https://registry.npmjs.org"
           cache: "npm"
           cache-dependency-path: package-lock.json
@@ -132,7 +132,7 @@ jobs:
         run: node scripts/check-docs-release.mjs publish
 
       - name: Prepare a hash-pinned npm for trusted publishing
-        # Node 20 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
+        # Node 22 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
         # The tarball's sha512 integrity hash (from the registry's own
         # dist.integrity field, recorded when this workflow was authored) is
         # pinned here and verified before use, so a re-published or tampered
@@ -167,6 +167,14 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # scripts/verify-rest-clean-install.mjs (run by the split-package verifier
+      # in "Validate package") launches the lockfile-pinned Playwright Chromium
+      # against the production build; the browser binary is not part of npm ci.
+      # Without this step the js-sdk-v0.1.13 publish run died with
+      # "browserType.launch: Executable doesn't exist" (run 37243774812).
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Security audit (npm dependencies)
         run: npm audit --omit=dev
@@ -254,7 +262,39 @@ jobs:
           # Tags must satisfy the same source-tree executable policy as PRs;
           # do not rely only on the scheduled external Scorecard scan.
           npm run security:binary-artifacts
+          # Run before generating split/browser artifacts: this verifier forces
+          # a build that cleans dist/. The surface checks below must inspect
+          # the final artifacts that will be packed and published.
+          # verify:packed-sdk installs with --legacy-peer-deps (the SDK's own
+          # dependency tree needs it), so it cannot see a peer range that
+          # excludes the artifact beside it. Install the pinned client pair --
+          # this tarball plus the @honua/mcp-server pin the generated .mcp.json
+          # names -- under DEFAULT peer resolution, the way a customer does.
+          # A cut whose pair only installs with --legacy-peer-deps stops here
+          # rather than reaching the registry (#1529).
+          npm run verify:client-pair
+          npm run verify:migration-cohort:prepared
           npm run build:split-packages:prepared --silent
+          # Pack immediately. Later checks pack the root package and remove
+          # these directories before the publish calls below.
+          declare -A split_tarball_for=()
+          declare -A split_name_for=()
+          declare -A split_version_for=()
+          split_pack_dir="${RUNNER_TEMP}/split-tarballs"
+          rm -rf "$split_pack_dir"
+          mkdir -p "$split_pack_dir"
+          for package_dir in \
+            "./dist/packages/honua-sdk" \
+            "./dist/packages/honua-sdk-esri-compat" \
+            "./dist/packages/honua-react" \
+            "./dist/packages/honua-geometry" \
+            "./dist/packages/honua-app-platform"
+          do
+            filename="$(node "${PINNED_NPM}" pack "$package_dir" --pack-destination "$split_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
+            split_tarball_for["$package_dir"]="${split_pack_dir}/${filename}"
+            split_name_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+            split_version_for["$package_dir"]="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+          done
           # build:split-packages cleans dist/, so (re)build the browser bundle
           # afterwards. Without this the root package publishes without
           # dist/browser/*, breaking the ./browser export and every CDN path.
@@ -266,17 +306,10 @@ jobs:
           # stale-npm incident): every exports subpath, the browser bundles,
           # and every split package documented in docs/split-packages.md.
           npm run verify:publish-surface
+          npm run verify:runtime-tarball
           # Exercise the exact root tarball through an offline installation,
           # Node/TypeScript package resolution, and its packaged CLI shim.
           npm run verify:packed-sdk
-          # verify:packed-sdk installs with --legacy-peer-deps (the SDK's own
-          # dependency tree needs it), so it cannot see a peer range that
-          # excludes the artifact beside it. Install the pinned client pair --
-          # this tarball plus the @honua/mcp-server pin the generated .mcp.json
-          # names -- under DEFAULT peer resolution, the way a customer does.
-          # A cut whose pair only installs with --legacy-peer-deps stops here
-          # rather than reaching the registry (#1529).
-          npm run verify:client-pair
 
           flags=""
           if [[ "${DRY_RUN}" == "true" ]]; then
@@ -308,8 +341,14 @@ jobs:
             local package_name
             local package_version
             local dist_tag
-            package_name="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
-            package_version="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+            local publish_target="${split_tarball_for[$package_dir]:-$package_dir}"
+            if [[ -n "${split_name_for[$package_dir]:-}" ]]; then
+              package_name="${split_name_for[$package_dir]}"
+              package_version="${split_version_for[$package_dir]}"
+            else
+              package_name="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+              package_version="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+            fi
             dist_tag="$(resolve_dist_tag "$package_version")"
 
             if [[ "${DRY_RUN}" != "true" ]] && node "${PINNED_NPM}" view "${package_name}@${package_version}" version >/dev/null 2>&1; then
@@ -324,9 +363,10 @@ jobs:
 
             # The hash-verified CLI from the step above, not whatever `npm` the
             # PATH resolves to at this point.
-            node "${PINNED_NPM}" publish "$package_dir" --access public --tag "$dist_tag" $flags
+            node "${PINNED_NPM}" publish "$publish_target" --access public --tag "$dist_tag" $flags
           }
 
+          # Split tarballs were packed immediately after they were built.
           publish_package "."
           publish_package "./dist/packages/honua-sdk"
           publish_package "./dist/packages/honua-sdk-esri-compat"
@@ -334,11 +374,19 @@ jobs:
           publish_package "./dist/packages/honua-geometry"
           publish_package "./dist/packages/honua-app-platform"
 
+      - name: Upload packed migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-packed
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn
+
       - name: Publish summary
         if: ${{ env.DRY_RUN == 'true' }}
         run: |
-          echo "Dry run complete. Split packages verified:"
-          ls -la ./dist/packages/
+          echo "Dry run complete. Split package tarballs verified:"
+          ls -la "${RUNNER_TEMP}/split-tarballs/"
 
   # Post-publish registry verification (#1337, AC6). A green publish step has
   # never been evidence that the release reached consumers: 0.0.19 published
@@ -351,8 +399,9 @@ jobs:
   # honua-io/honua-sdk-js#39 consumes.
   verify-published-release:
     name: Verify published release against the registry
+    timeout-minutes: 55
     needs: publish-js-packages
-    if: ${{ needs.publish-js-packages.result == 'success' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
+    if: ${{ !cancelled() && needs.publish-js-packages.result == 'success' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -370,9 +419,9 @@ jobs:
           fetch-tags: true
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "20.19.0"
+          node-version: "22.23.3"
 
       - name: Verify registry versions, integrity, provenance, and source SHA
         env:
@@ -388,11 +437,15 @@ jobs:
           PUBLISH_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          # npm's attestation endpoint trails the publish by seconds to a couple
-          # of minutes. Retry the whole verification rather than weakening any
-          # single check: a genuinely missing artifact still fails after the
-          # last attempt.
-          for attempt in 1 2 3 4 5; do
+          # Registry metadata, tarballs and attestations propagate separately.
+          # 0.1.14 took about 17 minutes to become visible. Retry the complete
+          # verifier for up to 45 minutes; every integrity/provenance gate still
+          # has to pass on the same attempt and the final receipt stays red.
+          deadline=$((SECONDS + 45 * 60))
+          delay=15
+          attempt=0
+          while true; do
+            attempt=$((attempt + 1))
             if node scripts/verify-published-release.mjs \
               --tag "${RELEASE_TAG}" \
               --commit "${SEALED_COMMIT}" \
@@ -400,10 +453,14 @@ jobs:
               --receipt test-results/published-release-verification.v1.json; then
               exit 0
             fi
-            if [[ "$attempt" -lt 5 ]]; then
-              echo "::notice::Registry verification attempt ${attempt} failed; retrying in 60s."
-              sleep 60
+            remaining=$((deadline - SECONDS))
+            if (( remaining <= 0 )); then
+              break
             fi
+            pause=$((delay < remaining ? delay : remaining))
+            echo "::notice::Registry verification attempt ${attempt} failed; retrying in ${pause}s."
+            sleep "${pause}"
+            delay=$((delay < 120 ? delay * 2 : 120))
           done
           echo "::error title=Published release verification failed for ${RELEASE_TAG}::The registry does not agree with the release manifest. See the receipt artifact for the failing checks."
           exit 1
@@ -437,9 +494,22 @@ jobs:
             '
           } >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Verify installed published migration dependency cohort
+        env:
+          PUBLISH_REF: ${{ github.ref }}
+        run: node scripts/verify-migration-cohort.mjs --sdk-source registry --sdk-publish-ref "${PUBLISH_REF}"
+
+      - name: Upload migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-registry
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn
+
       - name: Upload published-release receipt
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: published-release-verification
           path: test-results/published-release-verification.v1.json

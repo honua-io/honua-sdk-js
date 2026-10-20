@@ -108,9 +108,11 @@ export async function execute(
   host: ControlPlaneCommandMcpHost,
   command: HonuaAnyCommand,
   args: ControlPlaneCommandToolArgs,
+  signal?: AbortSignal,
 ): Promise<CallToolResult> {
   const invocation: HonuaCommandInvocation = {
     transport: "mcp",
+    ...(signal ? { signal } : {}),
     ...(host.identity ? { identity: host.identity } : {}),
     ...(args.idempotencyKey ? { idempotencyKey: args.idempotencyKey } : {}),
     ...(args.ifMatch ? { ifMatch: args.ifMatch } : {}),
@@ -154,7 +156,7 @@ export function registerControlPlaneCommandTools(server: McpServer, host: Contro
           openWorldHint: true,
         },
       },
-      async (args) => execute(host, command, args as ControlPlaneCommandToolArgs),
+      async (args, extra) => execute(host, command, args as ControlPlaneCommandToolArgs, extra.signal),
     );
   }
 }

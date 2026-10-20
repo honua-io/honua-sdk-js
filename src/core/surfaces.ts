@@ -93,7 +93,9 @@ export type HonuaServiceRequest = Omit<HonuaRawRequest, "path"> & {
 
 export type HonuaFeatureLayerQueryRequest = Omit<QueryFeaturesRequest, "serviceId" | "layerId">;
 export type HonuaFeatureLayerQueryAllRequest = HonuaFeatureLayerQueryRequest & {
+  /** Per-page budget, replacing resultRecordCount while draining or streaming. Defaults to 2000. */
   pageSize?: number;
+  /** Maximum number of pages to request. Defaults to 100. */
   maxPages?: number;
 };
 export type HonuaFeatureLayerQueryCountRequest = Pick<QueryFeaturesRequest, "where" | "method"> & {
@@ -420,41 +422,31 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
 
-    // Use server streaming RPC when gRPC-Web transport is active
-    if (this.client.isGrpcWeb) {
-      const { pageSize: _pageSize, maxPages: _maxPages, ...queryRequest } = request;
-      let pageCount = 0;
-      const stream = this.client.queryFeaturesStream({
-        serviceId: this.serviceId,
-        layerId: this.layerId,
-        ...queryRequest,
-        resultRecordCount: queryRequest.resultRecordCount ?? pageSize,
-      }) as AsyncGenerator<HonuaTypedFeature<T>[], void, undefined>;
-
-      for await (const page of stream) {
-        yield page;
-        pageCount += 1;
-        if (pageCount >= maxPages) {
-          break;
-        }
-      }
-      return;
-    }
-
+    // Native QueryFeaturesStream can apply a server-wide default total limit.
+    // Page the unary RPC so pageSize remains a batch budget on every transport.
+    let previousPageSignature: string | undefined;
     let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
-        extraParams: {
-          ...(request.extraParams ?? {}),
-          resultOffset: offset,
-          resultRecordCount: pageSize,
-        },
+        extraParams: withoutPagingExtraParams(request.extraParams),
+        resultOffset: offset,
+        resultRecordCount: pageSize,
       });
 
       const pageFeatures = response.features ?? [];
       if (pageFeatures.length === 0) {
         break;
+      }
+
+      if (this.client.isGrpcWeb) {
+        const signature = grpcPageOffsetSignature(response, pageFeatures);
+        if (previousPageSignature !== undefined && signature === previousPageSignature) {
+          throw new HonuaCapabilityNotSupportedError("stream", "grpc", `${this.serviceId}/${this.layerId}`, {
+            context: { reason: "gRPC transport repeated a page after resultOffset advanced.", resultOffset: offset },
+          });
+        }
+        previousPageSignature = signature;
       }
 
       yield pageFeatures;
@@ -471,7 +463,6 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       layerId: this.layerId,
       where: request.where ?? "1=1",
       returnGeometry: false,
-      outFields: "OBJECTID",
       method: request.method,
       extraParams: {
         returnCountOnly: true,
@@ -495,7 +486,6 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       layerId: this.layerId,
       where: request.where ?? "1=1",
       returnGeometry: false,
-      outFields: request.outFields ?? "OBJECTID",
       extraParams: {
         returnIdsOnly: true,
         ...request.extraParams,

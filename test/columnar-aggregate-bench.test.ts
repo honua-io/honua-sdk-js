@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { COLUMNAR_ABSOLUTE_RECIPES } from "../bench/columnar-absolute-protocol.js";
 import { buildColumnarAggregateFixture, runColumnarAggregateBenchmark } from "../bench/columnar-aggregate-bench.js";
+import { measureColumnarAbsolute } from "./columnar-absolute-measurement.js";
 
 /**
  * The absolute budgets declared for `columnar.aggregate.million-row` in
@@ -93,12 +95,7 @@ describe("columnar aggregate benchmark", () => {
   });
 
   it("reduces a million rows inside its declared absolute budgets", async () => {
-    const result = await runColumnarAggregateBenchmark({
-      inputRowCount: 1_000_000,
-      groupCount: 1_024,
-      warmupRuns: 1,
-      measurementRuns: 3,
-    });
+    const result = await runColumnarAggregateBenchmark(COLUMNAR_ABSOLUTE_RECIPES.aggregate);
 
     expect(result.invariants.passed).toBe(true);
 
@@ -109,9 +106,9 @@ describe("columnar aggregate benchmark", () => {
       BUDGETS.retainedBytesPerInputRow,
     );
     // NFR-002: reduction throughput floor.
-    expect(median(result.samples.map((sample) => sample.inputRowsPerSecond))).toBeGreaterThanOrEqual(
-      BUDGETS.inputRowsPerSecond,
-    );
+    const timing = measureColumnarAbsolute("aggregate");
+    expect(timing.invariants).toEqual(result.invariants);
+    expect(median(timing.samples)).toBeGreaterThanOrEqual(BUDGETS.inputRowsPerSecond);
     for (const sample of result.samples) {
       expect(sample.outputBackingBytesPerGroup).toBeLessThanOrEqual(BUDGETS.outputBackingBytesPerGroup);
     }

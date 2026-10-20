@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { ADMIN_OPERATIONS, type AdminOperationId, HonuaAdminClient } from "../../control-plane/index.js";
 import {
+  LOCAL_POSTGIS_BOOTSTRAP_SQL,
   type LocalInstallProfile,
   cloudInstallHandoff,
   getHonuaLocalStatus,
@@ -19,6 +20,7 @@ import {
 } from "../admin-secret-output.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getArray, getBoolean, getNumber, getString } from "../args.js";
+import { qualifyBoundedSetup } from "../bounded-qualification.js";
 import type { CommandContext } from "../command.js";
 import { resolveAdminConnection } from "../config.js";
 import { printLine, renderJson } from "../output.js";
@@ -32,6 +34,19 @@ USAGE
   honua admin api <operationId> [options]
   honua admin operations [group]
   honua admin install local|cloud|status [options]
+  honua admin qualify --directory <dir> --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file> [options]
+
+INSTALL
+  honua admin install local --yes [--directory <dir>] [--profile quickstart|gp-dev]
+      [--http-port <port>] [--timeout-ms <ms>] [--dry-run]
+      [--native-server-image <digest-ref> --native-console-image <digest-ref> --native-release-id <id>]
+      [--native-model-kind openai|anthropic|bedrock --native-model-name <id> --native-model-endpoint <url> --native-model-key-env <name>]
+      [--native-gateway-command <absolute-executable> --native-gateway-arg <arg>...] [--native-console-port <port>]
+  honua admin install status [--directory <dir>]
+  honua admin install cloud [aws]
+  --directory defaults to .honua. Create it outside the git repo you are editing.
+  --http-port defaults to 8080. Pass another localhost port when 8080 is taken.
+  --dry-run prints the compose file and does not start Docker. --yes is required to start it.
 
 GROUPS
   connect  import  publish  configure  secure  release  operate
@@ -65,6 +80,10 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   }
   if (group === "install") {
     await installCommand(parsed);
+    return;
+  }
+  if (group === "qualify") {
+    await qualifyCommand(parsed);
     return;
   }
   if (group !== "api" && !ADMIN_GROUPS.has(group)) {
@@ -111,13 +130,21 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const connection = resolveAdminConnection({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
+    bearerToken: ctx.bearerToken,
     adminKey: ctx.adminKey,
     profile: ctx.profile,
   });
+  if (
+    connection.bearerToken &&
+    Object.keys(request.headers).some((name) => ["authorization", "x-api-key", "cookie"].includes(name.toLowerCase()))
+  ) {
+    throw new ArgError("Credential headers cannot be combined with a selected bearer token.");
+  }
   const client = new HonuaAdminClient({
     baseUrl: connection.baseUrl,
     apiKey: connection.apiKey,
     adminKey: connection.adminKey,
+    headers: connection.bearerToken ? { Authorization: `Bearer ${connection.bearerToken}` } : undefined,
   });
   if (!oneTimeSecret) {
     const result = await callDynamic(client, operationId, compactRequest(request));
@@ -209,6 +236,67 @@ function rollbackOperation(
   return null;
 }
 
+async function qualifyCommand(parsed: ParsedArgs): Promise<void> {
+  const manifestPath = getString(parsed, "manifest");
+  const manifestSha256 = getString(parsed, "manifest-sha256");
+  const catalogReceiptPath = getString(parsed, "catalog-receipt");
+  if (!manifestPath || !manifestSha256 || !catalogReceiptPath) {
+    throw new ArgError(
+      "Usage: honua admin qualify --directory <dir> --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file>",
+    );
+  }
+  const serviceId = getString(parsed, "service-id");
+  const layerIdText = getString(parsed, "layer-id");
+  const layerId = layerIdText === undefined ? undefined : parseLayerId(layerIdText);
+  const styleEvidencePath = getString(parsed, "style-evidence");
+  const stylePngPath = getString(parsed, "style-png");
+  const liveStyle = Boolean(serviceId || layerId !== undefined);
+  if (liveStyle && (styleEvidencePath || stylePngPath)) {
+    throw new ArgError(
+      "Pass either a live --service-id/--layer-id style run or --style-evidence with --style-png, not both.",
+    );
+  }
+  if (liveStyle && !getBoolean(parsed, "yes")) {
+    throw new ArgError(
+      "Style/render mutates the published layer. Re-run with --yes, or replay --style-evidence and --style-png.",
+    );
+  }
+  const bbox = liveStyle ? parseBbox(getString(parsed, "bbox")) : undefined;
+  const receipt = await qualifyBoundedSetup({
+    directory: path.resolve(getString(parsed, "directory") ?? ".honua"),
+    manifestPath,
+    manifestSha256,
+    catalogReceiptPath,
+    ...(getString(parsed, "output") ? { outputPath: getString(parsed, "output") } : {}),
+    ...(serviceId ? { serviceId } : {}),
+    ...(layerId !== undefined ? { layerId } : {}),
+    ...(bbox ? { bbox } : {}),
+    ...(styleEvidencePath ? { styleEvidencePath } : {}),
+    ...(stylePngPath ? { stylePngPath } : {}),
+    executeStyle: liveStyle,
+  });
+  printLine(renderJson(receipt));
+  if (!receipt.pass) {
+    throw new Error(receipt.differences.join("; "));
+  }
+}
+
+function parseLayerId(value: string): number {
+  const layerId = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isInteger(layerId) || layerId > 2_147_483_647) {
+    throw new ArgError("--layer-id must be a decimal integer between 0 and 2147483647.");
+  }
+  return layerId;
+}
+
+function parseBbox(value: string | undefined): [number, number, number, number] {
+  const parts = value?.split(",").map((item) => Number(item.trim())) ?? [];
+  if (parts.length !== 4 || parts.some((item) => !Number.isFinite(item))) {
+    throw new ArgError("--bbox must be minx,miny,maxx,maxy when qualifying a live style/render.");
+  }
+  return [parts[0]!, parts[1]!, parts[2]!, parts[3]!];
+}
+
 async function installCommand(parsed: ParsedArgs): Promise<void> {
   const action = parsed.positionals[1];
   const directory = path.resolve(getString(parsed, "directory") ?? ".honua");
@@ -225,13 +313,83 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
   if (profile !== "quickstart" && profile !== "gp-dev") {
     throw new ArgError("Local install --profile must be quickstart or gp-dev.");
   }
+  const serverImage = getString(parsed, "native-server-image");
+  const consoleImage = getString(parsed, "native-console-image");
+  const releaseId = getString(parsed, "native-release-id");
+  const consolePort = getNumber(parsed, "native-console-port");
+  const gatewayCommand = getString(parsed, "native-gateway-command");
+  const gatewayArgs = getArray(parsed, "native-gateway-arg");
+  const modelKind = getString(parsed, "native-model-kind");
+  const modelName = getString(parsed, "native-model-name");
+  const endpoint = getString(parsed, "native-model-endpoint");
+  const region = getString(parsed, "native-model-region");
+  const apiKeyEnvironmentVariable = getString(parsed, "native-model-key-env");
+  const hasModelOptions = [modelKind, modelName, endpoint, region, apiKeyEnvironmentVariable].some(
+    (value) => value !== undefined,
+  );
+  if (hasModelOptions && (!modelName || !modelKind || !["openai", "anthropic", "bedrock"].includes(modelKind)))
+    throw new ArgError(
+      "Native model configuration requires --native-model-kind openai|anthropic|bedrock and --native-model-name.",
+    );
+  const modelProvider = hasModelOptions
+    ? {
+        kind: modelKind as "openai" | "anthropic" | "bedrock",
+        model: modelName!,
+        endpoint,
+        region,
+        apiKeyEnvironmentVariable,
+      }
+    : undefined;
+  const gatewayUrl = getString(parsed, "native-gateway-url");
+  const gatewayKeyEnv = getString(parsed, "native-gateway-key-env");
+  if ((gatewayUrl || gatewayKeyEnv) && (!gatewayUrl || !gatewayKeyEnv))
+    throw new ArgError("Native HTTP gateway requires --native-gateway-url and --native-gateway-key-env together.");
+  const gatewayHttp =
+    gatewayUrl && gatewayKeyEnv ? { url: gatewayUrl, keyEnvironmentVariable: gatewayKeyEnv } : undefined;
+  const processUrl = getString(parsed, "native-gp-workspace-url");
+  const processKeyEnv = getString(parsed, "native-gp-workspace-key-env");
+  if ((processUrl !== undefined || processKeyEnv !== undefined) && (!processUrl || !processKeyEnv))
+    throw new ArgError("Local processes require --native-gp-workspace-url and --native-gp-workspace-key-env together.");
+  const localProcesses =
+    processUrl && processKeyEnv ? { url: processUrl, keyEnvironmentVariable: processKeyEnv } : undefined;
+  const hasNativeOptions = [
+    serverImage,
+    consoleImage,
+    releaseId,
+    consolePort,
+    gatewayCommand,
+    ...gatewayArgs,
+    modelProvider,
+    gatewayHttp,
+    localProcesses,
+  ].some((value) => value !== undefined);
+  if (hasNativeOptions && (!serverImage || !consoleImage || !releaseId || !gatewayCommand))
+    throw new ArgError(
+      "Native preview requires --native-server-image, --native-console-image, --native-release-id, and --native-gateway-command together.",
+    );
+  const nativeWorkspace =
+    serverImage && consoleImage && releaseId && gatewayCommand
+      ? {
+          serverImage,
+          consoleImage,
+          releaseId,
+          consolePort,
+          gatewayCommand,
+          gatewayArgs,
+          modelProvider,
+          gatewayHttp,
+          localProcesses,
+        }
+      : undefined;
   if (getBoolean(parsed, "dry-run")) {
     printLine(
       renderJson({
         action: "install-local",
         directory,
         profile,
-        compose: renderLocalCompose({ profile }),
+        compose: renderLocalCompose({ profile, nativeWorkspace: !!nativeWorkspace }),
+        ...(nativeWorkspace ? { nativeWorkspace, qualification: "preview-requires-human-pairing" } : {}),
+        postgisBootstrapSql: LOCAL_POSTGIS_BOOTSTRAP_SQL,
         executed: false,
       }),
     );
@@ -247,6 +405,7 @@ async function installCommand(parsed: ParsedArgs): Promise<void> {
     profile,
     httpPort: getNumber(parsed, "http-port"),
     timeoutMs: getNumber(parsed, "timeout-ms"),
+    nativeWorkspace,
   });
   printLine(renderJson(result));
 }
@@ -295,7 +454,9 @@ function readBody(value: string | undefined, contentType: string | undefined): u
     }
   }
   const raw = value.startsWith("@")
-    ? readFileSync(value.slice(1), isJsonContentType(contentType) ? "utf8" : undefined)
+    ? isJsonContentType(contentType)
+      ? readFileSync(value.slice(1), "utf8")
+      : readFileSync(value.slice(1))
     : value;
   if (!isJsonContentType(contentType)) return raw;
   try {

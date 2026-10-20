@@ -206,6 +206,7 @@ describe("typed filter / cross-protocol equivalence through Source.query()", () 
     expect(where).toContain("REPORTED_AT <= TIMESTAMP '2026-02-01T00:00:00Z'");
     // The spatial node leaves the SQL and becomes request geometry parameters.
     expect(where).not.toContain("esriGeometry");
+    expect(seen.url?.searchParams.get("inSR")).toBe("4326");
     expect(seen.url?.searchParams.get("geometryType")).toBe("esriGeometryEnvelope");
     expect(seen.url?.searchParams.get("spatialRel")).toBe("esriSpatialRelIntersects");
     expect(JSON.parse(seen.url?.searchParams.get("geometry") ?? "{}")).toMatchObject({

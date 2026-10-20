@@ -68,6 +68,24 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
     },
   ],
   [
+    "columnar-query-quickstart",
+    {
+      canvasSelector: ".maplibregl-canvas",
+      state: "__HONUA_COLUMNAR_QUERY_QUICKSTART__",
+      readyField: "ready",
+      features: { field: "featureCount", atLeast: 1 },
+    },
+  ],
+  [
+    "coverages-wcs-basic",
+    {
+      canvasSelector: ".maplibregl-canvas",
+      state: "__HONUA_COVERAGES_WCS__",
+      readyField: "ready",
+      noBootFeatures: "Its boot contract is a rendered raster image, not a feature collection.",
+    },
+  ],
+  [
     "sketch-editing",
     {
       canvasSelector: ".maplibregl-canvas",
@@ -85,6 +103,15 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
       noBootFeatures:
         "Its visible count is whatever the playback window holds at the moment of a tick, so a boot-time count " +
         "would assert the tile parser's timing rather than the sample.",
+    },
+  ],
+  [
+    "stac-imagery-browser",
+    {
+      canvasSelector: ".maplibregl-canvas",
+      state: "__HONUA_STAC_BROWSER__",
+      readyField: "ready",
+      noBootFeatures: "Its boot contract is an imagery item list and selected asset state, not a feature collection.",
     },
   ],
 ]);

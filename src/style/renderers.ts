@@ -19,6 +19,8 @@
  * @module
  */
 
+import type { VisualVariableLegend, VisualVariableStyle } from "./visual-variables.js";
+
 import {
   type Expr,
   concat,
@@ -64,7 +66,7 @@ export interface RendererLayerFragment {
    * emit one `"symbolizer"` fragment; the cluster renderer emits
    * `"clusters"`, `"cluster-count"`, and `"unclustered"` fragments.
    */
-  readonly role: "symbolizer" | "clusters" | "cluster-count" | "unclustered";
+  readonly role: "symbolizer" | "outline" | "clusters" | "cluster-count" | "unclustered";
   /** MapLibre layer type (`circle`, `line`, `fill`, `heatmap`, `symbol`). */
   readonly type: string;
   readonly paint: Record<string, unknown>;
@@ -108,6 +110,8 @@ interface RendererBase<D extends RendererDescriptor> {
   toJSON(): D;
   /** Legend metadata derived from the descriptor (stable contract, REQ-005). */
   legendItems(): readonly RendererLegendItem[];
+  /** Continuous ramps and the exact missing-value style used by the map. */
+  visualVariableLegends?(): readonly VisualVariableLegend[];
   /** Compile MapLibre layer fragments for one geometry kind. Pure and deterministic. */
   toMapLibre(geometry: RendererGeometryType): readonly RendererLayerFragment[];
 }
@@ -128,6 +132,7 @@ export interface ClassBreakEntry {
 
 /** Options for {@link classBreaksRenderer}. @experimental */
 export interface ClassBreaksRendererOptions {
+  readonly visualVariableStyle?: VisualVariableStyle;
   /** Numeric feature property driving the classification. */
   readonly field: string;
   /** Ordered class breaks (ascending thresholds). */
@@ -194,6 +199,7 @@ export function classBreaksRenderer(options: ClassBreaksRendererOptions): ClassB
     kind: "class-breaks" as const,
     toJSON: () => cloneDescriptor(descriptor),
     legendItems: () => classBreaksLegend(descriptor),
+    visualVariableLegends: () => structuredClone(descriptor.visualVariableStyle?.legends ?? []),
     toMapLibre: (geometry: RendererGeometryType) => {
       const type = descriptor.layerType ?? layerTypeFor(geometry);
       const colorProperty = colorPropertyFor(type);
@@ -203,9 +209,7 @@ export function classBreaksRenderer(options: ClassBreaksRendererOptions): ClassB
       }));
       const defaultStyle = resolveDefaultStyle(descriptor, colorProperty);
       const compiled = compileDataDrivenStyle("step", get(descriptor.field), entries, defaultStyle);
-      return Object.freeze([
-        Object.freeze({ role: "symbolizer" as const, type, paint: compiled.paint, layout: compiled.layout }),
-      ]);
+      return rendererFragments(type, compiled, descriptor.visualVariableStyle);
     },
   });
 }
@@ -238,6 +242,7 @@ export interface UniqueValueEntry {
 
 /** Options for {@link uniqueValueRenderer}. @experimental */
 export interface UniqueValueRendererOptions {
+  readonly visualVariableStyle?: VisualVariableStyle;
   /** Feature property driving the categories. */
   readonly field: string;
   /** Optional second/third fields concatenated with `fieldDelimiter`. */
@@ -300,6 +305,7 @@ export function uniqueValueRenderer(options: UniqueValueRendererOptions): Unique
     kind: "unique-value" as const,
     toJSON: () => cloneDescriptor(descriptor),
     legendItems: () => uniqueValueLegend(descriptor),
+    visualVariableLegends: () => structuredClone(descriptor.visualVariableStyle?.legends ?? []),
     toMapLibre: (geometry: RendererGeometryType) => {
       const type = descriptor.layerType ?? layerTypeFor(geometry);
       const colorProperty = colorPropertyFor(type);
@@ -309,9 +315,7 @@ export function uniqueValueRenderer(options: UniqueValueRendererOptions): Unique
       }));
       const defaultStyle = resolveDefaultStyle(descriptor, colorProperty);
       const compiled = compileDataDrivenStyle("match", uniqueValueFieldExpression(descriptor), entries, defaultStyle);
-      return Object.freeze([
-        Object.freeze({ role: "symbolizer" as const, type, paint: compiled.paint, layout: compiled.layout }),
-      ]);
+      return rendererFragments(type, compiled, descriptor.visualVariableStyle);
     },
   });
 }
@@ -849,4 +853,15 @@ function formatRange(min: number | undefined, max: number | undefined): string {
 
 function cloneDescriptor<T>(value: T): T {
   return structuredClone(value) as T;
+}
+
+function rendererFragments(
+  type: string,
+  compiled: ResolvedRendererStyle,
+  variables?: VisualVariableStyle,
+): readonly RendererLayerFragment[] {
+  const paint = { ...compiled.paint, ...structuredClone(variables?.paint ?? {}) };
+  const fragments: RendererLayerFragment[] = [{ role: "symbolizer", type, paint, layout: compiled.layout }];
+  if (variables?.outline) fragments.push({ role: "outline", type: "line", ...structuredClone(variables.outline) });
+  return Object.freeze(fragments.map((fragment) => Object.freeze(fragment)));
 }

@@ -438,7 +438,7 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
     recipe: 13,
     lab: gallery.cardCount - 13 - qualifiedGoldenJourneys.length,
   });
-  assert.ok(!byId.has("arcgis-source-app"));
+  assert.ok(!byId.has("geoservices-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
   assert.deepEqual(byId.get("runtime-parity-showcase").replacement, {
     kind: "journey",

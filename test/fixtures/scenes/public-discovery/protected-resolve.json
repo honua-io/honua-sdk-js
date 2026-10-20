@@ -1,0 +1,19 @@
+{
+  "sceneId": "downtown-honolulu",
+  "tilesetUrl": "https://scenes.example.test/scenes/downtown-honolulu/tileset.json",
+  "endpoints": [
+    {
+      "kind": "3d-tiles",
+      "url": "https://scenes.example.test/scenes/downtown-honolulu/tileset.json",
+      "mediaType": "application/json",
+      "format": "3d-tiles",
+      "requiresAuthentication": true
+    }
+  ],
+  "capabilities": ["3d-tiles"],
+  "auth": {
+    "requiresAuthentication": true,
+    "schemes": ["Bearer", "ApiKey"],
+    "policy": "project-members"
+  }
+}

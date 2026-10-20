@@ -9,7 +9,7 @@ and the protocol-neutral contract are all reachable from this one install.
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
 It projects 22 supported (documented below as stable), 26 experimental,
-and 18 deprecated package entrypoints. Protocol status is independent
+and 19 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
@@ -26,10 +26,16 @@ while the branch contains unreleased work. Use the
 published artifact.
 <!-- support-manifest:install-status:end -->
 
+## Which import
+
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+
 ## Stable subpath entrypoints
 
-Subpaths covered by the SDK's semver contract. Symbols reachable from these
-entrypoints are stable across minor versions.
+While the SDK is on `0.x`, a minor may still change a stable symbol, only as a
+reviewed, called-out change. Symbols marked `@experimental` may change in any
+minor. At 1.0 the stable tier freezes. See
+[`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
 
 | Subpath | What it gives you |
 |---------|-------------------|
@@ -38,8 +44,8 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
-| `@honua/sdk-js/esri-compat` | Esri ArcGIS JS-API compatibility layer for migration |
-| `@honua/sdk-js/migration` | Programmatic migration helpers (codemod runner, scan reports) |
+| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps; replaces `/esri-compat` |
+| `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
 | `@honua/sdk-js/webmap` | WebMap JSON load/save helpers |
@@ -73,7 +79,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/stac` | Experimental dynamic STAC search, bounded pagination, signed asset refresh, and typed handoffs to the canonical COG, PMTiles, columnar, and runtime entrypoints ([walkthrough](./docs/walkthroughs/search-stac-and-open-assets.md)). |
 | `@honua/sdk-js/raster` | Experimental bounded raster sessions across dynamic-STAC/direct COG, ImageServer, OGC API Coverages, and WCS, with explicit band/range semantics and MapLibre/deck.gl presentation handoffs ([capability matrix](./docs/raster-capability-matrix.md)). |
 | `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |
-| `@honua/sdk-js/zarr` | Experimental Honua Server `/api/v1` Zarr registration and metadata inspection plus a byte-bounded datacube PNG tile handoff; direct object-store chunk decoding remains unavailable ([guide](./docs/zarr.md)). |
+| `@honua/sdk-js/zarr` | Experimental Honua Server `/api/v1` Zarr registration and metadata inspection, a byte-bounded datacube PNG tile handoff, and a bounded direct reader for reviewed static or object-store chunks. The server facade does not read object stores itself ([guide](./docs/zarr.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/columnar-workflow` | Bounded GeoParquet inspection and query planning plus Honua Arrow and Parquet feature-query workflows, with explicit decoder, memory, transfer, and handoff limits ([guide](./docs/columnar-workflow-capability-matrix.md)). |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
@@ -93,37 +99,45 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/routing` | Provider-pluggable routing: typed `RoutingProvider` contract, OSRM and Valhalla adapters, the Honua facade bridge, and per-provider attribution/usage-policy metadata ([provider cookbook](./docs/geocoding-routing-providers.md)). |
 | `@honua/sdk-js/interactions/declarative` | Compiles a standard `interactions[]` block (geospatial-mcp ADR-0030) onto the imperative binding primitives in `/interactions`: closed event/verb sets, `$event.*`-only argument substitution, a per-(ref, event) fan-out cap, actions that never emit events, and typed `unsupported` results naming any pair this runtime cannot honor. |
 | `@honua/sdk-js/studio-agent` | The agent session behind a prompt-to-map Studio: streams honua-server's provider-neutral AI proxy over SSE, dispatches the model's tool calls across two planes (local `/agent-tools` verbs through an AI map kit, `honua_studio_*` composition tools through a dependency-free MCP client) on one serialized queue with a single generation-conflict reload+retry, and never throws mid-stream. |
-| `@honua/sdk-js/local-install` | Node-only, manifest-pinned local Docker installer shared by `honua admin install local` and the bootstrap MCP tool; fails closed when the release image does not match the generated Admin API contract. |
+| `@honua/sdk-js/local-install` | Node-only, manifest-pinned local Docker installer shared by `honua admin install local` and the bootstrap MCP tool; fails closed when the release image does not match the generated Admin API contract. Mints the `honua-local-agent` key with `LOCAL_AGENT_GRANTS` (`admin:read`, `admin:write`, `read:*`) and re-issues a legacy two-grant key on re-run (`credentialReissued`, `reason: "legacy-grants"`). |
 
 ## Deprecated compatibility entrypoints
 
-These temporary `@honua/sdk-js` shims were introduced in `0.1.0-beta.0` when
-the application platform moved. They remain available throughout `0.1.x` and
-are removed in `0.2.0`; new code must import the replacement directly. A
+The application-platform shims were introduced in `0.1.0-beta.0` when
+the application platform moved. They remain available throughout `0.2.x` and
+are removed in `0.3.0`; new code must import the replacement directly. A
 replacement's own support status is independent of the shim: promoting
 `@honua/app-platform/scene-workspace` to `beta` did not move the
 `@honua/sdk-js/scene-workspace` removal window.
 
 | Deprecated subpath | Replacement | Remove in |
 |--------------------|-------------|-----------|
-| `@honua/sdk-js/app` | `@honua/app-platform/app` | `0.2.0` |
-| `@honua/sdk-js/app-controller` | `@honua/app-platform/app-controller` | `0.2.0` |
-| `@honua/sdk-js/app-workspace` | `@honua/app-platform/app-workspace` | `0.2.0` |
-| `@honua/sdk-js/scene-workspace` | `@honua/app-platform/scene-workspace` | `0.2.0` |
-| `@honua/sdk-js/collaboration` | `@honua/app-platform/collaboration` | `0.2.0` |
-| `@honua/sdk-js/control-plane` | `@honua/app-platform/control-plane` | `0.2.0` |
-| `@honua/sdk-js/replica-sync` | `@honua/app-platform/replica-sync` | `0.2.0` |
-| `@honua/sdk-js/share` | `@honua/app-platform/share` | `0.2.0` |
-| `@honua/sdk-js/operate` | `@honua/app-platform/operate` | `0.2.0` |
-| `@honua/sdk-js/generated-app` | `@honua/app-platform/generated-app` | `0.2.0` |
-| `@honua/sdk-js/studio` | `@honua/app-platform/studio` | `0.2.0` |
-| `@honua/sdk-js/operator` | `@honua/app-platform/operator` | `0.2.0` |
-| `@honua/sdk-js/operator/controllers` | `@honua/app-platform/operator/controllers` | `0.2.0` |
-| `@honua/sdk-js/operator/workspace` | `@honua/app-platform/operator/workspace` | `0.2.0` |
-| `@honua/sdk-js/operator/theming` | `@honua/app-platform/operator/theming` | `0.2.0` |
-| `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.2.0` |
-| `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.2.0` |
-| `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.2.0` |
+| `@honua/sdk-js/app` | `@honua/app-platform/app` | `0.3.0` |
+| `@honua/sdk-js/app-controller` | `@honua/app-platform/app-controller` | `0.3.0` |
+| `@honua/sdk-js/app-workspace` | `@honua/app-platform/app-workspace` | `0.3.0` |
+| `@honua/sdk-js/scene-workspace` | `@honua/app-platform/scene-workspace` | `0.3.0` |
+| `@honua/sdk-js/collaboration` | `@honua/app-platform/collaboration` | `0.3.0` |
+| `@honua/sdk-js/control-plane` | `@honua/app-platform/control-plane` | `0.3.0` |
+| `@honua/sdk-js/replica-sync` | `@honua/app-platform/replica-sync` | `0.3.0` |
+| `@honua/sdk-js/share` | `@honua/app-platform/share` | `0.3.0` |
+| `@honua/sdk-js/operate` | `@honua/app-platform/operate` | `0.3.0` |
+| `@honua/sdk-js/generated-app` | `@honua/app-platform/generated-app` | `0.3.0` |
+| `@honua/sdk-js/studio` | `@honua/app-platform/studio` | `0.3.0` |
+| `@honua/sdk-js/operator` | `@honua/app-platform/operator` | `0.3.0` |
+| `@honua/sdk-js/operator/controllers` | `@honua/app-platform/operator/controllers` | `0.3.0` |
+| `@honua/sdk-js/operator/workspace` | `@honua/app-platform/operator/workspace` | `0.3.0` |
+| `@honua/sdk-js/operator/theming` | `@honua/app-platform/operator/theming` | `0.3.0` |
+| `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.3.0` |
+| `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.3.0` |
+| `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.3.0` |
+| `@honua/sdk-js/esri-compat` | `@honua/sdk-js/client-compat` | `2026.2` |
+
+`@honua/sdk-js/esri-compat` was renamed to `@honua/sdk-js/client-compat` in
+`0.1.13`. The old subpath re-exports exactly the same symbols and, on first
+import, warns once per process (Node `DeprecationWarning` code
+`HONUA_ESRI_COMPAT_SUBPATH_RENAMED`, `console.warn` elsewhere) naming the
+replacement. It is removed in the 2026.2 release; change the import specifier
+and nothing else.
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 
@@ -154,14 +168,14 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 | `@honua/app-platform/operator/i18n` | Operator message catalog + resolution |
 
 During the transition, the deprecated imports listed above keep working through
-`0.1.x`; they are removed in `0.2.0`. Update imports to
+`0.2.x`; they are removed in `0.3.0`. Update imports to
 `@honua/app-platform/<subpath>`. The `@honua/sdk-js/console`
 entrypoint was removed outright (its projection helpers are owned by the
 `@honua/console` application) and has no shim.
 
 ## Prerequisites
 
-- Node.js 20 or later
+- Node.js 22.12 or later
 - A Honua Server instance only for capabilities marked `facade-required`; standalone protocol clients do not require one
 
 ## Install
@@ -177,7 +191,7 @@ Node-only or REST-only consumer never pays the install cost:
 
 | Integration | Peer to install |
 |-------------|-----------------|
-| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` — supported majors: **5 and 6** (`^5.0.0 \|\| ^6.0.0`; the 6.x half of that range ships with the next release, the current published beta still declares `^5.0.0`). MapLibre 6 is ESM-only and requires WebGL2; see [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) |
+| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | **6.4.1 or newer within major 6** (`^6.4.1`). The next SDK release drops affected 5.x and early 6.x peers; published older SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
@@ -191,7 +205,7 @@ no extra installs are required.
 ## Quick Start
 
 ```typescript doc-test=compile
-import { HonuaClient } from "@honua/sdk-js";
+import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.com",
@@ -258,8 +272,10 @@ classes. These are reachable via the `@honua/sdk-js/contract` and
 
 ## Esri Migration
 
-The migration helpers live behind the `@honua/sdk-js/migration` subpath. They
-power the same codemod that the standalone CLI runs:
+The npm program is `@honua/honua-migrate` (`npx honua-js-migrate`).
+`@honua/sdk-js/migration` forwards to that package. `src/migration/codemod.ts`
+is the in-repo suite, not the npm program. The forwarder keeps the old import
+working:
 
 ```typescript doc-test=compile
 import { runEsriCompatCodemod, scanArcGisUsage } from "@honua/sdk-js/migration";
@@ -276,18 +292,18 @@ const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
   archived guides, compatibility ranges, and migration links.
 - **Pre-release** (`-alpha.*`, `-beta.*`): Published to npm with `@alpha` / `@beta` dist-tags.
 - **Stable** (`1.0.0+`): Published to npm as `@latest`.
-- **Semver:** All releases follow [Semantic Versioning](https://semver.org/). Public symbols
-  reachable from the documented subpaths above are covered by the contract; symbols marked
-  `@experimental` in JSDoc may change in any minor release.
+- **Semver:** Releases follow [Semantic Versioning](https://semver.org/). While the SDK is on `0.x`, a minor may still change a stable symbol, only as a reviewed, called-out change. At 1.0, breaking or removing a stable symbol requires a major. Symbols marked `@experimental` in JSDoc may change in any minor release.
 - **Cross-language alignment:** Major versions are coordinated across the Honua SDK family
   (JavaScript, Python, .NET) so a single semver line tells you what the contract is on every
   platform.
 
-> **Advanced packaging.** Downstream packagers can also produce a three-package
-> split (`@honua/sdk` / `@honua/sdk-esri-compat` / `@honua/honua-migrate`) via
-> `npm run build:split-packages`. This is an opt-in build target, not the default
-> consumer install. See [`docs/split-packages.md`](./docs/split-packages.md) if you
-> are integrating with a downstream registry that needs the smaller surfaces.
+> **Advanced packaging.** Downstream packagers can also produce the split
+> packages, including `@honua/sdk` (`HonuaClient`, not `createHonua`) and
+> `@honua/sdk-esri-compat`, via `npm run build:split-packages`.
+> `@honua/honua-migrate` is not one of those generated packages.
+> This is an opt-in build target, not the default consumer install. See
+> [`docs/split-packages.md`](./docs/split-packages.md) if you are integrating
+> with a downstream registry that needs the smaller surfaces.
 
 Maintainers can verify the artifact consumers actually install with
 `npm run verify:packed-sdk` after the library and browser builds. The gate packs

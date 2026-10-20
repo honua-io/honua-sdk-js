@@ -1,6 +1,6 @@
 ---
 name: honua-diagnostics
-description: Use when a Honua call fails, a deployment looks unhealthy, or a candidate needs a Console approval receipt — capturing a sanitized diagnostic bundle with honua doctor, reading health/audit/operation status, distinguishing capability gaps from real failures, and staying inside bounded, reversible remediation. Covers 2026.1 zero-to-map stage 6 (console) and failure triage for stage 7 (artifact).
+description: Use when a Honua call fails, a deployment looks unhealthy, or a published share URL does not return HTTP 200 — capturing a sanitized diagnostic bundle with honua doctor, reading health/audit/operation status, distinguishing capability gaps from real failures, and staying inside bounded, reversible remediation. Covers 2026.1 zero-to-map stages console and artifact.
 release: "2026.1"
 stages: [console, artifact]
 ---
@@ -56,14 +56,13 @@ honua doctor \
 
 Full privacy boundary and read-only replay: `docs/diagnostic-bundles.md`.
 
-## 3. Read deployment health (Console stage)
+## 3. Read deployment health
 
-Stage `console` of `mcp/release/zero-to-map/journey.v1.json` imports a Console
-receipt bound to the exact connection, service, layers, GP jobs and result
-identities, draft, admin proposal, execution operation, audit correlation, and
-approved release candidate — plus health and recovery checks. The receipt is
-produced by a human in Console. An agent gathers evidence for it; it does not
-issue it.
+Stage `console` of `mcp/release/zero-to-map/journey.v1.json` fetches the share
+URLs returned by the same admin's `honua_studio_propose_publication` and
+requires HTTP 200. It does not import a Console receipt and it does not require
+a second principal. An agent gathers health evidence; it does not mint a second
+credential to approve its own publish.
 
 Read-only operations worth reaching for (the `operate` group in
 `docs/admin-cli-reference.md`):

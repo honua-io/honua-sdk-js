@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import openapiTS, { astToString } from "openapi-typescript";
+import { assertReleaseAdminContract } from "./lib/admin-release-contract.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceManifestPath = path.join(root, "config", "admin-client.v1.json");
@@ -61,6 +62,16 @@ if (source.operationCount < 396) {
 }
 assertCoverageContract(source, coverage, operations);
 
+const releaseUrl =
+  `https://raw.githubusercontent.com/${source.serverRepository}/${source.releaseManifestServerSha}/${source.specPath}`;
+const releaseResponse = await fetch(releaseUrl, {
+  headers: { Accept: "application/json", "User-Agent": "honua-sdk-js-admin-client-generator" },
+});
+if (!releaseResponse.ok) {
+  throw new Error(`Unable to fetch release Admin OpenAPI (${releaseResponse.status}) from ${releaseUrl}`);
+}
+assertReleaseAdminContract(source, document, normalizeLf(await releaseResponse.text()));
+
 const generated = astToString(
   await openapiTS(document, {
     alphabetize: true,
@@ -97,6 +108,9 @@ function assertSourceManifest(value) {
   ]) {
     if (value[key] === undefined || value[key] === "") throw new Error(`Admin client source manifest is missing ${key}.`);
   }
+  if (!/^[0-9a-f]{40}$/.test(value.localServerSourceSha ?? "")) {
+    throw new Error("Admin local server source SHA must be a full commit SHA from the customer-install manifest.");
+  }
   const contract = value.adminMcpContract;
   if (!contract || typeof contract !== "object") {
     throw new Error("Admin client source manifest is missing adminMcpContract.");
@@ -131,12 +145,6 @@ function assertSourceManifest(value) {
     throw new Error(
       `Default MCP roster equation failed: ${contract.defaultStaticToolCount} static + ` +
         `${contract.publishedOperationCount} admin != ${contract.defaultTotalToolCount} total tools.`,
-    );
-  }
-  if (value.releaseManifestOperationCount < value.operationCount) {
-    process.stderr.write(
-      `warning: release manifest server pin exposes ${value.releaseManifestOperationCount} admin operations; ` +
-        `${value.operationCount} are required. Candidate certification remains blocked until honua-release advances.\n`,
     );
   }
 }
@@ -316,6 +324,7 @@ export const ADMIN_MCP_CONTRACT_STATUS = ${JSON.stringify(contract.status)} as c
 export const MCP_DEFAULT_STATIC_TOOL_COUNT = ${contract.defaultStaticToolCount} as const;
 export const MCP_DEFAULT_TOTAL_TOOL_COUNT = ${contract.defaultTotalToolCount} as const;
 export const ADMIN_LOCAL_SERVER_IMAGE = ${JSON.stringify(source.serverImage)} as const;
+export const ADMIN_LOCAL_SERVER_SHA = ${JSON.stringify(source.localServerSourceSha)} as const;
 export const ADMIN_RELEASE_SERVER_SHA = ${JSON.stringify(source.releaseManifestServerSha)} as const;
 export const ADMIN_RELEASE_OPERATION_COUNT = ${source.releaseManifestOperationCount} as const;
 export const ADMIN_RELEASE_CONTRACT_STATUS = ${JSON.stringify(source.releaseManifestStatus)} as const;

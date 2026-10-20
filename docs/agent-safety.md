@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Safe agent plan boundary"
-description: "`@honua/sdk-js/agent-safety` is a deterministic trust boundary"
+description: "The deterministic trust boundary between untrusted plan proposals and host-owned effect execution: dry runs, effect budgets, signed single-use approvals, context revalidation and execution receipts."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Safe agent plan boundary
@@ -215,8 +215,7 @@ prefixes.
 
 ## Deliberate boundaries
 
-This is one production vertical slice of #397, not completion of that XL
-workstream. It does not translate natural language, provide a model adapter,
+This slice does not translate natural language, provide a model adapter,
 manage signing keys or audit persistence, parse query predicates to infer field
 use, perform compensating actions, or establish CLI/renderer/mutation execution
 parity. Hosts must declare every field a step may read or write; query compiler

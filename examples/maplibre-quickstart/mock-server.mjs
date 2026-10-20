@@ -55,12 +55,16 @@ function buildDemoIfNeeded(timeoutMs) {
   }
 }
 
-export async function startQuickstartFixtureServer({ build = true, buildTimeoutMs = 120_000 } = {}) {
+export async function startQuickstartFixtureServer({
+  build = true,
+  buildTimeoutMs = 120_000,
+  staticRoot = distRoot,
+} = {}) {
   if (build) buildDemoIfNeeded(buildTimeoutMs);
   return startSampleFixtureHarness({
     sampleId: "first-map",
     fixturePackVersion: FIRST_MAP_FIXTURE_METADATA.version,
-    staticRoot: distRoot,
+    staticRoot,
   });
 }
 

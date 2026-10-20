@@ -45,13 +45,50 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "20.19.0"
+  NODE_VERSION: "22.23.3"
+
+concurrency:
+  # Supersede stale pull-request heads only: a newer push to the same PR cancels the
+  # in-flight run for the old head. push/schedule/dispatch runs get a unique group
+  # (run_id), so trunk and manual runs are never cancelled or coalesced.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  first-map-webkit:
+    name: First Map WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HONUA_FIRST_MAP_RELEASE_MATRIX: "true"
+      PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/first-map-webkit/report.json
+      HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR: test-results/first-map-webkit/output
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      # Reuse the release matrix's complete fixture journey and assertions.
+      # This source check does not replace the sealed release-tag matrix.
+      - name: Exercise the First Map journey in WebKit
+        run: npm run test:playwright:quickstart -- --project=webkit --reporter=json
+      - name: Retain WebKit result and readiness diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: first-map-webkit
+          path: test-results/first-map-webkit/
+          if-no-files-found: warn
+          retention-days: 30
+
   pr-fast:
     name: PR Fast (under 2 minutes)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       HONUA_DERIVED_ARTIFACTS_RELAX: ${{ github.base_ref == 'trunk' && '1' || '' }}
     steps:
@@ -73,11 +110,21 @@ jobs:
           echo "PR_FAST_STARTED_AT_MONOTONIC_MS=$started_at" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
+
+      # Candidate self-validation only; trusted observation still runs from trunk.
+      - name: Validate candidate browser impact policy and identity fixtures
+        run: |
+          node scripts/browser-impact-observe.mjs validate
+          node --test test/scripts/browser-impact-observe.test.mjs
+          node --test test/scripts/trusted-pr-workflow-run.test.cjs
+
+      - name: Test migration dependency cohort refusal controls
+        run: node --test test/scripts/verify-migration-cohort.test.mjs
 
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
@@ -103,6 +150,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
+
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
 
@@ -123,7 +173,7 @@ jobs:
 
       - name: Upload PR-fast timing evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: pr-fast-timing
           path: test-results/pr-fast.json
@@ -132,6 +182,7 @@ jobs:
   benchmark-lab:
     name: Deterministic Benchmark Lab
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # Derived-artifact decoupling (#677): the cross-SDK corpus' Honua
     # source-tree pin is regenerated on trunk by the
     # regenerate-derived-artifacts workflow, so ci.yml tolerates a lagging pin
@@ -144,7 +195,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -158,7 +209,7 @@ jobs:
 
       - name: Upload benchmark evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sdk-benchmark-lab
           path: test-results/benchmark-lab.json
@@ -166,7 +217,8 @@ jobs:
 
   js-sdk:
     name: JS SDK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
     env:
       HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       # Derived-artifact decoupling (#677): every gate that binds committed
@@ -214,11 +266,21 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
+
+      # Candidate self-validation only; trusted observation still runs from trunk.
+      - name: Validate candidate browser impact policy and identity fixtures
+        run: |
+          node scripts/browser-impact-observe.mjs validate
+          node --test test/scripts/browser-impact-observe.test.mjs
+          node --test test/scripts/trusted-pr-workflow-run.test.cjs
+
+      - name: Test migration dependency cohort refusal controls
+        run: node --test test/scripts/verify-migration-cohort.test.mjs
 
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
@@ -243,6 +305,9 @@ jobs:
 
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Test candidate receipt PNG pixel decoder
+        run: node --test test/scripts/png-pixels.test.mjs
 
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
@@ -305,7 +370,7 @@ jobs:
 
       - name: Upload quickstart timing evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: quickstart-time-to-map
           path: test-results/quickstart-time-to-map.json
@@ -313,6 +378,12 @@ jobs:
 
       - name: Validate quickstart timing runner
         run: npm run docs:quickstart:time-to-map:test
+
+      - name: Test SDK publication workflow execution
+        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
+
+      - name: Test reseal credential lifetime policy
+        run: node --test test/scripts/reseal-token-lifetime.test.mjs
 
       - name: Typecheck
         run: npm run typecheck
@@ -330,7 +401,9 @@ jobs:
         run: npm run verify:contract-v2-design
 
       - name: Verify pinned PROJJSON validator
-        run: npm run verify:projjson-validator
+        run: |
+          npm run verify:projjson-validator
+          node --test test/scripts/projjson-validator-semantics.test.mjs
 
       - name: Verify generated MapPackage schema validator
         run: npm run verify:map-package-schema
@@ -425,8 +498,22 @@ jobs:
       - name: Verify agent skills
         run: npm run verify:skills
 
+      - name: Verify desktop-client detail containment
+        run: npm run security:desktop-client-containment
+
       - name: Build
         run: npm run build
+
+      - name: Verify packed SDK migration cohort with default npm resolution
+        run: npm run verify:migration-cohort:prepared
+
+      - name: Upload migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-packed
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn
 
       - name: Qualify shared-kit pilots from source and packed SDK
         run: |
@@ -465,6 +552,9 @@ jobs:
       - name: Validate documentation snippets
         run: npm run docs:snippets:check
 
+      - name: Validate documented executable commands
+        run: npm run docs:commands:check
+
       - name: Component qualification matrix
         # Runs against the already-built dist/, so it does not rebuild. Fails on
         # an unrecorded catalog component, a `passing` gate whose evidence file
@@ -493,7 +583,47 @@ jobs:
           npm run build:browser --silent
           node scripts/sample-contract.mjs artifacts
           npm run prepare:test-sdk:adopt --silent
+          node --test test/scripts/publish-surface-docs.test.mjs test/scripts/first-map-execution-budget.test.mjs test/scripts/installed-consumer-lock.test.mjs
           npm run verify:publish-surface
+          npm run test:runtime-tarball
+          npm run verify:runtime-tarball
+
+      - name: Upload runtime tarball budget receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: runtime-tarball-budget
+          path: test-results/runtime-tarball-budget.json
+          if-no-files-found: ignore
+
+      - name: Pack independent sample-consumer contracts
+        run: npm run samples:contract:pack
+
+      - name: Upload independent sample-consumer contract archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: sample-contract-${{ github.sha }}
+          path: .artifacts/sample-contract/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Enforce packed First Map execution budget on the CI runner
+        id: packed-first-map
+        run: |
+          # The checkout includes a historical registry receipt used by tests.
+          # Only this invocation may supply the uploaded packed-development evidence.
+          rm -f test-results/packed-first-map-execution/installed-quickstart-budget.json test-results/packed-first-map-execution/installed-quickstart-budget.consumer-lock.json
+          npm run test:installed-quickstart -- --local-tarball --enforce-execution-budget --output test-results/packed-first-map-execution/installed-quickstart-budget.json
+
+      - name: Upload packed First Map execution calibration
+        if: always() && (steps.packed-first-map.outcome == 'success' || steps.packed-first-map.outcome == 'failure')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: packed-first-map-execution
+          path: |
+            test-results/packed-first-map-execution/installed-quickstart-budget.json
+            test-results/packed-first-map-execution/installed-quickstart-budget.consumer-lock.json
+          if-no-files-found: ignore
 
       - name: Installed packed-SDK smoke
         run: npm run verify:packed-sdk
@@ -552,7 +682,7 @@ jobs:
         # content-addressed immutable release produced by
         # publish-content-addressed-sample-bundles.yml, one per source commit.
         if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sample-bundles
           path: .artifacts/sample-bundles/
@@ -574,14 +704,8 @@ jobs:
       - name: Migration e2e harness
         run: npx vitest run test/migration-e2e.test.ts
 
-      - name: MapLibre peer-major matrix (5.x + 6.x)
-        # The optional `maplibre-gl` peer range is `^5.0.0 || ^6.0.0` (#1004).
-        # This is the attributable leg for that claim: typecheck against the 5.x
-        # typings, run the peer-facing specs against the real module on both
-        # majors (the 6.x devDependency and the `maplibre-gl-v5` alias), then
-        # render the same Honua-generated style in a browser under each major.
-        # Everything else in this job resolves 6.x, so a 6-only break still
-        # fails the ordinary gates; this step is what keeps 5.x honest.
+      - name: Patched MapLibre runtime compatibility
+        # The optional peer requires MapLibre >=6.4.1 within major 6 (#1671).
         run: npm run test:maplibre-compat:prepared
 
       # The offline region reference's application shell manifest is
@@ -597,7 +721,27 @@ jobs:
         run: npm run offline:shell-manifest:check
 
       - name: Browser smoke suite
+        id: browser_smoke
         run: npm run test:playwright:prepared
+
+      - name: Retain GP response completion and raw browser events
+        if: always() && steps.browser_smoke.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: gp-response-completion
+          path: .tmp/playwright-output/**/execution-response-*.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+
+      # A failed earlier step skips the suite above. Inside an already-red job
+      # that skip is easy to miss, so this step fails on its own and names the
+      # gap: this job did not re-prove the browser suite.
+      - name: Browser smoke suite not re-proven
+        if: always() && steps.browser_smoke.outcome == 'skipped'
+        run: |
+          echo "::error title=Browser smoke suite not re-proven::An earlier step in the JS SDK job failed, so the browser smoke suite did not run. The sdk-verification browser shards are a separate signal and were not re-proven by this job."
+          exit 1
 
       - name: Deterministic browser rendering benchmark
         id: browser_benchmark
@@ -605,7 +749,7 @@ jobs:
 
       - name: Upload browser benchmark evidence
         if: always() && steps.browser_benchmark.outcome != 'skipped'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sdk-browser-benchmark
           path: test-results/browser-benchmark/
@@ -616,7 +760,7 @@ jobs:
         # (honua-io/honua-sdk-js#618); published on trunk builds only so
         # honua-evidence always ingests a merged, gate-passed snapshot.
         if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sdk-coverage-v1
           path: config/sdk-coverage.v1.json
@@ -634,6 +778,7 @@ jobs:
   mcp-sdk:
     name: MCP SDK
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: mcp
@@ -667,7 +812,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -750,7 +895,7 @@ jobs:
 
       - name: Upload MCP provability artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: mcp-provability-artifacts
           path: |

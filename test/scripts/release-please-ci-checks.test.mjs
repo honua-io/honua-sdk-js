@@ -4,6 +4,8 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { continueReleasePleaseCi } from "../../scripts/lib/release-please-ci-continuation.mjs";
+
 import {
   publishReleasePleaseCiChecks,
   REQUIRED_RELEASE_PLEASE_CI_CHECKS,
@@ -373,4 +375,25 @@ describe("Release Please check-writer workflow policy", () => {
       2,
     );
   });
+});
+
+it("rejects continuation events for a different run or stale head before writing checks", async () => {
+  for (const override of [{ expectedWorkflowRunId: 9999 }, { expectedHeadSha: "f".repeat(40) }]) {
+    const mock = harness();
+    await assert.rejects(publishReleasePleaseCiChecks({ ...publishOptions(), ...override }, mock.request),
+      /completed event does not identify/u);
+    assert.equal(mock.created.length, 0);
+  }
+});
+
+it("the completion continuation publishes the unchanged required checks on the validated head", async () => {
+  const mock = harness();
+  const result = await continueReleasePleaseCi({
+    eventName: "workflow_run", repository, ref: "refs/heads/trunk",
+    trustedPolicySha: fixture.baseSha, githubSha: fixture.baseSha,
+    event: { repository: { full_name: repository }, workflow_run: { ...workflowRun(), run_attempt: 1 } },
+  }, mock.request);
+  assert.equal(result.disposition.status, "published");
+  assert.deepEqual(mock.created.map((check) => check.name), ["JS SDK", "MCP SDK", "PR Issue Disposition"]);
+  assert.ok(mock.created.every((check) => check.head_sha === fixture.headSha && check.conclusion === "success"));
 });

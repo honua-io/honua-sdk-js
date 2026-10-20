@@ -12,7 +12,7 @@ export interface SpatialFilter {
 }
 
 /**
- * Create an envelope (bounding box) spatial filter.
+ * Create an envelope (bounding box) spatial filter. Defaults to WGS84 (4326).
  *
  * @example
  * ```ts
@@ -27,7 +27,7 @@ export function envelope(
   ymin: number,
   xmax: number,
   ymax: number,
-  spatialReference?: HonuaSpatialReference,
+  spatialReference: HonuaSpatialReference = { wkid: 4326 },
 ): SpatialFilter {
   const geometry: Record<string, unknown> = { xmin, ymin, xmax, ymax };
   if (spatialReference) geometry.spatialReference = spatialReference;
@@ -39,7 +39,7 @@ export function envelope(
 }
 
 /**
- * Create a point spatial filter.
+ * Create a point spatial filter. Defaults to WGS84 (4326).
  *
  * @example
  * ```ts
@@ -49,7 +49,7 @@ export function envelope(
  * };
  * ```
  */
-export function point(x: number, y: number, spatialReference?: HonuaSpatialReference): SpatialFilter {
+export function point(x: number, y: number, spatialReference: HonuaSpatialReference = { wkid: 4326 }): SpatialFilter {
   const geometry: Record<string, unknown> = { x, y };
   if (spatialReference) geometry.spatialReference = spatialReference;
   return {
@@ -60,7 +60,7 @@ export function point(x: number, y: number, spatialReference?: HonuaSpatialRefer
 }
 
 /**
- * Create a polygon spatial filter from an array of rings.
+ * Create a polygon spatial filter from an array of rings. Defaults to WGS84 (4326).
  *
  * @example
  * ```ts
@@ -70,7 +70,7 @@ export function point(x: number, y: number, spatialReference?: HonuaSpatialRefer
  * };
  * ```
  */
-export function polygon(rings: number[][][], spatialReference?: HonuaSpatialReference): SpatialFilter {
+export function polygon(rings: number[][][], spatialReference: HonuaSpatialReference = { wkid: 4326 }): SpatialFilter {
   const geometry: Record<string, unknown> = { rings };
   if (spatialReference) geometry.spatialReference = spatialReference;
   return {
@@ -91,7 +91,7 @@ export function polygon(rings: number[][][], spatialReference?: HonuaSpatialRefe
  * @param x - Center x coordinate
  * @param y - Center y coordinate
  * @param distance - Half-width of the envelope in coordinate units
- * @param spatialReference - Optional spatial reference
+ * @param spatialReference - Input coordinate reference system; defaults to WGS84 (4326)
  *
  * @example
  * ```ts

@@ -13,8 +13,8 @@
     "schemaPath": "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json",
     "format": "honua.site.sdk-sample-consumer-handoff.v2",
     "schemaVersion": 2,
-    "bytes": 387152,
-    "sha256": "6ba607875c0554aabf0637f81fc394bc66ebd79858821ff78b347269a401a381",
+    "bytes": 387619,
+    "sha256": "2e52f5b3b537b6579c383263ba1d1eaa4b518965a0256d46c84bbafbfbfb5a53",
     "schemaBytes": 28315,
     "schemaSha256": "e53b35b45608b02ce8991454e800139d3aa21bae18c70bf651a8ca8a6e54d5ef"
   },
@@ -23,7 +23,7 @@
     "qualifiedJourneyCount": 4,
     "canonicalRouteCount": 31,
     "legacyRouteCount": 20,
-    "gapCount": 470,
+    "gapCount": 472,
     "everyQualifiedTrackHandedOff": true,
     "honestZeroQualificationAllowed": true,
     "allLegacyRoutesResolved": true,
@@ -97,6 +97,7 @@
         "protocol": "geoparquet"
       },
       "expectedSampleIds": [
+        "nl-map-control",
         "overture-geoparquet"
       ]
     },

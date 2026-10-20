@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "focused-installed-client-diagnostic",
+  "recordedAt": "2026-10-11T16:07:56.843765+00:00",
+  "issue": "https://github.com/honua-io/honua-sdk-js/issues/1894",
+  "scope": "Canonical installed-client JS GeoServices scenario only; not full release certification. No blocker is waived or matrix step activated.",
+  "releaseSource": "3ca3728f6675636e294dadbc585af874802cc7bc",
+  "candidate": {
+    "repository": "https://github.com/honua-io/honua-server",
+    "sha": "93cad86ec4fb28fba3ff0b9358059d86aa55dde5",
+    "image": "ghcr.io/honua-io/honua-server:nightly-93cad86",
+    "digest": "sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db"
+  },
+  "package": {
+    "ecosystem": "npm",
+    "package": "@honua/sdk-js",
+    "version": "0.1.14",
+    "integrity": "sha512-4AZPZ/505HVTnk7hdEK8820BevUf6qtAHPK2DFASmdsCrYjJxELUMIZgoy4KxkqOwh/440zf8tdirSoLsM9jfg==",
+    "repository": "honua-io/honua-sdk-js",
+    "sourceSha": "984425f9d88b3c699cbd4766538ba311b48790aa",
+    "publicationState": "published",
+    "targets": [
+      "node",
+      "browser",
+      "honua-cli",
+      "honua-admin"
+    ],
+    "filename": "sdk-js-0.1.14.tgz"
+  },
+  "installation": "exact npm archive sha512 and installed lock integrity matched",
+  "fixture": {
+    "path": "certification/installed-clients/fixture.v1.json",
+    "sha256": "6130a4ea44855ed2bd79c866d4fe2f39c97a11849a07f80aedee6ec140005013"
+  },
+  "producer": {
+    "installation": "certification/installed-clients/run.py:install_suite_client",
+    "driver": "certification/installed-clients/drivers/js/driver.mjs",
+    "evaluator": "certification/installed-clients/regression.py:evaluate_cell",
+    "scenario": "sdk-geoservices",
+    "composeProject": "honua-sdk1894",
+    "baseUrl": "http://localhost:19804",
+    "initialBoot": "Database socket readiness raced TCP availability; restarted the isolated server after PostgreSQL was ready; health and licensing-disabled checks passed before running the driver."
+  },
+  "observations": [
+    {
+      "scenario": "sdk-geoservices",
+      "step": "query",
+      "api": "HonuaFeatureLayer.queryFeatures",
+      "observed": {
+        "features": [
+          {
+            "attributes": {
+              "gid": 3,
+              "name": "charlie",
+              "rank": 30
+            },
+            "x": -122.2,
+            "y": 37.8
+          },
+          {
+            "attributes": {
+              "gid": 4,
+              "name": "delta",
+              "rank": 40
+            },
+            "x": -122.1,
+            "y": 37.85
+          },
+          {
+            "attributes": {
+              "gid": 5,
+              "name": "echo",
+              "rank": 50
+            },
+            "x": -121.9,
+            "y": 37.95
+          },
+          {
+            "attributes": {
+              "gid": 6,
+              "name": "foxtrot",
+              "rank": 60
+            },
+            "x": -121.8,
+            "y": 38
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "ids",
+      "api": "HonuaFeatureLayer.queryObjectIds",
+      "error": {
+        "type": "HonuaHttpError",
+        "status": 400
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "count",
+      "api": "HonuaFeatureLayer.queryFeatureCount",
+      "error": {
+        "type": "HonuaHttpError",
+        "status": 400
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "resolve-edit-ids",
+      "api": "HonuaFeatureLayer.queryFeatures",
+      "observed": {
+        "features": [
+          {
+            "gid": 1,
+            "objectId": 8
+          },
+          {
+            "gid": 2,
+            "objectId": 9
+          },
+          {
+            "gid": 3,
+            "objectId": 10
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "apply-edits-add",
+      "api": "HonuaFeatureLayer.applyEdits(adds)",
+      "observed": {
+        "results": [
+          {
+            "success": true,
+            "objectId": 11,
+            "code": null
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "apply-edits-update",
+      "api": "HonuaFeatureLayer.applyEdits(updates)",
+      "error": {
+        "type": "HonuaHttpError",
+        "status": 500
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "apply-edits-delete",
+      "api": "HonuaFeatureLayer.applyEdits(deletes)",
+      "observed": {
+        "results": [
+          {
+            "success": true,
+            "objectId": 10,
+            "code": null
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "edits-state",
+      "api": "HonuaFeatureLayer.queryFeatures",
+      "observed": {
+        "features": [
+          {
+            "attributes": {
+              "gid": 1,
+              "name": "north",
+              "rank": 1
+            },
+            "x": -120,
+            "y": 39
+          },
+          {
+            "attributes": {
+              "gid": 2,
+              "name": "south",
+              "rank": 2
+            },
+            "x": -120,
+            "y": 38
+          },
+          {
+            "attributes": {
+              "gid": 4,
+              "name": "west",
+              "rank": 4
+            },
+            "x": -121,
+            "y": 38.5
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "add-attachment",
+      "api": "HonuaFeatureLayer.addAttachment",
+      "observed": {
+        "results": [
+          {
+            "success": true,
+            "objectId": 1
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "sdk-geoservices",
+      "step": "query-attachments",
+      "api": "HonuaFeatureLayer.queryAttachments",
+      "observed": {
+        "attachments": [
+          {
+            "name": "sdk-regression.txt",
+            "contentType": "text/plain",
+            "size": 32
+          }
+        ]
+      }
+    }
+  ],
+  "result": [
+    "fail",
+    "js `HonuaFeatureLayer.queryObjectIds` ids: raised HonuaHttpError (status 400); js `HonuaFeatureLayer.queryFeatureCount` count: raised HonuaHttpError (status 400); js `HonuaFeatureLayer.applyEdits(updates)` apply-edits-update: raised HonuaHttpError (status 500); js `HonuaFeatureLayer.queryFeatures` edits-state: edits layer: attributes {'gid': 2, 'name': 'south', 'rank': 2} differ from fixture {'gid': 2, 'name': 'south', 'rank': 20}",
+    [
+      {
+        "step": "query",
+        "api": "HonuaFeatureLayer.queryFeatures",
+        "status": "pass",
+        "oracle": "filtered query: 4 features equal the fixture (gids [3, 4, 5, 6]) with exact ordinates"
+      },
+      {
+        "step": "ids",
+        "api": "HonuaFeatureLayer.queryObjectIds",
+        "status": "fail",
+        "oracle": "raised HonuaHttpError (status 400)"
+      },
+      {
+        "step": "count",
+        "api": "HonuaFeatureLayer.queryFeatureCount",
+        "status": "fail",
+        "oracle": "raised HonuaHttpError (status 400)"
+      },
+      {
+        "step": "resolve-edit-ids",
+        "api": "HonuaFeatureLayer.queryFeatures",
+        "status": "pass",
+        "oracle": "3 managed features resolved to unique object ids for fixture gids [1, 2, 3]"
+      },
+      {
+        "step": "apply-edits-add",
+        "api": "HonuaFeatureLayer.applyEdits(adds)",
+        "status": "pass",
+        "oracle": "1 edit result(s), all successful"
+      },
+      {
+        "step": "apply-edits-update",
+        "api": "HonuaFeatureLayer.applyEdits(updates)",
+        "status": "fail",
+        "oracle": "raised HonuaHttpError (status 500)"
+      },
+      {
+        "step": "apply-edits-delete",
+        "api": "HonuaFeatureLayer.applyEdits(deletes)",
+        "status": "pass",
+        "oracle": "1 edit result(s), all successful"
+      },
+      {
+        "step": "edits-state",
+        "api": "HonuaFeatureLayer.queryFeatures",
+        "status": "fail",
+        "oracle": "edits layer: attributes {'gid': 2, 'name': 'south', 'rank': 2} differ from fixture {'gid': 2, 'name': 'south', 'rank': 20}"
+      },
+      {
+        "step": "add-attachment",
+        "api": "HonuaFeatureLayer.addAttachment",
+        "status": "pass",
+        "oracle": "1 edit result(s), all successful"
+      },
+      {
+        "step": "query-attachments",
+        "api": "HonuaFeatureLayer.queryAttachments",
+        "status": "pass",
+        "oracle": "attachments [('sdk-regression.txt', 'text/plain', 32)], fixture expects [('sdk-regression.txt', 'text/plain', 32)]"
+      }
+    ]
+  ],
+  "requiredFollowup": "Publish an SDK containing merged PR1981, pin its exact registry integrity/source SHA, rerun this scenario, then activate ids/count in the release matrix. SDK0.1.14 source984425f9 predates that fix."
+}

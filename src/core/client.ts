@@ -85,6 +85,7 @@ import {
   listOgcCollectionTilesets,
   listOgcTileMatrixSets,
 } from "./ogc-tiles.js";
+import { explainOptionalGrpcLoadFailure } from "./optional-grpc-peer.js";
 import { stripQuery, trimTrailingSlashes } from "./path-utils.js";
 import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
 import {
@@ -486,8 +487,7 @@ export class HonuaClient {
         path: string,
         params: URLSearchParams,
         signal?: AbortSignal,
-        policy?: HonuaJsonRequestPolicy,
-      ) => this.requestBinaryWithJsonFallback(method, path, params, signal, policy) as Promise<T>,
+      ) => this.requestBinaryWithJsonFallback(method, path, params, signal) as Promise<T>,
     };
   }
 
@@ -573,16 +573,12 @@ export class HonuaClient {
       return this.connectClient;
     }
 
-    // Keep optional Connect peers out of the module graph until the first
-    // gRPC operation is actually awaited. Caching the in-flight promise also
-    // prevents concurrent first calls from constructing competing clients.
+    // Keep optional Connect peers out of the static module graph until the
+    // first gRPC operation is awaited. A literal import() is followed by
+    // Vite/Rolldown and fails a REST production build when the peer is absent.
     let initPromise = this.connectClientPromise;
     if (!initPromise) {
-      initPromise = Promise.all([
-        import("@connectrpc/connect"),
-        import("@connectrpc/connect-web"),
-        import("../gen/geospatial/v1/feature_service_pb.js"),
-      ]).then(([{ createClient }, { createGrpcWebTransport }, { FeatureService }]) => {
+      initPromise = loadGrpcWebRuntime().then(({ createClient, createGrpcWebTransport, FeatureService }) => {
         const transport = createGrpcWebTransport(this.connectTransportOptions());
         this.connectClient = createClient(FeatureService, transport);
         return this.connectClient;
@@ -597,7 +593,7 @@ export class HonuaClient {
       if (this.connectClientPromise === initPromise) {
         this.connectClientPromise = undefined;
       }
-      throw error;
+      throw explainOptionalGrpcLoadFailure(error);
     }
   }
 
@@ -687,8 +683,17 @@ export class HonuaClient {
     }
   }
 
-  private static async loadGrpcAdapter() {
-    return import("./grpc-adapter.js");
+  private static async loadGrpcAdapter(): Promise<GrpcAdapterModule> {
+    let loaded: unknown;
+    try {
+      loaded = await importOptionalGrpcSpecifier(GRPC_ADAPTER_SPECIFIER);
+    } catch (error) {
+      throw explainOptionalGrpcLoadFailure(error);
+    }
+    if (!isGrpcAdapterModule(loaded)) {
+      throw new Error("HonuaClient gRPC adapter loaded but did not export the query runtime.");
+    }
+    return loaded;
   }
 
   public get isGrpcWeb(): boolean {
@@ -766,11 +771,11 @@ export class HonuaClient {
   }
 
   /**
-   * Drive a paginated FeatureServer query as an async generator. Each yielded
-   * chunk is a `HonuaFeature[]` slice; iteration stops when the server stops
-   * advertising `exceededTransferLimit`. Lower-level than
-   * `dataset.source(...).queryAll()` but suitable for streaming pipelines that
-   * want backpressure between pages.
+   * Consume the native gRPC FeatureService server stream. Each yielded chunk
+   * is a `HonuaFeature[]` slice. The server controls batching and may apply a
+   * total result limit, including its default when resultRecordCount is absent.
+   * Use `featureLayer(...).queryFeaturesStream()` or `Source.stream()` to page
+   * through the full match set with a caller-selected per-batch budget.
    *
    * @example
    * ```ts
@@ -1183,6 +1188,8 @@ export class HonuaClient {
    * `.text()`, or `.arrayBuffer()`. Non-2xx responses still throw the
    * normalized `HonuaHttpError` (and trigger retries) so error handling
    * matches every other client method.
+   * The request deadline and caller cancellation remain active while consuming
+   * the response body. Consume or cancel the body to release that lifecycle.
    */
   public async pipelineFetch(
     method: QueryMethod,
@@ -1244,7 +1251,8 @@ export class HonuaClient {
       ...(options.redirect ? { redirect: options.redirect } : {}),
       ...(options.beforeAttempt ? { beforeAttempt: options.beforeAttempt } : {}),
       ...(options.beforeReplay ? { beforeReplay: options.beforeReplay } : {}),
-      ...(options.prepareResponse || options.errorBody ? { deadlineThroughFinalize: true } : {}),
+      deadlineThroughFinalize: true,
+      streamResponse: options.prepareResponse === undefined,
       ...(options.errorBody
         ? { errorBody: options.errorBody }
         : options.discardErrorBody
@@ -1312,6 +1320,7 @@ export class HonuaClient {
 
     return this.executeRequest<T>(request, {
       callerSignal: metadataOptions.signal,
+      deadlineThroughFinalize: true,
       // stale-if-error fallback on a terminal network or HTTP failure.
       onTerminalError: (error) => this.staleMetadataFallback(cached, metadataOptions, error),
       // 304 Not Modified: revalidate the cached entry without re-parsing a body.
@@ -1340,10 +1349,11 @@ export class HonuaClient {
           ),
         };
       },
-      finalize: async (response, durationMs, currentRequest, runAfter) => {
-        const body = await parseResponseBody(
+      finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
+        const body = await parseSuccessfulJsonBody(
           this.hasAfterInterceptors() ? response.clone() : response,
           metadataOptions.maxResponseBytes,
+          deadlineSignal,
         );
 
         // GeoServices reports metadata failures (layer not found, invalid token
@@ -1833,7 +1843,6 @@ export class HonuaClient {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
-      autoMethodPolicy: policy?.autoMethodPolicy,
       init: {
         method,
         headers: await this.composeHeaders({ Accept: "application/json" }, init?.headers),
@@ -1843,12 +1852,13 @@ export class HonuaClient {
 
     return this.executeRequest<unknown>(request, {
       callerSignal,
+      deadlineThroughFinalize: true,
       readOnlyQuery: policy?.readOnlyQuery,
       redirect: policy?.readOnlyQuery ? "preserve-method" : undefined,
-      finalize: async (response, durationMs, currentRequest, runAfter) => {
+      finalize: async (response, _durationMs, _currentRequest, runAfter) => {
         // Parse the original body directly when no after-interceptor will read
         // it; only clone when an interceptor needs an independent copy.
-        const body = await parseResponseBody(this.hasAfterInterceptors() ? response.clone() : response);
+        const body = await parseSuccessfulJsonBody(this.hasAfterInterceptors() ? response.clone() : response);
 
         // GeoServices/Esri services return HTTP 200 with a top-level `{error}`
         // envelope on failure (bad WHERE, invalid outFields, edit failures, …).
@@ -1856,11 +1866,9 @@ export class HonuaClient {
         // failure envelope back as a "successful" response object.
         const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
-          await this.applyErrorInterceptors({
-            request: cloneRequestContext(currentRequest),
-            error: envelopeError,
-            durationMs,
-          });
+          // deadlineThroughFinalize is set for this wrapper, so executeRequest
+          // dispatches error interceptors for this throw. Notifying here as well
+          // runs every hook twice.
           throw envelopeError;
         }
 
@@ -1878,13 +1886,11 @@ export class HonuaClient {
     path: string,
     params: URLSearchParams,
     callerSignal?: AbortSignal,
-    policy?: HonuaJsonRequestPolicy,
   ): Promise<unknown> {
     const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
-      autoMethodPolicy: policy?.autoMethodPolicy,
       init: {
         method,
         headers: await this.composeHeaders({ Accept: "application/x-protobuf, application/json;q=0.9" }),
@@ -1893,24 +1899,25 @@ export class HonuaClient {
 
     return this.executeRequest<unknown>(request, {
       callerSignal,
-      readOnlyQuery: policy?.readOnlyQuery,
-      finalize: async (response, durationMs, currentRequest, runAfter) => {
+      deadlineThroughFinalize: true,
+      finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
         await runAfter();
 
         // If the server returned PBF, decode it; on decode failure (including
         // Z/M geometry the fast path can't handle) retry as f=json.
         if (isPbfResponse(response)) {
           try {
-            const buffer = await response.arrayBuffer();
+            const buffer = await readBoundedResponseBytes(response, Number.MAX_SAFE_INTEGER, deadlineSignal);
             return decodePbfQueryResponse(buffer);
-          } catch {
+          } catch (error) {
+            if (deadlineSignal?.aborted) throw error;
             params.set("f", "json");
             const jsonPath = `${stripQuery(path)}?${params.toString()}`;
             return this.requestJson(
               "GET",
               jsonPath,
               undefined,
-              callerSignal ?? currentRequest.init.signal ?? undefined,
+              deadlineSignal ?? callerSignal ?? currentRequest.init.signal ?? undefined,
             );
           }
         }
@@ -1921,7 +1928,7 @@ export class HonuaClient {
         // even when f=pbf was requested. Detect the `{error}` envelope here so
         // preferBinary callers throw a normalized HonuaHttpError exactly like
         // the JSON path instead of receiving the failure envelope as success.
-        const body = await parseResponseBody(response);
+        const body = await parseSuccessfulJsonBody(response, undefined, deadlineSignal);
         const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
           await this.applyErrorInterceptors({
@@ -1979,12 +1986,12 @@ export class HonuaClient {
 
     return this.executeRequest<{ text: string; contentType: string; status: number }>(request, {
       callerSignal: options?.signal,
-      deadlineThroughFinalize: options?.maxResponseBytes !== undefined,
+      deadlineThroughFinalize: true,
       errorBody: async (response, deadlineSignal) => {
         const clone = response.clone();
         const text =
           options?.maxResponseBytes === undefined
-            ? await clone.text()
+            ? new TextDecoder().decode(await readBoundedResponseBytes(clone, Number.MAX_SAFE_INTEGER, deadlineSignal))
             : new TextDecoder().decode(await readBoundedResponseBytes(clone, options.maxResponseBytes, deadlineSignal));
         const contentType = response.headers.get("content-type") ?? acceptHeader;
         return text ? { raw: text, contentType } : {};
@@ -1992,7 +1999,9 @@ export class HonuaClient {
       finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
         if (options?.maxResponseBytes === undefined) {
           await runAfter();
-          const text = await response.text();
+          const text = new TextDecoder().decode(
+            await readBoundedResponseBytes(response, Number.MAX_SAFE_INTEGER, deadlineSignal),
+          );
           const contentType = response.headers.get("content-type") ?? acceptHeader;
           return { text, contentType, status: response.status };
         }
@@ -2033,10 +2042,10 @@ export class HonuaClient {
 
     return this.executeRequest<{ bytes: Uint8Array; contentType: string; empty: boolean }>(request, {
       callerSignal,
-      finalize: async (response, _durationMs, _request, runAfter) => {
+      deadlineThroughFinalize: true,
+      finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
         await runAfter();
-        const buffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
+        const bytes = await readBoundedResponseBytes(response, Number.MAX_SAFE_INTEGER, deadlineSignal);
         return {
           bytes,
           contentType: response.headers.get("content-type") ?? acceptHeader,
@@ -2083,6 +2092,7 @@ export class HonuaClient {
         reason: "authentication" | "retry",
       ) => void | Promise<void>;
       deadlineThroughFinalize?: boolean;
+      streamResponse?: boolean;
       errorBody?: (response: Response, deadlineSignal: AbortSignal | undefined) => Promise<unknown>;
       shortCircuit?: (
         response: Response,
@@ -2101,8 +2111,14 @@ export class HonuaClient {
     },
   ): Promise<T> {
     let request = await this.applyBeforeInterceptors(initialRequest);
-    request = this.applyAutoRequestMethod(request);
-    const readOnlyQuery = options.readOnlyQuery === true;
+    // A before-interceptor that changes the endpoint/method or supplies a
+    // streaming body cannot inherit this narrow read-query replay permission.
+    const readOnlyQuery =
+      options.readOnlyQuery === true &&
+      request.method === "POST" &&
+      request.method === initialRequest.method &&
+      request.url === initialRequest.url &&
+      typeof request.init.body === "string";
     const retrySignal = options.callerSignal ?? request.init.signal ?? undefined;
     let refreshedAuth = false;
 
@@ -2146,6 +2162,8 @@ export class HonuaClient {
       }
       const durationMs = performance.now() - startTime;
       const currentRequest = request;
+      let bodyOwnsDeadline = false;
+      let cancelDeadlineResponse: (() => void) | undefined;
       let terminalErrorNotification:
         | {
             readonly completion: Promise<void>;
@@ -2168,6 +2186,9 @@ export class HonuaClient {
       };
       const awaitDeadlineOwned = async <R>(operation: Promise<R>): Promise<R> => {
         const owned = operation.catch(async (error: unknown) => {
+          // The outer deadline catch decides retry, stale fallback, and the
+          // normalized terminal error. A discarded attempt must not notify.
+          if (timeout.signal?.aborted) throw error;
           const notification = beginTerminalErrorNotification(error, performance.now() - startTime);
           if (notification.claimed) {
             await notification.completion;
@@ -2193,14 +2214,20 @@ export class HonuaClient {
 
       try {
         if (options.shortCircuit) {
-          const shorted = await options.shortCircuit(response, durationMs, currentRequest, runAfter);
+          const pending = options.shortCircuit(response, durationMs, currentRequest, runAfter);
+          const shorted = await (options.deadlineThroughFinalize ? awaitDeadlineOwned(pending) : pending);
           if (shorted) return shorted.value;
         }
 
         if (!response.ok && !options.okStatuses?.includes(response.status)) {
-          const body = options.errorBody
-            ? await options.errorBody(response, options.deadlineThroughFinalize ? timeout.signal : undefined)
-            : await parseResponseBody(response.clone());
+          const errorBodyRead = options.errorBody
+            ? options.errorBody(response, options.deadlineThroughFinalize ? timeout.signal : undefined)
+            : parseResponseBody(response.clone());
+          // A custom fetchFn can return a non-OK body that ignores init.signal.
+          // Race that read with the same deadline as a successful body.
+          const body = options.deadlineThroughFinalize
+            ? await awaitAbortable(errorBodyRead, timeout.signal)
+            : await errorBodyRead;
           const httpError = toHttpError(response.status, body, response.headers);
           if (
             !refreshedAuth &&
@@ -2234,52 +2261,48 @@ export class HonuaClient {
           throw httpError;
         }
 
-        const finalized = options.finalize(response, durationMs, currentRequest, runAfter, timeout.signal);
-        return await (options.deadlineThroughFinalize ? awaitDeadlineOwned(finalized) : finalized);
+        const ownedResponse = options.streamResponse
+          ? responseWithDeadline(
+              response,
+              timeout.signal,
+              () => timeout.dispose(),
+              () => (timeout.didTimeout ? new HonuaTimeoutError(this.timeoutMs ?? 0) : new HonuaAbortError()),
+            )
+          : undefined;
+        const preparedResponse = ownedResponse?.response ?? response;
+        cancelDeadlineResponse = ownedResponse?.cancel;
+        const finalized = options.finalize(preparedResponse, durationMs, currentRequest, runAfter, timeout.signal);
+        const result = await (options.deadlineThroughFinalize ? awaitDeadlineOwned(finalized) : finalized);
+        bodyOwnsDeadline = options.streamResponse === true && response.body !== null;
+        return result;
       } catch (error) {
         if (!options.deadlineThroughFinalize || !timeout.signal?.aborted) throw error;
         const terminalError = timeout.didTimeout ? new HonuaTimeoutError(this.timeoutMs ?? 0) : new HonuaAbortError();
+        // A body-read or finalize deadline is the same transient failure as a
+        // timeout inside fetch. Replay-safe requests re-enter the retry policy.
+        // Caller cancellation is never retried. Interceptors run only once the
+        // attempt is terminal, so a later successful retry does not observe it.
+        if (
+          timeout.didTimeout &&
+          shouldRetryRequest(this.retryOptions, request.method, attempt, undefined, terminalError, readOnlyQuery)
+        ) {
+          await options.beforeReplay?.(cloneRequestContext(request), undefined, "retry");
+          await this.sleepBeforeRetry(attempt, undefined, retrySignal);
+          continue;
+        }
+        if (timeout.didTimeout) {
+          const fallback = options.onTerminalError?.(terminalError);
+          if (fallback !== undefined) return fallback;
+        }
         beginTerminalErrorNotification(terminalError, performance.now() - startTime);
         throw terminalError;
       } finally {
-        if (options.deadlineThroughFinalize) timeout.dispose();
+        if (options.deadlineThroughFinalize && !bodyOwnsDeadline) {
+          timeout.dispose();
+          cancelDeadlineResponse?.();
+        }
       }
     }
-  }
-
-  private applyAutoRequestMethod(request: HonuaRequestContext): HonuaRequestContext {
-    const autoMethodPolicy = request.autoMethodPolicy;
-    if (!autoMethodPolicy || request.method !== "GET") {
-      return request;
-    }
-
-    const requestUrl = new URL(
-      request.url,
-      isAbsoluteHttpUrl(this.baseUrl) ? this.baseUrl : "https://honua.invalid",
-    );
-    const requestTargetLength = requestUrl.pathname.length + requestUrl.search.length;
-    if (requestTargetLength <= autoMethodPolicy.maxRequestTargetLength) {
-      return request;
-    }
-
-    const nextParams = new URLSearchParams(requestUrl.search);
-    if (autoMethodPolicy.convertPbfToJson && nextParams.get("f") === "pbf") {
-      nextParams.set("f", "json");
-    }
-
-    return {
-      ...request,
-      path: stripQuery(request.path),
-      method: "POST",
-      url: isAbsoluteHttpUrl(request.url) ? `${requestUrl.origin}${requestUrl.pathname}` : requestUrl.pathname,
-      autoMethodPolicy: undefined,
-      init: {
-        ...request.init,
-        method: "POST",
-        headers: mergeHeaders(request.init.headers, { "Content-Type": "application/x-www-form-urlencoded" }),
-        body: nextParams.toString(),
-      },
-    };
   }
 
   private async applyBeforeInterceptors(request: HonuaRequestContext): Promise<HonuaRequestContext> {
@@ -2397,7 +2420,7 @@ export class HonuaClient {
  * results or confusing `undefined` access. Returns a normalized
  * {@link HonuaHttpError} when the envelope is present, otherwise `undefined`.
  */
-async function parseResponseBody(response: Response, maxResponseBytes?: number): Promise<unknown> {
+async function parseResponseBody(response: Response, maxResponseBytes?: number, requireJson = false): Promise<unknown> {
   const text =
     maxResponseBytes === undefined
       ? await response.text()
@@ -2408,8 +2431,32 @@ async function parseResponseBody(response: Response, maxResponseBytes?: number):
   try {
     return JSON.parse(text) as unknown;
   } catch {
+    if (requireJson) {
+      throw new HonuaHttpError(
+        response.status,
+        "Expected a JSON response",
+        { raw: text },
+        {
+          responseHeaders: response.headers,
+        },
+      );
+    }
     return { raw: text };
   }
+}
+
+async function parseSuccessfulJsonBody(
+  response: Response,
+  maxResponseBytes?: number,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const prepared = signal
+    ? bufferedResponse(
+        response,
+        await readBoundedResponseBytes(response, maxResponseBytes ?? Number.MAX_SAFE_INTEGER, signal),
+      )
+    : response;
+  return parseResponseBody(prepared, maxResponseBytes, true);
 }
 
 async function readBoundedResponseBytes(
@@ -2487,7 +2534,6 @@ function applyRequestMutation(request: HonuaRequestContext, mutation: HonuaReque
   return {
     url: mutation.url ?? request.url,
     path: request.path,
-    autoMethodPolicy: request.autoMethodPolicy,
     method: mutation.method ?? request.method,
     init: {
       ...nextInit,
@@ -2717,4 +2763,128 @@ function mergePathWithQueryParams(path: string, additionalParams: URLSearchParam
   const nextQuery = merged.toString();
   const withQuery = nextQuery.length > 0 ? `${basePath}?${nextQuery}` : basePath;
   return `${withQuery}${hash}`;
+}
+
+const CONNECT_SPECIFIER = "@connectrpc/connect";
+const CONNECT_WEB_SPECIFIER = "@connectrpc/connect-web";
+const FEATURE_SERVICE_SPECIFIER = "../gen/geospatial/v1/feature_service_pb.js";
+const GRPC_ADAPTER_SPECIFIER = "./grpc-adapter.js";
+
+type ConnectModule = typeof import("@connectrpc/connect");
+type ConnectWebModule = typeof import("@connectrpc/connect-web");
+type FeatureServiceModule = typeof import("../gen/geospatial/v1/feature_service_pb.js");
+type GrpcAdapterModule = typeof import("./grpc-adapter.js");
+
+/**
+ * Bundlers statically follow a literal `import("@connectrpc/connect")` and a
+ * relative `import("./grpc-adapter.js")` even when REST never calls them.
+ * Passing the specifier through a parameter leaves the import unbound, so a
+ * REST production build does not resolve the optional peers. Node still
+ * resolves the same strings when `transport: "grpc-web"` is selected.
+ */
+function importOptionalGrpcSpecifier(specifier: string): Promise<unknown> {
+  return import(/* @vite-ignore */ specifier);
+}
+
+function isNamespace(value: unknown): value is Record<string, unknown> {
+  return (typeof value === "object" && value !== null) || typeof value === "function";
+}
+
+async function loadGrpcWebRuntime(): Promise<{
+  createClient: ConnectModule["createClient"];
+  createGrpcWebTransport: ConnectWebModule["createGrpcWebTransport"];
+  FeatureService: FeatureServiceModule["FeatureService"];
+}> {
+  const [connect, connectWeb, featureService] = await Promise.all([
+    importOptionalGrpcSpecifier(CONNECT_SPECIFIER),
+    importOptionalGrpcSpecifier(CONNECT_WEB_SPECIFIER),
+    importOptionalGrpcSpecifier(FEATURE_SERVICE_SPECIFIER),
+  ]);
+  if (!isNamespace(connect) || typeof connect.createClient !== "function") {
+    throw new Error('The optional peer "@connectrpc/connect" loaded but did not export createClient.');
+  }
+  if (!isNamespace(connectWeb) || typeof connectWeb.createGrpcWebTransport !== "function") {
+    throw new Error('The optional peer "@connectrpc/connect-web" loaded but did not export createGrpcWebTransport.');
+  }
+  const descriptor = isNamespace(featureService) ? featureService.FeatureService : undefined;
+  if (descriptor == null || typeof descriptor !== "object") {
+    throw new Error("The gRPC FeatureService descriptor loaded but was not a service descriptor.");
+  }
+  return {
+    createClient: connect.createClient as ConnectModule["createClient"],
+    createGrpcWebTransport: connectWeb.createGrpcWebTransport as ConnectWebModule["createGrpcWebTransport"],
+    FeatureService: descriptor as FeatureServiceModule["FeatureService"],
+  };
+}
+
+function isGrpcAdapterModule(value: unknown): value is GrpcAdapterModule {
+  if (!isNamespace(value)) return false;
+  return (
+    typeof value.toProtoQueryRequest === "function" &&
+    typeof value.fromProtoQueryResponse === "function" &&
+    typeof value.wrapConnectError === "function" &&
+    typeof value.streamProtoPages === "function"
+  );
+}
+
+/** Keep raw response consumption inside the original request deadline without buffering. */
+function responseWithDeadline(
+  response: Response,
+  signal: AbortSignal | undefined,
+  dispose: () => void,
+  abortError: () => Error,
+): { response: Response; cancel: () => void } {
+  if (!response.body) return { response, cancel: dispose };
+  const reader = response.body.getReader();
+  let finished = false;
+  let controller: ReadableStreamDefaultController<Uint8Array>;
+  const cleanup = () => {
+    if (finished) return;
+    finished = true;
+    signal?.removeEventListener("abort", abort);
+    dispose();
+  };
+  const abort = () => {
+    if (finished) return;
+    cleanup();
+    controller.error(abortError());
+    void reader.cancel().catch(() => undefined);
+  };
+  const body = new ReadableStream<Uint8Array>({
+    start(value) {
+      controller = value;
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    },
+    async pull(value) {
+      if (finished) return;
+      try {
+        const next = await reader.read();
+        if (finished) return;
+        if (next.done) {
+          cleanup();
+          value.close();
+        } else value.enqueue(next.value);
+      } catch (error) {
+        if (finished) return;
+        cleanup();
+        value.error(error);
+      }
+    },
+    async cancel(reason) {
+      cleanup();
+      await reader.cancel(reason);
+    },
+  });
+  const prepared = preserveResponseSemantics(
+    new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    }),
+    response,
+  );
+  // Cancel the original reader directly: cancelling one cloned Response branch
+  // alone waits forever when an interceptor leaves the other tee branch unread.
+  return { response: prepared, cancel: abort };
 }

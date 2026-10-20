@@ -1,3 +1,4 @@
+import { mountSampleOnlineBasemap } from "../../shared/online-basemap.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../shared/maplibre-vite-worker.js";
 
@@ -49,6 +50,8 @@ declare global {
   }
 }
 
+let disposeOnlineBasemap: (() => void) | undefined;
+
 const MAP_SOURCE_ID = "service-explorer-source";
 const BACKGROUND_LAYER_ID = "background";
 const INSPECTION_TIMEOUT_MS = 10_000;
@@ -95,6 +98,7 @@ const map = new maplibregl.Map({
 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 cleanup.resource(map);
+cleanup.add(() => disposeOnlineBasemap?.());
 cleanup.add(() => truth.dispose());
 
 const presentation = mountSamplePresentation({
@@ -255,6 +259,24 @@ function renderTruth(state: ServiceExplorerTruthState): void {
   if (state.kind !== "ready" && state.kind !== "partial") {
     renderFailure(state);
     return;
+  }
+
+  // Only successful inspection activates external context; malformed and
+  // relative user inputs retain the established discovery diagnostics.
+  let target: URL | undefined;
+  try {
+    target = new URL(state.request.endpoint);
+  } catch {
+    /* No basemap for an invalid endpoint. */
+  }
+  const fixture = target?.origin === location.origin && target.pathname.startsWith(LOCAL_FIXTURE_PATH);
+  if (fixture) {
+    disposeOnlineBasemap?.();
+    disposeOnlineBasemap = undefined;
+  } else if (target && ["http:", "https:"].includes(target.protocol) && !disposeOnlineBasemap) {
+    disposeOnlineBasemap = mountSampleOnlineBasemap(map, {
+      styleUrl: import.meta.env.VITE_HONUA_BASEMAP_STYLE?.trim() || undefined,
+    });
   }
 
   currentState = state;

@@ -233,8 +233,8 @@ const PROTOCOL_LANES = [
   },
   {
     lane: "ArcGIS migration codemod",
-    bundleLabel: "`/esri-compat`",
-    honua: "✓ `honua-migrate` + esri-compat",
+    bundleLabel: "`/client-compat`",
+    honua: "✓ `honua-migrate` + client-compat",
     maplibre: "—",
     arcgisRest: "—",
     openlayers: "—",
@@ -425,7 +425,7 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
       "Data→map bridge only: `mountSourceToMapLibre` from `/map`",
     ),
     bundleRow(bundle, "`/contract`", "Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`)"),
-    bundleRow(bundle, "`/esri-compat`", "ArcGIS compatibility layer (drop-in migration surface)"),
+    bundleRow(bundle, "`/client-compat`", "Client compatibility layer (drop-in migration surface)"),
     bundleRow(bundle, "`/geocoding`", "Geocoding client"),
     bundleRow(bundle, "`/routing`", "Routing client"),
   ];

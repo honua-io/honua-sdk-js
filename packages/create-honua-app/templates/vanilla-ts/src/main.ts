@@ -1,3 +1,5 @@
+import { mountSampleOnlineBasemap } from "./online-basemap.js";
+import { STARTER_SOURCE_ID, observeRenderedFeatures } from "./rendered-features.js";
 import "./maplibre-worker.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -16,7 +18,7 @@ const BASEMAP_STYLE = {
   layers: [{ id: "background", type: "background", paint: { "background-color": "#0e1a17" } }],
 };
 
-const MAP_OPTIONS = { center: [-157.873, 21.2985], zoom: 11.4, attributionControl: false };
+const MAP_OPTIONS = { center: [-157.873, 21.2985], zoom: 11.4, attributionControl: { compact: true } };
 
 /** Bounded row budget. Honua never mounts a truncated result silently. */
 const MAX_FEATURES = 250;
@@ -96,9 +98,27 @@ async function run(): Promise<void> {
       query: plan,
       sourceId,
       style: BASEMAP_STYLE,
-      rendererOptions: { mapOptions: MAP_OPTIONS },
+      rendererOptions: { mapOptions: MAP_OPTIONS, sourceId: STARTER_SOURCE_ID },
     });
     await mounted.ready;
+    const rawMap = mounted.raw("maplibre");
+    if (!rawMap) throw new Error("The mounted map is unavailable.");
+    const stopObserving = observeRenderedFeatures(rawMap as maplibregl.Map);
+    const disposeBasemap =
+      configuredEndpoint && rawMap
+        ? mountSampleOnlineBasemap(rawMap as maplibregl.Map, {
+            styleUrl: import.meta.env.VITE_HONUA_BASEMAP_STYLE?.trim() || undefined,
+          })
+        : () => {};
+    window.addEventListener(
+      "pagehide",
+      () => {
+        stopObserving();
+        disposeBasemap();
+        void honua.dispose();
+      },
+      { once: true },
+    );
     stage("mount", "done", "mounted");
     element("status").textContent = "The accepted plan is mounted. Every stage above ran through the public SDK API.";
   } catch (error) {

@@ -138,18 +138,26 @@ function measurementComponent(): WidgetAppPlatformComponent {
 }
 
 const MEASUREMENT_UNIT_DELTA =
-  "Distance/area units, precision, and geodesic/planar fidelity are runtime-settable (`unit` / " +
-  "`areaUnit` / `precision` / `fidelity` properties in src/web-components/measurement.ts; " +
-  "src/web-components/measurement-units.ts), matching ArcGIS's `unit`/`unitOptions` imperial set " +
-  '(feet, yards, miles, nauticalmiles, acres, square-miles) alongside metric, with an `"auto"` ' +
-  "default that keeps the original m/km distance and m²/ha/km² area auto-scaling (#1419). There is " +
-  "still no `viewModel` for driving measurement state from outside the element. Math is at parity: " +
-  "geodesic distance/area come from the `length` / `area` ops in @honua/geometry, the same ones " +
-  "behind `geometryEngine` parity elsewhere in the SDK; the `planar` fidelity mode uses the same " +
-  "dependency-free flat-earth approximation `MeasurementCompat` (src/esri-compat/measurement.ts) " +
-  "already ships, rather than pulling proj4 into the component kit's bundle. The in-progress sketch " +
-  "overlay needs a map exposing `addSource` / `addLayer`; on other maps the numbers are still " +
-  "produced, without the overlay.";
+  "Distance/area units, precision, geodesic/planar fidelity, and the planar frame are runtime-settable " +
+  "as properties or attributes (`unit` / `area-unit` / `precision` / `fidelity` / `planar-crs` in " +
+  "src/web-components/measurement.ts; src/web-components/measurement-units.ts), matching ArcGIS's " +
+  "`unit`/`unitOptions` imperial set (feet, yards, miles, nauticalmiles, acres, square-miles) alongside " +
+  'metric, with an `"auto"` default that keeps the original m/km distance and m²/ha/km² area ' +
+  "auto-scaling (#1419). Math is at parity: geodesic distance/area come from the `length` / `area` ops " +
+  "in @honua/geometry, the same ones behind `geometryEngine` parity elsewhere in the SDK; planar " +
+  "fidelity measures in either a local flat-earth frame (the dependency-free approximation " +
+  "`MeasurementCompat` in src/esri-compat/measurement.ts already ships) or explicit EPSG:3857 Web " +
+  "Mercator meters, without pulling proj4 into the component kit's bundle. Results name the `crs` they " +
+  "were measured in, antimeridian crossings are measured the short way in every frame, invalid vertices " +
+  "are rejected, and a self-intersecting area outline is reported invalid instead of as a cancelled-out " +
+  "number. While a mode is active, vertex clicks do not rewrite the shared feature selection. There is " +
+  "still no `viewModel` for driving measurement state from outside the element. The in-progress sketch " +
+  "overlay needs a map exposing `addSource` / `addLayer`; on other maps the numbers are still produced, " +
+  "without the overlay. Reviewed disposition exception (#1419): these rows stay `app-platform` rather " +
+  "than `automated`, because `automated` asserts that the codemod deterministically rewrites the call " +
+  "sites onto a shim, and replacing an ArcGIS measurement widget with `<honua-measurement>` is an element " +
+  "swap plus event rewiring the codemod does not perform; component parity does not change migration " +
+  "determinism (#1315).";
 
 function appPlatformComponent(
   tagName: `honua-${string}`,

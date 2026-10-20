@@ -5,16 +5,22 @@ machine-readable schemas from the open **geospatial-mcp** standard.
 
 - **Source repo:** https://github.com/honua-io/geospatial-mcp
 - **Source path:** `spec/schemas/`
-- **Source commit:** `eb53989cc61c856261cf017b4b5a8e721317dc41`
-  (`feat: direct geoprocessing verbs (analysis profile) + geometryPrecision/maxInlineBytes (#55)`)
-- **Schema index date:** `2026-07-06`
+- **Source commit:** `4fac81c2f93a110921bb62638bc5ab599ef5e626`
+  (`Declare release component versions for the nightly resolver (#92)`, trunk HEAD on 2026-10-08)
+- **Schema index date:** `2026-08-12`
 - **Dialect:** JSON Schema draft 2020-12
 
-> The pin is deliberately held at `eb53989` (pre geospatial-mcp#58): the #58
-> platform-ops schemas are marked implemented in the manifest but honua-server
-> does not serve those tools yet, so re-vendoring past #58 would introduce
-> conformance failures. The post-#58 bump is owned by honua-server#2555/#2566,
-> which implement the new tools and vendor their schemas together.
+> Re-vendored at trunk HEAD for the 2026.1 rc.3 certification fix (unit K2).
+> The earlier hold at `eb53989` (pre geospatial-mcp#58) is over: honua-server
+> now serves the #58 platform-ops tools (`honua_ops_health`, `honua_ops_findings`,
+> `honua_alert_events`, `honua_operate_events`, `honua_platform_release_status`,
+> `honua_deploy_operations`, `honua_propose_rollback`).
+>
+> Known upstream lag: this index still maps `propose_operation` to the retired
+> `honua_propose_operation` as `implemented`. Marking it `known-gap` is
+> geospatial-mcp unit K4, which had not landed at this commit. Until it does, the
+> certifier records `propose_operation` as a standard-tool known gap (reference
+> tool not advertised), which is recorded, not failed. Re-pin once K4 merges.
 
 ## Why vendored
 

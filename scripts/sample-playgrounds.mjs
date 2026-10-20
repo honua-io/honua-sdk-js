@@ -135,7 +135,7 @@ const PINNED_DEPENDENCIES = Object.freeze({
   // all. The scaffold starters carry the same shim and the same pin
   // (`packages/create-honua-app/templates/*/src/maplibre-worker.ts`), so a
   // reader who scaffolds and a reader who opens a playground get one renderer.
-  "maplibre-gl": "6.1.0",
+  "maplibre-gl": "6.4.1",
   "apache-arrow": "17.0.0",
   "@bufbuild/protobuf": "2.13.0",
   "@connectrpc/connect": "2.1.2",
@@ -161,6 +161,9 @@ const PINNED_DEPENDENCIES = Object.freeze({
   "@turf/union": "7.3.5",
   "terra-draw": "1.32.0",
   "terra-draw-maplibre-gl-adapter": "1.4.1",
+  // Optional archive reader. Samples that describe a PMTiles file import it
+  // themselves because Vite will not follow the SDK's non-literal peer import.
+  pmtiles: "4.5.0",
 });
 
 /**
@@ -236,6 +239,14 @@ const PINNED_DEV_DEPENDENCIES = Object.freeze({
  */
 const COPYABLE_SHARED_SOURCES = new Map([
   [
+    "../../shared/online-basemap.js",
+    {
+      source: "examples/shared/online-basemap-compat.ts",
+      target: "src/online-basemap.ts",
+      rewrite: "./online-basemap.js",
+    },
+  ],
+  [
     "../../shared/maplibre-vite-worker.js",
     {
       source: "examples/shared/maplibre-vite-worker.ts",
@@ -293,6 +304,7 @@ export const PLAYGROUND_FIXTURE_ORIGINS = new Map([
         },
       ],
       env: {
+        VITE_HONUA_BASEMAP_STYLE: "",
         VITE_HONUA_REACT_BASE_URL: "",
         VITE_HONUA_REACT_LAYER_ID: "0",
         VITE_HONUA_REACT_SERVICE_ID: "natural-earth",
@@ -586,7 +598,7 @@ function projectPackageJson(decision, sample) {
       version: "0.0.0",
       type: "module",
       description: `Zero-install playground generated from examples/${sample.id}.`,
-      engines: { node: ">=20.19.0" },
+      engines: { node: ">=22.12.0" },
       scripts: { dev: "vite", build: "vite build", preview: "vite preview", typecheck: "tsc --noEmit" },
       dependencies: decision.dependencies,
       devDependencies: decision.devDependencies,

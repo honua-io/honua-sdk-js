@@ -1,12 +1,11 @@
 ---
 type: reference
 title: "MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)"
-description: "Public entrypoint: `@honua/sdk-js/runtime` (subpath export only; the"
+description: "The MapLibre GL JS runtime for a server-produced MapPackage: MapLibre 5/6 compatibility, accepted-plan and automatic mounting, raster sources, loader options, mutation, hosted fetch, hit testing, events, errors and telemetry."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)
 
-Status: implemented in `src/runtime/` (ticket `honua-sdk-js-21`).
 Public entrypoint: `@honua/sdk-js/runtime` (subpath export only; the
 root barrel does not re-export the runtime so hosts that do not need a
 map can avoid pulling in the MapLibre-aware code).
@@ -15,55 +14,37 @@ map can avoid pulling in the MapLibre-aware code).
 > [GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579) is a critical
 > XSS sanitizer bypass in `DOM.sanitize()` covering every release at or below 6.4.0, with no
 > backport to 5.x. The runtime binds to the map you give it and does not sanitize on its
-> behalf, so a vulnerable map is a vulnerable application. The optional peer range still
-> admits 5.x because this SDK supports both majors; that is a compatibility statement, not a
-> safety one.
+> behalf, so a vulnerable map is a vulnerable application. The optional peer range is
+> `^6.4.1`, so affected 5.x and 6.0.0 through 6.4.0 releases do not satisfy it.
 
-The runtime binds a server-produced `MapPackage` (from
-`honua-io/honua-server#731`) to a caller-provided `maplibre-gl.Map`. It
+The runtime binds a server-produced `MapPackage` to a caller-provided `maplibre-gl.Map`. It
 composes the style, projects `sourceBindings[]` through the shared
 `@honua/sdk-js/contract` adapters, applies `StyleRef` overrides and
 `ThemeSpec` tokens, wires popups / legend / initial view, and exposes
-a stable operational API for `#22` (mixed-protocol composition) and
-`#29` (operator components) to build on.
+a stable operational API for mixed-protocol composition and operator
+components to build on.
 
 The runtime **does not** instantiate `maplibre-gl.Map`, issue edit
 writes, or duplicate query logic — `maplibre-gl` stays a peer
 dependency, edits flow through the existing adapters, and queries go
 through the contract's `Source` handles.
 
-## MapLibre 5 and 6 compatibility
+## MapLibre runtime support
 
-**Supported MapLibre majors: 5 and 6.** The optional `maplibre-gl` peer range is
-`^5.0.0 || ^6.0.0`, and 6.x is the recommended major for new apps — it is what
-the development dependency and every runnable example in this repository
-install. MapLibre 5 stays supported for apps that have not migrated yet; it is
-not deprecated in this release, and any future narrowing will be a dated
-decision recorded here rather than a silent break.
+**Security decision, 2026-09-13:** the next SDK release requires `maplibre-gl@^6.4.1`.
+This narrows the former `^5.0.0 || ^6.0.0` peer contract. Every released 5.x and
+6.0.0 through 6.4.0 is affected by
+[GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579);
+no patched 5.x release is available. Upgrade the host renderer to a patched 6.x
+release before upgrading the SDK. Do not override the peer check to retain an
+affected renderer. Already published SDK versions retain their original metadata;
+this source change does not rewrite npm releases.
 
-> **Registry status (2026-08-05).** The widened range is published:
-> `@honua/sdk-js@0.1.4-beta.0` declares `maplibre-gl@^5.0.0 || ^6.0.0`, so an app
-> that installs the SDK from npm and asks for MapLibre 6 resolves cleanly. The
-> `create-honua-app` starters and the generated sample playgrounds pin 6.1.0 on
-> that release (`docs/create-honua-app.md`, `docs/playgrounds.md`), with no
-> `overrides` entry and no `--legacy-peer-deps`. The two registry lanes —
-> `create-app:time-to-map` and `samples:playgrounds:smoke` — are what keep that
-> claim observed rather than asserted.
-
-That claim is gated, not asserted. CI runs a `MapLibre peer-major matrix
-(5.x + 6.x)` step (`npm run test:maplibre-compat`) that:
-
-- typechecks the whole tree against MapLibre 5's typings
-  (`npm run typecheck:maplibre-v5`, `tsconfig.maplibre-v5.json`), while the
-  ordinary `npm run typecheck` covers 6.x;
-- imports the real peer module on both majors and asserts every symbol the SDK
-  reaches for, including live `pmtiles://` protocol registration
-  (`test/maplibre-peer-major-compat.test.ts`, re-run under
-  `vitest.maplibre-v5.config.ts` with the `maplibre-gl-v5` alias);
-- exercises both module packagings the `<honua-map>` renderer must accept
-  (`test/web-components-maplibre-module-compat.test.ts`);
-- renders the same Honua-generated style in a real browser under 5.x and 6.x
-  (`test/playwright/migration-browser-maplibre.spec.mjs`).
+The same peer range flows into generated runtime and React packages. CI checks
+the installed 6.x runtime exports, real protocol registration, module loading,
+and the converted application's browser render. The vulnerable 5.x test alias
+and browser lane have been retired. The `test:maplibre-majors` script name remains
+as a command alias for existing automation and now tests the supported 6.x line.
 
 MapLibre 6 is ESM-only, targets ES2022, and requires WebGL2. Use namespace or
 named imports (`import * as maplibregl from "maplibre-gl"`) rather than the v5
@@ -88,8 +69,7 @@ const map = new maplibregl.Map({
 ```
 
 Because MapLibre 6 dropped WebGL1, a WebGL1-only device has no supported
-renderer at all. The reviewed deck.gl capability policy
-(`bench/browser/capability-policy.mjs`) classifies such a device `unsupported`
+renderer at all. The reviewed deck.gl capability policy classifies such a device `unsupported`
 rather than routing it to a MapLibre fallback that cannot draw.
 
 The SDK keeps its direct style validator on style-spec 24.x so headless users
@@ -98,12 +78,11 @@ GeoJSON updates, events, controls, and PMTiles registration are covered on both
 renderer majors; v6-only style extensions should use `renderer-deferred`
 validation for now.
 
-MapLibre 6 itself declares Node `>=16.14.0`, and the compatibility checks pass
-under this repository's Node 20.19.0 baseline. The SDK pins
-`@mapbox/jsonlint-lines-primitives` 2.0.2 so its direct style-spec 24.x validator
-continues to honor that Node baseline. MapLibre 6's style-spec 26.x dependency
-declares no engine constraint as of 26.2.1 (observed 2026-08-03), so an
-`engine-strict=true` install no longer rejects v6 on Node 20.
+The SDK requires Node `>=22.12.0`; repository checks use Node `22.23.3` LTS.
+The existing `@mapbox/jsonlint-lines-primitives` 2.0.2 pin remains in place for
+the direct style-spec 24.x validator. It originated with the earlier Node 20
+compatibility work; moving the runtime baseline does not independently upgrade
+that parser or change which renderer features the SDK validates.
 
 ## Standalone data-to-map bridge
 
@@ -218,7 +197,7 @@ mutation, rolls back partial native mounts, and provides one
 lanes use a no-op refresh; bounded GeoJSON delegates to the query-backed
 `setData` refresh. No API in this section imports `maplibre-gl` or `pmtiles`.
 
-This automatic slice does not complete the broader #390 application runtime.
+This automatic slice does not complete the broader application runtime.
 Owned map construction, generalized styling, labels/popups/selection, edits,
 realtime subscription orchestration, and the published browser sample matrix
 remain explicit residual work.
@@ -256,26 +235,6 @@ diagnostics without touching the renderer or network. The mount checks source
 and layer conflicts, rolls back renderers that mutate and then throw, and owns
 idempotent best-effort cleanup. Neither API imports `maplibre-gl`, so both are
 safe in Node, SSR, and worker module graphs.
-
-## Module layout
-
-```
-src/runtime/
-├── index.ts           # barrel — public surface
-├── map-package.ts     # HonuaMapPackage type (mirrors honua-server#731)
-├── map-package-fetch.ts # hosted fetch + load-from-id helpers
-├── map-package-validation.ts # typed validation diagnostics
-├── map-package-watch.ts # disposable polling watcher
-├── load-package.ts    # loadMapPackage(pkg, map, opts) → HonuaMapRuntime
-├── runtime.ts         # HonuaMapRuntime class + event/telemetry types
-├── source-bridge.ts   # SourceBinding[] → SourceDescriptor[] + native sources
-├── query-tiles.ts     # dynamic query tile MapLibre helpers + request lifecycle
-├── style-compose.ts   # applyStyleRefs + applyTheme
-├── diff.ts            # MapPackageDiff primitives for updatePackage
-├── popups.ts          # bindPopup + default unstyled DOM renderer
-├── legend.ts          # buildLegend + swatch backfill
-└── errors.ts          # HonuaMapPackageError (stages)
-```
 
 ## Public surface
 
@@ -329,7 +288,7 @@ runtime.dispose();
 | --- | --- | --- |
 | `maplibreRenderer(peer, opts)` | `RendererAdapter<"maplibre", MapLibreRendererMap, MapLibreRendererOptions>` | Caller-injected connection adapter. Reuses automatic feature/vector/PMTiles/raster planning, exposes first-frame readiness/refresh/diagnostics, and never enters the root runtime graph as a value import. |
 | `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | Inline-package load entry point. Throws `HonuaMapPackageError` for binding failures under `sourceErrorPolicy: "fail-fast"`; under the default `"tolerant"` policy a single per-source binding failure does not abort the load — see *Tolerant binding* below. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; consumers can broadcast them through `runtime.reportSourceError(sourceId, error)` to convert query-time rejections into the canonical `source-error` event. |
-| `fetchMapPackage(idOrLocator, opts)` | `Promise<FetchMapPackageResult>` | Fetches a hosted package through `HonuaClient.pipelineFetch`, validates it, resolves style refs when a resolver is supplied, and uses ETag / Last-Modified validators from the server when available. |
+| `fetchMapPackage(idOrLocator, opts)` | `Promise<FetchMapPackageResult>` | Fetches a hosted package through `HonuaClient.pipelineFetch`, validates it, resolves live style refs through the default OGC resolver or a supplied resolver, and uses ETag / Last-Modified validators from the server when available. |
 | `loadMapPackageFromId(idOrLocator, map, opts)` | `Promise<LoadMapPackageFromIdResult>` | Builder-style helper: fetches a hosted package, then delegates to `loadMapPackage`. The result includes the runtime plus fetch diagnostics/cache state. |
 | `watchMapPackage(idOrLocator, opts)` | `MapPackageWatchHandle` | Opt-in polling watcher with `dispose()` and `refresh()`. It reuses `fetchMapPackage`, reports structural updates that require full style reload, and can apply updates to an existing `HonuaMapRuntime`. |
 | `validateMapPackage(pkg, opts)` | `ValidateMapPackageResult` | Returns typed diagnostics for format/version, missing sources, unsupported protocols, stale/expired packages, and style-ref target mismatches. |
@@ -344,21 +303,21 @@ runtime.dispose();
 | `MaplibreMap` | interface | Duck-typed subset of `maplibre-gl.Map`; keeps the SDK bundle-neutral. |
 | `SetViewStateInput` | type | `{ bbox?, center?, zoom?, pitch?, bearing?, padding?, animate? }`. |
 | `applyStyleRefs`, `applyTheme`, `composeStyle` | functions | Pure helpers — safe to call outside a runtime for testing / SSR composition. |
-| `projectSourceBindings`, `toHonuaSourceSpec` | functions | Exposed for `#22` and adapter tickets that need the bridge without loading a package. |
+| `projectSourceBindings`, `toHonuaSourceSpec` | functions | Exposed for composition and adapter code that needs the bridge without loading a package. |
 | `buildWmsRasterSourceSpec`, `buildWmtsRasterSourceSpec` | functions | Pre-bake a MapLibre `raster` source spec from a WMS / WMTS `SourceDescriptor`. Used by callers that compose a map outside `loadMapPackage`. See the source-binding projection table for the URL templates emitted on each protocol. |
 | `buildMapLibreQueryTileSourceSpec`, `buildQueryTileJson`, `buildQueryTileUrlTemplate`, `buildQueryTileUrl` | functions | Build TileJSON and MapLibre `vector` source specs from `QueryTileSourceDescriptor`. See [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
 | `QueryTileRequestController`, `queryTilesForViewport`, `diagnoseQueryTileSourceSupport` | class / functions | Opt-in viewport tile lifecycle helper with abortable requests, bounded cache, diagnostics, and unsupported-protocol/fallback reporting. |
 | `hitTestMap`, `normalizePointerEvent`, `normalizeHitTestFeatures`, `createQueryTileDetailLoader` | functions | Framework-neutral interaction helpers exported from `@honua/sdk-js/interactions`; useful for apps that do not load a full `HonuaMapRuntime`. |
 | `diffPackages`, `MapPackageDiff` | function / type | Stable-id diff used by `updatePackage`. |
 | `buildLegend`, `LegendEntry` | function / type | Shared with operator components. |
-| `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in `#29`. |
+| `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in operator components. |
 
 ## Loader options
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 interface LoadMapPackageOptions {
   client: HonuaClient;
-  resolveStyleRef?: (styleId: string, presetId?: string) => Promise<HonuaStyleRefBody>;
+  resolveStyleRef?: (styleId: string, presetId?: string, layerBindings?: readonly HonuaStyleRefLayerBinding[]) => Promise<HonuaStyleRefBody>;
   resolveTheme?: (themeId: string) => Promise<HonuaMapPackageThemeSpec>;
   resolveSource?: SourceResolver;          // forwarded to createDataset for tiles / MapLibre-native sources
   skipCompatibilityCheck?: boolean;        // tests / conformance fixtures
@@ -373,8 +332,7 @@ interface LoadMapPackageOptions {
 ```
 
 `resolveStyleRef` and `resolveTheme` are only invoked when the package
-omits the inline body. Draft-1 of `honua-server#731` attaches both
-inline; out-of-band retrieval plugs in through these hooks without
+omits the inline body. The server attaches both inline; out-of-band retrieval plugs in through these hooks without
 reopening the loader.
 
 `onEvent` is registered on the runtime before the first
@@ -708,6 +666,33 @@ Additional contract:
 Theme application recurses into nested arrays / objects inside
 `paint` / `layout` so expression literals can reference theme tokens.
 
+### Shared catalog styles and map-local snapshots
+
+A reference without `body` resolves the current shared catalog style. When the
+catalog and map use different render-layer IDs, persist `layerBindings` on the
+reference. Each binding names the exact `styleLayerId`, `targetLayerId` and
+expected catalog `layerType`. The default OGC resolver checks the selected
+catalog layer and maps its appearance onto the named map layer. Missing,
+duplicate or incompatible layers fail validation rather than dropping styling.
+
+An optional `properties` array selects `paint`, `layout`, `filter`, `minzoom`,
+`maxzoom`, `metadata` or `visibility`. Without it, all appearance properties are
+selected. Different render types may share only filter, zoom bounds and
+visibility, allowing a polygon's outline to follow its fill without acquiring
+fill paint properties. Source identity and Honua composition ownership remain
+with the map. A hidden map layer stays hidden even if its shared style is visible.
+
+Custom resolvers receive bindings as their third argument and must return exactly
+the target-layer keys. An inline `body` already uses those target keys and is a
+snapshot; it is never fetched or remapped again. Save a map-local edit in the map
+package. Update a reusable style through the shared style catalog after checking
+its affected consumers and the caller's authority.
+
+The fetch cache retains unresolved references. A package `304 Not Modified`
+still resolves live shared styles: changed appearance returns cache status
+`refreshed`, while unchanged resolved content returns `not-modified`. A failed
+style lookup reports an error instead of substituting previously cached styling.
+
 ## Operational API
 
 | Method | Behavior |
@@ -866,83 +851,3 @@ correlation is preserved end-to-end.
   supported as long as they satisfy the `MaplibreMap` method shape.
 - `popupFactory` keeps the popup dependency on the host side; omit it
   when the app does not call `runtime.bindPopup`.
-
-## Test coverage
-
-`test/runtime/runtime.test.ts` exercises the full `load →
-updatePackage → dispose` lifecycle against a recording mock map
-(31 tests). Behavior covered includes:
-
-- Format gate rejects non-v1 packages and `workspace_artifact`
-  bindings surface `HonuaMapPackageError { stage: "source-bind" }`.
-- Source projection routes each protocol to the correct destination,
-  captures filters, translates `snake_case` server protocol names to
-  `kebab-case` SDK protocols, and rejects duplicate source ids.
-- `composeStyle` applies `StyleRef` overrides; `applyTheme` substitutes
-  `{theme:key}` placeholders and leaves unknown tokens in place.
-- `diffPackages` flags structural changes (layer reorder, mapSpec
-  version bump, source bindings added / removed / changed), and the
-  runtime promotes composed root-layer changes to the same path;
-  incremental patches update paint / layout / filter without
-  re-running `setStyle`.
-- Event stream emits `package-loaded`, `source-ready`,
-  `package-updated`, `disposed` in the documented order.
-- `dispose` removes layers and sources in reverse and ignores
-  subsequent calls; further mutating calls throw
-  `stage: "dispose"`.
-
-Regression coverage added alongside this release (+11 tests) locks in
-the fix-pass behaviors:
-
-- **Source-binding structural fallback.** A locator change or a new
-  binding forces a full `setStyle` *and* swaps
-  `runtime.dataset` / `runtime.honuaMap` to fresh references so
-  `runtime.dataset.source(id)` observes the new locator / filter.
-- **Paint / layout key removal.** Removing a paint or layout key
-  (e.g. dropping `fill-opacity` or `fill-sort-key` from the next
-  layer) calls `setPaintProperty` / `setLayoutProperty` with
-  `undefined` so MapLibre resets the property instead of retaining
-  the stale value.
-- **URL-only locator backfill.** `projectSourceBindings` parses
-  `serviceId` / numeric `layerId` from a canonical
-  `/rest/services/<name>/FeatureServer/<id>` (and `MapServer` variant)
-  URL when the binding omits them, parses `collectionId` from
-  `/collections/<id>` for OGC API Features bindings, and coerces
-  numeric-string `layerId` values to numbers so the C# server mirror
-  (which serialises `LayerId` as a string) still binds through the
-  built-in adapters. An end-to-end test loads a URL-only GeoServices
-  binding and verifies `runtime.dataset.source(id).adapter(...)` is
-  reachable.
-- **`onEvent` captures initial lifecycle.**
-  `LoadMapPackageOptions.onEvent` receives `source-ready` and
-  `package-loaded` without racing against `loadMapPackage`'s
-  `await`-return.
-- **Structural-update error containment.** When `map.setStyle`
-  throws during a structural `updatePackage`, the previous
-  `honuaMap` / `dataset` / `mapPackage` references are preserved so
-  the runtime is not left half-applied.
-- **Popup reap on layer removal.** A structural update that drops
-  a previously bound layer tears down the layer's popup click
-  listener before emitting `package-updated`.
-- **Non-patchable composed layer changes.** A package update that
-  changes a root layer field such as `minzoom` routes through
-  `setStyle` rather than claiming an incremental paint/layout/filter
-  patch applied it.
-- **Popup reap on binding changes.** Updating `popupBindings[]` for an
-  active package-resolved popup tears down the existing click listener
-  so the closed-over binding cannot go stale.
-
-Conformance-style assertions rely only on the duck-typed `MaplibreMap`
-interface so no `maplibre-gl` dependency creeps into the SDK's
-runtime bundle.
-
-## Deferred follow-ups
-
-- `workspace_artifact` resolver wiring — blocked on server surface.
-- Partial-load recovery (skip unresolved sources, continue) — the
-  loader is strict in v1; an `opts.allowPartial` escape hatch is
-  tracked alongside `#22` mixed-source composition.
-- Refinement / preview components — opaque pass-through today;
-  `#29` operator components are the documented home.
-- Finer-grained diff primitives (layer reorder without teardown) —
-  extension point already in `diff.ts`; no consumer yet.

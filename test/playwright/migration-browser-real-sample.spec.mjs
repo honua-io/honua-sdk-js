@@ -162,7 +162,7 @@ async function runMigratedFixtureBrowserSmoke(page, options) {
 
 test("migrated complex ops-center sample executes in browser runtime", async ({ page }) => {
   await runMigratedFixtureBrowserSmoke(page, {
-    fixtureName: "esri-real-sample-ops-center-app",
+    fixtureName: "client-real-sample-ops-center-app",
     expectedCallSites: 16,
     assertResult: (migrationResult) => {
       expect(migrationResult).toMatchObject({
@@ -186,7 +186,7 @@ test("migrated complex ops-center sample executes in browser runtime", async ({ 
 
 test("migrated feature-table related-records demo sample executes in browser runtime", async ({ page }) => {
   await runMigratedFixtureBrowserSmoke(page, {
-    fixtureName: "esri-demo-feature-table-relates-app",
+    fixtureName: "client-demo-feature-table-relates-app",
     expectedCallSites: 8,
     assertResult: (migrationResult) => {
       expect(migrationResult).toMatchObject({
@@ -216,7 +216,7 @@ test("migrated feature-table popup-interaction fallback sample executes in brows
   page,
 }) => {
   await runMigratedFixtureBrowserSmoke(page, {
-    fixtureName: "esri-demo-feature-table-popup-interaction-app",
+    fixtureName: "client-demo-feature-table-popup-interaction-app",
     expectedCallSites: 5,
     assertResult: (migrationResult) => {
       expect(migrationResult).toMatchObject({
@@ -240,7 +240,7 @@ test("migrated feature-table popup-interaction fallback sample executes in brows
 
 test("migrated incident command demo sample executes in browser runtime", async ({ page }) => {
   await runMigratedFixtureBrowserSmoke(page, {
-    fixtureName: "esri-real-sample-incident-command-app",
+    fixtureName: "client-real-sample-incident-command-app",
     expectedCallSites: 28,
     assertResult: (migrationResult) => {
       expect(migrationResult).toMatchObject({

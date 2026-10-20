@@ -7,6 +7,9 @@ tags: [mcp, agents, install]
 ---
 # `@honua/mcp-server`
 
+For the persistent connector journey across Docker, data, Studio, Processes and
+optional cloud operations, see [Unified agent workflows](unified-agent-workflows.md).
+
 There are two different MCP servers in the Honua platform and they advertise
 different tools. Calling a tool against the wrong one returns "unknown tool",
 which is the single most common way an agent gets stuck here.
@@ -30,7 +33,7 @@ not add tools of its own.
 npx -y -p @honua/mcp-server honua-mcp
 ```
 
-Needs Node.js `>=20.19` and `HONUA_BASE_URL`. Client configuration
+Needs Node.js `>=22.12` and `HONUA_BASE_URL`. Client configuration
 (`.mcp.json`, `claude_desktop_config.json`, Cursor):
 
 ```json
@@ -87,6 +90,10 @@ supported (honua-server ADR-0028), on either surface.
 
 The [package README](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/README.md)
 carries the full protocol-neutral addressing table, the typed filter grammar,
-the environment variables, and the bootstrap-only local-install mode. How well
+the environment variables, and the bootstrap-only local-install mode. The
+local installer hands MCP clients a `honua-local-agent` key carrying
+`admin:read`, `admin:write`, and `read:*`; `read:*` is what lets it list,
+query, and render layers, and a key minted before it was added is re-issued
+on the next `honua admin install local` (see the `honua-local-setup` skill). How well
 different client models actually drive this surface is measured, not claimed:
 see the [cross-model eval scorecard](generated/mcp-eval-scorecard.md).

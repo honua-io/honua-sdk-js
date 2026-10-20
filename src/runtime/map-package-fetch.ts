@@ -1,6 +1,7 @@
 import type { HonuaCacheValidator } from "../core/cache-state.js";
 import { honuaCacheValidatorFromHeaders } from "../core/cache-state.js";
 import type { HonuaClient } from "../core/client.js";
+import type { HonuaStyleSpecification } from "../style/specification.js";
 import { HonuaMapPackageError } from "./errors.js";
 import { type LoadMapPackageOptions, loadMapPackage } from "./load-package.js";
 import {
@@ -12,6 +13,7 @@ import type { HonuaMapPackage, HonuaMapPackageStyleRef, HonuaStyleRefBody } from
 import { createOgcStyleRefResolver } from "./ogc-styles.js";
 import type { HonuaMapRuntime, MaplibreMap } from "./runtime.js";
 import type { StyleRefResolver } from "./style-compose.js";
+import { readStyleLayerBindings, validateBoundStyleBody, validateStyleBindingTargets } from "./style-ref-bindings.js";
 
 export const DEFAULT_MAP_PACKAGE_PATH_PREFIX = "/api/v1/map-packages";
 
@@ -58,6 +60,7 @@ export interface FetchMapPackageOptions {
 }
 
 export interface MapPackageFetchCacheEntry {
+  /** Original package bytes projected as JSON; live style refs retain their absent body. */
   readonly mapPackage: HonuaMapPackage;
   readonly validator?: HonuaCacheValidator;
   readonly cachedAtMs: number;
@@ -173,16 +176,12 @@ export async function fetchMapPackage(
         detail: { path },
       });
     }
-    return buildFetchResult(cached.mapPackage, path, "not-modified", {
-      validator: honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator,
-      sourceUpdatedAt: response.headers.get("last-modified") ?? cached.sourceUpdatedAt,
-      revalidatedAt: new Date().toISOString(),
-      options,
-    });
   }
 
-  const body = await parseJsonBody(response, path);
-  const rawPackage = unwrapMapPackageEnvelope(body);
+  // A package ETag does not pin live shared styles. Resolve them again even
+  // when the immutable package itself is unchanged, retaining raw refs in cache.
+  const notModified = response.status === 304;
+  const rawPackage = notModified ? cached!.mapPackage : unwrapMapPackageEnvelope(await parseJsonBody(response, path));
   const styleRefResolver =
     options.resolveStyleRef ??
     (options.disableDefaultStyleRefResolver ? undefined : createOgcStyleRefResolver({ client: options.client }));
@@ -205,13 +204,20 @@ export async function fetchMapPackage(
     });
   }
 
-  const validator = honuaCacheValidatorFromHeaders(response.headers);
-  const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;
-  const status: MapPackageFetchCacheStatus = cache ? (cached ? "refreshed" : "miss") : "bypass";
+  const validator = honuaCacheValidatorFromHeaders(response.headers) ?? (notModified ? cached?.validator : undefined);
+  const sourceUpdatedAt = response.headers.get("last-modified") ?? (notModified ? cached?.sourceUpdatedAt : undefined);
+  const fingerprint = stableFingerprint(mapPackage);
+  const status: MapPackageFetchCacheStatus = !cache
+    ? "bypass"
+    : notModified && cached?.fingerprint === fingerprint
+      ? "not-modified"
+      : cached
+        ? "refreshed"
+        : "miss";
   const entry: MapPackageFetchCacheEntry = {
-    mapPackage: mapPackage as HonuaMapPackage,
+    mapPackage: rawPackage as HonuaMapPackage,
     cachedAtMs: Date.now(),
-    fingerprint: stableFingerprint(mapPackage),
+    fingerprint,
     ...(validator ? { validator } : {}),
     ...(sourceUpdatedAt ? { sourceUpdatedAt } : {}),
   };
@@ -226,6 +232,7 @@ export async function fetchMapPackage(
       ...(validator ? { validator } : {}),
       ...(sourceUpdatedAt ? { sourceUpdatedAt } : {}),
       fetchedAt: new Date(entry.cachedAtMs).toISOString(),
+      ...(notModified ? { revalidatedAt: new Date().toISOString() } : {}),
     },
   };
 }
@@ -328,7 +335,13 @@ async function resolveMapPackageStyleRefs(
         }
 
         try {
-          const body = await resolveStyleRef(styleId, typeof ref.presetId === "string" ? ref.presetId : undefined);
+          const bindings = readStyleLayerBindings(ref.layerBindings);
+          if (bindings) validateStyleBindingTargets(bindings, value.mapSpec as HonuaStyleSpecification);
+          const body = await resolveStyleRef(
+            styleId,
+            typeof ref.presetId === "string" ? ref.presetId : undefined,
+            bindings,
+          );
           if (!isRecord(body)) {
             return {
               ref: ref as unknown as HonuaMapPackageStyleRef,
@@ -343,6 +356,7 @@ async function resolveMapPackageStyleRefs(
               },
             };
           }
+          if (bindings) validateBoundStyleBody(bindings, body);
           return {
             ref: { ...(ref as unknown as HonuaMapPackageStyleRef), body: body as HonuaStyleRefBody },
             changed: true,
@@ -372,42 +386,6 @@ async function resolveMapPackageStyleRefs(
   return {
     mapPackage: changed ? { ...value, styleRefs: nextRefs } : value,
     diagnostics,
-  };
-}
-
-function buildFetchResult(
-  mapPackage: HonuaMapPackage,
-  path: string,
-  status: MapPackageFetchCacheStatus,
-  input: {
-    readonly validator?: HonuaCacheValidator;
-    readonly sourceUpdatedAt?: string;
-    readonly revalidatedAt?: string;
-    readonly options: FetchMapPackageOptions;
-  },
-): FetchMapPackageResult {
-  const validation = validateMapPackage(mapPackage, {
-    maxAgeMs: input.options.maxAgeMs,
-    now: input.options.now,
-  });
-  if (hasMapPackageDiagnosticErrors(validation.diagnostics) && input.options.allowInvalid !== true) {
-    throw new HonuaMapPackageError("MapPackage validation failed", {
-      packageId: mapPackage.mapPackageId,
-      stage: "validate",
-      detail: { diagnostics: validation.diagnostics, path },
-    });
-  }
-  return {
-    mapPackage,
-    diagnostics: validation.diagnostics,
-    cache: {
-      status,
-      key: path,
-      ...(input.validator ? { validator: input.validator } : {}),
-      ...(input.sourceUpdatedAt ? { sourceUpdatedAt: input.sourceUpdatedAt } : {}),
-      fetchedAt: new Date().toISOString(),
-      ...(input.revalidatedAt ? { revalidatedAt: input.revalidatedAt } : {}),
-    },
   };
 }
 

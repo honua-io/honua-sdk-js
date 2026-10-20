@@ -72,6 +72,18 @@ function releaseVersionBump(lockfile, version = "9.9.9-beta.0") {
 }
 
 describe("the pinned lockfile digest", () => {
+  it("keeps the React development renderer and runtime on the same exact version", async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+    const lockfile = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
+    const expected = manifest.devDependencies.react;
+    assert.match(expected, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u);
+    for (const name of ["react", "react-dom"]) {
+      assert.equal(manifest.devDependencies[name], expected, `${name} development pin must match React`);
+      assert.equal(lockfile.packages[""].devDependencies[name], expected, `${name} lockfile root pin`);
+      assert.equal(lockfile.packages[`node_modules/${name}`].version, expected, `${name} resolved runtime version`);
+    }
+  });
+
   it("is in sync in this checkout, with both bound copies agreeing", async () => {
     const result = await inspectLockfilePinAt(root);
     assert.equal(result.status, "in-sync", result.message);

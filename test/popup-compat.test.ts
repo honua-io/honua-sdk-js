@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, MapViewCompat, PopupCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, MapViewCompat, PopupCompat } from "../src/client-compat-entry.js";
 
 describe("PopupCompat", () => {
   it("supports when() and watch() for lifecycle state", async () => {

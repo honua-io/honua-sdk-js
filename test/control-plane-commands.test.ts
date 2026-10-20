@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { connectionTestInvocation, importCreateInvocation } from "../src/cli/commands/control-plane.js";
@@ -21,7 +25,7 @@ import {
 } from "../src/control-plane/index.js";
 import { HonuaClient } from "../src/index.js";
 import type { HonuaMapPackage } from "../src/runtime/index.js";
-import { HonuaStudioLifecycleClient } from "../src/studio/index.js";
+import { HonuaStudioLifecycleClient, createHonuaStudioCommandAdapter } from "../src/studio/index.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -36,6 +40,8 @@ interface CapturedRequest {
 }
 
 const MAP_PACKAGE = { id: "pkg-ops", version: "1.0.0", layers: [] } as unknown as HonuaMapPackage;
+
+const PUBLICATION_INTENT = { route: "/maps/operations", visibility: "team" } as const;
 
 const PUBLISH_RESPONSE = {
   packageId: "pkg-ops-42",
@@ -142,6 +148,7 @@ describe("command receipts", () => {
     expect(requests[0].method).toBe("POST");
     expect(requests[0].path).toBe("/api/v1/admin/connections/conn-1/test");
     expect(requests[0].headers["idempotency-key"]).toBeUndefined();
+    expect(requests[0].headers["x-correlation-id"]).toBe(receipt.correlationId);
     expect(requests[0].body).toBeUndefined();
     expect(receipt.resourceRef).toEqual({ type: "connection", id: "conn-1" });
     expect(receipt.idempotencyKey).toBeUndefined();
@@ -160,6 +167,7 @@ describe("command receipts", () => {
     expect(requests[0].path).toBe("/api/v1/admin/packages");
     expect(requests[0].headers["idempotency-key"]).toBe(receipt.idempotencyKey);
     expect(requests[0].headers["if-match"]).toBe('W/"6"');
+    expect(requests[0].headers["x-correlation-id"]).toBe(receipt.correlationId);
 
     expect(receipt.kind).toBe("honua.command.receipt.v1");
     expect(receipt.status).toBe("ok");
@@ -216,6 +224,38 @@ describe("command receipts", () => {
     });
     expect(receipt.output).toBeUndefined();
   });
+
+  it.each(["cli", "mcp", "studio", "sdk"] as const)(
+    "preserves an explicit server correlation id and extra headers on %s",
+    async (transport) => {
+      const { requests, fetchFn } = recorder();
+      const receipt = await runtimeFor(fetchFn).execute(
+        mapPackagePublishCommand,
+        { mapId: "map-ops", package: MAP_PACKAGE },
+        { transport, correlationId: "  release.2026:abc_123-xyz  ", headers: new Headers({ "X-Client-Version": "1" }) },
+      );
+      expect(receipt.correlationId).toBe("release.2026:abc_123-xyz");
+      expect(requests[0].headers["x-correlation-id"]).toBe(receipt.correlationId);
+      expect(requests[0].headers["x-client-version"]).toBe("1");
+    },
+  );
+
+  it.each(["a".repeat(65), "has space", "bad\r\nheader", "non-ascii-é", "bad/format"])(
+    "refuses correlation ids the server would replace: %j",
+    async (correlationId) => {
+      const { requests, fetchFn } = recorder();
+      for (const dryRun of [false, true]) {
+        await expect(
+          runtimeFor(fetchFn).execute(
+            mapPackagePublishCommand,
+            { mapId: "map-ops", package: MAP_PACKAGE },
+            { transport: "sdk", correlationId, dryRun },
+          ),
+        ).rejects.toMatchObject({ kind: "validation", issues: [{ path: "correlationId" }] });
+      }
+      expect(requests).toHaveLength(0);
+    },
+  );
 });
 
 describe("command error taxonomy", () => {
@@ -398,6 +438,8 @@ describe("transports adapt input and output only", () => {
       "map-ops",
       "--package",
       packageJson,
+      "--intent",
+      JSON.stringify(PUBLICATION_INTENT),
       "--workspace",
       "ws-1",
       "--message",
@@ -419,7 +461,7 @@ describe("transports adapt input and output only", () => {
     const js = recorder();
     const jsReceipt = await runtimeFor(js.fetchFn).execute(
       mapPackagePublishCommand,
-      { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it" },
+      { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it", intent: PUBLICATION_INTENT },
       { transport: "sdk", identity: { actor: "user-1", tenantId: "acme" } },
     );
 
@@ -434,7 +476,10 @@ describe("transports adapt input and output only", () => {
     expect(cli.requests[0].method).toBe(js.requests[0].method);
     expect(cli.requests[0].path).toBe(js.requests[0].path);
     expect(cli.requests[0].body).toEqual(js.requests[0].body);
+    expect(cli.requests[0].body).toMatchObject({ intent: PUBLICATION_INTENT });
     expect(cli.requests[0].headers["idempotency-key"]).toBe(js.requests[0].headers["idempotency-key"]);
+    expect(cli.requests[0].headers["x-correlation-id"]).toBe(cliReceipt.correlationId);
+    expect(js.requests[0].headers["x-correlation-id"]).toBe(jsReceipt.correlationId);
   });
 
   it("adapts CLI flags into exactly the input and invocation a JS caller would pass", () => {
@@ -528,7 +573,16 @@ describe("no shared administrator credential and no client-side authorization by
     // value on the wire than the receipt and the invocation record claim,
     // breaking the retry and audit guarantees the receipt exists to provide.
     for (const transport of ["cli", "mcp", "studio", "sdk"] as const) {
-      for (const header of ["Idempotency-Key", "idempotency-key", "IDEMPOTENCY-KEY", "If-Match", "iF-MaTcH"]) {
+      for (const header of [
+        "Idempotency-Key",
+        "idempotency-key",
+        "IDEMPOTENCY-KEY",
+        "If-Match",
+        "iF-MaTcH",
+        "X-Correlation-ID",
+        "x-correlation-id",
+        "X-CORRELATION-ID",
+      ]) {
         const { requests, fetchFn } = recorder();
         const error = await runtimeFor(fetchFn)
           .execute(
@@ -542,7 +596,7 @@ describe("no shared administrator credential and no client-side authorization by
         expect(requests, `${transport} / ${header}`).toHaveLength(0);
       }
     }
-    expect(HONUA_COMMAND_OWNED_HEADERS).toEqual(["idempotency-key", "if-match"]);
+    expect(HONUA_COMMAND_OWNED_HEADERS).toEqual(["idempotency-key", "if-match", "x-correlation-id"]);
   });
 
   it("keeps the command-owned key on the Studio write path too", async () => {
@@ -808,6 +862,105 @@ describe("the terminal release journey runs on the shared command layer", () => 
     ]) {
       expect(invocation.headers).toBeUndefined();
       expect(invocation.transport).toBe("cli");
+    }
+  });
+
+  it("prints the command correlation id when a CLI failure is the only receipt", async () => {
+    const denied = recorder(() => ({ status: 403, body: { title: "Forbidden" } }));
+    vi.stubGlobal("fetch", denied.fetchFn);
+    const output = capture();
+    const exitCode = await run([
+      "connection",
+      "test",
+      "conn-denied",
+      "--yes",
+      "--json",
+      "--base-url",
+      "https://example.test",
+    ]);
+    vi.restoreAllMocks();
+
+    const direct = await runtimeFor(recorder(() => ({ status: 403, body: { title: "Forbidden" } })).fetchFn)
+      .execute(connectionTestCommand, { connectionId: "conn-denied" }, { transport: "sdk" })
+      .catch((thrown: unknown) => thrown);
+
+    expect(exitCode).toBe(2);
+    expect(direct).toBeInstanceOf(HonuaCommandError);
+    const cliError = JSON.parse(output.join("")) as { correlationId?: string; errorKind?: string; statusCode?: number };
+    expect(cliError).toMatchObject({
+      errorKind: "authorization",
+      commandId: "connection.test",
+      statusCode: 403,
+      correlationId: (direct as HonuaCommandError).correlationId,
+    });
+    expect(denied.requests[0]?.headers["x-correlation-id"]).toBe(cliError.correlationId);
+  });
+});
+
+describe("map publication intent", () => {
+  it("reads an intent file without changing its requested route or audience", () => {
+    const directory = mkdtempSync(join(tmpdir(), "honua-publication-intent-"));
+    try {
+      const file = join(directory, "intent.json");
+      writeFileSync(file, JSON.stringify(PUBLICATION_INTENT));
+      const { input } = mapPublishInvocation({
+        positionals: [],
+        flags: { package: JSON.stringify(MAP_PACKAGE), intent: `@${file}` },
+      });
+      expect(input.intent).toEqual(PUBLICATION_INTENT);
+      for (const intent of ["null", "[]", "42", "not-json"]) {
+        expect(() => mapPublishInvocation({ positionals: [], flags: { package: "{}", intent } })).toThrow("--intent");
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves intent through the actual Studio adapter and changes identity when the destination changes", async () => {
+    const studio = recorder();
+    const adapter = createHonuaStudioCommandAdapter({
+      client: new HonuaClient({ baseUrl: "https://example.test", fetchFn: studio.fetchFn }),
+    });
+    const input = { package: MAP_PACKAGE, intent: PUBLICATION_INTENT };
+    const receipt = await adapter.execute(mapPackagePublishCommand, input);
+    const js = recorder();
+    const direct = await runtimeFor(js.fetchFn).execute(mapPackagePublishCommand, input, { transport: "sdk" });
+    expect(studio.requests[0].body).toEqual(js.requests[0].body);
+    expect(studio.requests[0].body).toMatchObject({ intent: PUBLICATION_INTENT });
+    expect(receipt.idempotencyKey).toBe(direct.idempotencyKey);
+    const preview = await adapter.execute(
+      mapPackagePublishCommand,
+      {
+        ...input,
+        intent: { ...PUBLICATION_INTENT, route: "/maps/another" },
+      },
+      { dryRun: true },
+    );
+    expect(preview.status).toBe("dry-run");
+    expect(preview.idempotencyKey).not.toBe(receipt.idempotencyKey);
+    expect(studio.requests).toHaveLength(1);
+  });
+
+  it("refuses malformed or authority-bearing intent before any request, including dry run", async () => {
+    for (const intent of [
+      { route: "relative" },
+      { route: 42 },
+      { route: "" },
+      { visibility: "private" },
+      { route: "/maps/operations", approved: true },
+      { approvedBy: "self" },
+      null,
+      [],
+    ]) {
+      for (const dryRun of [false, true]) {
+        const side = recorder();
+        const error = await runtimeFor(side.fetchFn)
+          .execute(mapPackagePublishCommand, { package: MAP_PACKAGE, intent } as never, { dryRun, transport: "sdk" })
+          .catch((value: unknown) => value);
+        expect(error).toBeInstanceOf(HonuaCommandError);
+        expect((error as HonuaCommandError).kind).toBe("validation");
+        expect(side.requests).toHaveLength(0);
+      }
     }
   });
 });

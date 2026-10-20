@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, FeatureCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, FeatureCompat } from "../src/client-compat-entry.js";
 
 describe("FeatureCompat", () => {
   it("supports when() and watch() lifecycle state transitions", async () => {

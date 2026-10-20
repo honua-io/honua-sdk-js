@@ -1,0 +1,35 @@
+{
+  "format": "honua.scaffold-sdk-certification-history/v1",
+  "sdkVersion": "0.2.1",
+  "status": "incomplete",
+  "originalSource": "f0e9ff9441bc3cc92ebcad56d515ae19abf606a0",
+  "originalRuns": {
+    "vanilla": 38465453970,
+    "react": 38465463380
+  },
+  "originalArtifacts": {
+    "vanilla": {
+      "id": 11847709868,
+      "archiveSha256": "b0fd5b076aa7ae03574826ec236f2c45a20c21cb2fd519dee4ccdc21650f88eb"
+    },
+    "react": {
+      "id": 11848278874,
+      "archiveSha256": "63bb433b63289282875bea0abaca1c6c2ba9ea344c1f189852c9a8a85c446042"
+    }
+  },
+  "limitations": [
+    "Original vanilla pass used query-result count plus canvas, not actual rendered-feature observation.",
+    "Original React failed waiting for a vanilla-only DOM field. Its failure receipt replaced page observations with defaults, so empty arrays do not prove absence of errors.",
+    "No certified fallback advance or published default-scaffold qualification."
+  ],
+  "files": {
+    "original-vanilla.json": {
+      "sha256": "54ad5867a6918741d1f228fd3ac8b3c25a5f6ed343793a88f23f897cf9843895",
+      "bytes": 1398
+    },
+    "original-react.json": {
+      "sha256": "34e94efaca8dd998dda6e4c107241d81339e40286b2f23c2b4f70bc99c0bdaf9",
+      "bytes": 1480
+    }
+  }
+}

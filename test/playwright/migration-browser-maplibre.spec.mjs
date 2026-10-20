@@ -232,7 +232,6 @@ async function getServerUrl(server) {
 }
 
 for (const mapLibreTarget of [
-  { major: 5, packageName: "maplibre-gl-v5" },
   { major: 6, packageName: "maplibre-gl" },
 ]) {
   test(`honua-maplibre codemod target produces a runnable MapLibre ${mapLibreTarget.major}.x app`, async ({

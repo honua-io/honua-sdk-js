@@ -7,27 +7,29 @@
  * `POST /api/v1/studio/ai/chat` (SSE) exactly — see that server's
  * `src/Honua.Ai/Features/StudioAiProxy/Domain/StudioAiChatEvent.cs` and
  * `StudioAiChatModels.cs`, and
- * `src/Honua.Server/Features/StudioAi/StudioAiProxyEndpoints.cs`. This module
+ * `src/Honua.Ai/Features/StudioAiProxy/Endpoints/StudioAiProxyEndpoints.cs`. This module
  * owns ONLY the shapes; transport (SSE framing) lives in sibling modules so
  * the contract can be unit-tested independent of `fetch`/`ReadableStream`.
  *
- * Wire-shape notes (verified against the server diff, not guessed):
- *  - The server's `StudioAiProxyJsonContext` uses
- *    `JsonSourceGenerationOptions(PropertyNamingPolicy = CamelCase, UseStringEnumConverter = true)`
- *    for every JSON body — so both object keys AND C# enum values serialize
- *    camelCase (`StudioAiChatEventType.MessageStart` -> `"messageStart"`,
- *    `StudioAiStopReason.EndTurn` -> `"endTurn"`). This module's string
- *    unions match that casing exactly.
+ * Wire-shape notes:
+ *  - The server's `StudioAiProxyJsonContext` uses camelCase object keys.
+ *    Its string enum converter preserves PascalCase enum values such as
+ *    `"MessageStart"` and `"EndTurn"`; property naming does not rename enums.
  *  - The SSE `event:` line is a SEPARATE, hardcoded snake_case vocabulary
  *    written by `StudioAiProxyEndpoints.EventName()` — `message_start`,
  *    `text_delta`, `tool_call_start`, `tool_call_delta`, `tool_call_stop`,
- *    `message_stop`, `error` — independent of the JSON naming policy above.
- *    {@link SSE_EVENT_NAME_TO_TYPE} bridges the two vocabularies.
+ *    `message_stop`, `error`, `transcript_provenance`.
+ *    {@link SSE_EVENT_NAME_TO_TYPE} supplies the SDK's camelCase `type`
+ *    discriminant. Other event values, including `stopReason`, stay intact.
+ *  - Signed provider events include the original stop-reason spelling.
+ *    {@link StudioAiStopReason} includes the established server values and
+ *    the SDK's existing camelCase aliases. Do not rewrite signed event
+ *    values to perform semantic comparisons; that changes the transcript.
  *
  * @module
  */
 
-/** Role of one {@link StudioAiChatMessage} — matches `StudioAiRole` (server-side enum, lower-case on the wire). */
+/** Outbound role of one {@link StudioAiChatMessage}, accepted by the server's `StudioAiRole` converter. */
 export type StudioAiRole = "system" | "user" | "assistant" | "tool";
 
 /** One turn of provider-neutral chat history sent to `POST /v1/studio/ai/chat`. */
@@ -38,6 +40,16 @@ export interface StudioAiChatMessage {
   readonly toolCallId?: string;
   /** For `role: "tool"` messages: the name of the tool that was called. */
   readonly toolName?: string;
+  /** For `role: "assistant"` messages: the tool calls the model made in that turn. */
+  readonly toolCalls?: ReadonlyArray<StudioAiChatToolCall>;
+}
+
+/** One assistant tool call carried back to the proxy (honua-server `message.toolCalls`). */
+export interface StudioAiChatToolCall {
+  readonly id: string;
+  readonly name: string;
+  /** The JSON object arguments the call was dispatched with. */
+  readonly arguments: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -64,7 +76,11 @@ export interface StudioAiToolChoice {
 
 /** Request body for `POST /v1/studio/ai/chat`. */
 export interface StudioAiChatRequest {
-  /** Release bindings that require a signed, replay-resistant transcript. */
+  /**
+   * Candidate certification. The server signs the transcript only when this
+   * is present, and returns 403 when a non-admin caller sends it. End-user
+   * sessions omit it. Admin model and token overrides are separate fields.
+   */
   readonly certification?: StudioAiTranscriptCertification;
   /** Name of the configured provider to route to. Omit to use the server's configured default. */
   readonly provider?: string;
@@ -81,9 +97,10 @@ export interface StudioAiChatRequest {
 }
 
 /**
- * Discriminates which fields of a {@link StudioAiChatEvent} are populated —
- * the JSON body's `"type"` field. Camel-cased per the source-gen naming
- * policy (see module doc); NOT the same string as the SSE `event:` line.
+ * SDK-normalized discriminant describing which {@link StudioAiChatEvent} fields
+ * are populated. The transport derives it from the snake_case SSE `event:` line
+ * using {@link SSE_EVENT_NAME_TO_TYPE}. The raw server JSON body's `type` retains
+ * its PascalCase enum spelling; this union describes parsed SDK events.
  */
 export type StudioAiChatEventType =
   | "messageStart"
@@ -129,8 +146,26 @@ export interface StudioAiTranscriptSigningManifest {
   readonly keys: readonly StudioAiTranscriptVerificationKey[];
 }
 
-/** Why a turn stopped generating — `StudioAiChatEvent.stopReason`, set on `messageStop`. */
-export type StudioAiStopReason = "endTurn" | "toolCall" | "maxTokens" | "contentFilter" | "cancelled" | "error";
+/**
+ * Why a turn stopped generating, set on `messageStop`.
+ * The server sends PascalCase values; existing camelCase aliases remain supported.
+ * The transport preserves the received spelling because it is signed transcript data.
+ * Recognizing a spelling does not imply successful completion: truncation, filtering,
+ * cancellation, and errors retain their distinct meanings.
+ */
+export type StudioAiStopReason =
+  | "EndTurn"
+  | "ToolCall"
+  | "MaxTokens"
+  | "ContentFilter"
+  | "Cancelled"
+  | "Error"
+  | "endTurn"
+  | "toolCall"
+  | "maxTokens"
+  | "contentFilter"
+  | "cancelled"
+  | "error";
 
 /**
  * One event in a streamed provider-neutral chat turn — a single flat shape

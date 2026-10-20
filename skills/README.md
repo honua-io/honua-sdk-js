@@ -26,10 +26,10 @@ repository does not publish, or leaves a journey stage with no skill.
 | Skill | Stage(s) | Use it when |
 | --- | --- | --- |
 | [`honua-datasource-connect`](./honua-datasource-connect/SKILL.md) | `admin` | Connecting Honua to a datasource and proving the connection works before publishing anything — creating a secure connection by secret reference, testing it, listing and validating tables, and discovering already-reachable sources on a plain endpoint. |
-| [`honua-diagnostics`](./honua-diagnostics/SKILL.md) | `console`, `artifact` | A Honua call fails, a deployment looks unhealthy, or a candidate needs a Console approval receipt — capturing a sanitized diagnostic bundle with honua doctor, reading health/audit/operation status, distinguishing capability gaps from real failures, and staying inside bounded, reversible remediation. |
-| [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) | `geoprocessing` | An agent must discover, execute, poll, cancel, and consume a Honua geoprocessing task — the Esri-compatible MCP GP roster, the native dataset-reference MCP verb, and the SDK's OGC API Processes / GPServer runners, including job polling to a terminal state and turning a result artifact into something a map can bind. |
+| [`honua-diagnostics`](./honua-diagnostics/SKILL.md) | `console`, `artifact` | A Honua call fails, a deployment looks unhealthy, or a published share URL does not return HTTP 200 — capturing a sanitized diagnostic bundle with honua doctor, reading health/audit/operation status, distinguishing capability gaps from real failures, and staying inside bounded, reversible remediation. |
+| [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) | `geoprocessing` | An agent must validate, execute, poll, and consume a Honua geoprocessing plan — the bounded geometry.buffer process through discovered server tools or SDK process runners — including job polling to a terminal state and turning a result artifact into something a map can bind. |
 | [`honua-local-setup`](./honua-local-setup/SKILL.md) | `install` | Installing Honua on a laptop for the first time and handing the resulting credential to an agent — running the control-plane Docker installer, verifying API/MCP/Console readiness, and wiring an MCP client to the local deployment without ever reading or echoing secret material. |
-| [`honua-map-composition`](./honua-map-composition/SKILL.md) | `studio`, `proposal` | Composing a Honua map, app, or dashboard through Studio MCP tools and getting it toward publication — creating a draft, adding layers/widgets/controls/interactions, validating, saving an immutable version, reopening it, and recording publication intent without bypassing the human approval gate. |
+| [`honua-map-composition`](./honua-map-composition/SKILL.md) | `studio`, `proposal` | Composing a bounded 2D Honua map through Studio MCP tools — creating a draft, adding layers/style/view/basic controls, saving and reopening an immutable version, and proposing publication for a separate human approver. |
 | [`honua-publish-layers`](./honua-publish-layers/SKILL.md) | `admin` | Turning an imported table into a served Honua layer and setting who can read it — publishing a layer from a tested connection, capturing the layer id, setting the service access policy, and confirming the layer is queryable. |
 | [`honua-style-verify`](./honua-style-verify/SKILL.md) | `style`, `studio`, `artifact` | Applying a style to a Honua published layer or Studio draft and proving the rendered map is actually correct — resolving styles from the server, applying a preset to a published layer and rendering it to a PNG, applying a preset client-side, setting a draft layer's style and visibility, framing the view, and verifying the approved public URL responds. |
 
@@ -37,7 +37,7 @@ repository does not publish, or leaves a journey stage with no skill.
 
 | Skill | Use it when |
 | --- | --- |
-| [`honua-arcgis-migration`](./honua-arcgis-migration/SKILL.md) | Migrating an existing ArcGIS Maps SDK for JavaScript (@arcgis/core) app to Honua — running the honua-migrate scan and codemod, reading the parity/gate reports, and resolving the manual-intervention warnings the codemod flags. |
+| [`honua-geoservices-migration`](./honua-geoservices-migration/SKILL.md) | Migrate an existing ArcGIS JavaScript app and its service dependencies to Honua using native SDK primitives, agentic code conversion and optional canonical codemods. |
 | [`honua-mcp-setup`](./honua-mcp-setup/SKILL.md) | Connecting an MCP client (Claude Desktop, Claude Code, or any MCP-compatible agent) to ANY public ArcGIS/OGC FeatureServer via @honua/mcp-server — the platform-free geospatial MCP server. |
 | [`honua-sdk-quickstart`](./honua-sdk-quickstart/SKILL.md) | Writing or reviewing code that uses @honua/sdk-js — installing the SDK, constructing a HonuaClient, building a Dataset/Source and querying features across GeoServices/OGC/WFS/STAC/OData, or handling capability errors. |
 
@@ -52,11 +52,11 @@ no skill fails `npm run verify:skills`.
 | 1 | `install` — Install Honua locally and verify the handoff surfaces | [`honua-local-setup`](./honua-local-setup/SKILL.md) |
 | 2 | `admin` — Configure a connection, import data, publish layers, and set access | [`honua-datasource-connect`](./honua-datasource-connect/SKILL.md) · [`honua-publish-layers`](./honua-publish-layers/SKILL.md) |
 | 3 | `style` — Apply a canonical style to the published layer and prove it reaches rendered pixels | [`honua-style-verify`](./honua-style-verify/SKILL.md) |
-| 4 | `geoprocessing` — Execute Buffer through AI-facing Esri MCP, GPServer compatibility, and direct analysis | [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) |
+| 4 | `geoprocessing` — Buffer the published parcels, then prove geometry.buffer on GPServer | [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) |
 | 5 | `studio` — Compose, validate, save, read, and reopen distinct map, app, and dashboard families | [`honua-map-composition`](./honua-map-composition/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
-| 6 | `proposal` — Propose publication without bypassing human confirmation | [`honua-map-composition`](./honua-map-composition/SKILL.md) |
-| 7 | `console` — Inspect and approve the candidate in Console | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) |
-| 8 | `artifact` — Verify the stable map, app, and dashboard URLs | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
+| 6 | `proposal` — Publish each saved version and capture its share URL | [`honua-map-composition`](./honua-map-composition/SKILL.md) |
+| 7 | `console` — Fetch the admin-published share URLs | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) |
+| 8 | `artifact` — Require HTTP 200 from the map, app, and dashboard share URLs | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
 
 <!-- skills-table:end -->
 
@@ -93,7 +93,7 @@ agent looks for skills.
   your project root.
 
   ```bash
-  mkdir -p .claude/skills && cp -R skills/honua-arcgis-migration .claude/skills/
+  mkdir -p .claude/skills && cp -R skills/honua-geoservices-migration .claude/skills/
   ```
 
 Each skill keeps its own directory name (which must match the `name` in its

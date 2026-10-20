@@ -1,8 +1,8 @@
 /**
  * A minimal MCP client over honua-server's `/mcp` HTTP transport. JSON-RPC
- * 2.0 over `POST /mcp`: `initialize` handshake, `tools/list`, `tools/call` —
- * nothing else (no resources/prompts/sampling; a Studio tool plane never
- * needs them).
+ * 2.0 over `POST /mcp`: `initialize` handshake, `tools/list`, `tools/call`, and `resources/read`.
+ * Resource reads preserve Honua continuation cursors; there are no
+ * prompts/sampling/roots implementations.
  *
  * **Origin.** Ported verbatim from `honua-studio`'s `src/mcp/client.ts`
  * (honua-studio#7 REQ-001), where it is zero-import, DOM-free, and
@@ -16,7 +16,7 @@
  *  - It is a `node_modules`-heavy, transport-and-protocol-agnostic kit built
  *    around `Server`/`Client` classes, stdio transports, and a request-router
  *    abstraction sized for building an MCP SERVER or a general-purpose agent
- *    host — this is neither. It only ever issues three method calls against
+ *    host — this is neither. It only ever issues four method calls against
  *    one already-known HTTP endpoint.
  *  - It pulls in `zod` (schema validation this surface does not otherwise
  *    need) and a `content-type`/`raw-body`/`eventsource-parser` chain sized
@@ -25,10 +25,10 @@
  *  - This surface already hand-rolls an equally protocol-sensitive streaming
  *    client (`./sse-transport.ts` + `./sse-parser.ts`) rather than reach for
  *    a dependency — the same call applies here, and the surface is smaller
- *    (three JSON-RPC methods, no streaming to parse in the common case).
+ *    (four JSON-RPC methods, no streaming to parse in the common case).
  *  - Bundle size matters: `@honua/sdk-js` ships to a browser tab and is
  *    budgeted per entrypoint, and the SDK is not tree-shake-friendly against
- *    a three-method usage.
+ *    a four-method usage.
  *
  * A ~250-line hand-rolled client that speaks exactly the transport
  * honua-server documents is safer for bundle size and matches this
@@ -102,18 +102,42 @@ export interface McpListAllToolsOptions {
    * deadline of its own, is indefinitely.
    */
   readonly signal?: AbortSignal;
+  /** Copied onto every `tools/list` page so a bounded view cannot expire after page one. */
+  readonly view?: string;
 }
 
 /** Every descriptor `tools/list` advertised, plus how many pages it took. */
 export interface McpToolListing {
   readonly tools: readonly McpToolDescriptor[];
   readonly pages: number;
+  /** View metadata from the pages. Absent when the server did not send `_meta`. */
+  readonly metadata?: Record<string, unknown>;
+}
+
+/** Honua resource-window options; echo the opaque cursor from the previous result. */
+export interface McpReadResourceOptions {
+  readonly cursor?: string;
+  /** Per-request character budget, from 1 through 1,000,000. Server default is 64,000. */
+  readonly maxChars?: number;
+  /** Aborts both lazy initialization and this resource request. */
+  readonly signal?: AbortSignal;
+}
+
+/** A resource chunk. Concatenate text per URI until nextCursor is absent. */
+export interface McpReadResourceResult {
+  readonly contents?: readonly Record<string, unknown>[];
+  readonly nextCursor?: string | null;
 }
 
 export interface McpClientOptions {
   /** The `/mcp` endpoint's base — the client POSTs to `${baseUrl}/mcp`. @default "/api" */
   readonly baseUrl?: string;
   readonly auth?: StudioAiTokenSource;
+  /**
+   * API key sent as `x-api-key`, the same scheme as `honua-mcp-proxy`.
+   * Mutually exclusive with {@link McpClientOptions.auth}.
+   */
+  readonly apiKey?: string;
   /** Advertised in `initialize`'s `clientInfo`. */
   readonly clientName?: string;
   readonly clientVersion?: string;
@@ -124,6 +148,12 @@ export interface McpClientOptions {
 }
 
 let requestSeq = 0;
+interface McpInitialization {
+  readonly controller: AbortController;
+  readonly promise: Promise<McpInitializeResult>;
+  waiters: number;
+}
+
 function nextRequestId(): string {
   requestSeq += 1;
   return `honua-sdk-js-mcp-${requestSeq}`;
@@ -144,14 +174,19 @@ export class McpClient {
   readonly #clientName: string;
   readonly #clientVersion: string;
   readonly #workflowView: string | undefined;
+  readonly #apiKey: string | undefined;
   readonly #fetchImpl: typeof fetch;
   #sessionId: string | undefined;
   #initializeResult: McpInitializeResult | undefined;
-  #initializing: Promise<McpInitializeResult> | undefined;
+  #initializing: McpInitialization | undefined;
 
   public constructor(options: McpClientOptions = {}) {
+    if (options.apiKey && options.auth) {
+      throw new Error("Configure exactly one MCP authentication scheme.");
+    }
     this.#baseUrl = options.baseUrl ?? "/api";
     this.#auth = options.auth;
+    this.#apiKey = options.apiKey;
     this.#clientName = options.clientName ?? "honua-sdk-js";
     this.#clientVersion = options.clientVersion ?? "0.0.0";
     this.#workflowView = options.workflowView;
@@ -179,16 +214,66 @@ export class McpClient {
    * Runs the `initialize` handshake, capturing the `Mcp-Session-Id` response
    * header for every later call. Safe to call more than once — concurrent
    * callers share one in-flight request; a session already established is NOT
-   * re-initialized.
+   * re-initialized. Each caller can cancel independently. The shared request
+   * is aborted when every waiter has cancelled or the session is reset.
    */
   public async initialize(signal?: AbortSignal): Promise<McpInitializeResult> {
+    if (signal?.aborted) {
+      throw new McpTransportError(`Could not reach the MCP endpoint at ${this.#baseUrl}/mcp.`, signal.reason);
+    }
     if (this.#initializeResult) return this.#initializeResult;
     if (!this.#initializing) {
-      this.#initializing = this.#doInitialize(signal).finally(() => {
-        this.#initializing = undefined;
-      });
+      const controller = new AbortController();
+      const state: McpInitialization = { controller, promise: this.#doInitialize(controller.signal), waiters: 0 };
+      this.#initializing = state;
+      const clear = (): void => {
+        if (this.#initializing === state) this.#initializing = undefined;
+      };
+      void state.promise.then(clear, clear);
     }
-    return this.#initializing;
+    const state = this.#initializing;
+    return new Promise<McpInitializeResult>((resolve, reject) => {
+      state.waiters += 1;
+      let settled = false;
+      const finish = (): boolean => {
+        if (settled) return false;
+        settled = true;
+        signal?.removeEventListener("abort", abort);
+        state.controller.signal.removeEventListener("abort", abortShared);
+        state.waiters -= 1;
+        if (state.waiters === 0 && this.#initializing === state && !this.#initializeResult) {
+          this.#initializing = undefined;
+          state.controller.abort();
+        }
+        return true;
+      };
+      const abort = (): void => {
+        if (finish()) {
+          reject(new McpTransportError(`Could not reach the MCP endpoint at ${this.#baseUrl}/mcp.`, signal?.reason));
+        }
+      };
+      const abortShared = (): void => {
+        if (finish()) {
+          reject(
+            new McpTransportError(
+              `Could not reach the MCP endpoint at ${this.#baseUrl}/mcp.`,
+              state.controller.signal.reason,
+            ),
+          );
+        }
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      state.controller.signal.addEventListener("abort", abortShared, { once: true });
+      if (signal?.aborted) abort();
+      state.promise.then(
+        (result) => {
+          if (finish()) resolve(result);
+        },
+        (error: unknown) => {
+          if (finish()) reject(error);
+        },
+      );
+    });
   }
 
   async #doInitialize(signal: AbortSignal | undefined): Promise<McpInitializeResult> {
@@ -202,6 +287,7 @@ export class McpClient {
       },
       signal,
     );
+    signal?.throwIfAborted();
     this.#initializeResult = result;
     return result;
   }
@@ -240,15 +326,31 @@ export class McpClient {
     const seenCursors = new Set<string>();
     let cursor: string | undefined;
     let pages = 0;
+    let metadata: Record<string, unknown> | undefined;
 
     while (pages < maxPages) {
-      const page = await this.listTools(cursor === undefined ? {} : { cursor }, options.signal);
+      const page = await this.listTools(
+        {
+          ...(options.view !== undefined ? { view: options.view } : {}),
+          ...(cursor !== undefined ? { cursor } : {}),
+        },
+        options.signal,
+      );
       pages += 1;
+      if (page._meta) {
+        if (metadata && stableMeta(metadata) !== stableMeta(page._meta)) {
+          throw new McpProtocolError(
+            `MCP tools/list changed view metadata after ${pages} pages; refusing a partial catalog.`,
+            JSON_RPC_INTERNAL_ERROR,
+          );
+        }
+        metadata = page._meta;
+      }
       if (Array.isArray(page.tools)) tools.push(...page.tools);
 
       const next = page.nextCursor;
       if (next === undefined || next === "") {
-        return { tools, pages };
+        return { tools, pages, ...(metadata ? { metadata } : {}) };
       }
       if (seenCursors.has(next)) {
         throw new McpProtocolError(
@@ -300,8 +402,28 @@ export class McpClient {
    * (`StudioAgentSession.reconnect` invalidates its tool catalog here).
    */
   public resetSession(): void {
+    this.#initializing?.controller.abort();
+    this.#initializing = undefined;
     this.#sessionId = undefined;
     this.#initializeResult = undefined;
+  }
+
+  /**
+   * `resources/read`. Binary artifacts come back as base64 `blob` contents.
+   * A text chunk may not be valid JSON on its own: echo nextCursor in options
+   * and concatenate text per URI before parsing the complete document.
+   */
+  public async readResource(uri: string, options: McpReadResourceOptions = {}): Promise<McpReadResourceResult> {
+    await this.initialize(options.signal);
+    return this.#send(
+      "resources/read",
+      {
+        uri,
+        ...(options.cursor !== undefined ? { cursor: options.cursor } : {}),
+        ...(options.maxChars !== undefined ? { maxChars: options.maxChars } : {}),
+      },
+      options.signal,
+    );
   }
 
   /**
@@ -325,6 +447,7 @@ export class McpClient {
       accept: "application/json, text/event-stream",
     };
     if (this.#sessionId) headers["mcp-session-id"] = this.#sessionId;
+    if (this.#apiKey) headers["x-api-key"] = this.#apiKey;
     if (this.#auth) {
       const token = await this.#auth.getAccessToken();
       if (token) headers.authorization = `Bearer ${token}`;
@@ -345,7 +468,7 @@ export class McpClient {
     }
 
     const sessionHeader = response.headers.get("mcp-session-id");
-    if (sessionHeader) this.#sessionId = sessionHeader;
+    if (sessionHeader && !signal?.aborted) this.#sessionId = sessionHeader;
 
     if (!response.ok && response.status !== 200) {
       // A handful of honua-server error paths (unauthenticated, malformed
@@ -401,6 +524,14 @@ export class McpClient {
  * (or a generic message) rather than ever throwing an unstructured error for
  * a structured failure contract.
  */
+function stableMeta(value: Record<string, unknown>): string {
+  return JSON.stringify(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, value[key]]),
+  );
+}
+
 function parseToolError(result: McpToolsCallResult, toolName: string): McpToolError {
   const structured = result.structuredContent;
   if (structured && typeof structured.code === "string" && typeof structured.message === "string") {

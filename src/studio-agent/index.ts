@@ -61,6 +61,7 @@ export type {
   StudioAiChatEvent,
   StudioAiChatEventType,
   StudioAiChatMessage,
+  StudioAiChatToolCall,
   StudioAiChatRequest,
   StudioAiRole,
   StudioAiStopReason,
@@ -88,11 +89,19 @@ export type { SseFrame } from "./sse-parser.js";
 export { ChatTransportError } from "./transport.js";
 export type { ChatTransport } from "./transport.js";
 
+export { WORKFLOW_KNOWLEDGE, WORKFLOW_KNOWLEDGE_URI } from "./workflow-knowledge.js";
+
 export { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
 export type { FetchStudioAiCapabilitiesOptions, SseChatTransportOptions } from "./sse-transport.js";
 
 export { MCP_DEFAULT_MAX_TOOL_LIST_PAGES, McpClient } from "./mcp-client.js";
-export type { McpClientOptions, McpListAllToolsOptions, McpToolListing } from "./mcp-client.js";
+export type {
+  McpClientOptions,
+  McpListAllToolsOptions,
+  McpReadResourceOptions,
+  McpReadResourceResult,
+  McpToolListing,
+} from "./mcp-client.js";
 
 export { MCP_TOOL_LIST_CHANGED_NOTIFICATION, McpNotificationStream } from "./mcp-notifications.js";
 export type {

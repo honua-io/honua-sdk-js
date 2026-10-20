@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PortalCompat, PortalError, identityManager } from "../src/esri-compat-entry.js";
+import { PortalCompat, PortalError, identityManager } from "../src/client-compat-entry.js";
 
 interface RecordedRequest {
   url: string;

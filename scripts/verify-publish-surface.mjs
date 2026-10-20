@@ -11,7 +11,7 @@
  *   1. Root tarball: `npm pack --dry-run --json` must contain every file that
  *      `package.json` `exports` (types + default), `browser`/`unpkg`/`jsdelivr`,
  *      and `bin` reference.
- *   2. Split packages: every `@honua/...` package documented in
+ *   2. Split packages: every package in the produced-packages table in
  *      `docs/split-packages.md` must exist under `dist/packages/`, and each
  *      split package's own `exports` must resolve to real files on disk.
  *   3. Root and split tarballs must contain no executable filenames or magic
@@ -23,6 +23,7 @@
  */
 
 import fs from "node:fs";
+import { documentedSplitPackages } from "./lib/publish-surface-docs.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -90,8 +91,7 @@ for (const file of collectExportFiles(rootPkg)) {
 
 // --- 2. Documented split packages exist and are internally consistent -------
 const splitDocs = fs.readFileSync(path.join(ROOT, "docs", "split-packages.md"), "utf8");
-const documented = new Set([...splitDocs.matchAll(/`(@honua\/[a-z0-9-]+)`/g)].map((m) => m[1]));
-documented.delete("@honua/sdk-js"); // the root package, packed above
+const documented = documentedSplitPackages(splitDocs);
 
 const packagesRoot = path.join(ROOT, "dist", "packages");
 const builtDirs = fs.existsSync(packagesRoot)

@@ -1,3 +1,5 @@
+import "./release-please-ci-continuation.test.mjs";
+import "./release-please-workspace-notes.test.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -251,7 +253,7 @@ describe("Release Please workflow policy", () => {
     const jsSdk = jobSlice(ci, "js-sdk");
     const mcpSdk = jobSlice(ci, "mcp-sdk");
 
-    assert.match(release, /prs_created: \$\{\{ steps\.release\.outputs\.prs_created \}\}/u);
+    assert.match(release, /prs_created: \$\{\{ steps\.release-pr\.outputs\.prs_created \}\}/u);
     assert.match(refresher, /if: \$\{\{ always\(\) && needs\.release-please\.result == 'success' \}\}/u);
     assert.match(refresher, /permissions:\n      contents: write\n      pull-requests: write/u);
     assert.match(refresher, /persist-credentials: false/u);
@@ -259,7 +261,7 @@ describe("Release Please workflow policy", () => {
     assert.doesNotMatch(refresher, /actions: write|checks: write/u);
 
     assert.match(dispatcher, /needs: \[release-please, release-please-refresh\]/u);
-    assert.match(dispatcher, /timeout-minutes: 50/u);
+    assert.match(dispatcher, /timeout-minutes: 5/u);
     assert.match(dispatcher, /release_pr_present == 'true'/u);
     assert.match(dispatcher, /permissions:\n      actions: write\n      contents: read\n      pull-requests: read/u);
     assert.match(dispatcher, /ref: \$\{\{ github\.sha \}\}/u);

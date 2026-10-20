@@ -211,7 +211,7 @@ const WEB_MERCATOR_HALF_CIRCUMFERENCE = 20037508.342789244;
  *
  * @example
  * ```ts
- * import { LocatorCompat } from "@honua/sdk-js/esri-compat";
+ * import { LocatorCompat } from "@honua/sdk-js/client-compat";
  * import { photonGeocodingProvider } from "@honua/sdk-js/geocoding";
  *
  * const locator = new LocatorCompat({

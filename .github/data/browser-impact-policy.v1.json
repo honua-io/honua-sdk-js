@@ -77,6 +77,15 @@
   "sharedLanePatterns": [
     {
       "patterns": [
+        "examples/overture-geoparquet/extension-cache.mjs"
+      ],
+      "lanes": [
+        "heavy-map-kepler",
+        "examples-general"
+      ]
+    },
+    {
+      "patterns": [
         "src/offline/digest.ts",
         "src/offline/quota.ts"
       ],
@@ -138,6 +147,7 @@
       ],
       "lanes": [
         "realtime-collaboration",
+        "heavy-map-kepler",
         "examples-general"
       ]
     }

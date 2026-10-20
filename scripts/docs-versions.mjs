@@ -9,6 +9,30 @@ const OUTPUT = path.join(ROOT, "docs", "versions.json");
 const REPOSITORY = "honua-io/honua-sdk-js";
 const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
 const RELEASE_URL_PREFIX = `https://github.com/${REPOSITORY}/`;
+export const SCAFFOLD_COMMAND_DOCS = [
+  "docs/quickstart.md",
+  "docs/create-honua-app.md",
+  "packages/create-honua-app/README.md",
+];
+
+// These commands describe the SDK cut, not the scaffold's independently
+// certified fallback. Generic Release Please annotations update one semver per
+// line, so use the scaffold's existing latest selector and annotate only SDK.
+export function checkScaffoldCommandVersions(documents, sdkVersion) {
+  for (const [name, markdown] of Object.entries(documents)) {
+    const commands = markdown.split("\n").filter((line) => line.startsWith("npm create honua-app@"));
+    if (commands.length === 0) throw new Error(`${name} has no documented scaffold command`);
+    for (const command of commands) {
+      if (
+        !command.startsWith("npm create honua-app@latest ") ||
+        !command.includes(` --sdk-version ${sdkVersion} # x-release-please-version`) ||
+        !command.endsWith("# x-release-please-version")
+      ) {
+        throw new Error(`${name} scaffold command must explicitly pin SDK ${sdkVersion} with its Release Please annotation`);
+      }
+    }
+  }
+}
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -171,6 +195,10 @@ export function currentDocsVersions() {
     }
   }
   const packageJson = readJson(path.join(ROOT, "package.json"));
+  checkScaffoldCommandVersions(
+    Object.fromEntries(SCAFFOLD_COMMAND_DOCS.map((name) => [name, fs.readFileSync(path.join(ROOT, name), "utf8")])),
+    packageJson.version,
+  );
   for (const fixture of fs
     .readdirSync(path.join(ROOT, "samples", "contract", "v1", "fixtures"))
     .filter((name) => name.startsWith("sample-evidence.") && name.endsWith(".json"))) {

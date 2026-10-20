@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "auditId": 135,
+      "timestamp": "2026-10-11T18:54:46.286013+00:00",
+      "eventType": "AdminAction",
+      "actor": "operatorbearer:subject:honua-operator-bearer:8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+      "actorType": "UserId",
+      "resourceType": "admin",
+      "resourceId": "/api/v1/admin/import/upload-url",
+      "action": "admin.post",
+      "outcome": "Success",
+      "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+      "remoteIp": "::ffff:172.28.0.1",
+      "userAgent": "node",
+      "details": "{\"status\":202,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}"
+    },
+    {
+      "auditId": 134,
+      "timestamp": "2026-10-11T18:54:46.001295+00:00",
+      "eventType": "AdminAction",
+      "actor": "operatorbearer:subject:honua-operator-bearer:8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+      "actorType": "UserId",
+      "resourceType": "admin",
+      "resourceId": "/api/v1/admin/import/upload-url",
+      "action": "admin.post",
+      "outcome": "Success",
+      "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+      "remoteIp": "::ffff:172.28.0.1",
+      "userAgent": "node",
+      "details": "{\"status\":202,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}"
+    },
+    {
+      "auditId": 133,
+      "timestamp": "2026-10-11T18:54:45.758549+00:00",
+      "eventType": "AdminAction",
+      "actor": "operatorbearer:subject:honua-operator-bearer:8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+      "actorType": "UserId",
+      "resourceType": "admin",
+      "resourceId": "/api/v1/admin/import/upload-url",
+      "action": "admin.post",
+      "outcome": "Success",
+      "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+      "remoteIp": "::ffff:172.28.0.1",
+      "userAgent": "node",
+      "details": "{\"status\":202,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}"
+    },
+    {
+      "auditId": 132,
+      "timestamp": "2026-10-11T18:54:44.451334+00:00",
+      "eventType": "AdminAction",
+      "actor": "operatorbearer:subject:honua-operator-bearer:8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+      "actorType": "UserId",
+      "resourceType": "admin",
+      "resourceId": "/api/v1/admin/import/upload-url",
+      "action": "admin.post",
+      "outcome": "Success",
+      "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+      "remoteIp": "::ffff:172.28.0.1",
+      "userAgent": "node",
+      "details": "{\"status\":202,\"method\":\"POST\",\"tenantId\":\"tenant-a\"}"
+    }
+  ]
+}

@@ -288,7 +288,7 @@ Two exclusions were re-derived with more accurate reasons:
 `DEFAULT_DEMO_BASE_URL` = `https://demo.honua.io`), and `oauth-signin` keeps
 `requires-companion-server` now backed by an audited `companion-process`
 verdict. The remaining four active exclusions
-(`arcgis-source-app`, `automatic-source-workflow`, `node-backend-quickstart`,
+(`geoservices-source-app`, `automatic-source-workflow`, `node-backend-quickstart`,
 `shared-renderer-state`) are structurally not browser bundles, and 13 entries
 remain mechanically blocked by a non-`"active"` catalog lifecycle -- those need
 a catalog promotion, not a bundling change.
@@ -494,7 +494,7 @@ the additive v3 projection, v2 handoff, and v4 fixture.
     change.
   - `oauth-signin` (`requires-companion-server`) -- its flow needs a live
     identity-provider participant; a static bundle cannot complete it.
-  - `node-backend-quickstart` (`non-browser-app`), `arcgis-source-app`,
+  - `node-backend-quickstart` (`non-browser-app`), `geoservices-source-app`,
     `automatic-source-workflow`, `shared-renderer-state`
     (`non-runtime-sample`) -- structurally not embeddable Vite apps;
     unlikely to change without a different kind of gallery card.

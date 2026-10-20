@@ -8,11 +8,12 @@ import { fileURLToPath } from "node:url";
 
 import { runNpmSync } from "./lib/npm-cli.mjs";
 import { splitPackageDiscoverabilityErrors } from "./lib/package-discoverability.mjs";
+import { missingRelativeImports } from "./lib/split-package-relative-imports.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const PACKAGES_ROOT = path.join(PROJECT_ROOT, "dist", "packages");
-const EXPECTED_PUBLISHED_NODE_ENGINE = ">=20.0.0";
+const EXPECTED_PUBLISHED_NODE_ENGINE = ">=22.12.0";
 const ROOT_PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
 const EXPECTED_LICENSE = ROOT_PACKAGE_JSON.license;
 const OPTIONAL_GRPC_RUNTIME_PEERS = [
@@ -24,6 +25,12 @@ const CAPABILITY_PROFILE_COMPANIONS = new Set([
   "@honua/sdk-esri-compat",
   "@honua/react",
   "@honua/geometry",
+  "@honua/app-platform",
+]);
+const GRPC_CLIENT_PACKAGES = new Set([
+  "@honua/sdk",
+  "@honua/sdk-esri-compat",
+  "@honua/react",
   "@honua/app-platform",
 ]);
 
@@ -72,25 +79,39 @@ for (const [name, directory] of Object.entries(packageDirs)) {
     process.exit(1);
   }
 
-  if (name === "@honua/sdk") {
-    for (const peerName of OPTIONAL_GRPC_RUNTIME_PEERS) {
-      const expectedRange = ROOT_PACKAGE_JSON.peerDependencies?.[peerName];
-      if (
-        typeof expectedRange !== "string" ||
-        packageJson.peerDependencies?.[peerName] !== expectedRange ||
-        packageJson.peerDependenciesMeta?.[peerName]?.optional !== true
-      ) {
-        process.stderr.write(
-          `Split @honua/sdk must preserve ${peerName}@${expectedRange ?? "<missing>"} as an optional runtime peer.\n`,
-        );
-        process.exit(1);
-      }
-      if (packageJson.dependencies?.[peerName] !== undefined) {
-        process.stderr.write(
-          `Split @honua/sdk must not install optional gRPC runtime peer ${peerName} for REST-only consumers.\n`,
-        );
-        process.exit(1);
-      }
+  if (name === "@honua/sdk-esri-compat") {
+    const maplibrePeer = "maplibre-gl";
+    const expectedMaplibre = ROOT_PACKAGE_JSON.peerDependencies?.[maplibrePeer];
+    if (
+      packageJson.dependencies?.[maplibrePeer] !== undefined ||
+      packageJson.peerDependencies?.[maplibrePeer] !== expectedMaplibre ||
+      packageJson.peerDependenciesMeta?.[maplibrePeer]?.optional !== true
+    ) {
+      process.stderr.write(
+        `Split @honua/sdk-esri-compat must keep ${maplibrePeer}@${expectedMaplibre ?? "<missing>"} as an optional peer.\n`,
+      );
+      process.exit(1);
+    }
+  }
+
+  for (const peerName of OPTIONAL_GRPC_RUNTIME_PEERS) {
+    if (packageJson.dependencies?.[peerName] !== undefined) {
+      process.stderr.write(
+        `Split ${name} must not install optional gRPC runtime peer ${peerName} for REST-only consumers.\n`,
+      );
+      process.exit(1);
+    }
+    if (!GRPC_CLIENT_PACKAGES.has(name)) continue;
+    const expectedRange = ROOT_PACKAGE_JSON.peerDependencies?.[peerName];
+    if (
+      typeof expectedRange !== "string" ||
+      packageJson.peerDependencies?.[peerName] !== expectedRange ||
+      packageJson.peerDependenciesMeta?.[peerName]?.optional !== true
+    ) {
+      process.stderr.write(
+        `Split ${name} must preserve ${peerName}@${expectedRange ?? "<missing>"} as an optional runtime peer.\n`,
+      );
+      process.exit(1);
     }
   }
 
@@ -107,6 +128,36 @@ for (const [name, directory] of Object.entries(packageDirs)) {
   if (!fs.existsSync(path.join(directory, "LICENSE"))) {
     process.stderr.write(`Missing LICENSE file in split package ${name}: ${directory}\n`);
     process.exit(1);
+  }
+}
+
+for (const [name, directory] of Object.entries(packageDirs)) {
+  const missing = missingRelativeImports(directory);
+  if (missing.length > 0) {
+    process.stderr.write(`Split ${name} is missing relative import targets:\n`);
+    for (const item of missing) {
+      process.stderr.write(`  ${item.file} imports ${item.specifier}\n`);
+    }
+    process.exit(1);
+  }
+}
+
+for (const fileName of ["widget-capabilities.js", "widget-capabilities.d.ts"]) {
+  for (const [name, reason] of [
+    [
+      "@honua/sdk-esri-compat",
+      "esri-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.",
+    ],
+    [
+      "@honua/app-platform",
+      "web-components/elements.js and esri-compat/feature-layer.js import ../widget-capabilities.js.",
+    ],
+  ]) {
+    const capabilityFile = path.join(packageDirs[name], fileName);
+    if (!fs.existsSync(capabilityFile)) {
+      process.stderr.write(`Split ${name} is missing ${fileName}. ${reason}\n`);
+      process.exit(1);
+    }
   }
 }
 
@@ -144,6 +195,10 @@ try {
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
       "@honua/geometry": `file:${packageDirs["@honua/geometry"]}`,
       "@honua/app-platform": `file:${packageDirs["@honua/app-platform"]}`,
+      // The web-components entry statically imports maplibre-gl. It is an
+      // optional peer of @honua/app-platform, so a consumer that imports that
+      // entry has to install it. The smoke import does.
+      "maplibre-gl": ROOT_PACKAGE_JSON.peerDependencies["maplibre-gl"],
       ...Object.fromEntries(
         OPTIONAL_GRPC_RUNTIME_PEERS.map((name) => [name, ROOT_PACKAGE_JSON.peerDependencies[name]]),
       ),
@@ -1208,6 +1263,9 @@ export const acceptsSceneSpatialReference = (
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
+
+const restCleanInstall = runCommand(process.execPath, [path.join(SCRIPT_DIR, "verify-rest-clean-install.mjs")], PROJECT_ROOT);
+process.stdout.write(restCleanInstall.stdout);
 
 function runCommand(command, args, cwd, extra = {}) {
   const options = {

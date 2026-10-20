@@ -112,7 +112,7 @@
       "title": "Analyze linked spatial views",
       "outcome": "Keep map, table, chart, and spatial aggregation state aligned with visible fallback evidence.",
       "labels": ["fixture", "experimental", "degraded"],
-      "degradationReason": "The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.",
+      "degradationReason": "The current shell still uses the app-workspace compatibility shim retained through 0.2.x; #399 owns its supported-import migration.",
       "siteJourneyId": "linked-large-data-analysis",
       "guidePath": "docs/warehouse-analytics-sources.md",
       "sampleId": "spatial-analytics-workbench",

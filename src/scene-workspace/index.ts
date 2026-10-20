@@ -1,7 +1,7 @@
 /**
  * `@honua/app-platform/scene-workspace` — framework-neutral 3D scene workspace
  * state and the Cesium renderer adapter. `@honua/sdk-js/scene-workspace` is a
- * deprecated 0.1.x forwarder onto this module.
+ * deprecated forwarder retained through 0.2.x onto this module.
  *
  * This barrel carries two support tiers, and they are enumerated symbol by
  * symbol in `config/support-manifest.v1.json` (projected into
@@ -285,6 +285,10 @@ export {
   getScene,
   listScenes,
   normalizeScene,
+  normalizeSceneMetadata,
+  normalizeSceneResolution,
+  normalizeSceneSummary,
+  resolveScene,
   resolveSceneTilesetUrl,
   sceneCameraPrimitive,
   sceneLayerStates,
@@ -295,6 +299,10 @@ export {
 } from "./scene-discovery.js";
 export type {
   HonuaScene,
+  HonuaSceneAuth,
+  HonuaSceneEndpoint,
+  HonuaSceneLink,
+  HonuaSceneResolution,
   SceneDiscoveryRequestExecutor,
   SceneExtent3D,
   SceneViewpoint,

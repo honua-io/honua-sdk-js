@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "honua-cross-sdk-reference-v1",
-  "reviewedAt": "2026-07-12",
-  "reviewExpiresAt": "2026-10-10",
+  "reviewedAt": "2026-10-12",
+  "reviewExpiresAt": "2027-01-10",
   "methodology": {
-    "runner": "ubuntu-24.04/node-20.19.0/pinned-playwright-chromium",
+    "runner": "ubuntu-24.04/node-22.23.3/pinned-playwright-chromium",
     "network": "loopback-only",
     "cacheStates": [
       "cold",
@@ -100,12 +100,12 @@
       "status": "eligible",
       "package": {
         "name": "@honua/sdk-js",
-        "version": "0.1.9-beta.0",
+        "version": "0.2.7",
         "integrity": "workspace:git-tree",
         "lockfile": "package-lock.json",
         "sourceTree": {
           "path": "src",
-          "gitTree": "ee266a23327934183896021f0f7e89a89569fd6b"
+          "gitTree": "715cf80ffdbde85e6cb78dc3dfeb3ccf09738907"
         }
       },
       "licenseEvidence": {
@@ -114,7 +114,7 @@
         "publication": "permitted-under-open-source-license",
         "sourceUrl": "https://github.com/honua-io/honua-sdk-js/blob/trunk/LICENSE",
         "termsUrl": null,
-        "retrievedAt": "2026-07-12",
+        "retrievedAt": "2026-10-12",
         "licensePath": "LICENSE",
         "licenseContentSha256": "b354b971f0d9252a996e7cd4e72cd4e0d833cd0fe9068a5da3113b4a0ed53559",
         "notes": "The exact src Git tree, not an npm release artifact, is bound to this corpus."
@@ -131,8 +131,8 @@
       "status": "eligible",
       "package": {
         "name": "maplibre-gl",
-        "version": "6.9.0",
-        "integrity": "sha512-vFMwMK0Zs+NM/rOMSdtu8bO30DIexhBEVi5KC6f70/XtI+L/K2wC3LsDCAXFZ4s8ik5gAuDugfCNbpllpdJ9bA==",
+        "version": "6.11.2",
+        "integrity": "sha512-Xh06pxoipjX/Ad1sUPGhiNh9go9naCNGZZ1IJm3sIeqK1kYGuMaMDSTIGDQ2igOLfVyukJU7kvEOA089VO7Z7g==",
         "lockfile": "package-lock.json"
       },
       "licenseEvidence": {
@@ -141,7 +141,7 @@
         "publication": "permitted-under-open-source-license",
         "sourceUrl": "https://github.com/maplibre/maplibre-gl-js/blob/main/LICENSE.txt",
         "termsUrl": null,
-        "retrievedAt": "2026-07-12",
+        "retrievedAt": "2026-10-12",
         "licensePath": "node_modules/maplibre-gl/LICENSE.txt",
         "licenseContentSha256": "ee5fc05a0677eaf69601d2c7db0d9ecd6cc27c3abc1d0733bc9ed34707cf8ef2",
         "notes": "Use is limited to the locked open-source package and local fixture; no Mapbox code after the BSD fork point is copied."
@@ -168,7 +168,7 @@
         "publication": "permitted-under-open-source-license",
         "sourceUrl": "https://github.com/visgl/deck.gl/blob/master/LICENSE",
         "termsUrl": null,
-        "retrievedAt": "2026-07-12",
+        "retrievedAt": "2026-10-12",
         "licensePath": "node_modules/@deck.gl/core/LICENSE",
         "licenseContentSha256": "e499a2c2ba3b9faabe91fdfddf43e329439263264b7148e5548d0ec605cce9f2",
         "notes": "Reference uses only local ScatterplotLayer inputs and does not imply use of a CARTO service."
@@ -185,19 +185,19 @@
       "status": "eligible",
       "package": {
         "name": "cesium",
-        "version": "1.140.0",
-        "integrity": "sha512-3RvW0rvZWuXiS6regtNE5u9vt0uXohgpsRBIo6Qc922IIIamkitYiEdr4fg+u4qX4EoK9xS3BosCza7iPOExEQ==",
+        "version": "1.146.0",
+        "integrity": "sha512-hvKkURnmc8OZ8qKNrwawl/YijwAItaWLbpAdIVNAUXODCLMjpod4PbdLuwo8Ab6ETL915MUGV2NocHFCRCeqqA==",
         "lockfile": "package-lock.json"
       },
       "licenseEvidence": {
         "license": "Apache-2.0",
         "decision": "approved",
         "publication": "permitted-under-open-source-license",
-        "sourceUrl": "https://github.com/CesiumGS/cesium/blob/main/LICENSE.md",
+        "sourceUrl": "https://github.com/CesiumGS/cesium/blob/1.146/LICENSE.md",
         "termsUrl": null,
-        "retrievedAt": "2026-07-12",
+        "retrievedAt": "2026-10-12",
         "licensePath": "node_modules/cesium/LICENSE.md",
-        "licenseContentSha256": "5974ceb674dd305415efc34d999ea38a2535b55368475065dd7bfabb23ad026d",
+        "licenseContentSha256": "721844bc0cdaa9b1a9a145dbca1f981e2de15a7e200a5d1fd9f5f1eed8e5d030",
         "notes": "Reference is restricted to the local ellipsoid and synthetic entities; Cesium ion assets and services are excluded."
       },
       "taskIds": [

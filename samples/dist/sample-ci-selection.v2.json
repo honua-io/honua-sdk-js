@@ -171,7 +171,7 @@
         "liveEvidence": false
       },
       "sampleIds": [
-        "arcgis-source-app"
+        "geoservices-source-app"
       ]
     }
   ],
@@ -252,45 +252,6 @@
           "execution": "orchestrated",
           "commands": [
             "npm run demo:app-bootstrap:build"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
-      }
-    },
-    {
-      "id": "arcgis-source-app",
-      "sourcePath": "examples/arcgis-source-app",
-      "track": "fixture",
-      "supportTier": "internal",
-      "validationProfile": "internal-fixture",
-      "gates": {
-        "packedBuild": false,
-        "browser": false,
-        "accessibility": false,
-        "console": false,
-        "responsive": false,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run test:migration:real-samples"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run test:migration:real-samples"
           ]
         },
         "liveEvidence": {
@@ -595,6 +556,45 @@
       }
     },
     {
+      "id": "geoservices-source-app",
+      "sourcePath": "examples/geoservices-source-app",
+      "track": "fixture",
+      "supportTier": "internal",
+      "validationProfile": "internal-fixture",
+      "gates": {
+        "packedBuild": false,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
       "id": "imagery-cog-quickstart",
       "sourcePath": "examples/imagery-cog-quickstart",
       "track": "golden",
@@ -642,7 +642,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-10-15T08:55:50.239Z"
+        "expiresAt": "2026-11-20T13:15:04.633Z"
       }
     },
     {
@@ -688,7 +688,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-10-15T08:53:41.579Z"
+        "expiresAt": "2026-11-20T13:12:53.559Z"
       }
     },
     {
@@ -774,7 +774,7 @@
         "mode": "demo-live",
         "status": "executed",
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-10-15T08:56:15.480Z"
+        "expiresAt": "2026-11-20T13:15:29.831Z"
       }
     },
     {
@@ -813,7 +813,7 @@
         }
       },
       "liveEvidence": {
-        "mode": "demo-live",
+        "mode": "authenticated",
         "status": "planned"
       }
     },
@@ -1239,7 +1239,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-10-15T08:57:22.561Z"
+        "expiresAt": "2026-11-20T13:16:38.969Z"
       }
     },
     {
@@ -1368,7 +1368,7 @@
         "targetMode": "public-live",
         "status": "skipped",
         "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-        "expiresAt": "2026-11-01T08:34:51.355Z"
+        "expiresAt": "2026-12-31T14:03:45.765Z"
       }
     },
     {

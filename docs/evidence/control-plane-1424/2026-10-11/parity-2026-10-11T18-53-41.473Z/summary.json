@@ -1,0 +1,281 @@
+{
+  "sourceRoot": "/home/mike/honua-io/sdk-1424-bearer-20261011",
+  "sourceSha": "70566967348b3a78f6abc107c205538cad67e3b3",
+  "server": {
+    "image": "ghcr.io/honua-io/honua-server:nightly-93cad86@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "imageId": "sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "environment": "Production",
+    "licensing": {
+      "mode": "disabled",
+      "status": "pass",
+      "surface": "/api/v1/admin/license"
+    },
+    "durableRedisAttested": true,
+    "keyRingCertificateConfigured": true,
+    "productionOverlaySha256": "cca18327972caebc1a592363d8140716caa5c272595922b1de80d4526b0d5966",
+    "auditChainKeyConfigured": true,
+    "auditIntegrity": {
+      "verified": true,
+      "rowsChecked": 82,
+      "unhashedRows": 0
+    }
+  },
+  "commandId": "connection.test",
+  "scope": "Real MCP protocol roundtrip, actual CLI executable, Studio adapter and direct SDK for the declared command. Persisted actor/tenant audit and negative-control diagnostics; each run is one bounded journey stage, not full release certification.",
+  "cases": [
+    {
+      "user": "admin-a",
+      "identity": {
+        "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+        "tenantId": "tenant-a"
+      },
+      "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "auditApiRows": 8,
+      "persistedRows": 8,
+      "results": [
+        {
+          "surface": "cli",
+          "exitCode": 0,
+          "value": {
+            "kind": "honua.command.receipt.v1",
+            "commandId": "connection.test",
+            "mode": "read",
+            "status": "ok",
+            "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+            "identity": {
+              "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+              "tenantId": "tenant-a"
+            },
+            "authorization": "server-enforced",
+            "plan": {
+              "method": "POST",
+              "path": "/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+              "summary": "Probe connection a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+              "resourceRef": {
+                "type": "connection",
+                "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+              }
+            },
+            "resourceRef": {
+              "type": "connection",
+              "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+            },
+            "output": {
+              "success": true,
+              "data": {
+                "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+                "connectionName": "sdk1424-private-postgis",
+                "isHealthy": true,
+                "testedAt": "2026-10-11T18:53:44.3099942+00:00",
+                "message": "Connection is healthy"
+              },
+              "message": null,
+              "timestamp": "2026-10-11T18:53:44.4007613+00:00"
+            },
+            "transport": "cli",
+            "auditKey": "097a0e00f34578fce09f0ecf34a0f0b2"
+          }
+        },
+        {
+          "surface": "mcp",
+          "isError": false,
+          "value": {
+            "kind": "honua.command.receipt.v1",
+            "commandId": "connection.test",
+            "mode": "read",
+            "status": "ok",
+            "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+            "identity": {
+              "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+              "tenantId": "tenant-a"
+            },
+            "authorization": "server-enforced",
+            "plan": {
+              "method": "POST",
+              "path": "/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+              "summary": "Probe connection a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+              "resourceRef": {
+                "type": "connection",
+                "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+              }
+            },
+            "resourceRef": {
+              "type": "connection",
+              "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+            },
+            "output": {
+              "success": true,
+              "data": {
+                "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+                "connectionName": "sdk1424-private-postgis",
+                "isHealthy": true,
+                "testedAt": "2026-10-11T18:53:45.4142146+00:00",
+                "message": "Connection is healthy"
+              },
+              "message": null,
+              "timestamp": "2026-10-11T18:53:45.4288522+00:00"
+            },
+            "transport": "mcp",
+            "auditKey": "71eee11ab4c4359e8119dc9d4f245ddc"
+          }
+        },
+        {
+          "surface": "studio",
+          "value": {
+            "kind": "honua.command.receipt.v1",
+            "commandId": "connection.test",
+            "mode": "read",
+            "status": "ok",
+            "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+            "identity": {
+              "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+              "tenantId": "tenant-a"
+            },
+            "authorization": "server-enforced",
+            "plan": {
+              "method": "POST",
+              "path": "/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+              "summary": "Probe connection a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+              "resourceRef": {
+                "type": "connection",
+                "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+              }
+            },
+            "resourceRef": {
+              "type": "connection",
+              "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+            },
+            "output": {
+              "success": true,
+              "data": {
+                "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+                "connectionName": "sdk1424-private-postgis",
+                "isHealthy": true,
+                "testedAt": "2026-10-11T18:53:45.6445669+00:00",
+                "message": "Connection is healthy"
+              },
+              "message": null,
+              "timestamp": "2026-10-11T18:53:45.7216884+00:00"
+            },
+            "transport": "studio",
+            "auditKey": "d2fa37034edeca1946f8727c7d23d463"
+          }
+        },
+        {
+          "surface": "sdk",
+          "value": {
+            "kind": "honua.command.receipt.v1",
+            "commandId": "connection.test",
+            "mode": "read",
+            "status": "ok",
+            "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+            "identity": {
+              "actor": "580a5725-f230-4866-bed0-56e4a8d0d6ac",
+              "tenantId": "tenant-a"
+            },
+            "authorization": "server-enforced",
+            "plan": {
+              "method": "POST",
+              "path": "/connections/a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb/test",
+              "summary": "Probe connection a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+              "resourceRef": {
+                "type": "connection",
+                "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+              }
+            },
+            "resourceRef": {
+              "type": "connection",
+              "id": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb"
+            },
+            "output": {
+              "success": true,
+              "data": {
+                "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+                "connectionName": "sdk1424-private-postgis",
+                "isHealthy": true,
+                "testedAt": "2026-10-11T18:53:45.9013878+00:00",
+                "message": "Connection is healthy"
+              },
+              "message": null,
+              "timestamp": "2026-10-11T18:53:45.9182287+00:00"
+            },
+            "transport": "sdk",
+            "auditKey": "2d8d9166a8891b1a8bde0c31ce8fae48"
+          }
+        }
+      ]
+    },
+    {
+      "user": "viewer-a",
+      "identity": {
+        "actor": "1f346d4e-bc18-4d52-9ec4-23b9ab778022",
+        "tenantId": "tenant-a"
+      },
+      "connectionId": "a0b4a6bf-e086-4826-a1d0-8ed2ee998aeb",
+      "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+      "status": 403,
+      "errorKind": "authorization",
+      "auditApiRows": 12,
+      "persistedRows": 12,
+      "results": [
+        {
+          "surface": "cli",
+          "exitCode": 2,
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "connection.test",
+            "retryable": false,
+            "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+            "idempotencyKey": "honua-cmd-2ac34b43b9dc0e93aa78f41c43ab1c59",
+            "statusCode": 403,
+            "message": "Command connection.test failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "mcp",
+          "isError": true,
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "connection.test",
+            "retryable": false,
+            "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+            "idempotencyKey": "honua-cmd-2ac34b43b9dc0e93aa78f41c43ab1c59",
+            "statusCode": 403,
+            "message": "Command connection.test failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "studio",
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "connection.test",
+            "retryable": false,
+            "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+            "idempotencyKey": "honua-cmd-2ac34b43b9dc0e93aa78f41c43ab1c59",
+            "statusCode": 403,
+            "message": "Command connection.test failed with HTTP 403."
+          }
+        },
+        {
+          "surface": "sdk",
+          "value": {
+            "kind": "honua.command.error.v1",
+            "errorKind": "authorization",
+            "commandId": "connection.test",
+            "retryable": false,
+            "correlationId": "honua-corr-6e74f29a2703a71b44a26e999a74d0fb",
+            "idempotencyKey": "honua-cmd-2ac34b43b9dc0e93aa78f41c43ab1c59",
+            "statusCode": 403,
+            "message": "Command connection.test failed with HTTP 403."
+          }
+        }
+      ]
+    }
+  ],
+  "failures": [],
+  "status": "bounded-parity-passed"
+}

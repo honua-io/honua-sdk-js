@@ -29,7 +29,7 @@ presentation state without changing the accepted query plan.
 
 ## Five-minute fixture run
 
-Requirements: Node 20.19 and the repository dependencies installed with `npm ci`.
+Requirements: Node 22.12 or newer and the repository dependencies installed with `npm ci`. The repository pins Node 22.23.3 in `.nvmrc`.
 
 ```bash
 npm run demo:quickstart:mock
@@ -138,3 +138,7 @@ assertions, and timing; the live lane never substitutes fixture data.
 
 See [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md) for compatibility and staging
 diagnostics.
+
+## Live basemap policy
+
+Live maps use free, keyless OpenFreeMap styles with source attribution; dark mode changes the basemap while preserving operational data and selection. Set `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` to a custom/self-hosted style URL. Asset failures show an actionable status and leave operational controls usable. The committed fixture lane stays network-independent. See [shared basemap policy](../../docs/sample-basemaps.md) for provider terms, exceptions and export credits.

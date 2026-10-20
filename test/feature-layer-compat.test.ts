@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFeatureLayerUrl } from "../src/esri-compat-entry.js";
-import { CompatEventBus, FeatureLayerCompat } from "../src/esri-compat-entry.js";
+import { parseFeatureLayerUrl } from "../src/client-compat-entry.js";
+import { CompatEventBus, FeatureLayerCompat } from "../src/client-compat-entry.js";
 
 describe("parseFeatureLayerUrl", () => {
   it("parses canonical feature layer URL", () => {
@@ -45,6 +45,17 @@ describe("parseFeatureLayerUrl", () => {
 });
 
 describe("FeatureLayerCompat", () => {
+  it("accepts leftover Esri constructor options and exposes fullExtent", () => {
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      fieldConfigurations: [{ name: "C_Storage" }],
+      orderBy: [{ field: "C_Storage" }],
+    });
+
+    expect(layer.url).toContain("FeatureServer/0");
+    expect(layer.fullExtent).toBeUndefined();
+  });
+
   it("maps ArcGIS-style query to Honua query endpoint", async () => {
     let requestedUrl: string | undefined;
     const layer = new FeatureLayerCompat({
@@ -160,6 +171,7 @@ describe("FeatureLayerCompat", () => {
     expect(callbackLayer).toBe(layer);
     expect(resolved).toBe(layer);
     expect(layer.metadata).toEqual({ id: 1000, name: "Sample Layer" });
+    expect(layer.fullExtent).toBeUndefined();
     expect(metadataCalls).toBe(1);
 
     await layer.load();
@@ -171,6 +183,46 @@ describe("FeatureLayerCompat", () => {
 
     await layer.load();
     expect(metadataCalls).toBe(2);
+  });
+
+  it("copies fullExtent from loaded layer metadata", async () => {
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      client: new (class {
+        public getLayerMetadata(): Promise<unknown> {
+          return Promise.resolve({
+            extent: {
+              xmin: -82.5,
+              ymin: 35.5,
+              xmax: -82.4,
+              ymax: 35.7,
+              spatialReference: { wkid: 4326 },
+            },
+          });
+        }
+
+        public queryFeatures(): Promise<unknown> {
+          return Promise.resolve({ features: [] });
+        }
+
+        public applyEdits(): Promise<unknown> {
+          return Promise.resolve({});
+        }
+      })() as any,
+    });
+
+    await layer.load();
+
+    expect(layer.fullExtent).toEqual({
+      xmin: -82.5,
+      ymin: 35.5,
+      xmax: -82.4,
+      ymax: 35.7,
+      spatialReference: { wkid: 4326 },
+    });
+
+    layer.refresh();
+    expect(layer.fullExtent).toBeUndefined();
   });
 
   it("sets failed loadStatus when metadata loading fails", async () => {
@@ -1237,5 +1289,35 @@ describe("FeatureLayerCompat", () => {
     const captured = requests[0] as { body?: FormData };
     expect(captured.body).toBeInstanceOf(FormData);
     expect(captured.body?.get("attachmentId")).toBe("7");
+  });
+
+  it("keeps an in-memory source local for query and edits", async () => {
+    const layer = new FeatureLayerCompat({
+      source: [],
+      objectIdField: "OBJECTID",
+      fields: [{ name: "name", type: "string" }],
+    });
+
+    await layer.applyEdits({
+      addFeatures: [
+        { attributes: { name: "Cafe" }, geometry: { x: 1, y: 2 } },
+        { attributes: { name: "Park" }, geometry: { x: 3, y: 4 } },
+      ],
+    });
+    const ids = await layer.queryObjectIds();
+    expect(ids).toEqual([1, 2]);
+
+    const matched = await layer.queryFeatures({ where: "name='Cafe'" });
+    expect(matched.features).toHaveLength(1);
+    expect(matched.features?.[0]?.attributes).toMatchObject({ name: "Cafe" });
+
+    const extent = await layer.queryExtent({ where: "name='Park'" });
+    expect(extent).toEqual({ extent: { xmin: 3, ymin: 4, xmax: 3, ymax: 4 }, count: 1 });
+
+    const park = (await layer.queryFeatures({ where: "name='Park'" })).features?.[0];
+    await layer.applyEdits({ deleteFeatures: [park] });
+    expect(await layer.queryFeatureCount()).toBe(1);
+    await layer.applyEdits({ deleteFeatures: [{ objectId: 1 }] });
+    expect(await layer.queryFeatureCount()).toBe(0);
   });
 });

@@ -166,3 +166,7 @@ quality receipts, and qualification decision land.
   a materialized result exposes visible version/provenance evidence.
 - This discovery sample is not realtime. A selected source must advertise a
   stream capability before a host may present live state as authoritative.
+
+## Live basemap policy
+
+Live maps use free, keyless OpenFreeMap styles with source attribution; dark mode changes the basemap while preserving operational data and selection. Set `VITE_HONUA_BASEMAP_STYLE` to a custom/self-hosted style URL. Asset failures show an actionable status and leave operational controls usable. The committed fixture lane stays network-independent. See [shared basemap policy](../../docs/sample-basemaps.md) for provider terms, exceptions and export credits.

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  CREATE_APP_PIN_SITES,
   PIN_SYNC_REMEDY,
   ZERO_TO_MAP_CONFIGS,
   compareVersions,
@@ -13,6 +14,8 @@ import {
   releaseLineage,
   satisfiesUnderNpmDefaults,
   verifyClientPairCoInstallable,
+  verifyCreateAppPins,
+  verifyManagedMcpPeerPolicy,
   verifyMcpPinLineage,
   verifyMcpPinPublication,
   verifyZeroToMapConfigPins,
@@ -43,7 +46,90 @@ async function readManifest(relativePath: string) {
   };
 }
 
+describe("managed MCP minor-line bridge", () => {
+  async function inputs() {
+    const read = async (name: string) => JSON.parse(await readFile(path.join(projectRoot, name), "utf8"));
+    return {
+      policy: await read("config/mcp-sdk-peer-policy.v1.json"),
+      releaseConfig: await read("release-please-config.json"),
+      sdk: await read("package.json"),
+      mcp: await read("mcp/package.json"),
+      mcpLock: await read("mcp/package-lock.json"),
+    };
+  }
+
+  it("keeps the actual managed package and lockfile on the reviewed bridge", async () => {
+    expect(verifyManagedMcpPeerPolicy(await inputs()).peerRange).toBe("^0.1.17 || ^0.2.0");
+  });
+
+  it.each(["0.1.17", "0.1.99", "0.2.0", "0.2.99"])("admits stable SDK %s", async (version) => {
+    const value = await inputs();
+    value.sdk.version = version;
+    expect(() => verifyManagedMcpPeerPolicy(value)).not.toThrow();
+  });
+
+  it.each(["0.1.16", "0.0.99", "0.3.0", "1.0.0", "0.2.0-beta.1"])("refuses SDK %s", async (version) => {
+    const value = await inputs();
+    value.sdk.version = version;
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/outside the reviewed/);
+  });
+
+  it("refuses managed narrowing, absent metadata, or an unrelated policy", async () => {
+    const value = await inputs();
+    value.releaseConfig.plugins[0].updatePeerDependencies = true;
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/preserve the reviewed/);
+    value.releaseConfig.plugins[0].updatePeerDependencies = false;
+    value.mcp.peerDependencies[value.policy.sdk] = "^0.2.0";
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/package and lockfile/);
+    value.mcp.peerDependencies[value.policy.sdk] = value.policy.range;
+    delete value.mcpLock.packages[""].peerDependencies;
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/package and lockfile/);
+    value.policy.sdk = "unrelated-sdk";
+    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/supported schema and SDK/);
+  });
+
+  it.each(["*", ">=0.1.17", "^0.1.17 || ^0.3.0", "^0.1.17 || ^0.2.0-beta.1"])(
+    "refuses unreviewable range %s",
+    async (range) => {
+      const value = await inputs();
+      value.policy.range = range;
+      expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/bound two adjacent/);
+    },
+  );
+});
+
 describe("generated MCP client configuration pin", () => {
+  it("keeps every create-honua-app SDK pin on the certified manifest fallback", async () => {
+    const sdk = await readManifest("package.json");
+    const templateManifest = (await readManifest("packages/create-honua-app/templates.manifest.json")) as {
+      name: string;
+      version: string;
+      sdk?: { package?: string; version?: string };
+    };
+    expect(templateManifest.sdk?.package).toBe(sdk.name);
+    expect(templateManifest.sdk?.version).toEqual(expect.any(String));
+    const certified = templateManifest.sdk?.version;
+    expect(verifyCreateAppPins({ sdkName: sdk.name, expectedVersion: certified })).toEqual(
+      CREATE_APP_PIN_SITES.map((relativePath: string) => ({
+        relativePath,
+        pin: `${sdk.name}@${certified}`,
+      })),
+    );
+  });
+
+  it("rejects a create-honua-app pin that drifts from the certified fallback", () => {
+    expect(() =>
+      verifyCreateAppPins({
+        sdkName: "@honua/sdk-js",
+        expectedVersion: "0.1.9-beta.0",
+        readConfig: (relativePath: string) =>
+          relativePath.endsWith("templates.manifest.json")
+            ? { sdk: { package: "@honua/sdk-js", version: "0.1.4-beta.0" } }
+            : { dependencies: { "@honua/sdk-js": "0.1.4-beta.0" } },
+      }),
+    ).toThrow(/certified starter fallback/);
+  });
+
   it("keeps every shipped zero-to-map config on the coordinated pin", () => {
     expect(verifyZeroToMapConfigPins({ expectedPin: LOCAL_INSTALL_MCP_PACKAGE })).toEqual(
       ZERO_TO_MAP_CONFIGS.map((relativePath: string) => ({ relativePath, pin: LOCAL_INSTALL_MCP_PACKAGE })),
@@ -306,6 +392,26 @@ describe("pinned client pair co-installability (#1529)", () => {
     ).toThrow(/does NOT consider satisfied/);
   });
 
+  it("co-installs an SDK patch beside the stable MCP release it already pairs with", () => {
+    // The point of stable 0.x versions: sdk-js 0.1.13 ships without a
+    // coordinated mcp-server republish, because ^0.1.12 admits 0.1.13 under
+    // npm's default resolution (a prerelease pair could never do this).
+    expect(() =>
+      verifyClientPairCoInstallable({
+        sdkName: "@honua/sdk-js",
+        sdkVersion: "0.1.13",
+        mcpName: "@honua/mcp-server",
+        mcpVersion: "0.1.12",
+        peerRange: "^0.1.12",
+      }),
+    ).not.toThrow();
+    expect(satisfiesUnderNpmDefaults("0.1.13", "^0.1.12")).toBe(true);
+    // The first stable cut still pairs with the last prerelease MCP pin.
+    expect(satisfiesUnderNpmDefaults("0.1.12", "^0.1.11-beta.0")).toBe(true);
+    // A 0.x caret still stops at the next minor.
+    expect(satisfiesUnderNpmDefaults("0.2.0", "^0.1.12")).toBe(false);
+  });
+
   it("rejects an MCP artifact that declares no peer range at all", () => {
     expect(() =>
       verifyClientPairCoInstallable({
@@ -333,25 +439,24 @@ describe("pinned client pair co-installability (#1529)", () => {
 
   it("either co-installs the pinned pair or is exactly the state the publish gate refuses", async () => {
     const sdk = await readManifest("package.json");
-    // release-please writes the peer range as a caret on the MCP version at the
-    // commit that cut it, so that is the range the pinned tarball carries; the
-    // live lane re-reads it from the registry rather than trusting this.
+    const receipt: { pin: string; integrity: string; sdkPeerRange: string } = JSON.parse(
+      await readFile(path.join(projectRoot, "config/mcp-pinned-peer.v1.json"), "utf8"),
+    );
+    expect(receipt.pin).toBe(LOCAL_INSTALL_MCP_PACKAGE);
+    expect(receipt.integrity).toBe(LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY);
     const pinned = {
       sdkName: sdk.name,
       sdkVersion: sdk.version,
       mcpName: LOCAL_INSTALL_MCP_PACKAGE_NAME,
       mcpVersion: LOCAL_INSTALL_MCP_PACKAGE_VERSION,
-      peerRange: `^${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`,
+      peerRange: receipt.sdkPeerRange,
     };
-    if (LOCAL_INSTALL_MCP_PACKAGE_VERSION === sdk.version) {
+    // Independent MCP versions do not identify their SDK peer. Use the exact
+    // tarball-bound record, including a reviewed dual-minor bridge when present.
+    if (satisfiesUnderNpmDefaults(sdk.version, pinned.peerRange)) {
       expect(() => verifyClientPairCoInstallable(pinned)).not.toThrow();
       return;
     }
-    // Between a release-please bump and the coordinated MCP publish the pin
-    // legitimately lags, and no edit can fix it until the MCP half reaches the
-    // registry -- asserting green here would redden every release PR with
-    // nothing a contributor could do about it. The state is still not allowed
-    // to ship, so assert the gate that stops it actually fires.
     expect(() => verifyClientPairCoInstallable(pinned)).toThrow(/does NOT consider satisfied/);
   });
 

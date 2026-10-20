@@ -23,12 +23,19 @@
   "schemaVersion": 2,
   "variability": {
     "warningCoefficientOfVariation": 0.35,
-    "failureCoefficientOfVariation": 0.75
+    "failureCoefficientOfVariation": 0.75,
+    "minimumStandardDeviationMs": {
+      "firstVisibleMs": 250,
+      "interactionLatencyMs": 40
+    }
   },
   "scenarios": {
     "maplibre.flagship-render-interact": {
       "firstVisibleMs": { "warning": 5000, "failure": 15000 },
-      "interactionLatencyMs": { "warning": 750, "failure": 2000 }
+      "interactionLatencyMs": { "warning": 750, "failure": 2000 },
+      "variability": {
+        "minimumStandardDeviationMs": { "interactionLatencyMs": 25 }
+      }
     },
     "deckgl.binary-render-interact": {
       "firstVisibleMs": { "warning": 5000, "failure": 15000 },

@@ -5,6 +5,21 @@ import { HonuaAbortError, HonuaCapabilityNotSupportedError } from "../src/core/e
 import type { HonuaStacItemResponse } from "../src/core/types.js";
 import { createDynamicStacClient, resolveStacLink } from "../src/stac/index.js";
 
+/** Classes the Maui example search emits: CQL2 JSON, fields, and sort. */
+const MAUI_CONFORMS_TO = [
+  "https://api.stacspec.org/v1.0.0/core",
+  "https://api.stacspec.org/v1.0.0/item-search",
+  "https://api.stacspec.org/v1.0.0/item-search#filter",
+  "https://api.stacspec.org/v1.0.0/item-search#fields",
+  "https://api.stacspec.org/v1.0.0/item-search#sort",
+  "http://www.opengis.net/spec/cql2/1.0/conf/cql2-json",
+];
+
+function isStacLanding(url: string): boolean {
+  const pathname = new URL(url).pathname;
+  return pathname.endsWith("/v1") || pathname.endsWith("/v1/");
+}
+
 const MAUI_ITEM: HonuaStacItemResponse = {
   type: "Feature",
   id: "S2B_MAUI_20260418",
@@ -38,8 +53,12 @@ describe("dynamic STAC workflows", () => {
       [];
     const after = vi.fn();
     const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
+      const url = input.toString();
+      if (isStacLanding(url)) {
+        return Response.json({ conformsTo: MAUI_CONFORMS_TO, links: [] });
+      }
       calls.push({
-        url: input.toString(),
+        url,
         method: init?.method ?? "GET",
         body: JSON.parse(String(init?.body)) as Record<string, unknown>,
         authorization: new Headers(init?.headers).get("authorization"),
@@ -69,7 +88,7 @@ describe("dynamic STAC workflows", () => {
       filter: { op: "<=", args: [{ property: "eo:cloud_cover" }, 20] },
       sortby: [{ field: "properties.datetime", direction: "desc" }],
     });
-    expect(after).toHaveBeenCalledOnce();
+    expect(after).toHaveBeenCalledTimes(2);
     expect(selected.asset).toMatchObject({
       format: "cog",
       maturity: "experimental",
@@ -85,7 +104,9 @@ describe("dynamic STAC workflows", () => {
       baseUrl: "https://stac.example.test/v1",
       clientOptions: {
         fetchFn: async (input) => {
-          requested = input.toString();
+          const url = input.toString();
+          if (isStacLanding(url)) return Response.json({ conformsTo: MAUI_CONFORMS_TO, links: [] });
+          requested = url;
           return Response.json({ type: "FeatureCollection", features: [], links: [] });
         },
       },
@@ -366,7 +387,10 @@ describe("dynamic STAC workflows", () => {
         });
       }
       if (requestCount === 2) {
-        return Response.json({ links: [{ rel: "search", href: "./search", method: "POST" }] });
+        return Response.json({
+          conformsTo: ["https://api.stacspec.org/v1.0.0/core", "https://api.stacspec.org/v1.0.0/item-search"],
+          links: [{ rel: "search", href: "./search", method: "POST" }],
+        });
       }
       return Response.json({ type: "FeatureCollection", features: [], links: [] });
     });

@@ -42,6 +42,41 @@ afterEach(() => {
 });
 
 describe("migration cli content-webmap", () => {
+  it("includes path-specific unsupported visual variables in its manual-intervention report", () => {
+    const root = makeTempDir();
+    const input = path.join(root, "map.json");
+    const reportPath = path.join(root, "report.json");
+    fs.writeFileSync(
+      input,
+      JSON.stringify({
+        operationalLayers: [
+          {
+            id: "points",
+            url: "https://example.test/FeatureServer/0",
+            layerDefinition: {
+              drawingInfo: {
+                renderer: {
+                  type: "simple",
+                  symbol: { type: "esriSMS", size: 10 },
+                  visualVariables: [{ type: "rotationInfo", field: "angle" }],
+                },
+              },
+            },
+          },
+        ],
+      }),
+    );
+    const result = runCli(["content-webmap", "--input", input, "--report", reportPath], getProjectRoot());
+    expect(result.status, result.stderr).toBe(0);
+    const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+    expect(report.manualInterventionNeeded).toBe(true);
+    expect(report.warningCodes).toEqual({ "unsupported-visual-variable": 1 });
+    expect(report.warnings[0]).toMatchObject({
+      code: "unsupported-visual-variable",
+      path: "operationalLayers[0].layerDefinition.drawingInfo.renderer.visualVariables[0].type",
+    });
+  }, 30_000);
+
   it("converts webmap json and rewrites source urls", () => {
     ensureBuiltCliArtifacts();
     const root = makeTempDir();

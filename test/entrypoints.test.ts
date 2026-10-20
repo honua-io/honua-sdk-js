@@ -38,38 +38,6 @@ import {
 import { createHonuaController } from "../src/app-controller/index.js";
 import { createHonuaAppWorkspace, selectHonuaAppWorkspaceMetadataCacheModel } from "../src/app-workspace/index.js";
 import {
-  CAPABILITIES,
-  PROTOCOLS,
-  PROTOCOL_DEFAULT_CAPABILITIES,
-  WIDGET_SOURCE_SCHEMA_VERSION,
-  capabilities,
-  createDataset,
-  createEditSession,
-  createEditSketchWorkflow,
-  createWidgetSource,
-  geoServicesFeatureSource,
-  geoServicesGPServiceSource,
-  geoServicesGeometryServiceSource,
-  geoServicesImageSource,
-  geoServicesMapServiceSource,
-  normalizeEditWorkflowFailures,
-  odataSource,
-  ogcFeaturesSource,
-  ogcMapsSource,
-  ogcRecordsSource,
-  ogcTilesSource,
-  resolveSpatialAggregationWidgetSummary,
-  stacSearchSource,
-  wfsSource,
-  wmsSource,
-  wmtsSource,
-} from "../src/contract/index.js";
-import {
-  HONUA_CONTROL_PLANE_BASE_PATH,
-  HonuaControlPlaneClient,
-  createHonuaControlPlane,
-} from "../src/control-plane/index.js";
-import {
   AreaMeasurement2DCompat,
   AttributionCompat,
   BasemapCompat,
@@ -152,12 +120,44 @@ import {
   watch,
   when,
   whenOnce,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
 import type {
   FeatureFormValidationFn,
   MapImageLayerApplyEditsOptions,
   MapViewCenterLike,
-} from "../src/esri-compat-entry.js";
+} from "../src/client-compat-entry.js";
+import {
+  CAPABILITIES,
+  PROTOCOLS,
+  PROTOCOL_DEFAULT_CAPABILITIES,
+  WIDGET_SOURCE_SCHEMA_VERSION,
+  capabilities,
+  createDataset,
+  createEditSession,
+  createEditSketchWorkflow,
+  createWidgetSource,
+  geoServicesFeatureSource,
+  geoServicesGPServiceSource,
+  geoServicesGeometryServiceSource,
+  geoServicesImageSource,
+  geoServicesMapServiceSource,
+  normalizeEditWorkflowFailures,
+  odataSource,
+  ogcFeaturesSource,
+  ogcMapsSource,
+  ogcRecordsSource,
+  ogcTilesSource,
+  resolveSpatialAggregationWidgetSummary,
+  stacSearchSource,
+  wfsSource,
+  wmsSource,
+  wmtsSource,
+} from "../src/contract/index.js";
+import {
+  HONUA_CONTROL_PLANE_BASE_PATH,
+  HonuaControlPlaneClient,
+  createHonuaControlPlane,
+} from "../src/control-plane/index.js";
 import {
   EMPTY_STATE,
   LINKED_VIEW_PRESETS,
@@ -290,7 +290,7 @@ describe("entrypoint modules", () => {
     expect(createHonuaControlPlane).toBeTypeOf("function");
   });
 
-  it("exposes esri-compat entrypoint", () => {
+  it("exposes client-compat entrypoint", () => {
     expect(FeatureLayerCompat).toBeTypeOf("function");
     expect(HomeCompat).toBeTypeOf("function");
     expect(BasemapCompat).toBeTypeOf("function");
@@ -375,7 +375,7 @@ describe("entrypoint modules", () => {
     expect(whenOnce).toBeTypeOf("function");
   });
 
-  it("exposes esri-compat option member types", () => {
+  it("exposes client-compat option member types", () => {
     const validationFunction: FeatureFormValidationFn = () => undefined;
     const applyEditsOptions: MapImageLayerApplyEditsOptions = { layerId: 0 };
     const center: MapViewCenterLike = [0, 0];

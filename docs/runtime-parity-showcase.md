@@ -1,12 +1,12 @@
 ---
 type: reference
 title: "Runtime Parity Showcase"
-description: "The runtime parity showcase lives in `examples/runtime-parity-showcase`. It is an app-first SDK demo for issue #167, not a landing page."
+description: "The runtime parity showcase example: a hosted MapPackage, HonuaController, web components and widget sources over one linked-view state."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Runtime Parity Showcase
 
-The runtime parity showcase lives in `examples/runtime-parity-showcase`. It is an app-first SDK demo for issue #167, not a landing page.
+The runtime parity showcase lives in `examples/runtime-parity-showcase`. It is an app-first SDK demo, not a landing page.
 
 ## Architecture
 
@@ -22,7 +22,3 @@ Widget metrics use `createWidgetSource` over the deterministic incident fixture 
 - Replace `createFixtureWidgetSource` with a real `Source` adapter when a server-backed feature source is available.
 - Add more widget models by calling `count`, `categories`, `histogram`, `range`, or `topValues` on the widget source.
 - Use the share-state input as a bookmarkable query string for linked filters, selection, viewport, and hidden layer state.
-
-## Validation
-
-The focused smoke test is `test/playwright/runtime-parity-showcase.spec.mjs`. It loads the mock server, waits for package/map/surface readiness, refreshes widgets, selects a feature, applies a filter, and toggles a runtime layer.

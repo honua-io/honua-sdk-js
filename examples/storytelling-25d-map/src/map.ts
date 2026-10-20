@@ -1,3 +1,5 @@
+import { HONUA_ONLINE_BASEMAP_STYLES } from "@honua/sdk-js/runtime";
+import { mountSampleOnlineBasemap } from "../../shared/online-basemap.js";
 import "../../shared/maplibre-vite-worker.js";
 
 import { type SelectionHandle, createHoverHandler, createSelectionHandler } from "@honua/sdk-js/honua";
@@ -160,18 +162,29 @@ export interface CreateStoryMapOptions {
 }
 
 export async function createStoryMap(options: CreateStoryMapOptions): Promise<StoryMapHandle> {
+  const fixtureBasemap = options.config.basemapStyle.startsWith("/__honua-25d__/");
   const map = new maplibregl.Map({
     container: options.container,
-    style: options.config.basemapStyle,
+    style: fixtureBasemap ? options.config.basemapStyle : { version: 8, sources: {}, layers: [] },
     center: options.dataset.bounds.center,
     zoom: 14.1,
     pitch: options.config.initialPitch,
     bearing: options.config.initialBearing,
-    attributionControl: false,
+    attributionControl: { compact: true },
   });
 
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-  await waitForMapStyle(map, options.config.basemapStyle);
+  await waitForMapStyle(map, fixtureBasemap ? options.config.basemapStyle : "local initial style");
+  const disposeBasemap = fixtureBasemap
+    ? () => {}
+    : mountSampleOnlineBasemap(map, {
+        lightTheme: "liberty",
+        styleEnvironmentVariable: "VITE_HONUA_25D_BASEMAP_STYLE",
+        styleUrl:
+          !options.config.basemapStyleOverride && options.config.basemapStyle === HONUA_ONLINE_BASEMAP_STYLES.liberty
+            ? undefined
+            : options.config.basemapStyle,
+      });
 
   const routeMetrics = buildRouteMetrics(options.dataset.routeCoordinates);
 
@@ -462,6 +475,7 @@ export async function createStoryMap(options: CreateStoryMapOptions): Promise<St
       selection.remove();
       map.off("mouseenter", ASSET_EXTRUSION_LAYER_ID, onPointerEnter);
       map.off("mouseleave", ASSET_EXTRUSION_LAYER_ID, onPointerLeave);
+      disposeBasemap();
       map.remove();
     },
     setPriorityAssets,

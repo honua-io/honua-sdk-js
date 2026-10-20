@@ -88,4 +88,17 @@ describe("honua_statistics", () => {
     expect(result.isError).toBe(true);
     expect(parse(result).error.kind).toBe("ValidationFailed");
   });
+
+  it("propagates cancellation to the canonical aggregate query", async () => {
+    const mock = createMockClient({ queryFeatures: vi.fn().mockResolvedValue({ features: [] }) });
+    const abort = new AbortController();
+
+    await execute(
+      asClient(mock),
+      schema.parse({ ...NEUTRAL, statisticType: "count", onField: "OBJECTID" }),
+      abort.signal,
+    );
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ signal: abort.signal }));
+  });
 });

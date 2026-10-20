@@ -13,8 +13,8 @@ publish. Publishing is the `honua-publish-layers` skill.
 
 ## Create the connection by reference, never by value
 
-`honua_admin_connection_create` takes a body whose credential is a
-**reference**, not a password:
+`honua_admin_connections_create` takes the OpenAPI body properties flat. The
+credential is a **reference**, not a password, and there is no `body` wrapper:
 
 ```json
 {
@@ -35,20 +35,36 @@ Rules:
 - `secretType: "environment"` + `secretReference: "env:<VAR>"` is the supported
   handoff. Never inline a password, connection string, or token in the body,
   in a plan, or in a message back to the user.
+- The reference is resolved by the **server**, from the server's environment,
+  and only when the operator has permitted it: the server's allowlist for
+  request-supplied secret references is deny-by-default, so `env:<VAR>` needs
+  `Security__RequestSecretReferences__AllowedEnvironmentVariables__<n>=<VAR>` in
+  the server's environment. A refusal here is an operator setting to request,
+  not something to work around by inlining the value.
 - `sslRequired: false` / `sslMode: "Disable"` is correct **only** for a loopback
   fixture database like the journey's. For anything reachable off the host,
   require TLS.
 - Capture `/data/connectionId` from the response. Every later call in this stage
   is keyed on it.
 
-The equivalent admin REST operations, if you are driving the CLI instead, are
-`createConnection` (`POST /connections`) and `testDraftConnection`
-(`POST /connections/test`) — see `docs/admin-cli-reference.md`.
+The equivalent CLI is `honua admin connect createConnection --body @file --yes`
+and `honua admin connect testDraftConnection --body @file`. `testConnection`
+tests a saved id. See `docs/admin-cli-reference.md`.
+
+A directory created by `honua admin install local` names the database service
+`postgres` (not `postgis`). The server reads `secretReference` as a full
+connection string, not a bare password. That install sets
+`HONUA_LOCAL_DB_PASSWORD` to
+`Host=postgres;Database=honua;Username=honua;Password=...`, so the reference
+for the bundled database is `env:HONUA_LOCAL_DB_PASSWORD`.
+`env:HONUA_ZERO_TO_MAP_DB_CONNECTION` is only for a journey that injects that
+variable itself. Do not copy the password into the body. A password-only
+`env:` reference returns `isHealthy: false` with no reason.
 
 ## Test before trusting
 
 ```
-honua_admin_connection_test  { "id": "<connectionId>" }
+honua_admin_connections_test  { "id": "<connectionId>" }
 ```
 
 A saved connection that was never tested is not evidence. Run the test and read
@@ -72,15 +88,13 @@ The journey imports by URL so nothing is uploaded from the agent's machine:
 ```
 honua_admin_import_upload_url
 {
-  "body": {
-    "sourceUrl": "<https url to the file>",
-    "fileName": "parcels.geojson",
-    "tableName": "zero_to_map_parcels",
-    "targetSchema": "public",
-    "sourceSrid": 4326,
-    "targetSrid": 4326,
-    "overwriteExisting": true
-  }
+  "sourceUrl": "<https url to the file>",
+  "fileName": "parcels.geojson",
+  "tableName": "zero_to_map_parcels",
+  "targetSchema": "public",
+  "sourceSrid": 4326,
+  "targetSrid": 4326,
+  "overwriteExisting": true
 }
 ```
 

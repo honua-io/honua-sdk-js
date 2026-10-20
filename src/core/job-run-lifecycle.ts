@@ -55,6 +55,9 @@ export class JobRunLifecycle<T> {
   }
 
   public observe(snapshot: JobSnapshot<T>): JobSnapshot<T> {
+    // A terminal learned from another poll or cancellation wins over any
+    // response still in flight, including the results polling loop.
+    if (this.terminalSnapshot) return this.terminalSnapshot;
     this.currentStatus = snapshot.status;
     this.currentProgress = snapshot.progress;
     if (isJobTerminal(snapshot.status)) this.terminalSnapshot = snapshot;

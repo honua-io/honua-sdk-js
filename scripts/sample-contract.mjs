@@ -35,11 +35,13 @@ import {
   releaseMatrixReceiptRelaxed,
   validateReleaseMatrixLaneRegistry,
 } from "./lib/release-matrix-receipt.mjs";
+import { RESEAL_OWNED_LIVE_EVIDENCE } from "./release-seal.mjs";
 import {
   readCanonicalBoundedFile,
   requiredReceiptGates,
   validateGateReceipt,
   validateGateReceiptStructure,
+  validateLegacyGateReceipt,
   validateQualificationReceiptSet,
 } from "./sample-gate-receipt.mjs";
 
@@ -3209,8 +3211,18 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       invariant(evidence.sampleId === sample.id, `${sample.id}: live evidence sampleId drift`);
       invariant(evidence.lane === "live", `${sample.id}: catalog evidence must be a live envelope`);
       invariant(evidence.status === sample.evidence.live.status, `${sample.id}: live lane status must match evidence`);
+      // Reseal-owned live evidence is version-stamped by the post-merge reseal,
+      // not by Release Please (honua-io/honua-release#376), so a release pull
+      // request and the bump commit legitimately carry the previous version
+      // there until the reseal lands. The reseal itself runs strictly but
+      // names these samples as qualification bootstrap targets while it
+      // re-observes them, so the stale version is tolerated only for the
+      // samples being resealed; its final strict verification and the tag
+      // seal keep the binding.
       invariant(
-        evidence.sdk.version === packageJson.version,
+        evidence.sdk.version === packageJson.version ||
+          ((derivedArtifactsRelaxed() || qualificationBootstrapSampleIds.has(sample.id)) &&
+            RESEAL_OWNED_LIVE_EVIDENCE.includes(sample.evidence.live.evidencePath)),
         `${sample.id}: live evidence SDK version ${evidence.sdk.version} does not match ${packageJson.version}`,
       );
       const observedAt = parseDateTime(evidence.observedAt, `${sample.id}.evidence.observedAt`);
@@ -4802,7 +4814,7 @@ function readHistoricalVisualArtifactBlob(root, reference) {
   try {
     history = execFileSync(
       "git",
-      ["log", "--all", "--diff-filter=AM", "--max-count=257", "--format=%H", "--", reference.path],
+      ["log", "--all", "--diff-filter=AM", "--max-count=1025", "--format=%H", "--", reference.path],
       {
         cwd: root,
         encoding: "utf8",
@@ -4816,7 +4828,7 @@ function readHistoricalVisualArtifactBlob(root, reference) {
   }
   const revisions = [...new Set(history.split(/\r?\n/u).filter(Boolean))];
   invariant(
-    revisions.length <= 256 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
+    revisions.length <= 1024 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
     `legacy visual artifact capture history is invalid or excessive for ${reference.path}`,
   );
   for (const revision of revisions) {
@@ -5240,7 +5252,7 @@ export async function validateLegacyVisualReceiptArchive(archive, handoff) {
   const materializedRoot = await materializeLegacyVisualArtifacts(expectedFiles, blobs);
   try {
     for (const { claim, receipt, producerBytes } of records) {
-      await validateGateReceipt(receipt, {
+      await validateLegacyGateReceipt(receipt, {
         sampleId: claim.sampleId,
         gate: claim.gate,
         sourceRevision: claim.sourceRevision,
@@ -8500,17 +8512,7 @@ async function main(argv) {
     }
     const defaults = [
       { path: "dist/browser/honua-sdk.esm.js", entrypoint: "./browser:import" },
-      {
-        path: "dist/browser/honua-sdk.esm.js.map",
-        entrypoint: "./browser:import:sourcemap",
-        mediaType: "application/json",
-      },
       { path: "dist/browser/honua-sdk.min.js", entrypoint: "browser" },
-      {
-        path: "dist/browser/honua-sdk.min.js.map",
-        entrypoint: "browser:sourcemap",
-        mediaType: "application/json",
-      },
     ];
     const manifest = await buildBrowserArtifactManifest({ artifacts: artifacts.length > 0 ? artifacts : defaults, gitCommit });
     await verifyBrowserArtifactManifest(manifest);

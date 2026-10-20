@@ -1,12 +1,12 @@
 ---
 type: reference
 title: "terra-draw sketch binding (`@honua/sdk-js/runtime`)"
-description: "Public entrypoint: `@honua/sdk-js/runtime` — `bindTerraDrawSketch`,"
+description: "Interactive drawing on MapLibre through terra-draw, adapted onto the renderer-neutral edit sketch workflow: peers, modes, setup, reprojection, snapping and client-compat delegation."
 resource: "honua://capability/editing.featureserver-edits"
 ---
 # terra-draw sketch binding (`@honua/sdk-js/runtime`)
 
-Status: experimental (issue `#492`, Esri Widget Cliff workstream).
+Status: experimental.
 Public entrypoint: `@honua/sdk-js/runtime` — `bindTerraDrawSketch`,
 `createTerraDrawSketch`, `createTerraDrawSnapping`,
 `terraDrawSketchToolCapabilities`, `editSketchToolForTerraDrawMode`,
@@ -27,8 +27,7 @@ dependencies. The SDK never imports them at module scope: `bindTerraDrawSketch`
 accepts a duck-typed instance your app constructed, and `createTerraDrawSketch`
 loads both packages lazily via dynamic `import()` (throwing a descriptive error
 when they are missing). Importing `@honua/sdk-js/runtime` without terra-draw
-installed stays side-effect free; the `tree-shake:runtime-terra-draw-sketch`
-bundle-budget fixture guards this.
+installed stays side-effect free.
 
 ```bash
 npm i terra-draw terra-draw-maplibre-gl-adapter   # only if you use the binding
@@ -118,9 +117,9 @@ pipeline, so those modes keep terra-draw-native behavior. If you need snapped
 point placement, resolve the position with `SnapIndex.resolve()` on click and
 set the geometry through the workflow directly.
 
-## esri-compat delegation
+## client-compat delegation
 
-The `Sketch` shim (`@honua/sdk-js/esri-compat`) feature-detects a binding via
+The `Sketch` shim (`@honua/sdk-js/client-compat`) feature-detects a binding via
 its `sketchBinding` option: any object with a callable `setTool` (the
 `bindTerraDrawSketch` / `createTerraDrawSketch` handle qualifies) receives
 `create` tool-mode changes (`polyline` → `line`), `update()` switches to
@@ -131,5 +130,4 @@ headless behavior and events.
 ## Example
 
 `examples/sketch-editing` demonstrates draw/edit/delete with undo/redo,
-snapping, and fixture-lane `applyEdits` (`npm run demo:sketch-editing`,
-Playwright smoke via `npm run test:playwright:sketch-editing`).
+snapping, and fixture-lane `applyEdits` (`npm run demo:sketch-editing`).

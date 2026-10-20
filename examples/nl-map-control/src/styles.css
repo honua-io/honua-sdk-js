@@ -150,3 +150,13 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+.controls input { width: 100%; box-sizing: border-box; padding: 10px; margin: 8px 0; border: 1px solid #7fa9b8; border-radius: 6px; }
+.controls form button { margin: 4px; }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid #ffd166; outline-offset: 3px; }
+pre { max-width: 100%; max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px; text-align: left; border-bottom: 1px solid #31525c; }
+caption { text-align: left; color: #b8d4de; padding: 8px 0; }
+[role="status"] { min-height: 2em; }
+tr[data-selected="true"] { background: #244d55; }

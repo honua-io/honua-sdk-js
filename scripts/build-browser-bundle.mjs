@@ -15,8 +15,8 @@
  * The heavy runtime peers (maplibre-gl, cesium, the @bufbuild / @connectrpc
  * stack) are kept EXTERNAL so the bundle stays focused on the core SDK and does
  * not inline multi-megabyte map/protobuf runtimes. The stable-core dependency,
- * `@maplibre/maplibre-gl-style-spec`, is bundled with the temporary Node 20 pin
- * of its existing transitive parser. The package's migration-forwarder
+ * `@maplibre/maplibre-gl-style-spec`, is bundled with the existing transitive
+ * parser pin retained from the earlier Node 20 baseline. The migration-forwarder
  * dependency is outside this browser graph.
  *
  * esbuild is a declared `devDependency` so the publish pipeline and CI can
@@ -61,7 +61,9 @@ const SHARED_OPTIONS = {
   entryPoints: [ENTRY],
   bundle: true,
   minify: true,
-  sourcemap: true,
+  // Keep debug maps as build artifacts without making the runtime package
+  // advertise an unshipped sourceMappingURL.
+  sourcemap: "external",
   platform: "browser",
   target: ["es2020"],
   external: EXTERNAL,

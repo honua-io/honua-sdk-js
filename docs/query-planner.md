@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Deterministic query planner"
-description: "`@honua/sdk-js/query-planner` is the first production slice of the execution"
+description: "The deterministic query planner: managed connection workflow, the typed semantic AST, CQL2 interchange, protocol compilers, remote pushdown, opaque GeoParquet identity, diagnostics, result representation and plan validity."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Deterministic query planner
@@ -20,7 +20,7 @@ used by the managed connection and MapLibre source workflows.
 
 The stable `Source.query()` surface accepts a typed filter directly:
 `Query.filter` and `Query.temporalFilter` are lowered onto every protocol by the
-canonical compiler in `src/contract/query-filter.ts` (issue #947). `Query.where`
+canonical compiler. `Query.where`
 remains deprecated source-native compatibility, and examples later in this guide
 that use it document the v1 compatibility compiler rather than the new-code
 filtering idiom.
@@ -37,11 +37,8 @@ a duplicate of that one:
 | Identity | participates in `hashQueryPlan` through the canonical query | additionally fingerprints the query, request, schema, and capability evidence |
 
 Unifying them would mean giving up either the schema verification and structured
-fidelity reporting on this side, or the schema-free stability on the other. They
-are instead kept honest by an equivalence ledger,
-`test/query-filter-lane-equivalence.test.ts`, which compiles the same filter
-through both lanes and pins every row as identical or as a documented difference
-with its reason. The known differences today are identifier quoting, timestamp
+fidelity reporting on this side, or the schema-free stability on the other. The two lanes are checked against each other: the same filter compiled through
+both is either identical or a documented difference with its reason. The known differences today are identifier quoting, timestamp
 literal formatting for schema-typed date columns, case-insensitive `LIKE` (the
 canonical lane emits the portable `UPPER()` rewrite; this lane declines to assume
 collation), and the OGC `during` topology predicate on an instant-valued column.
@@ -534,7 +531,7 @@ Protocol-native filters are accepted only with the matching
 control characters, and set `usesNativeFilter: true`.
 
 DuckDB artifacts contain a fixed `honua-resource://resolve-at-execution`
-placeholder, the opaque #587 resource handle, parameterized SQL, and ordered
+placeholder, the opaque resource handle, parameterized SQL, and ordered
 bind values. Raw locators and credentials never enter the SQL template. The
 `outputGeometry` contract accompanies every geometry-returning projection,
 even when no spatial predicate exists. It records the logical source field,
@@ -578,7 +575,7 @@ values.
 
 None of the semantic compilers imports DuckDB, `@bufbuild/protobuf`, or Connect runtimes.
 Execution and integration into the complete explain plan belong to the
-planner/facade tranche (#530); these functions only produce deterministic,
+planner/facade layer; these functions only produce deterministic,
 credential-free artifacts.
 
 ## Remote pushdown

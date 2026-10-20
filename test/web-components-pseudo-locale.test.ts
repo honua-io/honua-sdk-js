@@ -42,6 +42,16 @@ const factories: Readonly<Record<string, ElementFactory>> = {
   "web-components.print-export": () => document.createElement("honua-print-export"),
   "web-components.map-status": () => document.createElement("honua-map-status"),
   "web-components.action-panel": () => document.createElement("honua-action-panel"),
+  "web-components.zoom": () => document.createElement("honua-zoom"),
+  "web-components.home": () => document.createElement("honua-home"),
+  "web-components.scale-bar": () => document.createElement("honua-scale-bar"),
+  "web-components.compass": () => document.createElement("honua-compass"),
+  "web-components.fullscreen": () => document.createElement("honua-fullscreen"),
+  "web-components.attribution": () => document.createElement("honua-attribution"),
+  "web-components.feature-pager": () => document.createElement("honua-feature-pager"),
+  "web-components.attachments": () => document.createElement("honua-attachments"),
+  "web-components.scale-range": () => document.createElement("honua-scale-range"),
+  "web-components.directions": () => document.createElement("honua-directions"),
 };
 
 function defineNativeTestElements(): void {

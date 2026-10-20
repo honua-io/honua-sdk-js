@@ -355,7 +355,10 @@ export function geoServicesFeatureSource<T>(
   // set rather than silently inheriting REST-only capabilities (`pbf`,
   // `sql`, `attachments`, `queryRelated`) the gRPC FeatureService RPC
   // surface does not support.
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES[descriptor.protocol];
+  const declaredCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES[descriptor.protocol];
+  const caps = client.isGrpcWeb
+    ? new Set([...declaredCaps].filter((capability) => PROTOCOL_DEFAULT_CAPABILITIES.grpc.has(capability)))
+    : declaredCaps;
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     "geoservices-feature-service": layer,
@@ -388,6 +391,13 @@ export function geoServicesFeatureSource<T>(
       } satisfies Result<T>;
     },
     async queryAggregate(request) {
+      if (client.isGrpcWeb) {
+        if (policy === "strict") {
+          throw new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", descriptor.id);
+        }
+        ensureCapability(descriptor, caps, "query");
+        return grpcMaterializedAggregate(layer, request, descriptor);
+      }
       ensureCapability(descriptor, caps, "queryAggregate");
       const requestParams = toFeatureLayerRequest(request, descriptor);
       const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
@@ -396,8 +406,13 @@ export function geoServicesFeatureSource<T>(
     },
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
-      const response = await layer.queryFeatures(toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor)));
-      return extractExtentEnvelope(response);
+      const params = toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor));
+      const response = await layer.queryFeatures(params);
+      const envelope = extractExtentEnvelope(response);
+      if (client.isGrpcWeb && envelope.count === undefined) {
+        return { ...envelope, count: await grpcExactCount(layer, params, descriptor) };
+      }
+      return envelope;
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
@@ -1751,9 +1766,9 @@ export function wfsSource<T>(
    * does not issue network traffic.
    */
   let cachedFormat: OutputFormatChoice | undefined;
-  async function negotiateJsonOrThrow(): Promise<OutputFormatChoice> {
+  async function negotiateJsonOrThrow(signal?: AbortSignal): Promise<OutputFormatChoice> {
     if (cachedFormat) return cachedFormat;
-    const snapshot = await root.capabilities();
+    const snapshot = await root.capabilities(signal ? { signal } : undefined);
     const choice = root.negotiateOutputFormat(snapshot);
     if (!choice) {
       throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
@@ -1866,7 +1881,7 @@ export function wfsSource<T>(
       // Unfiltered queryExtent: prefer the per-feature-type WGS84BoundingBox
       // from GetCapabilities so we avoid an extra HTTP request entirely.
       if (!hasExtentFilter(request) && request?.outSr === undefined) {
-        const snapshot = await root.capabilities();
+        const snapshot = await root.capabilities(request?.signal ? { signal: request.signal } : undefined);
         const ft = snapshot.featureTypes.find((entry) => entry.name === typeName);
         if (ft?.wgs84BoundingBox) {
           return { extent: { ...ft.wgs84BoundingBox } };
@@ -1876,7 +1891,7 @@ export function wfsSource<T>(
       // covers all features the filter resolves to, not just the first
       // server-default page. Caller pagination is intentionally ignored —
       // queryExtent is a "what bbox holds the matching set" question.
-      const choice = await negotiateJsonOrThrow();
+      const choice = await negotiateJsonOrThrow(request?.signal);
       const drainPageSize = 2000;
       const extentRequest = toWfsExtentDrainRequest(request);
       let xmin = Number.POSITIVE_INFINITY;
@@ -1896,6 +1911,7 @@ export function wfsSource<T>(
           choice,
           featureNamespace,
           await compileSourceQuery(pageRequest, "query"),
+          request?.signal,
         );
         const page = computeExtentFromFeatureCollection(json);
         count += page.count;
@@ -1980,7 +1996,7 @@ export function wfsSource<T>(
       // means "drain everything".
       const requestedLimit = request?.pagination?.limit;
       if (requestedLimit === 0) return [];
-      const choice = await negotiateJsonOrThrow();
+      const choice = await negotiateJsonOrThrow(request?.signal);
       const limitCap = typeof requestedLimit === "number" && requestedLimit > 0 ? requestedLimit : undefined;
       const drainPageSize = 2000;
       const ids: FeatureId[] = [];
@@ -1999,6 +2015,7 @@ export function wfsSource<T>(
           choice,
           featureNamespace,
           await compileSourceQuery(pageRequest, "query"),
+          request?.signal,
         );
         const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
         const features = collection.features ?? [];
@@ -2181,6 +2198,7 @@ async function runGetFeatureJson(
   choice: OutputFormatChoice,
   featureNamespace: string | undefined,
   compiled: WfsProtocolCompiledQueryV1,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const typePrefix = compiled.typeName.includes(":")
     ? compiled.typeName.slice(0, compiled.typeName.indexOf(":"))
@@ -2200,6 +2218,9 @@ async function runGetFeatureJson(
     ...(compiled.count !== undefined ? { count: compiled.count } : {}),
     ...(compiled.startIndex !== undefined && compiled.startIndex > 0 ? { startIndex: compiled.startIndex } : {}),
     ...(compiled.srsName !== undefined ? { srsName: compiled.srsName } : {}),
+    // The drains (queryExtent / queryObjectIds) issue many pages; every page
+    // must observe the caller's cancellation, not just the first request.
+    ...(signal ? { signal } : {}),
   };
   if (compiled.method === "POST" && compiled.filter !== undefined) {
     params.body = buildWfsPostGetFeatureBody({
@@ -3263,7 +3284,9 @@ async function buildOdataParams<T>(
     };
     filterParts.push(buildOdataSpatialFilter(request.spatialFilter, ctx));
   }
-  if (filterParts.length > 0) out.filter = filterParts.join(" and ");
+  if (filterParts.length > 0) {
+    out.filter = filterParts.length === 1 ? filterParts[0] : filterParts.map((part) => `(${part})`).join(" and ");
+  }
   if (request.outFields && request.outFields.length > 0) {
     const split = splitOdataOutFields(request.outFields);
     let rootSelect = split.select;
@@ -3332,7 +3355,11 @@ async function compileOdataQueryFilter<T>(
     ...(geomColumn ? { geometryColumn: geomColumn } : {}),
     ...(spatialFields.length > 0 ? { geometryFields: spatialFields } : {}),
   };
-  return compileQueryFilterToOData(expression, ctx, (node) => {
+  const fieldTypes = {
+    ...Object.fromEntries(spatialFields.map((field) => [field.name, field.type])),
+    ...ctx.fieldTypes,
+  };
+  return compileQueryFilterToOData(expression, { ...ctx, fieldTypes }, (node) => {
     const spatialRel = ODATA_SPATIAL_REL[node.operator];
     if (!spatialRel) {
       throw new HonuaCapabilityNotSupportedError(`filter.spatial.${node.operator}`, descriptor.protocol, descriptor.id);
@@ -4297,6 +4324,9 @@ function queryFilterContext(descriptor: SourceDescriptor, geometryProperty?: str
   return {
     protocol: descriptor.protocol,
     sourceId: descriptor.id,
+    ...(descriptor.schema?.fields
+      ? { fieldTypes: Object.fromEntries(descriptor.schema.fields.map((field) => [field.name, field.type])) }
+      : {}),
     ...(geometryProperty !== undefined ? { geometryProperty } : {}),
     ...descriptorQueryFilterConstraints(descriptor),
   };
@@ -4664,6 +4694,195 @@ function aggregateResultFromUntyped<T>(response: HonuaQueryResponse, _alias: str
   };
 }
 
+async function grpcExactCount<T>(
+  layer: HonuaFeatureLayer<T>,
+  params: ReturnType<typeof toFeatureLayerRequest>,
+  descriptor: SourceDescriptor,
+): Promise<number> {
+  const { resultOffset: _offset, resultRecordCount: _limit, outFields: _fields, ...rest } = params;
+  void _offset;
+  void _limit;
+  void _fields;
+  const { returnExtentOnly: _extent, ...extraParams } = rest.extraParams ?? {};
+  void _extent;
+  const response: unknown = await layer.client.queryFeatures({
+    serviceId: layer.serviceId,
+    layerId: layer.layerId,
+    ...rest,
+    returnGeometry: false,
+    extraParams: { ...extraParams, returnCountOnly: true },
+  });
+  const count = typeof response === "object" && response !== null ? (response as { count?: unknown }).count : undefined;
+  if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+    throw new HonuaCapabilityNotSupportedError("count", "grpc", descriptor.id, {
+      context: { reason: "gRPC count response did not contain an exact nonnegative count." },
+    });
+  }
+  return count;
+}
+
+function grpcAggregateError(
+  sourceId: string | undefined,
+  context?: Record<string, unknown>,
+): HonuaCapabilityNotSupportedError {
+  return new HonuaCapabilityNotSupportedError("queryAggregate", "grpc", sourceId, { context });
+}
+
+async function grpcMaterializedAggregate<T>(
+  layer: HonuaFeatureLayer<T>,
+  request: Query<T> & { aggregation: AggregationSpec },
+  descriptor: SourceDescriptor,
+): Promise<Result<T>> {
+  if (request.aggregation.histogram || request.aggregation.timeSeries) {
+    throw grpcAggregateError(descriptor.id);
+  }
+  if (
+    request.aggregation.groupBy?.includes("*") ||
+    request.aggregation.metrics.some((metric) => metric.field === "*" && metric.fn !== "count")
+  ) {
+    throw grpcAggregateError(descriptor.id, { reason: "Wildcard fields are supported only for COUNT(*)." });
+  }
+  // Aggregate the whole matching set, independently of the caller's display
+  // window. Never return a partial aggregate when the finite drain budget ends.
+  const params = toFeatureLayerRequest({ ...request, pagination: undefined }, descriptor);
+  const expectedCount = await grpcExactCount(layer, params, descriptor);
+  const pageSize = 2000;
+  const maxPages = 100;
+  if (expectedCount > pageSize * maxPages) {
+    throw grpcAggregateError(descriptor.id, {
+      reason: "Matching set exceeds the 200000-feature client-side aggregation budget.",
+      expectedCount,
+    });
+  }
+  const features: HonuaTypedFeature<T>[] = [];
+  const ids = new Set<string>();
+  for (let page = 0; page < maxPages && (page === 0 || features.length < expectedCount); page += 1) {
+    const response = await layer.queryFeatures({
+      ...params,
+      outFields: ["*"],
+      returnGeometry: false,
+      resultOffset: features.length,
+      resultRecordCount: pageSize,
+    });
+    const requiredFields = [
+      ...(request.aggregation.groupBy ?? []),
+      ...request.aggregation.metrics.map((metric) => metric.field),
+    ].filter((field) => field !== "*");
+    for (const field of requiredFields) {
+      if (response.fields?.filter((definition) => definition.name.toLowerCase() === field.toLowerCase()).length !== 1) {
+        throw grpcAggregateError(descriptor.id, {
+          reason: "Aggregate field is unknown or ambiguous in the server field schema.",
+          field,
+        });
+      }
+    }
+    const rows = response.features ?? [];
+    if (rows.length > pageSize) {
+      throw grpcAggregateError(descriptor.id, {
+        reason: "gRPC response exceeded the requested materialization page budget.",
+      });
+    }
+    if (rows.length === 0) break;
+    for (const feature of rows) {
+      const id = response.objectIdFieldName
+        ? grpcAggregateField(feature.attributes, response.objectIdFieldName)
+        : undefined;
+      if (
+        (typeof id !== "number" && typeof id !== "string") ||
+        (typeof id === "number" && !Number.isSafeInteger(id)) ||
+        id === "" ||
+        ids.has(String(id))
+      ) {
+        throw grpcAggregateError(descriptor.id, {
+          reason: "gRPC materialization returned a missing or repeated object ID; no aggregate was returned.",
+        });
+      }
+      ids.add(String(id));
+    }
+    features.push(...rows);
+    if (features.length > expectedCount || (!response.exceededTransferLimit && rows.length < pageSize)) break;
+  }
+  if (features.length !== expectedCount) {
+    throw grpcAggregateError(descriptor.id, {
+      reason: "gRPC materialization did not match the exact count; no partial aggregate was returned.",
+      expectedCount,
+      actualCount: features.length,
+    });
+  }
+  return {
+    features,
+    exceededTransferLimit: false,
+    totalCount: expectedCount,
+    aggregateRows: grpcAggregateRows(features, request.aggregation),
+    degraded: [
+      {
+        capability: "queryAggregate",
+        reason: "gRPC does not expose server-side aggregation; evaluated client-side over the complete matching set.",
+        protocol: "grpc",
+        sourceId: descriptor.id,
+      },
+    ],
+  };
+}
+
+// SQL field aggregates count non-null field values, use null for an empty
+// numeric input, and use sample variance like the canonical Postgres provider.
+// Keep this transport fallback separate from existing OGC page evaluation.
+function grpcAggregateField(attributes: unknown, field: string): unknown {
+  if (typeof attributes !== "object" || attributes === null) return undefined;
+  const key = Object.keys(attributes).find((key) => key.toLowerCase() === field.toLowerCase());
+  return key === undefined ? undefined : (attributes as Record<string, unknown>)[key];
+}
+
+function grpcAggregateRows<T>(
+  features: readonly HonuaTypedFeature<T>[],
+  aggregation: AggregationSpec,
+): Record<string, unknown>[] {
+  const groups = new Map<string, { keys: unknown[]; rows: HonuaTypedFeature<T>[] }>();
+  const groupFields = aggregation.groupBy ?? [];
+  if (groupFields.length === 0) groups.set("[]", { keys: [], rows: [] });
+  for (const feature of features) {
+    const keys = groupFields.map((field) => grpcAggregateField(feature.attributes, field) ?? null);
+    const key = JSON.stringify(keys);
+    let group = groups.get(key);
+    if (!group) {
+      group = { keys, rows: [] };
+      groups.set(key, group);
+    }
+    group.rows.push(feature);
+  }
+  return Array.from(groups.values(), ({ keys, rows }) => {
+    const output: Record<string, unknown> = Object.fromEntries(groupFields.map((field, i) => [field, keys[i]]));
+    for (const metric of aggregation.metrics) {
+      const values = rows
+        .map((row) => grpcAggregateField(row.attributes, metric.field))
+        .filter((value) => value != null);
+      const alias = metric.alias ?? `${metric.fn}_${metric.field}`;
+      if (metric.fn === "count") {
+        output[alias] = metric.field === "*" ? rows.length : values.length;
+        continue;
+      }
+      if (values.some((value) => !Number.isFinite(value))) {
+        throw grpcAggregateError(undefined, {
+          reason: "Numeric client-side aggregation requires finite numeric field values.",
+        });
+      }
+      const numbers = values as number[];
+      if (numbers.length === 0 || ((metric.fn === "stddev" || metric.fn === "var") && numbers.length < 2)) {
+        output[alias] = null;
+        continue;
+      }
+      output[alias] = applyAggregation(metric.fn, numbers, rows.length, true);
+      if (typeof output[alias] === "number" && !Number.isFinite(output[alias])) {
+        throw grpcAggregateError(undefined, {
+          reason: "Client-side aggregation overflowed; no nonfinite aggregate was returned.",
+        });
+      }
+    }
+    return output;
+  });
+}
+
 function clientSideAggregate<T>(
   features: ReadonlyArray<HonuaTypedFeature<T>>,
   aggregation: AggregationSpec,
@@ -4710,7 +4929,12 @@ function computeMetrics<T>(
   return out;
 }
 
-function applyAggregation(fn: AggregationFn, values: readonly number[], totalLength: number): number {
+function applyAggregation(
+  fn: AggregationFn,
+  values: readonly number[],
+  totalLength: number,
+  sampleVariance = false,
+): number {
   if (fn === "count") return totalLength;
   if (values.length === 0) return 0;
   switch (fn) {
@@ -4719,13 +4943,13 @@ function applyAggregation(fn: AggregationFn, values: readonly number[], totalLen
     case "avg":
       return values.reduce((a, b) => a + b, 0) / values.length;
     case "min":
-      return Math.min(...values);
+      return values.reduce((a, b) => Math.min(a, b));
     case "max":
-      return Math.max(...values);
+      return values.reduce((a, b) => Math.max(a, b));
     case "stddev":
     case "var": {
       const mean = values.reduce((a, b) => a + b, 0) / values.length;
-      const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+      const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - (sampleVariance ? 1 : 0));
       return fn === "var" ? variance : Math.sqrt(variance);
     }
     default:

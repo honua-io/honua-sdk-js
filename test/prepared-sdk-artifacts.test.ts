@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PREPARED_SDK_RUN_ID_ENV,
   manifestPathFor,
@@ -39,6 +39,29 @@ describe("prepared SDK artifact contract", () => {
   it("keeps root compilation outside tests and imported test helpers", () => {
     expect(assertTestBuildOwnership({ projectRoot: getProjectRoot() }).filesChecked).toBeGreaterThan(300);
   }, 60_000);
+
+  it("reads each reachable source once and observes imported mutations on the next scan", () => {
+    const root = createOwnershipProject({
+      "test/entry.test.ts": 'import "./support/helper.js";\n',
+      "test/support/helper.ts": 'import "../entry.test.js"; export const safe = true;\n',
+    });
+    const originalRead = fs.readFileSync;
+    const reads: string[] = [];
+    const spy = vi.spyOn(fs, "readFileSync").mockImplementation((...args) => {
+      reads.push(String(args[0]));
+      return originalRead(...args);
+    });
+    try {
+      expect(assertTestBuildOwnership({ projectRoot: root }).filesChecked).toBe(2);
+      expect(reads.filter((file) => file.endsWith("entry.test.ts"))).toHaveLength(1);
+      expect(reads.filter((file) => file.endsWith("helper.ts"))).toHaveLength(1);
+    } finally {
+      spy.mockRestore();
+    }
+    writeProjectFile(root, "test/support/helper.ts", 'const runScript = () => {}; runScript("build");\n');
+    expect(() => assertTestBuildOwnership({ projectRoot: root })).toThrow("reaches the root compiler");
+    expect(analyzeTestBuildOwnership({ projectRoot: root })[0]?.file).toBe("test/support/helper.ts");
+  });
 
   it("uses one build owner and explicit already-prepared composed lanes", () => {
     const packageJson = readJson<{ scripts: Record<string, string> }>(path.join(getProjectRoot(), "package.json"));
@@ -143,7 +166,7 @@ describe("prepared SDK artifact contract", () => {
     expect(publish).toContain("allow_branch_publish with release_version and source_revision");
     expect(releasePlease).toContain('gh run watch "${reseal_run_id}"');
     expect(releasePlease).toContain("Post-release trunk contains a non-generated path");
-    expect(releasePlease).toContain('-f source_revision="${trunk_sha}"');
+    expect(releasePlease).toContain('-f source_revision="${sealed_sha}"');
     expect(releasePlease).not.toContain("dispatch_tag_publish publish-js-sdk.yml");
     expect(publish).not.toMatch(/npm run (?:build:split-packages|verify:browser|demo:examples:build)(?:\s|$)/);
   });

@@ -1,0 +1,70 @@
+{
+  "status": "pass",
+  "scope": "single published artifact identity and byte verification; not full cohort or server certification",
+  "verifierSource": "911096d932136fdea398c7038efea6d33da8b0d9",
+  "tag": "js-sdk-v0.1.18",
+  "sourceSha": "7768fa900a9d02c2045d15a116cfcb8fab6fdd95",
+  "artifact": {
+    "ecosystem": "npm",
+    "package": "@honua/sdk-js",
+    "version": "0.1.18",
+    "integrity": "sha512-K/Cpi4F78AMwHh8NsW5lck26O4PkOv/zJGdGq4DJpGWoySXfsmd+AezbAxS64n6URP1ATrRqTBdHQj74z3mX7Q==",
+    "repository": "honua-io/honua-sdk-js",
+    "sourceSha": "7768fa900a9d02c2045d15a116cfcb8fab6fdd95",
+    "publicationState": "published",
+    "targets": [
+      "node",
+      "browser",
+      "honua-cli",
+      "honua-admin"
+    ],
+    "filename": "sdk-js-0.1.18.tgz"
+  },
+  "verifiedIdentity": {
+    "honua-sdk-js": {
+      "version": "0.1.18",
+      "sourceRevision": "7768fa900a9d02c2045d15a116cfcb8fab6fdd95",
+      "sha256": "sha256:114d81ff9021435be2b9713b3c275029bf44f3b072352837ae0692c1c29d40b1"
+    }
+  },
+  "tarballSha256": "114d81ff9021435be2b9713b3c275029bf44f3b072352837ae0692c1c29d40b1",
+  "packageEngines": {
+    "node": ">=20.19.0"
+  },
+  "packagePeerDependencies": {
+    "@bufbuild/protobuf": "^2.0.0",
+    "@connectrpc/connect": "^2.0.0",
+    "@connectrpc/connect-web": "^2.0.0",
+    "@deck.gl/layers": "^9.0.0",
+    "@duckdb/duckdb-wasm": "^1.29.0",
+    "@kepler.gl/actions": "^3.0.0",
+    "@kepler.gl/processors": "^3.0.0",
+    "@turf/area": "^7.0.0",
+    "@turf/bbox": "^7.0.0",
+    "@turf/boolean-contains": "^7.0.0",
+    "@turf/boolean-intersects": "^7.0.0",
+    "@turf/boolean-within": "^7.0.0",
+    "@turf/buffer": "^7.0.0",
+    "@turf/centroid": "^7.0.0",
+    "@turf/convex": "^7.0.0",
+    "@turf/difference": "^7.0.0",
+    "@turf/helpers": "^7.0.0",
+    "@turf/intersect": "^7.0.0",
+    "@turf/length": "^7.0.0",
+    "@turf/nearest-point": "^7.0.0",
+    "@turf/simplify": "^7.0.0",
+    "@turf/union": "^7.0.0",
+    "apache-arrow": "^17.0.0",
+    "cesium": "^1.139.0",
+    "maplibre-gl": "^6.4.1",
+    "pmtiles": "^4.0.0",
+    "proj4": "^2.11.0",
+    "react": "^18.2.0 || ^19.0.0",
+    "react-dom": "^18.2.0 || ^19.0.0",
+    "terra-draw": "^1.32.0",
+    "terra-draw-maplibre-gl-adapter": "^1.4.1",
+    "typescript": "^5.9.2",
+    "uplot": "^1.6.32"
+  },
+  "registryGitHead": "7768fa900a9d02c2045d15a116cfcb8fab6fdd95"
+}

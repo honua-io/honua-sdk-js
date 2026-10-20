@@ -115,9 +115,9 @@ describe("playground eligibility", () => {
     assert.equal(decision.category, "unpublished-entrypoint");
   });
 
-  it("keeps the unreleased columnar importer source-mode only until the public SDK pin advances", () => {
+  it("keeps the columnar importer source-mode only until the public SDK pin advances", () => {
     const sample = sampleById("columnar-query-quickstart");
-    const current = evaluateSamplePlaygroundEligibility(sample, context());
+    const current = evaluateSamplePlaygroundEligibility(sample, context({ sdkVersion: "0.1.4-beta.0" }));
     assert.equal(current.qualified, false);
     assert.equal(current.category, "unreleased-sdk-surface");
     assert.match(current.detail, /createApacheArrowResponseDecoder\(\{ importModule \}\)/);
@@ -128,9 +128,9 @@ describe("playground eligibility", () => {
     assert.equal(released.qualified, true);
   });
 
-  it("keeps the unreleased Coverages importer source-mode only until the public SDK pin advances", () => {
+  it("keeps the Coverages importer source-mode only until the public SDK pin advances", () => {
     const sample = sampleById("coverages-wcs-basic");
-    const current = evaluateSamplePlaygroundEligibility(sample, context());
+    const current = evaluateSamplePlaygroundEligibility(sample, context({ sdkVersion: "0.1.4-beta.0" }));
     assert.equal(current.qualified, false);
     assert.equal(current.category, "unreleased-sdk-surface");
     assert.match(current.detail, /@honua\/sdk-js\/coverages/);

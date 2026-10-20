@@ -23,6 +23,7 @@
         "planning-permitting-workbench.spec.mjs",
         "realtime-checkpoint-store.spec.mjs",
         "realtime-incident-dashboard.spec.mjs",
+        "realtime-odata-delta-redirect.spec.mjs",
         "shared-renderer-state.spec.mjs",
         "sketch-editing.spec.mjs",
         "unified-ops-workspace.spec.mjs"
@@ -37,11 +38,15 @@
         "cesium-scene-adapter-fixtures.spec.mjs",
         "coverages-wcs-basic.spec.mjs",
         "imagery-cog-quickstart.spec.mjs",
+        "nl-map-control.spec.mjs",
+        "online-basemap.spec.mjs",
         "overture-geoparquet.spec.mjs",
         "spatial-analytics-workbench.spec.mjs",
         "stac-imagery-browser.spec.mjs",
         "storytelling-25d-map.spec.mjs",
-        "terrain-rgb-elevation.spec.mjs"
+        "terrain-rgb-elevation.spec.mjs",
+        "webmap-visual-variables.spec.mjs",
+        "zarr-direct-reader.spec.mjs"
       ]
     },
     {
@@ -58,8 +63,11 @@
         "geocoding-quickstart.spec.mjs",
         "geoprocessing-job-runner.spec.mjs",
         "mcp-gis-assistant.spec.mjs",
+        "migration-browser-installed-package.spec.mjs",
         "migration-browser-maplibre.spec.mjs",
+        "migration-browser-owls.spec.mjs",
         "migration-browser-real-sample.spec.mjs",
+        "migration-browser-rewritten-samples.spec.mjs",
         "migration-browser-smoke.spec.mjs",
         "migration-workbench.spec.mjs",
         "pseudo-locale.spec.mjs",
@@ -71,6 +79,7 @@
         "service-explorer.spec.mjs",
         "web-components-basic.spec.mjs",
         "web-components-csp.spec.mjs",
+        "web-components-measurement.spec.mjs",
         "web-components-memory-leak.spec.mjs"
       ]
     }

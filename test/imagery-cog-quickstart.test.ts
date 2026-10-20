@@ -74,6 +74,37 @@ describe("Imagery and COG Quickstart sample", () => {
     ).toThrow(/2048 characters/u);
   });
 
+  it("serves the browser transport STAC landing while refusing unrelated identities and methods", async () => {
+    const forwarded: string[] = [];
+    const fetchFn = createFixtureCogFetch({
+      appRootUrl: new URL("https://samples.honua.test/"),
+      fixtureRootUrl: new URL("https://samples.honua.test/fixtures/cog/"),
+      fetchImpl: (async (input: RequestInfo | URL) => {
+        forwarded.push(input instanceof Request ? input.url : String(input));
+        throw new Error("fixture landing must not use the network");
+      }) as typeof fetch,
+    });
+    const landing = await (await fetchFn("https://samples.honua.test/stac?f=json")).json();
+    expect(landing.conformsTo).toEqual([
+      "https://api.stacspec.org/v1.0.0/core",
+      "https://api.stacspec.org/v1.0.0/item-search",
+      "https://api.stacspec.org/v1.0.0/item-search#filter",
+      "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
+    ]);
+    expect(landing.links).toEqual([{ rel: "search", href: "https://samples.honua.test/stac/search", method: "GET" }]);
+    for (const url of [
+      "https://foreign.test/stac?f=json",
+      "https://samples.honua.test/other/stac?f=json",
+      "https://samples.honua.test/stac?f=html",
+      "https://samples.honua.test/stac?f=json&unrelated=true",
+    ])
+      await expect(fetchFn(url)).rejects.toThrow(/blocked unmatched request/u);
+    await expect(fetchFn("https://samples.honua.test/stac", { method: "POST" })).rejects.toThrow(
+      /blocked unmatched request/u,
+    );
+    expect(forwarded).toEqual([]);
+  });
+
   it("intercepts only exact same-origin fixture identities and supported asset methods", async () => {
     const forwarded: Array<{ method: string; url: string }> = [];
     const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit) => {

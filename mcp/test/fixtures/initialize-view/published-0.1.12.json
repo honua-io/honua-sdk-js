@@ -1,0 +1,55 @@
+{
+  "executable": "/tmp/sdkjs-1875-published/node_modules/@honua/mcp-server/dist/src/proxy.js",
+  "stdio": [
+    {
+      "direction": "stdio-request",
+      "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"honua-terminal-journey-driver\",\"version\":\"1\"},\"_meta\":{\"honua.io/workflow-view\":\"setup\"}}}\n"
+    },
+    {
+      "direction": "stdio-response",
+      "body": "{\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"prompts\":{\"listChanged\":false},\"resources\":{\"listChanged\":true},\"tools\":{\"listChanged\":true}},\"serverInfo\":{\"name\":\"honua.operator.mcp\",\"version\":\"v1\"}},\"jsonrpc\":\"2.0\",\"id\":1}\n"
+    },
+    {
+      "direction": "stdio-request",
+      "body": "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n"
+    },
+    {
+      "direction": "stdio-request",
+      "body": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}\n"
+    },
+    {
+      "direction": "stdio-response",
+      "body": "{\"result\":{\"_meta\":{\"view\":\"default\",\"revision\":\"default.v1\",\"fixture/opaque\":[1,\"unchanged\"]},\"tools\":[{\"name\":\"default_tool_0\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":0}},{\"name\":\"default_tool_1\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":1}},{\"name\":\"default_tool_2\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":2}},{\"name\":\"default_tool_3\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":3}},{\"name\":\"default_tool_4\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":4}},{\"name\":\"default_tool_5\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":5}},{\"name\":\"default_tool_6\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":6}},{\"name\":\"default_tool_7\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":7}},{\"name\":\"default_tool_8\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":8}},{\"name\":\"default_tool_9\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":9}},{\"name\":\"default_tool_10\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":10}},{\"name\":\"default_tool_11\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":11}}]},\"jsonrpc\":\"2.0\",\"id\":2}\n"
+    }
+  ],
+  "http": [
+    {
+      "direction": "http-request",
+      "session": null,
+      "protocolVersion": null,
+      "body": "{\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"honua-mcp-stdio-proxy\",\"version\":\"0.1.12\"}},\"jsonrpc\":\"2.0\",\"id\":0}"
+    },
+    {
+      "direction": "http-response",
+      "session": "fixture-session-1",
+      "body": "{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":true},\"resources\":{\"listChanged\":true},\"prompts\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"honua.operator.mcp\",\"version\":\"v1\"},\"_meta\":{\"fixture/initialize\":\"preserve\"}}}"
+    },
+    {
+      "direction": "http-request",
+      "session": "fixture-session-1",
+      "protocolVersion": "2025-11-25",
+      "body": "{\"method\":\"notifications/initialized\",\"jsonrpc\":\"2.0\"}"
+    },
+    {
+      "direction": "http-request",
+      "session": "fixture-session-1",
+      "protocolVersion": "2025-11-25",
+      "body": "{\"method\":\"tools/list\",\"jsonrpc\":\"2.0\",\"id\":1}"
+    },
+    {
+      "direction": "http-response",
+      "session": "fixture-session-1",
+      "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"tools\":[{\"name\":\"default_tool_0\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":0}},{\"name\":\"default_tool_1\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":1}},{\"name\":\"default_tool_2\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":2}},{\"name\":\"default_tool_3\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":3}},{\"name\":\"default_tool_4\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":4}},{\"name\":\"default_tool_5\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":5}},{\"name\":\"default_tool_6\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":6}},{\"name\":\"default_tool_7\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":7}},{\"name\":\"default_tool_8\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":8}},{\"name\":\"default_tool_9\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":9}},{\"name\":\"default_tool_10\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":10}},{\"name\":\"default_tool_11\",\"inputSchema\":{\"type\":\"object\"},\"_meta\":{\"fixture/descriptor\":11}}],\"_meta\":{\"view\":\"default\",\"revision\":\"default.v1\",\"fixture/opaque\":[1,\"unchanged\"]}}}"
+    }
+  ]
+}

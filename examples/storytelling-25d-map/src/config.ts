@@ -1,6 +1,7 @@
+import { resolveHonuaOnlineBasemapStyle } from "@honua/sdk-js/runtime";
 import type { StoryDemoConfig } from "./types.js";
 
-const DEFAULT_BASEMAP_STYLE = "https://demotiles.maplibre.org/style.json";
+const DEFAULT_BASEMAP_STYLE = resolveHonuaOnlineBasemapStyle({ theme: "liberty" });
 const DEFAULT_COLLECTIONS = {
   assets: "story-25d-assets",
   route: "story-25d-route",
@@ -35,6 +36,7 @@ export function resolveStoryDemoConfig(env: Record<string, string | undefined>):
   return {
     honuaBaseUrl: baseUrl,
     apiKey: readOptional(env, "VITE_HONUA_25D_API_KEY"),
+    ...(readOptional(env, "VITE_HONUA_25D_BASEMAP_STYLE") ? { basemapStyleOverride: true } : {}),
     basemapStyle: readRequiredWithFallback(
       env,
       "VITE_HONUA_25D_BASEMAP_STYLE",

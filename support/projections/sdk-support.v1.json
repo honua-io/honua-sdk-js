@@ -5,7 +5,7 @@
   "generatedFrom": "config/support-manifest.v1.json",
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.1.9-beta.0",
+    "version": "0.2.7",
     "releaseStatus": "beta"
   },
   "statusVocabulary": [
@@ -417,7 +417,8 @@
     "compatibility",
     "realtime",
     "collaboration",
-    "agent-tools"
+    "agent-tools",
+    "alert-draft-validation"
   ],
   "claimOnlyProtocols": [
     "ogc-processes"
@@ -943,6 +944,12 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "alerts-evaluation-integration",
+      "kind": "integration",
+      "path": "test/integration/surfaces/alerts-evaluation.integration.ts",
+      "freshnessPolicy": "nightly"
+    },
+    {
       "id": "realtime-integration",
       "kind": "integration",
       "path": "test/integration/surfaces/realtime.integration.ts",
@@ -1042,7 +1049,6 @@
         {
           "operations": [
             "query",
-            "queryAggregate",
             "queryExtent",
             "queryObjectIds",
             "applyEdits",
@@ -1970,7 +1976,7 @@
     },
     {
       "id": "esri-compat-standalone",
-      "label": "Esri compatibility layer",
+      "label": "Client compatibility layer",
       "operations": [
         "query",
         "applyEdits"
@@ -1979,7 +1985,7 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
-      "api": "@honua/sdk-js/esri-compat",
+      "api": "@honua/sdk-js/client-compat",
       "notes": "Compatibility classes parse public GeoServices URLs and create their own client.",
       "evidence": [
         "esri-compat-fixtures"
@@ -2467,6 +2473,26 @@
       ]
     },
     {
+      "id": "alerts-draft-evaluation-preview",
+      "label": "Alert draft evaluation (Preview)",
+      "operations": [
+        "alert-draft-validation"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "experimental",
+      "backendNeeded": "Single-tenant Honua Server Pro with experimental alerts.geofence explicitly enabled",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "Draft validation uses Honua Server's administrative alerts contract and its Pro entitlement; it is unavailable on a generic open endpoint."
+      },
+      "api": "createHonuaOperate({ client }).alertRules.test()",
+      "notes": "Preview/experimental only. The dedicated single-tenant Pro integration fixture executes the same immutable selected candidate with alerts.geofence disabled and enabled. Disabled must return typed unsupported HTTP 404; enabled validates an unpersisted rule and zone. This claim covers draft validation only, not alert evaluation workers, delivery, multi-tenant use, Community availability, or GA support.",
+      "evidence": [
+        "alerts-evaluation-integration"
+      ]
+    },
+    {
       "id": "realtime-facade",
       "label": "Realtime subscriptions",
       "operations": [
@@ -2770,6 +2796,10 @@
               "ElevationProfileResult",
               "ElevationProfileSample",
               "HonuaScene",
+              "HonuaSceneAuth",
+              "HonuaSceneEndpoint",
+              "HonuaSceneLink",
+              "HonuaSceneResolution",
               "LineOfSightRequest",
               "LineOfSightResult",
               "SceneAnalysisCesiumModule",
@@ -2797,6 +2827,9 @@
               "listScenes",
               "measureScenePositions",
               "normalizeScene",
+              "normalizeSceneMetadata",
+              "normalizeSceneResolution",
+              "normalizeSceneSummary",
               "pathLengthMeters",
               "positionsToWktLineString",
               "renderElevationProfilePolyline",
@@ -2806,6 +2839,7 @@
               "requestElevationProfile",
               "requestLineOfSight",
               "requestViewshed",
+              "resolveScene",
               "resolveSceneTilesetUrl",
               "sceneCameraPrimitive",
               "sceneLayerStates",
@@ -2881,7 +2915,7 @@
         "status": "supported"
       },
       {
-        "subpath": "./esri-compat",
+        "subpath": "./client-compat",
         "status": "supported"
       },
       {
@@ -3057,21 +3091,21 @@
         "status": "deprecated",
         "replacement": "@honua/app-platform/app",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./app-controller",
         "status": "deprecated",
         "replacement": "@honua/app-platform/app-controller",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./app-workspace",
         "status": "deprecated",
         "replacement": "@honua/app-platform/app-workspace",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./scene-workspace",
@@ -3079,105 +3113,112 @@
         "replacement": "@honua/app-platform/scene-workspace",
         "replacementStatus": "beta",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./collaboration",
         "status": "deprecated",
         "replacement": "@honua/app-platform/collaboration",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./control-plane",
         "status": "deprecated",
         "replacement": "@honua/app-platform/control-plane",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./replica-sync",
         "status": "deprecated",
         "replacement": "@honua/app-platform/replica-sync",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./share",
         "status": "deprecated",
         "replacement": "@honua/app-platform/share",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./operate",
         "status": "deprecated",
         "replacement": "@honua/app-platform/operate",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./generated-app",
         "status": "deprecated",
         "replacement": "@honua/app-platform/generated-app",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./studio",
         "status": "deprecated",
         "replacement": "@honua/app-platform/studio",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./operator",
         "status": "deprecated",
         "replacement": "@honua/app-platform/operator",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./operator/controllers",
         "status": "deprecated",
         "replacement": "@honua/app-platform/operator/controllers",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./operator/workspace",
         "status": "deprecated",
         "replacement": "@honua/app-platform/operator/workspace",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./operator/theming",
         "status": "deprecated",
         "replacement": "@honua/app-platform/operator/theming",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./operator/i18n",
         "status": "deprecated",
         "replacement": "@honua/app-platform/operator/i18n",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./controls",
         "status": "deprecated",
         "replacement": "@honua/app-platform/controls",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
       },
       {
         "subpath": "./web-components",
         "status": "deprecated",
         "replacement": "@honua/app-platform/web-components",
         "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.2.0"
+        "removeIn": "0.3.0"
+      },
+      {
+        "subpath": "./esri-compat",
+        "status": "deprecated",
+        "replacement": "@honua/sdk-js/client-compat",
+        "introducedIn": "0.1.13",
+        "removeIn": "2026.2"
       }
     ]
   }

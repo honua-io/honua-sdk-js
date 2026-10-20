@@ -1,10 +1,17 @@
+import {
+  type FormExpressionField,
+  type FormExpressionResult,
+  evaluateFormExpressions,
+} from "../widget-capabilities.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export interface FeatureFormCompatOptions {
   view?: unknown;
   layer?: unknown;
   container?: unknown;
   feature?: unknown;
+  formTemplate?: unknown;
   fieldConfig?: readonly unknown[];
   groupDisplay?: string;
   headingLevel?: number;
@@ -42,12 +49,15 @@ export class FeatureFormCompat {
   public loaded: boolean;
   public loadStatus: FeatureFormLoadStatusCompat;
   public feature: unknown;
+  public formTemplate: unknown;
+  public expressionResult: FormExpressionResult | undefined;
   public fieldConfig: readonly unknown[];
   public groupDisplay: string | undefined;
   public headingLevel: number | undefined;
   public visibleElements: unknown;
   public validationFunction: FeatureFormValidationFn | undefined;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: FeatureFormCompatOptions = {}) {
     this.view = options.view;
@@ -57,12 +67,16 @@ export class FeatureFormCompat {
     this.loaded = false;
     this.loadStatus = "not-loaded";
     this.feature = options.feature;
+    this.formTemplate = options.formTemplate;
     this.fieldConfig = options.fieldConfig ? [...options.fieldConfig] : [];
     this.groupDisplay = options.groupDisplay;
     this.headingLevel = options.headingLevel;
     this.visibleElements = options.visibleElements;
     this.validationFunction = options.validationFunction;
+    this.expressionResult = evaluateStoredForm(this.formTemplate, this.feature);
     this.watchListeners = new Map();
+    this.widgetHost = bindHonuaWidgetHost("honua-feature-editor", this.container, this.eventBus);
+    this.pushWidgetHost();
   }
 
   public async load(): Promise<FeatureFormCompat> {
@@ -106,8 +120,20 @@ export class FeatureFormCompat {
 
   public setFeature(feature: unknown): void {
     this.feature = feature;
+    this.expressionResult = evaluateStoredForm(this.formTemplate, this.feature);
     this.notifyWatchers("feature", this.feature);
+    this.notifyWatchers("expressionResult", this.expressionResult);
     this.eventBus.emit("feature-form.feature-changed", { feature }, this);
+    this.pushWidgetHost();
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      feature: this.feature,
+      layer: this.layer,
+      formTemplate: this.formTemplate,
+      expressionResult: this.expressionResult,
+    });
   }
 
   public async submit(values: Readonly<Record<string, unknown>> = {}): Promise<FeatureFormSubmitResultCompat> {
@@ -185,4 +211,45 @@ export class FeatureFormCompat {
       safeInvokeCompatListener(listener, value);
     }
   }
+}
+
+function evaluateStoredForm(formTemplate: unknown, feature: unknown): FormExpressionResult {
+  return evaluateFormExpressions(formFields(formTemplate), { attributes: featureAttributes(feature) });
+}
+
+function featureAttributes(feature: unknown): Record<string, unknown> {
+  if (!feature || typeof feature !== "object") return {};
+  const attributes = (feature as { attributes?: unknown }).attributes;
+  return attributes && typeof attributes === "object" ? (attributes as Record<string, unknown>) : {};
+}
+
+function formFields(formTemplate: unknown): FormExpressionField[] {
+  if (!formTemplate || typeof formTemplate !== "object") return [];
+  const fields = (formTemplate as { fields?: unknown }).fields;
+  if (!Array.isArray(fields)) return [];
+  return fields.flatMap((field) => {
+    if (!field || typeof field !== "object") return [];
+    const record = field as Record<string, unknown>;
+    const name =
+      typeof record.name === "string"
+        ? record.name
+        : typeof record.fieldName === "string"
+          ? record.fieldName
+          : undefined;
+    if (!name) return [];
+    return [
+      {
+        name,
+        visibleExpression: expressionText(record.visibleExpression) ?? expressionText(record.visibilityExpression),
+        valueExpression: expressionText(record.valueExpression) ?? expressionText(record.valueExpressionInfo),
+      },
+    ];
+  });
+}
+
+function expressionText(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return undefined;
+  const expression = (value as { expression?: unknown }).expression;
+  return typeof expression === "string" ? expression : undefined;
 }

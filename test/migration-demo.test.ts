@@ -280,7 +280,7 @@ describe("migration demo helpers", () => {
   it("runs migration demo codemod stage and writes fixture output", async () => {
     const outputDir = makeTempDir();
     const report = await runMigrationDemo({
-      fixtureName: "esri-ready-app",
+      fixtureName: "client-ready-app",
       fixturesRoot: fixtureRoot(),
       outputDir,
       skipImport: true,

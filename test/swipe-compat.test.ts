@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, SwipeCompat } from "../src/esri-compat-entry.js";
+import { CompatEventBus, SwipeCompat } from "../src/client-compat-entry.js";
 
 describe("SwipeCompat", () => {
   it("supports when() and watch() lifecycle and position updates", async () => {

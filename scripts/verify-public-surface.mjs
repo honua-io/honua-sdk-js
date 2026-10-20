@@ -41,10 +41,12 @@ function tableSubpaths(markdown, heading) {
   return found;
 }
 
+// removeIn is a package semver ("0.2.0") or a platform release line ("2026.2");
+// only major.minor takes part in the comparison, so the patch is optional.
 function versionLine(version) {
-  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  const match = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec(version);
   if (!match) throw new Error(`Unsupported semver: ${version}`);
-  return match.slice(1).map(Number);
+  return match.slice(1, 3).map(Number);
 }
 
 function reachedRemovalVersion(current, removeIn) {

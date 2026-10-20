@@ -164,13 +164,25 @@ interface FixtureMetricsReport {
 }
 
 const DEFAULT_REAL_SAMPLE_FIXTURE_NAMES = [
-  "esri-real-sample-incident-command-app",
-  "esri-real-sample-ops-center-app",
-  "esri-real-sample-editing-app",
-  "esri-real-sample-network-app",
-  "esri-real-sample-address-search-app",
+  "client-real-sample-incident-command-app",
+  "client-real-sample-ops-center-app",
+  "client-real-sample-editing-app",
+  "client-real-sample-network-app",
+  "client-real-sample-address-search-app",
 ] as const;
 const DEFAULT_DEMO_FIXTURE_NAME = MIGRATION_DEMO_PRIMARY_TARGET.fixtureName;
+
+const MANUAL_INTERVENTION_WARNING_CODES = new Set([
+  "unsupported-visual-variable",
+  "unsupported-renderer-semantics",
+  "unsupported-renderer",
+  "unsupported-layer-type",
+  "unsupported-feature-collection",
+  "unsupported-arcade-expression",
+  "unsupported-3d-property",
+  "complex-arcade",
+  "complex-label-expression",
+]);
 
 const parsed = parseArgs(process.argv.slice(2));
 if (!parsed) {
@@ -604,6 +616,7 @@ function buildContentWebMapReport(
   warningCount: number;
   rewrittenUrlCount: number;
   warningCodes: Record<string, number>;
+  warnings: ReturnType<typeof parseWebMap>["warnings"];
   manualInterventionNeeded: boolean;
 } {
   const warningCodes: Record<string, number> = {};
@@ -624,19 +637,10 @@ function buildContentWebMapReport(
     warningCount: result.warnings.length,
     rewrittenUrlCount,
     warningCodes,
+    warnings: result.warnings,
     manualInterventionNeeded,
   };
 }
-
-const MANUAL_INTERVENTION_WARNING_CODES = new Set([
-  "unsupported-renderer",
-  "unsupported-layer-type",
-  "unsupported-feature-collection",
-  "unsupported-arcade-expression",
-  "unsupported-3d-property",
-  "complex-arcade",
-  "complex-label-expression",
-]);
 
 function runFixtures(args: ParsedArgs): void {
   const fixturesRoot = args.target;

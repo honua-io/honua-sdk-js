@@ -9,9 +9,9 @@ The [readiness page](./oss-arcgis-corpus-readiness.md) counts call sites. It can
 
 Every app is measured **twice at the same commit with the same dependency tree** — once pristine (`baseline`) and once after `codemod --write` (`migrated`). Third-party apps carry their own pre-existing type errors, so only the *delta* is attributable to the migration. Diagnostics that were already there are reported as the app's, not as ours.
 
-- Observation generated: `2026-08-04T10:05:23.167Z`
+- Observation generated: `2026-09-15T01:12:24.062Z`
 - Manifest revision: `2026-08-04`
-- Honua packages under test: `0.1.2-beta.0` (packed from `dist/packages`, never a registry)
+- Honua packages under test: `0.1.9-beta.0` (packed from `dist/packages`, never a registry)
 - Typecheck probe: TypeScript `5.9.3`, resolved from this repository so both phases run the identical compiler
 - Opt-in: both `HONUA_OSS_ARCGIS_CORPUS_ENABLED=true` and `HONUA_OSS_ARCGIS_CORPUS_DEEP=true` are required
 
@@ -39,15 +39,16 @@ Deep validation is the one place the corpus installs third-party dependencies, s
 | App | Outcome | Baseline build | Migrated build | New diagnostics | Resolved |
 | --- | --- | --- | --- | --- | --- |
 | [Owls of Bavaria](#owls-of-bavaria) | builds, new diagnostics | pass | pass | 2 | 4 |
+| [QG Travel System — Qinghai-Gansu Grand Loop trip planner](#qg-travel-system--qinghai-gansu-grand-loop-trip-planner) | builds, new diagnostics | pass | pass | 16 | 0 |
 
-1 of 1 allowlisted app built post-codemod against `@honua/sdk-esri-compat`.
+2 of 2 allowlisted apps built post-codemod against `@honua/sdk-esri-compat`.
 
 ## Owls of Bavaria
 
 - Repository: <https://github.com/lujoh/owls_of_bavaria>
 - Pinned commit: `284949156925c63b0258aece1f48cd9e4f5ea55d`
 - License: `MIT`
-- Observed: 2026-08-04
+- Observed: 2026-09-15
 - Build script: `npm run build` in `.`
 - Lockfile: `package-lock.json`
 - Codemod scan root: `src`
@@ -82,6 +83,50 @@ src/features/map/mapSlice.jsx: error TS2322: Type 'void' is not assignable to ty
 ```
 
 The app ships no TypeScript, so the probe type-checks its JavaScript with `allowJs`/`checkJs` rather than running a config the author maintained. That is why the baseline carries diagnostics the author never saw — and why only the paired delta is reported as the migration's.
+
+## QG Travel System — Qinghai-Gansu Grand Loop trip planner
+
+- Repository: <https://github.com/Zenith-Angle/QG_TravelSystem>
+- Pinned commit: `1b79b87a8958f68585687571fbe16e5328e0fad6`
+- License: `Apache-2.0`
+- Observed: 2026-09-15
+- Build script: `npm run build` in `.`
+- Lockfile: `package-lock.json`
+- Codemod scan root: `src`
+
+The codemod rewrote 37 of 43 in-scope call sites across 2 files to `@honua/sdk-esri-compat`, leaving 6 annotated manual TODOs. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
+
+2 of those TODOs are held-back rewrites: the construct is in codemod scope, but its value flows into an ArcGIS module the codemod does not migrate, so rewriting it would have left a compat value in an un-migrated ArcGIS consumer's hands (#1012). Held-back call sites are counted as manual, never as auto-migrated.
+
+| Step | Baseline | Migrated |
+| --- | --- | --- |
+| Typecheck | **fail** (2 diagnostics) | **fail** (18 diagnostics) |
+| Build | pass | pass |
+
+### Diagnostics the migration introduced
+
+These are present after the codemod and absent before it, at the same commit with the same installed dependencies. They are the migration's to answer for.
+
+```text doc-test=skip reason="captured tsc output, not a compilable snippet"
+src/components/mapConfig.ts: error TS2322: Type 'Point' is not assignable to type 'CompatGeometryLike'.
+src/components/mapConfig.ts: error TS2322: Type 'SimpleMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.
+src/components/mapConfig.ts: error TS2322: Type 'number[]' is not assignable to type 'MapViewCenterLike'.
+src/components/mapConfig.ts: error TS2740: Type 'GraphicsLayerCompat' is missing the following properties from type 'GraphicsLayer': blendMode, effect, maxScale, minScale, and 27 more.
+src/components/mapConfig.ts: error TS2740: Type 'MapViewCompat' is missing the following properties from type 'MapView': animationsEnabled, aria, breakpoints, focused, and 54 more.
+src/components/mapConfig.ts: error TS2740: Type 'SketchCompat' is missing the following properties from type 'Sketch': activeTooltip, availableCreateTools, createGraphic, icon, and 36 more.
+src/components/temp_layer.ts: error TS2322: Type 'Circle' is not assignable to type 'CompatGeometryLike'.
+src/components/temp_layer.ts: error TS2322: Type 'PictureMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.
+src/components/temp_layer.ts: error TS2322: Type 'Point' is not assignable to type 'CompatGeometryLike'.
+src/components/temp_layer.ts: error TS2322: Type 'PolygonCompat' is not assignable to type 'CompatGeometryLike'.
+src/components/temp_layer.ts: error TS2322: Type 'PolylineCompat' is not assignable to type 'CompatGeometryLike'.
+src/components/temp_layer.ts: error TS2322: Type 'PopupTemplateCompat' is not assignable to type 'CompatPopupTemplateLike'.
+src/components/temp_layer.ts: error TS2322: Type 'SimpleFillSymbolCompat' is not assignable to type 'CompatSymbolLike'.
+src/components/temp_layer.ts: error TS2322: Type 'SimpleLineSymbolCompat' is not assignable to type 'CompatSymbolLike'.
+src/components/temp_layer.ts: error TS2322: Type 'SimpleMarkerSymbolCompat' is not assignable to type 'CompatSymbolLike'.
+src/components/temp_layer.ts: error TS2322: Type 'string' is not assignable to type 'number'.
+```
+
+The app's ArcGIS usage lives entirely in `.ts` modules (`src/components/*.ts`, `src/stores/map.ts`); the UI shell is Vue single-file components, which the codemod scanner and this probe both skip, so `typecheckInclude` is scoped to `.ts` files only rather than all of `src`.
 
 ## Reproducing this page
 

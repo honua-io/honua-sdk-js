@@ -1,8 +1,16 @@
 # Honua MCP Evals — Leaderboard
 
-_Generated 2026-09-07T13:26:30.986Z from 3 eval + 11 certification run artifact(s) in [`runs/`](./runs)._
+_Generated 2026-10-09T00:11:10.166Z from 3 eval + 19 certification run artifact(s) in [`runs/`](./runs)._
 
 Every row is reproducible: each source artifact records its target surface, negotiated protocol version, tool count, auth mode, and the git SHA of the suite that produced it. All model calls run through AWS Bedrock; the deterministic control makes no model calls and is the CI gate.
+
+## Latest scheduled certification
+
+**Verdict: ❌ FAIL** (2026-10-05, demo target live honua /mcp (https://demo.honua.io/mcp), auth `anonymous`, 15 failure(s), 0 blocked contract(s). Source: [`runs/2026-10-05/cert-demo.json`](./runs/2026-10-05/cert-demo.json).)
+
+> No scheduled run has certified the pinned candidate image yet. Until one does, the scheduled lane has no passing verdict; earlier scheduled runs certified the demo surface.
+>
+> The cross-model rows below are history (latest eval run 2026-07-07). They are not a current verdict.
 
 ## Cross-model leaderboard
 
@@ -45,4 +53,12 @@ Legend: ✅ pass · ❌ fail · ❓ clarified · ⚠️ error · · not run
 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-08-31 | `0c9bdb7ec0` |
 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 5 | ❌ fail | 2026-09-07 | `f71188599a` |
 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-09-07 | `f71188599a` |
+| live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 5 | ❌ fail | 2026-09-14 | `35fbf6a855` |
+| honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-09-14 | `35fbf6a855` |
+| live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 5 | ❌ fail | 2026-09-21 | `c3c34290e4` |
+| honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-09-21 | `c3c34290e4` |
+| live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 5 | ❌ fail | 2026-09-28 | `6249ac8de3` |
+| honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-09-28 | `6249ac8de3` |
+| live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 5 | ❌ fail | 2026-10-05 | `73bdd0e8f7` |
+| honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-10-05 | `73bdd0e8f7` |
 

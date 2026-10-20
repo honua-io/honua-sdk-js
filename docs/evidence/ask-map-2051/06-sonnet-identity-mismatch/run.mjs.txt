@@ -1,0 +1,85 @@
+import { createServer } from 'node:http';
+import { randomBytes, timingSafeEqual, createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { createLiveModelHandler, openAiCompatibleCompletion } from '/home/mike/honua-io/sdk-ask-this-map-2051-20261012/examples/nl-map-control/live-adapter.mjs';
+
+const cwd = '/home/mike/honua-io/sdk-ask-this-map-2051-20261012';
+const origin = 'http://127.0.0.1:5198';
+const endpoint = 'https://bedrock-runtime.us-west-2.amazonaws.com';
+const model = 'anthropic.claude-sonnet-4-5-20250929-v1:0';
+const token = randomBytes(32).toString('hex');
+const calls = [];
+const output = '/tmp/ask2051-live-provider/evaluation.json';
+rmSync(output, { force: true });
+const startedAt = new Date().toISOString();
+async function invoke(_url, options) {
+  const start = Date.now();
+  writeFileSync('/tmp/ask2051-live-provider/last-provider-request.json', options.body, {mode:0o600});
+  return await new Promise((resolve, reject) => {
+    const child = spawn('python3', ['/tmp/ask2051-live-provider/invoke.py'], { signal: options.signal, stdio: ['pipe', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', chunk => { stdout += chunk; if (stdout.length > 65536) child.kill(); });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', code => {
+      if (code !== 0) {
+        calls.push({ elapsedMs: Date.now() - start, outcome: 'provider-error', providerError: (() => { try { return JSON.parse(stderr); } catch { return {error:'provider-failed'}; } })() });
+        reject(new Error('Bedrock invocation failed'));
+        return;
+      }
+      try {
+        const body = JSON.parse(stdout);
+        calls.push({ requestId: body.providerRequestId, model: body.model, elapsedMs: Date.now() - start, usage: body.usage, toolCalls: body.choices[0].message.tool_calls.map(call => ({name:call.function.name, arguments:JSON.parse(call.function.arguments)})), outcome: 'provider-response' });
+        resolve(new Response(JSON.stringify(body), { status: 200 }));
+      } catch(error) { reject(error); }
+    });
+    child.stdin.end(options.body);
+  });
+}
+const complete = openAiCompatibleCompletion({ endpoint, model, apiKey: 'ambient-aws-chain-no-provider-key', fetchImpl: invoke });
+const handler = createLiveModelHandler({ origin, complete, authenticate(request) {
+  const value = request.headers.cookie?.split(';').map(value => value.trim()).find(value => value.startsWith('honua_nl_session='))?.slice('honua_nl_session='.length) ?? '';
+  const bytes = Buffer.from(value);
+  const expected = Buffer.from(token);
+  return bytes.length === expected.length && timingSafeEqual(bytes, expected);
+} });
+const server = createServer(handler);
+await new Promise(resolve => server.listen(9879, '127.0.0.1', resolve));
+const vite = spawn('/home/mike/.nvm/versions/node/v20.19.0/bin/node', ['node_modules/vite/bin/vite.js', '--config', 'examples/nl-map-control/vite.config.ts', '--host', '127.0.0.1', '--port', '5198', '--strictPort'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+let viteOutput = '';
+vite.stdout.on('data', chunk => { viteOutput += chunk; });
+vite.stderr.on('data', chunk => { viteOutput += chunk; });
+try {
+  let ready = false;
+  for (let i = 0; i < 120; i++) {
+    try { ready = (await fetch(origin)).ok; } catch {}
+    if (ready) break;
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  if (!ready) throw new Error('Sample server failed to start');
+  const result = await new Promise((resolve, reject) => {
+    const child = spawn('/tmp/honua-sdk-with-build-lock', ['node', 'examples/nl-map-control/evaluate-live.mjs'], { cwd, stdio: 'inherit', env: {
+      ...process.env,
+      LD_LIBRARY_PATH: '/tmp/honua-browser-libs/usr/lib/x86_64-linux-gnu',
+      PLAYWRIGHT_BROWSERS_PATH: '/tmp/honua-basemap-playwright-cache-de1',
+      HONUA_NL_APP_ORIGIN: origin, HONUA_NL_SESSION_TOKEN: token, HONUA_NL_MODEL_ENDPOINT: endpoint, HONUA_NL_MODEL_ID: model,
+      HONUA_NL_LIVE_EVIDENCE: 'true', HONUA_NL_EVIDENCE_PATH: output,
+    } });
+    child.on('error', reject);
+    child.on('exit', resolve);
+  });
+  process.exitCode = result ?? 1;
+} finally {
+  vite.kill();
+  server.closeAllConnections();
+  await new Promise(resolve => server.close(resolve));
+  const hash = createHash('sha256');
+  for (const file of ['invoke.py', 'run.mjs']) hash.update(file).update(readFileSync(new URL(file, import.meta.url)));
+  writeFileSync('/tmp/ask2051-live-provider/provider-provenance.json', JSON.stringify({
+    startedAt, completedAt: new Date().toISOString(), provider: endpoint, requestedProfile: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0', expectedModel: model, actualModels: [...new Set(calls.flatMap(call => call.model ? [call.model] : []))],
+    adapterSha256: hash.digest('hex'), adapterFiles: ['invoke.py', 'run.mjs'], credentials: 'existing AWS ambient credential chain; never read or exported',
+    calls,
+  }, null, 2) + '\n', { mode: 0o600 });
+}

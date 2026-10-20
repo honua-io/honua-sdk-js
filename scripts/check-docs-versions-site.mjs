@@ -24,7 +24,14 @@ for (const file of ["index.html", "guides/index.html", "guides/quickstart.html",
   requireText(file, [marker, manifest.development.sourceRevision.slice(0, 12), "documentation-versions.html"]);
 }
 
-const versionsPage = requireText("guides/documentation-versions.html", [manifest.latestRelease, "latest-prerelease"]);
+// The page labels the newest release with the status versions.json gives it:
+// "latest-stable" for a stable cut (0.1.12 onward), "latest-prerelease" for a
+// -beta.N one. Require that exact status rather than assuming a prerelease.
+const latestStatus = manifest.versions.find((entry) => entry.version === manifest.latestRelease)?.status;
+if (latestStatus !== "latest-stable" && latestStatus !== "latest-prerelease") {
+  throw new Error(`versions.json gives latest release ${manifest.latestRelease} status ${latestStatus}`);
+}
+const versionsPage = requireText("guides/documentation-versions.html", [manifest.latestRelease, latestStatus]);
 for (const entry of manifest.versions) {
   if (!versionsPage.includes(entry.version)) throw new Error(`version page omits ${entry.version}`);
   if (entry.status === "archived" && !versionsPage.includes(`${entry.docs.sourceBase}/README.md`)) {

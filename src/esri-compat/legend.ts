@@ -24,6 +24,8 @@ export interface LegendItemCompat {
   contentType: string | undefined;
   width: number | undefined;
   height: number | undefined;
+  /** CSS color for a renderer swatch when the layer has no legend image. */
+  color?: string;
 }
 
 export interface LegendLayerGroupCompat {
@@ -41,7 +43,7 @@ export interface LegendHandleCompat {
 export class LegendCompat {
   public readonly view: unknown;
   public readonly map: unknown;
-  public readonly container: unknown;
+  public container: unknown;
   public readonly eventBus: CompatEventBus;
   public readonly includeHidden: boolean;
   public loaded: boolean;
@@ -93,6 +95,13 @@ export class LegendCompat {
       this.subscriptions.push(this.eventBus.on("group-layer.layers-cleared", () => void this.refresh()));
       this.subscriptions.push(this.eventBus.on("layer.visibility-changed", () => void this.refresh()));
       this.subscriptions.push(this.eventBus.on("layer.legend-updated", () => void this.refresh()));
+    }
+    if (typeof HTMLElement !== "undefined" && this.container instanceof HTMLElement) {
+      queueMicrotask(() => {
+        if (this.loadStatus === "not-loaded") {
+          void this.load();
+        }
+      });
     }
   }
 
@@ -173,6 +182,15 @@ export class LegendCompat {
     return this.items;
   }
 
+  public attachContainer(element: HTMLElement): void {
+    this.container = element;
+    if (this.loaded) {
+      void this.renderWidgetHost();
+      return;
+    }
+    void this.load();
+  }
+
   public destroy(): void {
     for (const subscription of this.subscriptions.splice(0)) {
       subscription.remove();
@@ -189,6 +207,7 @@ export class LegendCompat {
       group.entries.map((entry, entryIndex) => ({
         id: `${groupIndex}-${entryIndex}`,
         label: entry.label,
+        ...(entry.color ? { color: entry.color } : {}),
         ...(entry.imageData ? { iconUrl: `data:${entry.contentType ?? "image/png"};base64,${entry.imageData}` } : {}),
       })),
     );
@@ -224,6 +243,14 @@ export class LegendCompat {
 
 async function extractLegendEntries(layer: unknown): Promise<LegendItemCompat[]> {
   const response = await callLegendProvider(layer);
+  const provided = entriesFromLegendResponse(response);
+  if (provided.length > 0) {
+    return provided;
+  }
+  return entriesFromRenderer(layer);
+}
+
+function entriesFromLegendResponse(response: unknown): LegendItemCompat[] {
   if (!isRecord(response) || !Array.isArray(response.layers)) {
     return [];
   }
@@ -253,6 +280,108 @@ async function extractLegendEntries(layer: unknown): Promise<LegendItemCompat[]>
   }
 
   return entries;
+}
+
+function entriesFromRenderer(layer: unknown): LegendItemCompat[] {
+  if (!isRecord(layer) || layer.legendEnabled === false || !isRecord(layer.renderer)) {
+    return [];
+  }
+  const layerName = toLayerTitle(layer, 0);
+  const renderer = layer.renderer;
+  const type = typeof renderer.type === "string" ? renderer.type : "";
+  if (type === "unique-value" && Array.isArray(renderer.uniqueValueInfos)) {
+    return swatchesFromInfos(renderer.uniqueValueInfos, layerName, "value");
+  }
+  if (type === "class-breaks" && Array.isArray(renderer.classBreakInfos)) {
+    return swatchesFromInfos(renderer.classBreakInfos, layerName, "class");
+  }
+  const color = colorFromSymbol(renderer.symbol);
+  if (!color) {
+    return [];
+  }
+  const label = typeof renderer.label === "string" && renderer.label.trim().length > 0 ? renderer.label : layerName;
+  return [swatch(layerName, label, color)];
+}
+
+function swatchesFromInfos(
+  infos: readonly unknown[],
+  layerName: string,
+  labelKey: "value" | "class",
+): LegendItemCompat[] {
+  const entries: LegendItemCompat[] = [];
+  for (const info of infos) {
+    if (!isRecord(info)) {
+      continue;
+    }
+    const color = colorFromSymbol(info.symbol);
+    if (!color) {
+      continue;
+    }
+    const label =
+      typeof info.label === "string" && info.label.trim().length > 0
+        ? info.label
+        : labelKey === "value"
+          ? (textOf(info.value) ?? layerName)
+          : (rangeLabel(info.minValue, info.maxValue) ?? layerName);
+    entries.push(swatch(layerName, label, color));
+  }
+  return entries;
+}
+
+function swatch(layerName: string, label: string, color: string): LegendItemCompat {
+  return {
+    layerId: undefined,
+    layerName,
+    label,
+    imageData: undefined,
+    contentType: undefined,
+    width: 16,
+    height: 16,
+    color,
+  };
+}
+
+function colorFromSymbol(symbol: unknown): string | undefined {
+  if (!isRecord(symbol)) {
+    return undefined;
+  }
+  return cssColor(symbol.color) ?? cssColor(isRecord(symbol.outline) ? symbol.outline.color : undefined);
+}
+
+function cssColor(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
+  }
+  if (!Array.isArray(value) || value.length < 3) {
+    return undefined;
+  }
+  const [red, green, blue, alpha] = value;
+  if (typeof red !== "number" || typeof green !== "number" || typeof blue !== "number") {
+    return undefined;
+  }
+  if (typeof alpha === "number" && alpha < 255) {
+    return `rgba(${red}, ${green}, ${blue}, ${alpha / 255})`;
+  }
+  return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function textOf(value: unknown): string | undefined {
+  if (typeof value === "string" && value.length > 0) {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return undefined;
+}
+
+function rangeLabel(minValue: unknown, maxValue: unknown): string | undefined {
+  const min = textOf(minValue);
+  const max = textOf(maxValue);
+  if (min && max) {
+    return `${min} – ${max}`;
+  }
+  return min ?? max;
 }
 
 async function callLegendProvider(layer: unknown): Promise<unknown> {

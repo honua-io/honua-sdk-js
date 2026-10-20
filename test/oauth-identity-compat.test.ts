@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { identityManager } from "../src/client-compat-entry.js";
+import { OAuthInfoCompat } from "../src/client-compat-entry.js";
 import { InMemoryCredentialStore, oauth2 } from "../src/core/auth/index.js";
-import { identityManager } from "../src/esri-compat-entry.js";
-import { OAuthInfoCompat } from "../src/esri-compat-entry.js";
 
 afterEach(() => {
   identityManager.reset();

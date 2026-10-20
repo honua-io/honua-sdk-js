@@ -12,6 +12,31 @@ describe("@honua/geometry convert (reused core esri-geojson)", () => {
     expect(back).toMatchObject({ x: -122.4, y: 37.7, spatialReference: { wkid: 4326 } });
   });
 
+  it("keeps the altitude of a 3D GeoJSON point as Esri z", () => {
+    expect(geoJsonToEsri({ type: "Point", coordinates: [-122.4, 37.7, 12.5] })).toEqual({
+      x: -122.4,
+      y: 37.7,
+      z: 12.5,
+    });
+    expect(geoJsonToEsri({ type: "Point", coordinates: [-122.4, 37.7] })).toEqual({ x: -122.4, y: 37.7 });
+  });
+
+  it.each([12.5, 0, -45.25])("preserves independently specified point Z=%s through both aliases", (z) => {
+    const esri = { x: -80.839, y: 35.226, z };
+    const geojson = { type: "Point" as const, coordinates: [-80.839, 35.226, z] };
+    const before = structuredClone({ esri, geojson });
+    expect(esriToGeoJson(esri)).toEqual(geojson);
+    expect(geoJsonToEsri(geojson, { wkid: 4326 })).toEqual({ ...esri, spatialReference: { wkid: 4326 } });
+    expect({ esri, geojson }).toEqual(before);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "rejects a non-finite GeoJSON elevation %s",
+    (z) => {
+      expect(geoJsonToEsri({ type: "Point", coordinates: [1, 2, z] })).toBeNull();
+    },
+  );
+
   it("rewinds polygon rings to the Esri convention (clockwise exterior)", () => {
     // GeoJSON exterior ring is counter-clockwise (positive signed area).
     const geojson: GeoJsonPolygon = {

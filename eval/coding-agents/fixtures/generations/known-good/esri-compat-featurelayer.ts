@@ -1,4 +1,4 @@
-import { FeatureLayerCompat } from "@honua/sdk-js/esri-compat";
+import { FeatureLayerCompat } from "@honua/sdk-js/client-compat";
 
 const baseUrl = process.env.HONUA_EVAL_BASE_URL;
 if (!baseUrl) throw new Error("HONUA_EVAL_BASE_URL is required");

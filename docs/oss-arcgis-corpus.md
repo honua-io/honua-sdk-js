@@ -85,7 +85,7 @@ HONUA_OSS_ARCGIS_CORPUS_ENABLED=true npm run corpus:oss-arcgis:gate
 Without the env var the lane prints a skip line and exits 0:
 
 ```text
-ossArcGisCorpus=skipped reason=opt-in-required set HONUA_OSS_ARCGIS_CORPUS_ENABLED=true to run (apps=6)
+ossArcGisCorpus=skipped reason=opt-in-required set HONUA_OSS_ARCGIS_CORPUS_ENABLED=true to run (apps=7)
 ```
 
 For each app the lane runs the same three commands a migrating team runs, then

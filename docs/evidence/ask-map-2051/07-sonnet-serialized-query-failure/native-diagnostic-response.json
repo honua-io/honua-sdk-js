@@ -1,0 +1,35 @@
+{
+  "requestedProfile": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+  "requestId": "0d60f399-e85e-48cb-8be5-e831f0432286",
+  "response": {
+    "model": "claude-sonnet-4-5-20250929",
+    "id": "msg_bdrk_011Cfxk9Tfvbxpp2a5tcCkPf",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_bdrk_01MMj1DQyaSUh7iRf7vaBsmu",
+        "name": "runWidgetQuery",
+        "input": {
+          "sourceId": "incidents",
+          "kind": "count",
+          "semanticQuery": "{\n  \"kind\": \"features\",\n  \"geometry\": \"omit\",\n  \"select\": [\"id\", \"status\", \"kind\"],\n  \"filter\": {\n    \"kind\": \"comparison\",\n    \"operator\": \"eq\",\n    \"left\": {\n      \"kind\": \"property\",\n      \"name\": \"status\"\n    },\n    \"right\": {\n      \"kind\": \"literal\",\n      \"value\": \"open' OR 1=1 --\"\n    }\n  },\n  \"page\": {\n    \"kind\": \"first\",\n    \"limit\": 100\n  }\n}"
+        }
+      }
+    ],
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 6137,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 206
+    }
+  }
+}

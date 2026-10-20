@@ -1,0 +1,358 @@
+{
+  "schemaVersion": "honua.local-setup-development-evidence/v1",
+  "observedAt": "2026-10-11",
+  "scope": "Partial development candidate regression proof; not certified release qualification",
+  "sourceBase": "d62020888230170be17623ec727ad9af6b14a793",
+  "sourceFileSha256": {
+    "src/local-install.ts": "bd07c29dcbd314d1305fc0b43b4f438e148d4671cf6045ae0e06bdf1808362dc",
+    "src/cli/commands/admin.ts": "87b19025bb5d52df9e9fcd95dfdc6a2d1c1092a3bd3afa8c8152038dfb5a0195",
+    "src/cli/bounded-qualification.ts": "83c30334f12f504e2591222bf5a47d9f2323ae27b74ed0bf088af55c65ccc043",
+    "mcp/src/certification/setup-parity.ts": "23d6cbd653c2e0340e0c31539942f64e068535ac636f8d9781b861b8586e5daf"
+  },
+  "serverSource": "93cad86ec4fb28fba3ff0b9358059d86aa55dde5",
+  "actualServerImage": "ghcr.io/honua-io/honua-server@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+  "deviations": [
+    "Explicit runtime image override; installer customer pin remains nightly-87966c3 digest069f196b",
+    "One fixture style created via canonical OGC style API before exercising get/apply/render",
+    "Initial connection diagnosis used a single-name Compose override; final connection proof reran generated installer without that override",
+    "SDK source exercised through Node24 native TypeScript loader; generated MCP proxy uses registry0.1.14"
+  ],
+  "restart": {
+    "sourceSha": "d62020888230170be17623ec727ad9af6b14a793",
+    "actualImageOverride": "ghcr.io/honua-io/honua-server@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "ready": true,
+    "mode": "disabled",
+    "credentialId": "4a1e41d8-3d79-495f-94e4-00d4ba94c9e5",
+    "credentialPersistedAcrossRestart": true,
+    "credentialReissued": false,
+    "provisioned": false,
+    "effectiveGrants": [
+      "admin:read",
+      "admin:write",
+      "read:*"
+    ],
+    "unauthenticatedAdminStatus": 401
+  },
+  "connection": {
+    "generatedComposeSingleReference": [
+      "      Security__RequestSecretReferences__AllowedEnvironmentVariables__0: HONUA_LOCAL_DB_PASSWORD"
+    ],
+    "createStatus": 201,
+    "healthy": true,
+    "unlistedReferenceStatus": 400
+  },
+  "publication": {
+    "httpStatus": 201,
+    "serviceId": "svc-publish-installer1401",
+    "layerId": 1,
+    "fixture": "installer-seeded public.zero_to_map_parcels; one polygon; no GDAL/raster changes"
+  },
+  "boundStyle": {
+    "styleId": "installer1401-parcels",
+    "styleVersion": 1,
+    "styleVersionType": "number"
+  },
+  "catalog": {
+    "view": "setup",
+    "revision": "setup.v3",
+    "revisionDigest": "sha256:90a621097de6ddb6b3c6a6628465934db3ce9ea6901610d811d41bedd9a820dd",
+    "membershipDigest": "sha256:5f5f2b16e18d54d2b827b02f35c0aecac6ae1065589efa3c7515b2e36cc514d7",
+    "descriptorDigest": "sha256:b9dc457cc601f3b7b6c041ab3ff2da5e2e60cbad1891eee68b5a40fe5d93da83",
+    "toolCount": 37,
+    "pages": 1,
+    "geometryBufferTools": [
+      "honua_dry_run_plan",
+      "honua_execute_plan",
+      "honua_validate_plan"
+    ]
+  },
+  "qualification": {
+    "receipt": {
+      "schemaVersion": "honua.bounded-setup-qualification/v1",
+      "release": "2026.1",
+      "scope": "local-setup+bounded-discovery+style-render",
+      "generatedAt": "2026-10-11T17:32:07.208Z",
+      "pass": false,
+      "candidateId": "development-93cad86-20261011",
+      "serverImage": "ghcr.io/honua-io/honua-server@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+      "packages": [
+        {
+          "name": "@honua/mcp-server",
+          "version": "0.1.14",
+          "integrity": "sha512-dxwoQoysTJkf3iyNDOlyrM31J4x6k8wTJZRXTAk7qy5sXnnOshqjVJqETFL1acKKvKF6owHwABPZoWZOAhHTTw=="
+        }
+      ],
+      "workflowView": "setup",
+      "revision": "setup.v3",
+      "revisionDigest": "sha256:90a621097de6ddb6b3c6a6628465934db3ce9ea6901610d811d41bedd9a820dd",
+      "unsupported": [
+        "full Admin MCP roster",
+        "analysis profile",
+        "esri-gp profile",
+        "guessed Mcp__Profiles switch",
+        "hard-coded 441-tool success denominator",
+        "dashboard publication"
+      ],
+      "install": {
+        "ready": true,
+        "serverImageMatchesPin": false,
+        "repoDigestVerified": false,
+        "baseUrl": "http://127.0.0.1:19804",
+        "mcpPackage": {
+          "name": "@honua/mcp-server",
+          "version": "0.1.14",
+          "integrity": "sha512-dxwoQoysTJkf3iyNDOlyrM31J4x6k8wTJZRXTAk7qy5sXnnOshqjVJqETFL1acKKvKF6owHwABPZoWZOAhHTTw==",
+          "matchesGeneratedConfig": true
+        }
+      },
+      "auth": {
+        "credentialId": "4a1e41d8-3d79-495f-94e4-00d4ba94c9e5",
+        "name": "honua-local-agent",
+        "requestedGrants": [
+          "admin:read",
+          "admin:write",
+          "read:*"
+        ],
+        "effectiveGrants": [
+          "admin:read",
+          "admin:write",
+          "read:*"
+        ],
+        "canAuthenticate": true,
+        "grantsMatch": true
+      },
+      "server": {
+        "adminVersion": "2026.1.1",
+        "metadataApiVersion": "metadata.honua.io/v2alpha1",
+        "mcp": {
+          "name": "honua.operator.mcp",
+          "version": "v1"
+        }
+      },
+      "discovery": {
+        "pages": 1,
+        "geometryBufferTool": "honua_dry_run_plan",
+        "liveHttpDescriptorSha256": "736f0cd798aaa9a690e0acf03d16f7a161b044c9a24de7f7855b274325846c85",
+        "catalogParity": {
+          "directDescriptorSha256": "736f0cd798aaa9a690e0acf03d16f7a161b044c9a24de7f7855b274325846c85",
+          "proxiedDescriptorSha256": "736f0cd798aaa9a690e0acf03d16f7a161b044c9a24de7f7855b274325846c85",
+          "pass": true
+        }
+      },
+      "differences": [
+        "configured server image is not the immutable release pin in the setup manifest",
+        "running server image digest was not verified: Error response from daemon: No such image: ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
+        "Unknown MCP resource '/temp/81e0f395187e41a99379f302f83a92a0.png'."
+      ]
+    },
+    "calls": [
+      {
+        "method": "tools/call",
+        "params": {
+          "name": "honua_get_style",
+          "arguments": {
+            "serviceId": "svc-publish-installer1401",
+            "layerId": 1,
+            "includeStylesheet": true
+          }
+        }
+      },
+      {
+        "method": "tools/call",
+        "params": {
+          "name": "honua_get_style",
+          "arguments": {}
+        }
+      },
+      {
+        "method": "tools/call",
+        "params": {
+          "name": "honua_apply_style_preset",
+          "arguments": {
+            "serviceId": "svc-publish-installer1401",
+            "layerId": 1,
+            "styleId": "installer1401-parcels"
+          }
+        }
+      },
+      {
+        "method": "tools/call",
+        "params": {
+          "name": "honua_get_style",
+          "arguments": {
+            "serviceId": "svc-publish-installer1401",
+            "layerId": 1
+          }
+        }
+      },
+      {
+        "method": "tools/call",
+        "params": {
+          "name": "honua_render_map",
+          "arguments": {
+            "layers": [
+              {
+                "serviceId": "svc-publish-installer1401",
+                "layerId": 1
+              }
+            ],
+            "bbox": [
+              -157.865,
+              21.295,
+              -157.845,
+              21.315
+            ],
+            "bboxSrid": 4326,
+            "width": 512,
+            "height": 512
+          }
+        }
+      },
+      {
+        "method": "resources/read",
+        "params": {
+          "uri": "/temp/81e0f395187e41a99379f302f83a92a0.png"
+        }
+      }
+    ],
+    "catalogProducer": "independent deep equality of direct and generated registry stdio captures; official MCP certifier not executed live"
+  },
+  "resourceRead": {
+    "uriMatchesResourceLink": true,
+    "result": {
+      "error": "MCP error -32002: Unknown MCP resource '/temp/568899f8e52042f0b6eb3546327f2cba.png'.",
+      "code": -32002
+    },
+    "httpDiagnosticControl": {
+      "status": 200,
+      "byteLength": 2363,
+      "sha256": "e6a27a24672ddcbe8b6fbfba0bcf24edf91f60df69a9c616826fa1ba6342efd2",
+      "pngSignature": "89504e470d0a1a0a"
+    },
+    "httpDiagnosticDecodedPng": {
+      "uri": "/temp/568899f8e52042f0b6eb3546327f2cba.png",
+      "mediaType": "image/png",
+      "width": 512,
+      "height": 512,
+      "byteLength": 2363,
+      "imageSha256": "e6a27a24672ddcbe8b6fbfba0bcf24edf91f60df69a9c616826fa1ba6342efd2",
+      "visiblePixelCount": 262144,
+      "decodedPixelSha256": "b6f18c53a34f43e0c6551738adbba4473c81613c63e4acdff66297f3432a3e30"
+    },
+    "advertisedTemplates": [
+      "honua://app-packages/{packageId}",
+      "honua://deployments/{deploymentId}",
+      "honua://jobs/{jobId}",
+      "honua://jobs/{jobId}/report",
+      "honua://jobs/{jobId}/results",
+      "honua://map-packages/{packageId}",
+      "honua://proposals/{proposalId}",
+      "honua://published-services/{serviceId}",
+      "honua://workspaces/{workspaceId}"
+    ],
+    "serverFollowup": "https://github.com/honua-io/honua-server/issues/5867"
+  },
+  "compiledQualification": {
+    "schemaVersion": "honua.bounded-setup-qualification/v1",
+    "release": "2026.1",
+    "scope": "local-setup+bounded-discovery+style-render",
+    "generatedAt": "2026-10-11T17:48:14.646Z",
+    "pass": false,
+    "candidateId": "development-93cad86-20261011",
+    "serverImage": "ghcr.io/honua-io/honua-server@sha256:785de2ae7f72e6277ce62aa1ece4f08ee0425970b71c47f9f4843c0baae2c8db",
+    "packages": [
+      {
+        "name": "@honua/mcp-server",
+        "version": "0.1.14",
+        "integrity": "sha512-dxwoQoysTJkf3iyNDOlyrM31J4x6k8wTJZRXTAk7qy5sXnnOshqjVJqETFL1acKKvKF6owHwABPZoWZOAhHTTw=="
+      }
+    ],
+    "workflowView": "setup",
+    "revision": "setup.v3",
+    "revisionDigest": "sha256:90a621097de6ddb6b3c6a6628465934db3ce9ea6901610d811d41bedd9a820dd",
+    "unsupported": [
+      "full Admin MCP roster",
+      "analysis profile",
+      "esri-gp profile",
+      "guessed Mcp__Profiles switch",
+      "hard-coded 441-tool success denominator",
+      "dashboard publication"
+    ],
+    "install": {
+      "ready": true,
+      "serverImageMatchesPin": false,
+      "repoDigestVerified": false,
+      "baseUrl": "http://127.0.0.1:19804",
+      "mcpPackage": {
+        "name": "@honua/mcp-server",
+        "version": "0.1.14",
+        "integrity": "sha512-dxwoQoysTJkf3iyNDOlyrM31J4x6k8wTJZRXTAk7qy5sXnnOshqjVJqETFL1acKKvKF6owHwABPZoWZOAhHTTw==",
+        "matchesGeneratedConfig": true
+      }
+    },
+    "auth": {
+      "credentialId": "4a1e41d8-3d79-495f-94e4-00d4ba94c9e5",
+      "name": "honua-local-agent",
+      "requestedGrants": [
+        "admin:read",
+        "admin:write",
+        "read:*"
+      ],
+      "effectiveGrants": [
+        "admin:read",
+        "admin:write",
+        "read:*"
+      ],
+      "canAuthenticate": true,
+      "grantsMatch": true
+    },
+    "server": {
+      "adminVersion": "2026.1.1",
+      "metadataApiVersion": "metadata.honua.io/v2alpha1",
+      "mcp": {
+        "name": "honua.operator.mcp",
+        "version": "v1"
+      }
+    },
+    "discovery": {
+      "pages": 1,
+      "geometryBufferTool": "honua_dry_run_plan",
+      "liveHttpDescriptorSha256": "736f0cd798aaa9a690e0acf03d16f7a161b044c9a24de7f7855b274325846c85",
+      "catalogParity": {
+        "directDescriptorSha256": "736f0cd798aaa9a690e0acf03d16f7a161b044c9a24de7f7855b274325846c85",
+        "proxiedDescriptorSha256": "736f0cd798aaa9a690e0acf03d16f7a161b044c9a24de7f7855b274325846c85",
+        "pass": true
+      }
+    },
+    "differences": [
+      "configured server image is not the immutable release pin in the setup manifest",
+      "running server image digest was not verified: Error response from daemon: No such image: ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
+      "Unknown MCP resource '/temp/51dfa4014a254cf4ba8eacfa7fc1dad4.png'."
+    ]
+  },
+  "validation": {
+    "sourceCommit": "5085634a00e4964c4c1b8359fdad67301abab092",
+    "localFocusedTests": {
+      "passed": 104,
+      "files": 5
+    },
+    "compiledCliRuntime": "Node 20.19.0; prepared SDK artifact; actual live canonical sequence reaches resources/read",
+    "remoteChecks": [
+      {
+        "name": "MCP SDK",
+        "result": "success",
+        "url": "https://github.com/honua-io/honua-sdk-js/actions/runs/38160702454/job/114532899987"
+      },
+      {
+        "name": "Verify MCP",
+        "result": "success",
+        "url": "https://github.com/honua-io/honua-sdk-js/actions/runs/38160702474/job/114533519448"
+      },
+      {
+        "name": "Verify core/types/style/coverage",
+        "result": "success",
+        "url": "https://github.com/honua-io/honua-sdk-js/actions/runs/38160702474/job/114533519504"
+      }
+    ]
+  }
+}

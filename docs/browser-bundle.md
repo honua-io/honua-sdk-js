@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Prebuilt browser bundle (CDN / build-less)"
-description: "`@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended"
+description: "The prebuilt, self-contained browser bundle for static sites and build-less pages: artifacts, CDN usage, and what is bundled versus external."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Prebuilt browser bundle (CDN / build-less)
@@ -24,7 +24,10 @@ consumers.
 | `dist/browser/honua-sdk.min.js` | minified IIFE (`globalName: HonuaSDK`) | `<script>` tags, unpkg, jsDelivr |
 | `dist/browser/honua-sdk.esm.js` | minified ESM | `<script type="module">`, esm.sh, native CDN imports |
 
-Both ship with `.map` sourcemaps. The bundle targets `es2020`.
+The bundle targets `es2020`. External `.map` sourcemaps are generated as
+separate debug build artifacts; they are excluded from the runtime npm package
+and its CDN file inventory. The browser integrity manifest lists the two shipped
+JavaScript bundles.
 
 The `package.json` `browser`, `unpkg`, and `jsdelivr` fields point at the IIFE
 build, and the `./browser` subpath export points at the ESM build, so ESM CDNs
@@ -72,8 +75,8 @@ from `src/index.ts`). Its stable-core runtime dependency,
 other bounded direct dependencies: `@honua/honua-migrate` backs deprecated
 migration forwarders outside the browser graph, and
 `@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's
-existing parser so its new Node 22 engine metadata does not reject the
-published Node 20 contract.
+existing parser. That pin originated with the earlier Node 20 compatibility
+work and remains unchanged under the current Node 22.12+ runtime requirement.
 
 The heavy runtime *peers* are kept **external** so the artifact stays small and
 does not inline multi-megabyte map/protobuf runtimes:
@@ -87,23 +90,3 @@ does not inline multi-megabyte map/protobuf runtimes:
 If you use a part of the SDK that needs one of these (e.g. the MapLibre runtime
 or gRPC transport), load that peer yourself — for the IIFE build, ensure it is
 available on the page before the code path that needs it runs.
-
-## Building the bundle
-
-```bash
-npm run build          # canonical tsc ESM + types output (dist/src)
-npm run build:browser  # esbuild → dist/browser/*.js (+ .map)
-```
-
-`scripts/build-browser-bundle.mjs` bundles straight from `src/index.ts` using
-the locally installed `esbuild`, so it does not strictly require `npm run build`
-to have run first — but `npm run build:browser` is the documented entry point.
-It is intentionally **not** wired into the CI `build` step so an esbuild option
-mismatch can never break the main release build; run it explicitly (or at
-publish time) to produce the artifact. The script smoke-checks that the IIFE
-build defines the `HonuaSDK` global and prints the output sizes.
-
-> Note: `dist/` is gitignored. The browser bundle is produced at build/publish
-> time, not committed to source control. The `files` array in `package.json`
-> includes `dist/browser` so the artifact is included in the published npm
-> tarball.

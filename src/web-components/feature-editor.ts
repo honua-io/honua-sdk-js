@@ -84,6 +84,14 @@ export interface HonuaFeatureEditOfflineConflictDetail {
   readonly offline: HonuaFeatureEditorOfflineState;
 }
 
+/** Presentation-only field selection. Source metadata and workflow validation remain authoritative. */
+export interface HonuaFeatureEditorFieldPresentation {
+  /** Exact field name. Entries set visible order; unlisted controls are not rendered. */
+  readonly name: string;
+  /** Optional display label; it cannot change field type, domain or editability. */
+  readonly label?: string;
+}
+
 const OPERATION_LABELS: Readonly<Record<HonuaEditorOperation, string>> = {
   create: "New",
   update: "Edit",
@@ -110,12 +118,42 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
   #keydownListener: ((event: Event) => void) | undefined;
   #messages: HonuaFeatureEditorMessages = {};
   #applicationContext: HonuaApplicationContext<T> | undefined;
+  #fieldPresentation: readonly HonuaFeatureEditorFieldPresentation[] | undefined;
 
   public get messages(): HonuaFeatureEditorMessages {
     return this.#messages;
   }
   public set messages(messages: HonuaFeatureEditorMessages | undefined) {
     this.#messages = messages ?? {};
+    this.render();
+  }
+
+  /**
+   * Ordered visible fields and labels. Undefined restores every schema control.
+   * Fields absent from the current form are skipped. Omission never removes a
+   * field from validation, defaults, mutation payloads or workflow preflight.
+   */
+  public get fieldPresentation(): readonly HonuaFeatureEditorFieldPresentation[] | undefined {
+    return this.#fieldPresentation;
+  }
+  public set fieldPresentation(fields: readonly HonuaFeatureEditorFieldPresentation[] | undefined) {
+    const seen = new Set<string>();
+    const copied = fields?.map((field) => {
+      if (
+        typeof field.name !== "string" ||
+        !field.name.trim() ||
+        field.name !== field.name.trim() ||
+        seen.has(field.name)
+      ) {
+        throw new TypeError("Editor field presentation requires unique, nonempty exact field names");
+      }
+      if (field.label !== undefined && (typeof field.label !== "string" || !field.label.trim())) {
+        throw new TypeError("Editor field presentation labels must be nonempty strings");
+      }
+      seen.add(field.name);
+      return Object.freeze({ name: field.name, ...(field.label !== undefined ? { label: field.label } : {}) });
+    });
+    this.#fieldPresentation = copied === undefined ? undefined : Object.freeze(copied);
     this.render();
   }
 
@@ -455,10 +493,17 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     if (form.controls.length === 0) {
       return `<p class="empty" role="status">${escapeHtml(this.#messages.noFields ?? "This source publishes no editable field metadata.")}</p>`;
     }
+    const controls =
+      this.#fieldPresentation === undefined
+        ? form.controls
+        : this.#fieldPresentation.flatMap((presentation) => {
+            const control = form.controls.find((candidate) => candidate.name === presentation.name);
+            return control ? [{ ...control, label: presentation.label ?? control.label }] : [];
+          });
     return `
       <fieldset class="fields" part="fields">
         <legend>${escapeHtml(form.subtype?.name ? `Attributes — ${form.subtype.name}` : "Attributes")}</legend>
-        ${form.controls.map((control) => this.#controlHtml(control)).join("")}
+        ${controls.map((control) => this.#controlHtml(control)).join("")}
       </fieldset>
     `;
   }
@@ -573,6 +618,12 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
   #problemsHtml(snapshot: HonuaFeatureEditorSnapshot<T>): string {
     const formErrors = snapshot.form?.formErrors ?? [];
     const fieldErrorCount = (snapshot.form?.controls ?? []).filter((control) => control.errors.length > 0).length;
+    const visibleNames = this.#fieldPresentation && new Set(this.#fieldPresentation.map((field) => field.name));
+    const omittedErrors = visibleNames
+      ? (snapshot.form?.controls ?? []).filter(
+          (control) => !visibleNames.has(control.name) && control.errors.length > 0,
+        )
+      : [];
     const validation =
       formErrors.length === 0 && fieldErrorCount === 0
         ? ""
@@ -584,6 +635,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
                 : (this.#messages.validationDraft ?? "This draft cannot be sent yet."),
             )}</p>
             ${formErrors.length > 0 ? `<ul>${formErrors.map((message) => `<li>${escapeHtml(message)}</li>`).join("")}</ul>` : ""}
+            ${omittedErrors.length > 0 ? `<ul>${omittedErrors.map((control) => `<li data-omitted-field-error="${escapeAttribute(control.name)}">${escapeHtml(`${control.label}: ${control.errors.join(" ")}`)}</li>`).join("")}</ul>` : ""}
           </div>`;
     const failures =
       snapshot.failures.length === 0

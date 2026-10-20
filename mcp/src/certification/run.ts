@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { type CertificationReport, certify } from "./certifier.js";
 import { renderMarkdown } from "./report.js";
+import { type RosterResolution, resolveDurableControlPlane, resolveRoster } from "./roster.js";
 import { type CertificationTarget, openCertificationTarget } from "./target.js";
 
 /**
@@ -33,6 +34,12 @@ export async function certifyTarget(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<CertificationReport> {
   try {
+    // Roster parity is a product-surface contract: only a live honua /mcp
+    // (directly or through the stdio proxy) is held to the server roster.
+    const roster: RosterResolution | undefined =
+      target.backend === "live" && (target.mode === "remote" || target.mode === "stdio-proxy")
+        ? await resolveRoster({ env })
+        : undefined;
     return await certify({
       client: target.client,
       targetMode: target.mode,
@@ -42,6 +49,7 @@ export async function certifyTarget(
       authMode: target.authMode,
       connectUnauthenticated: target.supportsUnauthenticatedPass ? () => target.connectUnauthenticated() : undefined,
       env,
+      ...(roster ? { roster, durableControlPlane: resolveDurableControlPlane(env) } : {}),
     });
   } finally {
     await target.close();

@@ -1,7 +1,7 @@
 ---
 type: guide
 title: "Source schema v2 migration"
-description: "Source schema v2 is an experimental, vendor-neutral discovery projection. It"
+description: "Opt in to the experimental vendor-neutral source schema v2 discovery projection for GeoServices, OData, GeoParquet, WMS and WMTS without a second metadata request or any change to the default connect path."
 ---
 # Source schema v2 migration
 

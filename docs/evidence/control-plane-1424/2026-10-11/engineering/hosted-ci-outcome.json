@@ -1,0 +1,19 @@
+{
+  "sourceCommit": "ff44ded979e40d348ab258e5b2290d767686e02b",
+  "run": "https://github.com/honua-io/honua-server/actions/runs/38174022686",
+  "job": "https://github.com/honua-io/honua-server/actions/runs/38174022686/job/114572452332",
+  "fastServerTests": {
+    "passed": 5716,
+    "failed": 0,
+    "skipped": 0
+  },
+  "architectureTests": {
+    "passed": 362,
+    "failed": 1,
+    "skipped": 0
+  },
+  "failure": "CapabilityImpactGraph_ShouldBeComplete: new IdempotentUrlImportEndpointTests was outside every CI shard",
+  "followupCommit": "38590f602b423845c5b2fff967fb9af1fa419934",
+  "followupMeaning": "register the actual integration class and path in Cloud and Streaming Import; its hosted checks were pending when this receipt was written",
+  "selectedCandidateQualification": false
+}

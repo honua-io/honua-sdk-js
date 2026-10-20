@@ -1,12 +1,11 @@
 ---
 type: reference
 title: "ExplorationContext"
-description: "Public entrypoint: `@honua/sdk-js/exploration` (also re-exported from the"
+description: "ExplorationContext, the protocol-neutral container for filters, selection, extent, sort and pagination shared across linked map, grid, chart and form views."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # ExplorationContext
 
-Status: implemented in `src/exploration/` (ticket `honua-sdk-js-23`).
 Public entrypoint: `@honua/sdk-js/exploration` (also re-exported from the
 top-level barrel and `@honua/sdk-js/honua`).
 
@@ -21,18 +20,6 @@ microtask-coalescing event bus (`createExplorationContext`), and a
 declarative linked-view policy table (`LINKED_VIEW_PRESETS`). Adding a new
 slice means extending the union in three places and running the
 conformance suite.
-
-## Module layout
-
-```
-src/exploration/
-├── index.ts        # barrel
-├── types.ts        # state, intents, slices, linked-view types, ExplorationContext interface
-├── reducer.ts      # pure reduce(state, intent) → { state, changedSlices }
-├── presets.ts      # LINKED_VIEW_PRESETS table + propagationFor()
-├── selectors.ts    # linked-view query projections + selector subscriptions
-└── context.ts      # createExplorationContext factory (microtask coalescing, listener bus, view controllers)
-```
 
 ## State model
 
@@ -94,7 +81,7 @@ snapshot writers cannot silently miss a state movement.
 | `chartDriven` | Only the chart's `grouping`, `aggregation`, `filters`, and `selection`; filter controls can also publish `filters`. |
 | `decoupled` | Nothing propagates — each view is independent. |
 
-Custom presets are not exposed in this ticket; if a downstream view needs
+Custom presets are not exposed; if a downstream view needs
 finer-grained control it can pass `decoupled` and re-implement
 propagation in application code.
 

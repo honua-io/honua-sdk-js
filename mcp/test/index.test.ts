@@ -52,6 +52,7 @@ describe("MCP server setup", () => {
 
   it("registers all tools and resources with executable handlers", async () => {
     const toolSpy = vi.spyOn(McpServer.prototype, "tool");
+    const registerToolSpy = vi.spyOn(McpServer.prototype, "registerTool");
     const resourceSpy = vi.spyOn(McpServer.prototype, "resource");
 
     const listSpy = vi.spyOn(listServices, "execute").mockResolvedValue({ content: [{ type: "text", text: "[]" }] });
@@ -80,7 +81,16 @@ describe("MCP server setup", () => {
     const client = asClient(createMockClient());
     createServer(client);
 
-    expect(toolSpy.mock.calls.map((call) => call[0])).toEqual([
+    const registrations = [
+      ...toolSpy.mock.calls.map((call, index) => ({ call, order: toolSpy.mock.invocationCallOrder[index] })),
+      ...registerToolSpy.mock.calls.map((call, index) => ({
+        call,
+        order: registerToolSpy.mock.invocationCallOrder[index],
+      })),
+    ]
+      .sort((left, right) => left.order - right.order)
+      .map(({ call }) => call);
+    expect(registrations.map((call) => call[0])).toEqual([
       "honua_list_sources",
       "honua_list_services",
       "honua_describe_layer",
@@ -114,18 +124,23 @@ describe("MCP server setup", () => {
       honua_docs_search: { query: "capability error" },
     };
 
+    const abort = new AbortController();
     for (const [name, args] of Object.entries(toolInputs)) {
-      const registration = toolSpy.mock.calls.find((call) => call[0] === name);
-      const handler = registration?.at(-1) as (input: unknown) => Promise<unknown>;
-      await handler(args);
+      const registration = registrations.find((call) => call[0] === name);
+      const handler = registration?.at(-1) as (input: unknown, extra: { signal: AbortSignal }) => Promise<unknown>;
+      await handler(args, { signal: abort.signal });
     }
 
     expect(listSpy).toHaveBeenCalledWith(client, { includeDetails: false });
     expect(listSourcesSpy).toHaveBeenCalledWith(client, { protocol: "auto", maxServices: 25 });
     expect(describeSpy).toHaveBeenCalledWith(client, { serviceId: "Parks", layerId: 0 });
-    expect(querySpy).toHaveBeenCalledWith(client, expect.objectContaining({ serviceId: "Parks", layerId: 0 }));
-    expect(countSpy).toHaveBeenCalledWith(client, { serviceId: "Parks", layerId: 0 });
-    expect(extentSpy).toHaveBeenCalledWith(client, { serviceId: "Parks", layerId: 0 });
+    expect(querySpy).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({ serviceId: "Parks", layerId: 0 }),
+      abort.signal,
+    );
+    expect(countSpy).toHaveBeenCalledWith(client, { serviceId: "Parks", layerId: 0 }, abort.signal);
+    expect(extentSpy).toHaveBeenCalledWith(client, { serviceId: "Parks", layerId: 0 }, abort.signal);
     expect(statsSpy).toHaveBeenCalledWith(
       client,
       expect.objectContaining({
@@ -134,6 +149,7 @@ describe("MCP server setup", () => {
         statisticType: "count",
         onField: "OBJECTID",
       }),
+      abort.signal,
     );
     expect(explainSpy).toHaveBeenCalledWith(client, { protocol: "wmts", capability: "query" });
     expect(getStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });

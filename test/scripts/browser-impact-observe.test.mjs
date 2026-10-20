@@ -51,12 +51,12 @@ test("assigns special domains before the general fallback", () => {
   const ownership = assignSpecs(policy, [
     "offline-indexeddb.spec.mjs",
     "realtime-incident-dashboard.spec.mjs",
-    "kepler-arrow-packed.spec.mjs",
+    "quickstart-map.spec.mjs",
     "service-explorer.spec.mjs",
   ]);
   assert.equal(ownership.get("offline-indexeddb.spec.mjs"), "offline-service-worker");
   assert.equal(ownership.get("realtime-incident-dashboard.spec.mjs"), "realtime-collaboration");
-  assert.equal(ownership.get("kepler-arrow-packed.spec.mjs"), "heavy-map-kepler");
+  assert.equal(ownership.get("quickstart-map.spec.mjs"), "heavy-map-kepler");
   assert.equal(ownership.get("service-explorer.spec.mjs"), "examples-general");
 });
 
@@ -72,8 +72,6 @@ test("domain changes select every direct browser consumer", () => {
   assert.deepEqual(offline.candidate.selected_lanes, ["offline-service-worker", "examples-general"]);
   const realtime = evaluate(policy, ["examples/realtime-incident-dashboard/src/main.ts"]);
   assert.deepEqual(realtime.candidate.selected_lanes, ["realtime-collaboration"]);
-  const heavy = evaluate(policy, ["examples/kepler-analytics/src/main.ts"]);
-  assert.deepEqual(heavy.candidate.selected_lanes, ["heavy-map-kepler"]);
   const quickstart = evaluate(policy, ["examples/maplibre-quickstart/mock-server.mjs"]);
   assert.deepEqual(quickstart.candidate.selected_lanes, ["heavy-map-kepler"]);
   const columnar = evaluate(policy, ["examples/columnar-query-quickstart/vite.config.ts"]);
@@ -81,11 +79,11 @@ test("domain changes select every direct browser consumer", () => {
 });
 
 test("shared app modules select every direct browser consumer", () => {
+  // The retired Kepler analytics example (#1674) was the only heavy-map consumer.
   for (const path of ["src/exploration/query.ts", "src/interactions/linked-view.ts"]) {
     const report = evaluate(policy, [path]);
     assert.deepEqual(report.candidate.selected_lanes, [
       "realtime-collaboration",
-      "heavy-map-kepler",
       "examples-general",
     ]);
   }
@@ -93,12 +91,49 @@ test("shared app modules select every direct browser consumer", () => {
   assert.deepEqual(realtime.candidate.selected_lanes, ["realtime-collaboration", "examples-general"]);
 });
 
-test("offline cache primitives select the heavy columnar browser consumer", () => {
+test("shared extension cache selects both actual browser consumers without widening domain routes", () => {
+  const sharedPath = "examples/overture-geoparquet/extension-cache.mjs";
+  for (const fixture of ["examples/overture-geoparquet", "examples/nl-map-control"]) {
+    assert.ok(discoverLocalModuleDependencies(fixture).includes(sharedPath), fixture);
+  }
+  assert.deepEqual(evaluate(policy, [sharedPath]).candidate.selected_lanes, [
+    "heavy-map-kepler",
+    "examples-general",
+  ]);
+  assert.deepEqual(
+    evaluate(policy, ["examples/overture-geoparquet/prepare-duckdb-extension.mjs"]).candidate.selected_lanes,
+    ["heavy-map-kepler"],
+  );
+  assert.deepEqual(
+    evaluate(policy, ["examples/nl-map-control/engine-assets.mjs"]).candidate.selected_lanes,
+    ["examples-general"],
+  );
+});
+
+test("shared extension cache routing rejects either missing browser consumer", () => {
+  const sharedPath = "examples/overture-geoparquet/extension-cache.mjs";
+  for (const [lane, spec] of [
+    ["heavy-map-kepler", "overture-geoparquet.spec.mjs"],
+    ["examples-general", "nl-map-control.spec.mjs"],
+  ]) {
+    const incomplete = structuredClone(policy);
+    const shared = incomplete.sharedLanePatterns.find((entry) => entry.patterns.includes(sharedPath));
+    assert.ok(shared);
+    shared.lanes = shared.lanes.filter((candidate) => candidate !== lane);
+    assert.throws(() => validatePolicy(incomplete), (error) => {
+      assert.ok(error.message.includes(`${sharedPath}, imported by`));
+      assert.ok(error.message.includes(`must select ${lane} for ${spec}`));
+      return true;
+    });
+  }
+});
+
+test("offline cache primitives select every direct browser consumer", () => {
+  // No heavy-map fixture imports the offline cache since the Kepler example retired (#1674).
   for (const path of ["src/offline/digest.ts", "src/offline/quota.ts"]) {
     const report = evaluate(policy, [path]);
     assert.deepEqual(report.candidate.selected_lanes, [
       "offline-service-worker",
-      "heavy-map-kepler",
       "examples-general",
     ]);
   }
@@ -109,21 +144,34 @@ test("discovers SDK package entry dependencies from browser fixtures", () => {
   assert.ok(dependencies.some((path) => path.startsWith("src/realtime/")));
 });
 
+test("shared example kit changes select every consuming browser lane", () => {
+  for (const path of [
+    "examples/_kit/cleanup.ts",
+    "examples/_kit/design/components.css",
+    "examples/_kit/design/index.css",
+    "examples/_kit/design/tokens.css",
+    "examples/_kit/presentation.css",
+    "examples/_kit/presentation.ts",
+    "examples/_kit/vite.config.ts",
+  ]) {
+    const report = evaluate(policy, [path]);
+    assert.deepEqual(report.candidate.selected_lanes, [
+      "realtime-collaboration",
+      "heavy-map-kepler",
+      "examples-general",
+    ]);
+  }
+});
+
 test("shared fixtures select every direct browser consumer", () => {
   const spatial = evaluate(policy, ["examples/spatial-analytics-workbench/src/kepler-handoff.ts"]);
-  assert.deepEqual(spatial.candidate.selected_lanes, ["heavy-map-kepler", "examples-general"]);
+  assert.deepEqual(spatial.candidate.selected_lanes, ["examples-general"]);
   const firstMap = evaluate(policy, ["samples/fixtures/first-map/v2/features.json"]);
   assert.deepEqual(firstMap.candidate.selected_lanes, policy.lanes.map((lane) => lane.id));
   const scenarios = evaluate(policy, ["samples/scenarios/index.mjs"]);
   assert.deepEqual(scenarios.candidate.selected_lanes, policy.lanes.map((lane) => lane.id));
   const sharedRenderer = evaluate(policy, ["docs/examples/shared-renderer-state/app.mjs"]);
   assert.deepEqual(sharedRenderer.candidate.selected_lanes, ["heavy-map-kepler"]);
-  const sharedKit = evaluate(policy, ["examples/_kit/vite.config.ts"]);
-  assert.deepEqual(sharedKit.candidate.selected_lanes, [
-    "realtime-collaboration",
-    "heavy-map-kepler",
-    "examples-general",
-  ]);
   const sharedExample = evaluate(policy, ["examples/shared/maplibre-vite-worker.js"]);
   assert.deepEqual(sharedExample.candidate.selected_lanes, policy.lanes.map((lane) => lane.id));
 });

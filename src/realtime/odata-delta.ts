@@ -79,7 +79,7 @@ export interface OdataDeltaTransportOptions<TFeature = unknown> {
   /**
    * Absolute OData entity-set collection URL, e.g.
    * `"https://host/odata/Incidents"`. Every `@odata.nextLink` /
-   * `@odata.deltaLink` this transport follows, and any resumed
+   * `@odata.deltaLink` and HTTP redirect this transport follows, and any resumed
    * `resumeFrom.deltaToken`, must resolve to this exact origin and path
    * (REQ-002).
    */
@@ -123,6 +123,8 @@ export interface OdataDeltaTransportOptions<TFeature = unknown> {
 const DEFAULT_MAX_PAGES_PER_CYCLE = 500;
 const DEFAULT_MAX_SNAPSHOT_ROWS = 50_000;
 const DEFAULT_MAX_CONSECUTIVE_RESNAPSHOTS = 3;
+const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /**
  * Build a {@link RealtimeFeatureTransport} that polls an OData v4 entity
@@ -243,14 +245,48 @@ export function createOdataDeltaTransport<TFeature = unknown>(
 
       async function fetchOdataDocument(target: string, trackChanges: boolean): Promise<OdataDeltaEnvelope> {
         const fetchImpl = resolveFetch(options.fetchImpl);
-        const headers: Record<string, string> = { Accept: "application/json", ...(options.headers?.() ?? {}) };
-        if (trackChanges) headers.Prefer = "odata.track-changes";
+        let currentUrl = target;
         let response: Response;
-        try {
-          response = await fetchImpl(target, { method: "GET", headers, signal: controller.signal });
-        } catch (cause) {
-          if (controller.signal.aborted) throw cause;
-          throw realtimeFailure("transport-gap", "OData delta request failed.", cause);
+        for (let redirects = 0; ; redirects += 1) {
+          controller.signal.throwIfAborted();
+          const headers: Record<string, string> = { Accept: "application/json", ...(options.headers?.() ?? {}) };
+          if (trackChanges) headers.Prefer = "odata.track-changes";
+          try {
+            response = await fetchImpl(currentUrl, {
+              method: "GET",
+              headers,
+              signal: controller.signal,
+              redirect: "manual",
+            });
+          } catch (cause) {
+            if (controller.signal.aborted) throw cause;
+            throw realtimeFailure("transport-gap", "OData delta request failed.", cause);
+          }
+          if (response.type !== "opaqueredirect" && !REDIRECT_STATUSES.has(response.status)) break;
+
+          // Release every redirect response before validating or following its destination.
+          await response.body?.cancel().catch(() => undefined);
+          if (response.type === "opaqueredirect") {
+            throw realtimeFailure(
+              "invalid-event",
+              "OData delta redirect destination is unavailable; refusing to follow.",
+              undefined,
+            );
+          }
+          if (redirects >= MAX_REDIRECTS) {
+            throw realtimeFailure("invalid-event", "OData delta request exceeded the redirect limit.", undefined);
+          }
+          const location = response.headers.get("Location");
+          if (!location) {
+            throw realtimeFailure("invalid-event", "OData delta redirect is missing a Location header.", undefined);
+          }
+          const redirectUrl = parseRelativeOdataUrl(
+            location,
+            currentUrl,
+            "OData delta redirect Location is not a valid URL.",
+          );
+          assertSameOdataCollection(collectionUrl, redirectUrl);
+          currentUrl = redirectUrl.toString();
         }
         if (!response.ok) {
           const body = await safeReadJson(response);

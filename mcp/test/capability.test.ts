@@ -131,3 +131,9 @@ describe("honua_list_services degradation", () => {
     expect(body.map((s) => s.serviceId)).toContain("Parks");
   });
 });
+
+describe("style target honesty", () => {
+  it("refuses persisted layer binding arguments instead of returning read-only success", () => {
+    expect(() => applyStylePreset.schema.parse({ styleId: "topographic", serviceId: "Parks", layerId: 0 })).toThrow();
+  });
+});

@@ -192,10 +192,16 @@ export async function loadSuccessfulReleasePleaseCi(input, request = githubReque
     headSha: current.headSha,
     runTitle: releasePleaseCiRunTitle(current.pullRequestNumber, current.headSha),
   };
+  if (input.expectedHeadSha !== undefined && expected.headSha !== input.expectedHeadSha) {
+    throw new Error("The completed event does not identify the current Release Please head.");
+  }
   await assertReleaseBranchHead(repository, expected.headSha, request);
   const run = reusableExactRun(await listCiWorkflowRuns(repository, request), expected);
   if (!run) {
     throw new Error(`No canonical CI run resolved for exact Release Please head ${expected.headSha}.`);
+  }
+  if (input.expectedWorkflowRunId !== undefined && run.id !== input.expectedWorkflowRunId) {
+    throw new Error("The completed event does not identify the exact current canonical CI run.");
   }
   if (run.status !== "completed" || run.conclusion !== "success") {
     throw new Error(

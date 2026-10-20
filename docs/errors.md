@@ -11,19 +11,18 @@ errors migrated in the table below pass the cross-realm `isHonuaError(error)`
 guard. Use their stable classifications to gate retry, refresh, fallback, and
 surface-to-user decisions instead of parsing message strings.
 
-This release covers core transport/auth/protocol errors, discovery, the query
+The envelope covers core transport/auth/protocol errors, discovery, the query
 planner, every public error exported by the stable `map` and `runtime`
-subpaths, the public realtime resume error, and the offline region plus replica
-synchronization classes migrated by
-[#569](https://github.com/honua-io/honua-sdk-js/issues/569), plus the plugin
-registry error migrated by
-[#571](https://github.com/honua-io/honua-sdk-js/issues/571), and the
-stable `agent-tools`/`agent-safety` errors plus the deprecated `generated-app`
-error migrated by [#570](https://github.com/honua-io/honua-sdk-js/issues/570).
-The experimental `nl-map-control` domain's error class remains an explicit
-residual pending a scoped migration; other experimental domains likewise
-retain their current domain-specific contracts until a scoped migration
-lands.
+subpaths, the realtime resume error, the offline region and replica
+synchronization classes, the plugin registry error, and the stable
+`agent-tools`/`agent-safety` errors plus the deprecated `generated-app` error.
+The experimental `nl-map-control` error class and other experimental domains
+keep their own domain-specific contracts.
+
+The migration records for [offline errors (#569)](https://github.com/honua-io/honua-sdk-js/issues/569),
+[agent errors (#570)](https://github.com/honua-io/honua-sdk-js/issues/570), and
+[plugin errors (#571)](https://github.com/honua-io/honua-sdk-js/issues/571) describe
+the compatibility and serialization requirements for those envelope families.
 
 ## Envelope contract
 
@@ -103,7 +102,7 @@ try {
 | `HonuaRealtimeResumeError` | `@honua/sdk-js/realtime` | Realtime initialization, decoding, checkpoint, ordering, transport, or terminal delivery fails. | Branch on the existing reason `.code`; reconnect or request a replacement snapshot only when the stream contract already permits it. Envelope retryability is metadata and does not initiate reconnects. |
 | `HonuaRealtimeReconciliationError` | `@honua/sdk-js/realtime`, `@honua/sdk-js/map` | Delta reconciliation (`reconciliation.ts`) or its MapLibre adapter (`realtime-reconciliation-adapter.ts`) receives an invalid option, or a reconciler/cache/adapter already disposed receives another patch. | Branch on `.code` (`"disposed"` / `"invalid-option"`). Recreate the reconciler/cache/adapter instead of reusing a disposed one; correct the option that failed validation. Not retryable. |
 | `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, atomic store work, or an offline read the persisted region cannot answer fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Treat `cache-miss` / `scope-mismatch` / `out-of-region` (`offline.region.miss`) as "download a region for this selection", never as an empty answer. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
-| `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.1.x) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
+| `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.2.x) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
 | `HonuaPluginRegistryError` | `@honua/sdk-js/plugin` | Plugin registry validation, compatibility, policy, capability, activation, execution validation, cancellation, or cleanup fails. | Branch on the existing `PLUGIN_*` `.code` or its grouped `.sdkCode`. Correct declarations or host policy/capability, treat cancellation as terminal, and inspect `.cause` / `.cleanupErrors` locally for activation or cleanup failures. No plugin classification is automatically retryable. |
 | `HonuaPmtilesLifecycleError` | `@honua/sdk-js/pmtiles` | PMTiles archive/publish request validation, bounded response parsing, polling, terminal job state, signed access, or cleanup capability fails. | Branch on `.lifecycleCode`; correct invalid input/response shape, re-publish expired signed access, treat cancellation as terminal, and use server TTL/overwrite policy when managed deletion is unavailable. |
 | `HonuaAgentToolError` | `@honua/sdk-js/agent-tools` | An agent tool call names an unknown tool, the tool kit is created without a usable runtime, a selection target is not source-qualified, or the adapted runtime does not implement the requested tool method. | Branch on `.code` or `.sdkCode`; correct the tool name, provide a runtime/controller/generated-app runtime, or qualify the selection. Not retryable. |
@@ -119,8 +118,6 @@ registered codes, and domain constructors either reject unknown runtime reasons
 or project them to a fixed registered fallback. Focused entrypoints retain only
 the code/domain/category/retryability classifications needed by the error base;
 human-readable registry summaries remain in the explicit public registry.
-`npm run check:error-codes` verifies exact classification parity, registry shape,
-and this class/family documentation.
 
 | Public class | Registered `sdkCode` family |
 |--------------|-----------------------------|
@@ -448,7 +445,7 @@ Two HTTP status sets exist, and they are deliberately different:
 
 | Set | Value | Role |
 |-----|-------|------|
-| Retry-loop default (`DEFAULT_RETRY_STATUSES` in `src/core/request-pipeline.ts`) | `429, 502, 503, 504` | The statuses the opt-in retry loop replays when `retry` is configured and no `retryStatuses` override is supplied. |
+| Retry-loop default (`DEFAULT_RETRY_STATUSES`) | `429, 502, 503, 504` | The statuses the opt-in retry loop replays when `retry` is configured and no `retryStatuses` override is supplied. |
 | Transient classification (`core.http.transient`, and `runtime.query-tiles.transient` for query tiles) | `408, 429, 500, 502, 503, 504` | The statuses whose error instance carries `retryable: true` metadata. |
 
 The loop default is the narrower set on purpose: `429`, `502`, `503`, and `504`

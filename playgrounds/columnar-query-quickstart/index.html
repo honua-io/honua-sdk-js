@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Map a bounded Honua GeoArrow response and inspect its server-pushdown and browser resource evidence."
+    />
+    <title>Map a bounded Arrow result</title>
+  </head>
+  <body>
+    <main class="workspace">
+      <section class="map-panel" aria-label="Bounded query map">
+        <div class="map-heading">
+          <div>
+            <p class="eyebrow">Honua SDK example / fixture lane</p>
+            <h1>One query.<br />No hidden scan.</h1>
+          </div>
+          <span id="map-state" class="state-chip" data-state="loading">Loading Arrow</span>
+        </div>
+        <div id="map" aria-label="Map of the bounded Arrow result"></div>
+        <div class="map-caption">
+          <span><i class="legend-dot"></i>Decoded GeoArrow point</span>
+          <span><i class="legend-box"></i>Requested CRS84 AOI</span>
+          <span>Basemap-free, deterministic render</span>
+        </div>
+      </section>
+
+      <aside class="evidence-panel">
+        <header>
+          <p class="eyebrow">Server pushdown / browser proof</p>
+          <h2>Harbor Arrow</h2>
+          <p class="lede">
+            Execute an exact Honua Server Arrow fixture through the normal SDK request, decoder, budget, and map handoff.
+          </p>
+        </header>
+
+        <div class="actions">
+          <button id="run-query" type="button">Run bounded query</button>
+          <button id="cancel-query" class="secondary" type="button" disabled>Cancel</button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite">Preparing deterministic fixture...</p>
+
+        <section class="metrics" aria-label="Measured execution evidence">
+          <article><strong id="metric-rows">-</strong><span>rows returned</span></article>
+          <article><strong id="metric-transfer">-</strong><span>payload bytes</span></article>
+          <article><strong id="metric-backing">-</strong><span>peak backing</span></article>
+          <article><strong id="metric-elapsed">-</strong><span>elapsed</span></article>
+        </section>
+
+        <section class="result-card" aria-labelledby="result-title">
+          <div>
+            <p class="section-label">Mapped result</p>
+            <h3 id="result-title">Waiting for one bounded batch</h3>
+          </div>
+          <dl>
+            <div><dt>Feature ID</dt><dd id="result-id">-</dd></div>
+            <div><dt>Coordinate</dt><dd id="result-coordinate">-</dd></div>
+            <div><dt>CRS rule</dt><dd>App-pinned WGS84; not inferred from Arrow</dd></div>
+          </dl>
+        </section>
+
+        <details open>
+          <summary>What moved where</summary>
+          <div class="plan-grid">
+            <div><span>Server pushdown</span><p id="server-plan">Planning...</p></div>
+            <div><span>Browser work</span><p>Bounded GeoArrow WKB decode, evidence accounting, MapLibre render</p></div>
+          </div>
+          <pre id="plan-json" aria-label="Bounded query plan"></pre>
+        </details>
+
+        <details>
+          <summary>Runnable core</summary>
+          <pre class="code"><code>const session = openColumnarSession(source, {
+  decodeServerResponse: createApacheArrowResponseDecoder({
+    importModule: () => import("apache-arrow"),
+  }),
+  budgets: { maxRows: 25, maxBatches: 2, maxTransferBytes: 16_384, maxBackingBytes: 65_536 },
+});
+
+for await (const result of session.stream({ bbox, columns, limit: 25, signal })) {
+  mapRows(session.table(result.batch, 25).rows);
+  showEvidence(result.evidence);
+}</code></pre>
+        </details>
+
+        <nav class="project-links" aria-label="Project links">
+          <a href="https://github.com/honua-io/honua-sdk-js/tree/trunk/examples/columnar-query-quickstart">View this source</a>
+          <a href="https://github.com/honua-io/honua-sdk-js/tree/trunk/examples/overture-geoparquet">Open the complete Overture project</a>
+        </nav>
+
+        <p class="truth-note">
+          Fixture-only: no public Honua deployment currently advertises Arrow or Parquet query output. The embedded bytes are
+          pinned to server commit <code>66a9d34496c6f6a03dd571957062f773bfef7f0a</code> and SHA-256
+          <code>da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52</code>.
+        </p>
+      </aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

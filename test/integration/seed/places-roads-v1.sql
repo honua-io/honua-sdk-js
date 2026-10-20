@@ -2,6 +2,21 @@
 -- Used by: js-integration-tests, mcp-certification, mcp-llm-smoke.
 -- Idempotent: safe to re-run (IF NOT EXISTS / ON CONFLICT).
 --
+-- Apply AFTER the server has booted once against an empty database
+-- (.github/workflows/integration.yml, honua-sdk-js#1946). The server owns the
+-- schema and its migration journal: on an empty database every migration
+-- applies, including contract-phase ones such as 038_DropV1MetadataGraphTables
+-- (Metadata v2 only; no v1 metadata-graph tables exist). Seeding first makes
+-- the database "existing", and the server's migration safety gate then refuses
+-- the pending contract migrations, which CI must not approve or skip. Provision
+-- postgis + postgis_raster before that first boot so the raster migrations run
+-- with it; installing postgis_raster afterwards leaves them pending and the next
+-- boot hits the same gate.
+--
+-- Against the migrated schema every CREATE/ALTER below is a no-op and only the
+-- data, the v2 compat snapshot function and its activation take effect. The DDL
+-- stays idempotent for integration and installed-candidate consumers.
+--
 -- This is a CI-focused schema that covers the tables and columns needed by
 -- integration tests. It is NOT a mirror of the canonical migration set in
 -- src/Honua.Server/Migrations/; the server runs its own migrations at startup.
@@ -23,7 +38,6 @@ CREATE TABLE IF NOT EXISTS honua.services (
     service_name VARCHAR(64) PRIMARY KEY,
     description TEXT NOT NULL DEFAULT '',
     srid INT NOT NULL DEFAULT 4326,
-    max_record_count INT NOT NULL DEFAULT 1000,
     supported_formats TEXT[] NOT NULL DEFAULT '{JSON,GeoJSON}',
     capabilities TEXT[] NOT NULL DEFAULT '{Query,Extract}',
     service_extent GEOMETRY,
@@ -1103,11 +1117,11 @@ $$;
 
 -- Base test service
 INSERT INTO honua.services (
-    service_name, description, srid, max_record_count,
+    service_name, description, srid,
     supported_formats, capabilities, service_extent
 )
 VALUES (
-    'test_service', 'Test Feature Service', 4326, 1000,
+    'test_service', 'Test Feature Service', 4326,
     ARRAY['JSON', 'GeoJSON'],
     ARRAY['Query', 'Extract', 'Create', 'Update', 'Delete'],
     ST_MakeEnvelope(-122.5, 37.7, -122.35, 37.84, 4326)
@@ -1115,7 +1129,6 @@ VALUES (
 ON CONFLICT (service_name) DO UPDATE SET
     description = EXCLUDED.description,
     srid = EXCLUDED.srid,
-    max_record_count = EXCLUDED.max_record_count,
     supported_formats = EXCLUDED.supported_formats,
     capabilities = EXCLUDED.capabilities,
     service_extent = EXCLUDED.service_extent,

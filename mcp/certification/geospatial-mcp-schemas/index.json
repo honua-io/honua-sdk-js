@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "geospatial-mcp JSON Schema index",
   "description": "Machine-readable map from standard MCP tool names and resource family URIs to their JSON Schema (draft 2020-12) files. 'standardName' is the bare taxonomy.md tool name; 'referenceToolName' is the name the reference implementation (Honua /mcp) advertises. 'implementationStatus' records whether the reference implementation ships the tool/resource family today (implemented) or whether it is a standard family not yet served by the reference (known-gap). For resources, 'implementationStatus' gates the FULL conformance level the same way it does for tools: a manifest must advertise every 'implemented' resource family to reach FULL; 'known-gap' families are reported as informational notes only. 'profile' (optional; default 'base') assigns a tool to a conformance profile: 'base' tools are required for the base FULL verdict; tools in an additive profile such as 'mutation' are required for FULL only when a manifest declares that profile, and are otherwise reported as informational notes (see /CONFORMANCE.md §Conformance Profiles).",
-  "date": "2026-07-06",
+  "date": "2026-08-12",
   "dialect": "https://json-schema.org/draft/2020-12/schema",
   "tools": [
     {
@@ -47,7 +47,7 @@
       "family": "Map composition",
       "schema": "tools/create_map_package.schema.json",
       "implementationStatus": "implemented",
-      "notes": "Reference implementation (#1951): routes through the canonical IMapGenerationService pipeline."
+      "notes": "Reference implementation (honua-server#3255): deterministic draft-creation entry point. It builds a draft MapPackage directly from the structured inputs defined in this schema (template, source bindings, style/theme selection, initial view) and returns its stable map package identifier; no server-side model inference runs. Model reasoning is owned by the client agent, and the composition is then refined through the fine-grained composition element operations."
     },
     {
       "standardName": "refine_map_package",
@@ -90,7 +90,7 @@
       "family": "App composition",
       "schema": "tools/create_app_package.schema.json",
       "implementationStatus": "implemented",
-      "notes": "Reference implementation (#1951): routes through the canonical IAppGenerationService pipeline."
+      "notes": "Reference implementation (honua-server#3255): deterministic draft-creation entry point. It builds a draft AppPackage directly from the structured inputs defined in this schema (app template, target SDK, bound map package and artifacts, runtime config) and returns its stable app package identifier; no server-side model inference runs. Model reasoning is owned by the client agent, and the composition is then refined through the fine-grained composition element operations."
     },
     {
       "standardName": "preview_app_package",
@@ -98,6 +98,69 @@
       "family": "App composition",
       "schema": "tools/preview_app_package.schema.json",
       "implementationStatus": "known-gap"
+    },
+    {
+      "standardName": "bind_interaction",
+      "referenceToolName": null,
+      "family": "Composition interactions",
+      "schema": "tools/bind_interaction.schema.json",
+      "implementationStatus": "known-gap",
+      "profile": "composition",
+      "notes": "Adds or replaces one declarative event→action binding in a composition document; member of the opt-in composition conformance profile (docs/adr/0030-declarative-interactions-and-layout.md). Bindings are data-only ($event.* substitution, no expression language); actions never emit events. The reference implementation does not ship the standard-named tool yet; required for FULL only when a manifest declares the composition profile."
+    },
+    {
+      "standardName": "remove_interaction",
+      "referenceToolName": null,
+      "family": "Composition interactions",
+      "schema": "tools/remove_interaction.schema.json",
+      "implementationStatus": "known-gap",
+      "profile": "composition",
+      "notes": "Removes one declarative binding, by id, from a composition document; member of the opt-in composition conformance profile (docs/adr/0030-declarative-interactions-and-layout.md)."
+    },
+    {
+      "standardName": "add_control",
+      "referenceToolName": null,
+      "family": "Composition controls",
+      "schema": "tools/add_control.schema.json",
+      "implementationStatus": "known-gap",
+      "profile": "composition",
+      "notes": "Adds or replaces (by id) one control in a composition document's controls collection; member of the opt-in composition conformance profile (docs/adr/0031-composition-controls.md). The control kind vocabulary is closed and excludes a feature-editing draw control (ADR-0028). Controls are what control:{id} interaction references resolve against. The reference implementation does not ship the standard-named tool yet; required for FULL only when a manifest declares the composition profile."
+    },
+    {
+      "standardName": "remove_control",
+      "referenceToolName": null,
+      "family": "Composition controls",
+      "schema": "tools/remove_control.schema.json",
+      "implementationStatus": "known-gap",
+      "profile": "composition",
+      "notes": "Removes one control, by id, from a composition document; member of the opt-in composition conformance profile (docs/adr/0031-composition-controls.md). Interactions bound to the removed control must be removed with it or the call rejected — no dangling control: references."
+    },
+    {
+      "standardName": "create_exploration_context",
+      "referenceToolName": null,
+      "family": "Composition exploration",
+      "schema": "tools/create_exploration_context.schema.json",
+      "implementationStatus": "known-gap",
+      "profile": "composition",
+      "notes": "Adds or replaces (by id) one exploration context in a composition document's explorationContexts collection; member of the opt-in composition conformance profile (docs/adr/0032-shared-exploration-contexts.md). A context is a named unit of shared interaction state (filters, spatial filter, extent, selection, sort, page, visible fields, grouping, aggregation) governed by a closed preset vocabulary. Contexts are data-only: no expression language and no $event.* substitution. The reference implementation does not ship the standard-named tool yet; required for FULL only when a manifest declares the composition profile."
+    },
+    {
+      "standardName": "remove_exploration_context",
+      "referenceToolName": null,
+      "family": "Composition exploration",
+      "schema": "tools/remove_exploration_context.schema.json",
+      "implementationStatus": "known-gap",
+      "profile": "composition",
+      "notes": "Removes one exploration context, by id, from a composition document; member of the opt-in composition conformance profile (docs/adr/0032-shared-exploration-contexts.md). Components bound to the removed context must be unbound with it or the call rejected — no orphaned explorationContextId."
+    },
+    {
+      "standardName": "bind_component_context",
+      "referenceToolName": null,
+      "family": "Composition exploration",
+      "schema": "tools/bind_component_context.schema.json",
+      "implementationStatus": "known-gap",
+      "profile": "composition",
+      "notes": "Sets or clears one component's exploration-context membership and role, addressed by the ADR-0030 ref grammar; member of the opt-in composition conformance profile (docs/adr/0032-shared-exploration-contexts.md). Linking N components into one shared-state workspace is N calls, not one per component pair — the authoring-cost difference that motivates ADR-0032."
     },
     {
       "standardName": "publish_result",
@@ -225,7 +288,64 @@
       "referenceToolName": "honua_propose_operation",
       "family": "Control-plane proposal (reference shape)",
       "schema": "tools/propose_operation.schema.json",
-      "implementationStatus": "implemented"
+      "implementationStatus": "implemented",
+      "notes": "Amended with x-honua-supported-kinds runtime capability discovery (geospatial-mcp#57): the kind enum stays the full wire-compatible OperationClass set, but the routable subset is discoverable at runtime (Seed is currently not routable in the reference)."
+    },
+    {
+      "standardName": "ops_health",
+      "referenceToolName": "honua_ops_health",
+      "family": "Platform operations (reference shape)",
+      "schema": "tools/ops_health.schema.json",
+      "implementationStatus": "implemented",
+      "notes": "Read-only platform-ops health snapshot; mirror of honua-server GET /api/v1/admin/observability/ops-health (OpsHealthSnapshotResponse, incl. the additive clusterReplicaCount from honua-server#2576). Response payload is the honua://ops/health resource (resources/ops-health.schema.json). Reference surface lands via honua-server#2555 (read-tools impl) under epic #2552 and is kept in sync with the vendored schema copy per honua-server#2496."
+    },
+    {
+      "standardName": "ops_findings",
+      "referenceToolName": "honua_ops_findings",
+      "family": "Platform operations (reference shape)",
+      "schema": "tools/ops_findings.schema.json",
+      "implementationStatus": "implemented",
+      "notes": "Read-only deterministic ops findings (list/get via optional findingId); mirror of honua-server GET /api/v1/admin/observability/findings. Each finding carries recommendedAction {kind, summary, reason} + evidenceRefs; the action is proposed (never executed) by finding id (honua-server ADR-0028 posture). Response payload is the honua://ops/findings resource (resources/ops-findings.schema.json). Reference surface lands via honua-server#2555 under epic #2552; vendored copy synced per honua-server#2496."
+    },
+    {
+      "standardName": "alert_events",
+      "referenceToolName": "honua_alert_events",
+      "family": "Platform operations (reference shape)",
+      "schema": "tools/alert_events.schema.json",
+      "implementationStatus": "implemented",
+      "notes": "Read-only, cursor-paged alert-event query (filters: source gis|ops, severity, rule, lifecycle state, time range). Mirror of the honua-server Console Operate alert-event API. Response envelope in tools/alert_events.result.schema.json. Reference surface lands via honua-server#2555 under epic #2552; vendored copy synced per honua-server#2496."
+    },
+    {
+      "standardName": "operate_events",
+      "referenceToolName": "honua_operate_events",
+      "family": "Platform operations (reference shape)",
+      "schema": "tools/operate_events.schema.json",
+      "implementationStatus": "implemented",
+      "notes": "Read-only, paged fused Operate timeline (filters: kind, correlationId, operationId, releaseId, time range). Mirror of honua-server GET /api/v1/admin/observability/events; the ReleaseId filter is fed by the Release events added in honua-server#2577. Response envelope in tools/operate_events.result.schema.json. Reference surface lands via honua-server#2555 under epic #2552; vendored copy synced per honua-server#2496."
+    },
+    {
+      "standardName": "platform_release_status",
+      "referenceToolName": "honua_platform_release_status",
+      "family": "Platform operations (reference shape)",
+      "schema": "tools/platform_release_status.schema.json",
+      "implementationStatus": "implemented",
+      "notes": "Read-only platform_release / server_upgrade co-versioning + skew snapshot (declared release, co-versioning, per-plane serving/execution projections, skewed plane ids). Mirror of the honua-server platformRelease projection (DeployPreflightPlatformRelease). Distinct from the hosted-content Deployment resource. Response in tools/platform_release_status.result.schema.json. Reference surface lands via honua-server#2555 under epic #2552; vendored copy synced per honua-server#2496."
+    },
+    {
+      "standardName": "deploy_operations",
+      "referenceToolName": "honua_deploy_operations",
+      "family": "Platform operations (reference shape)",
+      "schema": "tools/deploy_operations.schema.json",
+      "implementationStatus": "implemented",
+      "notes": "Read-only platform_release / server_upgrade operation surface (list/get via optional operationId; list filters status, kind, page, pageSize). Paged response envelope {items, page, pageSize, totalCount, hasMore} copied VERBATIM from the wire contract pinned in honua-server#2562 / PR #2577 (tools/deploy_operations.result.schema.json). Distinct from the hosted-content Deployment resource. Reference surface lands via honua-server#2577 under epic #2552; vendored copy synced per honua-server#2496."
+    },
+    {
+      "standardName": "propose_rollback",
+      "referenceToolName": "honua_propose_rollback",
+      "family": "Control-plane proposal (reference shape)",
+      "schema": "tools/propose_rollback.schema.json",
+      "implementationStatus": "implemented",
+      "notes": "Action tool: proposes a platform rollback as a NEW FORWARD Deploy operation to the target's prior revision (not an in-flight-operation abort); returns a proposal id / honua://proposals/{id} like propose_operation, approval-gated behind the human console inbox (honua-server ADR-0028 posture). Reference surface lands under epic #2552 (backed by the prior-succeeded-deploy lookup added in honua-server#2577); vendored copy synced per honua-server#2496."
     },
     {
       "standardName": "ingest_dataset",
@@ -371,6 +491,22 @@
       "schema": "resources/deployment.schema.json",
       "shapeFidelity": "responsibility-level",
       "implementationStatus": "implemented"
+    },
+    {
+      "family": "Ops health",
+      "uriForm": "honua://ops/health",
+      "schema": "resources/ops-health.schema.json",
+      "shapeFidelity": "concrete-reference",
+      "implementationStatus": "implemented",
+      "notes": "Read-only, admin-gated consolidated operational-health snapshot; mirror of honua-server OpsHealthSnapshotResponse (incl. the additive clusterReplicaCount from honua-server#2576). Same gated pattern as the promotion-surface resources. Response of the ops_health tool. Reference surface lands via honua-server#2555 under epic #2552; vendored copy synced per honua-server#2496."
+    },
+    {
+      "family": "Ops findings",
+      "uriForm": "honua://ops/findings",
+      "schema": "resources/ops-findings.schema.json",
+      "shapeFidelity": "concrete-reference",
+      "implementationStatus": "implemented",
+      "notes": "Read-only, admin-gated deterministic ops findings (recommendedAction {kind, summary, reason} + evidence refs); mirror of honua-server OpsFindingsListResponse. Same gated pattern as the promotion-surface resources. Response of the ops_findings tool. Reference surface lands via honua-server#2555 under epic #2552; vendored copy synced per honua-server#2496."
     }
   ],
   "common": [
@@ -378,6 +514,21 @@
       "name": "GeoprocessingError",
       "schema": "common/geoprocessing-error.schema.json",
       "role": "Canonical error envelope reused by all tool/resource failure paths."
+    },
+    {
+      "name": "CompositionInteractions",
+      "schema": "common/interactions.schema.json",
+      "role": "Standard-owned interactions and layout blocks for composition documents (MapPackage/AppPackage); referenced by both resource schemas and by bind_interaction. See docs/adr/0030-declarative-interactions-and-layout.md."
+    },
+    {
+      "name": "CompositionControls",
+      "schema": "common/controls.schema.json",
+      "role": "Standard-owned controls collection for composition documents (MapPackage/AppPackage) — the closed input-affordance vocabulary that control:{id} references resolve against; referenced by both resource schemas and by add_control. See docs/adr/0031-composition-controls.md."
+    },
+    {
+      "name": "CompositionExplorationContexts",
+      "schema": "common/exploration.schema.json",
+      "role": "Standard-owned explorationContexts collection for composition documents (MapPackage/AppPackage) — named units of shared interaction state that components join by id, making cross-filtering context membership rather than an event→action edge; referenced by both resource schemas, by the controls schema's component binding, and by create_exploration_context / bind_component_context. See docs/adr/0032-shared-exploration-contexts.md."
     }
   ],
   "conformance": [

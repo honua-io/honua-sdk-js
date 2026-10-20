@@ -1,6 +1,7 @@
 import type { SnappingConfig } from "../contract/edit-snapping.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { type SnappingOptionsCompat, snappingOptionsToSnappingConfig } from "./snapping.js";
+import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 export type EditorWorkflowCompat = "create" | "update";
 
@@ -42,6 +43,7 @@ export class EditorCompat {
   public selectedFeature: Record<string, unknown> | null;
   public snappingOptions: SnappingOptionsCompat;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: EditorCompatOptions = {}) {
     this.view = options.view;
@@ -56,6 +58,13 @@ export class EditorCompat {
     this.selectedFeature = null;
     this.snappingOptions = { ...(options.snappingOptions ?? {}) };
     this.watchListeners = new Map();
+    this.widgetHost = bindHonuaWidgetHost("honua-editor", this.container, this.eventBus);
+    this.pushWidgetHost();
+  }
+
+  /** First configured layer, pushed into `<honua-editor>`. */
+  public get layer(): unknown {
+    return this.layerInfos.find((info) => info.layer != null)?.layer;
   }
 
   /** Replace the ArcGIS-shaped snapping options and notify watchers. */
@@ -63,6 +72,7 @@ export class EditorCompat {
     this.snappingOptions = { ...options };
     this.notifyWatchers("snappingOptions", this.snappingOptions);
     this.eventBus.emit("editor.snapping-options-changed", { options: this.snappingOptions }, this);
+    this.pushWidgetHost();
   }
 
   /** The snapping options mapped onto the contract `SnappingConfig`. */
@@ -199,6 +209,14 @@ export class EditorCompat {
 
   public destroy(): void {
     this.watchListeners.clear();
+  }
+
+  private pushWidgetHost(): void {
+    pushWidgetHostState(this.widgetHost, {
+      view: this.view,
+      layer: this.layer,
+      snappingOptions: this.snappingOptions,
+    });
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {

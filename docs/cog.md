@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Direct COG inspection, bounded reads, and MapLibre rendering"
-description: "`@honua/sdk-js/cog` is an experimental, browser-safe boundary from static STAC"
+description: "Experimental browser-safe path from a classified STAC asset to direct Cloud Optimized GeoTIFF inspection, bounded pixel-window reads and an opt-in MapLibre image-source renderer."
 resource: "honua://capability/raster.cloud-cog-serving"
 ---
 # Direct COG inspection, bounded reads, and MapLibre rendering

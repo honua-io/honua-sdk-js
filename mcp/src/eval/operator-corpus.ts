@@ -1,3 +1,4 @@
+import { TYPED_PROPOSAL_TOOLS } from "./proposal-tools.js";
 import type { Scenario } from "./types.js";
 
 /**
@@ -18,11 +19,15 @@ import type { Scenario } from "./types.js";
  * criteria over the identical live catalog.
  *
  * SAFETY: these scenarios are READ-MOSTLY and reversible. The end-to-end planning
- * scenarios stop at validate / dry-run and FORBID the mutating lifecycle tools
- * (`honua_execute_plan`, `honua_propose_operation`) — on the Community-edition
- * demo `honua_propose_operation` executes directly (no approval gate), so a
- * correct agent must NOT call it for a read-only analysis task. Forbidding those
- * tools turns "did the agent stay read-only?" into a graded criterion.
+ * scenarios stop at validate / dry-run and FORBID the mutating lifecycle tools:
+ * `honua_execute_plan` and the typed governed-proposal roster
+ * (`honua_propose_finding`, `honua_propose_deploy_plan`,
+ * `honua_propose_deploy_operation`, `honua_propose_rollback`,
+ * `honua_propose_platform_release_convergence`, `honua_propose_metadata_release`)
+ * that replaced the retired `honua_propose_operation`. Each proposal files a
+ * control-plane change for approval, so a correct agent must NOT call one for a
+ * read-only analysis task. Forbidding those tools turns "did the agent stay
+ * read-only?" into a graded criterion.
  *
  * Grading is deliberately tool-centric: required-tool selection, ordered
  * subsequence, and forbidden-tool avoidance — the verifiable signals of "the
@@ -41,7 +46,7 @@ const MAUI_BUILDINGS_SERVICE = "svc-publish-maui-buildings";
 const MAUI_BUILDINGS_LAYER = 13;
 
 /** Mutating lifecycle tools a read-only analysis agent must never call. */
-const MUTATING_TOOLS = ["honua_execute_plan", "honua_propose_operation"];
+const MUTATING_TOOLS = ["honua_execute_plan", ...TYPED_PROPOSAL_TOOLS];
 
 /** A small, static, well-formed analysis plan reused by validate/dry-run. */
 const SAMPLE_PLAN = {

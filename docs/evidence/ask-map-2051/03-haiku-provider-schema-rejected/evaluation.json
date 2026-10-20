@@ -1,0 +1,116 @@
+{
+  "schema": "honua.ask-map-evaluation-result/v1",
+  "metrics": {
+    "supportedCorrect": 0,
+    "supportedTotal": 6,
+    "safeOutcomesCorrect": 0,
+    "safeOutcomesTotal": 4,
+    "unexpectedExecutions": 0,
+    "failures": [
+      "open-wide-view",
+      "open-east-view",
+      "group-wide-view",
+      "distance-500",
+      "polygon",
+      "missing-location",
+      "nearby",
+      "date-unavailable",
+      "sql-refused",
+      "quoted-literal"
+    ],
+    "latencyFailures": [],
+    "latencyMs": {
+      "median": 1005.5,
+      "maximum": 1318.0999999940395
+    }
+  },
+  "mode": "live",
+  "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+  "identity": {
+    "provider": "https://bedrock-runtime.us-west-2.amazonaws.com",
+    "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+    "sourceCommit": "2143b3ea83a2a8bce1b6c49820ccfd965bdad650",
+    "sourceDirty": false,
+    "harnessSha256": "d93c411e23d12b11018b7dacc4159120c351975a26276d5a05f65fe7f8dc5209"
+  },
+  "fixture": "ask-map-incidents-v1",
+  "engine": {
+    "name": "DuckDB-WASM",
+    "version": "v1.4.3"
+  },
+  "schemaFingerprint": "sha256:ef9e469826e0d2b0e36a7c044dbfb01d134fb37bae0537b9e8b2a352b985883c",
+  "results": [
+    {
+      "id": "open-wide-view",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 1049.199999988079,
+      "latencyExceeded": false
+    },
+    {
+      "id": "open-east-view",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 845.1999999880791,
+      "latencyExceeded": false
+    },
+    {
+      "id": "group-wide-view",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 939,
+      "latencyExceeded": false
+    },
+    {
+      "id": "distance-500",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 981.5999999940395,
+      "latencyExceeded": false
+    },
+    {
+      "id": "polygon",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 992.8000000119209,
+      "latencyExceeded": false
+    },
+    {
+      "id": "missing-location",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 1263.5,
+      "latencyExceeded": false
+    },
+    {
+      "id": "nearby",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 982.5999999940395,
+      "latencyExceeded": false
+    },
+    {
+      "id": "date-unavailable",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 1091.5999999940395,
+      "latencyExceeded": false
+    },
+    {
+      "id": "sql-refused",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 1318.0999999940395,
+      "latencyExceeded": false
+    },
+    {
+      "id": "quoted-literal",
+      "passed": false,
+      "outcome": "failed",
+      "elapsedMs": 1005.5,
+      "latencyExceeded": false
+    }
+  ],
+  "passed": false,
+  "liveModelEvidence": true
+}

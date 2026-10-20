@@ -99,6 +99,7 @@ export type {
   HonuaImportCreateRequest,
   HonuaMapPackageSummary,
   HonuaProblemDetails,
+  HonuaMapPublicationIntent,
   HonuaPublishMapPackageRequest,
   HonuaPublishMapPackageResponse,
   HonuaShareRequest,
@@ -106,3 +107,5 @@ export type {
   HonuaUpdateHostedMapRequest,
   HonuaWorkspaceSummary,
 } from "./types.js";
+
+export * from "./dataset-import/index.js";

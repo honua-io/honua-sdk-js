@@ -12,6 +12,8 @@
 export type DuckRow = Record<string, unknown>;
 
 export interface DuckDbQueryOptions {
+  /** Bind values for compiler-produced parameterized SQL; never interpolated. */
+  readonly parameters?: readonly (string | number | boolean | null)[];
   /** Cancels an in-flight DuckDB query when the driver supports cancellation. */
   readonly signal?: AbortSignal;
 }
@@ -199,7 +201,13 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
     async query(sql, queryOptions) {
       const removeCancellation = installCancellation(queryOptions?.signal);
       try {
-        const table = await conn.query(sql);
+        const prepared = queryOptions?.parameters ? await conn.prepare(sql) : undefined;
+        let table: Awaited<ReturnType<typeof conn.query>>;
+        try {
+          table = prepared ? await prepared.query(...queryOptions!.parameters!) : await conn.query(sql);
+        } finally {
+          await prepared?.close();
+        }
         if (queryOptions?.signal?.aborted) throw abortError();
         return table.toArray().map((row: { toJSON(): DuckRow }) => row.toJSON());
       } finally {
@@ -207,6 +215,7 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
       }
     },
     async *streamQuery(sql, queryOptions) {
+      if (queryOptions?.parameters) throw new Error("Parameterized streaming is not supported; use bounded query().");
       const removeCancellation = installCancellation(queryOptions?.signal);
       try {
         const reader = await conn.send(sql, true);

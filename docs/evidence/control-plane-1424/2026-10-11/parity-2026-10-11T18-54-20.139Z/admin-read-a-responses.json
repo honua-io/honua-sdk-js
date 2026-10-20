@@ -1,0 +1,188 @@
+[
+  {
+    "surface": "cli",
+    "exitCode": 0,
+    "value": {
+      "kind": "honua.command.receipt.v1",
+      "commandId": "import.create",
+      "mode": "action",
+      "status": "ok",
+      "idempotencyKey": "honua-cmd-26d9c909b74076c98a13971ea761902b",
+      "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+      "identity": {
+        "actor": "8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+        "tenantId": "tenant-a"
+      },
+      "authorization": "server-enforced",
+      "plan": {
+        "method": "POST",
+        "path": "/import/upload-url",
+        "summary": "Import geojson from <redacted-owned-fixture-presigned-url>",
+        "resourceRef": {
+          "type": "import-job"
+        }
+      },
+      "resourceRef": {
+        "type": "import-job",
+        "id": "42bda870db234eb3bffdf2d169d75b31",
+        "href": "/api/v1/admin/import/jobs/42bda870db234eb3bffdf2d169d75b31"
+      },
+      "output": {
+        "jobId": "42bda870db234eb3bffdf2d169d75b31",
+        "message": "File queued for background processing",
+        "statusUrl": "/api/v1/admin/import/jobs/42bda870db234eb3bffdf2d169d75b31",
+        "cancelUrl": "/api/v1/admin/import/jobs/42bda870db234eb3bffdf2d169d75b31/cancel",
+        "uploadId": "21c4c88e-0814-4408-a08e-ff0c3da2fb09",
+        "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+        "id": "42bda870db234eb3bffdf2d169d75b31",
+        "type": "import",
+        "status": "queued",
+        "links": {
+          "self": "/api/v1/admin/import/jobs/42bda870db234eb3bffdf2d169d75b31",
+          "cancel": "/api/v1/admin/import/jobs/42bda870db234eb3bffdf2d169d75b31/cancel"
+        }
+      },
+      "transport": "cli",
+      "auditKey": "e136ca7cb026740f04b8229391dfda47"
+    }
+  },
+  {
+    "surface": "mcp",
+    "isError": false,
+    "value": {
+      "kind": "honua.command.receipt.v1",
+      "commandId": "import.create",
+      "mode": "action",
+      "status": "ok",
+      "idempotencyKey": "honua-cmd-26d9c909b74076c98a13971ea761902b",
+      "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+      "identity": {
+        "actor": "8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+        "tenantId": "tenant-a"
+      },
+      "authorization": "server-enforced",
+      "plan": {
+        "method": "POST",
+        "path": "/import/upload-url",
+        "summary": "Import geojson from <redacted-owned-fixture-presigned-url>",
+        "resourceRef": {
+          "type": "import-job"
+        }
+      },
+      "resourceRef": {
+        "type": "import-job",
+        "id": "e351426f1f7045939f85721c9e78b6f6",
+        "href": "/api/v1/admin/import/jobs/e351426f1f7045939f85721c9e78b6f6"
+      },
+      "output": {
+        "jobId": "e351426f1f7045939f85721c9e78b6f6",
+        "message": "File queued for background processing",
+        "statusUrl": "/api/v1/admin/import/jobs/e351426f1f7045939f85721c9e78b6f6",
+        "cancelUrl": "/api/v1/admin/import/jobs/e351426f1f7045939f85721c9e78b6f6/cancel",
+        "uploadId": "d2dbad96-48ec-409d-8efd-9ee61a6ae038",
+        "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+        "id": "e351426f1f7045939f85721c9e78b6f6",
+        "type": "import",
+        "status": "queued",
+        "links": {
+          "self": "/api/v1/admin/import/jobs/e351426f1f7045939f85721c9e78b6f6",
+          "cancel": "/api/v1/admin/import/jobs/e351426f1f7045939f85721c9e78b6f6/cancel"
+        }
+      },
+      "transport": "mcp",
+      "auditKey": "545af9058c54d7f4bbfa451617c0e098"
+    }
+  },
+  {
+    "surface": "studio",
+    "value": {
+      "kind": "honua.command.receipt.v1",
+      "commandId": "import.create",
+      "mode": "action",
+      "status": "ok",
+      "idempotencyKey": "honua-cmd-26d9c909b74076c98a13971ea761902b",
+      "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+      "identity": {
+        "actor": "8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+        "tenantId": "tenant-a"
+      },
+      "authorization": "server-enforced",
+      "plan": {
+        "method": "POST",
+        "path": "/import/upload-url",
+        "summary": "Import geojson from <redacted-owned-fixture-presigned-url>",
+        "resourceRef": {
+          "type": "import-job"
+        }
+      },
+      "resourceRef": {
+        "type": "import-job",
+        "id": "dd9a265a01b5488fb4d65d2ff6097314",
+        "href": "/api/v1/admin/import/jobs/dd9a265a01b5488fb4d65d2ff6097314"
+      },
+      "output": {
+        "jobId": "dd9a265a01b5488fb4d65d2ff6097314",
+        "message": "File queued for background processing",
+        "statusUrl": "/api/v1/admin/import/jobs/dd9a265a01b5488fb4d65d2ff6097314",
+        "cancelUrl": "/api/v1/admin/import/jobs/dd9a265a01b5488fb4d65d2ff6097314/cancel",
+        "uploadId": "ca9c38f7-9c74-4b7e-b049-59b1469d2c9d",
+        "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+        "id": "dd9a265a01b5488fb4d65d2ff6097314",
+        "type": "import",
+        "status": "queued",
+        "links": {
+          "self": "/api/v1/admin/import/jobs/dd9a265a01b5488fb4d65d2ff6097314",
+          "cancel": "/api/v1/admin/import/jobs/dd9a265a01b5488fb4d65d2ff6097314/cancel"
+        }
+      },
+      "transport": "studio",
+      "auditKey": "0b2e72d3d9aae432513bfac404c72fca"
+    }
+  },
+  {
+    "surface": "sdk",
+    "value": {
+      "kind": "honua.command.receipt.v1",
+      "commandId": "import.create",
+      "mode": "action",
+      "status": "ok",
+      "idempotencyKey": "honua-cmd-26d9c909b74076c98a13971ea761902b",
+      "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+      "identity": {
+        "actor": "8eacdab9-ce2f-40b2-bfa0-210c04509ff7",
+        "tenantId": "tenant-a"
+      },
+      "authorization": "server-enforced",
+      "plan": {
+        "method": "POST",
+        "path": "/import/upload-url",
+        "summary": "Import geojson from <redacted-owned-fixture-presigned-url>",
+        "resourceRef": {
+          "type": "import-job"
+        }
+      },
+      "resourceRef": {
+        "type": "import-job",
+        "id": "2e0dc8f64c604f0794aa151f31d8e5c5",
+        "href": "/api/v1/admin/import/jobs/2e0dc8f64c604f0794aa151f31d8e5c5"
+      },
+      "output": {
+        "jobId": "2e0dc8f64c604f0794aa151f31d8e5c5",
+        "message": "File queued for background processing",
+        "statusUrl": "/api/v1/admin/import/jobs/2e0dc8f64c604f0794aa151f31d8e5c5",
+        "cancelUrl": "/api/v1/admin/import/jobs/2e0dc8f64c604f0794aa151f31d8e5c5/cancel",
+        "uploadId": "521c9a06-e441-46bc-91d9-cb0fdb14c350",
+        "correlationId": "honua-corr-aa8f79907b7f5b1b3075bf8b964dc3b3",
+        "id": "2e0dc8f64c604f0794aa151f31d8e5c5",
+        "type": "import",
+        "status": "queued",
+        "links": {
+          "self": "/api/v1/admin/import/jobs/2e0dc8f64c604f0794aa151f31d8e5c5",
+          "cancel": "/api/v1/admin/import/jobs/2e0dc8f64c604f0794aa151f31d8e5c5/cancel"
+        }
+      },
+      "transport": "sdk",
+      "auditKey": "f5007fd9d745f2c88c2ff3d6a0f6e5e0"
+    }
+  }
+]

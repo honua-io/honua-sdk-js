@@ -1,11 +1,11 @@
 // GENERATED FILE - DO NOT EDIT.
-// Source: honua-io/honua-server@f897700159e2791c9468c6ca85bb4e2a3a8d8433/docs/developer/api-specs/admin-api.json
-// SHA-256: edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a; operations: 396
+// Source: honua-io/honua-server@07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a/docs/developer/api-specs/admin-api.json
+// SHA-256: 65a68c1eac73639b98e5e27e9a572cd833b92053e20d3a85f8f1709eac9cd511; operations: 396
 // Regenerate with: npm run admin-client:generate
 
 export const ADMIN_API_OPERATION_COUNT = 396 as const;
-export const ADMIN_API_SERVER_SHA = "f897700159e2791c9468c6ca85bb4e2a3a8d8433" as const;
-export const ADMIN_API_SPEC_SHA256 = "edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a" as const;
+export const ADMIN_API_SERVER_SHA = "07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a" as const;
+export const ADMIN_API_SPEC_SHA256 = "65a68c1eac73639b98e5e27e9a572cd833b92053e20d3a85f8f1709eac9cd511" as const;
 export const ADMIN_API_BASE_PATH = "/api/v1/admin" as const;
 export const ADMIN_PUBLISHED_OPERATION_COUNT = 385 as const;
 export const ADMIN_MCP_EXCLUDED_OPERATION_COUNT = 11 as const;
@@ -16,11 +16,12 @@ export const ADMIN_MCP_CONTRACT_REVIEW_SERVER_SHA = "c810ef3df29269527d4eceb2615
 export const ADMIN_MCP_CONTRACT_STATUS = "review-head-validated-awaiting-merged-trunk-pin" as const;
 export const MCP_DEFAULT_STATIC_TOOL_COUNT = 47 as const;
 export const MCP_DEFAULT_TOTAL_TOOL_COUNT = 432 as const;
-export const ADMIN_LOCAL_SERVER_IMAGE = "ghcr.io/honua-io/honua-server:nightly-aot-4a7903c@sha256:9bcc7bcde92f2623035d04a8164aafe928e48278590f686ac6ca1e470af4547f" as const;
-export const ADMIN_RELEASE_SERVER_SHA = "4a7903c2ef764ffeaa60083689f73b9e42bbc6a3" as const;
-export const ADMIN_RELEASE_OPERATION_COUNT = 395 as const;
-export const ADMIN_RELEASE_CONTRACT_STATUS = "blocked-server-pin-regresses-admin-contract" as const;
-export const ADMIN_RELEASE_CONTRACT_COMPATIBLE = false as const;
+export const ADMIN_LOCAL_SERVER_IMAGE = "ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a" as const;
+export const ADMIN_LOCAL_SERVER_SHA = "87966c3f7b6c840ffc4d4da0b451714ab717b18a" as const;
+export const ADMIN_RELEASE_SERVER_SHA = "93cad86ec4fb28fba3ff0b9358059d86aa55dde5" as const;
+export const ADMIN_RELEASE_OPERATION_COUNT = 403 as const;
+export const ADMIN_RELEASE_CONTRACT_STATUS = "compatible" as const;
+export const ADMIN_RELEASE_CONTRACT_COMPATIBLE = true as const;
 
 export const ADMIN_MCP_PUBLISHED_TOOL_NAMES = [
   "honua_admin_api_key_effective_permissions",

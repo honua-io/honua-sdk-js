@@ -1,20 +1,18 @@
 #!/usr/bin/env node
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
-  CallToolRequestSchema,
-  GetPromptRequestSchema,
-  ListPromptsRequestSchema,
-  ListResourceTemplatesRequestSchema,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  PromptListChangedNotificationSchema,
-  ReadResourceRequestSchema,
-  ResourceListChangedNotificationSchema,
-  type ServerCapabilities,
-  ToolListChangedNotificationSchema,
+  ErrorCode,
+  type InitializeRequest,
+  InitializeRequestSchema,
+  type JSONRPCMessage,
+  type JSONRPCRequest,
+  isInitializedNotification,
+  isJSONRPCErrorResponse,
+  isJSONRPCRequest,
+  isJSONRPCResultResponse,
 } from "@modelcontextprotocol/sdk/types.js";
 import { requireSecureCredentialEndpoint } from "./credential-endpoint.js";
 import { isMainEntrypoint } from "./entrypoint.js";
@@ -27,10 +25,12 @@ import { SERVER_VERSION } from "./index.js";
  * `/mcp`. Claude-Desktop-style clients speak stdio. Rather than reimplementing
  * the tool/resource catalog (the older `@honua/mcp-server` discovery surface did
  * exactly that, which is how the two halves drifted apart), this proxy bridges a
- * local stdio MCP client to the remote HTTP-SSE MCP server: it connects upstream
- * as an MCP client, then re-exposes the *same* catalog downstream over stdio.
+ * local stdio MCP client to the remote HTTP-SSE MCP server: each stdio client
+ * gets one upstream streamable-HTTP session, opened by the client's own
+ * initialize, and every later message is relayed over that session.
  *
- * Because every request and notification is forwarded verbatim, the stdio
+ * Because every request and notification is forwarded verbatim (initialize's
+ * `_meta` is narrowed to the workflow-view selector), the stdio
  * surface is transport-symmetric with the HTTP-SSE surface by construction —
  * identical tools, identical input/output schemas, identical resources and
  * prompts, and live `list_changed` notifications. There is one source-of-truth
@@ -102,101 +102,189 @@ export function buildUpstreamHeaders(options: ProxyOptions): Record<string, stri
   return headers;
 }
 
-/** Connect an upstream MCP client to the remote honua /mcp over streamable HTTP. */
-export async function connectUpstream(options: ProxyOptions): Promise<Client> {
+function createUpstreamTransport(options: ProxyOptions): StreamableHTTPClientTransport {
   const headers = buildUpstreamHeaders(options);
-  const remoteUrl = validateProxyOptions(options);
-  const transport = new StreamableHTTPClientTransport(remoteUrl, {
+  return new StreamableHTTPClientTransport(validateProxyOptions(options), {
     requestInit: { ...(Object.keys(headers).length > 0 ? { headers } : {}), redirect: "manual" },
   });
+}
+
+/**
+ * Connect a direct MCP client to the remote honua /mcp over streamable HTTP.
+ * Certification and evals use it as the HTTP reference side; the stdio proxy
+ * does not, because Client.connect would send its own initialize.
+ */
+export async function connectUpstream(options: ProxyOptions): Promise<Client> {
   const client = new Client({ name: "honua-mcp-stdio-proxy", version: SERVER_VERSION });
-  await client.connect(transport);
+  await client.connect(createUpstreamTransport(options));
   return client;
 }
 
-/**
- * Build a low-level MCP server that forwards every request and `list_changed`
- * notification to the already-connected upstream client. The proxy advertises
- * exactly the upstream's name, version, and capabilities, so the downstream
- * (stdio) surface mirrors the upstream (HTTP-SSE) surface.
- */
-export function createProxyServer(upstream: Client): Server {
-  const upstreamInfo = upstream.getServerVersion() ?? { name: "honua", version: SERVER_VERSION };
-  const upstreamCapabilities: ServerCapabilities = upstream.getServerCapabilities() ?? {};
+/** The server's only initialize metadata key; the session view selector. */
+export const WORKFLOW_VIEW_META_KEY = "honua.io/workflow-view";
+const MAX_WORKFLOW_VIEW_LENGTH = 64;
+const INITIALIZE_TIMEOUT_MS = 30_000;
 
-  const server = new Server(
-    { name: upstreamInfo.name, version: upstreamInfo.version },
-    {
-      capabilities: upstreamCapabilities,
-      instructions: upstream.getInstructions(),
-    },
-  );
-
-  // ── Tools ──────────────────────────────────────────────────────
-  if (upstreamCapabilities.tools) {
-    server.setRequestHandler(ListToolsRequestSchema, async (request) => upstream.listTools(request.params));
-    server.setRequestHandler(CallToolRequestSchema, async (request) => upstream.callTool(request.params));
+/** Read the optional view selector under the server's own contract. */
+export function readWorkflowView(request: InitializeRequest): string | undefined {
+  const value = request.params._meta?.[WORKFLOW_VIEW_META_KEY];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" || value.length > MAX_WORKFLOW_VIEW_LENGTH) {
+    throw new Error("Invalid workflow view selector");
   }
-
-  // ── Resources ──────────────────────────────────────────────────
-  if (upstreamCapabilities.resources) {
-    server.setRequestHandler(ListResourcesRequestSchema, async (request) => upstream.listResources(request.params));
-    server.setRequestHandler(ListResourceTemplatesRequestSchema, async (request) =>
-      upstream.listResourceTemplates(request.params),
-    );
-    server.setRequestHandler(ReadResourceRequestSchema, async (request) => upstream.readResource(request.params));
-  }
-
-  // ── Prompts ────────────────────────────────────────────────────
-  if (upstreamCapabilities.prompts) {
-    server.setRequestHandler(ListPromptsRequestSchema, async (request) => upstream.listPrompts(request.params));
-    server.setRequestHandler(GetPromptRequestSchema, async (request) => upstream.getPrompt(request.params));
-  }
-
-  // ── list_changed notification forwarding ───────────────────────
-  // Keeps the stdio surface live: when the server's catalog changes, the
-  // downstream client is told, exactly as an HTTP-SSE client would be.
-  upstream.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
-    await server.sendToolListChanged();
-  });
-  upstream.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
-    await server.sendResourceListChanged();
-  });
-  upstream.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
-    await server.sendPromptListChanged();
-  });
-
-  return server;
+  return value.trim().length === 0 ? undefined : value;
 }
 
-/* v8 ignore start -- live-process entry: wires the stdio transport to a real
-   remote /mcp upstream; exercised by running the proxy, not by unit tests. The
-   unit-testable logic (option/header resolution, upstream connect, catalog
-   forwarding) lives in the exported functions above and is covered there. */
+/**
+ * Validate the caller's initialize and narrow its `_meta` to the recognised
+ * view selector. Every other field is the caller's own and passes unchanged;
+ * other metadata stays local rather than entering the credentialed session.
+ */
+function upstreamInitialize(message: JSONRPCRequest): JSONRPCRequest {
+  const view = readWorkflowView(InitializeRequestSchema.parse(message));
+  const { _meta: _ignored, ...params } = message.params ?? {};
+  return {
+    ...message,
+    params: { ...params, ...(view === undefined ? {} : { _meta: { [WORKFLOW_VIEW_META_KEY]: view } }) },
+  };
+}
+
+export interface ProxyBridgeOptions {
+  /** Bound on initialize arriving and its upstream response; defaults to 30 s. */
+  initializeTimeoutMs?: number;
+}
 
 /**
- * Run the stdio proxy end-to-end: resolve the remote `/mcp` from the
- * environment, connect upstream, and expose the mirrored catalog over stdio.
- * Also used by the deprecated `honua-mcp` bin, which now delegates here.
+ * Bridge one downstream transport to one upstream HTTP session. In particular,
+ * forward the caller's initialize instead of letting Client.connect synthesize
+ * an earlier initialize without its metadata. The server owns view selection
+ * and request overrides; the proxy never supplies a tools/list selector.
+ *
+ * The handshake fails closed: traffic before initialize, an initialize the
+ * server's selector contract would refuse, a second initialize, or a handshake
+ * that does not complete within the bound gets a JSON-RPC error (when it has
+ * an id) and closes both transports. Nothing invalid reaches the server.
  */
-export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  const options = resolveProxyOptions(env);
-  const upstream = await connectUpstream(options);
-  const server = createProxyServer(upstream);
-
-  // Tear down both ends together so a dropped upstream surfaces to the client.
+export async function connectProxyTransport(
+  options: ProxyOptions,
+  downstream: Transport,
+  bridge: ProxyBridgeOptions = {},
+): Promise<Transport> {
+  const upstream = createUpstreamTransport(options);
+  let closed = false;
+  let refused = false;
+  let initializeSeen = false;
+  let initializeId: string | number | undefined;
+  let initialized = Promise.resolve();
   const shutdown = async () => {
-    await server.close().catch(() => {});
-    await upstream.close().catch(() => {});
+    if (closed) return;
+    closed = true;
+    clearTimeout(handshake);
+    await Promise.all([downstream.close().catch(() => {}), upstream.close().catch(() => {})]);
   };
-  upstream.onclose = () => {
+  // Reply before closing so the caller learns why its session ended. The
+  // message is the proxy's own; nothing from upstream is echoed.
+  const refuse = (id: string | number | undefined, code: ErrorCode, reason: string) => {
+    if (closed || refused) return;
+    refused = true;
+    const reply =
+      id === undefined ? Promise.resolve() : downstream.send({ jsonrpc: "2.0", id, error: { code, message: reason } });
+    void reply.catch(() => {}).finally(() => shutdown());
+  };
+  const handshake = setTimeout(
+    () => refuse(initializeId, ErrorCode.RequestTimeout, "Proxy initialization timed out"),
+    bridge.initializeTimeoutMs ?? INITIALIZE_TIMEOUT_MS,
+  );
+  downstream.onclose = upstream.onclose = () => {
     void shutdown();
   };
-
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  // HTTP/SSE errors can contain credential-bearing response bodies. Close
+  // both transports on synchronous or background failures without echoing
+  // those details. In particular, a failed SSE reader must not strand stdio.
+  upstream.onerror = () => {
+    void shutdown();
+  };
+  downstream.onmessage = (message) => {
+    if (closed || refused) return;
+    let forwarded: JSONRPCMessage = message;
+    const isInitialize = isJSONRPCRequest(message) && message.method === "initialize";
+    if (isJSONRPCRequest(message) && message.method === "initialize") {
+      if (initializeSeen) {
+        refuse(message.id, ErrorCode.InvalidRequest, "Duplicate initialize is not permitted");
+        return;
+      }
+      try {
+        forwarded = upstreamInitialize(message);
+      } catch {
+        refuse(message.id, ErrorCode.InvalidRequest, "Invalid initialize request or workflow view selector");
+        return;
+      }
+      initializeSeen = true;
+      initializeId = message.id;
+    } else if (!initializeSeen) {
+      refuse(
+        isJSONRPCRequest(message) ? message.id : undefined,
+        ErrorCode.InvalidRequest,
+        "Initialize must be the first request",
+      );
+      return;
+    }
+    const sending = initialized.then(() => upstream.send(forwarded));
+    // HTTP POSTs may otherwise overtake initialize (which establishes the
+    // session) or the initialized notification. Await their acceptance before
+    // subsequent traffic, while allowing later tool calls and cancellation
+    // notifications to proceed concurrently.
+    if (isInitialize || isInitializedNotification(message)) initialized = sending;
+    void sending.catch(() => {
+      void shutdown();
+    });
+  };
+  upstream.onmessage = (message) => {
+    if (
+      initializeId !== undefined &&
+      (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) &&
+      message.id === initializeId
+    ) {
+      clearTimeout(handshake);
+      initializeId = undefined;
+      if (isJSONRPCResultResponse(message) && typeof message.result.protocolVersion === "string") {
+        upstream.setProtocolVersion(message.result.protocolVersion);
+        downstream.setProtocolVersion?.(message.result.protocolVersion);
+      }
+    }
+    void downstream.send(message).catch(() => {
+      void shutdown();
+    });
+  };
+  try {
+    await upstream.start();
+    await downstream.start();
+  } catch (error) {
+    await shutdown();
+    throw error;
+  }
+  return upstream;
 }
 
+/** Run the published stdio executable with the caller's initialize intact. */
+export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const options = resolveProxyOptions(env);
+  const transport = new StdioServerTransport();
+  const close = () => {
+    void transport.close().catch(() => {});
+  };
+  process.stdin.once("end", close);
+  process.stdin.once("close", close);
+  try {
+    await connectProxyTransport(options, transport);
+  } catch (error) {
+    process.stdin.off("end", close);
+    process.stdin.off("close", close);
+    throw error;
+  }
+}
+
+/* v8 ignore start -- process entry; the transport bridge is tested above. */
 if (isMainEntrypoint(import.meta.url)) {
   runProxy().catch((err) => {
     process.stderr.write(`Fatal: ${err instanceof Error ? err.message : String(err)}\n`);

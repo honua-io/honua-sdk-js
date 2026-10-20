@@ -15,6 +15,7 @@ import type {
   SourceSchemaV2,
 } from "../contract/schema.js";
 import type { AggregationFn, AggregationSpec } from "../contract/types.js";
+import { geometryInputSpatialReference } from "../core/geometry-input-sr.js";
 import { canonicalFilterParts } from "./canonical-filter.js";
 import { hashSemanticQuery } from "./semantic-canonical.js";
 import {
@@ -110,6 +111,7 @@ export function compileGeoServicesQuery(
       ? {
           geometry: spatialFilter.geometry as GeoServicesCompiledQueryV1["geometry"],
           geometryType: spatialFilter.geometryType,
+          inSr: geometryInputSpatialReference(spatialFilter.geometry),
           ...(spatialFilter.spatialRel ? { spatialRel: spatialFilter.spatialRel } : {}),
         }
       : {}),

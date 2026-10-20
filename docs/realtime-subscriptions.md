@@ -1,14 +1,14 @@
 ---
 type: reference
 title: "Realtime Feature State"
-description: "The `@honua/sdk-js/realtime` entrypoint defines the SDK-side contract for live operational layers. Apps subscribe once to a `RealtimeFeatureTransport` and consume normalized `RealtimeFeatureEvent` values through `RealtimeFeatureState`;…"
+description: "The SDK-side contract for live operational layers: subscription identity, snapshot-then-delta delivery, normalized feature events and the RealtimeFeatureState that runtimes consume."
 resource: "honua://capability/streaming.feature-subscriptions"
 ---
 # Realtime Feature State
 
 The `@honua/sdk-js/realtime` entrypoint defines the SDK-side contract for live operational layers. Apps subscribe once to a `RealtimeFeatureTransport` and consume normalized `RealtimeFeatureEvent` values through `RealtimeFeatureState`; they do not branch on SSE, WebSocket, or delta polling protocols in map, table, or detail code.
 
-The full versioned contract — including plan identity, explicit authority state, and cross-scope resume rejection — is ratified in [the snapshot/delta/cursor/resume/plan-identity contract decision](decisions/realtime-snapshot-delta-cursor-resume-plan-identity-contract.md) and exercised by [`test/fixtures/realtime/snapshot-delta-cursor-resume-contract.v1.json`](../test/fixtures/realtime/snapshot-delta-cursor-resume-contract.v1.json).
+The full versioned contract — including plan identity, explicit authority state, and cross-scope resume rejection — is ratified in [the snapshot/delta/cursor/resume/plan-identity contract decision](decisions/realtime-snapshot-delta-cursor-resume-plan-identity-contract.md).
 
 ## Subscription Identity
 
@@ -123,9 +123,9 @@ store.connect(transport, { sourceId: "incidents", layerId: "0", mode: "snapshot-
 
 The preset decodes honua-server feature-change envelopes (`{ op: "insert" | "update" | "delete", featureId, feature, ... }`, batched under `changes` or inlined) into SDK `delta` events, carrying `serviceId` through as the event `sourceId`. Status, heartbeat, and error envelopes that already use the SDK vocabulary pass through unchanged. The default `sourceId=` / `layerId=` encoder remains the transport default; the preset is opt-in.
 
-## Bounded, Resumable Transports (#557)
+## Bounded, Resumable Transports
 
-`sse.ts` and `websocket.ts` are raw wire adapters: they open exactly one
+The SSE and WebSocket transports are raw wire adapters: they open exactly one
 connection per `subscribe()` call, decode the default JSON event vocabulary
 (or a custom `encodeRequest`/`decodeEvent` pair, as with the honua-server
 preset), and never reconnect on their own. `createResumableRealtimeTransport`
@@ -133,7 +133,7 @@ wraps either one (or a custom `RealtimeFeatureTransport`) with the
 [resumable delivery gate](decisions/realtime-snapshot-delta-cursor-resume-plan-identity-contract.md),
 reconnect ownership, a heartbeat timeout, and redacted telemetry — closing
 the "automatic SSE/WebSocket reconnection" gap called out in
-[the resume doc](realtime-resume.md#scope-and-remaining-work).
+[the resume doc](realtime-resume.md#cross-transport-conformance-and-remaining-work).
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -164,7 +164,7 @@ const store = createRealtimeFeatureStore();
 store.connect(transport, { sourceId: "incidents", mode: "snapshot-then-delta" });
 ```
 
-`createResumableWebSocketTransport` is the same shape over `websocket.ts`.
+`createResumableWebSocketTransport` is the same shape over the WebSocket transport.
 The wrapped transport still satisfies `RealtimeFeatureTransport`, so it
 composes with `createRealtimeFeatureStore.connect(...)` exactly like a raw
 adapter — the store never has to know reconnect is happening underneath it.
@@ -197,9 +197,9 @@ Behavior:
   `redactRealtimeCheckpoint` projection of the current checkpoint — never a
   raw cursor, watermark, or delta-token.
 
-## OData v4 Delta-Link Pull Adapter (#558)
+## OData v4 Delta-Link Pull Adapter
 
-`createOdataDeltaTransport` (`src/realtime/odata-delta.ts`) is the delta
+`createOdataDeltaTransport` is the delta
 polling adapter the "Adapter Expectations" section below anticipated. OData
 delta links are a *pull* change feed, not a socket, so this adapter is
 deliberately honest about that instead of dressing polling up as a live
@@ -261,7 +261,7 @@ Behavior:
 - **No reconnect wrapper.** Unlike the SSE/WebSocket adapters, this transport
   owns its whole poll loop itself — every cycle is an independent
   request/response, not a connection to reconnect — so it does not compose
-  with `resumable-transport.ts`'s `createResumableRealtimeTransport`. It can
+  with `createResumableRealtimeTransport`. It can
   still feed `createResumableRealtimeSubscription` directly, or
   `createRealtimeFeatureStore`, like any other `RealtimeFeatureTransport`.
 

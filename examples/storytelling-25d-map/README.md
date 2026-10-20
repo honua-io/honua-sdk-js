@@ -21,7 +21,7 @@ This repo ships a deterministic local review lane that mirrors the live browser 
 endpoint shapes.
 
 ```bash
-# Node.js 20.19.0+; `.nvmrc` pins the reviewed repo floor
+# Node.js 22.12.0+; `.nvmrc` pins Node 22.23.3
 npm install
 npm run demo:25d:mock
 ```
@@ -57,7 +57,7 @@ Supported env vars:
 - `VITE_HONUA_25D_ASSETS_COLLECTION`: assets collection id. Default: `story-25d-assets`.
 - `VITE_HONUA_25D_ROUTE_COLLECTION`: route collection id. Default: `story-25d-route`.
 - `VITE_HONUA_25D_STOPS_COLLECTION`: stops collection id. Default: `story-25d-stops`.
-- `VITE_HONUA_25D_BASEMAP_STYLE`: MapLibre style URL. Default: `https://demotiles.maplibre.org/style.json`.
+- `VITE_HONUA_25D_BASEMAP_STYLE`: MapLibre style URL. Default: `https://tiles.openfreemap.org/styles/liberty`.
 
 The app trims trailing slashes from `VITE_HONUA_25D_BASE_URL` before instantiating `HonuaClient`.
 
@@ -176,3 +176,7 @@ Bounded external follow-on, intentionally not implemented in this repo:
 
 - `honua-server`: add a deterministic `25d-demo` seed/profile that publishes the same polygon, route, and stop
   collections with stable ids and numeric risk/height attributes.
+
+## Live basemap policy
+
+Live maps use free, keyless OpenFreeMap styles with source attribution; dark mode changes the basemap while preserving operational data and selection. Set `VITE_HONUA_25D_BASEMAP_STYLE` to a custom/self-hosted style URL. Asset failures show an actionable status and leave operational controls usable. The committed fixture lane stays network-independent. See [shared basemap policy](../../docs/sample-basemaps.md) for provider terms, exceptions and export credits.

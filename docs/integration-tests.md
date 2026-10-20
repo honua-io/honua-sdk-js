@@ -69,6 +69,7 @@ HONUA_INTEGRATION_BASE_URL=http://localhost:8080 \
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `HONUA_INTEGRATION_ALERTS_ENABLED` | _(unset: positive draft validation)_ | Dedicated Pro alerts fixture selects `false` for the capability-off negative control and `true` for the enabled positive control. This selects assertions only; the workflow configures the server opt-in separately. |
 | `HONUA_INTEGRATION_BASE_URL` | _(required)_ | Server URL the lane connects to. Suite skips when absent. |
 | `HONUA_INTEGRATION_SERVICE_ID` | `test_service_gw0` | GeoServices service ID (FeatureServer / MapServer / WMS / WMTS). |
 | `HONUA_INTEGRATION_LAYER_ID` | `1000` | FeatureServer / MapServer layer ID. |
@@ -112,6 +113,7 @@ The lane exercises the following surfaces against the seed profile.
 | WMS | Exercised | capabilities, GetMap |
 | WMTS | Exercised | capabilities, GetTile |
 | OData | Exercised | metadata, bounded entity query |
+| Alert draft evaluation | Preview / experimental | Dedicated single-tenant Pro fixture only; explicit `alerts.geofence` off returns typed HTTP 404, on validates an unpersisted rule and zone. Both runs use the same resolved immutable candidate. |
 | Geocoding | Configured | forwardGeocode when `HONUA_INTEGRATION_GEOCODING_LOCATOR` is set; otherwise recorded skipped |
 
 Skipped surfaces are recorded in `test-results/integration-meta.json`
@@ -140,49 +142,63 @@ truncated with a `[truncated, original N chars]` suffix.
 ## CI integration
 
 `.github/workflows/integration.yml` runs the lane on `trunk` /
-`release/**` pushes and on manual dispatch. It is **connect-only**
-against an externally-managed seeded Honua Server — the SDK repo does
-not own the server bootstrap or seed because there is no public
-seed-on-start image or admin seed API in honua-server today (tracked
-as a follow-on, see "Deferred infrastructure" below).
+`release/**` pushes, nightly, and on manual dispatch. By default it is
+**self-contained**: the job runs the pinned Honua Server image plus
+Postgres and Redis inside the workflow. An external base URL (dispatch
+`base_url` input or the `HONUA_INTEGRATION_BASE_URL` repo variable)
+switches it to connect-only against an already-seeded deployment.
 
-The job:
+The self-contained stack starts in this order (honua-sdk-js#1946):
 
-1. Reads `HONUA_INTEGRATION_BASE_URL` from the workflow input or repo
-   variable. If neither is set, the workflow exits 0 with a notice in
-   the step summary so trunk pushes do not fail before the staging
-   environment is provisioned.
-2. Verifies that `HONUA_INTEGRATION_API_KEY` (repo secret) is present;
-   otherwise it fails fast with an explicit error. The value must
-   match the target server's `HONUA_ADMIN_PASSWORD`.
-3. Polls `${HONUA_INTEGRATION_BASE_URL}/healthz/live` until the server
-   reports healthy.
-4. Runs `npm run test:integration` with the resolved env.
-5. Uploads `test-results/integration-meta.json` as the
-   `integration-meta` artifact (always, including on failure).
-6. Renders a summary table into `$GITHUB_STEP_SUMMARY` listing every
-   surface and its status.
+1. Start Postgres and Redis, then install `postgis` and `postgis_raster`.
+2. Boot the server against the **empty** database. It applies every
+   migration itself, contract-phase ones such as
+   `038_DropV1MetadataGraphTables` included, and journals them.
+3. Wait for `/healthz/ready`.
+4. Apply `test/integration/seed/places-roads-v1.sql` to the migrated
+   schema. It registers `test_service` / layer `0` and activates the
+   Metadata v2 compat snapshot last.
+5. Restart the server and wait for ready again.
 
-### Required repo configuration
+Do not seed before the first boot. A seeded database counts as
+"existing", and the migration safety gate then refuses the pending
+contract migrations. CI never sets `HONUA_APPROVE_CONTRACT_MIGRATIONS` or
+`HONUA_SKIP_MIGRATIONS` to get past that gate. Installing
+`postgis_raster` after the first boot has the same effect: the raster
+migrations stay pending and the restart is refused.
+
+Production refuses the placeholder connection-encryption key/salt and
+needs an operation key-ring certificate. The step mints both per run;
+they never leave the runner.
+
+### Reviewed self-contained server pin
+
+The workflow pins the reviewed candidate at workflow level for both the Community
+fixture and the dedicated single-tenant Pro alerts off/on fixture:
+
+| Env | Default |
+| --- | --- |
+| `HONUA_INTEGRATION_SERVER_IMAGE` | `ghcr.io/honua-io/honua-server@sha256:3ef3bd41a2f84d1f3a6194c11db496f741cc4d869b54bf57e9d7067dd9cf3d39` |
+| `HONUA_INTEGRATION_SERVER_COMMIT` | `ff5f5671903e96e13cffac7b73546c3ed0f853c5` |
+| `HONUA_CANDIDATE_CUT_AT` | `2026-10-04T08:09:54Z` |
+
+These literal values are authoritative for self-contained runs; repository
+variables cannot replace them. Advance the image, source, cut, and compatible
+seed together through a reviewed change. The current identity was selected in
+[PR #1956](https://github.com/honua-io/honua-sdk-js/pull/1956) and published by
+[successful server run 37188030565](https://github.com/honua-io/honua-server/actions/runs/37188030565).
+It includes the Preview alerts opt-in gate that the former August repository
+variable image did not enforce. This selection is integration evidence, not a
+claim of complete release qualification. External mode still accepts the
+explicit target inputs and variables below.
+
+### External mode configuration
 
 | Scope | Name | Purpose |
 | --- | --- | --- |
-| Repository variable | `HONUA_INTEGRATION_BASE_URL` | URL of the staging Honua Server. When unset the workflow skips. |
-| Repository secret | `HONUA_INTEGRATION_API_KEY` | `X-API-Key` (matches server `HONUA_ADMIN_PASSWORD`). Required when the base URL is set. |
-| Repository variable (optional) | `HONUA_INTEGRATION_SERVICE_ID`, `HONUA_INTEGRATION_LAYER_ID`, `HONUA_INTEGRATION_COLLECTION_ID`, `HONUA_INTEGRATION_TILE_MATRIX_SET`, `HONUA_INTEGRATION_SEED_PROFILE`, `HONUA_INTEGRATION_SERVER_IMAGE`, `HONUA_INTEGRATION_SERVER_COMMIT` | Override the corresponding harness defaults to match the staging seed. `HONUA_INTEGRATION_SERVER_COMMIT` records the Honua Server commit (not the SDK commit) in `integration-meta.json`; leave unset when it is unknown. |
-
-### Deferred infrastructure
-
-- A `:nightly-seeded` (or equivalent) Honua Server image with the test
-  catalog baked in does not yet exist. Until it does, the workflow
-  cannot bootstrap its own server from inside CI.
-- A public admin seed API (`POST /api/v1/admin/services` /
-  `.../layers` / `.../features`) does not yet exist. Until it does,
-  the SDK repo cannot seed a freshly-started server without sibling-
-  checking out honua-server and reaching into its Python fixture.
-
-These gaps are tracked as honua-server follow-ons and re-enable the
-service-container path in this workflow once either lands.
+| Repository variable | `HONUA_INTEGRATION_BASE_URL` | URL of an external Honua Server. Unset means self-contained mode. |
+| Repository secret | `HONUA_INTEGRATION_API_KEY` | `X-API-Key` (matches server `HONUA_ADMIN_PASSWORD`). Required in external mode. |
+| Repository variable (optional) | `HONUA_INTEGRATION_SERVICE_ID`, `HONUA_INTEGRATION_LAYER_ID`, `HONUA_INTEGRATION_COLLECTION_ID`, `HONUA_INTEGRATION_TILE_MATRIX_SET`, `HONUA_INTEGRATION_SEED_PROFILE`, `HONUA_INTEGRATION_SERVER_COMMIT`, `HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE` | Override the harness defaults to match the external seed and record its provenance. `HONUA_INTEGRATION_SERVER_COMMIT` records the Honua Server commit (not the SDK commit) in `integration-meta.json`. |
 
 ### Metadata artifact
 
@@ -213,3 +229,42 @@ service-container path in this workflow once either lands.
 This is the lane's only persistent observable signal — the workflow
 attaches it to every run so SDK / server drift is traceable from the
 GitHub Actions UI without re-running the suite.
+
+
+## Governed certification receipts
+
+Ordinary push, schedule, and context-free dispatch runs still execute the live
+integration and conformance suites and retain their raw reports. They do not
+emit a protocol certification fragment. A certification dispatch supplies
+`requirements_context`; both `nightly_dispatch_id` and
+`licensed_certification: true` require it. Missing context fails the run.
+
+The reviewed release dispatcher projects `honua.protocol-producer-context/v1`
+from the canonical requirements catalog. The JSON input is limited to 60,000
+UTF-8 bytes and binds its catalog `requirements_revision`, producer
+`honua-sdk-js`, executing `producer_source_sha`, and candidate
+`source_sha`, `image_digest`, and `cut_at`. Its `requirements` array contains the
+complete 67-row SDK roster for community/nightly execution, or the two-row
+licensed roster for an explicit licensed execution. Community runs retain the
+two licensed rows as skips with no receipt, even if a report contains passing
+realtime markers; only the separate live-entitlement path can certify them.
+Each row carries
+`capability_key`, `surface`, `operation`, `canonical_client`, `client_version`,
+`client_lane`, `deployment_target`, `fixture_revision`, `contract_revision`,
+`auth_policy_revision`, `scenario_facets`, `maturity`, and `required_tier`.
+The producer refuses missing, duplicate, foreign, or mismatched rows. SDK
+contracts currently govern facet markers rather than `test_ids`; adding
+ungoverned test IDs is refused.
+
+Every executed receipt uses `honua.certification-evidence-receipt/v2` and includes
+producer-owned maturity, required tier, requirements revision, and the candidate
+cut in its hashed identity. There is no v1 or context-free receipt fallback.
+Missing executable coverage remains a reported gap, even with valid context.
+Licensed receipts still require the existing live entitlement proof.
+
+For an offline normalization of retained reports, pass the reviewed context file
+using `node scripts/protocol-certification-fragment.mjs --requirements-context
+/path/to/context.json` together with the existing execution identity inputs.
+`HONUA_REQUIREMENTS_CONTEXT` supplies the same JSON in the hosted workflow.
+Context must come from the reviewed catalog projection; do not manufacture it
+from the observed test outcomes.

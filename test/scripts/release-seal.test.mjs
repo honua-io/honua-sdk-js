@@ -8,6 +8,7 @@ import {
   parseReleaseSealArgs,
   receiptFiles,
   releaseTagVersion,
+  RESEAL_OWNED_LIVE_EVIDENCE,
   SEALED_VERSION_STAMPS,
 } from "../../scripts/release-seal.mjs";
 
@@ -250,6 +251,28 @@ test("the release and regeneration generated-path allowlists agree", () => {
   const regeneration = generatedPathAllowlist("regenerate-derived-artifacts.yml");
   assert.ok(release.size >= 10, `expected a populated allowlist, got ${release.size}`);
   assert.deepEqual([...release].sort(), [...regeneration].sort());
+});
+
+// Reseal-owned live evidence is left out of Release Please's extra-files
+// (honua-io/honua-release#376), so the reseal is the only thing that moves its
+// sdk.version. That is only sound while the reseal re-observes every such file
+// on every run, publishes it, and the tag seal checks it.
+test("reseal-owned live evidence is re-observed by every reseal and sealed at tag time", () => {
+  const workflow = fs.readFileSync(path.resolve(".github/workflows/regenerate-derived-artifacts.yml"), "utf8");
+  const allowlist = generatedPathAllowlist("regenerate-derived-artifacts.yml");
+  const sealed = new Set(SEALED_VERSION_STAMPS.map((stamp) => `${stamp.path}#${stamp.field}`));
+  assert.ok(RESEAL_OWNED_LIVE_EVIDENCE.length > 0);
+  for (const evidencePath of RESEAL_OWNED_LIVE_EVIDENCE) {
+    const match = /^samples\/evidence\/([^/]+)\/live\.v1\.json$/u.exec(evidencePath);
+    assert.ok(match, `${evidencePath}: not a golden live evidence path`);
+    const sampleId = match[1];
+    assert.ok(
+      workflow.includes(`npm run samples:run -- evidence --sample ${sampleId} `),
+      `${sampleId}: regenerate-derived-artifacts.yml does not re-observe this reseal-owned evidence`,
+    );
+    assert.ok(allowlist.has(`samples/evidence/${sampleId}/*`), `${sampleId}: reseal cannot publish ${evidencePath}`);
+    assert.ok(sealed.has(`${evidencePath}#sdk.version`), `${evidencePath}: sdk.version is not checked by the tag seal`);
+  }
 });
 
 test("committed gate receipts are discoverable and declare a sealing revision", () => {
