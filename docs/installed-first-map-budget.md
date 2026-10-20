@@ -6,7 +6,28 @@ description: "Measure public installed SDK bundles against the canonical First M
 # Installed First Map bundle regression
 
 The bounded installed JavaScript client journey must stay below the canonical
-First Map chunk budget: 2,010,000 JavaScript bytes and 533,000 gzip bytes.
+First Map chunk budget: 2,010,000 JavaScript bytes and 534,000 gzip bytes.
+
+PR #2189 corrects feature geometry with generic metadata and reuses canonical
+polygon topology. Removing duplicate conversion initially kept the packed
+consumer within the prior limit at 532,989 gzip bytes. Review then identified
+legitimate Esri positions with unset optional measures: the rendering adapter
+must project spatial coordinates rather than discard those features. That
+correction measured 1,994,371 raw / 533,062 gzip bytes under default peer
+resolution, 62 gzip bytes above the previous ceiling. The retained
+[local adjustment evidence](evidence/feature-geometry-2188/budget-adjustment.json)
+binds the prepared inputs and package to that failed measurement.
+
+This PR adds 1,000 bytes to the gzip ceiling, retaining the 2,010,000-byte raw
+limit. Every peer/worker identity check, duplicate-runtime check, measurement
+scope and calibrated CPU limit remains unchanged. The final implementation also
+closes polygon rings after dimension projection. It still requires a fresh
+packed execution receipt and the normal hosted CPU check; changing the ceiling
+alone supplies no passing qualification. The final local packed run passed at
+1,994,556 raw / 533,124 gzip bytes with the same renderer identity,
+peer checks passing and three cold contexts measuring execution. All 107 focused
+geometry cases and nine budget-guard cases passed. This local measurement does
+not replace the calibrated hosted CPU check or registry qualification.
 
 The October 19 renderer comparison for issue #2164 holds packed SDK source
 `7936205e0064ef2a080398c14634022c326e2cc7` and the other dependency identities
