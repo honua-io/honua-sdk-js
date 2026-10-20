@@ -273,6 +273,7 @@ jobs:
           # A cut whose pair only installs with --legacy-peer-deps stops here
           # rather than reaching the registry (#1529).
           npm run verify:client-pair
+          npm run verify:migration-cohort:prepared
           npm run build:split-packages:prepared --silent
           # Pack immediately. Later checks pack the root package and remove
           # these directories before the publish calls below.
@@ -372,6 +373,14 @@ jobs:
           publish_package "./dist/packages/honua-react"
           publish_package "./dist/packages/honua-geometry"
           publish_package "./dist/packages/honua-app-platform"
+
+      - name: Upload packed migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-packed
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn
 
       - name: Publish summary
         if: ${{ env.DRY_RUN == 'true' }}
@@ -484,6 +493,19 @@ jobs:
               }
             '
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Verify installed published migration dependency cohort
+        env:
+          PUBLISH_REF: ${{ github.ref }}
+        run: node scripts/verify-migration-cohort.mjs --sdk-source registry --sdk-publish-ref "${PUBLISH_REF}"
+
+      - name: Upload migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-registry
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn
 
       - name: Upload published-release receipt
         if: always()

@@ -44,6 +44,17 @@
  * draft. The rejected mutation is never automatically replayed against a
  * generation the agent has not observed.
  *
+ * **Certified provenance is required only for a candidate session.** Set
+ * `certification` or `transcriptVerifier` when the server should sign the
+ * transcript. Those turns dispatch a model-selected tool only after exactly
+ * one terminal verified `transcriptProvenance` event. An interactive end-user
+ * session sets neither: honua-server returns 403 when a non-admin caller
+ * sends `certification` and does not sign a transcript, so this session
+ * dispatches the model's tool calls with no provenance event and does not
+ * send `certification`. Server RBAC still authorizes each composition call.
+ * Admin-only overrides stay caller-supplied: a session that sets
+ * `certification` still sends it.
+ *
  * **The session never throws mid-stream.** Transport failure, provider error
  * events, tool rejection, and cancellation are all outcomes of
  * {@link StudioAgentSession.chat}, reported on the returned turn — a host
@@ -105,9 +116,20 @@ export interface StudioAgentDraftBinding {
 }
 
 export interface StudioAgentSessionOptions {
-  /** Exact candidate/action binding sent to the proxy for every tool-capable round. */
+  /**
+   * Candidate binding sent on every chat round. Together with
+   * `transcriptVerifier`, this opts the session into certified provenance.
+   * End-user sessions omit it: honua-server returns 403 when a non-admin
+   * caller sends certification. Setting it still sends it, including for an
+   * admin caller.
+   */
   readonly certification?: StudioAiTranscriptCertification;
-  /** Independent verifier required before any model-selected tool is dispatched. */
+  /**
+   * Independent verifier for a candidate session. Setting this or
+   * `certification` requires exactly one terminal verified
+   * `transcriptProvenance` event before a model-selected tool is dispatched.
+   * Leave both unset for an interactive end user.
+   */
   readonly transcriptVerifier?: StudioAiTranscriptVerifierLike;
   /** Base of the honua-server API — the session calls `${baseUrl}/v1/studio/ai/*` and `${baseUrl}/mcp`. @default "/api" */
   readonly baseUrl?: string;
@@ -927,7 +949,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       .map((id) => pending.get(id))
       .filter((call): call is PendingToolCall => call !== undefined && call.ready === true);
 
-    if (ready.length > 0) {
+    if (ready.length > 0 && this.#requiresCertifiedProvenance()) {
       if (
         !this.#options.certification ||
         !this.#options.transcriptVerifier ||
@@ -982,6 +1004,14 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       ...(stopReason ? { stopReason } : {}),
       ...(inBandError ? { errorMessage: inBandError } : {}),
     };
+  }
+
+  /**
+   * Candidate sessions opt in by setting certification or a transcript verifier.
+   * End-user sessions set neither and dispatch without a signed transcript.
+   */
+  #requiresCertifiedProvenance(): boolean {
+    return this.#options.certification !== undefined || this.#options.transcriptVerifier !== undefined;
   }
 
   #buildRequest(system: string | undefined, toolChoice: StudioAiToolChoice | undefined): StudioAiChatRequest {

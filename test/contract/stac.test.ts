@@ -13,6 +13,31 @@ import { HonuaStacSearch } from "../../src/core/stac.js";
 
 import { jsonResponse, makeMockClient } from "./shared.js";
 
+/** Classes the wire tests pass explicitly so the search does not fetch a landing page. */
+const CQL2_TEXT_CONFORMS = [
+  "https://api.stacspec.org/v1.0.0/item-search",
+  "https://api.stacspec.org/v1.0.0/item-search#filter",
+  "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
+] as const;
+
+const FIELDS_CONFORMS = [
+  "https://api.stacspec.org/v1.0.0/item-search",
+  "https://api.stacspec.org/v1.0.0/item-search#fields",
+] as const;
+
+const STAC_LANDING = {
+  type: "Catalog",
+  conformsTo: [
+    "https://api.stacspec.org/v1.0.0/core",
+    "https://api.stacspec.org/v1.0.0/item-search",
+    "https://api.stacspec.org/v1.0.0/item-search#filter",
+    "https://api.stacspec.org/v1.0.0/item-search#sort",
+    "https://api.stacspec.org/v1.0.0/item-search#fields",
+    "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text",
+  ],
+  links: [{ rel: "search", href: "./search", type: "application/geo+json" }],
+};
+
 interface StacFeatureAttrs {
   datetime: string;
   cloud_cover: number;
@@ -56,6 +81,7 @@ describe("stac / wire", () => {
       filter: "cloud_cover < 10",
       filterLang: "cql2-text",
       limit: 25,
+      conformsTo: CQL2_TEXT_CONFORMS,
     });
     expect(result.features).toHaveLength(2);
     expect(observed?.get("bbox")).toBe("-122,37,-120,38");
@@ -97,6 +123,7 @@ describe("stac / wire", () => {
     await client.stac().search({
       intersects,
       fields: { include: ["id", "properties.datetime"], exclude: ["assets.thumbnail"] },
+      conformsTo: FIELDS_CONFORMS,
     });
     const intersectsParam = observed?.get("intersects");
     expect(intersectsParam).toBe(JSON.stringify(intersects));
@@ -296,7 +323,10 @@ describe("stac / paging", () => {
 describe("stac / Source adapter", () => {
   it("query() flows through the canonical Source surface and returns a Result envelope", async () => {
     const client = makeMockClient({
-      routes: [["/stac/search", () => jsonResponse(stacItemsResponse(3))]],
+      routes: [
+        ["/stac?", () => jsonResponse(STAC_LANDING)],
+        ["/stac/search", () => jsonResponse(stacItemsResponse(3))],
+      ],
     });
     const dataset = createDataset({
       id: "sentinel",
