@@ -108,7 +108,9 @@ async function setup(
     upstream.setRequestHandler(ListResourcesRequestSchema, async () => ({
       resources: [{ name: "Fixture", uri: "honua://fixture" }],
     }));
-    upstream.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
+    upstream.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+      resourceTemplates: [{ name: "Fixture template", uriTemplate: "honua://fixture/{id}" }],
+    }));
     // Independent upstream declares the Server's documented resource-window extension.
     upstream.setRequestHandler(
       ReadResourceRequestSchema.extend({
@@ -390,12 +392,22 @@ describe("persistent Honua agent gateway", () => {
     expect((await fixture.client.callTool({ name: "honua_agent_connect", arguments: binding })).isError).toBe(true);
     await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
     expect((await fixture.client.listTools()).tools.map((tool) => tool.name)).not.toContain("echo");
+    expect((await fixture.client.listResources()).resources.map((resource) => resource.uri)).toEqual([
+      WORKFLOW_KNOWLEDGE_URI,
+    ]);
+    expect((await fixture.client.listResourceTemplates()).resourceTemplates).toEqual([]);
+    expect((await fixture.client.listPrompts()).prompts).toEqual([]);
     expect((await fixture.client.callTool({ name: "honua_agent_status" })).structuredContent?.state).toBe(
       "unavailable",
     );
     options.turnReadStatus = 0;
     expect((await fixture.client.callTool({ name: "honua_agent_connect", arguments: binding })).isError).not.toBe(true);
     expect((await fixture.client.callTool({ name: "echo", arguments: {} })).isError).not.toBe(true);
+    expect((await fixture.client.listResources()).resources.map((resource) => resource.uri)).toContain(
+      "honua://fixture",
+    );
+    expect((await fixture.client.listResourceTemplates()).resourceTemplates).toHaveLength(1);
+    expect((await fixture.client.listPrompts()).prompts).toHaveLength(1);
   });
 
   it("recovers a failed first bind after the retained unbound upstream closes", async () => {
@@ -493,6 +505,11 @@ describe("persistent Honua agent gateway", () => {
     const beforeNotifications = fixture.notifications();
     await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
     await vi.waitFor(() => expect(fixture.notifications()).toBeGreaterThan(beforeNotifications));
+    expect((await fixture.client.listResources()).resources.map((resource) => resource.uri)).toEqual([
+      WORKFLOW_KNOWLEDGE_URI,
+    ]);
+    expect((await fixture.client.listResourceTemplates()).resourceTemplates).toEqual([]);
+    expect((await fixture.client.listPrompts()).prompts).toEqual([]);
     expect(
       (await fixture.client.callTool({ name: "honua_agent_status", arguments: {} })).structuredContent,
     ).toMatchObject({ state: "unavailable" });
@@ -806,7 +823,9 @@ describe("persistent Honua agent gateway", () => {
       expect.objectContaining({ uri: "honua://fixture" }),
     );
     expect((await client.readResource({ uri: "honua://fixture" })).contents[0].text).toBe("canonical resource");
-    expect((await client.listResourceTemplates()).resourceTemplates).toEqual([]);
+    expect((await client.listResourceTemplates()).resourceTemplates).toContainEqual(
+      expect.objectContaining({ uriTemplate: "honua://fixture/{id}" }),
+    );
     expect((await client.listPrompts()).prompts[0].name).toBe("fixture-prompt");
     expect((await client.getPrompt({ name: "fixture-prompt" })).messages[0].content).toMatchObject({
       text: "canonical prompt",

@@ -297,7 +297,8 @@ export class HonuaAgentGateway {
       );
     });
     this.server.setRequestHandler(ListResourcesRequestSchema, async (request, extra) => {
-      if (!this.#client) return { resources: [knowledgeResource] };
+      if (!this.#client || this.#bindingStale || this.#bindingFailed)
+        return { resources: [knowledgeResource] };
       const page = await this.#withClient((client) =>
         client.request(request, ListResourcesResultSchema, { signal: extra.signal }),
       );
@@ -306,7 +307,7 @@ export class HonuaAgentGateway {
       return { ...page, resources: request.params?.cursor ? page.resources : [knowledgeResource, ...page.resources] };
     });
     this.server.setRequestHandler(ListResourceTemplatesRequestSchema, (request, extra) =>
-      !this.#client
+      !this.#client || this.#bindingStale || this.#bindingFailed
         ? { resourceTemplates: [] }
         : this.#withClient((client) =>
             client.request(request, ListResourceTemplatesResultSchema, { signal: extra.signal }),
@@ -318,7 +319,7 @@ export class HonuaAgentGateway {
         : this.#withClient((client) => client.request(request, ReadResourceResultSchema, { signal: extra.signal })),
     );
     this.server.setRequestHandler(ListPromptsRequestSchema, (request, extra) =>
-      !this.#client
+      !this.#client || this.#bindingStale || this.#bindingFailed
         ? { prompts: [] }
         : this.#withClient((client) => client.request(request, ListPromptsResultSchema, { signal: extra.signal })),
     );
