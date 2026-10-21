@@ -128,6 +128,7 @@ export async function configuredDevOps(
         return createDevOpsExtension(
           {
             ...config,
+            requireTurnBindingCapability: Boolean(binding),
             env: {
               ...safeEnv,
               ...(binding

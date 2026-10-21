@@ -251,6 +251,7 @@ describe("host-configured private integration identity", () => {
       HONUA_DEVOPS_HONUA_WORKSPACE_ID: "workspace-1",
       HONUA_DEVOPS_HONUA_TURN_ID: "turn-1",
     });
+    expect(first?.requireTurnBindingCapability).toBe(true);
     const request = fixture.fetcher.mock.calls[0] as unknown as [URL, RequestInit];
     expect(request[1].headers).toMatchObject({ "X-Honua-Workspace": "workspace-1", "X-Honua-Turn": "turn-1" });
     bound = { workspaceId: "workspace-1", turnId: "turn-2" };
