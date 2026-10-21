@@ -308,6 +308,89 @@ describe("host-configured private integration identity", () => {
     await integration.close();
   });
 
+  it("caps eight in-flight turn children before starting a ninth and frees slots after completion", async () => {
+    const fixture = await setup();
+    let bound = { workspaceId: "workspace-1", turnId: "turn-1" };
+    const entered: Promise<void>[] = [];
+    const release: (() => void)[] = [];
+    vi.mocked(createDevOpsExtension).mockImplementation((_config, authorize) => {
+      let started!: () => void;
+      entered.push(
+        new Promise<void>((resolve) => {
+          started = resolve;
+        }),
+      );
+      let finish!: () => void;
+      const held = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      release.push(finish);
+      return {
+        listTools: async () => [],
+        callTool: async (name, args) => {
+          await authorize({ canonicalTool: name, arguments: args });
+          started();
+          await held;
+          return { content: [] };
+        },
+        close: async () => {},
+      };
+    });
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => bound);
+    const running: Promise<unknown>[] = [];
+    for (let index = 1; index <= 8; index++) {
+      bound = { workspaceId: "workspace-1", turnId: `turn-${index}` };
+      running.push(integration.callTool("describe_environment", {}));
+      await vi.waitFor(() => expect(entered).toHaveLength(index));
+      await entered[index - 1];
+    }
+    bound = { workspaceId: "workspace-1", turnId: "turn-9" };
+    await expect(integration.listTools()).rejects.toThrow("child session capacity reached");
+    expect(createDevOpsExtension).toHaveBeenCalledTimes(8);
+    release[0]?.();
+    await running[0];
+    await vi.waitFor(async () => {
+      await integration.listTools();
+      expect(createDevOpsExtension).toHaveBeenCalledTimes(9);
+    });
+    for (const finish of release) finish();
+    await Promise.all(running);
+    await integration.close();
+  });
+
+  it("counts children with pending close against the same process cap", async () => {
+    const fixture = await setup();
+    let bound = { workspaceId: "workspace-1", turnId: "turn-1" };
+    const releaseClose: (() => void)[] = [];
+    vi.mocked(createDevOpsExtension).mockImplementation(() => {
+      let finish!: () => void;
+      const pendingClose = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      releaseClose.push(finish);
+      return {
+        listTools: async () => [],
+        callTool: async () => ({ content: [] }),
+        close: async () => pendingClose,
+      };
+    });
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => bound);
+    for (let index = 1; index <= 8; index++) {
+      bound = { workspaceId: "workspace-1", turnId: `turn-${index}` };
+      await integration.listTools();
+    }
+    bound = { workspaceId: "workspace-1", turnId: "turn-9" };
+    await expect(integration.listTools()).rejects.toThrow("child session capacity reached");
+    expect(createDevOpsExtension).toHaveBeenCalledTimes(8);
+    releaseClose[0]?.();
+    await vi.waitFor(async () => {
+      await integration.listTools();
+      expect(createDevOpsExtension).toHaveBeenCalledTimes(9);
+    });
+    for (const finish of releaseClose) finish();
+    await integration.close();
+  });
+
   it("refuses malformed turn context before private authorization or child startup", async () => {
     const fixture = await setup();
     const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => ({

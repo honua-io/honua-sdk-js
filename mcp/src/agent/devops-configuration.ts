@@ -30,6 +30,7 @@ const configuration = z
   })
   .strict();
 const turnIdentifier = /^[A-Za-z0-9_-]{1,128}$/;
+const maxPrivateChildSessions = 8;
 
 /** The host selects this protected file; MCP arguments cannot select executable paths or credentials. */
 export async function configuredDevOps(
@@ -66,10 +67,14 @@ export async function configuredDevOps(
     const binding = boundTurn?.();
     if (binding && (!turnIdentifier.test(binding.workspaceId) || !turnIdentifier.test(binding.turnId)))
       throw new Error("Invalid private integration turn binding");
-    if (
+    const switching =
       currentEntry &&
-      (currentEntry.binding?.workspaceId !== binding?.workspaceId || currentEntry.binding?.turnId !== binding?.turnId)
-    ) {
+      (currentEntry.binding?.workspaceId !== binding?.workspaceId || currentEntry.binding?.turnId !== binding?.turnId);
+    // Retired actions, initializing children and children still closing all own a
+    // process slot. Refuse the rotation before changing the current entry.
+    if ((switching || !currentEntry) && entries.size + closing.size >= maxPrivateChildSessions)
+      throw new Error("Private integration child session capacity reached");
+    if (switching && currentEntry) {
       retire(currentEntry);
       currentEntry = undefined;
     }
