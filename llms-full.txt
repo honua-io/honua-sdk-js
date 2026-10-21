@@ -1857,7 +1857,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-20 at commit `5b6c72247`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-21 at commit `28dc3e29c`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11627,7 +11627,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-20 at commit `5b6c72247`._
+_Generated 2026-10-21 at commit `28dc3e29c`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11642,7 +11642,7 @@ _Generated 2026-10-20 at commit `5b6c72247`._
 | `/agent-safety` | 69.1 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
 | `/nl-map-control` | 92.5 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
-| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.3 KiB | 64.1 KiB | 18.9 KiB | 20.8 KiB |
+| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.9 KiB | 64.1 KiB | 19.1 KiB | 20.8 KiB |
 | `/runtime` | 717.5 KiB | 752.5 KiB | 184.7 KiB | 198.6 KiB |
 | `/realtime` | 82.3 KiB | 86.2 KiB | 23.6 KiB | 25.0 KiB |
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
@@ -16742,6 +16742,16 @@ the server's tools. Existing installations attach on startup; after a transport
 disconnect, `honua_agent_connect` verifies the same target again. A changed
 credential identity requires a host restart. It never retries an upstream
 mutation after an uncertain response.
+
+After a paired human sends a workspace turn, the same external client can read
+`honua_workspace_conversation` and `honua_workspace_get_turn`, then call
+`honua_agent_connect` with that exact `workspaceId` and `turnId`. The connector
+reads the current authorized turn using its workspace agent key and binds both
+headers to a new upstream session on the same client registration. It refuses
+partial IDs, an unrecognized turn, a bootstrap/admin key, an in-flight switch,
+or a changed target/credential/turn. Each bound call rechecks the current
+credential and turn; the Server still enforces its own current RBAC and grants.
+Binding a turn never approves, uploads, imports, or publishes anything.
 
 Credentials stay in the installer's protected file and the HTTP transport. The
 local agent key has `admin:read`, `admin:write`, and `read:*`; it has no
