@@ -397,6 +397,23 @@ describe("persistent Honua agent gateway", () => {
     expect((await fixture.client.callTool({ name: "echo", arguments: {} })).isError).not.toBe(true);
   });
 
+  it("recovers a failed first bind after the retained unbound upstream closes", async () => {
+    const options = { installed: true, turnReadStatus: 403 };
+    const fixture = await setup(options);
+    const binding = { workspaceId: "workspace-1", turnId: "turn-2" };
+    expect((await fixture.client.callTool({ name: "honua_agent_connect", arguments: binding })).isError).toBe(true);
+    await fixture.upstream.close();
+    await vi.waitFor(async () =>
+      expect((await fixture.client.callTool({ name: "honua_agent_status" })).structuredContent?.state).toBe(
+        "unavailable",
+      ),
+    );
+    expect((await fixture.client.listTools()).tools.map((tool) => tool.name)).not.toContain("echo");
+    options.turnReadStatus = 0;
+    expect((await fixture.client.callTool({ name: "honua_agent_connect", arguments: binding })).isError).not.toBe(true);
+    expect((await fixture.client.callTool({ name: "echo", arguments: {} })).isError).not.toBe(true);
+  });
+
   it("refuses the old context after a failed idle switch until the new turn is verified", async () => {
     const options = { installed: true, turnReadStatus: 0 };
     const fixture = await setup(options);

@@ -535,7 +535,7 @@ export class HonuaAgentGateway {
   }
 
   async #bindTurn(binding: AgentTurnBinding): Promise<void> {
-    if (this.#transition || this.#active || !this.#client || !this.#connection)
+    if (this.#transition || this.#active || (!this.#client && !this.#bindingFailed) || !this.#connection)
       throw new Error("Connector is busy or unavailable");
     if (this.#bindingStale && !this.#turnBinding) throw new Error("Connector identity is unavailable");
     if (
@@ -579,7 +579,7 @@ export class HonuaAgentGateway {
       this.#bindingStale = false;
       this.#bindingFailed = false;
       candidate = undefined;
-      await prior.close().catch(() => {});
+      await prior?.close().catch(() => {});
     } finally {
       await candidate?.close().catch(() => {});
       this.#transition = false;
