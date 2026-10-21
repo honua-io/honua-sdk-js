@@ -218,7 +218,7 @@ export class HonuaAgentGateway {
 
   /** The adapter reads this only inside a preflighted call; binding switches require idle. */
   currentTurnBinding(): AgentTurnBinding | undefined {
-    return this.#turnBinding;
+    return this.#turnBinding ? { ...this.#turnBinding } : undefined;
   }
 
   constructor(
