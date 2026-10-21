@@ -275,13 +275,24 @@ describe("persistent Honua agent gateway", () => {
   });
 
   it("rejects a reserved tool on the bound catalog's later page before switching clients", async () => {
-    const fixture = await setup({ installed: true, boundCollision: true });
+    const options = { installed: true, boundCollision: true };
+    const fixture = await setup(options);
     const answer = await fixture.client.callTool({
       name: "honua_agent_connect",
       arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
     });
     expect(answer.isError).toBe(true);
     expect(fixture.bindings).toEqual([undefined, { workspaceId: "workspace-1", turnId: "turn-2" }]);
+    await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
+    options.boundCollision = false;
+    expect(
+      (
+        await fixture.client.callTool({
+          name: "honua_agent_connect",
+          arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+        })
+      ).isError,
+    ).not.toBe(true);
     expect((await fixture.client.callTool({ name: "echo", arguments: {} })).isError).not.toBe(true);
   });
 
@@ -367,6 +378,50 @@ describe("persistent Honua agent gateway", () => {
     expect(fixture.bindings).toEqual([undefined]);
   });
 
+  it("refuses unbound calls after a denied first bind, then permits an explicit verified retry", async () => {
+    const options = { installed: true, turnReadStatus: 403 };
+    const fixture = await setup(options);
+    const binding = { workspaceId: "workspace-1", turnId: "turn-2" };
+    expect((await fixture.client.callTool({ name: "honua_agent_connect", arguments: binding })).isError).toBe(true);
+    await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
+    expect((await fixture.client.listTools()).tools.map((tool) => tool.name)).not.toContain("echo");
+    expect((await fixture.client.callTool({ name: "honua_agent_status" })).structuredContent?.state).toBe(
+      "unavailable",
+    );
+    options.turnReadStatus = 0;
+    expect((await fixture.client.callTool({ name: "honua_agent_connect", arguments: binding })).isError).not.toBe(true);
+    expect((await fixture.client.callTool({ name: "echo", arguments: {} })).isError).not.toBe(true);
+  });
+
+  it("refuses the old context after a failed idle switch until the new turn is verified", async () => {
+    const options = { installed: true, turnReadStatus: 0 };
+    const fixture = await setup(options);
+    await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
+    options.turnReadStatus = 403;
+    expect(
+      (
+        await fixture.client.callTool({
+          name: "honua_agent_connect",
+          arguments: { workspaceId: "workspace-1", turnId: "turn-3" },
+        })
+      ).isError,
+    ).toBe(true);
+    await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
+    options.turnReadStatus = 0;
+    expect(
+      (
+        await fixture.client.callTool({
+          name: "honua_agent_connect",
+          arguments: { workspaceId: "workspace-1", turnId: "turn-3" },
+        })
+      ).isError,
+    ).not.toBe(true);
+    expect((await fixture.client.callTool({ name: "echo", arguments: {} })).isError).not.toBe(true);
+  });
+
   it("invalidates a bound turn when its current credential changes", async () => {
     const fixture = await setup({ installed: true });
     await fixture.client.callTool({
@@ -436,6 +491,7 @@ describe("persistent Honua agent gateway", () => {
     });
     expect(switchTurn.isError).toBe(true);
     expect(fixture.bindings).toEqual([undefined, { workspaceId: "workspace-1", turnId: "turn-2" }]);
+    expect((await fixture.client.callTool({ name: "echo", arguments: {} })).isError).not.toBe(true);
     abort.abort();
     await call.catch(() => {});
   });

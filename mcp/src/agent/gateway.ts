@@ -209,6 +209,7 @@ export class HonuaAgentGateway {
   #turnBinding?: AgentTurnBinding;
   #boundTargetId?: string;
   #bindingStale = false;
+  #bindingFailed = false;
   #transition = false;
   #active = 0;
   #initialized = false;
@@ -234,7 +235,7 @@ export class HonuaAgentGateway {
     this.server.onerror = () => {};
     this.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
       const bootstrap = this.options.bootstrapTools === false ? [] : localTools;
-      if (!this.#client) return { tools: bootstrap };
+      if (!this.#client || this.#bindingFailed) return { tools: bootstrap };
       const page = await this.#withClient((client) =>
         client.request(request, ListToolsResultSchema, { signal: extra.signal }),
       );
@@ -392,7 +393,7 @@ export class HonuaAgentGateway {
   async #withClient<T>(call: (client: Client) => Promise<T>): Promise<T> {
     const client = this.#client;
     const binding = this.#turnBinding;
-    if (!client || this.#transition || this.#bindingStale)
+    if (!client || this.#transition || this.#bindingStale || this.#bindingFailed)
       throw new McpError(ErrorCode.InvalidRequest, "Honua is not attached; inspect connector status");
     this.#active++;
     try {
@@ -417,7 +418,13 @@ export class HonuaAgentGateway {
       }
       // Another preflight can revoke this session while this one awaits its
       // authorized turn read. Never dispatch after that revocation or a swap.
-      if (this.#bindingStale || this.#transition || this.#client !== client || this.#turnBinding !== binding)
+      if (
+        this.#bindingStale ||
+        this.#bindingFailed ||
+        this.#transition ||
+        this.#client !== client ||
+        this.#turnBinding !== binding
+      )
         throw new Error("Connector binding changed during authorization");
       return await call(client);
     } catch (error) {
@@ -457,7 +464,7 @@ export class HonuaAgentGateway {
 
   async #attach(install?: z.infer<typeof installInput>): Promise<void> {
     if (this.#transition || this.#active) throw new Error("Connector is busy");
-    if (this.#turnBinding || this.#bindingStale)
+    if (this.#turnBinding || this.#bindingStale || this.#bindingFailed)
       throw new Error("A turn-bound connector cannot fall back to unbound mode");
     if (install && this.#target) throw new Error("An established target cannot be reinstalled in this session");
     if (this.#client) {
@@ -537,6 +544,9 @@ export class HonuaAgentGateway {
       (this.#turnBinding.workspaceId !== binding.workspaceId || this.#turnBinding.turnId !== binding.turnId)
     )
       throw new Error("A stale connector can only recover its original turn");
+    // A valid explicit bind supersedes the prior context. If verification
+    // fails, retain that client only for an explicit verified retry.
+    this.#bindingFailed = true;
     this.#transition = true;
     let candidate: Client | undefined;
     try {
@@ -567,6 +577,7 @@ export class HonuaAgentGateway {
       bound.setNotificationHandler(ResourceListChangedNotificationSchema, () => this.#notify());
       bound.setNotificationHandler(PromptListChangedNotificationSchema, () => this.#notify());
       this.#bindingStale = false;
+      this.#bindingFailed = false;
       candidate = undefined;
       await prior.close().catch(() => {});
     } finally {
@@ -583,13 +594,14 @@ export class HonuaAgentGateway {
       switch (name) {
         case `${PREFIX}status`:
           return result({
-            state: this.#bindingStale
-              ? "unavailable"
-              : this.#transition
-                ? "connecting"
-                : this.#client
-                  ? "attached"
-                  : "unattached",
+            state:
+              this.#bindingStale || this.#bindingFailed
+                ? "unavailable"
+                : this.#transition
+                  ? "connecting"
+                  : this.#client
+                    ? "attached"
+                    : "unattached",
             target: this.#target ?? null,
             activeRequests: this.#active,
             turnBinding: this.#turnBinding ?? null,
