@@ -100,6 +100,12 @@ interface ScriptOptions {
    * @default true
    */
   readonly certifyTranscript?: boolean;
+  /**
+   * Reproduce honua-server `StudioAiProxyEndpoints.HandleChat`: a chat body
+   * with `certification` is `403 Forbid` before any provider stream when the
+   * caller is not an admin. End-user admission is a body with no certification.
+   */
+  readonly nonAdminCertification?: "forbid";
   /** Called with the abort signal for each chat request, so a test can cancel mid-stream. */
   readonly onChatStream?: (signal: AbortSignal | undefined) => void;
 }
@@ -196,8 +202,14 @@ function createScriptedServer(options: ScriptOptions = {}): ScriptedServer {
 
     if (url.endsWith("/v1/studio/ai/chat")) {
       if (options.failChat) throw new TypeError("fetch failed");
-      chatRequests.push(JSON.parse(String(init?.body)) as StudioAiChatRequest);
+      const request = JSON.parse(String(init?.body)) as StudioAiChatRequest;
+      chatRequests.push(request);
       options.onChatStream?.(init?.signal ?? undefined);
+      // Same admission rule as StudioAiProxyEndpoints.HandleChat: certification
+      // is an admin caller override. Non-admins are forbidden before the stream.
+      if (options.nonAdminCertification === "forbid" && request.certification != null) {
+        return new Response("", { status: 403 });
+      }
       const events = turns[turnIndex++] ?? [{ type: "messageStop", stopReason: "endTurn" }];
       const body = sseBody(events, options.certifyTranscript !== false);
       return new Response(chunkedStream(body, options.chunkSize ?? 4096, init?.signal ?? undefined), {
@@ -1002,6 +1014,57 @@ describe("createStudioAgentSession tool discovery", () => {
     expect(server.mcpCalls).toEqual([]);
     expect(server.chatRequests[0]?.certification).toEqual(TEST_CERTIFICATION);
     expect(nonAdminChatAdmitted(server.chatRequests[0]!)).toBe(false);
+  });
+
+  it("admits an uncertified end-user tool turn and forbids that caller's certification binding", async () => {
+    const admitted = createScriptedServer({
+      nonAdminCertification: "forbid",
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_validate_draft"),
+      turns: [
+        toolTurn([{ id: "call-1", name: "honua_studio_validate_draft", args: { draftId: "draft-1" } }]),
+        textTurn("Validated."),
+      ],
+    });
+    const endUser = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: admitted.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      draft: { draftId: "draft-1", generation: 1 },
+    });
+
+    const turn = await endUser.chat("Validate the draft.");
+
+    expect(turn.status).toBe("completed");
+    expect(turn.toolCalls[0]).toMatchObject({
+      plane: "composition",
+      ok: true,
+      toolName: "honua_studio_validate_draft",
+    });
+    expect(admitted.chatRequests.every((request) => nonAdminChatAdmitted(request))).toBe(true);
+    expect(admitted.mcpCalls.map((call) => call.name)).toEqual(["honua_studio_validate_draft"]);
+
+    const forbidden = createScriptedServer({
+      nonAdminCertification: "forbid",
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_validate_draft"),
+      turns: [toolTurn([{ id: "call-1", name: "honua_studio_validate_draft", args: { draftId: "draft-1" } }])],
+    });
+    const candidate = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl: forbidden.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    const refused = await candidate.chat("Validate the draft.");
+
+    expect(refused.status).toBe("error");
+    expect(refused.errorMessage).toBe("Studio AI proxy responded 403 for the chat request.");
+    expect(refused.toolCalls).toEqual([]);
+    expect(forbidden.mcpCalls).toEqual([]);
+    expect(forbidden.chatRequests[0]?.certification).toEqual(TEST_CERTIFICATION);
+    expect(nonAdminChatAdmitted(forbidden.chatRequests[0]!)).toBe(false);
   });
 
   it("does not dispatch when only certification or only the verifier is configured", async () => {
