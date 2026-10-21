@@ -316,6 +316,10 @@ describe("persistent Honua agent gateway", () => {
     });
     options.turnReadStatus = 503;
     await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
+    const recoveryTools = (await fixture.client.listTools()).tools.map((tool) => tool.name);
+    expect(recoveryTools).toContain("honua_agent_connect");
+    expect(recoveryTools).toContain("honua_agent_status");
+    expect(recoveryTools).not.toContain("echo");
     options.turnReadStatus = 0;
     const recovered = await fixture.client.callTool({
       name: "honua_agent_connect",

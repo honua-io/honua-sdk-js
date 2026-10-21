@@ -235,7 +235,7 @@ export class HonuaAgentGateway {
     this.server.onerror = () => {};
     this.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
       const bootstrap = this.options.bootstrapTools === false ? [] : localTools;
-      if (!this.#client || this.#bindingFailed) return { tools: bootstrap };
+      if (!this.#client || this.#bindingFailed || this.#bindingStale) return { tools: bootstrap };
       const page = await this.#withClient((client) =>
         client.request(request, ListToolsResultSchema, { signal: extra.signal }),
       );
