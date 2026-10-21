@@ -62,6 +62,9 @@ function samePrincipal(expected: NativeBinding, current: NativeBinding): boolean
     expected.connection.target.id === current.connection.target.id &&
     expected.connection.target.credentialId === current.connection.target.credentialId &&
     expected.connection.transport.remoteUrl === current.connection.transport.remoteUrl &&
+    expected.connection.credentialKind === current.connection.credentialKind &&
+    expected.connection.releaseId === current.connection.releaseId &&
+    expected.connection.deploymentId === current.connection.deploymentId &&
     sameSecret(expected.connection.transport.apiKey ?? "", current.connection.transport.apiKey ?? "")
   );
 }
@@ -101,6 +104,8 @@ export function createNativeAgentHttpServer(options: NativeGatewayOptions) {
     const supplied = header(request, "x-api-key");
     const connection = await options.runtime.resolve();
     if (
+      connection.credentialKind !== "workspace-agent" ||
+      !connection.releaseId ||
       !connection.transport.apiKey ||
       connection.transport.authToken ||
       sameSecret(connection.transport.apiKey, options.bridgeKey) ||
@@ -121,6 +126,8 @@ export function createNativeAgentHttpServer(options: NativeGatewayOptions) {
     if (
       turn.turnId !== turnId ||
       turn.context?.workspaceId !== workspaceId ||
+      !connection.deploymentId ||
+      turn.context?.targetId !== connection.deploymentId ||
       typeof turn.context.targetId !== "string" ||
       typeof turn.context.tenantId !== "string" ||
       !turn.context.tenantId
@@ -159,7 +166,12 @@ export function createNativeAgentHttpServer(options: NativeGatewayOptions) {
   }
 
   async function privateExtension(runtime: AgentRuntime) {
-    return options.devopsConfiguration ? configuredDevOps(options.devopsConfiguration, runtime, boundFetch) : undefined;
+    return options.devopsConfiguration
+      ? configuredDevOps(options.devopsConfiguration, runtime, boundFetch, () => {
+          const binding = bindings.getStore();
+          return binding ? { workspaceId: binding.workspaceId, turnId: binding.turnId } : undefined;
+        })
+      : undefined;
   }
 
   async function body(request: IncomingMessage): Promise<unknown> {
@@ -227,7 +239,7 @@ export function createNativeAgentHttpServer(options: NativeGatewayOptions) {
           const runtime = boundRuntime(binding);
           gateway = new HonuaAgentGateway(
             runtime,
-            (connection, view) => connectAgentUpstream(connection, view, boundFetch),
+            (connection, view, binding) => connectAgentUpstream(connection, view, boundFetch, binding),
             await privateExtension(runtime),
             { bootstrapTools: false },
           );

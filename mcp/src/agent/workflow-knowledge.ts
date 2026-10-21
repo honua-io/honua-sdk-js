@@ -4,7 +4,7 @@
 export const WORKFLOW_KNOWLEDGE_URI = "honua://agent/knowledge/workflows/v1";
 export const WORKFLOW_KNOWLEDGE = {
   schemaVersion: "honua.agent-workflow-knowledge/v1",
-  knowledgeVersion: "2026-10-19.2",
+  knowledgeVersion: "2026-10-21.1",
   qualification: "contract-guidance-only",
   authority: [
     "Use discovered canonical tool schemas; these workflow descriptions never grant authorization.",
@@ -47,6 +47,7 @@ export const WORKFLOW_KNOWLEDGE = {
         "honua_workspace_set_context when changing selection or task; retain expectedRevision",
         "honua_workspace_create_turn before execution; capture the submitted contextRevision",
         "honua_workspace_get_turn for the active prompt instead of rereading a later selection",
+        "For a human browser-file selection, read honua_workspace_conversation and the exact human honua_workspace_get_turn; bind that workspaceId and turnId with honua_agent_connect before an agent import task",
         "honua_workspace_get_draft and honua_workspace_patch_draft for an existing publish-layer form",
         "honua_workspace_submit_draft with a persistent commandId",
         "honua_workspace_get_command before retrying a submission with an unknown outcome",
@@ -85,6 +86,8 @@ export const WORKFLOW_KNOWLEDGE = {
       ],
       actions: [
         "Discover connection/import tools",
+        "For a browser-file import, create the task only from the bound turn's browserFileSelection id, name, byte length and SHA-256; persist intentId and reconcile unknown outcomes with honua_workspace_get_dataset_import_intent",
+        "The human Console uploads and prepares the original browser file; the bound agent then reads the exact prepared task and authority descriptor before honua_workspace_submit_dataset_import. Preparation alone is not submission",
         "For an installed local Docker target register its catalog through the discovered secret-reference-only connection tool using the host-allowed env:HONUA_LOCAL_DB_PASSWORD reference; never request or reveal the password",
         "Verify the returned connection actually targets the ingest catalog before publication; an imported table with no registered connection is not ready to publish",
         "Validate source schema and geometry/CRS",

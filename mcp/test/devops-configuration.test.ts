@@ -236,6 +236,173 @@ describe("host-configured private integration identity", () => {
     await integration.close();
   });
 
+  it("pins private child and authorization to the verified turn, then replaces the child on a turn switch", async () => {
+    const fixture = await setup({
+      env: {
+        HONUA_DEVOPS_HONUA_WORKSPACE_ID: "untrusted-host-value",
+        HONUA_DEVOPS_HONUA_TURN_ID: "untrusted-host-value",
+      },
+    });
+    let bound = { workspaceId: "workspace-1", turnId: "turn-1" };
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => bound);
+    await integration.listTools();
+    const first = vi.mocked(createDevOpsExtension).mock.calls[0]?.[0];
+    expect(first?.env).toMatchObject({
+      HONUA_DEVOPS_HONUA_WORKSPACE_ID: "workspace-1",
+      HONUA_DEVOPS_HONUA_TURN_ID: "turn-1",
+    });
+    expect(first?.requireTurnBindingCapability).toBe(true);
+    const request = fixture.fetcher.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(request[1].headers).toMatchObject({ "X-Honua-Workspace": "workspace-1", "X-Honua-Turn": "turn-1" });
+    bound = { workspaceId: "workspace-1", turnId: "turn-2" };
+    await integration.listTools();
+    expect(createDevOpsExtension).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(createDevOpsExtension).mock.calls[1]?.[0].env).toMatchObject({
+      HONUA_DEVOPS_HONUA_WORKSPACE_ID: "workspace-1",
+      HONUA_DEVOPS_HONUA_TURN_ID: "turn-2",
+    });
+    await integration.close();
+  });
+
+  it("keeps an earlier turn's private child alive until its in-flight action completes", async () => {
+    const fixture = await setup();
+    let bound = { workspaceId: "workspace-1", turnId: "turn-a" };
+    let started!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const firstClose = vi.fn(async () => {});
+    vi.mocked(createDevOpsExtension).mockImplementationOnce((_config, authorize) => ({
+      listTools: async () => [],
+      callTool: async (name, args) => {
+        await authorize({ canonicalTool: name, arguments: args });
+        started();
+        await held;
+        return { content: [] };
+      },
+      close: firstClose,
+    }));
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => bound);
+    const first = integration.callTool("describe_environment", {});
+    await entered;
+    bound = { workspaceId: "workspace-1", turnId: "turn-b" };
+    await integration.listTools();
+    expect(createDevOpsExtension).toHaveBeenCalledTimes(2);
+    expect(firstClose).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(createDevOpsExtension).mock.calls.map(([config]) => config.env?.HONUA_DEVOPS_HONUA_TURN_ID),
+    ).toEqual(["turn-a", "turn-b"]);
+    expect((fixture.fetcher.mock.calls as unknown as [URL, RequestInit][]).map(([, init]) => init.headers)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ "X-Honua-Turn": "turn-a" }),
+        expect.objectContaining({ "X-Honua-Turn": "turn-b" }),
+      ]),
+    );
+    release();
+    await first;
+    await vi.waitFor(() => expect(firstClose).toHaveBeenCalledOnce());
+    await integration.close();
+  });
+
+  it("caps eight in-flight turn children before starting a ninth and frees slots after completion", async () => {
+    const fixture = await setup();
+    let bound = { workspaceId: "workspace-1", turnId: "turn-1" };
+    const entered: Promise<void>[] = [];
+    const release: (() => void)[] = [];
+    vi.mocked(createDevOpsExtension).mockImplementation((_config, authorize) => {
+      let started!: () => void;
+      entered.push(
+        new Promise<void>((resolve) => {
+          started = resolve;
+        }),
+      );
+      let finish!: () => void;
+      const held = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      release.push(finish);
+      return {
+        listTools: async () => [],
+        callTool: async (name, args) => {
+          await authorize({ canonicalTool: name, arguments: args });
+          started();
+          await held;
+          return { content: [] };
+        },
+        close: async () => {},
+      };
+    });
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => bound);
+    const running: Promise<unknown>[] = [];
+    for (let index = 1; index <= 8; index++) {
+      bound = { workspaceId: "workspace-1", turnId: `turn-${index}` };
+      running.push(integration.callTool("describe_environment", {}));
+      await vi.waitFor(() => expect(entered).toHaveLength(index));
+      await entered[index - 1];
+    }
+    bound = { workspaceId: "workspace-1", turnId: "turn-9" };
+    await expect(integration.listTools()).rejects.toThrow("child session capacity reached");
+    expect(createDevOpsExtension).toHaveBeenCalledTimes(8);
+    release[0]?.();
+    await running[0];
+    await vi.waitFor(async () => {
+      await integration.listTools();
+      expect(createDevOpsExtension).toHaveBeenCalledTimes(9);
+    });
+    for (const finish of release) finish();
+    await Promise.all(running);
+    await integration.close();
+  });
+
+  it("counts children with pending close against the same process cap", async () => {
+    const fixture = await setup();
+    let bound = { workspaceId: "workspace-1", turnId: "turn-1" };
+    const releaseClose: (() => void)[] = [];
+    vi.mocked(createDevOpsExtension).mockImplementation(() => {
+      let finish!: () => void;
+      const pendingClose = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      releaseClose.push(finish);
+      return {
+        listTools: async () => [],
+        callTool: async () => ({ content: [] }),
+        close: async () => pendingClose,
+      };
+    });
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => bound);
+    for (let index = 1; index <= 8; index++) {
+      bound = { workspaceId: "workspace-1", turnId: `turn-${index}` };
+      await integration.listTools();
+    }
+    bound = { workspaceId: "workspace-1", turnId: "turn-9" };
+    await expect(integration.listTools()).rejects.toThrow("child session capacity reached");
+    expect(createDevOpsExtension).toHaveBeenCalledTimes(8);
+    releaseClose[0]?.();
+    await vi.waitFor(async () => {
+      await integration.listTools();
+      expect(createDevOpsExtension).toHaveBeenCalledTimes(9);
+    });
+    for (const finish of releaseClose) finish();
+    await integration.close();
+  });
+
+  it("refuses malformed turn context before private authorization or child startup", async () => {
+    const fixture = await setup();
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => ({
+      workspaceId: "../other",
+      turnId: "turn-1",
+    }));
+    await expect(integration.listTools()).rejects.toThrow("Invalid private integration turn binding");
+    expect(fixture.fetcher).not.toHaveBeenCalled();
+    expect(createDevOpsExtension).not.toHaveBeenCalled();
+    await integration.close();
+  });
+
   it("rejects a receipt for another deployment or environment", async () => {
     const fixture = await setup();
     fixture.fetcher.mockImplementationOnce(async () =>
