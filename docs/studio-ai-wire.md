@@ -46,3 +46,19 @@ execute tools. Token limits, filtering, cancellation, and errors retain their
 separate meanings; signed action rounds still require transcript verification
 and replay protection. Changing signed `ToolCall` to `toolCall` is a transcript
 mismatch even though both spellings belong to the public type.
+
+## Which sessions require certified provenance
+
+Certified provenance is required only for a candidate-certification session:
+one constructed with `certification` or `transcriptVerifier`. Those turns
+dispatch a model-selected tool only after exactly one terminal verified
+`transcriptProvenance` event.
+
+An interactive end-user session sets neither. honua-server
+`StudioAiProxyEndpoints.HandleChat` returns 403 when `Certification` is set
+and the caller is not an admin. The session therefore omits `certification`
+and dispatches the model's tool calls with no provenance event. Server Studio
+RBAC still authorizes each `honua_studio_*` call. Browser Studio's live agent
+uses that uncertified session for a non-admin end user. Candidate
+qualification stays on the certified path, and only an admin caller can send
+the certification binding.

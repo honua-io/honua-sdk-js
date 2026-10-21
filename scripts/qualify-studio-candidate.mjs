@@ -276,6 +276,7 @@ function recordingFetch(log, actor) {
       entry.promptCharacters = (rpc.system ?? "").length
         + rpc.messages.reduce((total, message) => total + (message.content ?? "").length, 0);
       entry.messages = rpc.messages.length;
+      entry.sentCertification = rpc.certification != null;
     }
     log.push(entry);
     const response = await fetch(url, { ...init, headers });
@@ -1173,23 +1174,59 @@ try {
   assert.deepEqual(receipt.candidate.running.extraEnv, {}, "the end-user phase must run under the image's own configuration");
 
   await discoveryCheck(alice, "end-user-bearer", setupDescriptors);
-  // Finding, not an SDK criterion: StudioAgentSession dispatches a model-selected action only with
-  // certified, verified transcript provenance, and the proxy forbids certification to non-admins.
-  await check("end-user-model-turn-dispatch", "finding (honua-sdk-js / honua-server)", async (evidence) => {
-    const attemptTurn = async (options) => {
-      await putPlan([{ tool: "honua_studio_validate_draft", args: { draftId: randomUUID() } }]);
+  // honua-sdk-js#1744: candidate sessions require verified provenance. An interactive
+  // end user omits certification — HandleChat returns 403 when a non-admin sends it —
+  // and the session dispatches the model's Studio tool under server RBAC.
+  await check("end-user-model-turn-dispatch", "AC1744", async (evidence) => {
+    const packageKey = `sdk1744-${run}`;
+    const client = mcpClientFor(alice, { view: HONUA_STUDIO_TOOL_SETUP_VIEW });
+    const created = await attempt(client, "honua_studio_create_draft", {
+      packageKey, family: "map", schemaVersion: "1.0", body: initialBody(packageKey),
+    });
+    assert.ok(created.ok, `end user could not create a draft to validate: ${JSON.stringify(created.error)}`);
+    const draft = draftOf(created.structured);
+    assert.ok(draft, "create_draft did not return a draft binding");
+
+    const play = async (options, sink) => {
+      await putPlan([{ tool: "honua_studio_validate_draft", args: { draftId: draft.draftId } }]);
       const session = sessionFor(alice, {
-        baseUrl: `${baseUrl}/api`, mcpClient: mcpClientFor(alice, { view: HONUA_STUDIO_TOOL_SETUP_VIEW }),
-        provider: "scripted", system: "Scripted qualification turn.", maxToolRounds: 2, ...options,
+        log: sink,
+        baseUrl: `${baseUrl}/api`,
+        mcpClient: mcpClientFor(alice, { view: HONUA_STUDIO_TOOL_SETUP_VIEW }),
+        provider: "scripted",
+        system: "Scripted qualification turn.",
+        maxToolRounds: 2,
+        draft,
+        ...options,
       });
       const turn = await session.chat("Validate the draft.");
       session.close();
-      return { status: turn.status, errorMessage: turn.errorMessage, toolCalls: turn.toolCalls.length };
+      const chats = sink.filter((entry) => entry.path.endsWith("/studio/ai/chat"));
+      return {
+        status: turn.status,
+        errorMessage: turn.errorMessage,
+        toolCalls: turn.toolCalls.map((call) => ({ tool: call.toolName, ok: call.ok, errorMessage: call.errorMessage })),
+        sentCertification: chats.map((entry) => entry.sentCertification),
+        chatStatus: chats.map((entry) => entry.status ?? 200),
+      };
     };
-    evidence.uncertified = await attemptTurn({});
-    evidence.certified = await attemptTurn(await certifiedTurnOptions(alice, evidence));
-    assert.ok(evidence.uncertified.toolCalls > 0 || evidence.certified.toolCalls > 0,
-      "an interactive end user's model-selected Studio action cannot dispatch: the SDK requires certified provenance and the proxy forbids certification to non-admin callers");
+    const uncertifiedLog = [];
+    evidence.uncertified = await play({}, uncertifiedLog);
+    assert.equal(evidence.uncertified.status, "completed", evidence.uncertified.errorMessage);
+    assert.ok(
+      evidence.uncertified.toolCalls.some((call) => call.tool === "honua_studio_validate_draft" && call.ok),
+      `server RBAC did not authorize the end-user model turn: ${JSON.stringify(evidence.uncertified.toolCalls)}`,
+    );
+    assert.ok(
+      evidence.uncertified.sentCertification.length > 0 && evidence.uncertified.sentCertification.every((sent) => sent === false),
+      "the end-user turn sent certification",
+    );
+
+    const certifiedLog = [];
+    evidence.certified = await play(await certifiedTurnOptions(alice, evidence), certifiedLog);
+    assert.equal(evidence.certified.toolCalls.length, 0, "a non-admin certification request dispatched a tool");
+    assert.match(evidence.certified.errorMessage ?? "", /403/, evidence.certified.errorMessage);
+    assert.ok(evidence.certified.chatStatus.includes(403), `expected 403, got ${JSON.stringify(evidence.certified.chatStatus)}`);
   });
 
   const aliceLifecycle = await lifecycleChecks(alice, "end-user-bearer", setupDescriptors, "mcp");
