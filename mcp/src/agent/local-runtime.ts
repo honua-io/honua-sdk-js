@@ -92,6 +92,9 @@ export interface AgentConnection {
   readonly target: AgentTarget;
   /** Transport-only configuration. Never serialize this into an MCP result. */
   readonly transport: ProxyOptions;
+  readonly credentialKind?: "workspace-agent" | "bootstrap-admin";
+  /** Verified installation release; changing it invalidates a turn-bound session. */
+  readonly releaseId?: string;
 }
 
 export interface AgentRuntime {
@@ -177,6 +180,8 @@ export function createLocalAgentRuntime(
       return {
         target: { id, endpoint, credentialId: credential.id },
         transport: { remoteUrl: endpoint, apiKey },
+        credentialKind: workspaceCredentialPresent ? "workspace-agent" : "bootstrap-admin",
+        releaseId: env.HONUA_AGENT_RELEASE_ID,
       };
     },
   };

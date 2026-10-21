@@ -227,7 +227,7 @@ export function createNativeAgentHttpServer(options: NativeGatewayOptions) {
           const runtime = boundRuntime(binding);
           gateway = new HonuaAgentGateway(
             runtime,
-            (connection, view) => connectAgentUpstream(connection, view, boundFetch),
+            (connection, view, binding) => connectAgentUpstream(connection, view, boundFetch, binding),
             await privateExtension(runtime),
             { bootstrapTools: false },
           );
