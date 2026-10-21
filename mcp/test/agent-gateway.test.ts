@@ -42,95 +42,102 @@ async function setup(
   const resourceReads: Record<string, unknown>[] = [];
   let notified = 0;
   let cancelled = false;
-  const upstream = new Server(
-    { name: "fixture", version: "1" },
-    {
-      capabilities: { tools: { listChanged: true }, resources: {}, prompts: {} },
-    },
-  );
-  upstream.setRequestHandler(ListToolsRequestSchema, async (request) => ({
-    tools: [
+  const upstreamServers: Server[] = [];
+  const makeUpstream = () => {
+    const upstream = new Server(
+      { name: "fixture", version: "1" },
       {
-        name: options.collision ? "honua_agent_status" : request.params?.cursor ? "second" : "echo",
-        inputSchema: { type: "object" },
-        annotations: { readOnlyHint: true },
+        capabilities: { tools: { listChanged: true }, resources: {}, prompts: {} },
       },
-    ],
-    ...(!request.params?.cursor ? { nextCursor: "second-page" } : {}),
-    _meta: { revision: "fixture.v1" },
-  }));
-  upstream.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-    calls.push(request);
-    if (request.params.name === "progress" && request.params._meta?.progressToken !== undefined) {
-      await extra.sendNotification({
-        method: "notifications/progress",
-        params: {
-          progressToken: request.params._meta.progressToken,
-          progress: 1,
-          total: 2,
-          message: "Preparing",
+    );
+    upstream.setRequestHandler(ListToolsRequestSchema, async (request) => ({
+      tools: [
+        {
+          name: options.collision ? "honua_agent_status" : request.params?.cursor ? "second" : "echo",
+          inputSchema: { type: "object" },
+          annotations: { readOnlyHint: true },
         },
-      });
-    }
-    if (request.params.name === "forbidden")
-      return {
-        isError: true,
-        content: [{ type: "text", text: "Access denied" }],
-        structuredContent: { code: "permission_denied", requiredGrant: "admin:approve" },
-      };
-    if (request.params.name === "wait") {
-      await new Promise<void>((resolve) =>
-        extra.signal.addEventListener(
-          "abort",
-          () => {
-            cancelled = true;
-            resolve();
+      ],
+      ...(!request.params?.cursor ? { nextCursor: "second-page" } : {}),
+      _meta: { revision: "fixture.v1" },
+    }));
+    upstream.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+      calls.push(request);
+      if (request.params.name === "progress" && request.params._meta?.progressToken !== undefined) {
+        await extra.sendNotification({
+          method: "notifications/progress",
+          params: {
+            progressToken: request.params._meta.progressToken,
+            progress: 1,
+            total: 2,
+            message: "Preparing",
           },
-          { once: true },
-        ),
-      );
-    }
-    return {
-      content: [{ type: "text", text: "done" }],
-      structuredContent: { args: request.params.arguments ?? {} },
-      _meta: { receipt: "receipt-1" },
-    };
-  });
-  upstream.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: [{ name: "Fixture", uri: "honua://fixture" }],
-  }));
-  upstream.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
-  // Independent upstream declares the Server's documented resource-window extension.
-  upstream.setRequestHandler(
-    ReadResourceRequestSchema.extend({
-      params: ReadResourceRequestSchema.shape.params.extend({
-        cursor: z.string().optional(),
-        maxChars: z.number().int().positive().max(1_000_000).optional(),
-      }),
-    }),
-    async (request) => {
-      resourceReads.push(request.params);
-      if (request.params.uri !== "honua://catalog/processes")
-        return { contents: [{ uri: request.params.uri, text: "canonical resource" }] };
-      const document = JSON.stringify({
-        processes: [
-          { processId: "first", description: "GIS workflow 🗺️ ".repeat(6_000) },
-          { processId: "last", executionKind: "Job" },
-        ],
-      });
-      const offset = request.params.cursor ? Number(request.params.cursor.slice("window:".length)) : 0;
-      const end = Math.min(offset + (request.params.maxChars ?? 64_000), document.length);
+        });
+      }
+      if (request.params.name === "forbidden")
+        return {
+          isError: true,
+          content: [{ type: "text", text: "Access denied" }],
+          structuredContent: { code: "permission_denied", requiredGrant: "admin:approve" },
+        };
+      if (request.params.name === "wait") {
+        await new Promise<void>((resolve) =>
+          extra.signal.addEventListener(
+            "abort",
+            () => {
+              cancelled = true;
+              resolve();
+            },
+            { once: true },
+          ),
+        );
+      }
       return {
-        contents: [{ uri: request.params.uri, mimeType: "application/json", text: document.slice(offset, end) }],
-        ...(end < document.length ? { nextCursor: `window:${end}` } : {}),
-        _meta: { catalogVersion: "fixture.window.v1" },
+        content: [{ type: "text", text: "done" }],
+        structuredContent: { args: request.params.arguments ?? {} },
+        _meta: { receipt: "receipt-1" },
       };
-    },
-  );
-  upstream.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [{ name: "fixture-prompt" }] }));
-  upstream.setRequestHandler(GetPromptRequestSchema, async () => ({
-    messages: [{ role: "user", content: { type: "text", text: "canonical prompt" } }],
-  }));
+    });
+    upstream.setRequestHandler(ListResourcesRequestSchema, async () => ({
+      resources: [{ name: "Fixture", uri: "honua://fixture" }],
+    }));
+    upstream.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
+    // Independent upstream declares the Server's documented resource-window extension.
+    upstream.setRequestHandler(
+      ReadResourceRequestSchema.extend({
+        params: ReadResourceRequestSchema.shape.params.extend({
+          cursor: z.string().optional(),
+          maxChars: z.number().int().positive().max(1_000_000).optional(),
+        }),
+      }),
+      async (request) => {
+        resourceReads.push(request.params);
+        if (request.params.uri !== "honua://catalog/processes")
+          return { contents: [{ uri: request.params.uri, text: "canonical resource" }] };
+        const document = JSON.stringify({
+          processes: [
+            { processId: "first", description: "GIS workflow 🗺️ ".repeat(6_000) },
+            { processId: "last", executionKind: "Job" },
+          ],
+        });
+        const offset = request.params.cursor ? Number(request.params.cursor.slice("window:".length)) : 0;
+        const end = Math.min(offset + (request.params.maxChars ?? 64_000), document.length);
+        return {
+          contents: [{ uri: request.params.uri, mimeType: "application/json", text: document.slice(offset, end) }],
+          ...(end < document.length ? { nextCursor: `window:${end}` } : {}),
+          _meta: { catalogVersion: "fixture.window.v1" },
+        };
+      },
+    );
+    upstream.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [{ name: "fixture-prompt" }] }));
+    upstream.setRequestHandler(GetPromptRequestSchema, async () => ({
+      messages: [{ role: "user", content: { type: "text", text: "canonical prompt" } }],
+    }));
+    upstreamServers.push(upstream);
+    return upstream;
+  };
+  const upstream = makeUpstream();
+  let upstreamConnections = 0;
   const runtime: AgentRuntime = {
     inspect: vi.fn(async () => ({ ready: true })),
     install: vi.fn(async () => {
@@ -153,7 +160,7 @@ async function setup(
       bindings.push(binding);
       const [a, b] = InMemoryTransport.createLinkedPair();
       const connected = new Client({ name: "gateway", version: "1" });
-      await upstream.connect(b);
+      await (upstreamConnections++ === 0 ? upstream : makeUpstream()).connect(b);
       await connected.connect(a);
       return connected;
     },
@@ -185,7 +192,9 @@ async function setup(
     notified++;
   });
   cleanup.push(
-    () => upstream.close(),
+    async () => {
+      for (const server of upstreamServers) await server.close();
+    },
     () => gateway.close(),
     () => client.close(),
   );
