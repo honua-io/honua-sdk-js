@@ -297,8 +297,7 @@ export class HonuaAgentGateway {
       );
     });
     this.server.setRequestHandler(ListResourcesRequestSchema, async (request, extra) => {
-      if (!this.#client || this.#bindingStale || this.#bindingFailed)
-        return { resources: [knowledgeResource] };
+      if (!this.#client || this.#bindingStale || this.#bindingFailed) return { resources: [knowledgeResource] };
       const page = await this.#withClient((client) =>
         client.request(request, ListResourcesResultSchema, { signal: extra.signal }),
       );
