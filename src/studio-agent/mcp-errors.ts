@@ -19,8 +19,8 @@
  *    (`result.isError: true`) with a structured `code`.
  *
  * {@link isMcpGenerationConflict} is the one discriminant the session
- * branches on by name — it is what triggers the single reload+retry against a
- * fresh draft generation.
+ * branches on by name — it triggers a refresh of the draft without replaying
+ * the rejected mutation.
  *
  * @module
  */

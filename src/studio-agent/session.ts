@@ -40,10 +40,20 @@
  * Both planes are serialized through one promise queue, so a multi-tool
  * assistant turn applies strictly in order and two calls never race the same
  * draft generation. A `failed_precondition` from a composition tool triggers
- * exactly one reload (`honua_studio_get_draft`) + retry against the fresh
- * generation — the same semantics honua-studio's `ToolCallOrchestrator`
- * (`src/mcp/orchestrator.ts`) established; a second failure is surfaced, not
- * retried again.
+ * a reload (`honua_studio_get_draft`) and returns the conflict with the current
+ * draft. The rejected mutation is never automatically replayed against a
+ * generation the agent has not observed.
+ *
+ * **Certified provenance is required only for a candidate session.** Set
+ * `certification` or `transcriptVerifier` when the server should sign the
+ * transcript. Those turns dispatch a model-selected tool only after exactly
+ * one terminal verified `transcriptProvenance` event. An interactive end-user
+ * session sets neither: honua-server returns 403 when a non-admin caller
+ * sends `certification` and does not sign a transcript, so this session
+ * dispatches the model's tool calls with no provenance event and does not
+ * send `certification`. Server RBAC still authorizes each composition call.
+ * Admin-only overrides stay caller-supplied: a session that sets
+ * `certification` still sends it.
  *
  * **The session never throws mid-stream.** Transport failure, provider error
  * events, tool rejection, and cancellation are all outcomes of
@@ -97,6 +107,7 @@ import {
 } from "./tool-catalog.js";
 import type { StudioAiTranscriptVerification, StudioAiTranscriptVerifierLike } from "./transcript-verifier.js";
 import type { ChatTransport } from "./transport.js";
+import { WORKFLOW_KNOWLEDGE } from "./workflow-knowledge.js";
 
 /** The live composition draft `honua_studio_*` calls are applied to. */
 export interface StudioAgentDraftBinding {
@@ -105,9 +116,20 @@ export interface StudioAgentDraftBinding {
 }
 
 export interface StudioAgentSessionOptions {
-  /** Exact candidate/action binding sent to the proxy for every tool-capable round. */
+  /**
+   * Candidate binding sent on every chat round. Together with
+   * `transcriptVerifier`, this opts the session into certified provenance.
+   * End-user sessions omit it: honua-server returns 403 when a non-admin
+   * caller sends certification. Setting it still sends it, including for an
+   * admin caller.
+   */
   readonly certification?: StudioAiTranscriptCertification;
-  /** Independent verifier required before any model-selected tool is dispatched. */
+  /**
+   * Independent verifier for a candidate session. Setting this or
+   * `certification` requires exactly one terminal verified
+   * `transcriptProvenance` event before a model-selected tool is dispatched.
+   * Leave both unset for an interactive end user.
+   */
   readonly transcriptVerifier?: StudioAiTranscriptVerifierLike;
   /** Base of the honua-server API — the session calls `${baseUrl}/v1/studio/ai/*` and `${baseUrl}/mcp`. @default "/api" */
   readonly baseUrl?: string;
@@ -177,6 +199,13 @@ export interface StudioAgentSessionOptions {
    * `systemPrompt()` re-reads live map context on every turn.
    */
   readonly system?: string | (() => string | Promise<string>);
+  /**
+   * Include the same versioned GIS workflow guidance the public MCP connector serves.
+   * Guidance never adds tools, grants authorization or establishes an observed outcome.
+   * Hosts enable this for the unified workspace; standalone map sessions remain unchanged.
+   * @default false
+   */
+  readonly workflowKnowledge?: boolean;
   readonly provider?: string;
   readonly model?: string;
   readonly maxTokens?: number;
@@ -214,7 +243,7 @@ export interface StudioAgentToolDispatch {
   readonly runtimeResult?: HonuaAgentToolResult;
   /** The draft the composition tool returned, for `plane: "composition"`. */
   readonly draft?: StudioMcpDraft;
-  /** Set when the composition call succeeded only after one generation-conflict reload+retry. */
+  /** @deprecated Conflicting writes are no longer retried automatically. */
   readonly retriedAfterConflict?: boolean;
   /** Structured MCP tool error code, when the composition server supplied one. */
   readonly errorCode?: McpToolErrorCode;
@@ -281,13 +310,19 @@ export interface StudioAgentSession {
    */
   refreshTools(): Promise<StudioToolDiscoveryReport>;
   /**
+   * Selects a bounded server workflow view on the existing MCP session. Clears
+   * prior descriptors before discovery; failure cannot retain old routing.
+   * Conversation, draft binding, credentials, and MCP session are preserved.
+   */
+  selectWorkflowView(view: string): Promise<StudioToolDiscoveryReport>;
+  /**
    * Drops the negotiated MCP session and invalidates the tool catalog, so the
    * next turn re-handshakes and re-discovers. A reconnected principal may have
    * a different catalog; nothing derived from the old one survives.
    */
   reconnect(): void;
-  /** Attaches (or re-attaches) the composition draft. */
-  attachDraft(draft: StudioAgentDraftBinding): void;
+  /** Attaches the composition draft, or clears it when the host switches to another workflow. */
+  attachDraft(draft: StudioAgentDraftBinding | undefined): void;
   /** Clears the conversation history. Draft binding, tool catalog, and capabilities cache survive. */
   reset(): void;
   /**
@@ -299,6 +334,21 @@ export interface StudioAgentSession {
   close(): void;
 }
 
+const SELECT_WORKFLOW_VIEW = "honua_client_select_workflow_view";
+const WORKFLOW_VIEW_TOOL: StudioAiToolDefinition = {
+  name: SELECT_WORKFLOW_VIEW,
+  description:
+    "Select a bounded Honua workflow tool view on this same connection and conversation. " +
+    "Use honua_list_capabilities to discover server workflowViews and their purposes. " +
+    "This changes tool discovery only, grants no authority, and runs no server mutation. " +
+    "After switching, plan the next action using the refreshed tools in the next round.",
+  inputSchema: {
+    type: "object",
+    properties: { view: { type: "string", minLength: 1, maxLength: 64 } },
+    required: ["view"],
+    additionalProperties: false,
+  },
+};
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
 /** Wall-clock bound on one `tools/list` discovery pass. See `toolDiscoveryTimeoutMs`. */
 const DEFAULT_TOOL_DISCOVERY_TIMEOUT_MS = 15_000;
@@ -333,6 +383,9 @@ class StudioAgentSessionImpl implements StudioAgentSession {
    * catalog survives.
    */
   #discoveryGeneration = 0;
+  #selectedWorkflowView: string | undefined;
+  #workflowSelectionGeneration = 0;
+  #canSelectWorkflowView = false;
   /** A `tools/list_changed` refresh is running; see `#refreshFromNotification`. */
   #toolRefreshInFlight = false;
   /** A notification arrived mid-refresh and owes us one trailing walk. */
@@ -401,7 +454,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return this.#toolWatch?.status;
   }
 
-  public attachDraft(draft: StudioAgentDraftBinding): void {
+  public attachDraft(draft: StudioAgentDraftBinding | undefined): void {
     this.#draft = draft;
   }
 
@@ -413,6 +466,23 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     this.#discoveryGeneration += 1;
     this.#discovery = undefined;
     return this.#ensureToolCatalog();
+  }
+
+  public selectWorkflowView(view: string): Promise<StudioToolDiscoveryReport> {
+    if (!/^[a-z][a-z0-9-]{0,63}$/.test(view) || view === "full") {
+      return Promise.reject(
+        new Error("Select a bounded server workflow view; full catalog discovery is not supported here."),
+      );
+    }
+    if (this.#options.disableToolDiscovery) {
+      return Promise.reject(new Error("Workflow discovery is disabled for this session."));
+    }
+    this.#selectedWorkflowView = view;
+    this.#workflowSelectionGeneration += 1;
+    this.#catalog = StudioToolCatalog.empty();
+    this.#tools = this.#canSelectWorkflowView ? [...this.#runtimeTools, WORKFLOW_VIEW_TOOL] : this.#runtimeTools;
+    this.#discoveryReport = undefined;
+    return this.refreshTools();
   }
 
   public close(): void {
@@ -437,6 +507,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     this.#discoveryGeneration += 1;
     this.#discovery = undefined;
     this.#catalog = StudioToolCatalog.empty();
+    this.#canSelectWorkflowView = false;
     this.#tools = this.#runtimeTools;
   }
 
@@ -521,12 +592,23 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       return report;
     }
     this.#catalog = catalog;
+    this.#canSelectWorkflowView =
+      typeof listing.metadata?.view === "string" &&
+      listing.metadata.view !== "full" &&
+      !this.#runtimeToolNames.has(SELECT_WORKFLOW_VIEW);
     // Runtime tools first and unconditionally; a discovered descriptor sharing a
     // runtime verb's name is dropped rather than merged, so a server can never
     // shadow a local runtime tool the session executes itself.
     this.#tools = [
       ...this.#runtimeTools,
-      ...catalog.toolDefinitions().filter((tool) => !this.#runtimeToolNames.has(tool.name)),
+      ...(this.#canSelectWorkflowView ? [WORKFLOW_VIEW_TOOL] : []),
+      ...catalog
+        .toolDefinitions()
+        .filter(
+          (tool) =>
+            !this.#runtimeToolNames.has(tool.name) &&
+            !(this.#canSelectWorkflowView && tool.name === SELECT_WORKFLOW_VIEW),
+        ),
     ];
     const published = this.#publishDiscovery(report);
     // Only now: the subscription needs the `Mcp-Session-Id` this pass's
@@ -612,7 +694,15 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   async #listAllToolsBounded(): Promise<McpToolListing> {
     const timeoutMs = this.#options.toolDiscoveryTimeoutMs ?? DEFAULT_TOOL_DISCOVERY_TIMEOUT_MS;
     const client = this.#ensureMcpClient();
-    if (!(timeoutMs > 0)) return client.listAllTools();
+    const view = this.#selectedWorkflowView;
+    const selection = view === undefined ? {} : { view };
+    const validateView = (listing: McpToolListing): McpToolListing => {
+      if (view !== undefined && listing.metadata?.view !== view) {
+        throw new Error("The server did not confirm the requested workflow view.");
+      }
+      return listing;
+    };
+    if (!(timeoutMs > 0)) return validateView(await client.listAllTools(selection));
 
     const controller = new AbortController();
     let timedOut = false;
@@ -621,7 +711,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       controller.abort();
     }, timeoutMs);
     try {
-      return await client.listAllTools({ signal: controller.signal });
+      return validateView(await client.listAllTools({ ...selection, signal: controller.signal }));
     } catch (error) {
       if (timedOut) throw new Error(`tools/list did not respond within ${timeoutMs}ms.`);
       throw error;
@@ -706,6 +796,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       }
       rounds += 1;
 
+      const workflowGeneration = this.#workflowSelectionGeneration;
       const request = this.#buildRequest(system, chatOptions.toolChoice);
       const roundResult = await this.#streamRound(request, signal, events, assistantText);
       if (roundResult.stopReason) stopReason = roundResult.stopReason;
@@ -723,8 +814,25 @@ class StudioAgentSessionImpl implements StudioAgentSession {
         return finish("completed");
       }
 
+      let draftConflict = false;
       for (const pending of roundResult.pending) {
-        const dispatch = await this.#enqueue(() => this.#dispatch(pending));
+        const dispatch =
+          workflowGeneration !== this.#workflowSelectionGeneration
+            ? reject(
+                pending,
+                "unknown",
+                "The workflow tool view changed. Plan again using the refreshed tools.",
+                "failed_precondition",
+              )
+            : draftConflict
+              ? reject(
+                  pending,
+                  "unknown",
+                  "A previous command encountered a draft conflict. Review the refreshed draft before continuing this batch.",
+                  "failed_precondition",
+                )
+              : await this.#enqueue(() => this.#dispatch(pending, workflowGeneration));
+        if (!dispatch.ok && dispatch.errorCode === "failed_precondition") draftConflict = true;
         dispatches.push(dispatch);
         this.#options.onEvent?.({ type: "toolResult", result: dispatch });
         this.#messages.push({
@@ -841,7 +949,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       .map((id) => pending.get(id))
       .filter((call): call is PendingToolCall => call !== undefined && call.ready === true);
 
-    if (ready.length > 0) {
+    if (ready.length > 0 && this.#requiresCertifiedProvenance()) {
       if (
         !this.#options.certification ||
         !this.#options.transcriptVerifier ||
@@ -898,6 +1006,14 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     };
   }
 
+  /**
+   * Candidate sessions opt in by setting certification or a transcript verifier.
+   * End-user sessions set neither and dispatch without a signed transcript.
+   */
+  #requiresCertifiedProvenance(): boolean {
+    return this.#options.certification !== undefined || this.#options.transcriptVerifier !== undefined;
+  }
+
   #buildRequest(system: string | undefined, toolChoice: StudioAiToolChoice | undefined): StudioAiChatRequest {
     const choice = toolChoice ?? this.#options.toolChoice;
     return {
@@ -915,8 +1031,10 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 
   async #resolveSystem(): Promise<string | undefined> {
     const system = this.#options.system;
-    if (typeof system === "function") return await system();
-    return system;
+    const resolved = typeof system === "function" ? await system() : system;
+    if (!this.#options.workflowKnowledge) return resolved;
+    const guidance = `Honua GIS workflow knowledge is contract guidance only, not authorization or execution evidence. Current authorized tool schemas and canonical receipts remain authoritative.\n${JSON.stringify(WORKFLOW_KNOWLEDGE)}`;
+    return resolved ? `${resolved}\n\n${guidance}` : guidance;
   }
 
   /**
@@ -954,11 +1072,38 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return run;
   }
 
-  async #dispatch(call: PendingToolCall): Promise<StudioAgentToolDispatch> {
+  async #dispatch(call: PendingToolCall, workflowGeneration: number): Promise<StudioAgentToolDispatch> {
+    if (workflowGeneration !== this.#workflowSelectionGeneration) {
+      return reject(
+        call,
+        "unknown",
+        "The workflow tool view changed. Plan again using the refreshed tools.",
+        "failed_precondition",
+      );
+    }
     // Runtime first, matching the merge order in `#discoverTools`: a local
     // runtime verb is never shadowed by a server descriptor of the same name.
     if (this.#runtimeToolNames.has(call.toolName)) {
       return this.#dispatchRuntime(call);
+    }
+    if (this.#canSelectWorkflowView && call.toolName === SELECT_WORKFLOW_VIEW) {
+      const args = asRecord(call.args);
+      if (typeof args.view !== "string" || Object.keys(args).some((key) => key !== "view")) {
+        return reject(call, "runtime", "Provide only the bounded workflow view name.");
+      }
+      try {
+        const report = await this.selectWorkflowView(args.view);
+        if (report.errorMessage) return reject(call, "runtime", report.errorMessage);
+        return {
+          toolCallId: call.toolCallId,
+          toolName: call.toolName,
+          plane: "runtime",
+          ok: true,
+          content: stringify({ status: "ok", view: args.view, tools: report.routed }),
+        };
+      } catch (error) {
+        return reject(call, "runtime", errorMessage(error));
+      }
     }
     // The discovered, policy-approved catalog is the ONLY routing authority for
     // the composition plane. A `honua_studio_`-prefixed name the server did not
@@ -1010,28 +1155,41 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   async #dispatchComposition(call: PendingToolCall): Promise<StudioAgentToolDispatch> {
     const client = this.#ensureMcpClient();
     const args = { ...asRecord(call.args) };
+    const properties = asRecord(this.#catalog.descriptor(call.toolName)?.inputSchema.properties);
     if (this.#draft) {
       // The session owns draft identity and the optimistic-concurrency token;
-      // a model-supplied `generation` is never trusted over the session's.
-      args.draftId = args.draftId ?? this.#draft.draftId;
-      args.generation = this.#draft.generation;
+      // inject them only into schemas that declare them. Immutable-version
+      // publication and draft creation must not receive unrelated draft fields.
+      if (Object.hasOwn(properties, "draftId")) args.draftId = args.draftId ?? this.#draft.draftId;
+      if (Object.hasOwn(properties, "generation")) args.generation = this.#draft.generation;
     }
 
     let result: McpToolsCallResult;
-    let retried = false;
     try {
       result = await client.callTool(call.toolName, args);
     } catch (error) {
-      if (!isMcpGenerationConflict(error) || !this.#draft) {
+      if (!isMcpGenerationConflict(error) || !this.#draft || !Object.hasOwn(properties, "generation")) {
         return reject(call, "composition", errorMessage(error), mcpErrorCode(error));
       }
-      // One reload + retry against the fresh generation, then surface.
+      // Refresh the view, but never overwrite another writer with stale intent.
       try {
-        const refreshed = await this.#reloadDraft(client, this.#draft.draftId);
-        retried = true;
-        result = await client.callTool(call.toolName, { ...args, generation: refreshed.generation });
-      } catch (retryError) {
-        return reject(call, "composition", errorMessage(retryError), mcpErrorCode(retryError));
+        const draft = await this.#reloadDraft(client, this.#draft.draftId);
+        const message =
+          "The draft changed in another session. Reconcile your intended edit with the refreshed draft before submitting a new command.";
+        return {
+          ...reject(call, "composition", message, mcpErrorCode(error)),
+          draft,
+          content: stringify({ status: "error", code: mcpErrorCode(error), message, draft }),
+        };
+      } catch (refreshError) {
+        // Preserve the mutation's conflict even when its diagnostic refresh fails:
+        // the turn loop must still reject the rest of the precomputed batch.
+        return reject(
+          call,
+          "composition",
+          `The draft changed in another session, and refreshing it failed: ${errorMessage(refreshError)}`,
+          "failed_precondition",
+        );
       }
     }
 
@@ -1043,12 +1201,11 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       plane: "composition",
       ok: true,
       ...(draft ? { draft } : {}),
-      ...(retried ? { retriedAfterConflict: true } : {}),
       content: stringify({ status: "ok", ...(draft ? { draft } : { result: toolResultPayload(result) }) }),
     };
   }
 
-  async #reloadDraft(client: McpClient, draftId: string): Promise<StudioAgentDraftBinding> {
+  async #reloadDraft(client: McpClient, draftId: string): Promise<StudioMcpDraft> {
     const result = await client.callTool("honua_studio_get_draft", { draftId });
     const draft = parseStudioDraftResult(result);
     if (!draft) {
@@ -1056,7 +1213,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     }
     const binding = { draftId: draft.draftId, generation: draft.generation };
     this.#draft = binding;
-    return binding;
+    return draft;
   }
 
   #ensureMcpClient(): McpClient {

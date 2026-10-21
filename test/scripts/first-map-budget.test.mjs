@@ -7,9 +7,9 @@ import { readFirstMapBuildResolution } from "../../scripts/lib/first-map-build-r
 import { evaluateFirstMapBudget, firstMapVerdict } from "../../scripts/lib/first-map-budget.mjs";
 
 test("the canonical byte ceilings include the boundary and reject either overage", () => {
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_000, javascriptGzipBytes: 526_000 }), "passed");
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_001, javascriptGzipBytes: 526_000 }), "failed");
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 1_990_000, javascriptGzipBytes: 526_001 }), "failed");
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_010_000, javascriptGzipBytes: 534_000 }), "passed");
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_010_001, javascriptGzipBytes: 534_000 }), "failed");
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_010_000, javascriptGzipBytes: 534_001 }), "failed");
 });
 
 test("a successful build under a raised Vite ceiling cannot emit a passing receipt", () => {

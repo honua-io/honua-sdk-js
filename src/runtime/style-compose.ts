@@ -21,8 +21,15 @@ import type {
   HonuaMapPackage,
   HonuaMapPackageThemeSpec,
   HonuaStyleRefBody,
+  HonuaStyleRefLayerBinding,
   HonuaStyleRefLayerOverride,
 } from "./map-package.js";
+import {
+  readStyleLayerBindings,
+  selectBoundStyleOverride,
+  validateBoundStyleBody,
+  validateStyleBindingTargets,
+} from "./style-ref-bindings.js";
 
 /**
  * Resolver for out-of-band style-ref bodies. Returns the per-layer
@@ -30,7 +37,11 @@ import type {
  * inline bodies attached to the package and calls this resolver only
  * when the inline body is absent.
  */
-export type StyleRefResolver = (styleId: string, presetId?: string) => Promise<HonuaStyleRefBody>;
+export type StyleRefResolver = (
+  styleId: string,
+  presetId?: string,
+  layerBindings?: readonly HonuaStyleRefLayerBinding[],
+) => Promise<HonuaStyleRefBody>;
 
 /** Resolver for out-of-band theme bodies; called only when `mapPackage.theme` is absent. */
 export type ThemeResolver = (themeId: string) => Promise<HonuaMapPackageThemeSpec>;
@@ -75,9 +86,26 @@ export async function applyStyleRefs(
   if (refs.length === 0) return base;
 
   const nextLayers: HonuaLayerSpecification[] = base.layers.map((layer) => cloneLayer(layer));
+  const boundTargets = new Set<string>();
 
-  for (const ref of refs) {
-    const body = ref.body ?? (resolve ? await resolve(ref.styleId, ref.presetId) : undefined);
+  const references = refs.map((ref) => {
+    const bindings = readStyleLayerBindings(ref.layerBindings);
+    if (bindings) {
+      validateStyleBindingTargets(bindings, base);
+      for (const binding of bindings) {
+        if (boundTargets.has(binding.targetLayerId))
+          throw new HonuaMapPackageError("Multiple shared styles claim the same explicit target layer.", {
+            packageId: pkg.mapPackageId,
+            stage: "style-compose",
+          });
+        boundTargets.add(binding.targetLayerId);
+      }
+    }
+    return { ref, bindings };
+  });
+
+  for (const { ref, bindings } of references) {
+    const body = ref.body ?? (resolve ? await resolve(ref.styleId, ref.presetId, bindings) : undefined);
     if (!body) {
       throw new HonuaMapPackageError(`StyleRef "${ref.styleId}" has no inline body and no resolver was provided`, {
         packageId: pkg.mapPackageId,
@@ -85,10 +113,15 @@ export async function applyStyleRefs(
         detail: { styleId: ref.styleId },
       });
     }
+    if (bindings) validateBoundStyleBody(bindings, body);
     for (const [layerId, override] of Object.entries(body)) {
       const idx = nextLayers.findIndex((layer) => layer.id === layerId);
       if (idx === -1) continue;
-      nextLayers[idx] = mergeLayerOverride(nextLayers[idx], override);
+      const binding = bindings?.find((item) => item.targetLayerId === layerId);
+      const selected = binding ? selectBoundStyleOverride(override, binding) : override;
+      if (binding && base.layers[idx].layout?.visibility === "none")
+        selected.layout = { ...selected.layout, visibility: "none" };
+      nextLayers[idx] = mergeLayerOverride(nextLayers[idx], selected);
     }
   }
 

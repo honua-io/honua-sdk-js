@@ -92,7 +92,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.2.2`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.2.7`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 19 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -319,15 +319,15 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/expr` | 2.4 KiB |
 | `@honua/sdk-js/geocoding` | 9.2 KiB |
 | `@honua/sdk-js/webmap` | 10.7 KiB |
-| `@honua/sdk-js/style` | 16.3 KiB |
-| `@honua/sdk-js/map` | 54.8 KiB |
-| `@honua/sdk-js` (root) | 201.0 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 57.8 KiB |
-| `{ connect }` from the root (tree-shake guard) | 161.8 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 190.7 KiB |
+| `@honua/sdk-js/style` | 16.4 KiB |
+| `@honua/sdk-js/map` | 55.9 KiB |
+| `@honua/sdk-js` (root) | 202.3 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 58.9 KiB |
+| `{ connect }` from the root (tree-shake guard) | 162.8 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 191.7 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 161.8 KiB gzip and `{ createHonua }` 190.7 KiB against the 201.0 KiB root, so size-sensitive
+alone costs 162.8 KiB gzip and `{ createHonua }` 191.7 KiB against the 202.3 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -1104,7 +1104,7 @@ directories are removed after both successful and failed runs.
 
 # Documentation versions and compatibility
 
-You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.2.2)**.
+You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.2.7)**.
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
@@ -1135,7 +1135,12 @@ To verify the file consumed by the site, run
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.2.2` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.2/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.1...js-sdk-v0.2.2) |
+| `0.2.7` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.7/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.6...js-sdk-v0.2.7) |
+| `0.2.6` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.6/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.5...js-sdk-v0.2.6) |
+| `0.2.5` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.5/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.4...js-sdk-v0.2.5) |
+| `0.2.4` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.4/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.3...js-sdk-v0.2.4) |
+| `0.2.3` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.3/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.2...js-sdk-v0.2.3) |
+| `0.2.2` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.2/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.1...js-sdk-v0.2.2) |
 | `0.2.1` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.1/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.0...js-sdk-v0.2.1) |
 | `0.2.0` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.18...js-sdk-v0.2.0) |
 | `0.1.18` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.18/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.17...js-sdk-v0.1.18) |
@@ -1231,7 +1236,7 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 
 | Sample | Last sealed run | Engines | Observed | Expires | Receipt |
 | --- | --- | --- | --- | --- | --- |
-| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-10-14T00:56:40.084Z | 2026-10-21T00:56:40.084Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
+| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-10-20T05:37:38.391Z | 2026-10-27T05:37:38.391Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
 
 ## Executable samples
 
@@ -1385,7 +1390,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.2.2 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.2.7 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -1852,17 +1857,17 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-14 at commit `56771244c`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-20 at commit `5b6c72247`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 754.6 KiB | 201.0 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 228.9 KiB | 57.8 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 46.2 KiB | 13.9 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 380.8 KiB | 103.3 KiB |
-| Client compatibility layer (drop-in migration surface) | 1103.8 KiB | 273.1 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 758.1 KiB | 202.3 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 232.0 KiB | 58.9 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.2 KiB | 15.0 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 383.8 KiB | 104.3 KiB |
+| Client compatibility layer (drop-in migration surface) | 1106.9 KiB | 274.1 KiB |
 | Geocoding client | 32.7 KiB | 9.2 KiB |
 | Routing client | 26.1 KiB | 7.8 KiB |
 
@@ -1874,8 +1879,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1098.9 KiB + Honua root 754.6 KiB ≈ **1.81 MB**.
-- **Gzip:** engine 296.6 KiB + Honua root 201.0 KiB ≈ **0.49 MB**.
+- **Minified:** engine 1098.9 KiB + Honua root 758.1 KiB ≈ **1.81 MB**.
+- **Gzip:** engine 296.6 KiB + Honua root 202.3 KiB ≈ **0.49 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -11622,58 +11627,58 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-14 at commit `56771244c`._
+_Generated 2026-10-20 at commit `5b6c72247`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 754.6 KiB | 829.3 KiB | 201.0 KiB | 211.8 KiB |
-| `/honua` | 927.3 KiB | 1033.4 KiB | 248.4 KiB | 278.1 KiB |
-| `/contract` | 380.8 KiB | 400.6 KiB | 103.3 KiB | 108.0 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 820.6 KiB | 859.4 KiB | 193.6 KiB | 195.3 KiB |
-| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.3 KiB | 257.5 KiB | 26.2 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 854.6 KiB | 961.8 KiB | 203.0 KiB | 237.6 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 68.4 KiB | 69.2 KiB | 20.6 KiB | 21.9 KiB |
+| `.` (root) | 758.1 KiB | 829.3 KiB | 202.3 KiB | 211.8 KiB |
+| `/honua` | 930.2 KiB | 1033.4 KiB | 249.5 KiB | 278.1 KiB |
+| `/contract` | 383.8 KiB | 400.6 KiB | 104.3 KiB | 108.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 823.4 KiB | 859.4 KiB | 194.5 KiB | 195.3 KiB |
+| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.2 KiB | 257.5 KiB | 26.2 KiB | 33.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 857.4 KiB | 961.8 KiB | 203.9 KiB | 237.6 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 68.4 KiB | 69.2 KiB | 20.7 KiB | 21.9 KiB |
 | `/agent-tools` | 46.0 KiB | 48.1 KiB | 12.7 KiB | 13.3 KiB |
-| `/agent-safety` | 69.1 KiB | 73.2 KiB | 19.0 KiB | 20.5 KiB |
-| `/nl-map-control` | 92.6 KiB | 94.2 KiB | 27.2 KiB | 27.9 KiB |
+| `/agent-safety` | 69.1 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
+| `/nl-map-control` | 92.5 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
-| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 44.4 KiB | 46.9 KiB | 14.2 KiB | 15.0 KiB |
-| `/runtime` | 704.4 KiB | 752.5 KiB | 181.8 KiB | 198.6 KiB |
+| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.3 KiB | 64.1 KiB | 18.9 KiB | 20.8 KiB |
+| `/runtime` | 717.5 KiB | 752.5 KiB | 184.7 KiB | 198.6 KiB |
 | `/realtime` | 82.3 KiB | 86.2 KiB | 23.6 KiB | 25.0 KiB |
-| `/offline` | 171.5 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
+| `/offline` | 171.5 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 706.8 KiB | 778.7 KiB | 170.8 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.1 KiB | 183.6 KiB | 52.5 KiB | 55.8 KiB |
-| `/client-compat` | 1103.8 KiB | 1139.7 KiB | 273.1 KiB | 309.5 KiB |
+| `/client-compat` | 1106.9 KiB | 1139.7 KiB | 274.1 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
 | `/geocoding` | 32.7 KiB | 35.9 KiB | 9.2 KiB | 10.1 KiB |
 | `/routing` | 26.1 KiB | 28.7 KiB | 7.8 KiB | 8.5 KiB |
 | `/auth` | 28.2 KiB | 30.6 KiB | 7.7 KiB | 8.7 KiB |
-| `/style` | 65.2 KiB | 69.0 KiB | 16.3 KiB | 17.2 KiB |
-| `/map` | 193.7 KiB | 198.2 KiB | 54.8 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 147.7 KiB | 154.9 KiB | 44.2 KiB | 46.6 KiB |
+| `/style` | 65.2 KiB | 69.0 KiB | 16.4 KiB | 17.2 KiB |
+| `/map` | 196.6 KiB | 198.2 KiB | 55.9 KiB | 56.2 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 147.6 KiB | 154.9 KiB | 44.2 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 322.4 KiB | 364.2 KiB | 85.8 KiB | 98.7 KiB |
+| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 325.5 KiB | 364.2 KiB | 86.9 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1164.5 KiB | 1275.0 KiB | 304.3 KiB | 312.7 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1269.7 KiB | 1395.4 KiB | 335.7 KiB | 356.1 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1177.8 KiB | 1275.0 KiB | 307.2 KiB | 312.7 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1282.9 KiB | 1395.4 KiB | 338.7 KiB | 356.1 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 556.5 KiB | 562.6 KiB | 150.2 KiB | 165.2 KiB |
+| `/react` (react/react-dom external) | 563.2 KiB | 619.8 KiB | 152.5 KiB | 165.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 553.8 KiB | 568.0 KiB | 147.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 754.8 KiB | 832.8 KiB | 201.2 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 754.4 KiB | 828.5 KiB | 201.0 KiB | 221.7 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 228.9 KiB | 280.2 KiB | 57.8 KiB | 74.3 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 612.7 KiB | 695.1 KiB | 161.8 KiB | 186.7 KiB |
-| tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 16.6 KiB | 17.1 KiB | 4.4 KiB | 4.5 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 758.3 KiB | 832.8 KiB | 202.5 KiB | 222.1 KiB |
+| browser ESM (`./browser`) | 757.9 KiB | 828.5 KiB | 202.3 KiB | 221.7 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 232.0 KiB | 280.2 KiB | 58.9 KiB | 74.3 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 615.5 KiB | 695.1 KiB | 162.8 KiB | 186.7 KiB |
+| tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.2 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 16.7 KiB | 17.1 KiB | 4.4 KiB | 4.5 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.1 KiB | 18.5 KiB | 3.6 KiB | 3.9 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 714.8 KiB | 791.3 KiB | 190.7 KiB | 210.6 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 252.9 KiB | 296.3 KiB | 64.1 KiB | 77.7 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 717.6 KiB | 791.3 KiB | 191.7 KiB | 210.6 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 256.1 KiB | 296.3 KiB | 65.1 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.5 KiB | 316.3 KiB | 65.3 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 46.2 KiB | 49.4 KiB | 13.9 KiB | 14.0 KiB |
-| tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 34.7 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 49.2 KiB | 54.4 KiB | 15.0 KiB | 16.4 KiB |
+| tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 34.8 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.4 KiB | 3.8 KiB | 1.5 KiB | 1.7 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
 
@@ -14514,7 +14519,7 @@ runtime.dispose();
 | --- | --- | --- |
 | `maplibreRenderer(peer, opts)` | `RendererAdapter<"maplibre", MapLibreRendererMap, MapLibreRendererOptions>` | Caller-injected connection adapter. Reuses automatic feature/vector/PMTiles/raster planning, exposes first-frame readiness/refresh/diagnostics, and never enters the root runtime graph as a value import. |
 | `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | Inline-package load entry point. Throws `HonuaMapPackageError` for binding failures under `sourceErrorPolicy: "fail-fast"`; under the default `"tolerant"` policy a single per-source binding failure does not abort the load — see *Tolerant binding* below. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; consumers can broadcast them through `runtime.reportSourceError(sourceId, error)` to convert query-time rejections into the canonical `source-error` event. |
-| `fetchMapPackage(idOrLocator, opts)` | `Promise<FetchMapPackageResult>` | Fetches a hosted package through `HonuaClient.pipelineFetch`, validates it, resolves style refs when a resolver is supplied, and uses ETag / Last-Modified validators from the server when available. |
+| `fetchMapPackage(idOrLocator, opts)` | `Promise<FetchMapPackageResult>` | Fetches a hosted package through `HonuaClient.pipelineFetch`, validates it, resolves live style refs through the default OGC resolver or a supplied resolver, and uses ETag / Last-Modified validators from the server when available. |
 | `loadMapPackageFromId(idOrLocator, map, opts)` | `Promise<LoadMapPackageFromIdResult>` | Builder-style helper: fetches a hosted package, then delegates to `loadMapPackage`. The result includes the runtime plus fetch diagnostics/cache state. |
 | `watchMapPackage(idOrLocator, opts)` | `MapPackageWatchHandle` | Opt-in polling watcher with `dispose()` and `refresh()`. It reuses `fetchMapPackage`, reports structural updates that require full style reload, and can apply updates to an existing `HonuaMapRuntime`. |
 | `validateMapPackage(pkg, opts)` | `ValidateMapPackageResult` | Returns typed diagnostics for format/version, missing sources, unsupported protocols, stale/expired packages, and style-ref target mismatches. |
@@ -14543,7 +14548,7 @@ runtime.dispose();
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 interface LoadMapPackageOptions {
   client: HonuaClient;
-  resolveStyleRef?: (styleId: string, presetId?: string) => Promise<HonuaStyleRefBody>;
+  resolveStyleRef?: (styleId: string, presetId?: string, layerBindings?: readonly HonuaStyleRefLayerBinding[]) => Promise<HonuaStyleRefBody>;
   resolveTheme?: (themeId: string) => Promise<HonuaMapPackageThemeSpec>;
   resolveSource?: SourceResolver;          // forwarded to createDataset for tiles / MapLibre-native sources
   skipCompatibilityCheck?: boolean;        // tests / conformance fixtures
@@ -14891,6 +14896,33 @@ Additional contract:
 
 Theme application recurses into nested arrays / objects inside
 `paint` / `layout` so expression literals can reference theme tokens.
+
+### Shared catalog styles and map-local snapshots
+
+A reference without `body` resolves the current shared catalog style. When the
+catalog and map use different render-layer IDs, persist `layerBindings` on the
+reference. Each binding names the exact `styleLayerId`, `targetLayerId` and
+expected catalog `layerType`. The default OGC resolver checks the selected
+catalog layer and maps its appearance onto the named map layer. Missing,
+duplicate or incompatible layers fail validation rather than dropping styling.
+
+An optional `properties` array selects `paint`, `layout`, `filter`, `minzoom`,
+`maxzoom`, `metadata` or `visibility`. Without it, all appearance properties are
+selected. Different render types may share only filter, zoom bounds and
+visibility, allowing a polygon's outline to follow its fill without acquiring
+fill paint properties. Source identity and Honua composition ownership remain
+with the map. A hidden map layer stays hidden even if its shared style is visible.
+
+Custom resolvers receive bindings as their third argument and must return exactly
+the target-layer keys. An inline `body` already uses those target keys and is a
+snapshot; it is never fetched or remapped again. Save a map-local edit in the map
+package. Update a reusable style through the shared style catalog after checking
+its affected consumers and the caller's authority.
+
+The fetch cache retains unresolved references. A package `304 Not Modified`
+still resolves live shared styles: changed appearance returns cache status
+`refreshed`, while unchanged resolved content returns `not-modified`. A failed
+style lookup reports an error instead of substituting previously cached styling.
 
 ## Operational API
 
@@ -16682,6 +16714,72 @@ Two modes:
   — AI operational data editing is not supported (honua-server ADR-0028).
 
 ## Requirements
+
+### Persistent local agent connector — source preview
+
+This branch adds `honua-agent-mcp`: one stdio connection that starts with local
+setup tools and attaches the installed Honua server's canonical MCP surface
+without replacing the client's registration. It is a source preview, not yet
+the qualified public Docker-to-map getting-started path.
+
+Start the built `dist/src/agent/cli.js` with Node from this package. The host sets
+`HONUA_AGENT_INSTALL_DIRECTORY` (default `~/.honua/local`); the agent cannot
+choose arbitrary credential files or remote URLs. Node and a local Unix-socket
+Docker engine with Compose 2.23.1 or later are required. Linux/WSL is the initial
+lane; Windows named pipes and remote Docker contexts are refused.
+
+Prompt: **"Check this machine, then set up Honua locally in Docker. Show me the
+target and available workflows when it is ready."** The agent calls
+`honua_agent_inspect_local`, obtains installation authorization, and calls
+`honua_agent_install_local` with `confirm: true`. Keep the installation tool
+timeout long enough for image pulls and database initialization (ten minutes is
+a useful starting point). If the client times out, inspect `honua_agent_status`
+and the installation before issuing another install. Cancellation of a local
+installation does not undo Docker work already started.
+
+The connector verifies readiness and the installed credential before announcing
+the server's tools. Existing installations attach on startup; after a transport
+disconnect, `honua_agent_connect` verifies the same target again. A changed
+credential identity requires a host restart. It never retries an upstream
+mutation after an uncertain response.
+
+Credentials stay in the installer's protected file and the HTTP transport. The
+local agent key has `admin:read`, `admin:write`, and `read:*`; it has no
+`admin:approve` or feature-write grant. Every upstream request carries that key,
+and the server enforces current RBAC, resource access, and governance. Discovery
+is not authorization; a denied operation remains denied. Browser human sessions
+and their approval authority are separate.
+
+This preview forwards canonical paginated tools, resources, resource templates,
+prompts, request metadata, tool progress, cancellation, and catalog-change
+notifications. It negotiates its own MCP identity and preserves the configured
+workflow view. When a client omits its view, the persistent connector selects
+the server's `full` view so Studio and the other GIS workflows remain
+discoverable on the same registration. This changes discovery only; Server
+RBAC and approval policy still govern every operation. It does not advertise subscriptions, sampling, roots,
+completions, or tasks. Durable workflow context, command reconciliation, browser
+pairing, and coordinated Console/Studio artifacts remain tracked in
+[the unified workspace workstream](https://github.com/honua-io/honua-server/issues/6297).
+
+After building the SDK and this package, maintainers can run the opt-in Docker
+handoff and process-restart check with
+`HONUA_AGENT_LIVE_ENABLED=true npm run test:unit --prefix mcp -- test/agent-local-live.test.ts`
+from the repository root. It creates and removes its own isolated Compose project.
+This tests the built connector against the installer's pinned server image; it
+does not certify the full map-making or browser journey.
+
+The packaged workflow guide is available as the MCP resource
+`honua://agent/knowledge/workflows/v1`, even before installation. Optional private
+DevOps tools can share this registration through host configuration; see
+[the host reference](../docs/unified-agent-host-configuration.md) for target and
+credential requirements and the current qualification limits.
+
+Native Console chat can use the preview `honua-agent-gateway` backend HTTP
+transport to reach this same public/private catalog. Its separate bridge key,
+workspace-turn checks and host configuration are described in that reference.
+External agents continue to use their single `honua-agent-mcp` registration.
+
+### Existing standalone and proxy modes
 
 - Node.js `>=22.12`
 - Any reachable FeatureServer/OGC endpoint (public or Honua)

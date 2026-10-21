@@ -69,7 +69,7 @@ jobs:
       # Version coherence, not a protected-base trust boundary: same-repository
       # PR events can change the workflow too. Comment events use trunk's code.
       - name: Check out the active workflow implementation
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
@@ -250,7 +250,7 @@ jobs:
       # Comment events are privileged: inspect PR code through the read-only
       # API, never by checking out or executing the PR's files in this job.
       - name: Check out the active workflow implementation
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.workflow_sha }}
           fetch-depth: 1
