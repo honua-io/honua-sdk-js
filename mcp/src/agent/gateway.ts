@@ -105,10 +105,14 @@ const localTools: Tool[] = [
     name: `${PREFIX}connect`,
     description:
       "Verify and attach the host-configured installation. With workspaceId and turnId, bind subsequent calls to that exact authorized human turn; the Server rechecks current authority on every call.",
-    inputSchema: { type: "object", properties: {
-      workspaceId: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" },
-      turnId: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" },
-    }, additionalProperties: false },
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceId: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" },
+        turnId: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" },
+      },
+      additionalProperties: false,
+    },
     annotations: { readOnlyHint: true },
   },
   {
@@ -129,8 +133,15 @@ const localTools: Tool[] = [
   },
 ];
 
-export interface AgentTurnBinding { workspaceId: string; turnId: string }
-export type UpstreamFactory = (connection: AgentConnection, view?: string, binding?: AgentTurnBinding) => Promise<Client>;
+export interface AgentTurnBinding {
+  workspaceId: string;
+  turnId: string;
+}
+export type UpstreamFactory = (
+  connection: AgentConnection,
+  view?: string,
+  binding?: AgentTurnBinding,
+) => Promise<Client>;
 
 /** A gateway owns initialization; it does not impersonate the downstream client. */
 export async function connectAgentUpstream(
@@ -170,13 +181,16 @@ function result(value: Record<string, unknown>): CallToolResult {
 }
 
 function sameConnection(left: AgentConnection, right: AgentConnection): boolean {
-  return left.target.id === right.target.id && left.target.endpoint === right.target.endpoint &&
+  return (
+    left.target.id === right.target.id &&
+    left.target.endpoint === right.target.endpoint &&
     left.target.credentialId === right.target.credentialId &&
     left.transport.remoteUrl === right.transport.remoteUrl &&
     left.transport.apiKey === right.transport.apiKey &&
     left.transport.authToken === right.transport.authToken &&
     left.credentialKind === right.credentialKind &&
-    left.releaseId === right.releaseId;
+    left.releaseId === right.releaseId
+  );
 }
 
 /** One configured installation per process. Target changes require an explicit host restart. */
@@ -382,8 +396,11 @@ export class HonuaAgentGateway {
     try {
       if (this.#turnBinding) {
         let current: AgentConnection | undefined;
-        try { current = await this.runtime.resolve(); }
-        catch { this.#bindingStale = true; }
+        try {
+          current = await this.runtime.resolve();
+        } catch {
+          this.#bindingStale = true;
+        }
         if (!this.#connection || !current || !sameConnection(this.#connection, current)) {
           this.#bindingStale = true;
           throw new Error("Turn-bound connector identity changed");
@@ -422,7 +439,8 @@ export class HonuaAgentGateway {
 
   async #attach(install?: z.infer<typeof installInput>): Promise<void> {
     if (this.#transition || this.#active) throw new Error("Connector is busy");
-    if (this.#turnBinding || this.#bindingStale) throw new Error("A turn-bound connector cannot fall back to unbound mode");
+    if (this.#turnBinding || this.#bindingStale)
+      throw new Error("A turn-bound connector cannot fall back to unbound mode");
     if (install && this.#target) throw new Error("An established target cannot be reinstalled in this session");
     if (this.#client) {
       if (install) throw new Error("Already attached; installation cannot run in an active session");
@@ -476,16 +494,25 @@ export class HonuaAgentGateway {
 
   async #readTurnTarget(connection: AgentConnection, binding: AgentTurnBinding): Promise<string> {
     const response = await (this.options.fetchImpl ?? fetch)(
-      new URL(`/api/v1/agent/workspaces/${binding.workspaceId}/turns/${binding.turnId}`,
-        connection.transport.remoteUrl),
-      { headers: buildUpstreamHeaders(connection.transport), redirect: "error",
-        signal: AbortSignal.timeout(10_000) },
+      new URL(
+        `/api/v1/agent/workspaces/${binding.workspaceId}/turns/${binding.turnId}`,
+        connection.transport.remoteUrl,
+      ),
+      { headers: buildUpstreamHeaders(connection.transport), redirect: "error", signal: AbortSignal.timeout(10_000) },
     );
     if (!response.ok) throw new Error("Original authorized turn is unavailable");
-    const observed = await response.json() as { turnId?: unknown; context?: { workspaceId?: unknown; targetId?: unknown; tenantId?: unknown } };
-    if (observed.turnId !== binding.turnId || observed.context?.workspaceId !== binding.workspaceId ||
-        typeof observed.context?.targetId !== "string" || !observed.context.targetId ||
-        typeof observed.context.tenantId !== "string" || !observed.context.tenantId)
+    const observed = (await response.json()) as {
+      turnId?: unknown;
+      context?: { workspaceId?: unknown; targetId?: unknown; tenantId?: unknown };
+    };
+    if (
+      observed.turnId !== binding.turnId ||
+      observed.context?.workspaceId !== binding.workspaceId ||
+      typeof observed.context?.targetId !== "string" ||
+      !observed.context.targetId ||
+      typeof observed.context.tenantId !== "string" ||
+      !observed.context.tenantId
+    )
       throw new Error("Original turn does not match this target");
     return observed.context.targetId;
   }
@@ -497,8 +524,11 @@ export class HonuaAgentGateway {
     let candidate: Client | undefined;
     try {
       const connection = await this.runtime.resolve();
-      if (connection.credentialKind !== "workspace-agent" || !connection.releaseId ||
-          !sameConnection(this.#connection, connection))
+      if (
+        connection.credentialKind !== "workspace-agent" ||
+        !connection.releaseId ||
+        !sameConnection(this.#connection, connection)
+      )
         throw new Error("Current workspace agent credential changed or is unavailable");
       const targetId = await this.#readTurnTarget(connection, binding);
       candidate = await this.upstream(connection, this.#view, binding);
@@ -510,8 +540,12 @@ export class HonuaAgentGateway {
       this.#turnBinding = { ...binding };
       this.#boundTargetId = targetId;
       const bound = candidate;
-      bound.onerror = () => { if (this.#client === bound) this.#bindingStale = true; };
-      bound.onclose = () => { if (this.#client === bound) this.#bindingStale = true; };
+      bound.onerror = () => {
+        if (this.#client === bound) this.#bindingStale = true;
+      };
+      bound.onclose = () => {
+        if (this.#client === bound) this.#bindingStale = true;
+      };
       candidate = undefined;
       await prior.close().catch(() => {});
     } finally {
@@ -528,7 +562,13 @@ export class HonuaAgentGateway {
       switch (name) {
         case `${PREFIX}status`:
           return result({
-            state: this.#bindingStale ? "unavailable" : this.#transition ? "connecting" : this.#client ? "attached" : "unattached",
+            state: this.#bindingStale
+              ? "unavailable"
+              : this.#transition
+                ? "connecting"
+                : this.#client
+                  ? "attached"
+                  : "unattached",
             target: this.#target ?? null,
             activeRequests: this.#active,
             turnBinding: this.#turnBinding ?? null,
@@ -539,8 +579,11 @@ export class HonuaAgentGateway {
           if ("workspaceId" in args && "turnId" in args)
             await this.#bindTurn({ workspaceId: String(args.workspaceId), turnId: String(args.turnId) });
           else await this.#attach();
-          return result({ state: "attached", target: this.#target,
-            ...(this.#turnBinding ? { turnBinding: this.#turnBinding } : {}) });
+          return result({
+            state: "attached",
+            target: this.#target,
+            ...(this.#turnBinding ? { turnBinding: this.#turnBinding } : {}),
+          });
         case `${PREFIX}install_local`:
           await this.#attach(installInput.parse(args));
           return result({ state: "attached", target: this.#target });

@@ -158,14 +158,18 @@ async function setup(
       return connected;
     },
     options.devops,
-    { fetchImpl: async (input) => {
-      const path = new URL(String(input)).pathname;
-      const match = /^\/api\/v1\/agent\/workspaces\/([^/]+)\/turns\/([^/]+)$/.exec(path);
-      if (!match) return Response.json({}, { status: 404 });
-      if (options.turnReadStatus) return Response.json({}, { status: options.turnReadStatus });
-      return Response.json({ turnId: match[2], context: { workspaceId: match[1],
-        targetId: "server-target-1", tenantId: "tenant-1" } });
-    } },
+    {
+      fetchImpl: async (input) => {
+        const path = new URL(String(input)).pathname;
+        const match = /^\/api\/v1\/agent\/workspaces\/([^/]+)\/turns\/([^/]+)$/.exec(path);
+        if (!match) return Response.json({}, { status: 404 });
+        if (options.turnReadStatus) return Response.json({}, { status: options.turnReadStatus });
+        return Response.json({
+          turnId: match[2],
+          context: { workspaceId: match[1], targetId: "server-target-1", tenantId: "tenant-1" },
+        });
+      },
+    },
   );
   const [a, b] = InMemoryTransport.createLinkedPair();
   const send = a.send.bind(a);
@@ -208,10 +212,14 @@ async function setup(
 describe("persistent Honua agent gateway", () => {
   it("binds an observed current human turn on the same registration", async () => {
     const fixture = await setup({ installed: true });
-    const bound = await fixture.client.callTool({ name: "honua_agent_connect",
-      arguments: { workspaceId: "workspace-1", turnId: "turn-2" } });
-    expect(bound.structuredContent).toMatchObject({ state: "attached",
-      turnBinding: { workspaceId: "workspace-1", turnId: "turn-2" } });
+    const bound = await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
+    expect(bound.structuredContent).toMatchObject({
+      state: "attached",
+      turnBinding: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
     expect(fixture.bindings).toEqual([undefined, { workspaceId: "workspace-1", turnId: "turn-2" }]);
     expect((await fixture.client.callTool({ name: "echo", arguments: {} })).isError).not.toBe(true);
     expect(fixture.runtime.install).not.toHaveBeenCalled();
@@ -219,9 +227,11 @@ describe("persistent Honua agent gateway", () => {
 
   it("refuses malformed, denied and stale turn bindings without unbound fallback", async () => {
     const fixture = await setup({ installed: true, turnReadStatus: 403 });
-    for (const args of [{ workspaceId: "workspace-1" },
+    for (const args of [
+      { workspaceId: "workspace-1" },
       { workspaceId: "bad/workspace", turnId: "turn-2" },
-      { workspaceId: "workspace-1", turnId: "turn-2" }]) {
+      { workspaceId: "workspace-1", turnId: "turn-2" },
+    ]) {
       const answer = await fixture.client.callTool({ name: "honua_agent_connect", arguments: args });
       expect(answer.isError).toBe(true);
     }
@@ -230,8 +240,10 @@ describe("persistent Honua agent gateway", () => {
 
   it("invalidates a bound turn when its current credential changes", async () => {
     const fixture = await setup({ installed: true });
-    await fixture.client.callTool({ name: "honua_agent_connect",
-      arguments: { workspaceId: "workspace-1", turnId: "turn-2" } });
+    await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
     vi.mocked(fixture.runtime.resolve).mockResolvedValue({
       target: { id: "target-2", endpoint: "http://127.0.0.1:8080/mcp", credentialId: "credential-2" },
       transport: { remoteUrl: "http://127.0.0.1:8080/mcp", apiKey: "rotated-key" },
@@ -239,15 +251,19 @@ describe("persistent Honua agent gateway", () => {
       releaseId: "release-1",
     });
     await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
-    const retry = await fixture.client.callTool({ name: "honua_agent_connect",
-      arguments: { workspaceId: "workspace-1", turnId: "turn-2" } });
+    const retry = await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
     expect(retry.isError).toBe(true);
   });
 
   it("invalidates a bound turn when the installed release changes", async () => {
     const fixture = await setup({ installed: true });
-    await fixture.client.callTool({ name: "honua_agent_connect",
-      arguments: { workspaceId: "workspace-1", turnId: "turn-2" } });
+    await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
     vi.mocked(fixture.runtime.resolve).mockResolvedValue({
       target: { id: "target-1", endpoint: "http://127.0.0.1:8080/mcp", credentialId: "credential-1" },
       transport: { remoteUrl: "http://127.0.0.1:8080/mcp", apiKey: "private-key-MUST-NOT-LEAK" },
@@ -255,31 +271,40 @@ describe("persistent Honua agent gateway", () => {
       releaseId: "release-2",
     });
     await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
-    expect((await fixture.client.callTool({ name: "honua_agent_status", arguments: {} })).structuredContent)
-      .toMatchObject({ state: "unavailable" });
+    expect(
+      (await fixture.client.callTool({ name: "honua_agent_status", arguments: {} })).structuredContent,
+    ).toMatchObject({ state: "unavailable" });
   });
 
   it("invalidates a bound turn when its authorized read is revoked", async () => {
     const options = { installed: true, turnReadStatus: 0 };
     const fixture = await setup(options);
-    await fixture.client.callTool({ name: "honua_agent_connect",
-      arguments: { workspaceId: "workspace-1", turnId: "turn-2" } });
+    await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
     options.turnReadStatus = 403;
     await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
-    expect((await fixture.client.callTool({ name: "honua_agent_status", arguments: {} })).structuredContent)
-      .toMatchObject({ state: "unavailable" });
+    expect(
+      (await fixture.client.callTool({ name: "honua_agent_status", arguments: {} })).structuredContent,
+    ).toMatchObject({ state: "unavailable" });
   });
 
   it("refuses a turn switch while an old snapshot has an in-flight call", async () => {
     const fixture = await setup({ installed: true });
-    await fixture.client.callTool({ name: "honua_agent_connect",
-      arguments: { workspaceId: "workspace-1", turnId: "turn-2" } });
+    await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
     const abort = new AbortController();
     const call = fixture.client.callTool({ name: "wait" }, undefined, { signal: abort.signal });
-    await vi.waitFor(() => expect(fixture.calls.some((item) =>
-      (item as { params?: { name?: string } }).params?.name === "wait")).toBe(true));
-    const switchTurn = await fixture.client.callTool({ name: "honua_agent_connect",
-      arguments: { workspaceId: "workspace-1", turnId: "turn-3" } });
+    await vi.waitFor(() =>
+      expect(fixture.calls.some((item) => (item as { params?: { name?: string } }).params?.name === "wait")).toBe(true),
+    );
+    const switchTurn = await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-3" },
+    });
     expect(switchTurn.isError).toBe(true);
     expect(fixture.bindings).toEqual([undefined, { workspaceId: "workspace-1", turnId: "turn-2" }]);
     abort.abort();
@@ -352,7 +377,14 @@ describe("persistent Honua agent gateway", () => {
     );
     const read = await fixture.client.readResource({ uri: WORKFLOW_KNOWLEDGE_URI });
     expect(JSON.stringify(read)).toContain("contract-guidance-only");
-    expect(JSON.parse(String(read.contents[0]?.text))).toEqual(SDK_WORKFLOW_KNOWLEDGE);
+    const knowledge = JSON.parse(String(read.contents[0]?.text));
+    expect(knowledge).toEqual(SDK_WORKFLOW_KNOWLEDGE);
+    const context = knowledge.workflows.find((workflow: { id: string }) => workflow.id === "shared-workspace-context");
+    const importFlow = knowledge.workflows.find((workflow: { id: string }) => workflow.id === "data-and-services");
+    expect(context.actions.join(" ")).toContain("honua_workspace_conversation");
+    expect(context.actions.join(" ")).toContain("honua_agent_connect");
+    expect(importFlow.actions.join(" ")).toContain("browserFileSelection");
+    expect(importFlow.actions.join(" ")).toContain("honua_workspace_submit_dataset_import");
     await fixture.client.callTool({ name: "honua_agent_install_local", arguments: { confirm: true } });
     const resources = (await fixture.client.listResources()).resources;
     expect(resources).toContainEqual(expect.objectContaining({ uri: WORKFLOW_KNOWLEDGE_URI }));
@@ -479,14 +511,18 @@ describe("persistent Honua agent gateway", () => {
     const remote = await startFixture();
     const headers: Headers[] = [];
     const client = await connectAgentUpstream(
-      { target: { id: "http-fixture", endpoint: remote.url, credentialId: "fixture" },
-        transport: { remoteUrl: remote.url, apiKey: "test-credential" } },
-      "workspace", async (input, init) => {
+      {
+        target: { id: "http-fixture", endpoint: remote.url, credentialId: "fixture" },
+        transport: { remoteUrl: remote.url, apiKey: "test-credential" },
+      },
+      "workspace",
+      async (input, init) => {
         const sent = new Headers(input instanceof Request ? input.headers : undefined);
         new Headers(init?.headers).forEach((value, name) => sent.set(name, value));
         headers.push(sent);
         return fetch(input, init);
-      }, { workspaceId: "workspace-1", turnId: "turn-2" },
+      },
+      { workspaceId: "workspace-1", turnId: "turn-2" },
     );
     try {
       await client.listTools();
