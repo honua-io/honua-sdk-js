@@ -48,25 +48,34 @@ export async function configuredDevOps(
     throw new Error("DevOps executable and working directory must be host-selected absolute paths");
   if (config.provisioningScope && config.provisioningScope.environment !== config.environment)
     throw new Error("Provisioning scope must match the configured environment");
-  let extension: Promise<DevOpsExtension> | undefined;
-  let extensionBinding: AgentTurnBinding | undefined;
+  type Entry = { binding?: AgentTurnBinding; extension: Promise<DevOpsExtension>; active: number; retired: boolean };
+  const entries = new Set<Entry>();
+  const closing = new Set<Promise<void>>();
+  let currentEntry: Entry | undefined;
   let closed = false;
-  async function get(): Promise<DevOpsExtension> {
+  function retire(entry: Entry): void {
+    entry.retired = true;
+    if (entry.active === 0 && entries.delete(entry)) {
+      const finished = entry.extension.then((value) => value.close()).catch(() => {});
+      closing.add(finished);
+      void finished.finally(() => closing.delete(finished));
+    }
+  }
+  function acquire(): Entry {
     if (closed) throw new Error("Private integration closed");
     const binding = boundTurn?.();
     if (binding && (!turnIdentifier.test(binding.workspaceId) || !turnIdentifier.test(binding.turnId)))
       throw new Error("Invalid private integration turn binding");
     if (
-      extension &&
-      (extensionBinding?.workspaceId !== binding?.workspaceId || extensionBinding?.turnId !== binding?.turnId)
+      currentEntry &&
+      (currentEntry.binding?.workspaceId !== binding?.workspaceId || currentEntry.binding?.turnId !== binding?.turnId)
     ) {
-      const prior = extension;
-      extension = undefined;
-      await prior.then((value) => value.close()).catch(() => {});
+      retire(currentEntry);
+      currentEntry = undefined;
     }
-    if (!extension) {
-      extensionBinding = binding && { ...binding };
-      extension = (async () => {
+    if (!currentEntry) {
+      const entry = { binding: binding && { ...binding }, active: 0, retired: false } as Entry;
+      entry.extension = (async () => {
         const connection = await runtime.resolve();
         const base = new URL(connection.transport.remoteUrl);
         if (!/\/mcp\/?$/.test(base.pathname))
@@ -147,23 +156,41 @@ export async function configuredDevOps(
           authorize,
         );
       })();
-      const attempt = extension;
-      void attempt.catch(() => {
-        if (extension === attempt) extension = undefined;
+      currentEntry = entry;
+      entries.add(entry);
+      void entry.extension.catch(() => {
+        if (currentEntry === entry) currentEntry = undefined;
+        retire(entry);
       });
     }
-    return extension;
+    currentEntry.active++;
+    return currentEntry;
+  }
+  async function withExtension<T>(use: (extension: DevOpsExtension) => Promise<T>): Promise<T> {
+    const entry = acquire();
+    try {
+      return await use(await entry.extension);
+    } finally {
+      entry.active--;
+      if (entry.retired) retire(entry);
+    }
   }
   return {
     async listTools() {
-      return (await get()).listTools();
+      return withExtension((extension) => extension.listTools());
     },
     async callTool(name, args, options) {
-      return (await get()).callTool(name, args, options);
+      return withExtension((extension) => extension.callTool(name, args, options));
     },
     async close() {
       closed = true;
-      await extension?.then((value) => value.close()).catch(() => {});
+      currentEntry = undefined;
+      const pending = [...entries];
+      entries.clear();
+      await Promise.all([
+        ...closing,
+        ...pending.map((entry) => entry.extension.then((value) => value.close()).catch(() => {})),
+      ]);
     },
   };
 }

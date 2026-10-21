@@ -264,6 +264,50 @@ describe("host-configured private integration identity", () => {
     await integration.close();
   });
 
+  it("keeps an earlier turn's private child alive until its in-flight action completes", async () => {
+    const fixture = await setup();
+    let bound = { workspaceId: "workspace-1", turnId: "turn-a" };
+    let started!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const firstClose = vi.fn(async () => {});
+    vi.mocked(createDevOpsExtension).mockImplementationOnce((_config, authorize) => ({
+      listTools: async () => [],
+      callTool: async (name, args) => {
+        await authorize({ canonicalTool: name, arguments: args });
+        started();
+        await held;
+        return { content: [] };
+      },
+      close: firstClose,
+    }));
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => bound);
+    const first = integration.callTool("describe_environment", {});
+    await entered;
+    bound = { workspaceId: "workspace-1", turnId: "turn-b" };
+    await integration.listTools();
+    expect(createDevOpsExtension).toHaveBeenCalledTimes(2);
+    expect(firstClose).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(createDevOpsExtension).mock.calls.map(([config]) => config.env?.HONUA_DEVOPS_HONUA_TURN_ID),
+    ).toEqual(["turn-a", "turn-b"]);
+    expect((fixture.fetcher.mock.calls as unknown as [URL, RequestInit][]).map(([, init]) => init.headers)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ "X-Honua-Turn": "turn-a" }),
+        expect.objectContaining({ "X-Honua-Turn": "turn-b" }),
+      ]),
+    );
+    release();
+    await first;
+    await vi.waitFor(() => expect(firstClose).toHaveBeenCalledOnce());
+    await integration.close();
+  });
+
   it("refuses malformed turn context before private authorization or child startup", async () => {
     const fixture = await setup();
     const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => ({
