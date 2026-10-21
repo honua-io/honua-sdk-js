@@ -95,6 +95,8 @@ export interface AgentConnection {
   readonly credentialKind?: "workspace-agent" | "bootstrap-admin";
   /** Verified installation release; changing it invalidates a turn-bound session. */
   readonly releaseId?: string;
+  /** Persisted Server deployment identity, distinct from the connector's credential locator. */
+  readonly deploymentId?: string;
 }
 
 export interface AgentRuntime {
@@ -182,6 +184,7 @@ export function createLocalAgentRuntime(
         transport: { remoteUrl: endpoint, apiKey },
         credentialKind: workspaceCredentialPresent ? "workspace-agent" : "bootstrap-admin",
         releaseId: env.HONUA_AGENT_RELEASE_ID,
+        deploymentId: env.HONUA_AGENT_DEPLOYMENT_ID,
       };
     },
   };

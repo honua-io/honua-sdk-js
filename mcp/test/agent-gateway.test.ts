@@ -157,6 +157,7 @@ async function setup(
         transport: { remoteUrl: "http://127.0.0.1:8080/mcp", apiKey: "private-key-MUST-NOT-LEAK" },
         credentialKind: "workspace-agent" as const,
         releaseId: "release-1",
+        deploymentId: "server-target-1",
       };
     }),
   };
@@ -489,10 +490,29 @@ describe("persistent Honua agent gateway", () => {
       arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
     });
     options.turnReadStatus = 403;
+    const beforeNotifications = fixture.notifications();
     await expect(fixture.client.callTool({ name: "echo", arguments: {} })).rejects.toThrow();
+    await vi.waitFor(() => expect(fixture.notifications()).toBeGreaterThan(beforeNotifications));
     expect(
       (await fixture.client.callTool({ name: "honua_agent_status", arguments: {} })).structuredContent,
     ).toMatchObject({ state: "unavailable" });
+  });
+
+  it("refuses a turn from a different installed Server deployment", async () => {
+    const fixture = await setup({
+      installed: true,
+      turnRead: async () =>
+        Response.json({
+          turnId: "turn-2",
+          context: { workspaceId: "workspace-1", targetId: "foreign-deployment", tenantId: "tenant-1" },
+        }),
+    });
+    const attempted = await fixture.client.callTool({
+      name: "honua_agent_connect",
+      arguments: { workspaceId: "workspace-1", turnId: "turn-2" },
+    });
+    expect(attempted.isError).toBe(true);
+    expect((await fixture.client.listTools()).tools.map((tool) => tool.name)).not.toContain("echo");
   });
 
   it("refuses a turn switch while an old snapshot has an in-flight call", async () => {

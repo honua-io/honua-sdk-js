@@ -121,6 +121,7 @@ async function fixture(privateAdapter = false) {
       transport: { remoteUrl: `${upstream}/mcp`, apiKey: currentKey },
       credentialKind: currentCredentialKind,
       releaseId: currentRelease,
+      deploymentId: "target-a",
     }),
   };
   let config: string | undefined;

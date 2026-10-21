@@ -4,6 +4,7 @@ import { z } from "zod";
 import { buildUpstreamHeaders } from "../proxy.js";
 import { type DevOpsExtension, createDevOpsExtension } from "./devops-runtime.js";
 import { devOpsTarget } from "./devops-targets.js";
+import type { AgentTurnBinding } from "./gateway.js";
 import type { AgentConnection, AgentRuntime } from "./local-runtime.js";
 
 const configuration = z
@@ -28,12 +29,14 @@ const configuration = z
       .optional(),
   })
   .strict();
+const turnIdentifier = /^[A-Za-z0-9_-]{1,128}$/;
 
 /** The host selects this protected file; MCP arguments cannot select executable paths or credentials. */
 export async function configuredDevOps(
   file: string,
   runtime: AgentRuntime,
   fetchImpl: typeof fetch = fetch,
+  boundTurn?: () => AgentTurnBinding | undefined,
 ): Promise<DevOpsExtension> {
   if (!path.isAbsolute(file)) throw new Error("DevOps configuration requires an absolute host path");
   const info = await lstat(file);
@@ -46,10 +49,23 @@ export async function configuredDevOps(
   if (config.provisioningScope && config.provisioningScope.environment !== config.environment)
     throw new Error("Provisioning scope must match the configured environment");
   let extension: Promise<DevOpsExtension> | undefined;
+  let extensionBinding: AgentTurnBinding | undefined;
   let closed = false;
   async function get(): Promise<DevOpsExtension> {
     if (closed) throw new Error("Private integration closed");
+    const binding = boundTurn?.();
+    if (binding && (!turnIdentifier.test(binding.workspaceId) || !turnIdentifier.test(binding.turnId)))
+      throw new Error("Invalid private integration turn binding");
+    if (
+      extension &&
+      (extensionBinding?.workspaceId !== binding?.workspaceId || extensionBinding?.turnId !== binding?.turnId)
+    ) {
+      const prior = extension;
+      extension = undefined;
+      await prior.then((value) => value.close()).catch(() => {});
+    }
     if (!extension) {
+      extensionBinding = binding && { ...binding };
       extension = (async () => {
         const connection = await runtime.resolve();
         const base = new URL(connection.transport.remoteUrl);
@@ -64,11 +80,20 @@ export async function configuredDevOps(
         const authorize = async (action: { canonicalTool: string | null; arguments?: Record<string, unknown> }) => {
           const current = await runtime.resolve();
           requireSameConnection(connection, current);
+          if (
+            boundTurn &&
+            (boundTurn()?.workspaceId !== binding?.workspaceId || boundTurn()?.turnId !== binding?.turnId)
+          )
+            throw new Error("Private integration turn changed");
           const response = await fetchImpl(new URL("api/v1/agent/devops/authorize", base), {
             method: "POST",
             redirect: "error",
             signal: AbortSignal.timeout(10000),
-            headers: { ...buildUpstreamHeaders(current.transport), "Content-Type": "application/json" },
+            headers: {
+              ...buildUpstreamHeaders(current.transport),
+              ...(binding ? { "X-Honua-Workspace": binding.workspaceId, "X-Honua-Turn": binding.turnId } : {}),
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify({
               targetId: config.serverTargetId,
               deployTargetId: config.deployTargetId,
@@ -97,11 +122,17 @@ export async function configuredDevOps(
             throw new Error("Private integration runtime changed or is unsupported");
         };
         await authorize({ canonicalTool: null });
+        const safeEnv = { ...config.env };
+        delete safeEnv.HONUA_DEVOPS_HONUA_WORKSPACE_ID;
+        delete safeEnv.HONUA_DEVOPS_HONUA_TURN_ID;
         return createDevOpsExtension(
           {
             ...config,
             env: {
-              ...config.env,
+              ...safeEnv,
+              ...(binding
+                ? { HONUA_DEVOPS_HONUA_WORKSPACE_ID: binding.workspaceId, HONUA_DEVOPS_HONUA_TURN_ID: binding.turnId }
+                : {}),
               HONUA_DEVOPS_HONUA_API_BASE_URL: base.toString().replace(/\/$/, ""),
               HONUA_DEVOPS_HONUA_API_KEY: connection.transport.apiKey,
               HONUA_DEVOPS_TERRAFORM_TARGETS: target.terraformTarget,
@@ -139,9 +170,14 @@ export async function configuredDevOps(
 function requireSameConnection(expected: AgentConnection, actual: AgentConnection): void {
   if (
     expected.target.id !== actual.target.id ||
+    expected.target.endpoint !== actual.target.endpoint ||
     expected.target.credentialId !== actual.target.credentialId ||
     expected.transport.remoteUrl !== actual.transport.remoteUrl ||
-    expected.transport.apiKey !== actual.transport.apiKey
+    expected.transport.apiKey !== actual.transport.apiKey ||
+    expected.transport.authToken !== actual.transport.authToken ||
+    expected.credentialKind !== actual.credentialKind ||
+    expected.releaseId !== actual.releaseId ||
+    expected.deploymentId !== actual.deploymentId
   )
     throw new Error("Private integration identity changed; restart explicitly");
 }

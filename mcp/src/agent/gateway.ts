@@ -190,7 +190,8 @@ function sameConnection(left: AgentConnection, right: AgentConnection): boolean 
     left.transport.apiKey === right.transport.apiKey &&
     left.transport.authToken === right.transport.authToken &&
     left.credentialKind === right.credentialKind &&
-    left.releaseId === right.releaseId
+    left.releaseId === right.releaseId &&
+    left.deploymentId === right.deploymentId
   );
 }
 
@@ -215,6 +216,11 @@ export class HonuaAgentGateway {
   #initialized = false;
   #closed = false;
 
+  /** The adapter reads this only inside a preflighted call; binding switches require idle. */
+  currentTurnBinding(): AgentTurnBinding | undefined {
+    return this.#turnBinding;
+  }
+
   constructor(
     private readonly runtime: AgentRuntime,
     private readonly upstream: UpstreamFactory = (connection, view, binding) =>
@@ -236,14 +242,15 @@ export class HonuaAgentGateway {
     this.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
       const bootstrap = this.options.bootstrapTools === false ? [] : localTools;
       if (!this.#client || this.#bindingFailed || this.#bindingStale) return { tools: bootstrap };
-      const page = await this.#withClient((client) =>
-        client.request(request, ListToolsResultSchema, { signal: extra.signal }),
-      );
-      if (page.tools.some((tool) => tool.name.startsWith(PREFIX)))
-        throw new McpError(ErrorCode.InvalidRequest, "Reserved connector tool namespace collision");
-      // A missing/private integration must not make the public GIS catalog unavailable.
-      const privateTools = !request.params?.cursor && this.devops ? await this.devops.listTools().catch(() => []) : [];
-      return { ...page, tools: request.params?.cursor ? page.tools : [...bootstrap, ...privateTools, ...page.tools] };
+      return this.#withClient(async (client) => {
+        const page = await client.request(request, ListToolsResultSchema, { signal: extra.signal });
+        if (page.tools.some((tool) => tool.name.startsWith(PREFIX)))
+          throw new McpError(ErrorCode.InvalidRequest, "Reserved connector tool namespace collision");
+        // A missing/private integration must not make the public GIS catalog unavailable.
+        const privateTools =
+          !request.params?.cursor && this.devops ? await this.devops.listTools().catch(() => []) : [];
+        return { ...page, tools: request.params?.cursor ? page.tools : [...bootstrap, ...privateTools, ...page.tools] };
+      });
     });
     this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const token = request.params._meta?.progressToken;
@@ -402,17 +409,17 @@ export class HonuaAgentGateway {
         try {
           current = await this.runtime.resolve();
         } catch {
-          this.#bindingStale = true;
+          this.#markBindingStale();
         }
         if (!this.#connection || !current || !sameConnection(this.#connection, current)) {
-          this.#bindingStale = true;
+          this.#markBindingStale();
           throw new Error("Turn-bound connector identity changed");
         }
         try {
           const targetId = await this.#readTurnTarget(current, binding);
           if (targetId !== this.#boundTargetId) throw new Error("Bound turn target changed");
         } catch {
-          this.#bindingStale = true;
+          this.#markBindingStale();
           throw new Error("Turn-bound authorization changed");
         }
       }
@@ -448,6 +455,12 @@ export class HonuaAgentGateway {
       this.server.notification({ method: "notifications/resources/list_changed" }),
       this.server.notification({ method: "notifications/prompts/list_changed" }),
     ]).catch(() => {});
+  }
+
+  #markBindingStale(): void {
+    if (this.#bindingStale) return;
+    this.#bindingStale = true;
+    void this.#notify();
   }
 
   async #validateCatalog(candidate: Client): Promise<void> {
@@ -525,6 +538,8 @@ export class HonuaAgentGateway {
     if (
       observed.turnId !== binding.turnId ||
       observed.context?.workspaceId !== binding.workspaceId ||
+      !connection.deploymentId ||
+      observed.context?.targetId !== connection.deploymentId ||
       typeof observed.context?.targetId !== "string" ||
       !observed.context.targetId ||
       typeof observed.context.tenantId !== "string" ||
@@ -568,10 +583,10 @@ export class HonuaAgentGateway {
       this.#boundTargetId = targetId;
       const bound = candidate;
       bound.onerror = () => {
-        if (this.#client === bound) this.#bindingStale = true;
+        if (this.#client === bound) this.#markBindingStale();
       };
       bound.onclose = () => {
-        if (this.#client === bound) this.#bindingStale = true;
+        if (this.#client === bound) this.#markBindingStale();
       };
       bound.setNotificationHandler(ToolListChangedNotificationSchema, () => this.#notify());
       bound.setNotificationHandler(ResourceListChangedNotificationSchema, () => this.#notify());

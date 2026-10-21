@@ -236,6 +236,45 @@ describe("host-configured private integration identity", () => {
     await integration.close();
   });
 
+  it("pins private child and authorization to the verified turn, then replaces the child on a turn switch", async () => {
+    const fixture = await setup({
+      env: {
+        HONUA_DEVOPS_HONUA_WORKSPACE_ID: "untrusted-host-value",
+        HONUA_DEVOPS_HONUA_TURN_ID: "untrusted-host-value",
+      },
+    });
+    let bound = { workspaceId: "workspace-1", turnId: "turn-1" };
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => bound);
+    await integration.listTools();
+    const first = vi.mocked(createDevOpsExtension).mock.calls[0]?.[0];
+    expect(first?.env).toMatchObject({
+      HONUA_DEVOPS_HONUA_WORKSPACE_ID: "workspace-1",
+      HONUA_DEVOPS_HONUA_TURN_ID: "turn-1",
+    });
+    const request = fixture.fetcher.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(request[1].headers).toMatchObject({ "X-Honua-Workspace": "workspace-1", "X-Honua-Turn": "turn-1" });
+    bound = { workspaceId: "workspace-1", turnId: "turn-2" };
+    await integration.listTools();
+    expect(createDevOpsExtension).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(createDevOpsExtension).mock.calls[1]?.[0].env).toMatchObject({
+      HONUA_DEVOPS_HONUA_WORKSPACE_ID: "workspace-1",
+      HONUA_DEVOPS_HONUA_TURN_ID: "turn-2",
+    });
+    await integration.close();
+  });
+
+  it("refuses malformed turn context before private authorization or child startup", async () => {
+    const fixture = await setup();
+    const integration = await configuredDevOps(fixture.file, fixture.runtime, fetch, () => ({
+      workspaceId: "../other",
+      turnId: "turn-1",
+    }));
+    await expect(integration.listTools()).rejects.toThrow("Invalid private integration turn binding");
+    expect(fixture.fetcher).not.toHaveBeenCalled();
+    expect(createDevOpsExtension).not.toHaveBeenCalled();
+    await integration.close();
+  });
+
   it("rejects a receipt for another deployment or environment", async () => {
     const fixture = await setup();
     fixture.fetcher.mockImplementationOnce(async () =>
