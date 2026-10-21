@@ -131,7 +131,8 @@ async function fixture(privateAdapter = false) {
     config = path.join(directory, "private.json");
     const child = `require('node:readline').createInterface({input:process.stdin}).on('line', line => {
       const m=JSON.parse(line); if(!('id' in m)) return;
-      const result=m.method==='initialize'?{protocolVersion:m.params.protocolVersion,capabilities:{tools:{}},serverInfo:{name:'private',version:'1'}}:
+      const bound=Boolean(process.env.HONUA_DEVOPS_HONUA_WORKSPACE_ID && process.env.HONUA_DEVOPS_HONUA_TURN_ID);
+      const result=m.method==='initialize'?{protocolVersion:m.params.protocolVersion,capabilities:{tools:{},...(bound?{experimental:{'honua.io/devops-turn-binding':{version:1}}}:{})},serverInfo:{name:'private',version:'1'}}:
         m.method==='tools/list'?{tools:[{name:'describe_environment',inputSchema:{type:'object'}}]}:
         {content:[{type:'text',text:'private receipt'}]};
       process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
