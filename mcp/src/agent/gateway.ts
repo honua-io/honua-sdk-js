@@ -104,13 +104,14 @@ const localTools: Tool[] = [
   {
     name: `${PREFIX}connect`,
     description:
-      "Verify and attach the host-configured installation. With workspaceId and turnId, bind subsequent calls to that exact authorized human turn; the Server rechecks current authority on every call.",
+      "Verify and attach the host-configured installation. With workspaceId and turnId, explicitly bind subsequent calls to that authorized human turn. An idle later call may bind a different verified turn; in-flight calls keep their original session. The Server rechecks current authority on every call.",
     inputSchema: {
       type: "object",
       properties: {
         workspaceId: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" },
         turnId: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" },
       },
+      oneOf: [{ maxProperties: 0 }, { required: ["workspaceId", "turnId"] }],
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true },
@@ -390,11 +391,12 @@ export class HonuaAgentGateway {
 
   async #withClient<T>(call: (client: Client) => Promise<T>): Promise<T> {
     const client = this.#client;
+    const binding = this.#turnBinding;
     if (!client || this.#transition || this.#bindingStale)
       throw new McpError(ErrorCode.InvalidRequest, "Honua is not attached; inspect connector status");
     this.#active++;
     try {
-      if (this.#turnBinding) {
+      if (binding) {
         let current: AgentConnection | undefined;
         try {
           current = await this.runtime.resolve();
@@ -406,13 +408,17 @@ export class HonuaAgentGateway {
           throw new Error("Turn-bound connector identity changed");
         }
         try {
-          const targetId = await this.#readTurnTarget(current, this.#turnBinding);
+          const targetId = await this.#readTurnTarget(current, binding);
           if (targetId !== this.#boundTargetId) throw new Error("Bound turn target changed");
         } catch {
           this.#bindingStale = true;
           throw new Error("Turn-bound authorization changed");
         }
       }
+      // Another preflight can revoke this session while this one awaits its
+      // authorized turn read. Never dispatch after that revocation or a swap.
+      if (this.#bindingStale || this.#transition || this.#client !== client || this.#turnBinding !== binding)
+        throw new Error("Connector binding changed during authorization");
       return await call(client);
     } catch (error) {
       // Preserve structured tool errors (returned results), but never echo raw
@@ -437,6 +443,18 @@ export class HonuaAgentGateway {
     ]).catch(() => {});
   }
 
+  async #validateCatalog(candidate: Client): Promise<void> {
+    const cursors = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const page = await candidate.listTools(cursor ? { cursor } : undefined);
+      if (page.tools.some((tool) => tool.name.startsWith(PREFIX))) throw new Error("Reserved namespace collision");
+      cursor = page.nextCursor;
+      if (cursor && (cursors.has(cursor) || cursors.size >= 100)) throw new Error("Invalid catalog pagination");
+      if (cursor) cursors.add(cursor);
+    } while (cursor);
+  }
+
   async #attach(install?: z.infer<typeof installInput>): Promise<void> {
     if (this.#transition || this.#active) throw new Error("Connector is busy");
     if (this.#turnBinding || this.#bindingStale)
@@ -454,15 +472,7 @@ export class HonuaAgentGateway {
       if (this.#target && this.#target.id !== connection.target.id)
         throw new Error("Target identity changed; reconnect explicitly");
       candidate = await this.upstream(connection, this.#view);
-      const cursors = new Set<string>();
-      let cursor: string | undefined;
-      do {
-        const page = await candidate.listTools(cursor ? { cursor } : undefined);
-        if (page.tools.some((tool) => tool.name.startsWith(PREFIX))) throw new Error("Reserved namespace collision");
-        cursor = page.nextCursor;
-        if (cursor && (cursors.has(cursor) || cursors.size >= 100)) throw new Error("Invalid catalog pagination");
-        if (cursor) cursors.add(cursor);
-      } while (cursor);
+      await this.#validateCatalog(candidate);
       if (this.#closed) throw new Error("Connector closed during attachment");
       const attached = candidate;
       attached.onerror = () => {
@@ -518,8 +528,15 @@ export class HonuaAgentGateway {
   }
 
   async #bindTurn(binding: AgentTurnBinding): Promise<void> {
-    if (this.#transition || this.#active || this.#bindingStale || !this.#client || !this.#connection)
+    if (this.#transition || this.#active || !this.#client || !this.#connection)
       throw new Error("Connector is busy or unavailable");
+    if (this.#bindingStale && !this.#turnBinding) throw new Error("Connector identity is unavailable");
+    if (
+      this.#bindingStale &&
+      this.#turnBinding &&
+      (this.#turnBinding.workspaceId !== binding.workspaceId || this.#turnBinding.turnId !== binding.turnId)
+    )
+      throw new Error("A stale connector can only recover its original turn");
     this.#transition = true;
     let candidate: Client | undefined;
     try {
@@ -532,7 +549,7 @@ export class HonuaAgentGateway {
         throw new Error("Current workspace agent credential changed or is unavailable");
       const targetId = await this.#readTurnTarget(connection, binding);
       candidate = await this.upstream(connection, this.#view, binding);
-      await candidate.listTools();
+      await this.#validateCatalog(candidate);
       if (!sameConnection(connection, await this.runtime.resolve()) || this.#closed)
         throw new Error("Connector identity changed while binding the turn");
       const prior = this.#client;
@@ -546,6 +563,10 @@ export class HonuaAgentGateway {
       bound.onclose = () => {
         if (this.#client === bound) this.#bindingStale = true;
       };
+      bound.setNotificationHandler(ToolListChangedNotificationSchema, () => this.#notify());
+      bound.setNotificationHandler(ResourceListChangedNotificationSchema, () => this.#notify());
+      bound.setNotificationHandler(PromptListChangedNotificationSchema, () => this.#notify());
+      this.#bindingStale = false;
       candidate = undefined;
       await prior.close().catch(() => {});
     } finally {

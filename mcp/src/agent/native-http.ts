@@ -62,6 +62,8 @@ function samePrincipal(expected: NativeBinding, current: NativeBinding): boolean
     expected.connection.target.id === current.connection.target.id &&
     expected.connection.target.credentialId === current.connection.target.credentialId &&
     expected.connection.transport.remoteUrl === current.connection.transport.remoteUrl &&
+    expected.connection.credentialKind === current.connection.credentialKind &&
+    expected.connection.releaseId === current.connection.releaseId &&
     sameSecret(expected.connection.transport.apiKey ?? "", current.connection.transport.apiKey ?? "")
   );
 }
@@ -101,6 +103,8 @@ export function createNativeAgentHttpServer(options: NativeGatewayOptions) {
     const supplied = header(request, "x-api-key");
     const connection = await options.runtime.resolve();
     if (
+      connection.credentialKind !== "workspace-agent" ||
+      !connection.releaseId ||
       !connection.transport.apiKey ||
       connection.transport.authToken ||
       sameSecret(connection.transport.apiKey, options.bridgeKey) ||

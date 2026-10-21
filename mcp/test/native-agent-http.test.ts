@@ -109,6 +109,8 @@ async function fixture(privateAdapter = false) {
       });
     }),
   );
+  let currentRelease = "release-a";
+  let currentCredentialKind: "workspace-agent" | "bootstrap-admin" = "workspace-agent";
   const runtime: AgentRuntime = {
     inspect: async () => ({ ready: true }),
     install: async () => {
@@ -117,6 +119,8 @@ async function fixture(privateAdapter = false) {
     resolve: async () => ({
       target: { id: "connection-a", credentialId: "key-a", endpoint: `${upstream}/mcp` },
       transport: { remoteUrl: `${upstream}/mcp`, apiKey: currentKey },
+      credentialKind: currentCredentialKind,
+      releaseId: currentRelease,
     }),
   };
   let config: string | undefined;
@@ -191,6 +195,12 @@ async function fixture(privateAdapter = false) {
     rotate: () => {
       currentKey = "replacement-agent-key";
     },
+    changeRelease: () => {
+      currentRelease = "release-b";
+    },
+    changeCredentialKind: () => {
+      currentCredentialKind = "bootstrap-admin";
+    },
   };
 }
 
@@ -252,6 +262,34 @@ it("rejects wrong bridge identity, workspace, partition, revoked membership and 
   f.revoke();
   expect((await f.rpc(call, "turn-a", session)).status).toBe(403);
   expect(f.actions).toHaveLength(0);
+});
+
+it("rejects an existing native session after a same-key release or credential-kind change", async () => {
+  const f = await fixture();
+  const session = await f.initialize();
+  const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "canonical_echo", arguments: {} } };
+  f.changeRelease();
+  expect((await f.rpc(call, "turn-a", session)).status).toBe(403);
+  expect(f.actions).toHaveLength(0);
+  const other = await fixture();
+  const otherSession = await other.initialize();
+  other.changeCredentialKind();
+  expect((await other.rpc(call, "turn-a", otherSession)).status).toBe(403);
+  expect(
+    (
+      await other.rpc({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "native-fixture", version: "1" },
+        },
+      })
+    ).status,
+  ).toBe(403);
+  expect(other.actions).toHaveLength(0);
 });
 
 it("attests private tools only after authorized discovery and rechecks their current turn and RBAC", async () => {
