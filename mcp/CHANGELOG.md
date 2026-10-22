@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.9](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.8...mcp-server-v0.2.9) (2026-10-22)
+
+
+### Bug Fixes
+
+* **create-honua-app:** certify the starter on SDK 0.2.6, the 2026.1 release pin ([#2205](https://github.com/honua-io/honua-sdk-js/issues/2205)) ([576dc70](https://github.com/honua-io/honua-sdk-js/commit/576dc70af9b1cd31bc1d978b8516668aa5b895bf))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.2.9
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.17 || ^0.2.0 to ^0.2.9
+
 ## [0.2.8](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.7...mcp-server-v0.2.8) (2026-10-21)
 
 
