@@ -14,6 +14,8 @@ import {
   parseChangelogReleases,
   serializeDocsVersions,
   SCAFFOLD_COMMAND_DOCS,
+  CERTIFIED_SCAFFOLD_COMMAND_DOC,
+  checkCertifiedScaffoldCommands,
 } from "../../scripts/docs-versions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -267,4 +269,19 @@ test("unpublished cuts cannot hide the current release or unknown history", () =
   const result = buildDocsVersions({ packageJson, releaseManifest, changelog, unpublishedReleases: { "1.1.0": "Never published" } });
   assert.equal(result.versions.length, 2);
   assert.equal(result.versions[0].releaseUrl, "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.5-alpha.0...js-sdk-v1.2.0-beta.1");
+});
+
+test("the published scaffold README pins the certified starter SDK, not the SDK release", () => {
+  const config = JSON.parse(fs.readFileSync(path.join(ROOT, "release-please-config.json"), "utf8"));
+  const certified = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/create-honua-app/templates.manifest.json"), "utf8")).sdk.version;
+  const markdown = fs.readFileSync(path.join(ROOT, CERTIFIED_SCAFFOLD_COMMAND_DOC), "utf8");
+  checkCertifiedScaffoldCommands(CERTIFIED_SCAFFOLD_COMMAND_DOC, markdown, certified);
+  for (const component of Object.values(config.packages)) {
+    assert.ok(!(component["extra-files"] ?? []).some((entry) => (typeof entry === "string" ? entry : entry.path) === CERTIFIED_SCAFFOLD_COMMAND_DOC),
+      "Release Please must not rewrite the certified scaffold README");
+  }
+  assert.throws(() => checkCertifiedScaffoldCommands("doc", "npm create honua-app@latest app -- --sdk-version 9.9.9", certified), /certified starter SDK/);
+  assert.throws(() => checkCertifiedScaffoldCommands("doc", `npm create honua-app@latest app -- --sdk-version ${certified} # x-release-please-version`, certified), /certified starter SDK/);
+  assert.throws(() => checkCertifiedScaffoldCommands("doc", "npm create honua-app@latest app", certified), /certified starter SDK/);
+  assert.throws(() => checkCertifiedScaffoldCommands("doc", "no commands", certified), /no documented scaffold command/);
 });
