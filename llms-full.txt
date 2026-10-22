@@ -92,7 +92,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.2.7`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.2.8`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 19 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -1104,7 +1104,7 @@ directories are removed after both successful and failed runs.
 
 # Documentation versions and compatibility
 
-You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.2.7)**.
+You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.2.8)**.
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
@@ -1135,7 +1135,8 @@ To verify the file consumed by the site, run
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.2.7` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.7/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.6...js-sdk-v0.2.7) |
+| `0.2.8` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.8/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.7...js-sdk-v0.2.8) |
+| `0.2.7` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.7/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.6...js-sdk-v0.2.7) |
 | `0.2.6` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.6/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.5...js-sdk-v0.2.6) |
 | `0.2.5` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.5/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.4...js-sdk-v0.2.5) |
 | `0.2.4` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.4/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.3...js-sdk-v0.2.4) |
@@ -1236,7 +1237,7 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 
 | Sample | Last sealed run | Engines | Observed | Expires | Receipt |
 | --- | --- | --- | --- | --- | --- |
-| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-10-20T05:37:38.391Z | 2026-10-27T05:37:38.391Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
+| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-10-21T08:27:08.804Z | 2026-10-28T08:27:08.804Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
 
 ## Executable samples
 
@@ -1390,7 +1391,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.2.7 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.2.8 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -1857,7 +1858,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-20 at commit `5b6c72247`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-10-21 at commit `13b56f3e7`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11627,7 +11628,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-10-20 at commit `5b6c72247`._
+_Generated 2026-10-21 at commit `13b56f3e7`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11642,7 +11643,7 @@ _Generated 2026-10-20 at commit `5b6c72247`._
 | `/agent-safety` | 69.1 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
 | `/nl-map-control` | 92.5 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
-| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.3 KiB | 64.1 KiB | 18.9 KiB | 20.8 KiB |
+| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.9 KiB | 64.1 KiB | 19.1 KiB | 20.8 KiB |
 | `/runtime` | 717.5 KiB | 752.5 KiB | 184.7 KiB | 198.6 KiB |
 | `/realtime` | 82.3 KiB | 86.2 KiB | 23.6 KiB | 25.0 KiB |
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
@@ -16742,6 +16743,16 @@ the server's tools. Existing installations attach on startup; after a transport
 disconnect, `honua_agent_connect` verifies the same target again. A changed
 credential identity requires a host restart. It never retries an upstream
 mutation after an uncertain response.
+
+After a paired human sends a workspace turn, the same external client can read
+`honua_workspace_conversation` and `honua_workspace_get_turn`, then call
+`honua_agent_connect` with that exact `workspaceId` and `turnId`. The connector
+reads the current authorized turn using its workspace agent key and binds both
+headers to a new upstream session on the same client registration. It refuses
+partial IDs, an unrecognized turn, a bootstrap/admin key, an in-flight switch,
+or a changed target/credential/turn. Each bound call rechecks the current
+credential and turn; the Server still enforces its own current RBAC and grants.
+Binding a turn never approves, uploads, imports, or publishes anything.
 
 Credentials stay in the installer's protected file and the HTTP transport. The
 local agent key has `admin:read`, `admin:write`, and `read:*`; it has no

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.8](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.7...mcp-server-v0.2.8) (2026-10-21)
+
+
+### Features
+
+* **mcp:** bind local agent connector to authorized workspace turns ([#2197](https://github.com/honua-io/honua-sdk-js/issues/2197)) ([28dc3e2](https://github.com/honua-io/honua-sdk-js/commit/28dc3e29c50baa5baafca3d0d68682214e5b453a))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
 ## [0.2.7](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.6...mcp-server-v0.2.7) (2026-10-20)
 
 

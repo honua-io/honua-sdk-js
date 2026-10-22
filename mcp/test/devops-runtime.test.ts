@@ -9,7 +9,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   const m = JSON.parse(line); if (!('id' in m)) return;
   let result;
   const tool = name => ({name,description:'canonical contract',inputSchema:{type:'object',properties:{stack:{type:'string'}}},annotations:{readOnlyHint:false},_meta:{contract:'v1'}});
-  if(m.method === 'initialize') result={protocolVersion:m.params.protocolVersion,capabilities:{tools:{}},serverInfo:{name:'fixture',version:'1'}};
+  if(m.method === 'initialize') result={protocolVersion:m.params.protocolVersion,capabilities:{tools:{},...(process.env.HONUA_DEVOPS_TURN_CAPABILITY === '1' ? {experimental:{'honua.io/devops-turn-binding':{version:1}}} : {})},serverInfo:{name:'fixture',version:'1'}};
   if(m.method === 'tools/list') result=m.params?.cursor ? {tools:[tool('provision_infrastructure'),tool('record_gitops_proposal_decision'),tool('install_handoff'),tool('verify_install_handoff')]} : {tools:[tool('describe_environment')],nextCursor:'page2'};
   if(m.method === 'tools/call') {
     if(m.params.arguments.disconnect) { process.exit(0); }
@@ -41,6 +41,28 @@ function extension(
 }
 
 describe("optional private DevOps runtime", () => {
+  it("refuses an older child for turn-bound private discovery and accepts an advertised bound child", async () => {
+    const old = extension(async () => {}, { requireTurnBindingCapability: true });
+    try {
+      await expect(old.listTools()).rejects.toThrow("discovery unavailable or unauthorized");
+      await expect(old.callTool("honua_agent_devops_describe_environment", {})).rejects.toThrow(
+        "failed or unauthorized",
+      );
+    } finally {
+      await old.close();
+    }
+    const current = extension(async () => {}, {
+      requireTurnBindingCapability: true,
+      env: { HONUA_DEVOPS_TURN_CAPABILITY: "1" },
+    });
+    try {
+      expect((await current.listTools()).some((tool) => tool.name === "honua_agent_devops_describe_environment")).toBe(
+        true,
+      );
+    } finally {
+      await current.close();
+    }
+  });
   it.each([
     ["aws-lambda", "honua_image_uri"],
     ["aws-eks", undefined],

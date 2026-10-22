@@ -1,6 +1,6 @@
 {
   "name": "@honua/mcp-server",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Platform-free MCP server for geospatial services: expose discovery, query, and analysis over any public ArcGIS/Esri FeatureServer or OGC API endpoint to any MCP client, with no platform lock-in",
   "license": "Apache-2.0",
   "author": "Honua",
@@ -80,12 +80,12 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.901.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "ajv": "^8.20.0",
     "zod": "^3.24.0"
   },
   "overrides": {
-    "hono": "^4.13.7",
+    "hono": "^4.13.13",
     "@hono/node-server": "^2.0.5",
     "fast-uri": "^3.1.8",
     "qs": "^6.16.0"

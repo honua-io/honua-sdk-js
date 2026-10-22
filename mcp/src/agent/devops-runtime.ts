@@ -43,6 +43,8 @@ export interface DevOpsExtension {
 /** Host configuration only. Never accept this configuration from an MCP tool argument. */
 export interface DevOpsProcessConfiguration {
   command: string;
+  /** Require the child to prove turn-header support before bound discovery or actions. */
+  requireTurnBindingCapability?: boolean;
   runtimeKind?: DevOpsRuntimeKind;
   args?: string[];
   cwd?: string;
@@ -83,6 +85,7 @@ export function createDevOpsExtension(
     ...(configuration.cwd ? { cwd: configuration.cwd } : {}),
     ...(configuration.env ? { env: { ...configuration.env } } : {}),
   };
+  const requireTurnBindingCapability = configuration.requireTurnBindingCapability === true;
   const bindings = structuredClone(configuration.fixedArguments ?? {});
   const provisioningScope = configuration.provisioningScope
     ? structuredClone(configuration.provisioningScope)
@@ -200,6 +203,12 @@ export function createDevOpsExtension(
         const transport = new StdioClientTransport({ ...config, stderr: "ignore" });
         try {
           await client.connect(transport);
+          if (requireTurnBindingCapability) {
+            const capability = client.getServerCapabilities()?.experimental?.["honua.io/devops-turn-binding"] as
+              | { version?: unknown }
+              | undefined;
+            if (capability?.version !== 1) throw new Error("Private DevOps child lacks turn binding support");
+          }
           if (closed) throw new Error("closed");
           return client;
         } catch {

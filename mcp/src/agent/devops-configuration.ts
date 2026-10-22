@@ -4,6 +4,7 @@ import { z } from "zod";
 import { buildUpstreamHeaders } from "../proxy.js";
 import { type DevOpsExtension, createDevOpsExtension } from "./devops-runtime.js";
 import { devOpsTarget } from "./devops-targets.js";
+import type { AgentTurnBinding } from "./gateway.js";
 import type { AgentConnection, AgentRuntime } from "./local-runtime.js";
 
 const configuration = z
@@ -28,12 +29,15 @@ const configuration = z
       .optional(),
   })
   .strict();
+const turnIdentifier = /^[A-Za-z0-9_-]{1,128}$/;
+const maxPrivateChildSessions = 8;
 
 /** The host selects this protected file; MCP arguments cannot select executable paths or credentials. */
 export async function configuredDevOps(
   file: string,
   runtime: AgentRuntime,
   fetchImpl: typeof fetch = fetch,
+  boundTurn?: () => AgentTurnBinding | undefined,
 ): Promise<DevOpsExtension> {
   if (!path.isAbsolute(file)) throw new Error("DevOps configuration requires an absolute host path");
   const info = await lstat(file);
@@ -45,12 +49,38 @@ export async function configuredDevOps(
     throw new Error("DevOps executable and working directory must be host-selected absolute paths");
   if (config.provisioningScope && config.provisioningScope.environment !== config.environment)
     throw new Error("Provisioning scope must match the configured environment");
-  let extension: Promise<DevOpsExtension> | undefined;
+  type Entry = { binding?: AgentTurnBinding; extension: Promise<DevOpsExtension>; active: number; retired: boolean };
+  const entries = new Set<Entry>();
+  const closing = new Set<Promise<void>>();
+  let currentEntry: Entry | undefined;
   let closed = false;
-  async function get(): Promise<DevOpsExtension> {
+  function retire(entry: Entry): void {
+    entry.retired = true;
+    if (entry.active === 0 && entries.delete(entry)) {
+      const finished = entry.extension.then((value) => value.close()).catch(() => {});
+      closing.add(finished);
+      void finished.finally(() => closing.delete(finished));
+    }
+  }
+  function acquire(): Entry {
     if (closed) throw new Error("Private integration closed");
-    if (!extension) {
-      extension = (async () => {
+    const binding = boundTurn?.();
+    if (binding && (!turnIdentifier.test(binding.workspaceId) || !turnIdentifier.test(binding.turnId)))
+      throw new Error("Invalid private integration turn binding");
+    const switching =
+      currentEntry &&
+      (currentEntry.binding?.workspaceId !== binding?.workspaceId || currentEntry.binding?.turnId !== binding?.turnId);
+    // Retired actions, initializing children and children still closing all own a
+    // process slot. Refuse the rotation before changing the current entry.
+    if ((switching || !currentEntry) && entries.size + closing.size >= maxPrivateChildSessions)
+      throw new Error("Private integration child session capacity reached");
+    if (switching && currentEntry) {
+      retire(currentEntry);
+      currentEntry = undefined;
+    }
+    if (!currentEntry) {
+      const entry = { binding: binding && { ...binding }, active: 0, retired: false } as Entry;
+      entry.extension = (async () => {
         const connection = await runtime.resolve();
         const base = new URL(connection.transport.remoteUrl);
         if (!/\/mcp\/?$/.test(base.pathname))
@@ -64,11 +94,20 @@ export async function configuredDevOps(
         const authorize = async (action: { canonicalTool: string | null; arguments?: Record<string, unknown> }) => {
           const current = await runtime.resolve();
           requireSameConnection(connection, current);
+          if (
+            boundTurn &&
+            (boundTurn()?.workspaceId !== binding?.workspaceId || boundTurn()?.turnId !== binding?.turnId)
+          )
+            throw new Error("Private integration turn changed");
           const response = await fetchImpl(new URL("api/v1/agent/devops/authorize", base), {
             method: "POST",
             redirect: "error",
             signal: AbortSignal.timeout(10000),
-            headers: { ...buildUpstreamHeaders(current.transport), "Content-Type": "application/json" },
+            headers: {
+              ...buildUpstreamHeaders(current.transport),
+              ...(binding ? { "X-Honua-Workspace": binding.workspaceId, "X-Honua-Turn": binding.turnId } : {}),
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify({
               targetId: config.serverTargetId,
               deployTargetId: config.deployTargetId,
@@ -97,11 +136,18 @@ export async function configuredDevOps(
             throw new Error("Private integration runtime changed or is unsupported");
         };
         await authorize({ canonicalTool: null });
+        const safeEnv = { ...config.env };
+        delete safeEnv.HONUA_DEVOPS_HONUA_WORKSPACE_ID;
+        delete safeEnv.HONUA_DEVOPS_HONUA_TURN_ID;
         return createDevOpsExtension(
           {
             ...config,
+            requireTurnBindingCapability: Boolean(binding),
             env: {
-              ...config.env,
+              ...safeEnv,
+              ...(binding
+                ? { HONUA_DEVOPS_HONUA_WORKSPACE_ID: binding.workspaceId, HONUA_DEVOPS_HONUA_TURN_ID: binding.turnId }
+                : {}),
               HONUA_DEVOPS_HONUA_API_BASE_URL: base.toString().replace(/\/$/, ""),
               HONUA_DEVOPS_HONUA_API_KEY: connection.transport.apiKey,
               HONUA_DEVOPS_TERRAFORM_TARGETS: target.terraformTarget,
@@ -115,23 +161,41 @@ export async function configuredDevOps(
           authorize,
         );
       })();
-      const attempt = extension;
-      void attempt.catch(() => {
-        if (extension === attempt) extension = undefined;
+      currentEntry = entry;
+      entries.add(entry);
+      void entry.extension.catch(() => {
+        if (currentEntry === entry) currentEntry = undefined;
+        retire(entry);
       });
     }
-    return extension;
+    currentEntry.active++;
+    return currentEntry;
+  }
+  async function withExtension<T>(use: (extension: DevOpsExtension) => Promise<T>): Promise<T> {
+    const entry = acquire();
+    try {
+      return await use(await entry.extension);
+    } finally {
+      entry.active--;
+      if (entry.retired) retire(entry);
+    }
   }
   return {
     async listTools() {
-      return (await get()).listTools();
+      return withExtension((extension) => extension.listTools());
     },
     async callTool(name, args, options) {
-      return (await get()).callTool(name, args, options);
+      return withExtension((extension) => extension.callTool(name, args, options));
     },
     async close() {
       closed = true;
-      await extension?.then((value) => value.close()).catch(() => {});
+      currentEntry = undefined;
+      const pending = [...entries];
+      entries.clear();
+      await Promise.all([
+        ...closing,
+        ...pending.map((entry) => entry.extension.then((value) => value.close()).catch(() => {})),
+      ]);
     },
   };
 }
@@ -139,9 +203,14 @@ export async function configuredDevOps(
 function requireSameConnection(expected: AgentConnection, actual: AgentConnection): void {
   if (
     expected.target.id !== actual.target.id ||
+    expected.target.endpoint !== actual.target.endpoint ||
     expected.target.credentialId !== actual.target.credentialId ||
     expected.transport.remoteUrl !== actual.transport.remoteUrl ||
-    expected.transport.apiKey !== actual.transport.apiKey
+    expected.transport.apiKey !== actual.transport.apiKey ||
+    expected.transport.authToken !== actual.transport.authToken ||
+    expected.credentialKind !== actual.credentialKind ||
+    expected.releaseId !== actual.releaseId ||
+    expected.deploymentId !== actual.deploymentId
   )
     throw new Error("Private integration identity changed; restart explicitly");
 }
