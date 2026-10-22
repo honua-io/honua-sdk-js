@@ -283,5 +283,8 @@ test("the published scaffold README pins the certified starter SDK, not the SDK 
   assert.throws(() => checkCertifiedScaffoldCommands("doc", "npm create honua-app@latest app -- --sdk-version 9.9.9", certified), /certified starter SDK/);
   assert.throws(() => checkCertifiedScaffoldCommands("doc", `npm create honua-app@latest app -- --sdk-version ${certified} # x-release-please-version`, certified), /certified starter SDK/);
   assert.throws(() => checkCertifiedScaffoldCommands("doc", "npm create honua-app@latest app", certified), /certified starter SDK/);
+  assert.throws(() => checkCertifiedScaffoldCommands("doc", `npm create honua-app@latest app -- --sdk-version ${certified} --sdk-version 9.9.9`, certified), /certified starter SDK/);
+  assert.throws(() => checkCertifiedScaffoldCommands("doc", `npm create honua-app@latest app -- --sdk-version=${certified} --sdk-version ${certified}`, certified), /certified starter SDK/);
+  checkCertifiedScaffoldCommands("doc", `npm create honua-app@latest app -- --template react-ts --sdk-version ${certified}`, certified);
   assert.throws(() => checkCertifiedScaffoldCommands("doc", "no commands", certified), /no documented scaffold command/);
 });

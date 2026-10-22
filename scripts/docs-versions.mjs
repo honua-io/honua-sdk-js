@@ -24,9 +24,14 @@ export function checkCertifiedScaffoldCommands(name, markdown, certifiedVersion)
   const commands = markdown.split("\n").filter((line) => line.startsWith("npm create honua-app@"));
   if (commands.length === 0) throw new Error(`${name} has no documented scaffold command`);
   for (const command of commands) {
+    // The CLI keeps the last --sdk-version, so exactly one occurrence may exist.
+    const tokens = command.split("#")[0].trim().split(/\s+/);
+    const selections = tokens.flatMap((token, index) =>
+      token === "--sdk-version" ? [tokens[index + 1]] : token.startsWith("--sdk-version=") ? [token.slice("--sdk-version=".length)] : []);
     if (
       !command.startsWith("npm create honua-app@latest ") ||
-      !(command.includes(` --sdk-version ${certifiedVersion} `) || command.endsWith(` --sdk-version ${certifiedVersion}`)) ||
+      selections.length !== 1 ||
+      selections[0] !== certifiedVersion ||
       command.includes("x-release-please")
     ) {
       throw new Error(`${name} scaffold command must pin the certified starter SDK ${certifiedVersion} without a Release Please annotation`);
