@@ -12,8 +12,32 @@ const RELEASE_URL_PREFIX = `https://github.com/${REPOSITORY}/`;
 export const SCAFFOLD_COMMAND_DOCS = [
   "docs/quickstart.md",
   "docs/create-honua-app.md",
-  "packages/create-honua-app/README.md",
 ];
+
+// The published scaffold README is read by readers of create-honua-app@latest and
+// by the release's executable-docs gate. Its commands pin the scaffold's certified
+// fallback SDK (templates.manifest.json sdk.version), which only moves with a
+// certified starter change, not the SDK's newest release.
+export const CERTIFIED_SCAFFOLD_COMMAND_DOC = "packages/create-honua-app/README.md";
+
+export function checkCertifiedScaffoldCommands(name, markdown, certifiedVersion) {
+  const commands = markdown.split("\n").filter((line) => line.startsWith("npm create honua-app@"));
+  if (commands.length === 0) throw new Error(`${name} has no documented scaffold command`);
+  for (const command of commands) {
+    // The CLI keeps the last --sdk-version, so exactly one occurrence may exist.
+    const tokens = command.split("#")[0].trim().split(/\s+/);
+    const selections = tokens.flatMap((token, index) =>
+      token === "--sdk-version" ? [tokens[index + 1]] : token.startsWith("--sdk-version=") ? [token.slice("--sdk-version=".length)] : []);
+    if (
+      !command.startsWith("npm create honua-app@latest ") ||
+      selections.length !== 1 ||
+      selections[0] !== certifiedVersion ||
+      command.includes("x-release-please")
+    ) {
+      throw new Error(`${name} scaffold command must pin the certified starter SDK ${certifiedVersion} without a Release Please annotation`);
+    }
+  }
+}
 
 // These commands describe the SDK cut, not the scaffold's independently
 // certified fallback. Generic Release Please annotations update one semver per
@@ -198,6 +222,11 @@ export function currentDocsVersions() {
   checkScaffoldCommandVersions(
     Object.fromEntries(SCAFFOLD_COMMAND_DOCS.map((name) => [name, fs.readFileSync(path.join(ROOT, name), "utf8")])),
     packageJson.version,
+  );
+  checkCertifiedScaffoldCommands(
+    CERTIFIED_SCAFFOLD_COMMAND_DOC,
+    fs.readFileSync(path.join(ROOT, CERTIFIED_SCAFFOLD_COMMAND_DOC), "utf8"),
+    readJson(path.join(ROOT, "packages/create-honua-app/templates.manifest.json")).sdk.version,
   );
   for (const fixture of fs
     .readdirSync(path.join(ROOT, "samples", "contract", "v1", "fixtures"))

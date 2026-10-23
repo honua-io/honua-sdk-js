@@ -4,6 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 // Current trunk executes this entrypoint before merge; include ancestor recovery
 // controls here so a new workflow step is not their first actual validation.
@@ -537,6 +538,160 @@ test("release runs are serialized so none observes a drafted release without its
     /concurrency:\n\s+group: release-please-\$\{\{ github\.repository \}\}\n\s+cancel-in-progress: false\n/u,
   );
 });
+
+function releasePhaseSteps() {
+  const source = readFileSync(WORKFLOW, "utf8");
+  const job = source.split("\n  release-please:\n")[1].split("\n  release-please-refresh:\n")[0];
+  const steps = job.split(/(?=^      - )/mu).slice(1);
+  const step = (id) => {
+    const matches = steps.filter((block) => block.includes(`\n        id: ${id}\n`));
+    assert.equal(matches.length, 1, `exactly one ${id} step`);
+    return matches[0];
+  };
+  return { job, steps, creation: step("release"), history: step("release-history"), generation: step("release-pr"), token: step("release-pr-token"), initialToken: step("app-token") };
+}
+
+test("release PR generation follows the finish path with a fresh token and separate outputs", () => {
+  const { job, steps, creation, history, generation, token, initialToken } = releasePhaseSteps();
+  const finishIndex = steps.findIndex((block) => block.startsWith("      - name: Dispatch package publish workflows\n"));
+  assert.ok(finishIndex >= 0);
+  assert.match(creation, /\n          skip-github-pull-request: true\n/u);
+  assert.doesNotMatch(creation, /skip-github-release: true/u);
+  const action = /uses: (\S+)/u;
+  assert.equal(generation.match(action)[1], creation.match(action)[1]);
+  assert.match(generation, /\n          skip-github-release: true\n/u);
+  assert.doesNotMatch(generation, /skip-github-pull-request: true/u);
+  assert.ok(steps.indexOf(creation) < finishIndex);
+  assert.ok(finishIndex < steps.indexOf(history));
+  assert.ok(steps.indexOf(history) < steps.indexOf(token));
+  assert.ok(steps.indexOf(token) < steps.indexOf(generation));
+  assert.equal(token.match(action)[1], initialToken.match(action)[1]);
+  for (const input of ["app-id", "private-key", "owner"]) {
+    const pattern = new RegExp(`^          ${input}: (.+)$`, "mu");
+    assert.equal(token.match(pattern)[1], initialToken.match(pattern)[1]);
+  }
+  assert.match(generation, /token: \$\{\{ steps\.release-pr-token\.outputs\.token \|\| secrets\.GITHUB_TOKEN \}\}/u);
+  assert.match(job, /prs_created: \$\{\{ steps\.release-pr\.outputs\.prs_created \}\}/u);
+  assert.match(job, /releases_created: \$\{\{ steps\.release\.outputs\.releases_created \}\}/u);
+  assert.match(job, /tag_name: \$\{\{ steps\.release\.outputs\.tag_name \}\}/u);
+});
+
+test("PR generation admits successful cuts and no-release runs but excludes recovery and failed finishes", () => {
+  const { history, generation, token } = releasePhaseSteps();
+  // These actual conditions use the common Boolean subset of Actions and JS.
+  // No explicit status function may override Actions' implicit success() guard.
+  function admitted(step, { event, recovery, credentials, priorSuccess }) {
+    const match = step.match(/\n        if: >-\n          \$\{\{([\s\S]*?)\}\}/u);
+    assert.ok(match, "the phase has an explicit folded expression");
+    const expression = match[1];
+    assert.doesNotMatch(expression, /\b(?:always|success|failure|cancelled)\s*\(/u);
+    return priorSuccess && runInNewContext(expression, {
+      github: { event_name: event },
+      inputs: { finish_stranded_draft: recovery },
+      steps: { creds: { outputs: { available: String(credentials) } } },
+    }, { timeout: 100 });
+  }
+  const ordinary = { event: "push", recovery: "", credentials: true, priorSuccess: true };
+  for (const scenario of [ordinary, { ...ordinary, event: "workflow_dispatch" }]) {
+    assert.equal(admitted(generation, scenario), true);
+    assert.equal(admitted(history, scenario), true);
+    assert.equal(admitted(token, scenario), true);
+    // No-release runs skip publication dispatch without failing the job.
+    assert.equal(admitted(generation, { ...scenario, credentials: false }), true);
+    assert.equal(admitted(token, { ...scenario, credentials: false }), false);
+    // A failed seal or publication leaves the next action unexecuted.
+    assert.equal(admitted(generation, { ...scenario, priorSuccess: false }), false);
+    assert.equal(admitted(history, { ...scenario, priorSuccess: false }), false);
+    assert.equal(admitted(token, { ...scenario, priorSuccess: false }), false);
+  }
+  const recovery = { ...ordinary, event: "workflow_dispatch", recovery: TAG };
+  assert.equal(admitted(generation, recovery), false);
+  assert.equal(admitted(history, recovery), false);
+  assert.equal(admitted(token, recovery), false);
+});
+
+function runHistoryGuard(overrides = {}) {
+  const root = mkdtempSync(join(tmpdir(), "honua-release-history-"));
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  const fixture = {
+    version: "0.2.3",
+    refs: [{ ref: "refs/tags/js-sdk-v0.2.3", object: { sha: RESEALED_COMMIT } }],
+    release: { tag_name: "js-sdk-v0.2.3", draft: false },
+    ...overrides,
+  };
+  const callsPath = join(root, "calls.jsonl");
+  writeFileSync(callsPath, "");
+  const fakeGh = join(bin, "gh");
+  writeFileSync(fakeGh, `#!/usr/bin/env node
+const { execFileSync } = require("node:child_process");
+const { appendFileSync } = require("node:fs");
+const fixture = JSON.parse(process.env.HONUA_HISTORY_CASE);
+const args = process.argv.slice(2);
+appendFileSync(process.env.HONUA_HISTORY_CALLS, JSON.stringify(args) + "\\n");
+if (args[0] !== "api" || args.includes("--method")) throw new Error("read-only api calls only");
+const endpoint = args[1];
+const kind = endpoint.includes("/contents/") ? "package" : endpoint.includes("/git/matching-refs/") ? "tag" : endpoint.includes("/releases/tags/") ? "release" : "unknown";
+if (kind === "unknown") throw new Error("unexpected endpoint");
+if (fixture.failAt === kind) process.exit(1);
+const response = kind === "package" ? { version: fixture.version } : kind === "tag" ? fixture.refs : fixture.release;
+process.stdout.write(execFileSync("jq", ["-r", args[args.indexOf("--jq") + 1]], { input: JSON.stringify(response) }));
+`);
+  chmodSync(fakeGh, 0o755);
+  const script = join(root, "guard.sh");
+  writeFileSync(script, runBlock("Verify release history before generating PRs"));
+  let output;
+  let ok = true;
+  try {
+    output = execFileSync("bash", ["--noprofile", "--norc", "-e", "-u", "-o", "pipefail", script], {
+      encoding: "utf8",
+      stdio: "pipe",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
+        HONUA_HISTORY_CASE: JSON.stringify(fixture),
+        HONUA_HISTORY_CALLS: callsPath,
+      },
+    });
+  } catch (error) {
+    ok = false;
+    output = `${error.stdout ?? ""}${error.stderr ?? ""}`;
+  }
+  const calls = readFileSync(callsPath, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse);
+  rmSync(root, { recursive: true, force: true });
+  return { ok, output, calls };
+}
+
+test("release history permits an exact published tag before ordinary PR generation", () => {
+  const result = runHistoryGuard();
+  assert.equal(result.ok, true, result.output);
+  assert.match(result.output, /anchored by published js-sdk-v0\.2\.3/u);
+  assert.deepEqual(result.calls.map((call) => call[1]), [
+    "repos/honua-io/honua-sdk-js/contents/package.json?ref=trunk",
+    "repos/honua-io/honua-sdk-js/git/matching-refs/tags/js-sdk-v0.2.3",
+    "repos/honua-io/honua-sdk-js/releases/tags/js-sdk-v0.2.3",
+  ]);
+});
+
+for (const [name, fixture, calls] of [
+  ["absent tag", { refs: [] }, 2],
+  ["prefix-only tag", { refs: [{ ref: "refs/tags/js-sdk-v0.2.30", object: { sha: RESEALED_COMMIT } }] }, 2],
+  ["draft release", { release: { tag_name: "js-sdk-v0.2.3", draft: true } }, 3],
+  ["wrong release tag", { release: { tag_name: "js-sdk-v0.2.2", draft: false } }, 3],
+  ["invalid package version", { version: "../other" }, 1],
+  ["package API failure", { failAt: "package" }, 1],
+  ["tag API failure", { failAt: "tag" }, 2],
+  ["release API failure", { failAt: "release" }, 3],
+]) {
+  test(`release history stops PR generation for ${name}`, () => {
+    const result = runHistoryGuard(fixture);
+    assert.equal(result.ok, false);
+    assert.match(result.output, /Release PR generation stopped/u);
+    assert.match(result.output, /finish_stranded_draft/u);
+    assert.equal(result.calls.length, calls);
+  });
+}
 
 test("the js-sdk release is configured to be cut as a draft", () => {
   // The workflow's ordering is only possible because no tag exists when it

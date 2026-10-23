@@ -116,6 +116,16 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # Candidate self-validation only; trusted observation still runs from trunk.
+      - name: Validate candidate browser impact policy and identity fixtures
+        run: |
+          node scripts/browser-impact-observe.mjs validate
+          node --test test/scripts/browser-impact-observe.test.mjs
+          node --test test/scripts/trusted-pr-workflow-run.test.cjs
+
+      - name: Test migration dependency cohort refusal controls
+        run: node --test test/scripts/verify-migration-cohort.test.mjs
+
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
@@ -139,6 +149,9 @@ jobs:
 
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Test authenticated second-review summary admission
+        run: node --test test/scripts/second-review-summary.test.mjs
 
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
@@ -262,6 +275,16 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # Candidate self-validation only; trusted observation still runs from trunk.
+      - name: Validate candidate browser impact policy and identity fixtures
+        run: |
+          node scripts/browser-impact-observe.mjs validate
+          node --test test/scripts/browser-impact-observe.test.mjs
+          node --test test/scripts/trusted-pr-workflow-run.test.cjs
+
+      - name: Test migration dependency cohort refusal controls
+        run: node --test test/scripts/verify-migration-cohort.test.mjs
+
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
@@ -285,6 +308,9 @@ jobs:
 
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Test authenticated second-review summary admission
+        run: node --test test/scripts/second-review-summary.test.mjs
 
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
@@ -358,6 +384,12 @@ jobs:
 
       - name: Validate quickstart timing runner
         run: npm run docs:quickstart:time-to-map:test
+
+      - name: Test SDK publication workflow execution
+        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
+
+      - name: Test reseal credential lifetime policy
+        run: node --test test/scripts/reseal-token-lifetime.test.mjs
 
       - name: Typecheck
         run: npm run typecheck
@@ -477,6 +509,17 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify packed SDK migration cohort with default npm resolution
+        run: npm run verify:migration-cohort:prepared
+
+      - name: Upload migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-packed
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn
 
       - name: Qualify shared-kit pilots from source and packed SDK
         run: |

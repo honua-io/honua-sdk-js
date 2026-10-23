@@ -216,6 +216,27 @@ describe("browser evidence is sharded by owned failure domain", () => {
   });
 });
 
+describe("candidate browser impact routing is validated before installation", () => {
+  for (const [workflow, jobId] of [[ci, "pr-fast"], [ci, "js-sdk"], [graph, "admission"]]) {
+    it(`runs candidate policy and identity checks in ${jobId}`, () => {
+      const jobSteps = steps(workflow, jobId);
+      const installIndex = jobSteps.findIndex((step) => invokedCommands(stepScript(step)).has("npm ci"));
+      assert.ok(installIndex > 0, `${jobId} must still install dependencies`);
+      for (const command of [
+        "node scripts/browser-impact-observe.mjs validate",
+        "node --test test/scripts/browser-impact-observe.test.mjs",
+        "node --test test/scripts/trusted-pr-workflow-run.test.cjs",
+      ]) {
+        const index = jobSteps.findIndex((step) => stepScript(step).split("\n").includes(command));
+        assert.ok(index >= 0 && index < installIndex, `${jobId}: ${command} must precede installation`);
+        assert.equal(jobSteps[index].if, undefined, `${jobId}: candidate checks must not be conditional`);
+        assert.equal(jobSteps[index]["continue-on-error"], undefined, `${jobId}: candidate failure must block`);
+        assert.equal(effectiveDirectory(workflow, jobId, jobSteps[index], command), ".");
+      }
+    });
+  }
+});
+
 // The measurement that decides whether this graph is ever promoted, and the
 // guard that keeps a policy source reviewable, are themselves policy. Wired
 // into admission so they fail in seconds, before anything expensive.
@@ -672,6 +693,7 @@ describe("ci.yml stays the authoritative workflow while the graph runs in shadow
       // was in review. The coverage fixture caught its absence from the graph on
       // the merge ref, which is the composition check working as intended.
       "node test/scripts/stranded-merge-detector.test.mjs",
+      "node test/scripts/second-review-summary.test.mjs",
     ];
     for (const jobId of ["pr-fast", "js-sdk"]) {
       const commands = jobCommands(ci, jobId);

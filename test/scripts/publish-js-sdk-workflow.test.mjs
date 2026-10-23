@@ -35,6 +35,9 @@ if (command === 'run') {
       fs.rmSync('dist', { recursive: true, force: true });
       if (process.env.FAIL_CLIENT_PAIR === 'true') process.exit(1);
       break;
+    case 'verify:migration-cohort:prepared':
+      if (process.env.FAIL_MIGRATION_COHORT === 'true') process.exit(1);
+      break;
     case 'build:split-packages:prepared':
       fs.rmSync('dist', { recursive: true, force: true });
       for (const name of packages) {
@@ -100,6 +103,13 @@ it("stops before publishing when client-pair verification fails", (t) => {
   assert.equal(calls().some((call) => call.command === "publish"), false);
 });
 
+it("stops before any package publication when migration cohort verification fails", (t) => {
+  const { run, calls } = fixture(t, false, false, false, true);
+  assert.notEqual(run(publish).status, 0);
+  assert.equal(calls().filter((call) => call.target === "verify:migration-cohort:prepared").length, 1);
+  assert.equal(calls().some((call) => call.command === "publish"), false);
+});
+
 for (const dryRun of [true, false]) {
   it(`stops before publishing when runtime tarball verification fails (dry run: ${dryRun})`, (t) => {
     const { run, calls } = fixture(t, dryRun, false, true);
@@ -111,7 +121,7 @@ for (const dryRun of [true, false]) {
   });
 }
 
-function fixture(t, dryRun, failClientPair = false, failRuntimeTarball = false) {
+function fixture(t, dryRun, failClientPair = false, failRuntimeTarball = false, failMigrationCohort = false) {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "publish-sdk-workflow-"));
   t.after(() => fs.rmSync(fixtureRoot, { recursive: true, force: true }));
   fs.mkdirSync(path.join(fixtureRoot, "bin"));
@@ -136,6 +146,7 @@ function fixture(t, dryRun, failClientPair = false, failRuntimeTarball = false) 
         DRY_RUN: String(dryRun),
         FAIL_CLIENT_PAIR: String(failClientPair),
         FAIL_RUNTIME_TARBALL: String(failRuntimeTarball),
+        FAIL_MIGRATION_COHORT: String(failMigrationCohort),
         ACTIONS_ID_TOKEN_REQUEST_URL: "offline-fixture",
       },
       });

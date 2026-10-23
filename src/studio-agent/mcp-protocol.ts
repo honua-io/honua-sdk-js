@@ -7,11 +7,10 @@
  *
  * These mirror the subset of the MCP `2025-03-26` Streamable HTTP transport
  * that {@link McpClient} actually speaks — `initialize`, `tools/list`,
- * `tools/call` — against honua-server's `POST /mcp` endpoint. Deliberately
- * NOT a full MCP SDK surface (no resources/prompts/sampling/roots): the
- * Studio tool plane only ever needs these three methods (see
- * `./mcp-client.ts`'s module doc for why this is a hand-rolled client rather
- * than `@modelcontextprotocol/sdk`).
+ * `tools/call`, and the client's `resources/read` method — against
+ * honua-server's `POST /mcp` endpoint. This is a limited browser surface
+ * without prompts/sampling/roots (see `./mcp-client.ts` for the transport
+ * decision). Resource-window types are declared beside that client.
  *
  * @module
  */

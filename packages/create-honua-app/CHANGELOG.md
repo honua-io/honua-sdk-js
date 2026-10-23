@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.2...create-honua-app-v0.2.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* **create-honua-app:** certify the starter on SDK 0.2.6, the 2026.1 release pin ([#2205](https://github.com/honua-io/honua-sdk-js/issues/2205)) ([576dc70](https://github.com/honua-io/honua-sdk-js/commit/576dc70af9b1cd31bc1d978b8516668aa5b895bf))
+
 ## [0.2.2](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.1...create-honua-app-v0.2.2) (2026-10-14)
 
 

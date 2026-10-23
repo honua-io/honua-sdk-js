@@ -29,6 +29,82 @@ Two modes:
 
 ## Requirements
 
+### Persistent local agent connector — source preview
+
+This branch adds `honua-agent-mcp`: one stdio connection that starts with local
+setup tools and attaches the installed Honua server's canonical MCP surface
+without replacing the client's registration. It is a source preview, not yet
+the qualified public Docker-to-map getting-started path.
+
+Start the built `dist/src/agent/cli.js` with Node from this package. The host sets
+`HONUA_AGENT_INSTALL_DIRECTORY` (default `~/.honua/local`); the agent cannot
+choose arbitrary credential files or remote URLs. Node and a local Unix-socket
+Docker engine with Compose 2.23.1 or later are required. Linux/WSL is the initial
+lane; Windows named pipes and remote Docker contexts are refused.
+
+Prompt: **"Check this machine, then set up Honua locally in Docker. Show me the
+target and available workflows when it is ready."** The agent calls
+`honua_agent_inspect_local`, obtains installation authorization, and calls
+`honua_agent_install_local` with `confirm: true`. Keep the installation tool
+timeout long enough for image pulls and database initialization (ten minutes is
+a useful starting point). If the client times out, inspect `honua_agent_status`
+and the installation before issuing another install. Cancellation of a local
+installation does not undo Docker work already started.
+
+The connector verifies readiness and the installed credential before announcing
+the server's tools. Existing installations attach on startup; after a transport
+disconnect, `honua_agent_connect` verifies the same target again. A changed
+credential identity requires a host restart. It never retries an upstream
+mutation after an uncertain response.
+
+After a paired human sends a workspace turn, the same external client can read
+`honua_workspace_conversation` and `honua_workspace_get_turn`, then call
+`honua_agent_connect` with that exact `workspaceId` and `turnId`. The connector
+reads the current authorized turn using its workspace agent key and binds both
+headers to a new upstream session on the same client registration. It refuses
+partial IDs, an unrecognized turn, a bootstrap/admin key, an in-flight switch,
+or a changed target/credential/turn. Each bound call rechecks the current
+credential and turn; the Server still enforces its own current RBAC and grants.
+Binding a turn never approves, uploads, imports, or publishes anything.
+
+Credentials stay in the installer's protected file and the HTTP transport. The
+local agent key has `admin:read`, `admin:write`, and `read:*`; it has no
+`admin:approve` or feature-write grant. Every upstream request carries that key,
+and the server enforces current RBAC, resource access, and governance. Discovery
+is not authorization; a denied operation remains denied. Browser human sessions
+and their approval authority are separate.
+
+This preview forwards canonical paginated tools, resources, resource templates,
+prompts, request metadata, tool progress, cancellation, and catalog-change
+notifications. It negotiates its own MCP identity and preserves the configured
+workflow view. When a client omits its view, the persistent connector selects
+the server's `full` view so Studio and the other GIS workflows remain
+discoverable on the same registration. This changes discovery only; Server
+RBAC and approval policy still govern every operation. It does not advertise subscriptions, sampling, roots,
+completions, or tasks. Durable workflow context, command reconciliation, browser
+pairing, and coordinated Console/Studio artifacts remain tracked in
+[the unified workspace workstream](https://github.com/honua-io/honua-server/issues/6297).
+
+After building the SDK and this package, maintainers can run the opt-in Docker
+handoff and process-restart check with
+`HONUA_AGENT_LIVE_ENABLED=true npm run test:unit --prefix mcp -- test/agent-local-live.test.ts`
+from the repository root. It creates and removes its own isolated Compose project.
+This tests the built connector against the installer's pinned server image; it
+does not certify the full map-making or browser journey.
+
+The packaged workflow guide is available as the MCP resource
+`honua://agent/knowledge/workflows/v1`, even before installation. Optional private
+DevOps tools can share this registration through host configuration; see
+[the host reference](../docs/unified-agent-host-configuration.md) for target and
+credential requirements and the current qualification limits.
+
+Native Console chat can use the preview `honua-agent-gateway` backend HTTP
+transport to reach this same public/private catalog. Its separate bridge key,
+workspace-turn checks and host configuration are described in that reference.
+External agents continue to use their single `honua-agent-mcp` registration.
+
+### Existing standalone and proxy modes
+
 - Node.js `>=22.12`
 - Any reachable FeatureServer/OGC endpoint (public or Honua)
 

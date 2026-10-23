@@ -1,0 +1,59 @@
+{
+  "format": "honua.sdk.create-honua-app-time-to-map.v1",
+  "status": "passed",
+  "requestedSdkVersion": "0.2.6",
+  "registryInstall": {
+    "package": "@honua/sdk-js",
+    "version": "0.2.6",
+    "sourceRevision": "45e2fb2c7c35216521319f0e3447661988f2981f",
+    "integrity": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg==",
+    "tarball": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.2.6.tgz",
+    "defaultPeerResolution": true
+  },
+  "measurement": {
+    "budgetMs": 120000,
+    "elapsedMs": 18684,
+    "withinBudget": true,
+    "scope": "scaffold-to-first-map",
+    "stages": [
+      {
+        "name": "scaffold",
+        "elapsedMs": 1150
+      },
+      {
+        "name": "install",
+        "elapsedMs": 14105
+      },
+      {
+        "name": "build",
+        "elapsedMs": 977
+      },
+      {
+        "name": "serve",
+        "elapsedMs": 275
+      },
+      {
+        "name": "map",
+        "elapsedMs": 2177
+      }
+    ]
+  },
+  "app": {
+    "template": "vanilla-ts",
+    "sdkPackage": "@honua/sdk-js",
+    "sdkVersion": "0.2.6"
+  },
+  "environment": {
+    "node": "v22.23.3",
+    "createHonuaAppVersion": "0.2.2",
+    "revision": "45e2fb2c7c35216521319f0e3447661988f2981f"
+  },
+  "journey": {
+    "mapMounted": true,
+    "canvasPresent": true,
+    "renderedFeatureCount": 4,
+    "dataLane": "fixture",
+    "consoleErrors": [],
+    "externalRequests": []
+  }
+}

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { setImmediate as nextEventLoopTurn } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -17,6 +18,7 @@ import {
   type StudioAiCapabilitiesResponse,
   type StudioAiChatEvent,
   type StudioAiChatRequest,
+  WORKFLOW_KNOWLEDGE,
   createStudioAgentSession,
 } from "@honua/sdk-js/studio-agent";
 
@@ -91,6 +93,19 @@ interface ScriptOptions {
   readonly chunkSize?: number;
   /** Rejects the chat fetch, standing in for a network failure. */
   readonly failChat?: boolean;
+  /**
+   * Append a terminal `transcriptProvenance` event to tool-calling turns.
+   * Candidate sessions require it. End-user sessions leave it off: the server
+   * signs a transcript only when the request carries certification.
+   * @default true
+   */
+  readonly certifyTranscript?: boolean;
+  /**
+   * Reproduce honua-server `StudioAiProxyEndpoints.HandleChat`: a chat body
+   * with `certification` is `403 Forbid` before any provider stream when the
+   * caller is not an admin. End-user admission is a body with no certification.
+   */
+  readonly nonAdminCertification?: "forbid";
   /** Called with the abort signal for each chat request, so a test can cancel mid-stream. */
   readonly onChatStream?: (signal: AbortSignal | undefined) => void;
 }
@@ -112,25 +127,26 @@ const DEFAULT_CAPABILITIES: StudioAiCapabilitiesResponse = {
   ],
 };
 
-function sseBody(events: ScriptedTurn): string {
-  const secured = events.some((event) => event.type === "toolCallStop")
-    ? [
-        ...events,
-        {
-          type: "transcriptProvenance",
-          provenance: {
-            schemaVersion: "honua.studio-ai.transcript.v1",
-            canonicalization: "honua-canonical-json-v1",
-            digestAlgorithm: "sha-256",
-            signatureAlgorithm: "Ed25519",
-            keyId: "fixture",
-            canonicalTranscript: "fixture",
-            transcriptDigest: "fixture",
-            signature: "fixture",
-          },
-        } satisfies StudioAiChatEvent,
-      ]
-    : events;
+function sseBody(events: ScriptedTurn, certifyTranscript = true): string {
+  const secured =
+    certifyTranscript && events.some((event) => event.type === "toolCallStop")
+      ? [
+          ...events,
+          {
+            type: "transcriptProvenance",
+            provenance: {
+              schemaVersion: "honua.studio-ai.transcript.v1",
+              canonicalization: "honua-canonical-json-v1",
+              digestAlgorithm: "sha-256",
+              signatureAlgorithm: "Ed25519",
+              keyId: "fixture",
+              canonicalTranscript: "fixture",
+              transcriptDigest: "fixture",
+              signature: "fixture",
+            },
+          } satisfies StudioAiChatEvent,
+        ]
+      : events;
   return secured
     .map((event) => {
       const { type, ...rest } = event;
@@ -186,10 +202,17 @@ function createScriptedServer(options: ScriptOptions = {}): ScriptedServer {
 
     if (url.endsWith("/v1/studio/ai/chat")) {
       if (options.failChat) throw new TypeError("fetch failed");
-      chatRequests.push(JSON.parse(String(init?.body)) as StudioAiChatRequest);
+      const request = JSON.parse(String(init?.body)) as StudioAiChatRequest;
+      chatRequests.push(request);
       options.onChatStream?.(init?.signal ?? undefined);
+      // Same admission rule as StudioAiProxyEndpoints.HandleChat: certification
+      // is an admin caller override. Non-admins are forbidden before the stream.
+      if (options.nonAdminCertification === "forbid" && request.certification != null) {
+        return new Response("", { status: 403 });
+      }
       const events = turns[turnIndex++] ?? [{ type: "messageStop", stopReason: "endTurn" }];
-      return new Response(chunkedStream(sseBody(events), options.chunkSize ?? 4096, init?.signal ?? undefined), {
+      const body = sseBody(events, options.certifyTranscript !== false);
+      return new Response(chunkedStream(body, options.chunkSize ?? 4096, init?.signal ?? undefined), {
         status: 200,
         headers: { "content-type": "text/event-stream" },
       });
@@ -295,7 +318,13 @@ function makeRuntime(): HonuaAgentRuntime & { readonly log: string[] } {
 
 type SessionOverrides = Pick<
   StudioAgentSessionOptions,
-  "studioTools" | "disableToolDiscovery" | "tools" | "execute" | "toolDiscoveryTimeoutMs"
+  | "studioTools"
+  | "disableToolDiscovery"
+  | "tools"
+  | "execute"
+  | "toolDiscoveryTimeoutMs"
+  | "workflowKnowledge"
+  | "system"
 >;
 
 /**
@@ -632,6 +661,50 @@ describe("createStudioAgentSession turn loop", () => {
 
     expect(server.chatRequests.map((request) => request.system)).toEqual(["prompt-1", "prompt-2"]);
   });
+
+  it("includes shared workflow guidance while refreshing the host's authorized context each turn", async () => {
+    let context = "authorized-target-a";
+    const { server, session } = makeSession({
+      turns: [textTurn("a"), textTurn("b")],
+      session: { workflowKnowledge: true, system: async () => context },
+    });
+    await session.chat("one");
+    context = "authorized-target-b";
+    await session.chat("two");
+
+    for (const request of server.chatRequests) {
+      expect(request.system).toContain(JSON.stringify(WORKFLOW_KNOWLEDGE));
+    }
+    expect(server.chatRequests[0]?.system).toContain("authorized-target-a");
+    expect(server.chatRequests[1]?.system).toContain("authorized-target-b");
+    expect(server.chatRequests[1]?.system).not.toContain("authorized-target-a");
+  });
+
+  it("can supply workflow guidance without replacing a missing host system prompt", async () => {
+    const { server, session } = makeSession({
+      turns: [textTurn("ready")],
+      session: { workflowKnowledge: true, system: undefined },
+    });
+    await session.chat("Describe the GIS workflow.");
+    expect(server.chatRequests[0]?.system).toContain(JSON.stringify(WORKFLOW_KNOWLEDGE));
+  });
+
+  it("does not authorize or dispatch an installation action named only by workflow guidance", async () => {
+    const { server, session } = makeSession({
+      turns: [
+        toolTurn([{ id: "install", name: "honua_agent_install_local", args: { confirm: true } }]),
+        textTurn("refused"),
+      ],
+      session: { workflowKnowledge: true },
+    });
+    const turn = await session.chat("Install a different target.");
+
+    expect(turn.toolCalls).toContainEqual(
+      expect.objectContaining({ toolName: "honua_agent_install_local", ok: false }),
+    );
+    expect(server.mcpCalls).toEqual([]);
+    expect(server.chatRequests[0]?.tools?.some((tool) => tool.name === "honua_agent_install_local")).toBe(false);
+  });
 });
 
 // ── Tool discovery ────────────────────────────────────────────
@@ -885,6 +958,139 @@ describe("createStudioAgentSession tool discovery", () => {
     expect(server.mcpCalls).toEqual([]);
   });
 
+  /**
+   * honua-server `StudioAiProxyEndpoints.HandleChat` returns 403 when
+   * `certification != null` and the caller is not allowed to override the
+   * candidate binding. End-user admission is `certification == null`.
+   */
+  function nonAdminChatAdmitted(request: StudioAiChatRequest): boolean {
+    return request.certification === undefined || request.certification === null;
+  }
+
+  it("dispatches a model-selected composition tool for an end user who sends no certification", async () => {
+    const server = createScriptedServer({
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_add_layer"),
+      turns: [
+        toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layer: { id: "l" } } }]),
+        textTurn("Added."),
+      ],
+    });
+    const session = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      draft: { draftId: "draft-1", generation: 4 },
+    });
+
+    const turn = await session.chat("Add a layer.");
+
+    expect(turn.status).not.toBe("error");
+    expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: true, toolName: "honua_studio_add_layer" });
+    expect(server.mcpCalls.map((call) => call.name)).toEqual(["honua_studio_add_layer"]);
+    expect(server.chatRequests[0]?.certification).toBeUndefined();
+    expect(server.chatRequests[0]?.model).toBeUndefined();
+    expect(nonAdminChatAdmitted(server.chatRequests[0]!)).toBe(true);
+    expect(nonAdminChatAdmitted({ ...server.chatRequests[0]!, certification: TEST_CERTIFICATION })).toBe(false);
+  });
+
+  it("keeps a certified session fail-closed when the proxy omits transcript provenance", async () => {
+    const server = createScriptedServer({
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_add_layer"),
+      turns: [toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layerId: "roads" } }])],
+    });
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl: server.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    const turn = await session.chat("Add roads.");
+
+    expect(turn.status).toBe("error");
+    expect(turn.errorMessage).toContain("transcript provenance");
+    expect(server.mcpCalls).toEqual([]);
+    expect(server.chatRequests[0]?.certification).toEqual(TEST_CERTIFICATION);
+    expect(nonAdminChatAdmitted(server.chatRequests[0]!)).toBe(false);
+  });
+
+  it("admits an uncertified end-user tool turn and forbids that caller's certification binding", async () => {
+    const admitted = createScriptedServer({
+      nonAdminCertification: "forbid",
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_validate_draft"),
+      turns: [
+        toolTurn([{ id: "call-1", name: "honua_studio_validate_draft", args: { draftId: "draft-1" } }]),
+        textTurn("Validated."),
+      ],
+    });
+    const endUser = createStudioAgentSession({
+      baseUrl: "/api",
+      fetchImpl: admitted.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      draft: { draftId: "draft-1", generation: 1 },
+    });
+
+    const turn = await endUser.chat("Validate the draft.");
+
+    expect(turn.status).toBe("completed");
+    expect(turn.toolCalls[0]).toMatchObject({
+      plane: "composition",
+      ok: true,
+      toolName: "honua_studio_validate_draft",
+    });
+    expect(admitted.chatRequests.every((request) => nonAdminChatAdmitted(request))).toBe(true);
+    expect(admitted.mcpCalls.map((call) => call.name)).toEqual(["honua_studio_validate_draft"]);
+
+    const forbidden = createScriptedServer({
+      nonAdminCertification: "forbid",
+      certifyTranscript: false,
+      toolPages: compositionPage("honua_studio_validate_draft"),
+      turns: [toolTurn([{ id: "call-1", name: "honua_studio_validate_draft", args: { draftId: "draft-1" } }])],
+    });
+    const candidate = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl: forbidden.fetchImpl,
+      kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+    });
+
+    const refused = await candidate.chat("Validate the draft.");
+
+    expect(refused.status).toBe("error");
+    expect(refused.errorMessage).toBe("Studio AI proxy responded 403 for the chat request.");
+    expect(refused.toolCalls).toEqual([]);
+    expect(forbidden.mcpCalls).toEqual([]);
+    expect(forbidden.chatRequests[0]?.certification).toEqual(TEST_CERTIFICATION);
+    expect(nonAdminChatAdmitted(forbidden.chatRequests[0]!)).toBe(false);
+  });
+
+  it("does not dispatch when only certification or only the verifier is configured", async () => {
+    for (const partial of [
+      { certification: TEST_CERTIFICATION },
+      { transcriptVerifier: VERIFIED_SESSION.transcriptVerifier },
+    ]) {
+      const server = createScriptedServer({
+        toolPages: compositionPage("honua_studio_add_layer"),
+        turns: [toolTurn([{ id: "call-1", name: "honua_studio_add_layer", args: { layerId: "roads" } }])],
+      });
+      const session = createStudioAgentSession({
+        ...partial,
+        baseUrl: "/api",
+        fetchImpl: server.fetchImpl,
+        kit: createHonuaAiMapKit({ runtime: makeRuntime(), policy: { allowActions: true } }),
+      });
+
+      const turn = await session.chat("Add roads.");
+
+      expect(turn.status).toBe("error");
+      expect(turn.errorMessage).toContain("transcript provenance");
+      expect(server.mcpCalls).toEqual([]);
+    }
+  });
+
   it("degrades to runtime tools when discovery fails and retries on the next turn", async () => {
     const server = createScriptedServer({ turns: [textTurn("a"), textTurn("b")] });
     let mcpDown = true;
@@ -971,6 +1177,10 @@ describe("createStudioAgentSession tool discovery", () => {
     const gate = new Promise<void>((resolve) => {
       releaseToolList = resolve;
     });
+    let signalToolListStarted!: () => void;
+    const toolListStarted = new Promise<void>((resolve) => {
+      signalToolListStarted = resolve;
+    });
     let gated = true;
     const session = createStudioAgentSession({
       ...VERIFIED_SESSION,
@@ -978,7 +1188,10 @@ describe("createStudioAgentSession tool discovery", () => {
       fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).endsWith("/mcp")) {
           const envelope = JSON.parse(String(init?.body)) as { readonly method: string };
-          if (envelope.method === "tools/list" && gated) await gate;
+          if (envelope.method === "tools/list" && gated) {
+            signalToolListStarted();
+            await gate;
+          }
         }
         return server.fetchImpl(input, init);
       }) as typeof fetch,
@@ -987,6 +1200,7 @@ describe("createStudioAgentSession tool discovery", () => {
 
     const stalePass = session.refreshTools();
     // The reconnect lands while the first `tools/list` page is still in flight.
+    await toolListStarted;
     session.reconnect();
     gated = false;
     releaseToolList?.();
@@ -1069,6 +1283,29 @@ describe("McpClient.listAllTools pagination bounds", () => {
 });
 
 describe("createStudioAgentSession composition plane", () => {
+  it("clears the previous draft without dropping conversation when the host switches workflows", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "previous-map", generation: 4 },
+      turns: [
+        textTurn("Ready."),
+        toolTurn([
+          { id: "call-1", name: "honua_studio_set_layer_visibility", args: { layerId: "layer-1", visible: true } },
+        ]),
+        textTurn("Done."),
+      ],
+      mcp: { toolCalls: [{ result: { status: "ok" } }] },
+    });
+    await session.chat("Inspect this map.");
+    const history = [...session.messages];
+    session.attachDraft(undefined);
+    expect(session.draft).toBeUndefined();
+    expect(session.messages).toEqual(history);
+
+    await session.chat("Continue in the new workflow.");
+    expect(server.mcpCalls[0]?.arguments).toEqual({ layerId: "layer-1", visible: true });
+    expect(session.draft).toBeUndefined();
+  });
+
   const interaction = {
     id: "select-parcel-filters-chart",
     on: { ref: "layer:parcels", event: "featureSelect" },
@@ -1126,18 +1363,54 @@ describe("createStudioAgentSession composition plane", () => {
     expect(session.draft).toEqual({ draftId: "draft-1", generation: 5 });
   });
 
-  it("reloads and retries exactly once on a generation conflict", async () => {
+  it.each(["Published", "AwaitingApproval"])(
+    "preserves immutable-version publication arguments for %s",
+    async (status) => {
+      const input = {
+        itemId: "item-1",
+        versionId: "version-1",
+        contentHash: "hash-1",
+        route: "/maps/parcels",
+        visibility: "private",
+      };
+      const tool = {
+        ...descriptor("honua_studio_propose_publication", COMPOSITION),
+        inputSchema: {
+          type: "object",
+          properties: Object.fromEntries(Object.keys(input).map((key) => [key, { type: "string" }])),
+          required: Object.keys(input),
+          additionalProperties: false,
+        },
+      };
+      const receipt = {
+        status,
+        humanConfirmationRequired: status === "AwaitingApproval",
+        ...(status === "Published" ? { shareUrl: "/apps/parcels" } : { proposalId: "proposal-1" }),
+      };
+      const { server, session } = makeSession({
+        draft: { draftId: "editing-another-draft", generation: 4 },
+        toolPages: onePage([tool]),
+        turns: [toolTurn([{ id: "publish-1", name: tool.name, args: input }]), textTurn("Publication submitted.")],
+        mcp: { toolCalls: [{ result: receipt }] },
+      });
+      const turn = await session.chat("Publish the saved version.");
+      expect(server.mcpCalls).toEqual([{ name: tool.name, arguments: input }]);
+      expect(session.draft).toEqual({ draftId: "editing-another-draft", generation: 4 });
+      expect(JSON.parse(turn.toolCalls[0]!.content)).toEqual({ status: "ok", result: receipt });
+    },
+  );
+
+  it("refreshes a conflicted draft without replaying stale intent", async () => {
     const { server, session } = makeSession({
       draft: { draftId: "draft-1", generation: 4 },
       turns: [
         toolTurn([{ id: "call-1", name: "honua_studio_remove_interaction", args: { interactionId: interaction.id } }]),
-        textTurn("Removed."),
+        textTurn("The draft changed; the removal was not applied."),
       ],
       mcp: {
         toolCalls: [
           { isError: true, result: { code: "failed_precondition", message: "stale generation" } },
           { result: { draftId: "draft-1", generation: 9 } },
-          { result: { draftId: "draft-1", generation: 10 } },
         ],
       },
     });
@@ -1147,36 +1420,67 @@ describe("createStudioAgentSession composition plane", () => {
     expect(server.mcpCalls.map((call) => call.name)).toEqual([
       "honua_studio_remove_interaction",
       "honua_studio_get_draft",
-      "honua_studio_remove_interaction",
     ]);
-    expect(server.mcpCalls[2]?.arguments).toMatchObject({ generation: 9 });
-    expect(turn.toolCalls[0]).toMatchObject({ ok: true, retriedAfterConflict: true, draft: { generation: 10 } });
-    expect(session.draft).toEqual({ draftId: "draft-1", generation: 10 });
+    expect(turn.toolCalls[0]).toMatchObject({ ok: false, errorCode: "failed_precondition", draft: { generation: 9 } });
+    expect(JSON.parse(turn.toolCalls[0]?.content ?? "{}")).toMatchObject({ status: "error", draft: { generation: 9 } });
+    expect(session.draft).toEqual({ draftId: "draft-1", generation: 9 });
   });
 
-  it("surfaces a second generation conflict rather than retrying again", async () => {
+  it("stops the rest of a stale tool batch until the model observes the refreshed draft", async () => {
     const { server, session } = makeSession({
       draft: { draftId: "draft-1", generation: 4 },
       turns: [
-        toolTurn([{ id: "call-1", name: "honua_studio_add_widget", args: { widget: { id: "w", kind: "chart" } } }]),
-        textTurn("Could not add it."),
+        toolTurn([
+          { id: "call-1", name: "honua_studio_remove_interaction", args: { interactionId: interaction.id } },
+          { id: "call-2", name: "honua_studio_add_widget", args: { widget: { id: "w", kind: "chart" } } },
+        ]),
+        textTurn("Reviewing the updated draft."),
       ],
       mcp: {
         toolCalls: [
           { isError: true, result: { code: "failed_precondition", message: "stale generation" } },
           { result: { draftId: "draft-1", generation: 9 } },
-          { isError: true, result: { code: "failed_precondition", message: "stale again" } },
+        ],
+      },
+    });
+    const turn = await session.chat("Replace this interaction with a chart.");
+    expect(server.mcpCalls.map((call) => call.name)).toEqual([
+      "honua_studio_remove_interaction",
+      "honua_studio_get_draft",
+    ]);
+    expect(turn.toolCalls).toHaveLength(2);
+    expect(turn.toolCalls.every((call) => !call.ok)).toBe(true);
+    expect(turn.toolCalls[1]?.errorMessage).toContain("previous command");
+  });
+
+  it("surfaces a failed refresh and stops the remaining stale batch", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "draft-1", generation: 4 },
+      turns: [
+        toolTurn([
+          { id: "call-1", name: "honua_studio_add_widget", args: { widget: { id: "w", kind: "chart" } } },
+          { id: "call-2", name: "honua_studio_remove_interaction", args: { interactionId: interaction.id } },
+        ]),
+        textTurn("Could not add it."),
+      ],
+      mcp: {
+        toolCalls: [
+          { isError: true, result: { code: "failed_precondition", message: "stale generation" } },
+          { isError: true, result: { code: "permission_denied", message: "access revoked" } },
         ],
       },
     });
 
     const turn = await session.chat("Add a chart.");
 
-    expect(server.mcpCalls).toHaveLength(3);
+    expect(server.mcpCalls).toHaveLength(2);
     expect(turn.status).toBe("completed");
     expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: false });
     expect(turn.toolCalls[0]?.errorCode).toBe("failed_precondition");
-    expect(turn.toolCalls[0]?.errorMessage).toContain("stale again");
+    expect(turn.toolCalls[0]?.errorMessage).toContain("access revoked");
+    expect(turn.toolCalls).toHaveLength(2);
+    expect(turn.toolCalls[1]).toMatchObject({ ok: false, errorCode: "failed_precondition" });
+    expect(turn.toolCalls[1]?.errorMessage).toContain("previous command");
   });
 
   it("surfaces a non-conflict tool failure without reloading the draft", async () => {
@@ -1283,5 +1587,220 @@ describe("createStudioAgentSession failure and cancellation", () => {
     expect(chatEvents.length).toBeGreaterThan(4);
     expect(toolResults).toHaveLength(1);
     expect(toolResults[0]).toMatchObject({ type: "toolResult", result: { toolName: "setViewport", ok: true } });
+  });
+});
+
+describe("bounded workflow view switching", () => {
+  const selector = "honua_client_select_workflow_view";
+  const setupTool = descriptor("honua_studio_add_layer", COMPOSITION);
+  const workflowTool = descriptor("honua_workflow_package", { family: "honua.workspace.canonical", view: "analyze" });
+
+  function workflowServer(turns: readonly ScriptedTurn[] = []) {
+    const server = createScriptedServer({ turns });
+    const requests: Array<{ method: string; view?: string; session: string | null; authorization: string | null }> = [];
+    let ignoredView = false;
+    let tokenVersion = 0;
+    let delay: (() => Promise<void>) | undefined;
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/mcp")) {
+        const envelope = JSON.parse(String(init?.body)) as { id: string; method: string; params?: { view?: string } };
+        const headers = new Headers(init?.headers);
+        requests.push({
+          method: envelope.method,
+          view: envelope.params?.view,
+          session: headers.get("mcp-session-id"),
+          authorization: headers.get("authorization"),
+        });
+        if (envelope.method === "tools/list") {
+          const view = ignoredView ? "setup" : (envelope.params?.view ?? "setup");
+          if (view === "analyze") await delay?.();
+          return jsonResponse({
+            jsonrpc: "2.0",
+            id: envelope.id,
+            result: { tools: view === "analyze" ? [workflowTool] : [setupTool], _meta: { view } },
+          });
+        }
+      }
+      return server.fetchImpl(input, init);
+    }) as typeof fetch;
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl,
+      auth: { getAccessToken: async () => `test-token-${++tokenVersion}` },
+      studioTools: { families: ["honua.studio.composition", "honua.workspace.canonical"], required: [] },
+    });
+    return {
+      server,
+      session,
+      requests,
+      ignoreView: () => {
+        ignoredView = true;
+      },
+      delayAnalysis: (wait: () => Promise<void>) => {
+        delay = wait;
+      },
+    };
+  }
+
+  it("keeps one session, conversation and draft while replacing the discovered tools", async () => {
+    const { session, requests } = workflowServer([textTurn("Map ready")]);
+    await session.chat("Build my map");
+    session.attachDraft({ draftId: "draft-1", generation: 3 });
+    const history = [...session.messages];
+    expect(session.tools.map((tool) => tool.name)).toContain(selector);
+    await session.selectWorkflowView("analyze");
+    expect(session.compositionTools).toEqual(["honua_workflow_package"]);
+    await session.selectWorkflowView("setup");
+    expect(session.compositionTools).toEqual(["honua_studio_add_layer"]);
+    expect(session.messages).toEqual(history);
+    expect(session.draft).toEqual({ draftId: "draft-1", generation: 3 });
+    expect(requests.filter((request) => request.method === "initialize")).toHaveLength(1);
+    expect(new Set(requests.map((request) => request.authorization)).size).toBe(requests.length);
+    expect(requests.every((request) => request.authorization?.startsWith("Bearer test-token-"))).toBe(true);
+    expect(requests.filter((request) => request.method === "tools/list").map((request) => request.session)).toEqual([
+      "session-1",
+      "session-1",
+      "session-1",
+    ]);
+    expect(requests.filter((request) => request.method === "tools/list").map((request) => request.view)).toEqual([
+      undefined,
+      "analyze",
+      "setup",
+    ]);
+  });
+
+  it("lets the model switch then replan without executing a stale mutation batch", async () => {
+    const { session, server } = workflowServer([
+      toolTurn([
+        { id: "switch", name: selector, args: { view: "analyze" } },
+        { id: "stale", name: "honua_studio_add_layer", args: { draftId: "draft-1" } },
+      ]),
+      toolTurn([{ id: "workflow", name: "honua_workflow_package", args: { action: "read" } }]),
+      textTurn("Workflow ready"),
+    ]);
+    const result = await session.chat("Now inspect my GIS workflow");
+    expect(result.status).toBe("completed");
+    expect(result.toolCalls.map((call) => call.ok)).toEqual([true, false, true]);
+    expect(result.toolCalls[1]?.errorMessage).toContain("workflow tool view changed");
+    expect(server.mcpCalls.map((call) => call.name)).toEqual(["honua_workflow_package"]);
+    expect(server.chatRequests[1]?.tools?.map((tool) => tool.name)).toContain("honua_workflow_package");
+    expect(server.chatRequests[1]?.tools?.map((tool) => tool.name)).not.toContain("honua_studio_add_layer");
+  });
+
+  it("clears the old catalog when the server ignores selection and rejects full without a request", async () => {
+    const { session, requests, ignoreView } = workflowServer();
+    await session.refreshTools();
+    const before = requests.length;
+    await expect(session.selectWorkflowView("full")).rejects.toThrow("bounded");
+    expect(requests).toHaveLength(before);
+    ignoreView();
+    const failed = await session.selectWorkflowView("analyze");
+    expect(failed.errorMessage).toContain("did not confirm");
+    expect(session.compositionTools).toEqual([]);
+    expect(session.tools.map((tool) => tool.name)).toEqual([selector]);
+  });
+
+  it("rejects a queued call when its workflow view changes before dispatch even if the tool remains available", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    let verifiedSecond!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const dispatchStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const secondTranscript = new Promise<void>((resolve) => {
+      verifiedSecond = resolve;
+    });
+    const server = createScriptedServer({
+      turns: [
+        toolTurn([{ id: "first", name: setupTool.name, args: { marker: "already-running" } }]),
+        toolTurn([{ id: "stale", name: setupTool.name, args: { marker: "planned-before-switch" } }]),
+      ],
+    });
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/mcp")) {
+        const request = JSON.parse(String(init?.body));
+        if (request.method === "tools/list") {
+          const view = request.params?.view ?? "setup";
+          return jsonResponse({
+            jsonrpc: "2.0",
+            id: request.id,
+            result: { tools: [descriptor(setupTool.name, { ...COMPOSITION, view })], _meta: { view } },
+          });
+        }
+        if (request.method === "tools/call" && request.params?.arguments?.marker === "already-running") {
+          started();
+          await blocked;
+        }
+      }
+      return server.fetchImpl(input, init);
+    }) as typeof fetch;
+    let transcripts = 0;
+    const session = createStudioAgentSession({
+      ...VERIFIED_SESSION,
+      baseUrl: "/api",
+      fetchImpl,
+      maxToolRounds: 1,
+      transcriptVerifier: {
+        verify: async () => {
+          if (++transcripts === 2) verifiedSecond();
+          return { ok: true as const, transcriptDigest: "fixture-digest" };
+        },
+      },
+    });
+    const first = session.chat("Start the first command.");
+    await dispatchStarted;
+    const stale = session.chat("Plan another command in the current view.");
+    try {
+      await secondTranscript;
+      // Drain the verified stream's promise continuations into the blocked
+      // dispatch queue. No timer or network race controls this interleaving.
+      await nextEventLoopTurn();
+      await session.selectWorkflowView("analyze");
+      expect(session.compositionTools).toContain(setupTool.name);
+      release();
+      const [runningResult, staleResult] = await Promise.all([first, stale]);
+      expect(runningResult.toolCalls[0]?.ok).toBe(true);
+      expect(staleResult.toolCalls[0]).toMatchObject({ ok: false, errorCode: "failed_precondition" });
+      expect(staleResult.toolCalls[0]?.errorMessage).toContain("workflow tool view changed");
+      expect(server.mcpCalls.map((call) => call.arguments.marker)).toEqual(["already-running"]);
+    } finally {
+      release();
+      await Promise.allSettled([first, stale]);
+    }
+  });
+
+  it("does not let a slower prior view overwrite the newest selection", async () => {
+    const { session, delayAnalysis } = workflowServer();
+    await session.refreshTools();
+    let release: (() => void) | undefined;
+    let entered: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    delayAnalysis(async () => {
+      entered?.();
+      await gate;
+    });
+    const stale = session.selectWorkflowView("analyze");
+    await started;
+    await session.selectWorkflowView("setup");
+    release?.();
+    await stale;
+    expect(session.compositionTools).toEqual(["honua_studio_add_layer"]);
+  });
+
+  it("still applies the host's tool-family policy in the selected view", async () => {
+    const server = createScriptedServer({ toolPages: [{ tools: [workflowTool], _meta: { view: "analyze" } }] });
+    const session = createStudioAgentSession({ ...VERIFIED_SESSION, baseUrl: "/api", fetchImpl: server.fetchImpl });
+    const report = await session.selectWorkflowView("analyze");
+    expect(report.routed).toEqual([]);
+    expect(session.compositionTools).toEqual([]);
   });
 });

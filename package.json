@@ -1,6 +1,6 @@
 {
   "name": "@honua/sdk-js",
-  "version": "0.2.3",
+  "version": "0.2.9",
   "description": "Open GIS SDK for MapLibre — one typed client for ArcGIS/Esri GeoServices, OGC API, WFS, WMS, STAC, OData, and GeoParquet, plus an ArcGIS migration codemod, geocoding, and routing",
   "license": "Apache-2.0",
   "author": "Honua",
@@ -340,7 +340,7 @@
     "ci:baseline:report": "node scripts/ci-timing-baseline.mjs report",
     "ci:parity:collect": "node scripts/ci-shadow-parity.mjs collect",
     "ci:parity:report": "node scripts/ci-shadow-parity.mjs report",
-    "verify:ci-graph": "node --test test/scripts/sdk-build-evidence.test.mjs test/scripts/browser-shards.test.mjs test/scripts/ci-timing-baseline.test.mjs test/scripts/sdk-verification-workflow.test.mjs test/scripts/publish-js-sdk-workflow.test.mjs && node scripts/browser-shards.mjs check",
+    "verify:ci-graph": "node --test test/scripts/sdk-build-evidence.test.mjs test/scripts/browser-shards.test.mjs test/scripts/ci-timing-baseline.test.mjs test/scripts/sdk-verification-workflow.test.mjs test/scripts/publish-js-sdk-workflow.test.mjs test/scripts/reseal-token-lifetime.test.mjs && node scripts/browser-shards.mjs check",
     "report:bundle-sizes": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs",
     "verify:bundle-budgets": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs --check",
     "build:split-packages": "npm run prepare:test-sdk --silent && node scripts/prepare-split-packages.mjs && npm run prepare:test-sdk:adopt --silent",
@@ -373,6 +373,9 @@
     "verify:root-surface": "npm run prepare:test-sdk --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
     "verify:root-surface:prepared": "npm run prepare:test-sdk:already --silent && node scripts/root-surface.mjs --check && tsc -p test/root-surface/tsconfig.json --noEmit",
     "verify:migration-forwarder-tarball": "node scripts/verify-migration-forwarder-tarball.mjs",
+    "verify:migration-cohort": "npm run build --silent && npm run verify:migration-cohort:prepared",
+    "verify:migration-cohort:prepared": "node --test test/scripts/verify-migration-cohort.test.mjs && node scripts/verify-migration-cohort.mjs",
+    "verify:migration-cohort:registry": "node scripts/verify-migration-cohort.mjs --sdk-source registry",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat",
     "typecheck": "tsc --noEmit",
     "docs:api": "node scripts/docs-api.mjs",
@@ -767,7 +770,7 @@
     "test:runtime-tarball": "node --test test/scripts/runtime-tarball.test.mjs"
   },
   "dependencies": {
-    "@honua/honua-migrate": "0.2.0-beta.0",
+    "@honua/honua-migrate": "0.3.0-beta.0",
     "@mapbox/jsonlint-lines-primitives": "2.0.2",
     "@maplibre/maplibre-gl-style-spec": "^24.7.0"
   },
