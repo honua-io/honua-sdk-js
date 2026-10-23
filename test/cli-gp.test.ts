@@ -44,9 +44,29 @@ describe("GP devkit adapter", () => {
     const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const processHandle = child();
     const result = gpCommand(["list"]);
-    processHandle.emit("error", new Error("ENOENT"));
+    processHandle.emit("error", Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" }));
     expect(await result).toBe(127);
     expect(stderr).toHaveBeenCalledWith(expect.stringContaining("honua-gp-devkit"));
+  });
+
+  it("reports other launch failures without claiming the engine is absent", async () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const processHandle = child();
+    const result = gpCommand(["list"]);
+    processHandle.emit("error", Object.assign(new Error("spawn EACCES"), { code: "EACCES" }));
+    expect(await result).toBe(126);
+    const written = stderr.mock.calls.map((call) => String(call[0])).join("");
+    expect(written).toContain("EACCES");
+    expect(written).not.toContain("separately installed");
+  });
+
+  it("does not treat a signal failure after startup as a missing engine", async () => {
+    const handle = child();
+    const result = gpCommand(["run"]);
+    Object.assign(handle, { pid: 42 });
+    handle.emit("error", Object.assign(new Error("kill EPERM"), { code: "EPERM" }));
+    handle.emit("exit", 0, null);
+    expect(await result).toBe(0);
   });
 
   it("maps cancellation to a nonzero exit", async () => {
