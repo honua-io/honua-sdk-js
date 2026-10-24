@@ -1,0 +1,30 @@
+{
+  "before": {
+    "head": "bd178cf762574379c8c0cfe6e923fe9a39ce9832",
+    "source": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "harness": "8196faed3d36592073411a395f90cdb5d695735360ad8017fa1b59f2b0118041"
+  },
+  "after": {
+    "head": "bd178cf762574379c8c0cfe6e923fe9a39ce9832",
+    "source": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "harness": "8196faed3d36592073411a395f90cdb5d695735360ad8017fa1b59f2b0118041"
+  },
+  "sourceUnchanged": true,
+  "passed": false,
+  "stages": [
+    {
+      "command": [
+        "/home/mike/.local/lib/nodejs/node-v22.23.3-linux-x64/bin/node",
+        "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/runtime-preflight-v2.mjs"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "python3",
+        "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/run-pair-v2.py"
+      ],
+      "exit": 1
+    }
+  ]
+}

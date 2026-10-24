@@ -1,0 +1,131 @@
+{
+  "format": "honua.sdk.published-release-verification.v1",
+  "schemaVersion": 1,
+  "status": "verified",
+  "verifiedAt": "2026-10-24T12:33:54.162Z",
+  "registry": "https://registry.npmjs.org",
+  "selection": "exact-version",
+  "repository": "honua-io/honua-sdk-js",
+  "sealedTag": "js-sdk-v0.2.6",
+  "sealedCommit": "45e2fb2c7c35216521319f0e3447661988f2981f",
+  "manifest": "config/release-artifacts.v1.json",
+  "artifacts": [
+    {
+      "id": "sdk-js",
+      "npmName": "@honua/sdk-js",
+      "version": "0.2.6",
+      "distTag": "latest",
+      "tag": "js-sdk-v0.2.6",
+      "sourceBinding": "sealed-js-sdk-tag",
+      "sourceRef": "refs/tags/js-sdk-v0.2.6",
+      "sourceRevision": "45e2fb2c7c35216521319f0e3447661988f2981f",
+      "workflow": ".github/workflows/publish-js-sdk.yml",
+      "tarball": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.2.6.tgz",
+      "integrity": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg==",
+      "status": "verified",
+      "checks": [
+        {
+          "id": "registry-version",
+          "description": "@honua/sdk-js@0.2.6 is published",
+          "status": "pass",
+          "detail": "0.2.6"
+        },
+        {
+          "id": "dist-integrity",
+          "description": "the served tarball hashes to the advertised integrity",
+          "status": "pass",
+          "detail": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg=="
+        },
+        {
+          "id": "publish-attestation",
+          "description": "npm recorded a publish attestation bound to the published tarball",
+          "status": "pass",
+          "detail": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1"
+        },
+        {
+          "id": "provenance-attestation",
+          "description": "a SLSA provenance attestation is present and decodable",
+          "status": "pass",
+          "detail": "https://slsa.dev/provenance/v1"
+        },
+        {
+          "id": "provenance-subject",
+          "description": "the provenance is bound to the exact published tarball",
+          "status": "pass",
+          "detail": "pkg:npm/%40honua/sdk-js@0.2.6"
+        },
+        {
+          "id": "provenance-builder",
+          "description": "the provenance was produced by this repository's publish workflow",
+          "status": "pass",
+          "detail": ".github/workflows/publish-js-sdk.yml@refs/tags/js-sdk-v0.2.6"
+        },
+        {
+          "id": "source-revision",
+          "description": "the published artifact was built from 45e2fb2c7c35216521319f0e3447661988f2981f",
+          "status": "pass",
+          "detail": "45e2fb2c7c35216521319f0e3447661988f2981f"
+        }
+      ]
+    },
+    {
+      "id": "create-honua-app",
+      "npmName": "create-honua-app",
+      "version": "0.2.3",
+      "distTag": "latest",
+      "tag": "create-honua-app-v0.2.3",
+      "sourceBinding": "own-release-tag",
+      "sourceRef": "refs/tags/create-honua-app-v0.2.3",
+      "sourceRevision": "c7d517b0dd12842ed31161d77dd0114abfee2673",
+      "workflow": ".github/workflows/publish-create-honua-app.yml",
+      "tarball": "https://registry.npmjs.org/create-honua-app/-/create-honua-app-0.2.3.tgz",
+      "integrity": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg==",
+      "status": "verified",
+      "checks": [
+        {
+          "id": "registry-version",
+          "description": "create-honua-app@0.2.3 is published",
+          "status": "pass",
+          "detail": "0.2.3"
+        },
+        {
+          "id": "dist-integrity",
+          "description": "the served tarball hashes to the advertised integrity",
+          "status": "pass",
+          "detail": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg=="
+        },
+        {
+          "id": "publish-attestation",
+          "description": "npm recorded a publish attestation bound to the published tarball",
+          "status": "pass",
+          "detail": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1"
+        },
+        {
+          "id": "provenance-attestation",
+          "description": "a SLSA provenance attestation is present and decodable",
+          "status": "pass",
+          "detail": "https://slsa.dev/provenance/v1"
+        },
+        {
+          "id": "provenance-subject",
+          "description": "the provenance is bound to the exact published tarball",
+          "status": "pass",
+          "detail": "pkg:npm/create-honua-app@0.2.3"
+        },
+        {
+          "id": "provenance-builder",
+          "description": "the provenance was produced by this repository's publish workflow",
+          "status": "pass",
+          "detail": ".github/workflows/publish-create-honua-app.yml@refs/tags/create-honua-app-v0.2.3"
+        },
+        {
+          "id": "source-revision",
+          "description": "the published artifact was built from c7d517b0dd12842ed31161d77dd0114abfee2673",
+          "status": "pass",
+          "detail": "c7d517b0dd12842ed31161d77dd0114abfee2673"
+        }
+      ]
+    }
+  ],
+  "failures": []
+}

@@ -1,0 +1,119 @@
+{
+  "_id": "create-honua-app@0.2.3",
+  "_rev": "12-03f299db56b46c6c563801858e451783",
+  "name": "create-honua-app",
+  "dist-tags": {
+    "latest": "0.2.3"
+  },
+  "versions": [
+    "0.1.1",
+    "0.1.3",
+    "0.1.4",
+    "0.1.5",
+    "0.1.6",
+    "0.1.7",
+    "0.1.8",
+    "0.1.9",
+    "0.2.0",
+    "0.2.1",
+    "0.2.2",
+    "0.2.3"
+  ],
+  "time": {
+    "created": "2026-08-05T16:59:59.956Z",
+    "modified": "2026-10-22T21:55:54.406Z",
+    "0.1.1": "2026-08-05T17:00:00.278Z",
+    "0.1.3": "2026-08-26T19:58:51.808Z",
+    "0.1.4": "2026-09-22T22:35:47.541Z",
+    "0.1.5": "2026-09-29T07:06:02.910Z",
+    "0.1.6": "2026-10-04T17:09:49.281Z",
+    "0.1.7": "2026-10-06T09:36:57.560Z",
+    "0.1.8": "2026-10-11T19:29:25.925Z",
+    "0.1.9": "2026-10-12T04:20:15.905Z",
+    "0.2.0": "2026-10-13T11:47:13.530Z",
+    "0.2.1": "2026-10-14T00:04:44.091Z",
+    "0.2.2": "2026-10-14T03:04:23.203Z",
+    "0.2.3": "2026-10-22T21:55:54.014Z"
+  },
+  "bugs": {
+    "url": "https://github.com/honua-io/honua-sdk-js/issues"
+  },
+  "author": "Honua",
+  "license": "Apache-2.0",
+  "homepage": "https://honua-io.github.io/honua-sdk-js/",
+  "keywords": [
+    "gis",
+    "geospatial",
+    "maplibre",
+    "typescript",
+    "honua",
+    "scaffold",
+    "starter",
+    "create-app"
+  ],
+  "repository": {
+    "url": "git+https://github.com/honua-io/honua-sdk-js.git",
+    "type": "git",
+    "directory": "packages/create-honua-app"
+  },
+  "description": "Scaffold a Honua JavaScript SDK map application: Vite + TypeScript + MapLibre starters that connect and mount a source without hand-assembling peers",
+  "maintainers": [
+    "makanikai <mike@honua.io>"
+  ],
+  "readmeFilename": "README.md",
+  "bin": {
+    "create-honua-app": "bin/create-honua-app.mjs"
+  },
+  "dist": {
+    "shasum": "278b2c05c9b7f8b7e68c252fd4f6b26a2523bc0d",
+    "tarball": "https://registry.npmjs.org/create-honua-app/-/create-honua-app-0.2.3.tgz",
+    "fileCount": 40,
+    "integrity": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg==",
+    "signatures": [
+      {
+        "sig": "MEUCIQCSk68pdTO9J/IBTXmUQN+6mBvh9uYK85WH+isw0pKUgQIgE5VVpmojP7SvF/X8AyGk+fDIh1h883l2nq8/p0FqiVE=",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      },
+      {
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+        "sig": "MEUCIHE4qBzllxkc1jfFXZ4vL6iHazdid/6oEgJUC4cqxtPkAiEAx7M7H0P3n0oujPz5s1OtZns77HrmlYB1UX9WT+Pnghs="
+      }
+    ],
+    "attestations": {
+      "url": "https://registry.npmjs.org/-/npm/v1/attestations/create-honua-app@0.2.3",
+      "provenance": {
+        "predicateType": "https://slsa.dev/provenance/v1"
+      }
+    },
+    "unpackedSize": 99716
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "gitHead": "c7d517b0dd12842ed31161d77dd0114abfee2673",
+  "version": "0.2.3",
+  "_npmUser": {
+    "name": "GitHub Actions",
+    "email": "npm-oidc-no-reply@github.com",
+    "trustedPublisher": {
+      "id": "github",
+      "oidcConfigId": "5af570ac-647d-4319-91fc-bf00bd17c2db"
+    }
+  },
+  "_npmVersion": "11.18.0",
+  "directories": {},
+  "_nodeVersion": "22.23.3",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "_hasShrinkwrap": false,
+  "_npmOperationalInternal": {
+    "host": "s3://npm-registry-packages-npm-production",
+    "tmp": "tmp/create-honua-app_0.2.3_1792706153927_0.333933163403638"
+  }
+}

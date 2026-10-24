@@ -1,0 +1,30 @@
+{
+  "head": "bd178cf762574379c8c0cfe6e923fe9a39ce9832",
+  "gitDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "files": {
+    "scripts/verify-published-release.mjs": "2252a70772cb85be0ac11f0806acf2d58901cc2a3018d950c31498ddf22dc1c9",
+    "scripts/lib/create-honua-app-browser.mjs": "a9eb92b8ba4a4fa77315bddd71683a373a194a1e5c380e90ba68a6d683b582ab",
+    "scripts/lib/create-honua-app-evidence.mjs": "5bd86536c6b83867a1df8d34249f9ed928940decb448caa6422f863d96348092",
+    "package-lock.json": "3a7f854beb4793ec442576be437bb861823736dace98a5f23f847bc26a4a4f91",
+    "node_modules/playwright/package.json": "718c91812946dcfbb4b724cfa0084ee3be205c571df09094f218bc4571f43c2b",
+    "node_modules/playwright-core/browsers.json": "6b6e0538d6e46eef71d3e1a0dcb65f8f5ea7914033c8150529d8e207afb6030c"
+  },
+  "harnesses": {
+    "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/runtime-preflight-v2.mjs": "22ad47ed77911436c065dc9ac0b5161258250bef973dd51649557343afa4ef1a",
+    "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/run-pair-v2.py": "68d74fb4b60f493d9e70dde5da3516c12295be88d70d03548e82d20749816da3",
+    "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/published-default-proof.mjs": "076d13877b9e55c4a169bd59064c4daaa26d485e612dbebcb23035e24dfc7ab9",
+    "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/vanilla-ts-v2.json": "116feb9a21add98bc97fee919ac496624d1a5b95245bb76edd8c3c59c792275c",
+    "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/react-ts-v2.json": "a2de1b2759b8023467d2fe36ef4c9a6d643aae6c0339b3ac8c4b2e971159ca6e"
+  },
+  "browserExecuted": false,
+  "installedCandidateQualified": false,
+  "previousAttempt": {
+    "session": 56004,
+    "exit": 1,
+    "elapsedMs": 147466,
+    "browser": "missinglibnspr4.so",
+    "sourceUnchanged": true
+  },
+  "onlyRuntimeChange": "LD_LIBRARY_PATH selects the existing verified Ubuntu browser libraries",
+  "budgetMs": 120000
+}
