@@ -46,9 +46,11 @@ tarball against a loopback registry and assert the pinned version for each chann
 | `vanilla-ts` (default) | `src/main.ts` | `connect → inspect → explain → query → mount`. The SDK owns the MapLibre map and mounts an accepted query plan. |
 | `react-ts` | `src/App.tsx` | The app owns a plain `maplibre-gl` map; the same kernel connection inspects, explains, queries, and mounts onto it. |
 
-Both templates pin **MapLibre GL JS 6.1.0**, the current major. A scaffolded app installs `@honua/sdk-js` from the
-registry, which declares the `^5.0.0 || ^6.0.0` peer range, so `npm install` resolves the pair with no `overrides` and
-no `--legacy-peer-deps`. MapLibre 5 remains supported by the SDK for apps that have not migrated. Because MapLibre 6 is
+Both templates pin **MapLibre GL JS 6.4.1**, the first release patched for
+[GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579), and Vite 8.2.0. A scaffolded app installs
+`@honua/sdk-js` from the registry, which declares the `^6.4.1` peer range, so `npm install` resolves the pair with no
+`overrides` and no `--legacy-peer-deps`. MapLibre 5 and 6.0.0 through 6.4.0 do not satisfy that range: no patched 5.x
+release exists, so apps still on MapLibre 5 must upgrade the renderer before the SDK. Because MapLibre 6 is
 ESM-only and loads its worker as a separate module, each starter ships `src/maplibre-worker.ts` and imports it before
 the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
 
