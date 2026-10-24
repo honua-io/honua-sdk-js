@@ -131,6 +131,9 @@ jobs:
           node --test test/scripts/browser-impact-observe.test.mjs
           node --test test/scripts/trusted-pr-workflow-run.test.cjs
 
+      - name: Test migration dependency cohort refusal controls
+        run: node --test test/scripts/verify-migration-cohort.test.mjs
+
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
@@ -154,6 +157,9 @@ jobs:
 
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Test authenticated second-review summary admission
+        run: node --test test/scripts/second-review-summary.test.mjs
 
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
@@ -190,14 +196,19 @@ jobs:
         run: node scripts/browser-shards.mjs check
 
       # Everything above this line imports only Node builtins and repository
-      # sources, so it fails in seconds. The graph fixture parses two workflow
-      # files and needs the `yaml` devDependency, so it -- and only it -- pays
-      # for an install.
+      # sources, so it fails in seconds. The graph and reseal policy fixtures parse workflow
+      # files with the `yaml` devDependency, so these checks run after install.
       - name: Install dependencies
         run: npm ci
 
       - name: Test verification graph policy
         run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/unit-test-shards.test.mjs
+
+      - name: Test SDK publication workflow execution
+        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
+
+      - name: Test reseal credential lifetime policy
+        run: node --test test/scripts/reseal-token-lifetime.test.mjs
 
       - name: Verify every unit spec has exactly one shard
         run: npm run unit:shards:check
@@ -548,7 +559,9 @@ jobs:
     needs: [admission, build]
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Include setup, execution, coverage serialization and artifact upload. The
+    # 15-minute cap interrupted a completed shard before its report could merge.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -670,6 +683,17 @@ jobs:
       # exist at .../chrome-headless-shell".
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+
+      - name: Verify packed SDK migration cohort with default npm resolution
+        run: npm run verify:migration-cohort:prepared
+
+      - name: Upload migration cohort receipt and installed lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: migration-cohort-packed-graph
+          path: test-results/migration-cohort.json*
+          if-no-files-found: warn
 
       # Before the browser bundle and the split-package build, exactly as in
       # ci.yml: `build:split-packages:prepared` cleans dist/ and republishes the

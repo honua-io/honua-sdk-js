@@ -204,7 +204,14 @@ function createFixtureFetch(
         type: "Catalog",
         id: "honua-maui-fixture",
         description: "Deterministic Maui imagery fixture",
-        conformsTo: ["https://api.stacspec.org/v1.0.0/item-search"],
+        conformsTo: [
+          "https://api.stacspec.org/v1.0.0/core",
+          "https://api.stacspec.org/v1.0.0/item-search",
+          "https://api.stacspec.org/v1.0.0/item-search#filter",
+          "https://api.stacspec.org/v1.0.0/item-search#fields",
+          "https://api.stacspec.org/v1.0.0/item-search#sort",
+          "http://www.opengis.net/spec/cql2/1.0/conf/cql2-json",
+        ],
         links: [
           { rel: "data", href: "./collections", type: "application/json" },
           { rel: "search", href: "./search", type: "application/geo+json", method: "GET" },

@@ -109,6 +109,8 @@ async function fixture(privateAdapter = false) {
       });
     }),
   );
+  let currentRelease = "release-a";
+  let currentCredentialKind: "workspace-agent" | "bootstrap-admin" = "workspace-agent";
   const runtime: AgentRuntime = {
     inspect: async () => ({ ready: true }),
     install: async () => {
@@ -117,6 +119,9 @@ async function fixture(privateAdapter = false) {
     resolve: async () => ({
       target: { id: "connection-a", credentialId: "key-a", endpoint: `${upstream}/mcp` },
       transport: { remoteUrl: `${upstream}/mcp`, apiKey: currentKey },
+      credentialKind: currentCredentialKind,
+      releaseId: currentRelease,
+      deploymentId: "target-a",
     }),
   };
   let config: string | undefined;
@@ -126,7 +131,8 @@ async function fixture(privateAdapter = false) {
     config = path.join(directory, "private.json");
     const child = `require('node:readline').createInterface({input:process.stdin}).on('line', line => {
       const m=JSON.parse(line); if(!('id' in m)) return;
-      const result=m.method==='initialize'?{protocolVersion:m.params.protocolVersion,capabilities:{tools:{}},serverInfo:{name:'private',version:'1'}}:
+      const bound=Boolean(process.env.HONUA_DEVOPS_HONUA_WORKSPACE_ID && process.env.HONUA_DEVOPS_HONUA_TURN_ID);
+      const result=m.method==='initialize'?{protocolVersion:m.params.protocolVersion,capabilities:{tools:{},...(bound?{experimental:{'honua.io/devops-turn-binding':{version:1}}}:{})},serverInfo:{name:'private',version:'1'}}:
         m.method==='tools/list'?{tools:[{name:'describe_environment',inputSchema:{type:'object'}}]}:
         {content:[{type:'text',text:'private receipt'}]};
       process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
@@ -191,6 +197,12 @@ async function fixture(privateAdapter = false) {
     rotate: () => {
       currentKey = "replacement-agent-key";
     },
+    changeRelease: () => {
+      currentRelease = "release-b";
+    },
+    changeCredentialKind: () => {
+      currentCredentialKind = "bootstrap-admin";
+    },
   };
 }
 
@@ -252,6 +264,34 @@ it("rejects wrong bridge identity, workspace, partition, revoked membership and 
   f.revoke();
   expect((await f.rpc(call, "turn-a", session)).status).toBe(403);
   expect(f.actions).toHaveLength(0);
+});
+
+it("rejects an existing native session after a same-key release or credential-kind change", async () => {
+  const f = await fixture();
+  const session = await f.initialize();
+  const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "canonical_echo", arguments: {} } };
+  f.changeRelease();
+  expect((await f.rpc(call, "turn-a", session)).status).toBe(403);
+  expect(f.actions).toHaveLength(0);
+  const other = await fixture();
+  const otherSession = await other.initialize();
+  other.changeCredentialKind();
+  expect((await other.rpc(call, "turn-a", otherSession)).status).toBe(403);
+  expect(
+    (
+      await other.rpc({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "native-fixture", version: "1" },
+        },
+      })
+    ).status,
+  ).toBe(403);
+  expect(other.actions).toHaveLength(0);
 });
 
 it("attests private tools only after authorized discovery and rechecks their current turn and RBAC", async () => {

@@ -1,0 +1,331 @@
+{
+  "format": "honua.sdk.published-default-cli-proof.v1",
+  "status": "passed",
+  "requestedSelection": "default",
+  "observedDefaultSdkSelection": true,
+  "observedAt": "2026-10-24T12:33:56.697Z",
+  "template": "vanilla-ts",
+  "producerRevision": "749b429b50ef52ade7d88aa6091bd49a6f608168",
+  "node": "v22.23.3",
+  "harnessSha256": "076d13877b9e55c4a169bd59064c4daaa26d485e612dbebcb23035e24dfc7ab9",
+  "executionConfigSha256": "fe0897f68dd551f05666a0c0c846ed4cd76a6b4385f84288c4e84c5c582ee5b9",
+  "helpers": [
+    {
+      "path": "scripts/lib/create-honua-app-browser.mjs",
+      "sha256": "a9eb92b8ba4a4fa77315bddd71683a373a194a1e5c380e90ba68a6d683b582ab"
+    },
+    {
+      "path": "scripts/lib/create-honua-app-evidence.mjs",
+      "sha256": "5bd86536c6b83867a1df8d34249f9ed928940decb448caa6422f863d96348092"
+    }
+  ],
+  "publications": {
+    "scaffold": {
+      "artifact": {
+        "id": "create-honua-app",
+        "npmName": "create-honua-app",
+        "version": "0.2.3",
+        "distTag": "latest",
+        "tag": "create-honua-app-v0.2.3",
+        "sourceBinding": "own-release-tag",
+        "sourceRef": "refs/tags/create-honua-app-v0.2.3",
+        "sourceRevision": "c7d517b0dd12842ed31161d77dd0114abfee2673",
+        "workflow": ".github/workflows/publish-create-honua-app.yml",
+        "tarball": "https://registry.npmjs.org/create-honua-app/-/create-honua-app-0.2.3.tgz",
+        "integrity": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg==",
+        "status": "verified",
+        "checks": [
+          {
+            "id": "registry-version",
+            "description": "create-honua-app@0.2.3 is published",
+            "status": "pass",
+            "detail": "0.2.3"
+          },
+          {
+            "id": "dist-integrity",
+            "description": "the served tarball hashes to the advertised integrity",
+            "status": "pass",
+            "detail": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg=="
+          },
+          {
+            "id": "publish-attestation",
+            "description": "npm recorded a publish attestation bound to the published tarball",
+            "status": "pass",
+            "detail": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1"
+          },
+          {
+            "id": "provenance-attestation",
+            "description": "a SLSA provenance attestation is present and decodable",
+            "status": "pass",
+            "detail": "https://slsa.dev/provenance/v1"
+          },
+          {
+            "id": "provenance-subject",
+            "description": "the provenance is bound to the exact published tarball",
+            "status": "pass",
+            "detail": "pkg:npm/create-honua-app@0.2.3"
+          },
+          {
+            "id": "provenance-builder",
+            "description": "the provenance was produced by this repository's publish workflow",
+            "status": "pass",
+            "detail": ".github/workflows/publish-create-honua-app.yml@refs/tags/create-honua-app-v0.2.3"
+          },
+          {
+            "id": "source-revision",
+            "description": "the published artifact was built from c7d517b0dd12842ed31161d77dd0114abfee2673",
+            "status": "pass",
+            "detail": "c7d517b0dd12842ed31161d77dd0114abfee2673"
+          }
+        ]
+      },
+      "receiptSha256": "da7f7ca9b77fff6d891914b68fb42ec3945e21c449a6840dd3bc95239623025f"
+    },
+    "sdk": {
+      "artifact": {
+        "id": "sdk-js",
+        "npmName": "@honua/sdk-js",
+        "version": "0.2.6",
+        "distTag": "latest",
+        "tag": "js-sdk-v0.2.6",
+        "sourceBinding": "sealed-js-sdk-tag",
+        "sourceRef": "refs/tags/js-sdk-v0.2.6",
+        "sourceRevision": "45e2fb2c7c35216521319f0e3447661988f2981f",
+        "workflow": ".github/workflows/publish-js-sdk.yml",
+        "tarball": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.2.6.tgz",
+        "integrity": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg==",
+        "status": "verified",
+        "checks": [
+          {
+            "id": "registry-version",
+            "description": "@honua/sdk-js@0.2.6 is published",
+            "status": "pass",
+            "detail": "0.2.6"
+          },
+          {
+            "id": "dist-integrity",
+            "description": "the served tarball hashes to the advertised integrity",
+            "status": "pass",
+            "detail": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg=="
+          },
+          {
+            "id": "publish-attestation",
+            "description": "npm recorded a publish attestation bound to the published tarball",
+            "status": "pass",
+            "detail": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1"
+          },
+          {
+            "id": "provenance-attestation",
+            "description": "a SLSA provenance attestation is present and decodable",
+            "status": "pass",
+            "detail": "https://slsa.dev/provenance/v1"
+          },
+          {
+            "id": "provenance-subject",
+            "description": "the provenance is bound to the exact published tarball",
+            "status": "pass",
+            "detail": "pkg:npm/%40honua/sdk-js@0.2.6"
+          },
+          {
+            "id": "provenance-builder",
+            "description": "the provenance was produced by this repository's publish workflow",
+            "status": "pass",
+            "detail": ".github/workflows/publish-js-sdk.yml@refs/tags/js-sdk-v0.2.6"
+          },
+          {
+            "id": "source-revision",
+            "description": "the published artifact was built from 45e2fb2c7c35216521319f0e3447661988f2981f",
+            "status": "pass",
+            "detail": "45e2fb2c7c35216521319f0e3447661988f2981f"
+          }
+        ]
+      },
+      "receiptSha256": "da7f7ca9b77fff6d891914b68fb42ec3945e21c449a6840dd3bc95239623025f"
+    }
+  },
+  "workspace": "/tmp/sdk2101-public-default-GUYOLK",
+  "defaultPeerResolution": true,
+  "publicRegistry": "https://registry.npmjs.org/",
+  "commands": [
+    {
+      "command": "npm",
+      "arguments": [
+        "--version"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer",
+      "log": "command-1.log"
+    },
+    {
+      "command": "npm",
+      "arguments": [
+        "config",
+        "list",
+        "--json"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer",
+      "log": "command-2.log"
+    },
+    {
+      "command": "npm",
+      "arguments": [
+        "view",
+        "create-honua-app@0.2.3",
+        "--json"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer",
+      "log": "command-3.log"
+    },
+    {
+      "command": "npm",
+      "arguments": [
+        "view",
+        "create-honua-app@latest",
+        "--json"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer",
+      "log": "command-4.log"
+    },
+    {
+      "command": "npm",
+      "arguments": [
+        "view",
+        "@honua/sdk-js@0.2.6",
+        "--json"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer",
+      "log": "command-5.log"
+    },
+    {
+      "command": "npm",
+      "arguments": [
+        "install",
+        "--save-exact",
+        "create-honua-app@0.2.3"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer",
+      "log": "command-6.log"
+    },
+    {
+      "command": "npm",
+      "arguments": [
+        "exec",
+        "--no",
+        "--",
+        "create-honua-app",
+        "app",
+        "--template",
+        "vanilla-ts"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer",
+      "log": "command-7.log"
+    },
+    {
+      "command": "npm",
+      "arguments": [
+        "install"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer/app",
+      "log": "command-8.log"
+    },
+    {
+      "command": "npm",
+      "arguments": [
+        "run",
+        "build"
+      ],
+      "cwd": "/tmp/sdk2101-public-default-GUYOLK/consumer/app",
+      "log": "command-9.log"
+    }
+  ],
+  "measurement": {
+    "budgetMs": 120000,
+    "elapsedMs": 17402,
+    "withinBudget": true,
+    "stages": [
+      {
+        "name": "verify-registry",
+        "elapsedMs": 1147
+      },
+      {
+        "name": "install-cli",
+        "elapsedMs": 391
+      },
+      {
+        "name": "scaffold",
+        "elapsedMs": 643
+      },
+      {
+        "name": "install-app",
+        "elapsedMs": 12593
+      },
+      {
+        "name": "build",
+        "elapsedMs": 1036
+      },
+      {
+        "name": "serve",
+        "elapsedMs": 296
+      },
+      {
+        "name": "map",
+        "elapsedMs": 1297
+      }
+    ]
+  },
+  "journey": {
+    "mapMounted": true,
+    "canvasPresent": true,
+    "renderedFeatureCount": 4,
+    "dataLane": "fixture",
+    "consoleErrors": [],
+    "externalRequests": []
+  },
+  "npm": "10.9.9",
+  "verifiedNpmConfiguration": {
+    "registry": "https://registry.npmjs.org/",
+    "scopedRegistry": "https://registry.npmjs.org/",
+    "legacyPeerDeps": false,
+    "force": false,
+    "strictSsl": true,
+    "freshCache": true,
+    "emptyUserAndGlobalConfig": true
+  },
+  "scaffoldTarball": {
+    "sha256": "3296650503441e6501174995b987abca14e98c59db37f4367d2eb93aeac205cc",
+    "bytes": 27392,
+    "integrity": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg=="
+  },
+  "observedScaffoldDistTag": {
+    "tag": "latest",
+    "version": "0.2.3",
+    "sourceRevision": "c7d517b0dd12842ed31161d77dd0114abfee2673",
+    "integrity": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg==",
+    "metadataSha256": "22439c4078d5d41d6b7f98eaedd67efc3fb3ba0bf167dc75a70781cb34308444"
+  },
+  "sdkTarball": {
+    "sha256": "8536f3bcfd2e631b330b871e632ad11154451cc53334fa39c333bcdc265ad20f",
+    "bytes": 4143737,
+    "integrity": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg=="
+  },
+  "installedScaffold": {
+    "package": "create-honua-app",
+    "version": "0.2.3",
+    "sourceRevision": "c7d517b0dd12842ed31161d77dd0114abfee2673",
+    "integrity": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg==",
+    "tarball": "https://registry.npmjs.org/create-honua-app/-/create-honua-app-0.2.3.tgz",
+    "defaultPeerResolution": true
+  },
+  "cli": {
+    "path": "/tmp/sdk2101-public-default-GUYOLK/consumer/node_modules/create-honua-app/bin/create-honua-app.mjs",
+    "version": "0.2.3",
+    "sha256": "ac9addf4ccde72cc93e1914d2cc5a1ce4b69b0f4867be977365e1f7fa53f7991"
+  },
+  "installedSdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.2.6",
+    "sourceRevision": "45e2fb2c7c35216521319f0e3447661988f2981f",
+    "integrity": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg==",
+    "tarball": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.2.6.tgz",
+    "defaultPeerResolution": true
+  }
+}

@@ -57,6 +57,16 @@ disconnect, `honua_agent_connect` verifies the same target again. A changed
 credential identity requires a host restart. It never retries an upstream
 mutation after an uncertain response.
 
+After a paired human sends a workspace turn, the same external client can read
+`honua_workspace_conversation` and `honua_workspace_get_turn`, then call
+`honua_agent_connect` with that exact `workspaceId` and `turnId`. The connector
+reads the current authorized turn using its workspace agent key and binds both
+headers to a new upstream session on the same client registration. It refuses
+partial IDs, an unrecognized turn, a bootstrap/admin key, an in-flight switch,
+or a changed target/credential/turn. Each bound call rechecks the current
+credential and turn; the Server still enforces its own current RBAC and grants.
+Binding a turn never approves, uploads, imports, or publishes anything.
+
 Credentials stay in the installer's protected file and the HTTP transport. The
 local agent key has `admin:read`, `admin:write`, and `read:*`; it has no
 `admin:approve` or feature-write grant. Every upstream request carries that key,
@@ -67,7 +77,10 @@ and their approval authority are separate.
 This preview forwards canonical paginated tools, resources, resource templates,
 prompts, request metadata, tool progress, cancellation, and catalog-change
 notifications. It negotiates its own MCP identity and preserves the configured
-workflow view. It does not advertise subscriptions, sampling, roots,
+workflow view. When a client omits its view, the persistent connector selects
+the server's `full` view so Studio and the other GIS workflows remain
+discoverable on the same registration. This changes discovery only; Server
+RBAC and approval policy still govern every operation. It does not advertise subscriptions, sampling, roots,
 completions, or tasks. Durable workflow context, command reconciliation, browser
 pairing, and coordinated Console/Studio artifacts remain tracked in
 [the unified workspace workstream](https://github.com/honua-io/honua-server/issues/6297).

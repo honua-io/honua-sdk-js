@@ -6,7 +6,49 @@ description: "Measure public installed SDK bundles against the canonical First M
 # Installed First Map bundle regression
 
 The bounded installed JavaScript client journey must stay below the canonical
-First Map chunk budget: 1,990,000 JavaScript bytes and 526,000 gzip bytes.
+First Map chunk budget: 2,010,000 JavaScript bytes and 534,000 gzip bytes.
+
+PR #2189 corrects feature geometry with generic metadata and reuses canonical
+polygon topology. Removing duplicate conversion initially kept the packed
+consumer within the prior limit at 532,989 gzip bytes. Review then identified
+legitimate Esri positions with unset optional measures: the rendering adapter
+must project spatial coordinates rather than discard those features. That
+correction measured 1,994,371 raw / 533,062 gzip bytes under default peer
+resolution, 62 gzip bytes above the previous ceiling. The retained
+[local adjustment evidence](evidence/feature-geometry-2188/budget-adjustment.json)
+binds the prepared inputs and package to that failed measurement.
+
+This PR adds 1,000 bytes to the gzip ceiling, retaining the 2,010,000-byte raw
+limit. Every peer/worker identity check, duplicate-runtime check, measurement
+scope and calibrated CPU limit remains unchanged. The final implementation also
+closes polygon rings after dimension projection. It still requires a fresh
+packed execution receipt and the normal hosted CPU check; changing the ceiling
+alone supplies no passing qualification. The final local packed run passed at
+1,994,556 raw / 533,124 gzip bytes with the same renderer identity,
+peer checks passing and three cold contexts measuring execution. All 107 focused
+geometry cases and nine budget-guard cases passed. This local measurement does
+not replace the calibrated hosted CPU check or registry qualification.
+
+The October 19 renderer comparison for issue #2164 holds packed SDK source
+`7936205e0064ef2a080398c14634022c326e2cc7` and the other dependency identities
+fixed. MapLibre 6.14.0 measures 1,971,979 raw / 525,539 gzip bytes; 6.15.0 measures
+1,990,970 / 531,792. Only the MapLibre version and integrity differ. The unchanged
+[trunk CI run](https://github.com/honua-io/honua-sdk-js/actions/runs/39167426241)
+reports the same 6.15.0 totals. The new limits carry the earlier renderer's
+headroom forward with rounding, leaving 19,030 raw / 1,208 gzip bytes above the
+measured 6.15.0 graph. They remain below the example's looser Vite ceilings.
+
+The [comparison](evidence/first-map-renderer-2164/comparison.json) retains the
+dependency change and receipt digests. The
+[6.14.0 receipt](evidence/first-map-renderer-2164/6.14.0.receipt.json) and
+[6.15.0 receipt](evidence/first-map-renderer-2164/6.15.0.receipt.json) preserve their
+original verdicts against the old limits; they are not rewritten as passing
+evidence. Their saved consumer locks permit reproduction with `--local-tarball
+--consumer-lock docs/evidence/first-map-renderer-2164/6.15.0.consumer-lock.json`.
+This comparison did not measure CPU. The peer, worker, duplicate-runtime,
+measurement-scope and CPU checks are unchanged, and qualification still requires
+a fresh packed execution against the new limits plus the calibrated hosted CPU
+gate. No renderer downgrade or dependency-resolution override is required.
 
 PR #2068 adds bounded complete-set gRPC aggregation and exact-count checks,
 including rejection of malformed, duplicate, truncated and overflowing results.

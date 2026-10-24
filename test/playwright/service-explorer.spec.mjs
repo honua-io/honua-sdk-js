@@ -107,6 +107,34 @@ test("service explorer follows inspected truth through a bounded accepted query"
     await page.locator("#cancel-button").click();
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.state)).toBe("cancelled");
 
+    // A `?endpoint=` (+ `protocol`) page URL selects the initial target; an
+    // unoffered protocol hint falls back to `auto` instead of breaking the page.
+    // Folded into this test because the sample gate binds exactly one test
+    // execution per Playwright project.
+    const geoservicesLayer = `${fixtureServer.url}/fixtures/geoservices/rest/services/CitizenRequests/FeatureServer/0`;
+    const endpointTarget = new URL(fixtureServer.url);
+    endpointTarget.searchParams.set("endpoint", geoservicesLayer);
+    endpointTarget.searchParams.set("protocol", "geoservices-feature-service");
+    await page.goto(endpointTarget.href);
+    await expect(page.locator("#endpoint-input")).toHaveValue(geoservicesLayer);
+    await expect(page.locator("#protocol-input")).toHaveValue("geoservices-feature-service");
+    await expect(page.locator("#source-input")).toHaveValue("");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.state))
+      .toMatch(/ready|partial/);
+    await expect(page.locator("#resolved-protocol")).toHaveText("geoservices-feature-service");
+    endpointTarget.searchParams.set("protocol", "not-a-protocol");
+    await page.goto(endpointTarget.href);
+    await expect(page.locator("#endpoint-input")).toHaveValue(geoservicesLayer);
+    await expect(page.locator("#protocol-input")).toHaveValue("auto");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.state))
+      .toMatch(/ready|partial/);
+    // Back to the parameterless page so the defaults (fixture + ogc-features) are restored.
+    await page.goto(fixtureServer.url);
+    await expect(page.locator("#protocol-input")).toHaveValue("ogc-features");
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
+
     // Restore the golden path for shared responsive/a11y evidence and teardown.
     await page.locator("#endpoint-input").fill(`${fixtureServer.url}/fixtures/ogc`);
     await page.locator("#source-input").fill("places");

@@ -31,7 +31,7 @@ through the contract's `Source` handles.
 
 ## MapLibre runtime support
 
-**Security decision, 2026-09-13:** the next SDK release requires `maplibre-gl@^6.4.1`.
+**Security decision, 2026-09-13:** every SDK release from `0.1.12` onward requires `maplibre-gl@^6.4.1`.
 This narrows the former `^5.0.0 || ^6.0.0` peer contract. Every released 5.x and
 6.0.0 through 6.4.0 is affected by
 [GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579);

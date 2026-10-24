@@ -1,0 +1,112 @@
+[
+  {
+    "template": "vanilla-ts",
+    "exit": 0,
+    "receipt": "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/vanilla-ts-v2/receipt.json",
+    "command": [
+      "/home/mike/.local/lib/nodejs/node-v22.23.3-linux-x64/bin/node",
+      "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/published-default-proof.mjs",
+      "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/vanilla-ts-v2.json"
+    ],
+    "status": "passed",
+    "measurement": {
+      "budgetMs": 120000,
+      "elapsedMs": 105799,
+      "withinBudget": true,
+      "stages": [
+        {
+          "name": "verify-registry",
+          "elapsedMs": 10037
+        },
+        {
+          "name": "install-cli",
+          "elapsedMs": 3482
+        },
+        {
+          "name": "scaffold",
+          "elapsedMs": 4140
+        },
+        {
+          "name": "install-app",
+          "elapsedMs": 71406
+        },
+        {
+          "name": "build",
+          "elapsedMs": 9170
+        },
+        {
+          "name": "serve",
+          "elapsedMs": 2051
+        },
+        {
+          "name": "map",
+          "elapsedMs": 5513
+        }
+      ]
+    },
+    "journey": {
+      "mapMounted": true,
+      "canvasPresent": true,
+      "renderedFeatureCount": 4,
+      "dataLane": "fixture",
+      "consoleErrors": [],
+      "externalRequests": []
+    },
+    "failureMessage": ""
+  },
+  {
+    "template": "react-ts",
+    "exit": 1,
+    "receipt": "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/react-ts-v2/receipt.json",
+    "command": [
+      "/home/mike/.local/lib/nodejs/node-v22.23.3-linux-x64/bin/node",
+      "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/published-default-proof.mjs",
+      "/home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/react-ts-v2.json"
+    ],
+    "status": "failed",
+    "measurement": {
+      "budgetMs": 120000,
+      "elapsedMs": 154914,
+      "withinBudget": false,
+      "stages": [
+        {
+          "name": "verify-registry",
+          "elapsedMs": 5886
+        },
+        {
+          "name": "install-cli",
+          "elapsedMs": 3215
+        },
+        {
+          "name": "scaffold",
+          "elapsedMs": 3836
+        },
+        {
+          "name": "install-app",
+          "elapsedMs": 106164
+        },
+        {
+          "name": "build",
+          "elapsedMs": 22339
+        },
+        {
+          "name": "serve",
+          "elapsedMs": 4251
+        },
+        {
+          "name": "map",
+          "elapsedMs": 9221
+        }
+      ]
+    },
+    "journey": {
+      "mapMounted": true,
+      "canvasPresent": true,
+      "renderedFeatureCount": 4,
+      "dataLane": "fixture",
+      "consoleErrors": [],
+      "externalRequests": []
+    },
+    "failureMessage": "Published CLI to rendered map exceeds the unchanged 120-second budget"
+  }
+]

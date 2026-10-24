@@ -9,6 +9,14 @@
 
 import type { HonuaClient } from "./client.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
+import {
+  HonuaStacConformanceError,
+  STAC_CONFORMANCE_CLASS,
+  gateStacSearchExtensions,
+  hasStacConformance,
+  normalizeStacConformsTo,
+  stacSearchExtensionRequirements,
+} from "./stac-conformance.js";
 import type {
   HonuaOgcCollectionMetadata,
   HonuaOgcCollectionsResponse,
@@ -52,6 +60,13 @@ export class HonuaStacSearch {
   private readonly basePath: string | undefined;
   private postSearchProbe: Promise<boolean> | undefined;
   private postSearchSupported: boolean | undefined;
+  /**
+   * `conformsTo` read from the landing page. An explicit `request.conformsTo`
+   * wins for that call and does not replace this cache, keyed by the effective
+   * normalized request base. `[]` means the
+   * landing page was read and declared nothing.
+   */
+  private readonly conformance = new Map<string, readonly string[]>();
   /**
    * Verified state of the POST search path: `undefined` until the first POST
    * attempt, `true` once one succeeded, `false` once one failed (a wrong
@@ -108,21 +123,63 @@ export class HonuaStacSearch {
    * later failures (including mid-drain pages) surface to the caller.
    */
   private async dispatchSearch(request: StacSearchRequest): Promise<HonuaStacItemCollectionResponse> {
-    const wire = this.withBase(request);
+    const prepared = await this.prepareSearch(request);
+    const wire = this.withBase(prepared);
     if (wire.usePost !== true) return this.client.searchStac(wire);
-    const allowPostFallback = request.allowPostFallback !== false;
+    const allowPostFallback = prepared.allowPostFallback !== false;
+    // Preserve POST's implicit JSON language when the transport changes to GET,
+    // whose implicit language would otherwise become Text.
+    const getWire: StacSearchRequest = {
+      ...wire,
+      usePost: false,
+      filterLang: wire.filterLang ?? (wire.filter === undefined ? undefined : "cql2-json"),
+    };
     if (this.postSearchUsable === false && allowPostFallback) {
-      return this.client.searchStac({ ...wire, usePost: false });
+      return this.client.searchStac(getWire);
     }
     try {
       const response = await this.client.searchStac(wire);
       this.postSearchUsable = true;
       return response;
     } catch (error) {
-      if (!allowPostFallback || this.postSearchUsable !== undefined || request.signal?.aborted === true) throw error;
+      // A conformance refusal is not evidence that POST is unreachable.
+      if (error instanceof HonuaStacConformanceError) throw error;
+      if (!allowPostFallback || this.postSearchUsable !== undefined || prepared.signal?.aborted === true) throw error;
       this.postSearchUsable = false;
-      return this.client.searchStac({ ...wire, usePost: false });
+      return this.client.searchStac(getWire);
     }
+  }
+
+  /**
+   * Attach landing-page `conformsTo` before an extension search. A caller-supplied
+   * list is left as-is. When the landing page cannot be read, the search fails
+   * here — `searchStac` would otherwise refuse with the same unread error, but
+   * only after this class had already decided not to name the classes it needed.
+   */
+  private async prepareSearch(request: StacSearchRequest): Promise<StacSearchRequest> {
+    const required = stacSearchExtensionRequirements(request);
+    if (request.conformsTo !== undefined || required.length === 0) return request;
+    const conformance = this.conformance.get(stacBase(this.withBase(request)));
+    if (conformance !== undefined) return { ...request, conformsTo: conformance };
+    try {
+      return { ...request, conformsTo: await this.readConformance(request) };
+    } catch (error) {
+      if (request.signal?.aborted) throw error;
+      throw new HonuaStacConformanceError(
+        required.map((kind) => STAC_CONFORMANCE_CLASS[kind]),
+        { unread: true, cause: error },
+      );
+    }
+  }
+
+  private async readConformance(request: OgcMetadataRequest): Promise<readonly string[]> {
+    const base = stacBase(this.withBase(request));
+    const cached = this.conformance.get(base);
+    if (cached !== undefined) return cached;
+    const landing = await this.landing(request);
+    const conformance = normalizeStacConformsTo(landing.conformsTo);
+    this.conformance.set(base, conformance);
+    return conformance;
   }
 
   /**
@@ -133,8 +190,11 @@ export class HonuaStacSearch {
    * list the endpoint on the landing page as a `rel="search"` link per
    * method (stac-fastapi / pgstac and stac-server emit both a `GET` and a
    * `POST` link). The probe runs at most once per instance and resolves to
-   * `false` when the landing page is unreachable or advertises no POST
-   * search link, so callers fall back to the universally supported `GET`.
+   * `false` when the landing page is unreachable, advertises no POST
+   * search link, or does not declare STAC API Item Search. A missing
+   * item-search class is a method fallback to GET, not a thrown search
+   * failure — extension parameters are refused separately before the
+   * request is serialized.
    */
   public async supportsPostSearch(signal?: AbortSignal): Promise<boolean> {
     if (this.postSearchSupported !== undefined) return this.postSearchSupported;
@@ -152,6 +212,12 @@ export class HonuaStacSearch {
   private async probePostSearch(signal?: AbortSignal): Promise<boolean> {
     try {
       const landing = await this.landing({ signal });
+      const base = stacBase(this.withBase({}));
+      const conformance = this.conformance.get(base) ?? normalizeStacConformsTo(landing.conformsTo);
+      this.conformance.set(base, conformance);
+      // Item Search is what makes `/search` meaningful. A POST link without
+      // that class stays on GET instead of failing the caller's search.
+      if (!hasStacConformance(conformance, "item-search")) return false;
       for (const link of landing.links ?? []) {
         if (link.rel !== "search") continue;
         if (typeof link.method === "string" && link.method.toUpperCase() === "POST") return true;
@@ -372,6 +438,9 @@ export async function searchStac(
   transport: HonuaProtocolTransport,
   request: StacSearchRequest = {},
 ): Promise<HonuaStacItemCollectionResponse> {
+  // Extension parameters are refused before either serializer can emit
+  // `filter-lang`, `fields`, or `sortby`. Core Item Search parameters are not gated.
+  gateStacSearchExtensions(request);
   const base = stacBase(request);
   if (request.usePost) {
     // A GET-shaped continuation (href query string) still applies when the

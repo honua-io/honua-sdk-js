@@ -1,0 +1,26 @@
+{
+  "purpose": "runner preflight only",
+  "node": "v22.23.3",
+  "playwright": "1.58.2",
+  "headlessShell": {
+    "path": "/home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell",
+    "sha256": "27e55cc30e487493b89b663085d6deeb0707be201a568657c922fac9076c317c"
+  },
+  "library": {
+    "path": "/home/mike/.local/state/honua-release-work/browser-runtime/root/usr/lib/x86_64-linux-gnu/libnspr4.so",
+    "sha256": "c32583a53640c144757419b977a76976ee3dbda7b905a0af1046ace3c570ae98"
+  },
+  "status": "passed",
+  "installedQualification": false,
+  "browserVersion": "145.0.7632.6",
+  "observation": {
+    "webgl2": true,
+    "pixel": [
+      255,
+      0,
+      0,
+      255
+    ]
+  },
+  "observedAt": "2026-10-24T12:19:16.930Z"
+}

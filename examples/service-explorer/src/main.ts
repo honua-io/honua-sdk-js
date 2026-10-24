@@ -105,7 +105,7 @@ const presentation = mountSamplePresentation({
   sampleId: "service-explorer",
   evidence: {
     workflow: "public-kernel inspect → strict planner → execution",
-    endpoint: "default endpoint (fixture locally; public demo in hosted deployments)",
+    endpoint: "?endpoint=, VITE_HONUA_SERVICE_EXPLORER_ENDPOINT, or the default (fixture locally; public demo hosted)",
     credentials: "not retained",
   },
   onDispose: () => disposeDemo(),
@@ -171,19 +171,74 @@ function isLocalFixtureHost(location: Location): boolean {
   return hostname === "" || LOCAL_FIXTURE_HOSTNAMES.has(hostname) || hostname.endsWith(".local");
 }
 
-function defaultServiceExplorerTarget(location: Location): { endpoint: string; source: string } {
-  if (isLocalFixtureHost(location)) {
-    return { endpoint: `${location.origin}${LOCAL_FIXTURE_PATH}`, source: LOCAL_FIXTURE_SOURCE };
+interface ServiceExplorerTarget {
+  endpoint: string;
+  protocol: string;
+  source: string;
+}
+
+function readOptional(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/* A build-time hint must be valid (a misconfigured build fails loudly); a
+ * page-URL hint the form does not offer falls back to `auto` so a bad link
+ * still opens a usable explorer. */
+function readProtocolHint(value: string | undefined, origin: "query" | "environment"): string {
+  if (value === undefined) return "auto";
+  const offered = Array.from(protocolInput.options, (option) => option.value);
+  if (offered.includes(value)) return value;
+  if (origin === "query") return "auto";
+  throw new TypeError(
+    `Unsupported VITE_HONUA_SERVICE_EXPLORER_PROTOCOL: ${value}. Expected one of ${offered.join(", ")}.`,
+  );
+}
+
+/*
+ * Initial target precedence:
+ *   1. `?endpoint=` (with optional `?protocol=` and `?source=`) on the page URL,
+ *      so a hosted gallery can deep-link a specific public service;
+ *   2. the build-time `VITE_HONUA_SERVICE_EXPLORER_ENDPOINT` (with optional
+ *      `VITE_HONUA_SERVICE_EXPLORER_PROTOCOL` / `_SOURCE`), mirroring
+ *      `VITE_HONUA_QUICKSTART_ENDPOINT` in the First Map quickstart;
+ *   3. the same-origin fixture on a local host, otherwise the pygeoapi demo.
+ * A configured endpoint without a protocol hint uses `auto` (URL structure only).
+ */
+function defaultServiceExplorerTarget(location: Location): ServiceExplorerTarget {
+  const query = new URLSearchParams(location.search);
+  const queryEndpoint = readOptional(query.get("endpoint"));
+  if (queryEndpoint) {
+    return {
+      endpoint: queryEndpoint,
+      protocol: readProtocolHint(readOptional(query.get("protocol")), "query"),
+      source: readOptional(query.get("source")) ?? "",
+    };
   }
-  return { endpoint: DEMO_SERVICE_EXPLORER_ENDPOINT, source: DEMO_SERVICE_EXPLORER_SOURCE };
+  const envEndpoint = readOptional(import.meta.env.VITE_HONUA_SERVICE_EXPLORER_ENDPOINT);
+  if (envEndpoint) {
+    return {
+      endpoint: envEndpoint,
+      protocol: readProtocolHint(readOptional(import.meta.env.VITE_HONUA_SERVICE_EXPLORER_PROTOCOL), "environment"),
+      source: readOptional(import.meta.env.VITE_HONUA_SERVICE_EXPLORER_SOURCE) ?? "",
+    };
+  }
+  if (isLocalFixtureHost(location)) {
+    return {
+      endpoint: `${location.origin}${LOCAL_FIXTURE_PATH}`,
+      protocol: "ogc-features",
+      source: LOCAL_FIXTURE_SOURCE,
+    };
+  }
+  return { endpoint: DEMO_SERVICE_EXPLORER_ENDPOINT, protocol: "ogc-features", source: DEMO_SERVICE_EXPLORER_SOURCE };
 }
 
 setupThemeToggle();
 
-const { endpoint: defaultEndpoint, source: defaultSource } = defaultServiceExplorerTarget(location);
-endpointInput.value = defaultEndpoint;
-protocolInput.value = "ogc-features";
-sourceInput.value = defaultSource;
+const initialTarget = defaultServiceExplorerTarget(location);
+endpointInput.value = initialTarget.endpoint;
+protocolInput.value = initialTarget.protocol;
+sourceInput.value = initialTarget.source;
 queryLimit.value = String(SERVICE_EXPLORER_DEFAULT_LIMIT);
 window.__HONUA_SERVICE_EXPLORER_DISPOSE__ = () => disposeDemo();
 void inspectEndpoint();

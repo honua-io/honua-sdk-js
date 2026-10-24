@@ -1,0 +1,5 @@
+# SDK 0.2.6 starter evidence
+
+Both repository starter templates passed explicit selection of the published SDK 0.2.6 from the immutable `js-sdk-v0.2.6` source (45e2fb2). `explicit-template-proof.json` binds each raw receipt to its successful `create-honua-app-live.yml` run and its artifact archive hash. Each run observed four rendered feature records from fixture data, a mounted canvas, zero console errors and zero off-origin requests within the unchanged 120-second budget. The runs used the repository scaffold at that tag (`createHonuaAppVersion` 0.2.2) with `--sdk-version 0.2.6`.
+
+This evidence supports advancing the certified fallback and both template dependencies to SDK 0.2.6, the honua-release 2026.1 pin (honua-release#796, #789). It is not a publication receipt for SDK 0.2.6 (the release manifest pins its integrity and gitHead), and it does not establish published scaffold CLI/default selection: that proof (the `default-0xx` convention) requires create-honua-app 0.2.3 to be published first and is recorded after publication. Historical SDK 0.2.1 and 0.2.2 receipts remain unchanged.

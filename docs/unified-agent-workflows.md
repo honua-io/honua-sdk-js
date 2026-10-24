@@ -7,10 +7,17 @@ description: Evaluate, publish and operate GIS resources through one persistent 
 # Unified agent workflows
 
 The connector ships semantic workflow knowledge as `honua.agent-workflow-knowledge/v1`,
-knowledge version `2026-10-17.2`, resource `honua://agent/knowledge/workflows/v1`.
-The packaged module is `mcp/src/agent/workflow-knowledge.ts`; its preconditions,
-canonical actions, resource references and observed outcomes apply equally to an
-external agent and a native conversation. This is guidance, not an execution
+knowledge version `2026-10-19.2`, resource `honua://agent/knowledge/workflows/v1`.
+The canonical source is `src/studio-agent/workflow-knowledge.ts`; the MCP module
+is generated from it with `node scripts/sync-workflow-knowledge.mjs --write`.
+External MCP clients read the resource. SDK conversation hosts can opt into the
+same versioned preconditions, canonical actions, resource references and observed
+outcomes with the `workflowKnowledge` session option. Its packaged data is also
+exported from `@honua/sdk-js/studio-agent`. The option adds guidance to each turn's
+fresh host system context without changing tool discovery or authorization.
+Native Console integration requires a matching published SDK and an editor bundle
+that enables this option; its current default is not qualified by this SDK change.
+This is guidance, not an execution
 language or a claim of live qualification. Discover the connected target's actual
 tool schemas before acting; missing capabilities remain unsupported.
 
@@ -45,7 +52,14 @@ external agents use the explicit workspace tool contracts. A client connection
 alone does not supply the browser's current selection or establish human pairing.
 
 For data, validate the source schema and CRS, import/connect, wait for the actual
-job outcome, publish a service/layer, and query it. For a map or app, compose and
+job outcome, publish a service/layer, and query it. A successful inline ingest
+can still lack a registered catalog connection; complete the discovered
+secret-reference-only connection operation before publication rather than
+inventing a connection ID. The local installer permits the fixed
+`env:HONUA_LOCAL_DB_PASSWORD` reference without exposing its value. If the
+connected release does not advertise that operation, report the missing step.
+Check the stored table CRS separately from source detection whenever import
+transforms coordinates. For a map or app, compose and
 style against those resource references, validate, save an immutable Studio
 version, then read/reopen it before publishing. Preserve unrelated concurrent
 edits by reconciling against the current draft revision. A `Published` receipt
@@ -99,7 +113,7 @@ See [MCP integration](mcp-server.md), [Studio versioning](studio-package-contrac
 Name the intended result, data or resource, target, and what should be verified.
 You do not need to translate the request into tool calls:
 
-- **Set up:** "Set up Honua locally in Docker. Check this machine first, then verify the running server and my agent's access."
+- **Set up:** "Set up Honua locally in Docker. Check this machine first, register its built-in database, and verify the running server and my agent's access."
 - **Import and publish:** "Import this parcels file, check its CRS and geometry, publish it as Parcels, and query the result. Ask me for missing source details."
 - **Make a map:** "Use Parcels to make a map colored by land use. Show changes live, save a version, reopen it, and publish it when validation succeeds."
 - **Build a process:** "Create a process that buffers these roads and intersects the result with Parcels. Run it, show any errors, and add the successful output to my map."
@@ -114,3 +128,19 @@ references rather than repeat completed mutations.
 
 Operators connecting the private extension can use the deeper
 [host configuration reference](unified-agent-host-configuration.md).
+
+### Reading large process catalogs and job results
+
+`honua://catalog/processes` and other JSON resources can span multiple text
+windows. A first `resources/read` response can contain incomplete JSON with a
+`nextCursor`. Echo that opaque value in the next request's `cursor`, retain the
+same URI, and concatenate text for that URI until the cursor is absent before
+parsing JSON. The gateway preserves these Honua extensions. `maxChars` optionally
+sets the per-request character budget from 1 through 1,000,000; omitting it uses
+the Server default of 64,000. Clients must bound page counts and reject repeated
+cursors rather than loop indefinitely.
+
+The native SDK exposes the same window contract through
+`McpClient.readResource(uri, { cursor, maxChars, signal })`. Its result includes
+`nextCursor`; reads do not automatically retry, switch targets or execute jobs.
+Single-window `readResource(uri)` calls remain valid.

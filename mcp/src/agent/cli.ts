@@ -10,10 +10,12 @@ import { createLocalAgentRuntime, nativeWorkspaceFromEnv } from "./local-runtime
 export async function runAgent(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const directory = env.HONUA_AGENT_INSTALL_DIRECTORY ?? path.join(homedir(), ".honua", "local");
   const runtime = createLocalAgentRuntime(directory, nativeWorkspaceFromEnv(env));
+  const holder: { gateway?: HonuaAgentGateway } = {};
   const devops = env.HONUA_AGENT_DEVOPS_CONFIG
-    ? await configuredDevOps(env.HONUA_AGENT_DEVOPS_CONFIG, runtime)
+    ? await configuredDevOps(env.HONUA_AGENT_DEVOPS_CONFIG, runtime, fetch, () => holder.gateway?.currentTurnBinding())
     : undefined;
   const gateway = new HonuaAgentGateway(runtime, undefined, devops);
+  holder.gateway = gateway;
   const close = () => {
     void gateway.close().catch(() => {});
   };

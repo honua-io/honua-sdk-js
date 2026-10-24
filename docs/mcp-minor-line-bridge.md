@@ -33,31 +33,33 @@ changelog entry and matching PR body, and sends the resulting exact head through
 normal CI. It leaves historical release notes and other dependencies unchanged;
 versions and changelogs are never corrected by hand.
 
-The delivery order is:
+The completed Node 20-to-22 transition followed this delivery order. These are
+historical steps; use the current published-pin guidance below for new releases.
 
-1. Merge the compatibility bridge while retaining the current Node 20 baseline,
-   then complete the normal managed current-line SDK/MCP patch release. Verify
-   the real public artifacts and default-resolver installation.
-2. Run canonical `sync:mcp-pin` against that published bridge. Record and verify
-   its peer range from the actual integrity-verified tarball `package.json`,
-   require agreement with the registry manifest, and retain the package JSON
-   hash in `config/mcp-pinned-peer.v1.json`. The sync verifies all inputs before
+1. The compatibility bridge merged while retaining the Node 20 baseline,
+   followed by the normal managed current-line SDK/MCP patch release and
+   verification of its real public artifacts and default-resolver installation.
+2. Canonical `sync:mcp-pin` recorded the published bridge's peer range from its
+   integrity-verified tarball `package.json`, checked agreement with the registry
+   manifest, and retained the package JSON hash in
+   `config/mcp-pinned-peer.v1.json`. The sync verifies all inputs before
    writing this receipt and either pin home. Offline verification binds the
    recorded peer to the exact pin and integrity; live verification downloads and
    checks those bytes again. An inferred caret based on the independently
-   versioned MCP release cannot describe this bridge. The current bridge is the published `@honua/mcp-server@0.1.19`; the
-   synchronized pin and receipt identify its verified public bytes.
-3. Merge the approved Node 22 breaking baseline and let Release Please compute
-   the next minor versions. Preserve the public bridge pin until the next MCP
-   artifact is actually published. The existing packed/public installation and
-   release verification gates remain mandatory.
+   versioned MCP release cannot describe this bridge. The historical Node 20 bridge used published
+   `@honua/mcp-server@0.1.19`. Keep its immutable receipts as transition
+   evidence; it is no longer the current generated-client pin.
+3. The approved Node 22 breaking baseline merged, and Release Please computed
+   the next minor versions. The public bridge pin was retained until the next
+   MCP artifact was published. The existing packed/public installation and
+   release verification gates remain mandatory for subsequent releases.
 
 A range declaration proves metadata compatibility only. Source/runtime tests,
 managed updater checks, and real default-resolver installations are separate
-proofs. A future 0.2 package is not published or qualified by this policy change.
+proofs. This policy change alone did not publish or qualify the subsequent 0.2 packages.
 Historical Node 20 receipts and the certified scaffold fallback remain intact.
 
-## Recovered bridge and the next release boundary
+## Historical bridge recovery and release boundary
 
 SDK 0.1.18 was sealed from the reviewed Node 20 source
 `7768fa900a9d02c2045d15a116cfcb8fab6fdd95`. MCP 0.1.19 was published from
@@ -65,17 +67,29 @@ SDK 0.1.18 was sealed from the reviewed Node 20 source
 artifacts preserve that supported Node 20 bridge. The MCP publisher passed a
 real default-resolution install beside public SDK 0.1.18 before publication.
 
-Current trunk already requires Node 22.12 or newer for both SDK and MCP. The
-recovered SDK tag is on an earlier reviewed branch, and the managed release
-history scan did not carry the original engine-floor declaration into both
-components' next version calculation. The pin change therefore declares the
-same breaking boundary in the forward SDK and MCP history: Node 20 is
-unsupported in the next release. Release Please must compute SDK **0.2.0** and
-MCP **0.2.0** through the normal managed workflow. A proposed 0.1 patch containing
-that engine change remains unpublishable; no version override or manual tag is
-permitted.
+At the recovery checkpoint, trunk required Node 22.12 or newer for both SDK
+and MCP, while the recovered SDK tag belonged to an earlier reviewed branch.
+The managed release history scan had not carried the original engine-floor
+declaration into both components' next version calculation. The forward
+history therefore had to declare the same breaking boundary: the Node 22
+transition required SDK **0.2.0** and MCP **0.2.0** through Release Please,
+rather than a 0.1 patch. That release-boundary requirement is historical; no
+version override or manual tag is permitted.
 
 The independent public-byte receipts are retained under
-`docs/evidence/mcp-bridge-2070/`. They prove the current-line artifact identities,
-not the future minor pair. Its actual default-resolution publication and public
-registry verification remain required before the transition is complete.
+`docs/evidence/mcp-bridge-2070/`. They prove the historical Node 20 artifact identities; they do not describe
+the current synchronized pin.
+
+## Current published pin
+
+The current generated-client pin is published `@honua/mcp-server@0.2.6`.
+`config/mcp-pinned-peer.v1.json`, `src/local-install.ts`, and all three shipped
+zero-to-map client configurations identify that release and its verified
+registry integrity. Its SDK peer range remains `^0.1.17 || ^0.2.0`.
+
+The previous pin pair, public SDK 0.2.4 and MCP 0.2.4, passed a real co-install under npm's
+default peer resolver. Keep using `sync:mcp-pin` after a coordinated MCP
+publication and run `verify:mcp-pin` and `verify:client-pair:registry` against
+the resulting pin. Generated CLI changes reach consumers through the normal
+next SDK release. Package co-installation does not qualify the complete
+Docker-to-map workflow; that still needs the installed integration journey.

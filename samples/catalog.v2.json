@@ -950,7 +950,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-11-18T12:13:55.678Z"
+          "expiresAt": "2026-11-24T08:10:32.378Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -968,8 +968,8 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "First Map: Maui census tracts in MapLibre",
-      "summary": "Starts with all 48 governed Maui County census tracts on an interactive map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
+      "title": "First Map: a Maui County layer in MapLibre",
+      "summary": "Starts with a Maui County feature layer on an interactive map (the governed 2025 Census tract fixture, or the anonymous live Maui parcels layer when built against a live endpoint), then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
       "sourceKind": "root-example",
       "track": "golden",
       "journeyId": "first-map",
@@ -1056,7 +1056,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-11-18T12:11:49.301Z"
+          "expiresAt": "2026-11-24T08:08:55.342Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1178,7 +1178,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-11-18T12:14:20.020Z"
+          "expiresAt": "2026-11-24T08:10:52.932Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -2115,7 +2115,10 @@
         "authMode": "anonymous",
         "config": [
           "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
-          "VITE_HONUA_BASEMAP_STYLE"
+          "VITE_HONUA_BASEMAP_STYLE",
+          "VITE_HONUA_SERVICE_EXPLORER_ENDPOINT",
+          "VITE_HONUA_SERVICE_EXPLORER_PROTOCOL",
+          "VITE_HONUA_SERVICE_EXPLORER_SOURCE"
         ],
         "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
         "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
@@ -2129,6 +2132,21 @@
           },
           {
             "name": "VITE_HONUA_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_ENDPOINT",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_PROTOCOL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_SOURCE",
             "exposure": "browser-public",
             "valueKind": "non-secret"
           }
@@ -2149,7 +2167,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-11-18T12:15:27.603Z"
+          "expiresAt": "2026-11-24T08:11:48.104Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
