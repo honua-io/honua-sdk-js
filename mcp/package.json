@@ -82,12 +82,13 @@
     "@aws-sdk/client-bedrock-runtime": "^3.901.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "ajv": "^8.20.0",
-    "zod": "^3.24.0"
+    "body-parser": "^2.4.0",
+    "zod": "^4.6.6"
   },
   "overrides": {
     "hono": "^4.13.13",
     "@hono/node-server": "^2.0.5",
-    "fast-uri": "^3.1.8",
+    "fast-uri": "^3.1.9",
     "qs": "^6.16.0"
   },
   "peerDependencies": {

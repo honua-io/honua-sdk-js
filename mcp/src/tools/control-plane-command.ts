@@ -205,9 +205,9 @@ function zodForObject(schema: HonuaCommandJsonSchema): z.ZodTypeAny {
   const properties = schema.properties;
   // An object with no declared properties (`options` on `import.create`) is a
   // free-form bag the command passes through verbatim.
-  if (!properties) return z.record(z.unknown());
+  if (!properties) return z.record(z.string(), z.unknown());
   const required = new Set(schema.required ?? []);
-  const shape: z.ZodRawShape = {};
+  const shape: Record<string, z.ZodType> = {};
   for (const [name, property] of Object.entries(properties)) {
     const value = zodForSchema(property);
     shape[name] = required.has(name) ? value : value.optional();

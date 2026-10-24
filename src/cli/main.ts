@@ -19,6 +19,7 @@ import { connectionCommand, importCommand } from "./commands/control-plane.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { explainCommand } from "./commands/explain.js";
 import { geocodeCommand } from "./commands/geocode.js";
+import { gpCommand } from "./commands/gp.js";
 import { loginCommand, logoutCommand, whoamiCommand } from "./commands/login.js";
 import { mapCommand, tilesCommand } from "./commands/map.js";
 import { queryCommand } from "./commands/query.js";
@@ -145,6 +146,10 @@ CATALOG
   honua services                              List published services
   honua layers <service>                      List layers/tables in a service
 
+LOCAL GP DEVELOPMENT
+  honua gp <command> [options]                Delegate to the installed honua-gp-devkit
+      No server URL required. Install the devkit separately or set HONUA_GP_CLI.
+
 DATA
   honua query <service>/<layer> [options]     Query features (the workhorse verb)
       --where <sql>        SQL filter (default 1=1)
@@ -256,6 +261,12 @@ EXAMPLES
  */
 export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<CommandContext> = {}): Promise<number> {
   const command = argv[0];
+
+  // The engine owns its arguments, including repeated parameters and --help.
+  // Do not parse these as server flags or fall back to a remote submission.
+  if (command === "gp") {
+    return gpCommand(argv.slice(1));
+  }
 
   // Top-level help / version (also when no command given).
   if (!command || command === "help" || command === "--help" || command === "-h") {
