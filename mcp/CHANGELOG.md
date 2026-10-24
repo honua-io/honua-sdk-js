@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.10](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.9...mcp-server-v0.2.10) (2026-10-24)
+
+
+### Features
+
+* **cli:** delegate GP commands to the local devkit ([a161ea0](https://github.com/honua-io/honua-sdk-js/commit/a161ea0a12b9beb563b676547f348cb73c1ba605))
+
+
+### Bug Fixes
+
+* **mcp:** clear production audit findings on the GP CLI branch ([abef1f0](https://github.com/honua-io/honua-sdk-js/commit/abef1f0949145587b434d97b116479ce5e54afd8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.1.17 || ^0.2.0
+
 ## [0.2.9](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.8...mcp-server-v0.2.9) (2026-10-22)
 
 
