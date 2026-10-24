@@ -1,0 +1,164 @@
+{
+  "format": "honua.scaffold-published-default-summary/v1",
+  "status": "failed",
+  "scope": "Published CLI defaults and actual fixture rendering; React exceeds the unchanged120-second budget. No installed server qualification.",
+  "scaffoldVersion": "0.2.3",
+  "sdkVersion": "0.2.6",
+  "attempts": [
+    {
+      "attempt": "vanilla-ts",
+      "receipt": "vanilla-ts/receipt.json.raw",
+      "sha256": "00382df55b4e6c92a647389a99f988440894d717049867d03bd39fc84200c20c",
+      "status": "failed",
+      "template": "vanilla-ts",
+      "measurement": {
+        "budgetMs": 120000,
+        "elapsedMs": 147466,
+        "withinBudget": false,
+        "stages": [
+          {
+            "name": "verify-registry",
+            "elapsedMs": 8884
+          },
+          {
+            "name": "install-cli",
+            "elapsedMs": 3362
+          },
+          {
+            "name": "scaffold",
+            "elapsedMs": 2356
+          },
+          {
+            "name": "install-app",
+            "elapsedMs": 100582
+          },
+          {
+            "name": "build",
+            "elapsedMs": 18937
+          },
+          {
+            "name": "serve",
+            "elapsedMs": 4467
+          }
+        ]
+      },
+      "journey": {
+        "mapMounted": false,
+        "canvasPresent": false,
+        "renderedFeatureCount": 0,
+        "dataLane": "fixture",
+        "consoleErrors": [],
+        "externalRequests": []
+      },
+      "failure": {
+        "message": "browserType.launch: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/tmp/playwright_chromiumdev_profile-gzqO3R --remote-debugging-pipe --no-startup-window\n<launched> pid=139642\n[pid=139642][err] /home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell: error while loading shared libraries: libnspr4.so: cannot open shared object file: No such file or directory\nCall log:\n\u001b[2m  - <launching> /home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/tmp/playwright_chromiumdev_profile-gzqO3R --remote-debugging-pipe --no-startup-window\u001b[22m\n\u001b[2m  - <launched> pid=139642\u001b[22m\n\u001b[2m  - [pid=139642][err] /home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell: error while loading shared libraries: libnspr4.so: cannot open shared object file: No such file or directory\u001b[22m\n\u001b[2m  - [pid=139642] <gracefully close start>\u001b[22m\n\u001b[2m  - [pid=139642] <kill>\u001b[22m\n\u001b[2m  - [pid=139642] <will force kill>\u001b[22m\n\u001b[2m  - [pid=139642] exception while trying to kill process: Error: kill ESRCH\u001b[22m\n\u001b[2m  - [pid=139642] <process did exit: exitCode=127, signal=null>\u001b[22m\n\u001b[2m  - [pid=139642] starting temporary directories cleanup\u001b[22m\n\u001b[2m  - [pid=139642] finished temporary directories cleanup\u001b[22m\n\u001b[2m  - [pid=139642] <gracefully close end>\u001b[22m\n",
+        "stack": "browserType.launch: Target page, context or browser has been closed\nBrowser logs:\n\n<launching> /home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/tmp/playwright_chromiumdev_profile-gzqO3R --remote-debugging-pipe --no-startup-window\n<launched> pid=139642\n[pid=139642][err] /home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell: error while loading shared libraries: libnspr4.so: cannot open shared object file: No such file or directory\nCall log:\n\u001b[2m  - <launching> /home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --enable-automation --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/tmp/playwright_chromiumdev_profile-gzqO3R --remote-debugging-pipe --no-startup-window\u001b[22m\n\u001b[2m  - <launched> pid=139642\u001b[22m\n\u001b[2m  - [pid=139642][err] /home/mike/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell: error while loading shared libraries: libnspr4.so: cannot open shared object file: No such file or directory\u001b[22m\n\u001b[2m  - [pid=139642] <gracefully close start>\u001b[22m\n\u001b[2m  - [pid=139642] <kill>\u001b[22m\n\u001b[2m  - [pid=139642] <will force kill>\u001b[22m\n\u001b[2m  - [pid=139642] exception while trying to kill process: Error: kill ESRCH\u001b[22m\n\u001b[2m  - [pid=139642] <process did exit: exitCode=127, signal=null>\u001b[22m\n\u001b[2m  - [pid=139642] starting temporary directories cleanup\u001b[22m\n\u001b[2m  - [pid=139642] finished temporary directories cleanup\u001b[22m\n\u001b[2m  - [pid=139642] <gracefully close end>\u001b[22m\n\n    at probeFirstMap (/home/mike/honua-io/sdk-final-scaffold-proof-20261014/scripts/lib/create-honua-app-browser.mjs:14:89)\n    at async file:///home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/published-default-proof.mjs:196:3"
+      }
+    },
+    {
+      "attempt": "vanilla-ts-v2",
+      "receipt": "vanilla-ts-v2/receipt.json.raw",
+      "sha256": "bd7bda7ab8e0d00f6a141ffc1f6c820b88a85749d7d1d1f91cc60de72788234e",
+      "status": "passed",
+      "template": "vanilla-ts",
+      "measurement": {
+        "budgetMs": 120000,
+        "elapsedMs": 105799,
+        "withinBudget": true,
+        "stages": [
+          {
+            "name": "verify-registry",
+            "elapsedMs": 10037
+          },
+          {
+            "name": "install-cli",
+            "elapsedMs": 3482
+          },
+          {
+            "name": "scaffold",
+            "elapsedMs": 4140
+          },
+          {
+            "name": "install-app",
+            "elapsedMs": 71406
+          },
+          {
+            "name": "build",
+            "elapsedMs": 9170
+          },
+          {
+            "name": "serve",
+            "elapsedMs": 2051
+          },
+          {
+            "name": "map",
+            "elapsedMs": 5513
+          }
+        ]
+      },
+      "journey": {
+        "mapMounted": true,
+        "canvasPresent": true,
+        "renderedFeatureCount": 4,
+        "dataLane": "fixture",
+        "consoleErrors": [],
+        "externalRequests": []
+      },
+      "failure": null
+    },
+    {
+      "attempt": "react-ts-v2",
+      "receipt": "react-ts-v2/receipt.json.raw",
+      "sha256": "a71b670d3d2aa68dc0a94bd4b0cd225f0cb3ed11152ddc3f76c8ba27007041bd",
+      "status": "failed",
+      "template": "react-ts",
+      "measurement": {
+        "budgetMs": 120000,
+        "elapsedMs": 154914,
+        "withinBudget": false,
+        "stages": [
+          {
+            "name": "verify-registry",
+            "elapsedMs": 5886
+          },
+          {
+            "name": "install-cli",
+            "elapsedMs": 3215
+          },
+          {
+            "name": "scaffold",
+            "elapsedMs": 3836
+          },
+          {
+            "name": "install-app",
+            "elapsedMs": 106164
+          },
+          {
+            "name": "build",
+            "elapsedMs": 22339
+          },
+          {
+            "name": "serve",
+            "elapsedMs": 4251
+          },
+          {
+            "name": "map",
+            "elapsedMs": 9221
+          }
+        ]
+      },
+      "journey": {
+        "mapMounted": true,
+        "canvasPresent": true,
+        "renderedFeatureCount": 4,
+        "dataLane": "fixture",
+        "consoleErrors": [],
+        "externalRequests": []
+      },
+      "failure": {
+        "message": "Published CLI to rendered map exceeds the unchanged 120-second budget",
+        "stack": "AssertionError [ERR_ASSERTION]: Published CLI to rendered map exceeds the unchanged 120-second budget\n    at file:///home/mike/honua-io/artifacts/release-merge-queue-20261024/scaffold023-registry-browser/published-default-proof.mjs:199:10"
+      }
+    }
+  ]
+}

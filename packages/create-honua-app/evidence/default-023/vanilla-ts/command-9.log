@@ -1,0 +1,17 @@
+
+> app@0.0.0 build
+> vite build
+
+vite v8.2.0 building client environment for production...
+transforming...
+✓ 204 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                 2.01 kB │ gzip:   0.75 kB
+dist/assets/maplibre-gl-worker-B3hwrOjv.js    470.49 kB
+dist/assets/index-v7_0gPrM.css                 84.75 kB │ gzip:  11.43 kB
+dist/assets/sdk-js-BKVLOYmV.js                  0.08 kB │ gzip:   0.10 kB
+dist/assets/odata-write-codec-BT4jCYAB.js      18.68 kB │ gzip:   5.69 kB
+dist/assets/index-CViVAmUr.js               1,731.63 kB │ gzip: 454.01 kB
+
+✓ built in 9.97s
