@@ -456,7 +456,8 @@ test("configDefaults describes only the browser-public config surface", () => {
   // server-only settings; publishing those in a field the schema documents as
   // the browser-public surface overstates what a consumer can influence and
   // leaks backend topology. The AI builder has an entirely server-only
-  // surface; service-explorer also exposes its optional browser basemap style.
+  // surface; service-explorer also exposes its optional browser basemap style and
+  // initial endpoint/protocol/source.
   // Both remain regression canaries for server-only settings.
   for (const included of INCLUDED_SAMPLES) {
     const entry = catalogById.get(included.id);
@@ -472,7 +473,12 @@ test("configDefaults describes only the browser-public config surface", () => {
     }
   }
   assert.deepEqual(browserPublicConfigNames(catalogById.get("ai-spatial-app-builder")), []);
-  assert.deepEqual(browserPublicConfigNames(catalogById.get("service-explorer")), ["VITE_HONUA_BASEMAP_STYLE"]);
+  assert.deepEqual(browserPublicConfigNames(catalogById.get("service-explorer")), [
+    "VITE_HONUA_BASEMAP_STYLE",
+    "VITE_HONUA_SERVICE_EXPLORER_ENDPOINT",
+    "VITE_HONUA_SERVICE_EXPLORER_PROTOCOL",
+    "VITE_HONUA_SERVICE_EXPLORER_SOURCE",
+  ]);
   assert.deepEqual(browserPublicConfigNames(catalogById.get("imagery-cog-quickstart")), ["VITE_HONUA_IMAGERY_BASE_URL"]);
 });
 
