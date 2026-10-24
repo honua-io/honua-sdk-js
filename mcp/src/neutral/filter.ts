@@ -56,7 +56,7 @@ export const geoJsonGeometrySchema = z
  * compatibility). Kept as a loose record so an Esri envelope / rings payload
  * from an existing client still validates.
  */
-export const geometrySchema = z.record(z.unknown());
+export const geometrySchema = z.record(z.string(), z.unknown());
 
 export const bboxSchema = z
   .array(z.number())
