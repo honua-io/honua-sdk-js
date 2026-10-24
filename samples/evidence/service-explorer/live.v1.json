@@ -6,12 +6,12 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-10-24T14:13:01.413Z",
+  "observedAt": "2026-10-24T18:09:59.651Z",
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.2.9",
-    "gitCommit": "954f2290866c496e0c662893672c6a8a2cf4132c"
+    "version": "0.2.10",
+    "gitCommit": "1c5bce14da64095c78f10b1ae2c0270317295109"
   },
   "source": {
     "provider": "esri-sampleserver6-and-pygeoapi-demo",
@@ -22,7 +22,7 @@
   },
   "provenance": {
     "sourceId": "canonical-anonymous-geoservices+canonical-anonymous-ogc-features",
-    "observedAt": "2026-10-24T14:13:01.413Z",
+    "observedAt": "2026-10-24T18:09:59.651Z",
     "validAt": null,
     "state": "live",
     "attribution": "Esri sample services and the pygeoapi development team."
@@ -42,8 +42,8 @@
     ]
   },
   "timing": {
-    "totalMs": 1946.236154,
-    "firstSuccessfulInteractionMs": 373.729641
+    "totalMs": 2352.140732,
+    "firstSuccessfulInteractionMs": 432.984244
   },
   "degradation": {
     "state": "none",
