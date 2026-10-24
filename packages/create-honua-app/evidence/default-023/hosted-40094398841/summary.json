@@ -1,0 +1,180 @@
+{
+  "format": "honua.scaffold-published-default-summary/v1",
+  "status": "passed",
+  "scope": "Published default CLI with fixture map; not installed server or Cognito qualification",
+  "workflowRun": "https://github.com/honua-io/honua-sdk-js/actions/runs/40094398841",
+  "producerRevision": "749b429b50ef52ade7d88aa6091bd49a6f608168",
+  "templates": [
+    {
+      "artifactId": 12560565799,
+      "artifactSha256": "881a9daf41fca0ba558183049851efc6a55a6c3209e7c8bb679a4af29cbdda82",
+      "receiptSha256": "c0109381844cf331ca3a8c0c641bd804d2f32968e8872efe0e8bfe52e66d0ddc",
+      "template": "vanilla-ts",
+      "status": "passed",
+      "measurement": {
+        "budgetMs": 120000,
+        "elapsedMs": 17402,
+        "withinBudget": true,
+        "stages": [
+          {
+            "name": "verify-registry",
+            "elapsedMs": 1147
+          },
+          {
+            "name": "install-cli",
+            "elapsedMs": 391
+          },
+          {
+            "name": "scaffold",
+            "elapsedMs": 643
+          },
+          {
+            "name": "install-app",
+            "elapsedMs": 12593
+          },
+          {
+            "name": "build",
+            "elapsedMs": 1036
+          },
+          {
+            "name": "serve",
+            "elapsedMs": 296
+          },
+          {
+            "name": "map",
+            "elapsedMs": 1297
+          }
+        ]
+      },
+      "journey": {
+        "mapMounted": true,
+        "canvasPresent": true,
+        "renderedFeatureCount": 4,
+        "dataLane": "fixture",
+        "consoleErrors": [],
+        "externalRequests": []
+      },
+      "runner": {
+        "producerRevision": "749b429b50ef52ade7d88aa6091bd49a6f608168",
+        "node": "v22.23.3",
+        "platform": "linux",
+        "architecture": "x64",
+        "release": "6.17.0-1022-azure",
+        "cpus": 4,
+        "availableParallelism": 4,
+        "runId": "40094398841",
+        "runAttempt": "1",
+        "cohortSha256": "63eb43038dbd8ae2aeb115690c306c83aec2bd697da06b60c706380e26026b65",
+        "installedServerQualification": false
+      },
+      "scaffold": {
+        "package": "create-honua-app",
+        "version": "0.2.3",
+        "sourceRevision": "c7d517b0dd12842ed31161d77dd0114abfee2673",
+        "integrity": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg==",
+        "tarball": "https://registry.npmjs.org/create-honua-app/-/create-honua-app-0.2.3.tgz",
+        "defaultPeerResolution": true
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.2.6",
+        "sourceRevision": "45e2fb2c7c35216521319f0e3447661988f2981f",
+        "integrity": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg==",
+        "tarball": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.2.6.tgz",
+        "defaultPeerResolution": true
+      },
+      "documentationProvenance": {
+        "publishedReadmeMatchesOwnSource": true,
+        "readmeSha256": "e57656c79559963bc38f8f65ec7c266b2d5fdf273ba803dcdc0ce4c918b32c42",
+        "readmeSdkVersion": "0.2.6",
+        "readmeNotInReleasePleaseExtraFiles": true
+      }
+    },
+    {
+      "artifactId": 12560238027,
+      "artifactSha256": "ff7b3dc298ffb437d92fb94f5b027d15614cf3f3cff82917164bb4fd491f1a42",
+      "receiptSha256": "d4336c3bf855d3c5b40fd5615d5c17642b2f0fd267c4af6c0939f1d88baea53a",
+      "template": "react-ts",
+      "status": "passed",
+      "measurement": {
+        "budgetMs": 120000,
+        "elapsedMs": 17743,
+        "withinBudget": true,
+        "stages": [
+          {
+            "name": "verify-registry",
+            "elapsedMs": 1347
+          },
+          {
+            "name": "install-cli",
+            "elapsedMs": 402
+          },
+          {
+            "name": "scaffold",
+            "elapsedMs": 634
+          },
+          {
+            "name": "install-app",
+            "elapsedMs": 12779
+          },
+          {
+            "name": "build",
+            "elapsedMs": 1052
+          },
+          {
+            "name": "serve",
+            "elapsedMs": 305
+          },
+          {
+            "name": "map",
+            "elapsedMs": 1224
+          }
+        ]
+      },
+      "journey": {
+        "mapMounted": true,
+        "canvasPresent": true,
+        "renderedFeatureCount": 4,
+        "dataLane": "fixture",
+        "consoleErrors": [],
+        "externalRequests": []
+      },
+      "runner": {
+        "producerRevision": "749b429b50ef52ade7d88aa6091bd49a6f608168",
+        "node": "v22.23.3",
+        "platform": "linux",
+        "architecture": "x64",
+        "release": "6.17.0-1022-azure",
+        "cpus": 4,
+        "availableParallelism": 4,
+        "runId": "40094398841",
+        "runAttempt": "1",
+        "cohortSha256": "63eb43038dbd8ae2aeb115690c306c83aec2bd697da06b60c706380e26026b65",
+        "installedServerQualification": false
+      },
+      "scaffold": {
+        "package": "create-honua-app",
+        "version": "0.2.3",
+        "sourceRevision": "c7d517b0dd12842ed31161d77dd0114abfee2673",
+        "integrity": "sha512-c0BtwadHMxHbxIFKyAti3hmugy1Sb+h0/lw7o034mj+rAmDUUQiYFSmU0nZwSaQj2qBdtXSzFHou1qPD9xS2qg==",
+        "tarball": "https://registry.npmjs.org/create-honua-app/-/create-honua-app-0.2.3.tgz",
+        "defaultPeerResolution": true
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.2.6",
+        "sourceRevision": "45e2fb2c7c35216521319f0e3447661988f2981f",
+        "integrity": "sha512-Hq0g50tERfIyNiw7gtoEpshAyDWG2UosRk/SBo96c/CrcwJR4pcTKiLsDOHqkPUtP3OUIa1/SaH7AV6bejHtlg==",
+        "tarball": "https://registry.npmjs.org/@honua/sdk-js/-/sdk-js-0.2.6.tgz",
+        "defaultPeerResolution": true
+      },
+      "documentationProvenance": {
+        "publishedReadmeMatchesOwnSource": true,
+        "readmeSha256": "e57656c79559963bc38f8f65ec7c266b2d5fdf273ba803dcdc0ce4c918b32c42",
+        "readmeSdkVersion": "0.2.6",
+        "readmeNotInReleasePleaseExtraFiles": true
+      }
+    }
+  ],
+  "earlierLocalResult": "../summary.json"
+}

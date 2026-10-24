@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "repository": "honua-io/honua-sdk-js",
+  "sdk": {
+    "id": "sdk-js",
+    "npmName": "@honua/sdk-js",
+    "version": "0.2.6",
+    "distTag": "latest",
+    "tag": "js-sdk-v0.2.6",
+    "commit": "45e2fb2c7c35216521319f0e3447661988f2981f",
+    "sourceBinding": "sealed-js-sdk-tag",
+    "expectedRef": "refs/tags/js-sdk-v0.2.6",
+    "workflow": ".github/workflows/publish-js-sdk.yml"
+  },
+  "scaffold": {
+    "id": "create-honua-app",
+    "npmName": "create-honua-app",
+    "version": "0.2.3",
+    "distTag": "latest",
+    "tag": "create-honua-app-v0.2.3",
+    "commit": "c7d517b0dd12842ed31161d77dd0114abfee2673",
+    "sourceBinding": "own-release-tag",
+    "expectedRef": "refs/tags/create-honua-app-v0.2.3",
+    "workflow": ".github/workflows/publish-create-honua-app.yml"
+  }
+}

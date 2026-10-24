@@ -6,7 +6,7 @@ zero console errors and zero off-origin requests. These records are not asserted
 to be unique source rows. The served map uses the starter's owned fixture; this
 does not qualify an installed server or an authenticated Console journey.
 
-The combined result is **failed**. Vanilla completed in 105,799 ms against the
+The original local combined result is **failed**. Vanilla completed in 105,799 ms against the
 unchanged 120,000 ms budget. React rendered successfully but took 154,914 ms,
 including 106,164 ms for its clean app installation and 22,339 ms for its build.
 The initial vanilla attempt also remains failed: missing `libnspr4.so` prevented
@@ -38,4 +38,16 @@ For a separate hosted observation, dispatch `create-honua-app-live.yml` with
 the recorded cohort against the public registry, runs both templates on separate
 fresh runners using the byte-identical strict harness, and uploads original inputs,
 tarballs, command logs and receipts even on failure. It retains the 120-second
-measurement. Its result remains pending; this archive makes no hosted-pass claim.
+measurement.
+
+The separate [hosted run 40094398841](https://github.com/honua-io/honua-sdk-js/actions/runs/40094398841)
+at source `749b429b50ef52ade7d88aa6091bd49a6f608168` passed both templates:
+Vanilla in 17,402 ms and React in 17,743 ms. Both rendered four feature records
+with zero console errors and zero off-origin requests. The downloaded artifact
+archives were verified against GitHub's recorded SHA-256 digests, then inspected
+for the actual outcome, publication identities, normal resolution and unchanged
+budget. The hosted summary and raw consumer receipts are retained separately in
+`hosted-40094398841/`. The published README matches the scaffold's own source,
+documents SDK 0.2.6 and is not a Release Please extra-file rewrite target.
+The earlier local verdict and receipts remain unchanged. A passing hosted
+fixture journey does not establish installed-server compatibility.
