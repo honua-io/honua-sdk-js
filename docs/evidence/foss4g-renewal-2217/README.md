@@ -23,9 +23,19 @@ conference. Tracked in [issue 2217](https://github.com/honua-io/honua-sdk-js/iss
   path that reseals evidence. Its loop guard skips the run when trunk's tip is already a clean regeneration
   merge. On a quiet trunk every scheduled run is therefore a no-op, and the evidence ages out. A plain
   `gh workflow run regenerate-derived-artifacts.yml` is skipped by the same guard.
-- **The release-matrix receipt needs its own run.** `samples/evidence/maplibre-quickstart/release-matrix.v1.json`
-  is renewed only by `first-map-release-smoke.yml`. When it lapses, the post-regeneration strict
-  validation fails. The regeneration PR then cannot auto-merge, so the journey evidence stops renewing too.
+- **The release-matrix receipt is separate, and it does not gate the gallery.**
+  `samples/evidence/maplibre-quickstart/release-matrix.v1.json` is renewed only by
+  `first-map-release-smoke.yml`. A lapsed receipt does **not** stop a regeneration PR from merging:
+  - the regenerate job sets `HONUA_RELEASE_MATRIX_RECEIPT_RELAX=1`;
+  - the PR's strict CI is dispatched with `release_matrix_receipt_relax=true`;
+  - native PR CI runs with `HONUA_DERIVED_ARTIFACTS_RELAX`, which downgrades `stale` to a warning (see
+    `RELEASE_MATRIX_SEVERITY` in `scripts/lib/release-matrix-receipt.mjs`).
+
+  So journey evidence keeps renewing without the receipt. What the lapse does fail is every strict lane
+  outside that automation: trunk's post-merge `ci.yml` dispatch, `docs-site.yml`, `publish-js-sdk`, and a
+  local `npm run samples:verify`. honua-samples does not read the receipt; its horizon check reads only
+  `qualifiedJourneys[].visualEvidence.expiresAt`. Renewing the receipt keeps trunk CI, docs and releases
+  green. It is not required for the gallery.
 
 ## The renewal command
 
@@ -37,16 +47,20 @@ gh workflow run first-map-release-smoke.yml -R honua-io/honua-sdk-js --ref trunk
 
 That one dispatch does two things:
 
-1. It reseals the release-matrix receipt through a three-engine run of about 20 minutes.
-2. When that finishes, it dispatches `regenerate-derived-artifacts.yml` with `release_matrix_receipt_run_id`. That input
+1. **Required for the gallery:** it forces a reseal on a quiet trunk. When the smoke finishes, it
+   dispatches `regenerate-derived-artifacts.yml` with `release_matrix_receipt_run_id`. That input
    bypasses the loop guard. The regeneration re-observes all four golden lanes and opens an
-   `automation/derived-artifacts-*` PR, which auto-merges once strict validation passes. The whole chain
+   `automation/derived-artifacts-*` PR, which auto-merges once its checks pass. The whole chain
    takes about 1.5–2 hours.
+2. **Keeps trunk strict CI, docs-site and releases green, but not needed for the gallery:** it reseals
+   the release-matrix receipt through a three-engine run of about 5–20 minutes.
 
-If trunk's tip is a feature merge rather than a regeneration merge, `Verify release seal` fails fast in the smoke.
-That is harmless: the next scheduled regeneration (or
-`gh workflow run regenerate-derived-artifacts.yml -R honua-io/honua-sdk-js --ref trunk`) reseals the
-tree. Dispatch the smoke again after that merge lands, so the release-matrix receipt is renewed as well.
+If trunk's tip is already a feature merge, the gallery does not need the smoke. The next scheduled regeneration
+(at most six hours away), or `gh workflow run regenerate-derived-artifacts.yml -R honua-io/honua-sdk-js --ref trunk`,
+reseals the journey evidence on its own.
+
+If you dispatch the smoke while trunk's tip is a feature merge, `Verify release seal` fails fast. That is
+harmless. Let the regeneration land, then dispatch the smoke again if you also want the receipt renewed.
 
 Do not merge other sdk-js PRs while the chain is running. A trunk move during the publish step makes the
 regeneration refuse with `Regeneration source is no longer current trunk`, and the receipt is not persisted.
