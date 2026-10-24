@@ -76,6 +76,21 @@ For any other endpoint, paste its service root, choose a protocol hint or
 kernel transport boundary by an application host; this browser sample has no
 API-key or bearer-token field.
 
+To open a different endpoint on load, either link to the page with
+`?endpoint=<service URL>` (plus optional `&protocol=<hint>` and
+`&source=<source ID>`), or set the endpoint at build time:
+
+```sh
+VITE_HONUA_SERVICE_EXPLORER_ENDPOINT=https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1 \
+  npm run demo:service-explorer:build
+```
+
+`VITE_HONUA_SERVICE_EXPLORER_PROTOCOL` and `VITE_HONUA_SERVICE_EXPLORER_SOURCE`
+are optional. A configured endpoint without a protocol hint uses `auto`. The
+page URL takes precedence over the build-time value. With neither set, the app
+opens the same-origin fixture on a local host and the pygeoapi demo `lakes`
+collection everywhere else.
+
 ## Control-Plane Handoff
 
 Hosted Honua deployments can use the experimental control-plane subpath to discover a hosted map and pass its package locator to the runtime loader without mixing admin APIs into data queries:

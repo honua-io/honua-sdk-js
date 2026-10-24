@@ -968,8 +968,8 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "First Map: Maui census tracts in MapLibre",
-      "summary": "Starts with all 48 governed Maui County census tracts on an interactive map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
+      "title": "First Map: a Maui County layer in MapLibre",
+      "summary": "Starts with a Maui County feature layer on an interactive map (the governed 2025 Census tract fixture, or the anonymous live Maui parcels layer when built against a live endpoint), then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
       "sourceKind": "root-example",
       "track": "golden",
       "journeyId": "first-map",
@@ -2115,7 +2115,10 @@
         "authMode": "anonymous",
         "config": [
           "HONUA_SERVICE_EXPLORER_LIVE_ENABLED",
-          "VITE_HONUA_BASEMAP_STYLE"
+          "VITE_HONUA_BASEMAP_STYLE",
+          "VITE_HONUA_SERVICE_EXPLORER_ENDPOINT",
+          "VITE_HONUA_SERVICE_EXPLORER_PROTOCOL",
+          "VITE_HONUA_SERVICE_EXPLORER_SOURCE"
         ],
         "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
         "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
@@ -2129,6 +2132,21 @@
           },
           {
             "name": "VITE_HONUA_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_ENDPOINT",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_PROTOCOL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_SOURCE",
             "exposure": "browser-public",
             "valueKind": "non-secret"
           }
