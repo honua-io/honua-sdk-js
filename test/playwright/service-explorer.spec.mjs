@@ -138,3 +138,27 @@ test("service explorer follows inspected truth through a bounded accepted query"
     }
   }
 });
+
+test("service explorer opens the endpoint named by the ?endpoint= query parameter", async ({ page }) => {
+  const fixtureServer = await startServiceExplorerFixtureServer();
+  const layer = `${fixtureServer.url}/fixtures/geoservices/rest/services/CitizenRequests/FeatureServer/0`;
+  try {
+    const target = new URL(fixtureServer.url);
+    target.searchParams.set("endpoint", layer);
+    target.searchParams.set("protocol", "geoservices-feature-service");
+    await page.goto(target.href);
+    await expect(page.locator("#endpoint-input")).toHaveValue(layer);
+    await expect(page.locator("#protocol-input")).toHaveValue("geoservices-feature-service");
+    await expect(page.locator("#source-input")).toHaveValue("");
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.state)).toMatch(/ready|partial/);
+    await expect(page.locator("#resolved-protocol")).toHaveText("geoservices-feature-service");
+
+    // An unoffered protocol hint on the page URL falls back to `auto` instead of breaking the page.
+    target.searchParams.set("protocol", "not-a-protocol");
+    await page.goto(target.href);
+    await expect(page.locator("#endpoint-input")).toHaveValue(layer);
+    await expect(page.locator("#protocol-input")).toHaveValue("auto");
+  } finally {
+    await fixtureServer.close();
+  }
+});
