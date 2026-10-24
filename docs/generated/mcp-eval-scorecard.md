@@ -16,10 +16,10 @@ produced it. Nothing here is hand-typed, and the generator recomputes every rate
 per-scenario rows before publishing it, so a summary that disagreed with its own graded
 evidence would fail the build instead of reaching this page.
 
-**Observation window:** 2026-07-05 → 2026-10-05
-(11 distinct observation dates,
+**Observation window:** 2026-07-05 → 2026-10-19
+(12 distinct observation dates,
 3 cross-model eval artifacts,
-19 certification artifacts).
+21 certification artifacts).
 
 > This is a small, honest corpus, not a benchmark leaderboard. Read
 > [What this does and does not measure](#what-this-does-and-does-not-measure) before citing a
@@ -133,10 +133,12 @@ schedule and it fails loudly.
 | 2026-09-28 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 8 | 40 | ❌ fail | `6249ac8de342` |
 | 2026-10-05 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 1 | 5 | 38 | ❌ fail | `73bdd0e8f70b` |
 | 2026-10-05 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 8 | 40 | ❌ fail | `73bdd0e8f70b` |
+| 2026-10-19 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 9/9 | 0 | 6 | 44 | ❌ fail | `26f45508632e` |
+| 2026-10-19 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ❌ fail | `26f45508632e` |
 
-### Certification failures and skips — 2026-10-05
+### Certification failures and skips — 2026-10-19
 
-From [`mcp/evals/runs/2026-10-05/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-05/cert-standalone.json). Failures are real conformance defects in the
+From [`mcp/evals/runs/2026-10-19/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-19/cert-standalone.json). Failures are real conformance defects in the
 certified surface, published unedited; skips name the reason they could not be checked.
 
 | Contract | Target | Status | Detail |
@@ -149,10 +151,11 @@ certified surface, published unedited; skips name the reason they could not be c
 | `mutating-permission-denied` | `honua_edit_features` | skipped | honua_edit_features not advertised by this surface (pre-P1) |
 | `async-job-lifecycle` | `honua_execute_plan` | skipped | honua_execute_plan not advertised by this surface (pre-P1) |
 | `query-pagination` | `honua_query_features` | skipped | surface returned a single page with no nextCursor (pagination not exercised — pre-P1 surface or fewer than 2 features) |
+| `roster-parity` | `tools/list` | skipped | roster parity runs only against a live honua-server /mcp; this target is not the product surface |
 
-The same run recorded **40 known standard gaps** — tool families in the
-geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), Analysis verbs, App composition, Composition review (reference shape), Control-plane proposal (reference shape), Discovery and grounding (Honua extension), Discovery and query (reference shape), Execution, Execution (reference shape), Feature editing, Intent and planning, Map composition, Publishing, unclassified).
-They are enumerated in [`mcp/evals/runs/2026-10-05/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-05/cert-standalone.json) under `knownGaps`.
+The same run recorded **54 known standard gaps** — tool families in the
+geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), Analysis verbs, App composition, Composition controls, Composition exploration, Composition interactions, Composition review (reference shape), Control-plane proposal (reference shape), Discovery and grounding (Honua extension), Discovery and query (reference shape), Execution, Execution (reference shape), Feature editing, Intent and planning, Map composition, Platform operations (reference shape), Publishing, unclassified).
+They are enumerated in [`mcp/evals/runs/2026-10-19/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-19/cert-standalone.json) under `knownGaps`.
 
 ## What this does and does not measure
 
@@ -210,6 +213,8 @@ Every artifact behind this page, with the surface it targeted and the suite that
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-09-28/cert-standalone.json) | 2026-09-28 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `6249ac8de342` |
 | [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-05/cert-demo.json) | 2026-10-05 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 52 | `anonymous` | `73bdd0e8f70b` |
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-05/cert-standalone.json) | 2026-10-05 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `73bdd0e8f70b` |
+| [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-19/cert-candidate.json) | 2026-10-19 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `26f45508632e` |
+| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-19/cert-standalone.json) | 2026-10-19 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `26f45508632e` |
 
 3 of the artifacts above predate the self-proving provenance
 block and therefore carry no suite SHA or negotiated protocol version. They are published
