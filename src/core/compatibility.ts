@@ -14,7 +14,16 @@ import { HonuaHttpError } from "./errors.js";
 import { trimTrailingSlashes } from "./path-utils.js";
 import type { HonuaServerCompatibility } from "./types.js";
 
-export const HONUA_MINIMUM_SUPPORTED_SERVER_VERSION = "1.0.0";
+/**
+ * The least honua-server version this SDK accepts at run time. It is derived, not chosen:
+ * `release/sdk-capability-baseline.json` declares `minimumServerVersion: "first-release"`
+ * (every required capability ships in honua-server's first release), and honua-release
+ * `docs/SDK-SERVER-BASELINE-RULE.md` maps a first-release baseline to `2026.1.0-0`, the least
+ * SemVer identity of the first release line: its candidates (`2026.1.0-rc.N`), the release and
+ * every later server compare at or above it. `test/server-floor-baseline.test.ts` fails when
+ * this constant and the baseline file disagree.
+ */
+export const HONUA_MINIMUM_SUPPORTED_SERVER_VERSION = "2026.1.0-0";
 export const MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL = "preview";
 
 const SUPPORTED_CONTROL_PLANE_API_MAJOR = 1;

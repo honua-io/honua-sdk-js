@@ -28,7 +28,7 @@ function createCapabilitiesEnvelope() {
       manifestDryRunSupported: true,
       manifestPruneSupported: true,
       compatibility: {
-        serverVersion: "1.2.0",
+        serverVersion: "2026.1.0-rc.1",
         releaseChannel: "preview",
         controlPlaneApi: {
           major: 1,
