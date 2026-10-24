@@ -6,9 +6,9 @@
   "gate": "screenshot",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "a2d81ebf7335386e6c50a0d8ad5190c60e56cf20",
-  "sourceDigest": "c6f98109e982ba4e103d9dc815105d7b3693dfe580942263df7444ab4a2f35d0",
-  "runRoot": "samples/evidence/maplibre-quickstart/runs/50c5350e-8d43-47f4-aebc-eda8034c98a1",
+  "sourceRevision": "954f2290866c496e0c662893672c6a8a2cf4132c",
+  "sourceDigest": "689bbfaa821894bb018e8b6d39ce987f6c8d785d0e4c126d485cbc8fe6f2d509",
+  "runRoot": "samples/evidence/maplibre-quickstart/runs/c0a36a4e-57fc-40e1-bf41-ccb27a443f26",
   "command": {
     "argv": [
       "npm",
@@ -24,15 +24,15 @@
     "path": "scripts/sample-runner.mjs",
     "sha256": "d051efbc4743c0fbc0a51de15c4c92bcce537f63446b8118f628ba151c552e6f"
   },
-  "observedAt": "2026-10-24T08:12:09.729Z",
-  "expiresAt": "2026-10-31T08:12:09.729Z",
-  "durationMs": 7988.550555,
+  "observedAt": "2026-10-24T14:09:04.386Z",
+  "expiresAt": "2026-10-31T14:09:04.386Z",
+  "durationMs": 9901.438354000002,
   "artifacts": [
     {
       "kind": "screenshot-report",
-      "path": "samples/evidence/maplibre-quickstart/runs/50c5350e-8d43-47f4-aebc-eda8034c98a1/artifacts/screenshot.json",
+      "path": "samples/evidence/maplibre-quickstart/runs/c0a36a4e-57fc-40e1-bf41-ccb27a443f26/artifacts/screenshot.json",
       "bytes": 2532,
-      "sha256": "b8b18e3c4370daba63e79679912cda2b007f523fefe96a0a40a1d435c1c7cb28"
+      "sha256": "17fb5a6e7f5b7cc77809bea435229673455b69981c71feb857ae9604c1526834"
     }
   ]
 }
