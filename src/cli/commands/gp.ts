@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 
 const MISSING_ENGINE =
   "error: honua gp requires the separately installed Honua.Geoprocessing.Cli devkit. " +
