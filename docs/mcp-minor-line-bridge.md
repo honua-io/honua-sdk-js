@@ -82,12 +82,12 @@ the current synchronized pin.
 
 ## Current published pin
 
-The current generated-client pin is published `@honua/mcp-server@0.2.4`.
+The current generated-client pin is published `@honua/mcp-server@0.2.6`.
 `config/mcp-pinned-peer.v1.json`, `src/local-install.ts`, and all three shipped
 zero-to-map client configurations identify that release and its verified
 registry integrity. Its SDK peer range remains `^0.1.17 || ^0.2.0`.
 
-Public SDK 0.2.4 and MCP 0.2.4 have passed a real co-install under npm's
+The previous pin pair, public SDK 0.2.4 and MCP 0.2.4, passed a real co-install under npm's
 default peer resolver. Keep using `sync:mcp-pin` after a coordinated MCP
 publication and run `verify:mcp-pin` and `verify:client-pair:registry` against
 the resulting pin. Generated CLI changes reach consumers through the normal

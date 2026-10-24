@@ -50,7 +50,9 @@ await map.ready;
 ```
 
 For those ten lines the kernel owns discovery, the connection, cancellation, and the mounted
-map. `result` contains bounded execution evidence, while `plan` explains the accepted query.
+map. The same lines run unchanged against Honua's own public demo: set `endpoint` to
+`https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1` (anonymous reads,
+CORS-open to any origin). `result` contains bounded execution evidence, while `plan` explains the accepted query.
 Leaving the `await using` scope disposes the map and connection; every operation also accepts
 an `AbortSignal` for caller cancellation.
 Run the canonical inspected workflow with `npm run demo:quickstart:mock`
@@ -233,7 +235,7 @@ Runtime support, stated up front:
 | Peer / runtime | Supported range |
 |----------------|-----------------|
 | Node.js | `>=22.12` |
-| `maplibre-gl` (optional peer) | **6.4.1 or newer within major 6** (`^6.4.1`). The next SDK release drops affected 5.x and early 6.x peers; published older SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
+| `maplibre-gl` (optional peer) | **6.4.1 or newer within major 6** (`^6.4.1`). Every SDK release since `0.1.12` declares this range and refuses affected 5.x and early 6.x peers; older published SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
 | `cesium` (optional peer, scene surface) | `^1.139.0` |
 | `react` / `react-dom` (optional peer, `/react`) | `^18.2.0 \|\| ^19.0.0` |
 

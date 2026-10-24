@@ -16,7 +16,8 @@ Honua's needs to be running, and no account or API key is involved.
 npm install @honua/sdk-js maplibre-gl
 ```
 
-The SDK supports MapLibre GL JS 5 and 6. Use **6.4.1 or newer**: every release
+The SDK's `maplibre-gl` peer range is `^6.4.1`, so use **6.4.1 or newer**
+within major 6 (MapLibre 5 no longer satisfies it): every release
 at or below 6.4.0 carries [GHSA-jrc7-96c5-q579](https://github.com/advisories/GHSA-jrc7-96c5-q579),
 a sanitizer bypass the runtime cannot protect you from. MapLibre 6 is ESM-only
 and loads its worker as a separate module; a Vite host configures it once with
