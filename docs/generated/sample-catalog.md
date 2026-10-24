@@ -24,7 +24,7 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 
 | Sample | Last sealed run | Engines | Observed | Expires | Receipt |
 | --- | --- | --- | --- | --- | --- |
-| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-10-24T07:43:32.834Z | 2026-10-31T07:43:32.834Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
+| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-10-24T19:19:03.652Z | 2026-10-31T19:19:03.652Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
 
 ## Executable samples
 
