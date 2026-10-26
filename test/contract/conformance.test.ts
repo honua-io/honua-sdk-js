@@ -1610,6 +1610,42 @@ describe("contract / queryExtent forwards canonical filters", () => {
       expect(parsed.xmin).toBe(-123);
       expect(parsed.xmax).toBe(-120);
     });
+
+    // ArcGIS Online answers `returnExtentOnly=true` with `{extent}` alone and
+    // only adds `count` when `returnCountOnly=true` is sent beside it (the
+    // documented combination). Without it the standalone MCP
+    // `honua_count_features` refused a census FeatureServer as count-unsupported
+    // (honua-sdk-js#2249).
+    it(`${variant.label}: queryExtent asks an Esri-parity server for the count beside the extent`, async () => {
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              const { extent, count } = geoservicesExtentResponse();
+              const withCount = url.searchParams.get("returnCountOnly") === "true";
+              return jsonResponse(withCount ? { count, extent } : { extent });
+            },
+          ],
+        ],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES[variant.protocol],
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const out = await dataset.source<ParcelAttrs>("parcels")!.queryExtent({ where: "STATE = 'CA'" });
+      expect(out.extent).toBeTruthy();
+      expect(out.count).toBe(geoservicesExtentResponse().count);
+    });
   }
 
   it("ogc-features degraded: queryExtent with a where filter computes bbox from matching items", async () => {

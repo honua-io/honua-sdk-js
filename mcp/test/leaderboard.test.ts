@@ -68,15 +68,47 @@ describe("leaderboard generator", () => {
   });
 
   it("headlines the latest scheduled-cert verdict above the leaderboard tables", () => {
+    // The committed corpus changes every time the scheduled lane publishes a
+    // report, so only state-independent structure is asserted against it: a
+    // verdict headline sits above the tables and the cross-model rows are
+    // marked as history. Which verdict it shows is covered by fixture corpora
+    // below (honua-sdk-js#2249: asserting "never certified the candidate" here
+    // made the lane's own first candidate report fail its publication PR).
     const md = readFileSync(`${outDir}/LEADERBOARD.md`, "utf8");
     const verdictAt = md.indexOf("## Latest scheduled certification");
     expect(verdictAt).toBeGreaterThan(0);
     expect(verdictAt).toBeLessThan(md.indexOf("## Cross-model leaderboard"));
-    // The committed corpus has never certified the candidate: the header must say
-    // so and mark the cross-model rows as history, not a current pass.
+    expect(md).toMatch(/\*\*Verdict: (✅ PASS|❌ FAIL|➖ NONE)\*\*/);
+    expect(md).toMatch(/cross-model rows below are history/);
+  });
+
+  it("says no run has certified the candidate when only demo reports exist", () => {
+    const demoOnly = `${fixtureDir}/demo-only`;
+    mkdirSync(`${demoOnly}/runs/2026-10-05`, { recursive: true });
+    writeFileSync(
+      `${demoOnly}/runs/2026-10-05/cert-demo.json`,
+      JSON.stringify(certReport("2026-10-05T07:00:00Z", false, "anonymous", "demo")),
+    );
+    const md = render(`${demoOnly}/runs`, demoOnly);
     expect(md).toMatch(/\*\*Verdict: ❌ FAIL\*\* \(\d{4}-\d{2}-\d{2}, demo target/);
     expect(md).toContain("No scheduled run has certified the pinned candidate image yet");
-    expect(md).toMatch(/cross-model rows below are history/);
+  });
+
+  it("headlines a failing candidate verdict with its blocked contracts", () => {
+    const failing = `${fixtureDir}/candidate-fail`;
+    mkdirSync(`${failing}/runs/2026-10-26`, { recursive: true });
+    writeFileSync(
+      `${failing}/runs/2026-10-26/cert-candidate.json`,
+      JSON.stringify(
+        certReport("2026-10-26T14:00:00Z", false, "api-key", "live honua /mcp (http://localhost:8080/mcp)"),
+      ),
+    );
+    const md = render(`${failing}/runs`, failing);
+    expect(md).toContain(
+      "**Verdict: ❌ FAIL** (2026-10-26, pinned candidate live honua /mcp (http://localhost:8080/mcp)",
+    );
+    expect(md).toContain("1 blocked contract(s)");
+    expect(md).not.toContain("No scheduled run has certified the pinned candidate image yet");
   });
 
   it("prefers the candidate verdict when a run certified both candidate and demo", () => {

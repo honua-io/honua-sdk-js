@@ -103,6 +103,17 @@ describe("census fixture client — recorded-data parity", () => {
     expect(result.extent.spatialReference.wkid).toBe(102100);
   });
 
+  it("matches the live service: count rides with the extent only when returnCountOnly is sent beside it", async () => {
+    const extentOnly = (await client.queryFeatures({ extraParams: { returnExtentOnly: true } })) as { count?: number };
+    expect(extentOnly.count).toBeUndefined();
+    const both = (await client.queryFeatures({ extraParams: { returnExtentOnly: true, returnCountOnly: true } })) as {
+      count: number;
+      extent: { spatialReference: { wkid: number } };
+    };
+    expect(both.count).toBe(52);
+    expect(both.extent.spatialReference.wkid).toBe(102100);
+  });
+
   it("exposes the census service and a polygon layer schema", async () => {
     const services = await client.listServices();
     expect(services.services?.[0]?.name).toBe(CENSUS_SERVICE_ID);

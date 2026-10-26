@@ -111,6 +111,19 @@ jobs:
         id: boot
         run: bash scripts/boot-candidate.sh "$RUNNER_TEMP/honua-candidate"
 
+      # A fresh install publishes nothing, so `discover` below found no layer and
+      # round-trip-target was blocked on every run (honua-sdk-js#2249). Publish
+      # the installer's own zero_to_map_parcels table through the admin API --
+      # the step a user takes next -- so the round trips have a real target.
+      - name: Publish the installer's zero-to-map layer
+        env:
+          INSTALL_DIR: ${{ steps.boot.outputs.install_dir }}
+          MCP_URL: ${{ steps.boot.outputs.mcp_url }}
+        run: |
+          set -euo pipefail
+          HONUA_API_KEY="$(sed -n 's/^HONUA_ADMIN_KEY=//p' "$INSTALL_DIR/.env")" \
+            node scripts/publish-candidate-layer.mjs "$MCP_URL"
+
       - name: Certify the pinned candidate (deterministic, free, authenticated)
         id: candidate
         env:

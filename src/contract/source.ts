@@ -4394,6 +4394,10 @@ function compileGeoServicesQueryFilter<T>(
  * stamped via `extraParams`. The returnCountOnly/ExtentOnly/IdsOnly side
  * channel lives in the untyped `extraParams` bag because it sits outside
  * `QueryFeaturesRequest`.
+ *
+ * `returnCountOnly=true` is sent beside it: the documented Esri combination
+ * returns `{extent, count}`, and ArcGIS Online omits `count` without it
+ * (honua-sdk-js#2249). honua-server answers both forms with `{extent, count}`.
  */
 function toExtentOnlyRequest(
   params: ReturnType<typeof toFeatureLayerRequest>,
@@ -4408,6 +4412,7 @@ function toExtentOnlyRequest(
     extraParams: {
       ...(rest.extraParams ?? {}),
       returnExtentOnly: true,
+      returnCountOnly: true,
     },
   };
 }

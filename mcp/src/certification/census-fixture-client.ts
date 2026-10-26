@@ -239,11 +239,16 @@ export function createStandaloneFixtureClient(): HonuaClient {
     async queryFeatures(request: QueryRequest = {}): Promise<HonuaQueryResponse> {
       const rows = filterRows(request.where);
       const extra = request.extraParams ?? {};
+      // Mirrors the recorded ArcGIS Online answers: extent-only returns `{extent}`
+      // alone, and `count` rides along only when `returnCountOnly=true` is sent
+      // beside it (honua-sdk-js#2249).
+      if (extra.returnExtentOnly === true) {
+        return (extra.returnCountOnly === true
+          ? { count: rows.length, extent: CENSUS_EXTENT }
+          : { extent: CENSUS_EXTENT }) as unknown as HonuaQueryResponse;
+      }
       if (extra.returnCountOnly === true) {
         return { count: rows.length } as unknown as HonuaQueryResponse;
-      }
-      if (extra.returnExtentOnly === true) {
-        return { count: rows.length, extent: CENSUS_EXTENT } as unknown as HonuaQueryResponse;
       }
       if (request.outStatistics && request.outStatistics.length > 0) {
         return computeStatistics(rows, request);
