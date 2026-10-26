@@ -341,56 +341,52 @@ const WFS_GETFEATURE = Object.freeze({
   ],
 });
 
-// ── WMS 1.3.0 (terrestris OSM) ────────────────────────────────
+// ── WMS 1.3.0 (PDOK Luchtfoto RGB) ───────────────────────────
 
 const WMS_CAPABILITIES = `<?xml version="1.0" encoding="UTF-8"?>
 <WMS_Capabilities version="1.3.0" xmlns="http://www.opengis.net/wms" xmlns:xlink="http://www.w3.org/1999/xlink">
   <Service>
     <Name>WMS</Name>
-    <Title>OpenStreetMap WMS</Title>
-    <OnlineResource xlink:href="https://ows.terrestris.de/osm/service?"/>
+    <Title>Luchtfoto RGB (Open)</Title>
+    <OnlineResource xlink:href="https://www.pdok.nl"/>
+    <Fees>None</Fees>
+    <AccessConstraints>None</AccessConstraints>
   </Service>
   <Capability>
     <Request>
       <GetCapabilities>
         <Format>text/xml</Format>
-        <DCPType><HTTP><Get><OnlineResource xlink:href="https://ows.terrestris.de/osm/service?"/></Get></HTTP></DCPType>
+        <DCPType><HTTP><Get><OnlineResource xlink:href="https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?"/></Get></HTTP></DCPType>
       </GetCapabilities>
       <GetMap>
         <Format>image/jpeg</Format>
-        <Format>image/png</Format>
-        <DCPType><HTTP><Get><OnlineResource xlink:href="https://ows.terrestris.de/osm/service?"/></Get></HTTP></DCPType>
+        <DCPType><HTTP><Get><OnlineResource xlink:href="https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0"/></Get></HTTP></DCPType>
       </GetMap>
-      <GetFeatureInfo>
-        <Format>text/plain</Format>
-        <Format>text/html</Format>
-        <Format>text/xml</Format>
-        <DCPType><HTTP><Get><OnlineResource xlink:href="https://ows.terrestris.de/osm/service?"/></Get></HTTP></DCPType>
-      </GetFeatureInfo>
     </Request>
     <Layer>
-      <Title>OpenStreetMap WMS</Title>
-      <CRS>EPSG:4326</CRS>
+      <Title>Luchtfoto RGB (Open)</Title>
+      <CRS>EPSG:28992</CRS>
       <CRS>EPSG:3857</CRS>
-      <CRS>CRS:84</CRS>
+      <CRS>EPSG:4326</CRS>
       <EX_GeographicBoundingBox>
-        <westBoundLongitude>-180</westBoundLongitude>
-        <southBoundLatitude>-88</southBoundLatitude>
-        <eastBoundLongitude>180</eastBoundLongitude>
-        <northBoundLatitude>88</northBoundLatitude>
+        <westBoundLongitude>3.170655050418618</westBoundLongitude>
+        <eastBoundLongitude>7.4887368679516655</eastBoundLongitude>
+        <southBoundLatitude>50.5788239391456</southBoundLatitude>
+        <northBoundLatitude>53.63760758138346</northBoundLatitude>
       </EX_GeographicBoundingBox>
-      <Layer queryable="false">
-        <Name>OSM-WMS</Name>
-        <Title>OpenStreetMap WMS - by terrestris</Title>
+      <Layer>
+        <Name>Actueel_ortho25</Name>
+        <Title>Luchtfoto Actueel Ortho 25cm RGB</Title>
+        <CRS>EPSG:28992</CRS>
         <CRS>EPSG:3857</CRS>
-        <Style>
-          <Name>default</Name>
-          <Title>default</Title>
-          <LegendURL width="150" height="200">
-            <Format>image/png</Format>
-            <OnlineResource xlink:href="https://ows.terrestris.de/osm/service?styles=&amp;layer=OSM-WMS"/>
-          </LegendURL>
-        </Style>
+        <CRS>EPSG:4326</CRS>
+        <EX_GeographicBoundingBox>
+          <westBoundLongitude>3.170655050418618</westBoundLongitude>
+          <eastBoundLongitude>7.4887368679516655</eastBoundLongitude>
+          <southBoundLatitude>50.5788239391456</southBoundLatitude>
+          <northBoundLatitude>53.63760758138346</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:3857" minx="352955.7056937217" miny="6547128.004577159" maxx="833642.3748251938" maxy="7101820.07516432"/>
       </Layer>
     </Layer>
   </Capability>
@@ -605,7 +601,7 @@ function defaultRoutes(): Map<string, RouteHandler> {
   );
 
   // WMS 1.3.0: capabilities and GetMap share one endpoint.
-  routes.set("ows.terrestris.de/osm/service", (url) => {
+  routes.set("service.pdok.nl/hwh/luchtfotorgb/wms/v1_0", (url) => {
     const request = (url.searchParams.get("REQUEST") ?? url.searchParams.get("request") ?? "").toLowerCase();
     if (request !== "getmap") return xml(WMS_CAPABILITIES);
     // Serve whichever advertised format the SDK's serializer negotiated.
@@ -679,7 +675,7 @@ export const REFERENCE_ROUTE_KEYS = Object.freeze({
   stacSearch: "earth-search.aws.element84.com/v1/search",
   wfsCapabilities: "service.pdok.nl/lv/bag/wfs/v2_0",
   wfsGetFeature: "service.pdok.nl/kadaster/bag/wfs/v2_0",
-  wmsService: "ows.terrestris.de/osm/service",
+  wmsService: "service.pdok.nl/hwh/luchtfotorgb/wms/v1_0",
   wmtsCapabilities: "services.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer/WMTS",
   wmtsTile:
     "services.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer/WMTS/tile/1.0.0/World_Street_Map/default/GoogleMapsCompatible/0/0/0.jpg",
