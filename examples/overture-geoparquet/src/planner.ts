@@ -47,7 +47,7 @@ export function planOvertureQuery(
   }
   const projection =
     input.lane === "live"
-      ? ["id", "names", "categories", "confidence", "bbox"]
+      ? ["id", "names", "basic_category", "confidence", "bbox"]
       : ["id", "name", "category", "confidence", "bbox"];
   if (projection.length > policy.maxProjectedColumns) {
     throw new OverturePlanRejectedError("projection-budget", "Projected columns exceed the execution policy.");
