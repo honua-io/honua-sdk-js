@@ -36,6 +36,24 @@ describe("distribution smoke", () => {
     expect(stdout).toBe("function function");
   });
 
+  // The documented install line is `npx -y -p @honua/mcp-server honua-mcp`; the
+  // registry lane (scripts/docs-commands-registry.mjs) proves it resolves by
+  // running it with `--help` and requiring exit 0 plus the bin naming itself.
+  // `--help` must therefore answer before any HONUA_BASE_URL is required.
+  it.each(["--help", "-h"])("answers %s without a configured endpoint", async (flag) => {
+    const env = { ...process.env };
+    delete env.HONUA_BASE_URL;
+    delete env.HONUA_MCP_BOOTSTRAP;
+    const { stdout } = await execFileAsync(process.execPath, ["dist/src/index.js", flag], {
+      cwd: new URL("..", import.meta.url),
+      env,
+      timeout: 10_000,
+    });
+
+    expect(stdout).toContain("honua-mcp");
+    expect(stdout).toContain("HONUA_BASE_URL");
+  });
+
   it("keeps node shebang in built CLI entrypoint", async () => {
     await access("dist/src/index.js");
     const text = await readFile("dist/src/index.js", "utf8");
