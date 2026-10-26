@@ -24,6 +24,7 @@ import {
   FAKE_CANDIDATE_REVISION,
   type FakeCandidate,
   type FakeCandidateDefects,
+  type FakeCandidateOptions,
   startFakeCandidate,
 } from "./helpers/realtime-live-candidate-fake.js";
 
@@ -63,6 +64,7 @@ function optionsFor(candidate: FakeCandidate): LiveAuthorizationOptions {
 
 async function mint(
   defects?: FakeCandidateDefects,
+  delivery: Pick<FakeCandidateOptions, "liveReorderWindowMs" | "liveReorderStepMs"> = {},
 ): Promise<{ candidate: FakeCandidate; receipt: LiveAuthorizationReceipt }> {
   const candidate = await startFakeCandidate({
     issuer: ISSUER.issuer,
@@ -70,6 +72,7 @@ async function mint(
     signingKey: ISSUER.signingKey,
     adminApiKey: ADMIN_API_KEY,
     defects,
+    ...delivery,
   });
   const receipt = await collectLiveAuthorizationReceipt(optionsFor(candidate));
   return { candidate, receipt };
@@ -185,6 +188,36 @@ describe("live authorization receipt against a well-behaved candidate", () => {
     expect(
       assertion(row(receipt, "sensorthings", "websocket", "tenant-isolation"), "invalid-credentials-rejected")?.detail,
     ).toMatch(/tenantless credential: 101 admitted into the default tenant 'public' and confined to it/u);
+  });
+});
+
+describe("live authorization receipt against a candidate that delivers live frames out of order", () => {
+  // honua-server delivers live feature changes out of mutation order by design
+  // (honua-server#6104); scheduled run 40315781915 delivered own-third before
+  // own-second on the WebSocket. Isolation must be judged on what each tenant
+  // received, not on the order it arrived in.
+  let candidate: FakeCandidate;
+  let receipt: LiveAuthorizationReceipt;
+
+  beforeAll(async () => {
+    ({ candidate, receipt } = await mint(undefined, { liveReorderWindowMs: 40, liveReorderStepMs: 40 }));
+  }, RUN_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await candidate?.close();
+  });
+
+  it("passes tenant-owned delivery on every streaming transport when frames arrive newest first", () => {
+    const summary = summarizeLiveAuthorizationReceipt(receipt).join("\n");
+    for (const [surface, transport] of [
+      ["feature-stream", "sse"],
+      ["feature-stream", "websocket"],
+    ]) {
+      const item = row(receipt, surface, transport, "tenant-isolation");
+      expect(assertion(item, "tenant-owned-delivery"), summary).toMatchObject({ passed: true });
+      expect(assertion(item, "no-cross-tenant-payload"), summary).toMatchObject({ passed: true });
+      expect(item.result, summary).toBe("passed");
+    }
   });
 });
 
