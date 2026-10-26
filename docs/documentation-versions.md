@@ -49,6 +49,9 @@ never silently redirected to today's development API.
   package exports.
 - Breaking ArcGIS-to-Honua changes and replacement imports are documented in
   [Migrate ArcGIS applications to Honua + MapLibre](./migration-honua-maplibre.md).
+- `HonuaClient` refuses credentials on a non-loopback `http://` base URL unless
+  `allowInsecureHttp: true` is set; see
+  [Migrating: credentials over plain HTTP](./auth.md#migrating-credentials-over-plain-http).
 - Release-level changes are recorded in the tagged
   [changelog](../CHANGELOG.md).
 
