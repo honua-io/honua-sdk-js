@@ -22,10 +22,11 @@ import { createSampleViteConfig } from "../_kit/vite.config.js";
 // 2,037,902 JS / 547,069 gzip, up 2.4% / 4.4% from 6.0.0. The growth buys a
 // renderer that does not carry a critical XSS, which is worth 48 KB on a
 // quickstart whose point is to be honest about what shipping Honua costs.
-// Ceilings are measured actual plus ~4% headroom, as above.
+// Ceilings are measured actual plus ~4% headroom, as above. 2026-10-26: aligned with the
+// canonical First Map budget (scripts/lib/first-map-budget.mjs) after its 10% reset.
 export const FIRST_MAP_BUNDLE_BUDGET = Object.freeze({
-  javascriptBytes: 2_120_000,
-  javascriptGzipBytes: 569_000,
+  javascriptBytes: 2_210_000,
+  javascriptGzipBytes: 590_000,
 });
 
 let bundleBudgetFailure: Error | undefined;

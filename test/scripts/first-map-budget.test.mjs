@@ -7,14 +7,14 @@ import { readFirstMapBuildResolution } from "../../scripts/lib/first-map-build-r
 import { evaluateFirstMapBudget, firstMapVerdict } from "../../scripts/lib/first-map-budget.mjs";
 
 test("the canonical byte ceilings include the boundary and reject either overage", () => {
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_010_000, javascriptGzipBytes: 534_000 }), "passed");
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_010_001, javascriptGzipBytes: 534_000 }), "failed");
-  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_010_000, javascriptGzipBytes: 534_001 }), "failed");
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_210_000, javascriptGzipBytes: 590_000 }), "passed");
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_210_001, javascriptGzipBytes: 590_000 }), "failed");
+  assert.equal(evaluateFirstMapBudget({ javascriptBytes: 2_210_000, javascriptGzipBytes: 590_001 }), "failed");
 });
 
 test("a successful build under a raised Vite ceiling cannot emit a passing receipt", () => {
   assert.deepEqual(firstMapVerdict({ buildStatus: "passed", peerIdentityStatus: "passed",
-    measurement: { javascriptBytes: 2_037_902, javascriptGzipBytes: 547_069 } }),
+    measurement: { javascriptBytes: 2_237_902, javascriptGzipBytes: 597_069 } }),
   { budgetStatus: "failed", status: "failed" });
 });
 

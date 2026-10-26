@@ -10,9 +10,12 @@
 // PR #2189: preserving drawable Esri geometry with unset optional measures
 // measures 533,062 gzip bytes before final ring-closure normalization. Add a
 // documented 1,000-byte allowance; raw, CPU, peer and measurement scope stay fixed.
+// 2026-10-26 (founder decision): trunk measured 2,004,550 raw / 535,466 gzip bytes and
+// failed the gzip ceiling. Both ceilings reset to measured actual plus ~10% headroom,
+// the policy bundle-budgets.json uses; CPU, parse, peer and duplicate-runtime guards stay.
 export const INSTALLED_FIRST_MAP_BUDGET = Object.freeze({
-  javascriptBytes: 2_010_000,
-  javascriptGzipBytes: 534_000,
+  javascriptBytes: 2_210_000,
+  javascriptGzipBytes: 590_000,
 });
 
 // The receipt must enforce the reviewed canonical limits even when the example's
