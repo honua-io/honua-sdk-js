@@ -1,15 +1,13 @@
 # Honua MCP Evals — Leaderboard
 
-_Generated 2026-10-09T00:11:10.166Z from 3 eval + 19 certification run artifact(s) in [`runs/`](./runs)._
+_Generated 2026-10-26T14:01:48.006Z from 3 eval + 21 certification run artifact(s) in [`runs/`](./runs)._
 
 Every row is reproducible: each source artifact records its target surface, negotiated protocol version, tool count, auth mode, and the git SHA of the suite that produced it. All model calls run through AWS Bedrock; the deterministic control makes no model calls and is the CI gate.
 
 ## Latest scheduled certification
 
-**Verdict: ❌ FAIL** (2026-10-05, demo target live honua /mcp (https://demo.honua.io/mcp), auth `anonymous`, 15 failure(s), 0 blocked contract(s). Source: [`runs/2026-10-05/cert-demo.json`](./runs/2026-10-05/cert-demo.json).)
+**Verdict: ❌ FAIL** (2026-10-26, pinned candidate live honua /mcp (http://localhost:8080/mcp), auth `api-key`, 0 failure(s), 2 blocked contract(s). Source: [`runs/2026-10-26/cert-candidate.json`](./runs/2026-10-26/cert-candidate.json).)
 
-> No scheduled run has certified the pinned candidate image yet. Until one does, the scheduled lane has no passing verdict; earlier scheduled runs certified the demo surface.
->
 > The cross-model rows below are history (latest eval run 2026-07-07). They are not a current verdict.
 
 ## Cross-model leaderboard
@@ -61,4 +59,6 @@ Legend: ✅ pass · ❌ fail · ❓ clarified · ⚠️ error · · not run
 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-09-28 | `6249ac8de3` |
 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 5 | ❌ fail | 2026-10-05 | `73bdd0e8f7` |
 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-10-05 | `73bdd0e8f7` |
+| live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 9/9 | 6 | ❌ fail | 2026-10-26 | `0fd89bb63d` |
+| honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 9 | ❌ fail | 2026-10-26 | `0fd89bb63d` |
 
