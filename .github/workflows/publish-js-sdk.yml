@@ -28,7 +28,8 @@ on:
       - "js-sdk-*"
 
 # Restrictive top-level default (Scorecard Token-Permissions); the publish
-# job below grants the extra id-token:write scope trusted publishing needs.
+# job below grants the extra id-token:write scope trusted publishing needs, and
+# attest-published-packages adds attestations:write for publisher attestations.
 permissions:
   contents: read
 
@@ -364,7 +365,26 @@ jobs:
             # The hash-verified CLI from the step above, not whatever `npm` the
             # PATH resolves to at this point.
             node "${PINNED_NPM}" publish "$publish_target" --access public --tag "$dist_tag" $flags
+            if [[ "${DRY_RUN}" != "true" ]]; then
+              # Keep the exact bytes this run published; attest-published-packages
+              # checks them against the registry before attesting them.
+              cp "$publish_target" "${published_dir}/"
+              printf '%s\t%s\t%s\n' "$package_name" "$package_version" "$(basename "$publish_target")" >> "${published_dir}/published.tsv"
+            fi
           }
+
+          published_dir="${RUNNER_TEMP}/published-npm"
+          rm -rf "$published_dir"
+          mkdir -p "$published_dir"
+          : > "${published_dir}/published.tsv"
+          # Publish the root package from a tarball too, so the attested subject is
+          # the byte-identical file the registry receives. The root package has no
+          # pack/publish lifecycle scripts, so this packs what `npm publish .` did.
+          root_pack_dir="${RUNNER_TEMP}/root-tarball"
+          rm -rf "$root_pack_dir"
+          mkdir -p "$root_pack_dir"
+          root_filename="$(node "${PINNED_NPM}" pack . --pack-destination "$root_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
+          split_tarball_for["."]="${root_pack_dir}/${root_filename}"
 
           # Split tarballs were packed immediately after they were built.
           publish_package "."
@@ -387,6 +407,75 @@ jobs:
         run: |
           echo "Dry run complete. Split package tarballs verified:"
           ls -la "${RUNNER_TEMP}/split-tarballs/"
+
+      - name: Upload the exact published tarballs for attestation
+        if: ${{ env.DRY_RUN != 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: published-npm-tarballs
+          path: ${{ runner.temp }}/published-npm/
+          if-no-files-found: error
+
+  # Publisher attestations (honua-release post-gate collector): SLSA provenance
+  # and a CycloneDX SBOM for each tarball this run published, signed by this
+  # workflow at the release commit. The collector looks them up by the sha256 of
+  # the registry tarball, so each subject is the exact published file.
+  attest-published-packages:
+    name: Attest ${{ matrix.package }}
+    needs: publish-js-packages
+    if: ${{ !cancelled() && needs.publish-js-packages.result == 'success' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - "@honua/sdk-js"
+          - "@honua/sdk"
+          - "@honua/sdk-esri-compat"
+          - "@honua/react"
+          - "@honua/geometry"
+          - "@honua/app-platform"
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the published tarballs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: published-npm-tarballs
+          path: ${{ runner.temp }}/published-npm
+
+      - name: Select this package's tarball
+        id: select
+        env:
+          PACKAGE_NAME: ${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          row="$(awk -F '\t' -v name="$PACKAGE_NAME" '$1 == name' "${RUNNER_TEMP}/published-npm/published.tsv")"
+          if [[ -z "$row" ]]; then
+            echo "${PACKAGE_NAME} was not published by this run (already on the registry); nothing to attest."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          IFS=$'\t' read -r _ version file <<< "$row"
+          {
+            echo "published=true"
+            echo "version=${version}"
+            echo "tarball=${RUNNER_TEMP}/published-npm/${file}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Attest the published tarball
+        if: steps.select.outputs.published == 'true'
+        uses: ./.github/actions/attest-npm-tarball
+        with:
+          tarball: ${{ steps.select.outputs.tarball }}
+          package-name: ${{ matrix.package }}
+          package-version: ${{ steps.select.outputs.version }}
 
   # Post-publish registry verification (#1337, AC6). A green publish step has
   # never been evidence that the release reached consumers: 0.0.19 published
