@@ -250,11 +250,28 @@ jobs:
         run: |
           set -euo pipefail
           version="$(node -p 'require("./package-lock.json").packages["node_modules/playwright"].version')"
+          # Playwright only plans the install; apt runs here under a timeout that
+          # root owns and that signals apt's whole process group. A timeout
+          # around Playwright's own installer killed npx alone and orphaned its root
+          # apt-get, which kept the dpkg lock so every retry failed at once.
+          plan="$(npx --yes "playwright@${version}" install-deps --dry-run chromium)"
+          packages="$(sed -n 's/.*apt-get install -y --no-install-recommends \([^"]*\)".*/\1/p' <<<"$plan")"
+          if [ -z "$packages" ]; then
+            echo "::error::Could not read Playwright ${version}'s OS dependency list"
+            echo "$plan"
+            exit 1
+          fi
+          # Abandon a connection idle for 30 s and retry that file, instead of
+          # waiting on a stalled mirror transfer.
+          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=30)
           for attempt in 1 2 3; do
-            if timeout --foreground 300s npx --yes "playwright@${version}" install-deps chromium; then
+            # shellcheck disable=SC2086 # $packages is a space-separated package list
+            if sudo timeout --kill-after=10s 60s apt-get "${apt_options[@]}" update \
+              && sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 210s apt-get "${apt_options[@]}" install -y --no-install-recommends $packages; then
               exit 0
             fi
             echo "::warning::Playwright OS dependency provisioning attempt ${attempt} failed; retrying"
+            sudo dpkg --configure -a || true
             sleep $((attempt * 15))
           done
           echo "::error::Playwright OS dependencies could not be provisioned from the runner's apt mirror"
