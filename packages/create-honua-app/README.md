@@ -6,7 +6,7 @@ omit `--sdk-version` to follow the promoted release channel or this scaffold's c
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.2.6
+npm create honua-app@latest my-map -- --sdk-version 0.2.10
 cd my-map
 npm install
 npm run dev
@@ -32,7 +32,7 @@ create-honua-app [directory] [options]
 With `npm create`, pass CLI options after `--`:
 
 ```bash
-npm create honua-app@latest my-react-map -- --template react-ts --sdk-version 0.2.6
+npm create honua-app@latest my-react-map -- --template react-ts --sdk-version 0.2.10
 ```
 
 ## Which SDK version a scaffold pins
@@ -53,7 +53,7 @@ version this release of `create-honua-app` ships with. The default path never pi
 yourself, pass `--sdk-version`:
 
 ```bash
-npm create honua-app@latest my-pinned-map -- --sdk-version 0.2.6
+npm create honua-app@latest my-pinned-map -- --sdk-version 0.2.10
 ```
 
 ## Templates
