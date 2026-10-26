@@ -105,7 +105,10 @@ export function workflowTagTriggers(parsed) {
  * A run block that defines a `publish_package()` helper is read at its call
  * sites (publish-js-sdk.yml publishes several packages from one step); any
  * other block is read at the `npm publish` invocation itself, where an omitted
- * path argument means "publish the working directory".
+ * path argument means "publish the working directory". A block that packs a
+ * directory and publishes the resulting tarball (so the exact published bytes
+ * can be attested) is read at its `npm pack` argument: that is the directory
+ * whose contents reach the registry.
  */
 export function npmPublishInvocations(parsed) {
   const workflowDefault = parsed?.defaults?.run?.["working-directory"];
@@ -122,10 +125,19 @@ export function npmPublishInvocations(parsed) {
         }
         continue;
       }
+      const packed = [...run.matchAll(/(?:^|\n|\$\()\s*(?:node\s+"\$\{PINNED_NPM\}"|npm)\s+pack\s+(\S+)/gu)]
+        .map((call) => call[1]);
       for (const call of run.matchAll(/(?:^|\n)\s*(?:node\s+"\$\{PINNED_NPM\}"|npm)\s+publish\b([^\n]*)/gu)) {
         const rest = call[1].trim();
-        const first = rest.split(/\s+/u)[0] ?? "";
-        invocations.push({ workingDirectory, argument: first.startsWith("-") || first === "" ? "" : first });
+        let first = rest.split(/\s+/u)[0] ?? "";
+        if (first.startsWith("-")) first = "";
+        if (first.includes("${pack_dir}")) {
+          if (packed.length !== 1) {
+            throw new Error(`a tarball publish must follow exactly one npm pack in its step (found ${packed.length})`);
+          }
+          first = packed[0] === "." ? "" : packed[0];
+        }
+        invocations.push({ workingDirectory, argument: first });
       }
     }
   }
