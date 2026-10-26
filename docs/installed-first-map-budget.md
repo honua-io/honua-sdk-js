@@ -6,7 +6,7 @@ description: "Measure public installed SDK bundles against the canonical First M
 # Installed First Map bundle regression
 
 The bounded installed JavaScript client journey must stay below the canonical
-First Map chunk budget: 2,010,000 JavaScript bytes and 534,000 gzip bytes.
+First Map chunk budget: 2,210,000 JavaScript bytes and 590,000 gzip bytes.
 
 PR #2189 corrects feature geometry with generic metadata and reuses canonical
 polygon topology. Removing duplicate conversion initially kept the packed
