@@ -223,7 +223,9 @@ jobs:
     needs: admission
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Worst-case OS-dependency provisioning (3 x 300 s + backoff) plus the
+    # five-minute clock and setup; see the workflow test that derives it.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
