@@ -127,6 +127,160 @@ The same mechanism exists in `honua-server` as
 `scripts/ci/detect-stranded-merges.py`, with the same schema-version-2
 vocabulary; the two implementations publish one contract.
 
+## Release-lineage, drift and network gates
+
+Reference for the gates `AGENTS.md` lists by name. Read the entry before changing the
+code or data it guards.
+
+- **Contract conformance:** `npm run test:conformance` (`vitest.conformance.config.ts`) — round-trips the shared, versioned geospatial-grpc fixtures through the real `HonuaClient` against a pinned `honua-server:nightly` and fails on `Dataset`/`Source`/`Query`/`Result` drift. Double-gated on `HONUA_INTEGRATION_BASE_URL` + `HONUA_CONFORMANCE_FIXTURES_DIR`; explicit no-op otherwise. Pull fixtures with `conformance/fetch-fixtures.sh --version <X.Y.Z>`. See `conformance/README.md`.
+- **Generated MCP client pin:** `npm run verify:mcp-pin` proves the `@honua/mcp-server` version written into generated `.mcp.json` / `claude_desktop_config.json` files belongs to this repo's release lineage, never runs ahead of `mcp/package.json`, and declares a `@honua/sdk-js` peer range that npm's default resolver accepts for the SDK version beside it; `HONUA_MCP_PIN_LIVE_ENABLED=true npm run verify:mcp-pin:live` additionally resolves it against the public npm registry and compares the recorded tarball integrity (network lane; never in PR CI). `test/verify-mcp-pin.test.ts` covers both offline.
+- **Pinned client pair co-install:** `npm run verify:client-pair` packs this tree and really installs it beside the pinned `@honua/mcp-server` in a throwaway consumer under **default** peer resolution -- no `--legacy-peer-deps`, no `--force` -- so a cut whose pair only installs with a workaround fails before publish. `npm run verify:client-pair:registry` asks the same question of the two published artifacts (scheduled `mcp-pin-live.yml`). Releases are stable `0.x` versions (from 0.1.12; "beta" is the documented maturity label, not part of the version string), so `@honua/mcp-server`'s caret peer on `@honua/sdk-js` (for example `^0.1.12`) admits later SDK patches and an SDK-only patch co-installs with the MCP release already pinned. The earlier `-beta.N` prereleases could not do that: a caret range over a prerelease admits exactly one `major.minor.patch` tuple (#1529).
+- **Advancing the generated-config MCP pin:** the pin in `src/local-install.ts` must name a version the registry serves *and* declare a peer range that admits this SDK's version -- so it is deliberately not a release-please `extra-files` bump (release-please would advance it before either half is published, and cannot compute the recorded tarball integrity). After the coordinated `@honua/mcp-server` publish, run `npm run sync:mcp-pin` to advance the version and its integrity together. The pin has two homes -- `src/local-install.ts` and the shipped `mcp/release/zero-to-map/configs/*.json`, which `verify:mcp-pin` requires to name the identical pin -- and the sync moves both in one run, so advancing one alone can never leave the tree failing its own gate. `npm run sync:mcp-pin -- --check` reports drift at every one of those sites without writing. Between a release bump and that publish the pin legitimately lags: PR CI stays green and `verify:client-pair` is what refuses to ship it.
+- **Scaffold + playgrounds (`packages/create-honua-app`):** `npm run create-app:verify`, `npm run create-app:test`, `npm run create-app:templates:typecheck`, `npm run create-app:verify:package` (packs the scaffold and scaffolds from the tarball), `npm run playgrounds:check` (regenerate the page with `npm run playgrounds:generate`); the registry lane is `HONUA_CREATE_APP_LIVE_ENABLED=true npm run create-app:time-to-map`. See `docs/create-honua-app.md`.
+- **Gallery sample playgrounds (`playgrounds/`):** generated standalone projects for the samples that qualify — `npm run samples:playgrounds:generate` writes them plus the catalog overlay's `playground` links (follow with `npm run samples:migrate:v1`) and the managed `sample-playground` block in each qualifying sample's own `examples/<id>/README.md`, `npm run samples:playgrounds:check` fails on drift in any of the three, `npm run samples:playgrounds:typecheck` compiles them against SDK source, `npm run samples:playgrounds:test` covers the eligibility rules. The scheduled registry lane is `HONUA_PLAYGROUND_LIVE_ENABLED=true npm run samples:playgrounds:smoke` (weekly `sample-playground-live.yml`; never in PR CI): it installs a generated playground from the real npm registry, builds it, serves the production build, and drives it headless. A sample whose data comes from a repository fixture server gets that origin generated too — declare it in `PLAYGROUND_FIXTURE_ORIGINS` (`scripts/sample-playgrounds.mjs`) and the project ships byte-identical copies of the reviewed fixture pack plus a Vite plugin serving the sample's audited same-origin routes. Never edit `playgrounds/` by hand: change the sample under `examples/` and regenerate. See `docs/playgrounds.md`.
+- **Documented executable commands:** `npm run docs:commands:check` proves every `npx` command in a fenced block can actually resolve an executable, by reimplementing npm's own bin derivation against the `bin` maps on disk. `npx` takes a *package*, not a command, so `npx @honua/sdk-js honua <cmd>` cannot run (two bins, neither named `sdk-js`) and `npx honua-js-migrate` 404s (a bin, not a package) unless the same block installed `@honua/honua-migrate` first — both fail only for the reader, never for the author, who already has the bin on PATH (#1596). It reads trailing `#` comments too, so a code-block comment cannot quote a broken command to warn against it; put that warning in the prose. The network lane is `npm run docs:commands:registry` (weekly `documented-packages.yml`; never in PR CI): it installs the pinned candidate from the registry into a throwaway consumer under **default** resolution and runs each documented invocation there, passing only on positive evidence — exit 0 and the resolved executable naming itself — plus a control that the #1596 form is still unresolvable.
+- **Canonical capability keys / coverage snapshot:** `npm run samples:verify` validates `samples/catalog.v2.json`'s `capabilityKeys` against `config/capability-crosswalk.v1.json`; `npm run sdk-coverage:generate` / `npm run sdk-coverage:check` produce and drift-gate `config/sdk-coverage.v1.json` from `config/support-manifest.v1.json` + `config/sdk-coverage-crosswalk.v1.json`. See `docs/capability-keys.md`.
+- **Sample-contract look-ahead clock lane:** `npm run samples:contract:lookahead` re-runs `test/sample-contract.test.ts` against a forward-shifted validation clock (+35d and +95d, clearing the 31-day executed and 90-day non-executed evidence windows) so a fixture whose validity silently depends on the wall-clock date fails weeks before it wedges trunk; on failure it bisects the offset and names the date the fixture tips. `HONUA_SAMPLE_CONTRACT_LOOKAHEAD_DAYS` shifts that one suite's clock and nothing else. See the header of `test/sample-contract.test.ts`.
+
+## PR issue disposition footer (CI-enforced)
+
+Every PR body must end with a contiguous block of disposition lines. The
+required `PR Issue Disposition` check runs `scripts/check-pr-issue-disposition.mjs`
+and **fails the PR** on any deviation, so get it right when you open the PR
+rather than after a red check.
+
+Each line is exactly one of:
+
+```
+Closes #N
+Refs #N (explanation)
+```
+
+**Use `Closes` when every acceptance criterion on the issue is met.** Do not
+downgrade finished work to `Refs` out of caution — a closed issue is the point
+of the work, and leaving a satisfied issue open is its own kind of drift.
+
+**Use `Refs` only when the issue genuinely still has open acceptance
+criteria** after this PR merges, and say in the parenthetical what remains.
+Typical honest reasons: the rest needs a live candidate server, published
+registry bytes, a real release cut, a change in another repository, or a
+blocking issue. If you are using `Refs`, you should be able to name the
+specific unmet criterion.
+
+The explanation is not free-form. It must:
+
+- be 1–160 characters, trimmed, with no parentheses or newlines inside it;
+- contain at least one progress marker — `S<number>`, `slice`, `partial`,
+  `remain` / `remains` / `remaining`, `follow-up`, `blocked`, or `handoff`.
+
+Further rules the validator enforces:
+
+- The block may declare several issues (at most 20), one per line, with no
+  issue repeated.
+- No `Refs #N` may appear anywhere above the block — a stray one in the prose
+  fails as `misplaced-reference`.
+- No closing keyword tied to an issue (`close`/`closes`/`closed`,
+  `fix`/`fixes`/`fixed`, `resolve`/`resolves`/`resolved` followed by `#N`) may
+  appear above the block. Write neutral prose and keep closure intent only in
+  the footer. "This does not close #123" fails; say "this PR is not sufficient
+  on its own" instead.
+
+Valid examples:
+
+```
+Closes #1421
+```
+
+```
+Refs #1397 (server-discovered routing; family/view metadata remains, blocked on honua-server#3428)
+Refs #1398 (proposal status client; draft enumeration remains, blocked on honua-server#3003)
+```
+
+Syntax-check a body before pushing instead of guessing at the grammar:
+
+```bash
+node --input-type=module -e '
+import { parsePullRequestDisposition } from "./scripts/lib/pr-issue-disposition.mjs";
+import { readFileSync } from "node:fs";
+console.log(parsePullRequestDisposition(readFileSync("/tmp/body.md", "utf8")));'
+```
+
+This covers the footer grammar only. The required check calls
+`validatePullRequestDisposition`, which additionally resolves each declared
+issue against the GitHub API — so a footer that is syntactically perfect still
+fails the gate when it names an issue that does not exist, is already closed,
+lives in another repository, or is actually a pull request, or when GitHub does
+not recognise a declared `Closes` reference. A clean parse means the grammar is
+right, not that the PR will pass.
+
+## Keeping a PR mergeable
+
+- Trunk protection requires conversation resolution: every review thread must
+  be resolved before merge. Judge automated review findings on the evidence —
+  fix the real ones, and reject a false positive with concrete proof rather
+  than making a no-op change to silence it.
+- CI runs **trunk's** workflow against your branch. When a merged PR adds a new
+  gate, older branches fail with `Missing script: "<name>"` until they merge
+  trunk. Merge or rebase onto `origin/trunk` before diagnosing such a failure
+  as a defect in your own work.
+- `docs/bundle-sizes.md` is regenerated on trunk by automation and conflicts
+  often. Never hand-merge it: take trunk's copy and regenerate.
+
+  ```bash
+  git checkout origin/trunk -- docs/bundle-sizes.md
+  npm run report:bundle-sizes
+  npm run verify:bundle-budgets
+  ```
+
+- A ceiling that appears in more than one file must be changed in all of them.
+  The `/web-components` gzip ceiling, for example, lives in
+  `bundle-budgets.json`, `config/app-platform-reference-evidence.v1.json`, and
+  the generated `config/app-platform-reference-qualification.v1.json`
+  (regenerate with `npm run qualification:app-platform`).
+
+## Release metadata files
+
+### `release/component-versions.json`
+
+`release/component-versions.json` declares this package's contract and schema versions
+(`honua.component-versions/v1`). The honua-release nightly resolver reads it at the published
+source commit of the npm package and refuses `honua-sdk-js` when it is missing or invalid. Any PR
+that bumps a contract version (for example `connect-parity`) or a schema version (for example the
+diagnostic bundle `schemaVersion` in `src/diagnostics/schema.ts`) must update this file in the same PR.
+
+### `release/sdk-capability-baseline.json`
+
+`release/sdk-capability-baseline.json` (`honua.sdk-capability-baseline/v1`, defined by honua-release `schemas/sdk-capability-baseline.v1.schema.json` and `docs/SDK-SERVER-BASELINE-RULE.md`) declares the honua-server capabilities this repository requires and the `minimumServerVersion` derived from them. The honua-release nightly resolver reads it at the source revision of every published npm package (`@honua/sdk-js` and its companion `@honua/mcp-server`), and refuses the component when it is missing, invalid, or when those revisions declare different `minimumServerVersion` values. It takes effect only after a release-please publication contains it. Every required capability must be a key in honua-server `docs/gis/data/capability-keys.v1.json`, and `capabilities` must hold exactly one introduction entry per required capability. Add or remove a required capability in the same PR that starts or stops depending on it.
+
+## Filing issues
+
+When the user asks for a ticket, backlog item, epic, workstream, or GitHub issue:
+
+- Create the issue with `gh issue create` in the owning repository. Do not leave the work only in chat or a temporary docs file unless the user explicitly asks for a draft.
+- Search existing open and closed issues before filing to avoid duplicates.
+- For work that primarily demonstrates or exercises the JavaScript SDK, examples, MCP package, or migration tooling, default to `honua-io/honua-sdk-js`.
+- For work that spans the Honua platform, create an umbrella issue in the coordinating repo and child issues in implementation repos when the scope is concrete enough. If only one issue is requested, include an `Affected repos` section.
+- Use existing labels when practical: `enhancement`, `area/sdk`, `area/mcp`, `area/server`, `area/infrastructure`, `phase/MVP`, `phase/Beta`, `priority/P*`, and `effort/*`.
+
+### Specifica requirement format
+
+Product backlog issues, epics, and cross-repo workstreams use the Specifica
+format: requirement-first and traceable, not a loose idea note. Every
+workstream must be in Specifica.
+
+- Issue bodies marked as Specifica projections are generated from
+  `honua-io/agent-delivery-spec`: edit the markdown there and resync rather
+  than hand-editing GitHub, which gets overwritten.
+- Otherwise create the issue directly from the canonical templates in
+  `honua-io/agent-delivery-spec`: `templates/specifica-epic-issue.md` and
+  `templates/specifica-feature-issue.md`. Never file workstreams, demo
+  backlogs, platform contracts, or epics as free-form notes.
+- Split a broad roadmap item into child Specifica feature issues before work
+  starts; for app backlogs prefer one epic carrying the workstream context
+  plus one child issue per sample application.
+- The incident operations dashboard is realtime by default; never describe it
+  as a static dashboard unless the user explicitly changes that requirement.
+
 ## Commit hygiene
 
 Author commits as the repo owner (`Mike McDougall <mike@honua.io>`). Do not add
