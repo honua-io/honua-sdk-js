@@ -189,6 +189,35 @@ describe("the SDK verification graph produces one build and consumes it", () => 
     );
     assert.ok(jobCommands(graph, "quickstart-budget").has("npm run docs:quickstart:time-to-map"));
   });
+
+  // OS dependencies are provisioned before the clock with bounded retries
+  // (#2256). The job must outlive every retry it permits plus the clock it
+  // then measures; otherwise a stalled mirror cancels the job before the last
+  // retry, or leaves the five-minute measurement less than five minutes.
+  it("gives each quickstart job room for every provisioning retry plus the full clock", () => {
+    const QUICKSTART_CLOCK_SECONDS = 300;
+    const SETUP_MARGIN_SECONDS = 180;
+    for (const [workflow, jobId] of [
+      [graph, "quickstart-budget"],
+      [ci, "js-sdk"],
+    ]) {
+      const provision = steps(workflow, jobId).find(
+        (step) => step.name === "Provision Playwright operating-system dependencies",
+      );
+      assert.ok(provision, `${jobId} must provision Playwright OS dependencies before the clock`);
+      const script = stepScript(provision);
+      const attempts = script.match(/for attempt in ([\d ]+); do/u)?.[1].trim().split(/\s+/u).map(Number);
+      const perAttempt = Number(script.match(/timeout --foreground (\d+)s/u)?.[1]);
+      const backoff = Number(script.match(/sleep \$\(\(attempt \* (\d+)\)\)/u)?.[1]);
+      assert.ok(attempts?.length && perAttempt > 0 && backoff > 0, `${jobId} provisioning retries must be bounded`);
+      const worstCase = attempts.reduce((total, attempt) => total + perAttempt + attempt * backoff, 0);
+      const jobSeconds = Number(workflow.jobs[jobId]["timeout-minutes"]) * 60;
+      assert.ok(
+        jobSeconds >= worstCase + QUICKSTART_CLOCK_SECONDS + SETUP_MARGIN_SECONDS,
+        `${jobId} timeout ${jobSeconds}s cannot hold ${worstCase}s of provisioning plus the ${QUICKSTART_CLOCK_SECONDS}s clock`,
+      );
+    }
+  });
 });
 
 describe("browser evidence is sharded by owned failure domain", () => {
