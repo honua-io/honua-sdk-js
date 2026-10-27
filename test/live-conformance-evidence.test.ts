@@ -453,7 +453,7 @@ describe("live-conformance journeys against the deterministic reference services
     expect(stac?.discovery?.conformance.kind).toBe("stac-landing-conformance-classes");
     expect(stac?.discovery?.conformance.classes).toContain("https://api.stacspec.org/v1.0.0/item-search");
 
-    const wms = byId.get("terrestris-osm-wms");
+    const wms = byId.get("pdok-luchtfoto-rgb-wms");
     expect(wms?.discovery?.conformance.kind).toBe("capabilities-document-operations");
     expect(wms?.discovery?.protocolVersion).toBe("1.3.0");
     expect(wms?.discovery?.conformance.operations.map((operation) => operation.name)).toContain("render");
