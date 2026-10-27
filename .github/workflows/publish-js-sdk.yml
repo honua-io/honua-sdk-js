@@ -408,8 +408,11 @@ jobs:
           echo "Dry run complete. Split package tarballs verified:"
           ls -la "${RUNNER_TEMP}/split-tarballs/"
 
+      # Also on failure: publication is sequential, so packages before a failed
+      # one are already on npm, and a rerun skips them as already published.
+      # Their tarballs and ledger rows are the only way they get attested.
       - name: Upload the exact published tarballs for attestation
-        if: ${{ env.DRY_RUN != 'true' }}
+        if: ${{ !cancelled() && env.DRY_RUN != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: published-npm-tarballs
@@ -423,7 +426,9 @@ jobs:
   attest-published-packages:
     name: Attest ${{ matrix.package }}
     needs: publish-js-packages
-    if: ${{ !cancelled() && needs.publish-js-packages.result == 'success' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
+    # A failed publish job may already have put earlier packages on npm; attest
+    # exactly the ones its ledger records as published.
+    if: ${{ !cancelled() && (needs.publish-js-packages.result == 'success' || needs.publish-js-packages.result == 'failure') && !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -445,6 +450,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Download the published tarballs
+        # Absent only when the publish job failed before publishing anything.
+        continue-on-error: ${{ needs.publish-js-packages.result != 'success' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: published-npm-tarballs
@@ -454,9 +461,20 @@ jobs:
         id: select
         env:
           PACKAGE_NAME: ${{ matrix.package }}
+          PUBLISH_RESULT: ${{ needs.publish-js-packages.result }}
         run: |
           set -euo pipefail
-          row="$(awk -F '\t' -v name="$PACKAGE_NAME" '$1 == name' "${RUNNER_TEMP}/published-npm/published.tsv")"
+          ledger="${RUNNER_TEMP}/published-npm/published.tsv"
+          if [[ ! -f "$ledger" ]]; then
+            if [[ "$PUBLISH_RESULT" == "success" ]]; then
+              echo "::error::A successful publication produced no published-tarball ledger"
+              exit 1
+            fi
+            echo "The publish job failed before publishing anything; nothing to attest."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          row="$(awk -F '\t' -v name="$PACKAGE_NAME" '$1 == name' "$ledger")"
           if [[ -z "$row" ]]; then
             echo "${PACKAGE_NAME} was not published by this run (already on the registry); nothing to attest."
             echo "published=false" >> "$GITHUB_OUTPUT"

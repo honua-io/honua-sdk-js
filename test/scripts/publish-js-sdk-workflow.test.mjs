@@ -230,3 +230,42 @@ it("attests every package this workflow publishes, from this workflow's own iden
   const verify = action.runs.steps.findIndex((step) => step.name === "Verify the registry serves these exact bytes");
   assert.ok(verify >= 0 && verify < action.runs.steps.findIndex((step) => step.uses?.startsWith("actions/attest-build-provenance@")));
 });
+
+// Publication is sequential: when a later package fails, earlier ones are
+// already on npm, and a rerun skips them as already published. Their tarballs
+// and ledger rows must still reach the attestation job, or that part of the
+// release can never be attested.
+it("attests what a partially failed publication already put on the registry", (t) => {
+  const upload = steps.find((step) => step.name === "Upload the exact published tarballs for attestation");
+  assert.match(upload.if, /!cancelled\(\)/u, "the published-tarball ledger must be uploaded when publication fails");
+  const job = workflow.jobs["attest-published-packages"];
+  assert.match(job.if, /needs\.publish-js-packages\.result == 'failure'/u, "a failed publish job must still be attested");
+  const download = job.steps.find((step) => step.name === "Download the published tarballs");
+  assert.equal(download["continue-on-error"], "${{ needs.publish-js-packages.result != 'success' }}");
+  const select = job.steps.find((step) => step.name === "Select this package's tarball");
+
+  const runSelect = (publishResult, ledger) => {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "attest-select-"));
+    t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+    if (ledger !== undefined) {
+      fs.mkdirSync(path.join(temp, "published-npm"));
+      fs.writeFileSync(path.join(temp, "published-npm", "published.tsv"), ledger);
+    }
+    const output = path.join(temp, "output");
+    fs.writeFileSync(output, "");
+    const result = spawnSync("bash", ["-e", "-c", select.run], {
+      encoding: "utf8",
+      env: { ...process.env, RUNNER_TEMP: temp, GITHUB_OUTPUT: output, PACKAGE_NAME: "@honua/sdk", PUBLISH_RESULT: publishResult },
+    });
+    return { status: result.status, output: fs.readFileSync(output, "utf8") };
+  };
+
+  // Failed before anything reached npm: no ledger, nothing to attest, no error.
+  assert.deepEqual(runSelect("failure", undefined), { status: 0, output: "published=false\n" });
+  // A successful publish must have produced the ledger.
+  assert.notEqual(runSelect("success", undefined).status, 0);
+  // Failed after this package was published: attest it.
+  const partial = runSelect("failure", "@honua/sdk-js\t0.2.11\tsdk-js.tgz\n@honua/sdk\t0.2.11\tsdk.tgz\n");
+  assert.equal(partial.status, 0);
+  assert.match(partial.output, /published=true\nversion=0\.2\.11\ntarball=.*\/published-npm\/sdk\.tgz\n/u);
+});
