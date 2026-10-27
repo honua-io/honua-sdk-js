@@ -390,8 +390,27 @@ export async function runStandalone(env: NodeJS.ProcessEnv = process.env): Promi
   await server.connect(transport);
 }
 
+const STANDALONE_USAGE = `honua-mcp ${SERVER_VERSION} — platform-free Honua MCP server over stdio
+
+Usage: npx -y -p @honua/mcp-server honua-mcp
+
+Environment:
+  HONUA_BASE_URL           endpoint to serve (required): any FeatureServer, OGC API, STAC, WFS or OData root
+  HONUA_API_KEY            optional API key (HTTPS, or HTTP on localhost only)
+  HONUA_TRANSPORT          grpc-web (default) or rest
+  HONUA_TIMEOUT_MS         request timeout in milliseconds
+  HONUA_RETRY_MAX_RETRIES  retry budget for transient failures
+
+For a Honua deployment's full /mcp catalog, use honua-mcp-proxy instead.
+`;
+
 /** `honua-mcp` bin entry — the platform-free standalone server. */
 async function main() {
+  const args = process.argv.slice(2);
+  if (args.includes("--help") || args.includes("-h")) {
+    process.stdout.write(STANDALONE_USAGE);
+    return;
+  }
   await runStandalone();
 }
 
