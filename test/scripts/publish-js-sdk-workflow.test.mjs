@@ -253,7 +253,9 @@ it("attests what a partially failed publication already put on the registry", (t
     }
     const output = path.join(temp, "output");
     fs.writeFileSync(output, "");
-    const result = spawnSync("bash", ["-e", "-c", select.run], {
+    const scriptPath = path.join(temp, "select.sh");
+    fs.writeFileSync(scriptPath, select.run, { mode: 0o755 });
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", scriptPath], {
       encoding: "utf8",
       env: { ...process.env, RUNNER_TEMP: temp, GITHUB_OUTPUT: output, PACKAGE_NAME: "@honua/sdk", PUBLISH_RESULT: publishResult },
     });
