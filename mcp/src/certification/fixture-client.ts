@@ -101,14 +101,16 @@ export function createFixtureClient(): HonuaClient {
       const extraParams = request?.extraParams ?? {};
       // count-only and extent-only projections mirror the GeoServices query
       // surface the tools exercise (returnCountOnly / returnExtentOnly).
-      if (extraParams.returnCountOnly === true) {
-        return { count: 2 } as unknown as HonuaQueryResponse;
-      }
+      // honua-server answers returnExtentOnly with `{extent, count}`, with or
+      // without returnCountOnly beside it; only a bare returnCountOnly is count-only.
       if (extraParams.returnExtentOnly === true) {
         return {
           count: 2,
           extent: { xmin: -180, ymin: -90, xmax: 180, ymax: 90, spatialReference: { wkid: 4326 } },
         } as unknown as HonuaQueryResponse;
+      }
+      if (extraParams.returnCountOnly === true) {
+        return { count: 2 } as unknown as HonuaQueryResponse;
       }
       return {
         objectIdFieldName: "OBJECTID",
