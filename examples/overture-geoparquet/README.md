@@ -46,15 +46,15 @@ does not claim those engine metrics were verified.
 
 ## What the Live Lane Proves
 
-The pinned source is Overture release `2026-06-17.0`, schema `v1.17.0`, places
+The pinned source is Overture release `2026-10-21.0`, schema `v2.0.0`, places
 item `00000`:
 
 ```text
-https://stac.overturemaps.org/2026-06-17.0/places/place/00000/00000.json
-https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/theme=places/type=place/part-00000-6c973aba-862d-590f-a178-70bcd31cde1c-c000.zstd.parquet
+https://stac.overturemaps.org/2026-10-21.0/places/place/00000/00000.json
+https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-10-21.0/theme=places/type=place/part-00000-a0a9949b-7e8e-59fe-803b-6cc55b17f790-c000.zstd.parquet
 ```
 
-The selected object contains 4,717,270 rows in 256 row groups and is 656,568,610
+The selected object contains 5,526,143 rows in 256 row groups and is 729,511,821
 bytes. The committed manifest pins identity and bbox metadata for all 16 STAC
 items; exactly item `00000` intersects the Oahu AOI. The browser requires exact
 `206 Partial Content` intervals for a one-byte header probe and a 64 KiB footer

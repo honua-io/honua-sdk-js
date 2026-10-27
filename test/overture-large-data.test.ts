@@ -34,7 +34,7 @@ describe("Overture large-data flagship", () => {
       limit: 100,
       filesSelected: 1,
       filesAvailable: 16,
-      selectedObjectRows: 4_717_270,
+      selectedObjectRows: 5_526_143,
       selectedObjectRowGroups: 256,
       rangeReadPlan: "aws-fail-closed-range-io",
       allowFullHttpReads: false,
@@ -66,7 +66,7 @@ describe("Overture large-data flagship", () => {
       ),
     ).toThrow("no object");
     expect(() =>
-      planOvertureQuery({ lane: "live", aoi: [-77, 28.47, -76.9, 28.48], category: "all", limit: 10 }, OVERTURE_POLICY),
+      planOvertureQuery({ lane: "live", aoi: [-77, 28.3, -76.9, 28.4], category: "all", limit: 10 }, OVERTURE_POLICY),
     ).toThrow("requires exactly one object");
   });
 

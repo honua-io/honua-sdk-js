@@ -68,7 +68,7 @@ const places = dataset.source("places")!;
 // The same stable Query envelope runs against a FeatureServer source:
 const result = await places.query({
   spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
-  outFields: ["id", "names", "categories"],
+  outFields: ["id", "names", "basic_category"],
   pagination: { limit: 500 },
   returnGeometry: true,
 });
@@ -258,11 +258,11 @@ and [query-planner.md](./query-planner.md#result-representation).
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 const summary = await places.queryAggregate({
   aggregation: {
-    groupBy: ["categories.primary"],
+    groupBy: ["basic_category"],
     metrics: [{ fn: "count", field: "*", alias: "n" }],
   },
 });
-// summary.aggregateRows: [{ "categories.primary": "restaurant", n: 812 }, …]
+// summary.aggregateRows: [{ basic_category: "restaurant", n: 812 }, …]
 ```
 
 ## Lifecycle & memory ceiling
@@ -323,7 +323,7 @@ STAC selection:
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 // Overture release layout (see https://docs.overturemaps.org/):
 const PINNED_ITEM =
-  "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/theme=places/type=place/part-00000-6c973aba-862d-590f-a178-70bcd31cde1c-c000.zstd.parquet";
+  "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-10-21.0/theme=places/type=place/part-00000-a0a9949b-7e8e-59fe-803b-6cc55b17f790-c000.zstd.parquet";
 
 createDataset({
   id: "overture-live",

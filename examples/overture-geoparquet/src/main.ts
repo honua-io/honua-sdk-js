@@ -223,13 +223,12 @@ async function renderRows(rows: readonly OverturePlaceRow[], aoi: Bbox, generati
 function normalizeFeature(attributes: Record<string, unknown>): OverturePlaceRow {
   const bbox = asRecord(attributes.bbox);
   const names = asRecord(attributes.names);
-  const categories = asRecord(attributes.categories);
   const longitude = midpoint(bbox?.xmin, bbox?.xmax);
   const latitude = midpoint(bbox?.ymin, bbox?.ymax);
   return {
     id: String(attributes.id ?? "unknown"),
     name: String(attributes.name ?? names?.primary ?? "Unnamed place"),
-    category: String(attributes.category ?? categories?.primary ?? "uncategorized"),
+    category: String(attributes.category ?? attributes.basic_category ?? "uncategorized"),
     confidence: typeof attributes.confidence === "number" ? attributes.confidence : 0,
     longitude,
     latitude,
@@ -255,7 +254,7 @@ function createQuery(plan: OvertureQueryPlan, signal: AbortSignal): Query<Record
   };
   if (plan.category !== "all") {
     const category = plan.category.replaceAll("'", "''");
-    query.where = plan.lane === "live" ? `categories.primary = '${category}'` : `category = '${category}'`;
+    query.where = plan.lane === "live" ? `basic_category = '${category}'` : `category = '${category}'`;
   }
   return query;
 }
