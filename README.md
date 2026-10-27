@@ -782,6 +782,12 @@ issue format used for backlog items.
 
 ## Security
 
+`HonuaClient` refuses to send an `apiKey`, `bearerToken` or `auth` provider
+credential over plain `http://` to a non-loopback host; use `https://`, a
+loopback URL for local development, or opt in with `allowInsecureHttp: true`
+(see [`docs/auth.md`](./docs/auth.md#migrating-credentials-over-plain-http)
+for the migration note).
+
 Report vulnerabilities to [security@honua.io](mailto:security@honua.io) — see the
 [org security policy](https://github.com/honua-io/.github/blob/main/SECURITY.md).
 Please do not open public issues for security reports.

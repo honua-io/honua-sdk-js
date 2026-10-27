@@ -579,6 +579,19 @@ export interface HonuaClientOptions {
    * Returning a string is shorthand for `{ bearerToken: string }`.
    */
   auth?: HonuaAuthProvider | HonuaAuthCredentialsProvider;
+  /**
+   * Allow {@link apiKey}, {@link bearerToken} or an {@link auth} provider to be
+   * used with a plain `http://` {@link baseUrl} on a non-loopback host.
+   *
+   * By default the constructor throws when credentials are configured for an
+   * `http://` base URL whose host is not `localhost`, an address in
+   * `127.0.0.0/8`, or `[::1]`, because the credentials would be sent in
+   * cleartext. Loopback `http://` and every `https://` base URL are always
+   * accepted, as is any base URL when no credentials are configured. Set this
+   * to `true` only for trusted networks (for example a private test cluster).
+   * Default: `false`.
+   */
+  allowInsecureHttp?: boolean;
   /** Milliseconds before `expiresAt` when credentials should be refreshed. Default: 60 seconds. */
   authRefreshSkewMs?: number;
   /** Override the global `fetch` implementation (useful in Node before built-in fetch, or for testing). */

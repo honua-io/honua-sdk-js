@@ -130,6 +130,7 @@ import {
   HonuaOgcFeatures,
   HonuaService,
 } from "./surfaces.js";
+import { assertSecureCredentialedBaseUrl } from "./transport-security.js";
 import type {
   ApplyEditsRequest,
   ExportMapRequest,
@@ -427,6 +428,9 @@ export class HonuaClient {
    *
    * @param options - Connection, auth, transport, retry, and interceptor configuration.
    *   See {@link HonuaClientOptions} for every field and `@example` blocks for common shapes.
+   * @throws Error when `apiKey`, `bearerToken` or `auth` is configured with a plain
+   *   `http://` `baseUrl` on a non-loopback host (anything other than `localhost`,
+   *   `127.0.0.0/8` or `[::1]`), unless {@link HonuaClientOptions.allowInsecureHttp} is `true`.
    *
    * @example Minimal
    * ```ts
@@ -445,6 +449,19 @@ export class HonuaClient {
    */
   public constructor(options: HonuaClientOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
+    // Refuse to put credentials on a cleartext non-loopback connection. The
+    // check runs here, before any request, for static credentials and for a
+    // credential provider alike: `auth` can only be supplied at construction,
+    // so no credential source can be attached to an insecure client later.
+    assertSecureCredentialedBaseUrl(
+      this.baseUrl,
+      [
+        ...(options.apiKey ? ["apiKey"] : []),
+        ...(options.bearerToken ? ["bearerToken"] : []),
+        ...(options.auth ? ["auth"] : []),
+      ],
+      options.allowInsecureHttp === true,
+    );
     // Bind to `globalThis` at assignment: the default browser `fetch` is an
     // unbound `window.fetch`, and invoking it as `this.fetchFn(...)` rebinds
     // its receiver to the client instance, which browsers reject with
