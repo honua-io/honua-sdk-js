@@ -67,6 +67,15 @@ export interface FakeCandidateOptions {
   /** OData page size, small so paging is always exercised (default 2). */
   readonly odataPageSize?: number;
   readonly defects?: FakeCandidateDefects;
+  /**
+   * Deliver live feature-change frames out of mutation order, as honua-server
+   * does by design (publisher continuations on different threads, cross-node
+   * Redis events; honua-server#6104 FeatureStreamDeliveredCursorWindow). Frames
+   * published within this window reach each subscriber newest first, one per
+   * `liveReorderStepMs`. Every frame is still delivered exactly once.
+   */
+  readonly liveReorderWindowMs?: number;
+  readonly liveReorderStepMs?: number;
 }
 
 export interface FakeCandidate {
@@ -371,11 +380,32 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
         if (event.layerId === layerId && event.cursor > Number(replayFrom)) emit("feature-change", featureFrame(event));
       }
     }
+    let active = true;
+    const deliver = (event: FeatureEvent) => {
+      if (active) emit("feature-change", featureFrame(event));
+    };
+    const reorderWindowMs = options.liveReorderWindowMs ?? 0;
+    const reorderStepMs = options.liveReorderStepMs ?? 0;
+    let held: FeatureEvent[] = [];
     const onFeature = (event: FeatureEvent) => {
-      if (event.layerId === layerId || defects.leakForeignFeatures) emit("feature-change", featureFrame(event));
+      if (event.layerId !== layerId && !defects.leakForeignFeatures) return;
+      if (reorderWindowMs <= 0) {
+        deliver(event);
+        return;
+      }
+      held.push(event);
+      if (held.length > 1) return;
+      setTimeout(() => {
+        const batch = held.reverse();
+        held = [];
+        batch.forEach((item, index) => setTimeout(() => deliver(item), index * reorderStepMs));
+      }, reorderWindowMs);
     };
     featureSubscribers.add(onFeature);
-    return () => featureSubscribers.delete(onFeature);
+    return () => {
+      active = false;
+      featureSubscribers.delete(onFeature);
+    };
   }
 
   function handleSse(request: IncomingMessage, response: ServerResponse, url: URL): void {

@@ -940,15 +940,25 @@ async function streamingIsolationScenario(context, adapter, recorder) {
     const ownSecond = recorder.mutation(await adapter.inject(context, OWN, key, "own-second"));
     const ownThird = recorder.mutation(await adapter.inject(context, OWN, key, "own-third"));
     const foreignFourth = recorder.mutation(await adapter.inject(context, FOREIGN, key, "foreign-fourth"));
-    await Promise.all([
-      ownConnection.stream.waitFor((frame) => adapter.matches(frame, ownThird), context.timing.deliveryTimeoutMs, "own delivery"),
-      foreignConnection.stream.waitFor((frame) => adapter.matches(frame, foreignFourth), context.timing.deliveryTimeoutMs, "foreign delivery"),
-    ]);
+    // Wait for every marked mutation, not only the last one injected: the server
+    // delivers live frames out of mutation order by design (honua-server#6104),
+    // so the last mutation arriving says nothing about the earlier one.
+    const expected = [
+      [ownConnection, ownSecond, "own-second"],
+      [ownConnection, ownThird, "own-third"],
+      [foreignConnection, foreignFirst, "foreign-first"],
+      [foreignConnection, foreignFourth, "foreign-fourth"],
+    ];
+    const outcomes = await Promise.allSettled(
+      expected.map(([connection, mutation, label]) =>
+        connection.stream.waitFor((frame) => adapter.matches(frame, mutation), context.timing.deliveryTimeoutMs, `${label} delivery`),
+      ),
+    );
+    const missing = outcomes.flatMap((outcome) => (outcome.status === "rejected" ? [errorMessage(outcome.reason)] : []));
     recorder.assert(
       "tenant-owned-delivery",
-      ownConnection.stream.frames.some((frame) => adapter.matches(frame, ownSecond)) &&
-        foreignConnection.stream.frames.some((frame) => adapter.matches(frame, foreignFirst)),
-      "each tenant received both of its own marked mutations",
+      missing.length === 0,
+      missing.length === 0 ? "each tenant received both of its own marked mutations" : `missing: ${missing.join("; ")}`,
     );
   } finally {
     await delay(context.timing.negativeSettleMs);
