@@ -67,19 +67,20 @@ if (command === 'run') {
   process.exit(1); // Unpublished version: exercise the real publish branch.
 } else if (command === 'publish') {
   assert.equal(args.includes('--dry-run'), process.env.DRY_RUN === 'true');
-  if (target === '.') {
+  assert.ok(path.isAbsolute(target), 'every publish must use a preserved tarball (the attested subject)');
+  const published = JSON.parse(fs.readFileSync(target)).name;
+  if (published === '@honua/sdk-js') {
     assert.ok(fs.existsSync('dist/browser/index.js'));
     fs.rmSync('dist/packages', { recursive: true, force: true });
   } else {
-    assert.ok(path.isAbsolute(target), 'split publish must use a preserved tarball');
-    assert.ok(packages.includes(JSON.parse(fs.readFileSync(target)).name));
+    assert.ok(packages.includes(published));
   }
 } else throw new Error('Unexpected command: ' + command);
 `;
 
 for (const dryRun of [true, false]) {
   it(`publishes all split tarballs after dist cleanup (dry run: ${dryRun})`, (t) => {
-    const { run, calls } = fixture(t, dryRun);
+    const { run, calls, root: fixtureRoot } = fixture(t, dryRun);
     const result = run(publish);
     assert.equal(result.status, 0, result.stderr);
     const recorded = calls();
@@ -87,7 +88,22 @@ for (const dryRun of [true, false]) {
     assert.equal(runtimeChecks.length, 1, "runtime tarball verification must run exactly once");
     assert.ok(recorded.indexOf(runtimeChecks[0]) < recorded.findIndex((call) => call.command === "publish"));
     assert.deepEqual(calls().filter((call) => call.command === "publish").map((call) => path.basename(call.target)),
-      [".", ...packages.map((name) => `${name}.tgz`)]);
+      ["sdk-js.tgz", ...packages.map((name) => `${name}.tgz`)]);
+    // The root tarball is packed after the browser bundle is rebuilt, so it
+    // carries the same files the old directory publish did.
+    const rootPack = recorded.findIndex((call) => call.command === "pack" && call.target === ".");
+    assert.ok(rootPack > recorded.findIndex((call) => call.command === "run" && call.target === "verify:packed-sdk"));
+    const published = path.join(fixtureRoot(), "runner temp", "published-npm");
+    if (dryRun) {
+      assert.equal(fs.readFileSync(path.join(published, "published.tsv"), "utf8"), "");
+    } else {
+      const rows = fs.readFileSync(path.join(published, "published.tsv"), "utf8").trim().split("\n").map((row) => row.split("\t"));
+      assert.deepEqual(rows.map(([name]) => name), ["@honua/sdk-js", ...packages]);
+      for (const [, version, file] of rows) {
+        assert.equal(version, "0.1.0-beta.0");
+        assert.ok(fs.existsSync(path.join(published, file)), `${file} must be retained for attestation`);
+      }
+    }
     if (dryRun) {
       // GitHub starts a new shell for the summary; only RUNNER_TEMP persists.
       const result = run(summary);
@@ -152,6 +168,7 @@ function fixture(t, dryRun, failClientPair = false, failRuntimeTarball = false, 
       });
     },
     calls: () => fs.readFileSync(path.join(fixtureRoot, "calls.jsonl"), "utf8").trim().split("\n").map(JSON.parse),
+    root: () => fixtureRoot,
   };
 }
 
@@ -187,3 +204,70 @@ for (const availableAfter of [17 * 60, Infinity]) {
     assert.ok(elapsed <= 45 * 60);
   });
 }
+
+it("attests every package this workflow publishes, from this workflow's own identity", () => {
+  const job = workflow.jobs["attest-published-packages"];
+  assert.deepEqual(job.needs, "publish-js-packages");
+  assert.deepEqual(job.permissions, { contents: "read", "id-token": "write", attestations: "write" });
+  // The collector names publish-js-sdk.yml as the exact signer workflow, so the
+  // attestation must be produced inline (a composite action), never through a
+  // reusable workflow whose own path would become the signer identity.
+  assert.equal(job.uses, undefined);
+  assert.deepEqual(job.strategy.matrix.package, ["@honua/sdk-js", ...packages.map((name) => `@honua/${name.replace(/^honua-/u, "")}`)]);
+  const attest = job.steps.find((step) => step.uses === "./.github/actions/attest-npm-tarball");
+  assert.equal(attest.if, "steps.select.outputs.published == 'true'");
+  const upload = steps.find((step) => step.name === "Upload the exact published tarballs for attestation");
+  assert.equal(upload.with.name, job.steps.find((step) => step.name === "Download the published tarballs").with.name);
+
+  const action = parse(fs.readFileSync(new URL("../../.github/actions/attest-npm-tarball/action.yml", import.meta.url), "utf8"));
+  const uses = action.runs.steps.map((step) => step.uses).filter(Boolean);
+  for (const ref of uses) assert.match(ref, /@[0-9a-f]{40}$/u, `${ref} must be pinned by SHA`);
+  assert.ok(uses.some((ref) => ref.startsWith("actions/attest-build-provenance@")));
+  assert.ok(uses.some((ref) => ref.startsWith("actions/attest-sbom@")));
+  const sbom = action.runs.steps.find((step) => step.uses?.startsWith("anchore/sbom-action@"));
+  // actions/attest types SPDX as .../Document/v2.3, which the collector does not accept.
+  assert.equal(sbom.with.format, "cyclonedx-json");
+  const verify = action.runs.steps.findIndex((step) => step.name === "Verify the registry serves these exact bytes");
+  assert.ok(verify >= 0 && verify < action.runs.steps.findIndex((step) => step.uses?.startsWith("actions/attest-build-provenance@")));
+});
+
+// Publication is sequential: when a later package fails, earlier ones are
+// already on npm, and a rerun skips them as already published. Their tarballs
+// and ledger rows must still reach the attestation job, or that part of the
+// release can never be attested.
+it("attests what a partially failed publication already put on the registry", (t) => {
+  const upload = steps.find((step) => step.name === "Upload the exact published tarballs for attestation");
+  assert.match(upload.if, /!cancelled\(\)/u, "the published-tarball ledger must be uploaded when publication fails");
+  const job = workflow.jobs["attest-published-packages"];
+  assert.match(job.if, /needs\.publish-js-packages\.result == 'failure'/u, "a failed publish job must still be attested");
+  const download = job.steps.find((step) => step.name === "Download the published tarballs");
+  assert.equal(download["continue-on-error"], "${{ needs.publish-js-packages.result != 'success' }}");
+  const select = job.steps.find((step) => step.name === "Select this package's tarball");
+
+  const runSelect = (publishResult, ledger) => {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "attest-select-"));
+    t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+    if (ledger !== undefined) {
+      fs.mkdirSync(path.join(temp, "published-npm"));
+      fs.writeFileSync(path.join(temp, "published-npm", "published.tsv"), ledger);
+    }
+    const output = path.join(temp, "output");
+    fs.writeFileSync(output, "");
+    const scriptPath = path.join(temp, "select.sh");
+    fs.writeFileSync(scriptPath, select.run, { mode: 0o755 });
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", scriptPath], {
+      encoding: "utf8",
+      env: { ...process.env, RUNNER_TEMP: temp, GITHUB_OUTPUT: output, PACKAGE_NAME: "@honua/sdk", PUBLISH_RESULT: publishResult },
+    });
+    return { status: result.status, output: fs.readFileSync(output, "utf8") };
+  };
+
+  // Failed before anything reached npm: no ledger, nothing to attest, no error.
+  assert.deepEqual(runSelect("failure", undefined), { status: 0, output: "published=false\n" });
+  // A successful publish must have produced the ledger.
+  assert.notEqual(runSelect("success", undefined).status, 0);
+  // Failed after this package was published: attest it.
+  const partial = runSelect("failure", "@honua/sdk-js\t0.2.11\tsdk-js.tgz\n@honua/sdk\t0.2.11\tsdk.tgz\n");
+  assert.equal(partial.status, 0);
+  assert.match(partial.output, /published=true\nversion=0\.2\.11\ntarball=.*\/published-npm\/sdk\.tgz\n/u);
+});

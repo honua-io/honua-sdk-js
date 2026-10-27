@@ -104,8 +104,9 @@ test("publish invocations are read out of the workflows themselves", () => {
     ],
   );
 
-  // The single-package workflows publish their working directory with no path
-  // argument at all; the manifest must describe that shape, not invent one.
+  // The single-package workflows pack their working directory and publish that
+  // tarball (the attested subject); the packed directory is what is published,
+  // so it reads as the working directory with no path argument.
   const mcp = inputs.workflows[".github/workflows/publish-mcp-server.yml"];
   assert.deepEqual(npmPublishInvocations(mcp.parsed), [{ workingDirectory: "mcp", argument: "" }]);
 });

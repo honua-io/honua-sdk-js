@@ -31,6 +31,8 @@ jobs:
       # npmjs.com settings name this repo + workflow file as its trusted
       # publisher. No NPM_TOKEN secret is used.
       id-token: write
+      # Publisher attestations for the published tarball (honua-release collector).
+      attestations: write
     defaults:
       run:
         shell: bash
@@ -116,6 +118,7 @@ jobs:
           fi
 
       - name: Publish package
+        id: publish
         working-directory: packages/create-honua-app
         run: |
           flags=""
@@ -149,4 +152,30 @@ jobs:
 
           # The hash-verified CLI from the step above, not whatever `npm` the
           # PATH resolves to at this point.
-          node "${PINNED_NPM}" publish --access public --tag "$dist_tag" $flags
+          # Publish a packed tarball so the attested subject is the exact file the
+          # registry receives (prepack runs here exactly as it did for a directory publish).
+          pack_dir="${RUNNER_TEMP}/published-npm"
+          rm -rf "$pack_dir"
+          mkdir -p "$pack_dir"
+          filename="$(node "${PINNED_NPM}" pack . --pack-destination "$pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
+          node "${PINNED_NPM}" publish "${pack_dir}/${filename}" --access public --tag "$dist_tag" $flags
+          if [[ "${DRY_RUN}" != "true" ]]; then
+            {
+              echo "published=true"
+              echo "name=${package_name}"
+              echo "version=${package_version}"
+              echo "tarball=${pack_dir}/${filename}"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      # Publisher attestations (honua-release post-gate collector): SLSA provenance
+      # and a CycloneDX SBOM for the exact tarball this run published, signed by
+      # this workflow at the release commit. Skipped when the version was already
+      # on the registry, because this run did not publish those bytes.
+      - name: Attest the published tarball
+        if: steps.publish.outputs.published == 'true'
+        uses: ./.github/actions/attest-npm-tarball
+        with:
+          tarball: ${{ steps.publish.outputs.tarball }}
+          package-name: ${{ steps.publish.outputs.name }}
+          package-version: ${{ steps.publish.outputs.version }}
