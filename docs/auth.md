@@ -173,8 +173,80 @@ const auth = oauth2({
   redirect target off the configured base origin — see
   [`errors.md`](./errors.md) and the credential-leak tests). Absolute request
   URLs to a different origin are rejected outright.
+- **Credentials are never sent over cleartext HTTP to a remote host.** When
+  `apiKey`, `bearerToken` or an `auth` provider is configured, the
+  `HonuaClient` constructor throws if `baseUrl` is a plain `http://` URL whose
+  host is not loopback (`localhost`, `127.0.0.0/8`, or `[::1]`). The check runs
+  at construction time, before any request is sent or any provider is called;
+  `auth` can only be supplied to the constructor, so a provider cannot be
+  attached to an insecure client later. `https://` and loopback `http://` base
+  URLs are always accepted, as is any base URL with no credentials. For a
+  trusted private network, opt in explicitly with `allowInsecureHttp: true`
+  (see [Migrating: credentials over plain HTTP](#migrating-credentials-over-plain-http)).
+  A relative `baseUrl` is not checked; it inherits the embedding page's origin.
 - **PKCE only, always S256.** The implicit flow is not supported; the code
   challenge method is always `S256`.
+
+### Migrating: credentials over plain HTTP
+
+**What changed.** `new HonuaClient(...)` now throws an `Error` when `apiKey`,
+`bearerToken` or `auth` is configured and `baseUrl` is a plain `http://` URL on
+a host other than `localhost`, `127.0.0.0/8` or `[::1]`. Earlier releases
+accepted that configuration and attached the credential to every request.
+
+**Why.** Over `http://` the `X-API-Key` / `Authorization: Bearer` header (and
+any token a provider returns) travels in cleartext, so anyone on the network
+path could read and replay it. Nothing warned you that this was happening.
+
+**Who is affected.** Only callers that combine credentials with a non-loopback
+`http://` base URL. Clients on `https://`, clients on a loopback `http://` URL,
+clients with a relative `baseUrl`, and clients without credentials behave
+exactly as before.
+
+**What to do.** Pick one:
+
+1. Serve Honua over TLS and change the base URL to `https://` (recommended).
+2. For local development, point at a loopback host (`http://localhost:8080`,
+   `http://127.0.0.1:8080`, `http://[::1]:8080`).
+3. If the endpoint is on a network you trust (for example a private test
+   cluster) and you accept that credentials are sent in cleartext, set
+   `allowInsecureHttp: true`.
+
+Before (now throws at construction):
+
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({
+  baseUrl: "http://gis.example.com",
+  apiKey: process.env.HONUA_API_KEY,
+});
+```
+
+After:
+
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+// Recommended: TLS.
+const client = new HonuaClient({
+  baseUrl: "https://gis.example.com",
+  apiKey: process.env.HONUA_API_KEY,
+});
+
+// Local development: loopback http:// is always accepted.
+const devClient = new HonuaClient({
+  baseUrl: "http://localhost:8080",
+  apiKey: process.env.HONUA_API_KEY,
+});
+
+// Trusted private network only: explicit opt-in to cleartext credentials.
+const internalClient = new HonuaClient({
+  baseUrl: "http://honua.internal:8080",
+  apiKey: process.env.HONUA_API_KEY,
+  allowInsecureHttp: true,
+});
+```
 
 ## Wiring into transports
 
