@@ -9,6 +9,10 @@ const PARTIAL_EXPLANATION_PATTERN =
 const MAX_DISPOSITIONS = 20;
 const MAX_EXPLANATION_LENGTH = 160;
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
+const RELEASE_PLEASE_COMPONENT_HEAD =
+  /^release-please--branches--trunk--components--(js-sdk|mcp-server|create-honua-app)$/u;
+const RELEASE_PLEASE_COMPONENT_TITLE =
+  /^chore\(trunk\): release (js-sdk|mcp-server|create-honua-app) ([0-9]+\.[0-9]+\.[0-9]+)$/u;
 const DERIVED_ARTIFACT_BRANCH_PATTERN = /^automation\/derived-artifacts-[1-9][0-9]*-[1-9][0-9]*$/u;
 const MCP_CERTIFICATION_BRANCH_PATTERN = /^automation\/mcp-certification-[1-9][0-9]*-[1-9][0-9]*$/u;
 const KEPLER_AUDIT_RENEWAL_BRANCH_PATTERN = /^automation\/kepler-audit-renewal-\d{4}-\d{2}-\d{2}$/u;
@@ -80,6 +84,12 @@ function normalizeRepository(value) {
 }
 
 /** Return the only automation exemptions allowed by repository policy. */
+function componentReleasePlease(head, title) {
+  const branch = RELEASE_PLEASE_COMPONENT_HEAD.exec(head);
+  const labeled = RELEASE_PLEASE_COMPONENT_TITLE.exec(title);
+  return Boolean(branch && labeled && branch[1] === labeled[1]);
+}
+
 export function automationExemption(input) {
   const { authorLogin, headRefName, title } = input;
   const login = normalizeLogin(authorLogin);
@@ -106,10 +116,10 @@ export function automationExemption(input) {
     RELEASE_AUTOMATION_LOGINS.has(login) &&
     sameRepositoryAutomation &&
     String(input.baseRefName ?? "") === "trunk" &&
-    head === "release-please--branches--trunk" &&
+    (head === "release-please--branches--trunk" && pullRequestTitle === "chore: release trunk" ||
+      componentReleasePlease(head, pullRequestTitle)) &&
     SHA_PATTERN.test(String(input.baseSha ?? "")) &&
-    SHA_PATTERN.test(String(input.headSha ?? "")) &&
-    pullRequestTitle === "chore: release trunk"
+    SHA_PATTERN.test(String(input.headSha ?? ""))
   ) {
     return "Release Please automation";
   }
