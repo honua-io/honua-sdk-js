@@ -415,6 +415,180 @@ describe("bounded setup qualification", () => {
     expect(layerCalls).toEqual(executeStyle ? [0, 0, 0, 0] : []);
     expect(JSON.stringify(receipt)).not.toContain(secret);
   });
+
+  it("applies a discovered preset when the published layer has no style bound yet", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-qualify-"));
+    cleanup.push(directory);
+    const secret = "local-agent-credential-value";
+    const pinned = manifest();
+    const manifestBytes = JSON.stringify(pinned);
+    const manifestPath = path.join(directory, "manifest.json");
+    const manifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
+    writeFileSync(manifestPath, manifestBytes);
+    writeFileSync(
+      path.join(directory, "catalog.json"),
+      JSON.stringify({
+        schemaVersion: "honua.setup-catalog-parity/v1",
+        scope: "catalog-parity-only",
+        candidateId: pinned.candidateId,
+        serverImage: pinned.serverImage,
+        manifestSha256,
+        view: pinned.view,
+        pass: true,
+        directDescriptorSha256: "d".repeat(64),
+        proxiedDescriptorSha256: "d".repeat(64),
+      }),
+    );
+    writeFileSync(path.join(directory, "compose.yaml"), "name: honua-local\n");
+    writeFileSync(
+      path.join(directory, ".env"),
+      `HONUA_HTTP_PORT=18080\nHONUA_SERVER_IMAGE=${LOCAL_INSTALL_SERVER_IMAGE}\nHONUA_ADMIN_KEY=${secret}\n`,
+      { mode: 0o600 },
+    );
+    writeFileSync(
+      path.join(directory, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          honua: {
+            command: "npx",
+            args: ["-y", "--package", LOCAL_INSTALL_MCP_PACKAGE, "honua-mcp-proxy"],
+            env: { HONUA_MCP_REMOTE_URL: "http://127.0.0.1:18080/mcp", HONUA_ADMIN_KEY: secret },
+          },
+        },
+      }),
+      { mode: 0o600 },
+    );
+    let layerStyleReads = 0;
+    const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/healthz/ready")) return new Response("ready", { status: 200 });
+      if (url.endsWith("/api/v1/admin/api-keys")) {
+        return json({
+          data: [
+            {
+              id: "key-1",
+              name: "honua-local-agent",
+              status: "active",
+              keyPrefix: "local-agent",
+              permissions: ["admin:read", "admin:write", "read:*"],
+            },
+          ],
+        });
+      }
+      if (url.includes("/effective-permissions")) {
+        return json({
+          data: {
+            id: "key-1",
+            status: "active",
+            canAuthenticate: true,
+            permissions: ["admin:read", "admin:write", "read:*"],
+          },
+        });
+      }
+      if (url.endsWith("/api/v1/admin/version"))
+        return json({ data: { version: "2026.1.0", metadataApiVersion: "v1" } });
+      if (url.endsWith("/mcp")) {
+        const body = JSON.parse(String(init?.body)) as {
+          id: string;
+          method: string;
+          params?: { view?: string; cursor?: string; name?: string; arguments?: Record<string, unknown>; uri?: string };
+        };
+        if (
+          body.method === "tools/call" &&
+          body.params?.name === "honua_get_style" &&
+          body.params.arguments?.layerId !== undefined
+        ) {
+          layerStyleReads += 1;
+          if (layerStyleReads === 1) {
+            return json({
+              jsonrpc: "2.0",
+              id: body.id,
+              result: {
+                isError: true,
+                structuredContent: {
+                  code: "not_found",
+                  message:
+                    "Layer 0 on service 'service-1' has no style bound. Apply one with honua_apply_style_preset.",
+                },
+              },
+            });
+          }
+        }
+        if (body.method === "tools/call" && body.params?.name === "honua_render_map") {
+          return json({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              structuredContent: {
+                layers: [{ styleId: "preset-1" }],
+                image: { uri: "honua://renders/1", width: 512, height: 512 },
+              },
+            },
+          });
+        }
+        if (body.method === "tools/call") {
+          return json({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              structuredContent: {
+                styles: [{ styleId: "preset-1" }],
+                styleId: "preset-1",
+                styleVersion: 3,
+                applied: true,
+              },
+            },
+          });
+        }
+        if (body.method === "resources/read") {
+          return json({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              contents: [
+                {
+                  uri: "honua://renders/1",
+                  mimeType: "image/png",
+                  blob: Buffer.from(drawnPng(512, 512)).toString("base64"),
+                },
+              ],
+            },
+          });
+        }
+        const result =
+          body.method === "initialize"
+            ? { protocolVersion: "2025-03-26", serverInfo: SERVER_INFO }
+            : body.params?.cursor === undefined
+              ? { tools: [pinned.tools[0]], nextCursor: "p2", _meta: METADATA }
+              : { tools: [pinned.tools[1]], _meta: METADATA };
+        return json({ jsonrpc: "2.0", id: body.id, result }, { "mcp-session-id": "session-1" });
+      }
+      return new Response("missing", { status: 404 });
+    }) as typeof fetch;
+
+    const receipt = await qualifyBoundedSetup(
+      {
+        directory,
+        manifestPath,
+        manifestSha256,
+        catalogReceiptPath: path.join(directory, "catalog.json"),
+        executeStyle: true,
+        serviceId: "service-1",
+        layerId: 0,
+        bbox: [0, 0, 1, 1] as const,
+        now: () => "2026-09-26T00:00:00.000Z",
+      },
+      {
+        fetchFn,
+        run: async () => ({ exitCode: 0, stdout: JSON.stringify([LOCAL_INSTALL_SERVER_IMAGE]), stderr: "" }),
+      },
+    );
+
+    expect(layerStyleReads).toBe(2);
+    expect(receipt.pass).toBe(true);
+    expect(receipt.styleRender?.styleId).toBe("preset-1");
+    expect(receipt.differences).toEqual([]);
+  });
 });
 
 describe("McpClient bounded inventory", () => {

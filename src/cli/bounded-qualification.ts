@@ -25,6 +25,7 @@ import {
 import { verifyPrivateFile } from "../private-file.js";
 import { resolveExecutableFromPath } from "../process-executable.js";
 import { McpClient } from "../studio-agent/mcp-client.js";
+import { isMcpNotFound } from "../studio-agent/mcp-errors.js";
 import { assertRenderedPng } from "./rendered-png.js";
 
 export const BOUNDED_QUALIFICATION_SCHEMA = "honua.bounded-setup-qualification/v1" as const;
@@ -562,6 +563,10 @@ export async function qualifyBoundedSetup(
   return receipt;
 }
 
+function isUnboundPublishedStyle(error: unknown): boolean {
+  return isMcpNotFound(error) && error.message.includes("has no style bound");
+}
+
 function isStyleVersion(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 2_147_483_647;
 }
@@ -574,14 +579,22 @@ async function runStyleRender(
     readonly bbox: readonly [number, number, number, number];
   },
 ): Promise<StyleRenderCapture | { readonly error: string }> {
-  const baseline = structured(
-    await client.callTool("honua_get_style", {
-      serviceId: target.serviceId,
-      layerId: target.layerId,
-      includeStylesheet: true,
-    }),
-  );
-  if (!isStyleVersion(baseline.styleVersion))
+  // A published layer starts unbound. The server answers that baseline read with
+  // not_found and tells the caller to apply a preset; stopping there never reaches
+  // apply, render, or resources/read.
+  let baseline: Record<string, unknown> | undefined;
+  try {
+    baseline = structured(
+      await client.callTool("honua_get_style", {
+        serviceId: target.serviceId,
+        layerId: target.layerId,
+        includeStylesheet: true,
+      }),
+    );
+  } catch (error) {
+    if (!isUnboundPublishedStyle(error)) throw error;
+  }
+  if (baseline && !isStyleVersion(baseline.styleVersion))
     return { error: "honua_get_style did not return an integer styleVersion" };
   const catalog = structured(await client.callTool("honua_get_style", {}));
   const styles = Array.isArray(catalog.styles) ? catalog.styles : [];
