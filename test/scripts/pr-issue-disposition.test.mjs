@@ -447,6 +447,30 @@ describe("pull request issue disposition policy", () => {
       "Dependabot dependency update",
     );
     assert.equal(automationExemption(releasePleaseFixture), RELEASE_PLEASE_EXEMPTION);
+    assert.equal(
+      automationExemption({
+        ...releasePleaseFixture,
+        headRefName: "release-please--branches--trunk--components--create-honua-app",
+        title: "chore(trunk): release create-honua-app 0.2.4",
+      }),
+      RELEASE_PLEASE_EXEMPTION,
+    );
+    assert.equal(
+      automationExemption({
+        ...releasePleaseFixture,
+        headRefName: "release-please--branches--trunk--components--create-honua-app",
+        title: "chore(trunk): release js-sdk 0.3.0",
+      }),
+      null,
+    );
+    assert.equal(
+      automationExemption({
+        ...releasePleaseFixture,
+        headRefName: "release-please--branches--trunk--components--other",
+        title: "chore(trunk): release other 0.2.4",
+      }),
+      null,
+    );
 
     const lookalikes = [
       { authorLogin: "octocat[bot]" },
