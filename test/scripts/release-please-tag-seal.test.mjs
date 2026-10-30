@@ -693,6 +693,13 @@ for (const [name, fixture, calls] of [
   });
 }
 
+test("component releases are split so a scaffold republish does not ship js-sdk", () => {
+  // create-honua-app 0.2.4 is the starter pin. The grouped release also cuts
+  // breaking js-sdk 0.3.0, which the 2026.1 manifest does not pin.
+  const config = JSON.parse(readFileSync(resolve("release-please-config.json"), "utf8"));
+  assert.equal(config["separate-pull-requests"], true);
+});
+
 test("the js-sdk release is configured to be cut as a draft", () => {
   // The workflow's ordering is only possible because no tag exists when it
   // starts. That is entirely a property of this config flag.
