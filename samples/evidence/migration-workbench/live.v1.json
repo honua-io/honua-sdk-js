@@ -5,12 +5,12 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-10-31T07:16:14.375Z",
+  "observedAt": "2026-10-31T22:48:50.894Z",
   "authMode": "none",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.2.10",
-    "gitCommit": "013ab3dc7d6f7952a89fd359930eccc100b525eb"
+    "gitCommit": "9cf01c9ac8c91c9b9aebc4cfc6f9b2bd012ba889"
   },
   "source": {
     "provider": "honua-migrate-cli",
@@ -21,7 +21,7 @@
   },
   "provenance": {
     "sourceId": "geoservices-source-app:v1",
-    "observedAt": "2026-10-31T07:16:14.375Z",
+    "observedAt": "2026-10-31T22:48:50.894Z",
     "validAt": null,
     "state": "live",
     "attribution": "Honua-authored geoservices-source-app repository fixture; no third-party sample source is reproduced."
@@ -46,8 +46,8 @@
     ]
   },
   "timing": {
-    "totalMs": 2532,
-    "firstSuccessfulInteractionMs": 2532
+    "totalMs": 2827,
+    "firstSuccessfulInteractionMs": 2827
   },
   "degradation": {
     "state": "none",
