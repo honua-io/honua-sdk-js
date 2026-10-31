@@ -40,6 +40,13 @@ Now:
   evidence **strictly bound to the trunk source digest**, and commits the result
   back to trunk. Reproducibility is enforced there.
 
+- **Read-only PR previews** are available by manually dispatching that workflow
+  with `preview_pr_number`. The preview validates an open same-repository PR,
+  checks out its exact head without persisted credentials, generates the
+  deterministic sample projections, and uploads a seven-day diff artifact.
+  That job has only repository read permissions; it cannot push, open a PR, or
+  merge. The normal trunk regeneration path is unchanged.
+
 So: do not run `samples:run -- evidence ...`, `samples:generate`, `docs:llms`,
 `docs:comparison`, `report:bundle-sizes`, `report:api`, `docs:error-codes`,
 `bench:references:source-tree:write`, or

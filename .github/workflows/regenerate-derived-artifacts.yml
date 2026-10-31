@@ -89,9 +89,16 @@ on:
           release-matrix receipt should be persisted with this regeneration.
         required: false
         type: string
+      preview_pr_number:
+        description: >-
+          Generate a read-only derived-artifact diff for an open pull request
+          from this repository. The preview job cannot push, open a PR, or merge.
+        required: false
+        type: string
+        default: ""
 
 concurrency:
-  group: derived-artifacts
+  group: ${{ inputs.preview_pr_number != '' && format('derived-artifacts-preview-{0}', inputs.preview_pr_number) || 'derived-artifacts' }}
   cancel-in-progress: false
 
 permissions: read-all
@@ -103,6 +110,7 @@ env:
 jobs:
   regenerate:
     name: Regenerate + reseal on trunk
+    if: inputs.preview_pr_number == ''
     runs-on: ubuntu-latest
     permissions:
       # actions: read downloads the release smoke's sealed release-matrix receipt
@@ -699,8 +707,132 @@ jobs:
           path: derived-artifacts.bundle
           if-no-files-found: error
 
+  preview-derived-artifacts:
+    name: Read-only artifact preview for PR
+    if: github.event_name == 'workflow_dispatch' && inputs.preview_pr_number != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Resolve and validate same-repository PR head
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.preview_pr_number }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]{0,5}$ ]]; then
+            echo "preview_pr_number must be a decimal pull request number."
+            exit 1
+          fi
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          state="$(jq -r '.state' <<<"$pr_json")"
+          head_repo="$(jq -r '.head.repo.full_name // empty' <<<"$pr_json")"
+          head_sha="$(jq -r '.head.sha // empty' <<<"$pr_json")"
+          if [[ "$state" != open || "$head_repo" != "$GITHUB_REPOSITORY" || ! "$head_sha" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "Preview requires an open pull request whose head is in $GITHUB_REPOSITORY."
+            exit 1
+          fi
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: pr-source
+          ref: ${{ steps.resolve.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install locked dependencies
+        working-directory: pr-source
+        run: npm ci --ignore-scripts
+
+      - name: Generate derived artifacts from the exact PR head
+        working-directory: pr-source
+        env:
+          HONUA_DERIVED_ARTIFACTS_RELAX: "1"
+        run: |
+          node scripts/sample-contract.mjs migrate-v1 --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,service-explorer
+          node scripts/sample-contract.mjs write
+
+      - name: Remove generated files for the retired sample
+        working-directory: pr-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+
+          const catalog = JSON.parse(await readFile("samples/catalog.v2.json", "utf8"));
+          const kit = JSON.parse(await readFile("examples/_kit/manifest.v1.json", "utf8"));
+          if (catalog.samples.some((sample) => sample.id === "migration-workbench")) {
+            throw new Error("migration-workbench remains in the active v2 sample catalog");
+          }
+          if (kit.samples.some((sample) => sample.id === "migration-workbench")) {
+            throw new Error("migration-workbench remains in the active SDK sample kit");
+          }
+          NODE
+          git rm -r -- \
+            examples/migration-workbench/public/artifacts \
+            examples/migration-workbench/src/generated \
+            samples/evidence/migration-workbench
+
+      - name: Validate and upload read-only diff
+        working-directory: pr-source
+        shell: bash
+        env:
+          PR_NUMBER: ${{ inputs.preview_pr_number }}
+          HEAD_SHA: ${{ steps.resolve.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          git add -A
+          while IFS= read -r changed_path; do
+            case "$changed_path" in
+              README.md | \
+              docs/generated/sample-catalog.md | \
+              llms.txt | llms-full.txt | \
+              samples/catalog.v2.json | \
+              samples/contract/v2/migrations/catalog.v1-to-v2.json | \
+              samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
+              samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
+              samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json | \
+              samples/dist/* | \
+              examples/migration-workbench/public/artifacts/* | \
+              examples/migration-workbench/src/generated/* | \
+              samples/evidence/migration-workbench/*)
+                ;;
+              *)
+                echo "Preview generated an unexpected path: $changed_path"
+                exit 1
+                ;;
+            esac
+          done < <(git diff --cached --name-only)
+          diff_path="$RUNNER_TEMP/derived-artifacts-pr-${PR_NUMBER}.patch"
+          git diff --cached --binary > "$diff_path"
+          printf 'PR: #%s\nSource commit: %s\nChanged files:\n' "$PR_NUMBER" "$HEAD_SHA" > "$RUNNER_TEMP/derived-artifacts-preview.txt"
+          git diff --cached --name-status >> "$RUNNER_TEMP/derived-artifacts-preview.txt"
+          if [[ ! -s "$diff_path" ]]; then
+            echo "The PR head generated no derived-artifact changes."
+          fi
+
+      - name: Upload generated diff for review
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: derived-artifacts-pr-${{ inputs.preview_pr_number }}
+          path: |
+            ${{ runner.temp }}/derived-artifacts-pr-${{ inputs.preview_pr_number }}.patch
+            ${{ runner.temp }}/derived-artifacts-preview.txt
+          if-no-files-found: error
+          retention-days: 7
+
   commit-and-validate:
     name: Publish artifacts PR + gate strict validation
+    if: inputs.preview_pr_number == ''
     needs: regenerate
     runs-on: ubuntu-latest
     permissions:
