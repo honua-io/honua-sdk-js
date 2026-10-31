@@ -706,7 +706,16 @@ export function verifySampleBundleAudit(catalog, { audit = SAMPLE_BUNDLE_AUDIT, 
 }
 
 function readCatalogSync() {
-  return JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "samples/catalog.v2.json"), "utf8"));
+  const catalog = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "samples/catalog.v2.json"), "utf8"));
+  if (!/^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "")) return catalog;
+
+  // Feature PRs may remove a source-catalog sample before the trunk-only
+  // workflow regenerates catalog.v2.json. Ignore only those stale generated
+  // entries while relaxed; strict builds continue to require the exact
+  // generated catalog and a complete bundle-audit record for every active row.
+  const source = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "samples/catalog.v1.json"), "utf8"));
+  const sourceSampleIds = new Set(source.samples.map((sample) => sample.id));
+  return { ...catalog, samples: catalog.samples.filter((sample) => sourceSampleIds.has(sample.id)) };
 }
 
 /**
