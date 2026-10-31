@@ -58,8 +58,8 @@ field from this crosswalk and fails closed on:
 An entry may legitimately end up with an empty `capabilityKeys` array --
 that is the explicit "no platform capability" state, valid only when every
 one of its `capabilities` slugs is `internalOnly` in the crosswalk (10 of the
-32 current entries, e.g. `react-quickstart`, `web-components-basic`,
-`migration-workbench`: dev-tooling, framework-binding, or SDK-internal
+32 current entries, e.g. `react-quickstart`, `web-components-basic`:
+dev-tooling, framework-binding, or SDK-internal
 demos with no discrete platform capability to claim).
 
 `samples/dist/honua-site-samples.v2.json` (the #401 site projection) carries

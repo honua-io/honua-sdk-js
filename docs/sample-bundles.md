@@ -329,8 +329,8 @@ qualified receipt, on every trunk push.
 > digest, and commits the result back to trunk. That workflow -- not the feature
 > PR -- is where reproducibility is enforced. The evidence-neutral digest also
 > excludes clearly-derived, non-runtime paths (`.github`, the generated
-> report docs, `llms*.txt`, `api-report`, `bench/cross-sdk/corpus.json`, and
-> `examples/migration-workbench/public/artifacts`), so regenerating them cannot
+> report docs, `llms*.txt`, `api-report`, and `bench/cross-sdk/corpus.json`),
+> so regenerating them cannot
 > re-stale a receipt.
 
 > **Digest narrowing (honua-io/honua-sdk-js#746 REQ-003).** The digest is now

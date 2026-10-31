@@ -13,17 +13,6 @@ through the Esri-shaped compat shims. It is the codemod option that
 produces MapLibre-native output for apps that want to leave the
 ArcGIS JS API behind end-to-end.
 
-## Canonical migration workbench
-
-[`examples/migration-workbench`](../examples/migration-workbench/README.md)
-is the qualified `arcgis-migration` golden journey for the complete migration
-experience. The repository build invokes the real `honua-migrate` CLI against
-the Honua-authored `geoservices-source-app` fixture and commits a deterministic
-report, patch, widget guidance, MapLibre assessment, generated compat target,
-and SHA-256 manifest. The browser only projects and revalidates those
-artifacts; it does not contain a second transform, accept uploads, read
-credentials, or perform cloud import.
-
 ## Which import
 
 A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
@@ -383,7 +372,5 @@ list:
   `honua-maplibre` they remain manual TODO surfaces.
 
 For the broader migration story — including the `honua-compat`
-parity surface, the codemod gates, and the test corpus — start at
-[`docs/migration-punch-list.md`](./migration-punch-list.md) and the
-fixture-only Esri sample corpus in
-[`docs/esri-sample-corpus.md`](./esri-sample-corpus.md).
+parity surface and codemod gates — see
+[`docs/migration-punch-list.md`](./migration-punch-list.md).

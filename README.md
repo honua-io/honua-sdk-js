@@ -105,13 +105,13 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 
 ## Pick your path
 
-| | 🗺️ **Building on MapLibre** | 🚦 **Leaving ArcGIS** | 🤖 **Connecting an AI assistant** |
-| --- | --- | --- | --- |
-| **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (as early as Q1 2027) | wiring a coding agent or assistant to live geospatial data |
-| **Start** | [First Map](./docs/quickstart.md) — paste a public GeoServices or OGC Features endpoint, no account required | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner | point [`honua-mcp`](./mcp/README.md) at any public FeatureServer/OGC endpoint — no Honua server |
-| **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions | the [protocol-neutral tool contract](./mcp/README.md) + [agent skills](./skills/README.md) for Claude Code and compatible agents |
-| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`client-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) | [NL map control](./docs/nl-map-control.md) · [agent-safety threat model](./docs/agent-safety-threat-model.md) · [coding-agent evals](./docs/coding-agent-evals.md) |
-| **Runnable proof** | [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) — deterministic fixture plus separately gated anonymous-live evidence | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end | [cross-model MCP eval scorecard](./docs/generated/mcp-eval-scorecard.md) — dated runs, failures and the zero-LLM control included |
+| | 🗺️ **Building on MapLibre** | 🤖 **Connecting an AI assistant** |
+| --- | --- | --- |
+| **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | wiring a coding agent or assistant to live geospatial data |
+| **Start** | [First Map](./docs/quickstart.md) — paste a public GeoServices or OGC Features endpoint, no account required | point [`honua-mcp`](./mcp/README.md) at any public FeatureServer/OGC endpoint — no Honua server |
+| **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | the [protocol-neutral tool contract](./mcp/README.md) + [agent skills](./skills/README.md) for Claude Code and compatible agents |
+| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [NL map control](./docs/nl-map-control.md) · [agent-safety threat model](./docs/agent-safety-threat-model.md) · [coding-agent evals](./docs/coding-agent-evals.md) |
+| **Runnable proof** | [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) — deterministic fixture plus separately gated anonymous-live evidence | [cross-model MCP eval scorecard](./docs/generated/mcp-eval-scorecard.md) — dated runs, failures and the zero-LLM control included |
 
 ## Where it fits
 

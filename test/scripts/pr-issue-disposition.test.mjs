@@ -262,12 +262,11 @@ describe("pull request issue disposition policy", () => {
     // permanently, so the job could only ever fail. Publication is now the
     // content-addressed, one-release-per-commit workflow, which carries its own
     // gates. Nothing here asserts a `ci.yml` publication surface any more.
-    const migrationGeneration = workflow.indexOf("name: Regenerate migration-workbench artifacts");
     const llmsGeneration = workflow.indexOf("name: Regenerate llms.txt and comparison page");
     const comparisonCommand = workflow.indexOf("npm run docs:comparison", llmsGeneration);
     const llmsCommand = workflow.indexOf("npm run docs:llms", llmsGeneration);
     const llmsVerification = workflow.indexOf("name: Verify llms.txt freshness before publication");
-    assert.ok(migrationGeneration >= 0 && llmsGeneration > migrationGeneration);
+    assert.ok(llmsGeneration >= 0);
     assert.ok(comparisonCommand > llmsGeneration && llmsCommand > comparisonCommand);
     assert.ok(llmsVerification > llmsGeneration);
     assert.match(workflow, /name: Verify llms\.txt freshness before publication[\s\S]*run: npm run verify:llms/u);

@@ -18,7 +18,6 @@ const REQUIRED_PATH_IDS = [
   "edit",
   "realtime-offline",
   "3d",
-  "migrate",
   "automate",
 ];
 const EXECUTION_LABEL_IDS = [
@@ -35,7 +34,6 @@ const SITE_JOURNEY_IDS = [
   "linked-large-data-analysis",
   "realtime-operations",
   "imagery-terrain-3d",
-  "migrate-arcgis",
   "safe-agent-automation",
 ];
 

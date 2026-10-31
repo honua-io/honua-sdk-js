@@ -748,6 +748,8 @@ jobs:
         run: |
           node scripts/sample-contract.mjs migrate-v1 --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,service-explorer
           node scripts/sample-contract.mjs write
+          node scripts/docs-learning.mjs write
+          npm run docs:llms
 
       - name: Remove generated files for the retired sample
         working-directory: pr-source
@@ -784,6 +786,7 @@ jobs:
             case "$changed_path" in
               README.md | \
               docs/generated/sample-catalog.md | \
+              docs/generated/learning-paths.md | \
               llms.txt | llms-full.txt | \
               samples/catalog.v2.json | \
               samples/contract/v2/migrations/catalog.v1-to-v2.json | \

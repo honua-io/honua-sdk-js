@@ -333,9 +333,8 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
           };
           const bundleEvidence = emittedBundle.map((entry) => hashEntry(entry.fileName, entry.kind));
           // Vite copies publicDir straight to outDir outside Rollup's bundle
-          // graph, so generateBundle's emittedBundle never sees those files
-          // (e.g. examples/migration-workbench/public/artifacts/v1's
-          // committed migration CLI output). Walk the final output for any
+          // graph, so generateBundle's emittedBundle never sees those files.
+          // Walk the final output for any
           // regular file the bundle didn't already account for and declare
           // it too -- honua-sdk-js#549 -- so this evidence honestly covers
           // every file the packed-build gate later finds on disk instead of

@@ -272,13 +272,6 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/maplibre-quickstart/vite.config.ts emits the governed first-map/v2 layer and query responses at bundle-relative extensionless routes; examples/maplibre-quickstart/src/main.ts resolves the fixture sentinel relative to the app subpath; and sampleBuildEnv pins that sentinel, GeoServices protocol, all 48 records, and the same-bundle basemap.",
   },
   {
-    id: "migration-workbench",
-    runtimeHosting: "self-contained",
-    buildScript: "demo:migration-workbench:build",
-    auditedVia:
-      "examples/migration-workbench/src/artifacts.ts addresses only bundle-relative public/artifacts/v1/*.json, which Vite's publicDir passthrough copies into dist (and examples/_kit/vite.config.ts's closeBundle hashes as declared bundle output).",
-  },
-  {
     id: "nl-map-control",
     runtimeHosting: "self-contained",
     buildScript: "demo:nl-map-control:build",

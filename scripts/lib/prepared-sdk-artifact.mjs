@@ -378,20 +378,6 @@ const EXCLUDED_BUILD_INPUT_SEGMENTS = new Set([
   ".tmp",
 ]);
 
-// examples/migration-workbench runs the migration codemod against its own
-// bundled "before" app and publishes the result as tracked demo output
-// (scripts/lib/migration-workbench-artifacts.mjs). Those output paths are
-// regenerated OUTPUT, not authored source that influences tsc's compiled
-// program (nothing under src/test/bench imports them), so — exactly like
-// EVIDENCE_NEUTRAL_EXCLUDED_ROOTS below for samples/evidence — they must
-// stay out of the inputs digest. Otherwise regenerating them would change
-// "examples", which would change the inputs digest embedded as their own
-// buildInputsSha256 field, requiring another regeneration ad infinitum.
-const GENERATED_BUILD_OUTPUT_ROOTS = [
-  "examples/migration-workbench/public/artifacts",
-  "examples/migration-workbench/src/generated",
-];
-
 // A sample's evidence is generated output that happens to live under a build
 // input root. Counting it as an input makes the reseal self-invalidating:
 // regenerate-derived-artifacts.yml writes examples/<sample>/evidence/*.json,
@@ -404,9 +390,7 @@ const GENERATED_EVIDENCE_PATH = /^examples\/[^/]+\/evidence\//;
 function isExcludedBuildInput(relativePath) {
   if (relativePath.split("/").some((segment) => EXCLUDED_BUILD_INPUT_SEGMENTS.has(segment))) return true;
   if (GENERATED_EVIDENCE_PATH.test(relativePath)) return true;
-  return GENERATED_BUILD_OUTPUT_ROOTS.some(
-    (root) => relativePath === root || relativePath.startsWith(`${root}/`),
-  );
+  return false;
 }
 
 function updateLengthFramed(hash, bytes) {

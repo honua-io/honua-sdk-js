@@ -23,7 +23,6 @@ Source inventory at SDK commit 9f63b4c3b; 34 catalog entries. Each generated pla
 | imagery-cog-quickstart | `examples/imagery-cog-quickstart` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | — |
 | maplibre-quickstart | `examples/maplibre-quickstart` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | — |
 | mcp-gis-assistant | `examples/mcp-gis-assistant` | Offline fixture demonstration; retain local style, document live override where supported | — |
-| migration-workbench | `examples/migration-workbench` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | nl-map-control | `examples/nl-map-control` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | node-backend-quickstart | `examples/node-backend-quickstart` | No map renderer; no online basemap requests | — |
 | oauth-signin | `examples/oauth-signin` | No map renderer; no online basemap requests | — |

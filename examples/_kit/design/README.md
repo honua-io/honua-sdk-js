@@ -23,7 +23,7 @@ samples that have not adopted the language yet. Samples must not re-tint
 `.honua-sample-kit`.
 
 Samples on the language: every sample in the kit —
-`maplibre-quickstart` (First Map), `migration-workbench`, `service-explorer`,
+`maplibre-quickstart` (First Map), `service-explorer`,
 `imagery-cog-quickstart`, `planning-permitting-workbench`, and
 `realtime-incident-dashboard`. Still to convert: the non-kit examples and the
 sample gallery.
