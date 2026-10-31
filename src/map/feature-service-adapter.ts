@@ -23,12 +23,12 @@
  * @module
  */
 
+import { parseFeatureLayerUrl } from "../client-compat/url.js";
 import type { HonuaClient } from "../core/client.js";
 import { geoServicesGeometryToGeoJSON } from "../core/geo-services-geojson.js";
 import { HonuaFeatureLayer } from "../core/surfaces.js";
 import type { HonuaFeatureLayerQueryAllRequest } from "../core/surfaces.js";
 import type { EsriGeometryType, HonuaLayerMetadata } from "../core/types.js";
-import { parseFeatureLayerUrl } from "../client-compat/url.js";
 import type { HonuaMap } from "./honua-map.js";
 
 /** A GeoJSON geometry produced by the adapter. */

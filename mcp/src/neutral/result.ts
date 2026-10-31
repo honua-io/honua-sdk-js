@@ -1,6 +1,6 @@
 import { HonuaCapabilityNotSupportedError } from "@honua/sdk-js";
 import type { DegradedReason, Result } from "@honua/sdk-js/contract";
-import { geoServicesToGeoJson, geoJsonToGeoServices } from "@honua/sdk-js/geometry";
+import { geoJsonToGeoServices, geoServicesToGeoJson } from "@honua/sdk-js/geometry";
 
 /**
  * PROTOCOL-NEUTRAL result projection (#1005).

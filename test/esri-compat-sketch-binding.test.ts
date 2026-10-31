@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { EditSketchTool } from "../src/contract/edit-sketch.js";
 import { SketchCompat, resolveSketchToolBindingCompat } from "../src/client-compat/sketch.js";
+import type { EditSketchTool } from "../src/contract/edit-sketch.js";
 
 function fakeBinding() {
   return {

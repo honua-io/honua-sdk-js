@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { geoServicesToGeoJson, geoJsonToGeoServices } from "../../src/geometry/index.js";
+import { geoJsonToGeoServices, geoServicesToGeoJson } from "../../src/geometry/index.js";
 import type { GeoJsonPolygon } from "../../src/geometry/index.js";
 
 describe("@honua/geometry convert (reused core GeoServices conversion)", () => {

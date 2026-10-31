@@ -25,7 +25,7 @@
  * @module
  */
 
-import { geoServicesGeometryToGeoJSON, geoJsonToGeoServices } from "../core/geo-services-geojson.js";
+import { geoJsonToGeoServices, geoServicesGeometryToGeoJSON } from "../core/geo-services-geojson.js";
 import type { EsriGeometry, HonuaSpatialReference } from "../core/types.js";
 import type { GeoJsonGeometry } from "../expr/expression.js";
 import {
