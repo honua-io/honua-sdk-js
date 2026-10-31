@@ -11,7 +11,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 
-import { deriveExcludedSamples, derivePublishedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
+import { deriveExcludedSamples, derivePublishedSamples } from "./build-sample-bundles.mjs";
 import {
   expectedGateCommand,
   isSampleEvidenceRunId,
@@ -3593,6 +3593,7 @@ function publicSample(sample, sdk) {
 
 export function generateSiteProjection(catalog, packageJson) {
   const effective = effectiveCatalog(catalog, packageJson);
+  const publishedSamples = derivePublishedSamples(catalog);
   const routes = catalog.siteMappings.map((mapping) => {
     if (mapping.ownership === "site-exception") {
       return {
@@ -3662,8 +3663,8 @@ export function generateSiteProjection(catalog, packageJson) {
         manifestAsset: "sample-bundles.v2.json",
         bundleAsset: "sample-bundles.tar.gz",
       },
-      sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),
-      published: derivePublishedSamples(catalog),
+      sampleIds: publishedSamples.map((sample) => sample.id).sort(),
+      published: publishedSamples,
       excluded: deriveExcludedSamples(catalog),
     },
   };

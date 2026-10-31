@@ -724,7 +724,12 @@ function readCatalogSync() {
  * inclusion list and exclusion reasons as plain values without a second
  * hand-maintained copy.
  */
-export const SAMPLE_BUNDLE_DECISIONS = deriveSampleBundleDecisions(readCatalogSync());
+const startupCatalog = readCatalogSync();
+const startupSampleIds = new Set(startupCatalog.samples.map((sample) => sample.id));
+const startupAudit = /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "")
+  ? SAMPLE_BUNDLE_AUDIT.filter((record) => startupSampleIds.has(record.id))
+  : SAMPLE_BUNDLE_AUDIT;
+export const SAMPLE_BUNDLE_DECISIONS = deriveSampleBundleDecisions(startupCatalog, { audit: startupAudit });
 
 /** Catalog entries published as browser bundles, sorted by id. */
 export const INCLUDED_SAMPLES = SAMPLE_BUNDLE_DECISIONS.filter((decision) => decision.decision === "publish").map(
