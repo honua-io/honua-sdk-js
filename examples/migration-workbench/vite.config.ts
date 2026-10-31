@@ -77,7 +77,7 @@ export function createRawGeneratedTargetPlugin(targetPath = generatedTarget): Pl
 const rawGeneratedTargetPlugin = createRawGeneratedTargetPlugin();
 
 const sampleConfig = createSampleViteConfig(import.meta.url, {
-  sdkEntrypoints: ["@honua/sdk-js/esri-compat"],
+  sdkEntrypoints: ["@honua/sdk-js/client-compat"],
 });
 
 const config: UserConfig = {

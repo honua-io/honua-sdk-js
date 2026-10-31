@@ -52,7 +52,7 @@ owner inventory, integrity and toolchain identity. Ceilings leave approximately
 | Package | Subpath equivalent | What it contains |
 |---------|--------------------|------------------|
 | `@honua/sdk` | `@honua/sdk-js/honua` + most stable subpaths | `HonuaClient`, not `createHonua`. Also the shared contract, query planner, offline-region contract, and plan-bound MapLibre adapter |
-| `@honua/sdk-esri-compat` | `@honua/sdk-js/client-compat` | Esri ArcGIS JS compatibility layer (incl. the `geometryEngine` shim) |
+| `@honua/sdk-client-compat` | `@honua/sdk-js/client-compat` | Web mapping compatibility layer, including the geometry engine shim |
 | `@honua/react` | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers) |
 | `@honua/geometry` | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops + reprojection |
 | `@honua/app-platform` | (evicted from `@honua/sdk-js`) | Application-platform surfaces — app-shell/workspace/scene state, studio + generated-app builder contracts, operator controllers, native controls / web components, and hosted-product clients (control-plane, collaboration, share, operate, replica-sync). See [`decisions/scope-split-and-1.0.md`](./decisions/scope-split-and-1.0.md). |
@@ -60,10 +60,27 @@ owner inventory, integrity and toolchain identity. Ceilings leave approximately
 Companion packages that carry a copy of the contract declare the exact
 `@honua/sdk` version as a required peer. Their local contract forwards
 capability-profile recognition to that peer, so an immutable profile created by
-the core SDK remains valid across React, app-platform, geometry, and Esri-compat
+the core SDK remains valid across React, app-platform, geometry, and client-compat
 boundaries without exposing the profile-registration authority.
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and [@honua/honua-migrate](https://www.npmjs.com/package/@honua/honua-migrate). Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+### Compatibility package import update
+
+The standalone compatibility package now uses `@honua/sdk-client-compat`.
+Update the package dependency and keep using the neutral SDK subpath:
+
+```sh
+npm install @honua/sdk-client-compat
+```
+
+```ts
+import { FeatureLayerCompat } from "@honua/sdk-js/client-compat";
+```
+
+The former standalone package name and branded SDK subpath are not shipped as
+aliases. The compatibility behavior remains available through the renamed package
+and the supported `client-compat` subpath.
+
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and [@honua/honua-migrate](https://www.npmjs.com/package/@honua/honua-migrate). Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
 
 The migration package is no longer a generated SDK split. It is built from the
 [`honua-migrate`](https://github.com/honua-io/honua-migrate) repository, while
@@ -84,7 +101,7 @@ throws `HonuaOptionalGrpcPeerError` from the gRPC call; Connect and RPC
 failures are not relabeled as a missing install. The connect facade's PMTiles
 reader uses the same non-literal import, so a REST production build does not
 resolve the optional `pmtiles` package either. Node still loads it when an
-archive is described. `@honua/sdk-esri-compat` declares `maplibre-gl` as an
+archive is described. `@honua/sdk-client-compat` declares `maplibre-gl` as an
 optional peer because compat map views load it by name. A REST Vite build can
 omit that renderer; installing it still includes it in the bundle.
 

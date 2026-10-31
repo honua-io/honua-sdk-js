@@ -61,7 +61,7 @@ describe("migration cli target selection", () => {
     expect(fs.existsSync(reportPath)).toBe(true);
 
     const migrated = fs.readFileSync(appFile, "utf8");
-    expect(migrated).toContain('import { MapCompat } from "@honua/sdk-esri-compat";');
+    expect(migrated).toContain('import { MapCompat } from "@honua/sdk-client-compat";');
     expect(migrated).toContain("const map = new MapCompat({ basemap: 'streets' });");
   }, 240_000);
 
@@ -95,7 +95,7 @@ describe("migration cli target selection", () => {
 
     const migrated = fs.readFileSync(appFile, "utf8");
     expect(migrated).toContain('import * as HonuaEsriLeaflet from "esri-leaflet";');
-    expect(migrated).toContain('import { MapCompat } from "@honua/sdk-esri-compat";');
+    expect(migrated).toContain('import { MapCompat } from "@honua/sdk-client-compat";');
     expect(migrated).toContain("const layer = HonuaEsriLeaflet.featureLayer({ url: serviceUrl });");
     expect(migrated).toContain("const map = new MapCompat({ basemap: 'streets' });");
     expect(migrated).not.toContain("// TODO(honua-migrate)[map]:");
@@ -146,7 +146,7 @@ describe("migration cli target selection", () => {
     expect(migrated).toContain("createHonuaFeatureServiceLayer({");
     expect(migrated).toContain("createHonuaMapLibreStyle({");
     expect(migrated).toContain("new maplibregl.Map(createHonuaMapLibreMapOptions({");
-    expect(migrated).not.toContain("@honua/sdk-esri-compat");
+    expect(migrated).not.toContain("@honua/sdk-client-compat");
 
     const report = JSON.parse(fs.readFileSync(reportPath, "utf8")) as {
       codemodTarget: string;

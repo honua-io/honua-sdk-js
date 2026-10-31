@@ -11,7 +11,7 @@ const workflow = parse(fs.readFileSync(new URL("../../.github/workflows/publish-
 const steps = workflow.jobs["publish-js-packages"].steps;
 const publish = steps.find((step) => step.name === "Publish split packages").run;
 const summary = steps.find((step) => step.name === "Publish summary").run;
-const packages = ["honua-sdk", "honua-sdk-esri-compat", "honua-react", "honua-geometry", "honua-app-platform"];
+const packages = ["honua-sdk", "honua-sdk-client-compat", "honua-react", "honua-geometry", "honua-app-platform"];
 
 // Execute the actual workflow shell with an offline npm double. Model the two
 // destructive operations that caused the regression, and reject missing inputs

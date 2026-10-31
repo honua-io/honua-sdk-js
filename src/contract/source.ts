@@ -15,7 +15,7 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
-import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
+import { geoServicesGeometryToGeoJSON } from "../core/geo-services-geojson.js";
 import type { HonuaOdataEncodedEntityKey, HonuaOdataEncodedWriteBody } from "../core/odata-write-codec.js";
 import {
   type HonuaOdataAdvertisedCapabilities,
@@ -4083,7 +4083,7 @@ function toStacIntersectsGeometry(geometry: Record<string, unknown>): Record<str
   if (typeof geometry.type === "string" && (geometry.coordinates !== undefined || geometry.geometries !== undefined)) {
     return geometry;
   }
-  const converted = esriGeometryToGeoJSON(geometry);
+  const converted = geoServicesGeometryToGeoJSON(geometry);
   return converted === null ? null : (converted as unknown as Record<string, unknown>);
 }
 

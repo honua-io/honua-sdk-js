@@ -19,7 +19,7 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const SDK = "@honua/sdk-js";
 const MIGRATE = "@honua/honua-migrate";
 const CORE = "@honua/sdk";
-const COMPAT = "@honua/sdk-esri-compat";
+const COMPAT = "@honua/sdk-client-compat";
 const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 
@@ -137,7 +137,7 @@ function locate(request, name) {
 const migrate = locate(require, '@honua/honua-migrate');
 const fromMigrate = createRequire(path.join(migrate.directory, 'package.json'));
 const core = locate(fromMigrate, '@honua/sdk');
-const compat = locate(fromMigrate, '@honua/sdk-esri-compat');
+const compat = locate(fromMigrate, '@honua/sdk-client-compat');
 const peer = locate(createRequire(path.join(compat.directory, 'package.json')), '@honua/sdk');
 assert.equal(core.directory, peer.directory, 'compat must consume the same SDK as the migrator');
 assert.equal(core.manifest.version, compat.manifest.version, 'SDK and compat pair');

@@ -12,13 +12,13 @@ function appPlatformCopy(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "honua-split-imports-"));
   roots.push(root);
   fs.mkdirSync(path.join(root, "web-components"));
-  fs.mkdirSync(path.join(root, "esri-compat"));
+  fs.mkdirSync(path.join(root, "client-compat"));
   fs.writeFileSync(
     path.join(root, "web-components", "elements.js"),
     'import { applyToFeatures } from "../widget-capabilities.js";\nexport const tag = "honua-legend";\n',
   );
   fs.writeFileSync(
-    path.join(root, "esri-compat", "feature-layer.js"),
+    path.join(root, "client-compat", "feature-layer.js"),
     'export { applyToFeatures as applyFeatureEdits } from "../widget-capabilities.js";\n',
   );
   fs.writeFileSync(path.join(root, "widget-capabilities.js"), "export function applyToFeatures() {}\n");
@@ -40,7 +40,7 @@ describe("split package relative imports", () => {
 
     fs.rmSync(path.join(root, "widget-capabilities.js"));
     expect(missingRelativeImports(root)).toEqual([
-      { file: "esri-compat/feature-layer.js", specifier: "../widget-capabilities.js" },
+      { file: "client-compat/feature-layer.js", specifier: "../widget-capabilities.js" },
       { file: "web-components/elements.js", specifier: "../widget-capabilities.js" },
     ]);
 

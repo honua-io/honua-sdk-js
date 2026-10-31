@@ -218,7 +218,7 @@ function detectShellGaps(webmap: WebMapJson, gaps: WebMapMapLibreManualGap[]): v
 
   // Generic custom-widget host shells. We do NOT treat the built-in 2D
   // widget set (Home, Compass, Zoom, …) as a gap — those have parity
-  // shims in src/esri-compat. Only widget hosts that carry a free-form
+  // shims in src/client-compat. Only widget hosts that carry a free-form
   // `widgets`/`widgetsOnScreen` payload, which is what custom widgets
   // and 3rd-party plugins ride on, get flagged.
   const appProps = (webmap as { applicationProperties?: unknown }).applicationProperties;

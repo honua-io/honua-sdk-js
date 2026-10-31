@@ -32,7 +32,7 @@ afterEach(() => {
 describe("prepared SDK artifact contract", () => {
   it("resolves the built entrypoints used by migration and runtime specs", () => {
     expect(getPreparedMigrationCliPath()).toBe(path.join(getProjectRoot(), "dist", "src", "migration", "cli.js"));
-    expect(getPreparedEsriCompatEntryPath()).toBe(path.join(getProjectRoot(), "dist", "src", "esri-compat-entry.js"));
+    expect(getPreparedEsriCompatEntryPath()).toBe(path.join(getProjectRoot(), "dist", "src", "client-compat-entry.js"));
     expect(getPreparedHonuaEntryPath()).toBe(path.join(getProjectRoot(), "dist", "src", "honua.js"));
   });
 
@@ -448,7 +448,7 @@ describe("prepared SDK manifest", () => {
     }));
     const distEntries = [
       ...generatedEntries,
-      { path: "dist/src/esri-compat-entry.js", bytes: 1, sha256 },
+      { path: "dist/src/client-compat-entry.js", bytes: 1, sha256 },
       { path: "dist/src/honua.js", bytes: 1, sha256 },
       { path: "dist/src/migration/cli.js", bytes: 1, sha256 },
     ];
@@ -635,7 +635,7 @@ function createFakeSdkProject(options: { dist?: boolean } = {}): string {
 
 function writeCompleteDist(root: string, marker = "initial"): void {
   writeProjectFile(root, "dist/src/migration/cli.js", `export const cli = "${marker}";\n`);
-  writeProjectFile(root, "dist/src/esri-compat-entry.js", `export const compat = "${marker}";\n`);
+  writeProjectFile(root, "dist/src/client-compat-entry.js", `export const compat = "${marker}";\n`);
   writeProjectFile(root, "dist/src/honua.js", `export const honua = "${marker}";\n`);
   writeProjectFile(root, "dist/src/core/transitive.js", `export const transitive = "${marker}";\n`);
 }

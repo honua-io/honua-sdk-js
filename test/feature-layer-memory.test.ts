@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
-import { FeatureLayerCompat } from "../src/esri-compat/feature-layer.js";
+import { FeatureLayerCompat } from "../src/client-compat/feature-layer.js";
 
 const source = [1, 2, 3, 4].map((id) => ({ attributes: { id, name: `item ${id}` }, geometry: { x: id, y: -id } }));
 

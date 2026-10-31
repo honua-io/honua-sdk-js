@@ -60,10 +60,6 @@
       "types": "./dist/src/client-compat-entry.d.ts",
       "default": "./dist/src/client-compat-entry.js"
     },
-    "./esri-compat": {
-      "types": "./dist/src/esri-compat-entry.d.ts",
-      "default": "./dist/src/esri-compat-entry.js"
-    },
     "./migration": {
       "types": "./dist/src/migration-entry.d.ts",
       "default": "./dist/src/migration-entry.js"
@@ -376,7 +372,7 @@
     "verify:migration-cohort": "npm run build --silent && npm run verify:migration-cohort:prepared",
     "verify:migration-cohort:prepared": "node --test test/scripts/verify-migration-cohort.test.mjs && node scripts/verify-migration-cohort.mjs",
     "verify:migration-cohort:registry": "node scripts/verify-migration-cohort.mjs --sdk-source registry",
-    "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat",
+    "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-client-compat",
     "typecheck": "tsc --noEmit",
     "docs:api": "node scripts/docs-api.mjs",
     "docs:learning:generate": "node scripts/docs-learning.mjs write",
@@ -998,8 +994,8 @@
   "sideEffects": [
     "./dist/src/migration-entry.js",
     "./src/migration-entry.ts",
-    "./dist/src/esri-compat-entry.js",
-    "./src/esri-compat-entry.ts",
+    "./dist/src/client-compat-entry.js",
+    "./src/client-compat-entry.ts",
     "./dist/src/web-components/index.js",
     "./dist/src/_deprecated/web-components.js",
     "./src/web-components/index.ts",

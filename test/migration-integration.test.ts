@@ -40,7 +40,7 @@ function runFixtureMigration(
   const codemodResult = runEsriCompatCodemod({
     rootDir: workingCopy,
     write: true,
-    compatImportPath: "@honua/sdk-esri-compat",
+    compatImportPath: "@honua/sdk-client-compat",
     ...codemodOptions,
   });
   const report = buildJsMigrationReport(workingCopy, codemodResult, scanReport);
@@ -208,7 +208,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { FeatureLayerCompat, MapCompat, MapViewCompat, WebMapCompat } from "@honua/sdk-esri-compat";',
+      'import { FeatureLayerCompat, MapCompat, MapViewCompat, WebMapCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain(
       'const simple = new FeatureLayerCompat({ url: "https://example.test/rest/services/default/FeatureServer/0" });',
@@ -222,7 +222,7 @@ describe("arcgis migration integration", () => {
     expect(migratedMain).not.toContain('import MapView from "@arcgis/core/views/MapView";');
 
     const migratedLazy = fs.readFileSync(path.join(workingCopy, "src", "lazy.ts"), "utf8");
-    expect(migratedLazy).toContain('import("@honua/sdk-esri-compat").then((m) => ({ default: m.SceneViewCompat }))');
+    expect(migratedLazy).toContain('import("@honua/sdk-client-compat").then((m) => ({ default: m.SceneViewCompat }))');
     expect(migratedLazy).not.toContain("@arcgis/core/views/SceneView");
   });
 
@@ -271,7 +271,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { FeatureLayerCompat, MapCompat, MapViewCompat } from "@honua/sdk-esri-compat";',
+      'import { FeatureLayerCompat, MapCompat, MapViewCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("new FeatureLayerCompat({");
     expect(migratedMain).toContain("new MapCompat({");
@@ -326,7 +326,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { FeatureLayerCompat, MapCompat, MapViewCompat } from "@honua/sdk-esri-compat";',
+      'import { FeatureLayerCompat, MapCompat, MapViewCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const trails = new FeatureLayerCompat({");
     expect(migratedMain).toContain("const map = new MapCompat({");
@@ -387,7 +387,7 @@ describe("arcgis migration integration", () => {
     ]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { MapCompat, MapImageLayerCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { MapCompat, MapImageLayerCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const parcels = new MapImageLayerCompat({");
     expect(migratedMain).toContain("const map = new MapCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/layers/MapImageLayer");
@@ -410,7 +410,7 @@ describe("arcgis migration integration", () => {
     expect(report.readiness).toBe("ready");
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { MapCompat, TileLayerCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { MapCompat, TileLayerCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const tiled = new TileLayerCompat({");
     expect(migratedMain).toContain("const map = new MapCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/layers/TileLayer");
@@ -444,7 +444,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { BasemapCompat, MapCompat, MapViewCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { BasemapCompat, MapCompat, MapViewCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const basemap = new BasemapCompat({");
     expect(migratedMain).toContain("const map = new MapCompat({");
     expect(migratedMain).toContain("const view = new MapViewCompat({");
@@ -468,7 +468,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { RouteTaskCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { RouteTaskCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const routeTask = new RouteTaskCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/rest/route/RouteTask");
   });
@@ -494,7 +494,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { reactiveUtils } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { reactiveUtils } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("reactiveUtils.whenOnce(() => ready);");
     expect(migratedMain).not.toContain("@arcgis/core/core/reactiveUtils");
   });
@@ -516,7 +516,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { GraphicCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { GraphicCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const parcelGraphic = new GraphicCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/Graphic");
   });
@@ -543,7 +543,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { FeatureLayerCompat, QueryCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { FeatureLayerCompat, QueryCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const parcels = new FeatureLayerCompat({");
     expect(migratedMain).toContain("const query = new QueryCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/rest/support/Query");
@@ -582,7 +582,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { GraphicCompat, PointCompat, SimpleLineSymbolCompat, SimpleMarkerSymbolCompat } from "@honua/sdk-esri-compat";',
+      'import { GraphicCompat, PointCompat, SimpleLineSymbolCompat, SimpleMarkerSymbolCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const geometry = new PointCompat({");
     expect(migratedMain).toContain("const outline = new SimpleLineSymbolCompat({");
@@ -623,7 +623,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("SpatialReferenceCompat");
     expect(migratedMain).toContain("ExtentCompat");
     expect(migratedMain).toContain("PolylineCompat");
@@ -661,7 +661,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("PictureMarkerSymbolCompat");
     expect(migratedMain).toContain("TextSymbolCompat");
     expect(migratedMain).toContain("LabelClassCompat");
@@ -707,7 +707,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("ColorCompat");
     expect(migratedMain).toContain("SimpleFillSymbolCompat");
     expect(migratedMain).toContain("ClassBreaksRendererCompat");
@@ -738,7 +738,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { FeatureSetCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { FeatureSetCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const set = new FeatureSetCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/rest/support/FeatureSet");
   });
@@ -780,7 +780,7 @@ describe("arcgis migration integration", () => {
     ]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { esriConfig } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { esriConfig } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("esriConfig.request.interceptors.push({");
     expect(migratedMain).not.toContain("@arcgis/core/config");
   });
@@ -802,7 +802,7 @@ describe("arcgis migration integration", () => {
     expect(report.readiness).toBe("ready");
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { esriRequest as request } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { esriRequest as request } from "@honua/sdk-client-compat";');
     expect(migratedMain).not.toContain("@arcgis/core/request");
   });
 
@@ -833,8 +833,8 @@ describe("arcgis migration integration", () => {
     expect(report.readiness).toBe("ready");
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { esriConfig, OAuthInfoCompat } from "@honua/sdk-esri-compat";');
-    expect(migratedMain).toContain('import { identityManager as IdentityManager } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { esriConfig, OAuthInfoCompat } from "@honua/sdk-client-compat";');
+    expect(migratedMain).toContain('import { identityManager as IdentityManager } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const info = new OAuthInfoCompat({");
     expect(migratedMain).toContain("IdentityManager.registerOAuthInfos([info]);");
     expect(migratedMain).not.toContain("@arcgis/core/identity/OAuthInfo");
@@ -864,7 +864,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { FeatureLayerCompat, FeatureTableCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { FeatureLayerCompat, FeatureTableCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const parcels = new FeatureLayerCompat({");
     expect(migratedMain).toContain("const table = new FeatureTableCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/layers/FeatureLayer");
@@ -904,7 +904,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { FeatureLayerCompat, FeatureTableCompat, MapCompat, MapViewCompat } from "@honua/sdk-esri-compat";',
+      'import { FeatureLayerCompat, FeatureTableCompat, MapCompat, MapViewCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const table = new FeatureTableCompat({");
     expect(migratedMain).toContain("relatedRecordsEnabled: true");
@@ -941,7 +941,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { FeatureCompat, MapCompat, MapViewCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { FeatureCompat, MapCompat, MapViewCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const featureWidget = new FeatureCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/widgets/Feature");
   });
@@ -968,7 +968,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { FeatureFormCompat, FeatureLayerCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { FeatureFormCompat, FeatureLayerCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const form = new FeatureFormCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/widgets/FeatureForm");
   });
@@ -1001,7 +1001,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { MapCompat, MapViewCompat, TableListCompat } from "@honua/sdk-esri-compat";',
+      'import { MapCompat, MapViewCompat, TableListCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const tableList = new TableListCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/widgets/TableList");
@@ -1030,7 +1030,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { FeatureLayerCompat, FeatureTemplatesCompat } from "@honua/sdk-esri-compat";',
+      'import { FeatureLayerCompat, FeatureTemplatesCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const templates = new FeatureTemplatesCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/widgets/FeatureTemplates");
@@ -1064,7 +1064,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { BasemapLayerListCompat, MapCompat, MapViewCompat } from "@honua/sdk-esri-compat";',
+      'import { BasemapLayerListCompat, MapCompat, MapViewCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const basemapLayerList = new BasemapLayerListCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/widgets/BasemapLayerList");
@@ -1097,7 +1097,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { MapCompat, MapViewCompat, PrintCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { MapCompat, MapViewCompat, PrintCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const printer = new PrintCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/widgets/Print");
   });
@@ -1129,7 +1129,7 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { MapCompat, MapViewCompat, SwipeCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { MapCompat, MapViewCompat, SwipeCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const swipe = new SwipeCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/widgets/Swipe");
   });
@@ -1167,7 +1167,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { AreaMeasurement2DCompat, DistanceMeasurement2DCompat, MapCompat, MapViewCompat } from "@honua/sdk-esri-compat";',
+      'import { AreaMeasurement2DCompat, DistanceMeasurement2DCompat, MapCompat, MapViewCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const distance = new DistanceMeasurement2DCompat({");
     expect(migratedMain).toContain("const area = new AreaMeasurement2DCompat({");
@@ -1201,7 +1201,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain('import * as HonuaEsriLeaflet from "esri-leaflet";');
-    expect(migratedMain).toContain('import { MapCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { MapCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const parcels = HonuaEsriLeaflet.dynamicMapLayer({");
     expect(migratedMain).toContain("new MapCompat({");
   });
@@ -1228,7 +1228,7 @@ describe("arcgis migration integration", () => {
     expect(migratedMain).toContain("createHonuaTileServiceLayer({");
     expect(migratedMain).toContain("createHonuaMapLibreStyle({");
     expect(migratedMain).toContain("new maplibregl.Map(createHonuaMapLibreMapOptions({");
-    expect(migratedMain).not.toContain("@honua/sdk-esri-compat");
+    expect(migratedMain).not.toContain("@honua/sdk-client-compat");
     expect(migratedMain).not.toContain("@arcgis/core/");
   });
 
@@ -1283,7 +1283,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { GraphicsLayerCompat, GroupLayerCompat, MapCompat } from "@honua/sdk-esri-compat";',
+      'import { GraphicsLayerCompat, GroupLayerCompat, MapCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const graphics = new GraphicsLayerCompat({");
     expect(migratedMain).toContain("const group = new GroupLayerCompat({");
@@ -1331,7 +1331,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { FeatureLayerCompat, LayerListCompat, MapCompat, MapViewCompat, PopupTemplateCompat } from "@honua/sdk-esri-compat";',
+      'import { FeatureLayerCompat, LayerListCompat, MapCompat, MapViewCompat, PopupTemplateCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const layerList = new LayerListCompat({");
     expect(migratedMain).toContain("listItemCreatedFunction: (event) => {");
@@ -1479,7 +1479,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      'import { AttributionCompat, BasemapGalleryCompat, BasemapToggleCompat, BookmarksCompat, CompassCompat, CoordinateConversionCompat, DirectionsCompat, EditorCompat, ExpandCompat, FullscreenCompat, HomeCompat, LayerListCompat, LegendCompat, LocateCompat, MapCompat, MapViewCompat, MeasurementCompat, PopupCompat, RouteLayerCompat, ScaleBarCompat, SearchCompat, SketchCompat, TimeSliderCompat, TrackCompat, ZoomCompat } from "@honua/sdk-esri-compat";',
+      'import { AttributionCompat, BasemapGalleryCompat, BasemapToggleCompat, BookmarksCompat, CompassCompat, CoordinateConversionCompat, DirectionsCompat, EditorCompat, ExpandCompat, FullscreenCompat, HomeCompat, LayerListCompat, LegendCompat, LocateCompat, MapCompat, MapViewCompat, MeasurementCompat, PopupCompat, RouteLayerCompat, ScaleBarCompat, SearchCompat, SketchCompat, TimeSliderCompat, TrackCompat, ZoomCompat } from "@honua/sdk-client-compat";',
     );
     expect(migratedMain).toContain("const layerList = new LayerListCompat({ view });");
     expect(migratedMain).toContain("const legend = new LegendCompat({ view });");
@@ -1616,7 +1616,7 @@ describe("arcgis migration integration", () => {
     ]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import("@honua/sdk-esri-compat").then((m) => ({ default: m.MapCompat }))');
+    expect(migratedMain).toContain('import("@honua/sdk-client-compat").then((m) => ({ default: m.MapCompat }))');
     expect(migratedMain).toContain("return new MapCtor({");
     expect(migratedMain).not.toContain("@arcgis/core/Map");
   });
@@ -1665,7 +1665,7 @@ describe("arcgis migration integration", () => {
     ]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { MapViewCompat, WebMapCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { MapViewCompat, WebMapCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const map = new WebMapCompat({");
     expect(migratedMain).toContain("const view = new MapViewCompat({");
     expect(migratedMain).not.toContain("@arcgis/core/WebMap");
@@ -1717,7 +1717,7 @@ describe("arcgis migration integration", () => {
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
     expect(migratedMain).toContain(
-      '(await import("@honua/sdk-esri-compat").then((m) => ({ default: m.MapCompat }))).default',
+      '(await import("@honua/sdk-client-compat").then((m) => ({ default: m.MapCompat }))).default',
     );
     expect(migratedMain).toContain("return new MapCtor({");
     expect(migratedMain).not.toContain("@arcgis/core/Map");
@@ -1767,7 +1767,7 @@ describe("arcgis migration integration", () => {
     ]);
 
     const migratedMain = fs.readFileSync(path.join(workingCopy, "src", "main.ts"), "utf8");
-    expect(migratedMain).toContain('import { FeatureLayerCompat } from "@honua/sdk-esri-compat";');
+    expect(migratedMain).toContain('import { FeatureLayerCompat } from "@honua/sdk-client-compat";');
     expect(migratedMain).toContain("const layer = new FeatureLayerCompat({");
     expect(migratedMain).toContain("return layer.queryRelatedFeatures({");
     expect(migratedMain).not.toContain("@arcgis/core/layers/FeatureLayer");
@@ -1786,7 +1786,7 @@ describe("arcgis migration integration", () => {
     expect(report.manualTodos).toHaveLength(0);
 
     const source = fs.readFileSync(path.join(workingCopy, "src", "main.cjs"), "utf8");
-    expect(source).toContain('const { MapCompat } = require("@honua/sdk-esri-compat");');
+    expect(source).toContain('const { MapCompat } = require("@honua/sdk-client-compat");');
     expect(source).toContain("new MapCompat({");
     expect(source).toContain('basemap: "streets"');
     expect(source).toContain("module.exports = { map };");
@@ -1805,7 +1805,7 @@ describe("arcgis migration integration", () => {
     expect(report.readiness).toBe("ready");
 
     const source = fs.readFileSync(path.join(workingCopy, "src", "main.js"), "utf8");
-    expect(source).toContain('const { MapCompat } = require("@honua/sdk-esri-compat");');
+    expect(source).toContain('const { MapCompat } = require("@honua/sdk-client-compat");');
     expect(source).toContain("new MapCompat({");
     expect(source).toContain('basemap: "streets"');
     expect(source).toContain("module.exports = { map };");

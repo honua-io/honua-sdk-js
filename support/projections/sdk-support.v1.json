@@ -908,7 +908,7 @@
       "freshnessPolicy": "scheduled-live"
     },
     {
-      "id": "esri-compat-fixtures",
+      "id": "client-compat-fixtures",
       "kind": "fixture",
       "path": "test/feature-layer-compat.test.ts",
       "freshnessPolicy": "release-gated"
@@ -1975,7 +1975,7 @@
       ]
     },
     {
-      "id": "esri-compat-standalone",
+      "id": "client-compat-standalone",
       "label": "Client compatibility layer",
       "operations": [
         "query",
@@ -1988,7 +1988,7 @@
       "api": "@honua/sdk-js/client-compat",
       "notes": "Compatibility classes parse public GeoServices URLs and create their own client.",
       "evidence": [
-        "esri-compat-fixtures"
+        "client-compat-fixtures"
       ]
     },
     {
@@ -3214,7 +3214,7 @@
         "removeIn": "0.3.0"
       },
       {
-        "subpath": "./esri-compat",
+        "subpath": "./client-compat",
         "status": "deprecated",
         "replacement": "@honua/sdk-js/client-compat",
         "introducedIn": "0.1.13",

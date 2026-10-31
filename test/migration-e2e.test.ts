@@ -14,7 +14,7 @@ import { scanArcGisUsage } from "../src/migration/scanner.js";
 // End-to-end migration harness. Takes the hand-written ArcGIS sample app at
 // `examples/geoservices-source-app/`, runs the codemod against a copy in a tempdir,
 // verifies the readiness gate is green, every expected rewrite landed, and
-// the migrated source typechecks against the workspace `src/esri-compat/`
+// the migrated source typechecks against the workspace `src/client-compat/`
 // entry point via tsconfig `paths` (so `@arcgis/core` doesn't need to be
 // installed). This is the e2e demo conversion called out in
 // `docs/migration-punch-list.md` as previously not shipped.
@@ -84,7 +84,7 @@ describe("e2e ArcGIS sample app conversion", () => {
 
     // Compat import landed with the three rewritten constructors.
     expect(migratedMain).toContain(
-      'import { FeatureLayerCompat, MapCompat, MapViewCompat } from "@honua/sdk-esri-compat";',
+      'import { FeatureLayerCompat, MapCompat, MapViewCompat } from "@honua/sdk-client-compat";',
     );
 
     // Constructors rewritten.
@@ -111,7 +111,7 @@ describe("e2e ArcGIS sample app conversion", () => {
     expect(migratedMain).not.toContain("@arcgis/core/views/MapView");
 
     // tsc the migrated app against a tsconfig that resolves
-    // @honua/sdk-esri-compat to the workspace shim entry.
+    // @honua/sdk-client-compat to the workspace shim entry.
     writeMigratedTsConfig(workingCopy);
 
     const tscBin = resolveTscBin();
@@ -144,7 +144,7 @@ function resolveTscBin(): string {
 }
 
 function writeMigratedTsConfig(workingCopy: string): void {
-  const compatEntry = path.join(repoRoot(), "src", "esri-compat-entry.ts");
+  const compatEntry = path.join(repoRoot(), "src", "client-compat-entry.ts");
   // Use a path relative to the working copy so the tsconfig stays portable.
   const compatEntryRelative = path.relative(workingCopy, compatEntry).split(path.sep).join("/");
   const tsconfig = {
@@ -160,7 +160,7 @@ function writeMigratedTsConfig(workingCopy: string): void {
       verbatimModuleSyntax: false,
       baseUrl: ".",
       paths: {
-        "@honua/sdk-esri-compat": [compatEntryRelative],
+        "@honua/sdk-client-compat": [compatEntryRelative],
       },
       types: [],
     },

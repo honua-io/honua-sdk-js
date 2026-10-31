@@ -769,7 +769,7 @@ export async function getHonuaLocalStatus(
  * Render the local Docker compose file for an install profile.
  *
  * The 2026.1 bounded setup does not enable MCP profiles from this file.
- * `analysis` and `esri-gp` are not the first-cut gate, and a guessed
+ * `analysis` and `geoservices-gp` are not the first-cut gate, and a guessed
  * `Mcp__Profiles` value would silently do nothing. `honua admin qualify`
  * compares the server-authored workflow view with the pinned manifest instead.
  */

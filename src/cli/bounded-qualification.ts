@@ -33,7 +33,7 @@ export const GEOMETRY_BUFFER_TASK = "geometry.buffer";
 export const BOUNDED_QUALIFICATION_UNSUPPORTED = [
   "full Admin MCP roster",
   "analysis profile",
-  "esri-gp profile",
+  "geoservices-gp profile",
   "guessed Mcp__Profiles switch",
   "hard-coded 441-tool success denominator",
   "dashboard publication",

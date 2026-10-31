@@ -77,4 +77,4 @@ export type {
   UniqueValueRendererOptions,
 } from "./renderers.js";
 // Feature Service and Map Service URL parsers are exported from
-// esri-compat/url.ts via the main index.ts barrel — no re-export needed here.
+// client-compat/url.ts via the main index.ts barrel — no re-export needed here.

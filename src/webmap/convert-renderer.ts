@@ -4,7 +4,7 @@
  * Since issue #497 this module emits first-class renderer objects
  * (`src/style/renderers.ts`) for uniqueValue/classBreaks renderers and
  * compiles them through the shared `/expr`-based compiler, so WebMap
- * conversion, esri-compat, and standalone renderer objects share a single
+ * conversion, client-compat, and standalone renderer objects share a single
  * implementation. The compiled style output is unchanged.
  *
  * @module

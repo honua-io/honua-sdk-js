@@ -345,7 +345,7 @@
 
 * **control-plane:** propagate command correlation identity ([0ea481a](https://github.com/honua-io/honua-sdk-js/commit/0ea481a168d9be4557ac02b97bc78518980c9561))
 * **control-plane:** propagate command correlation identity ([3651c1d](https://github.com/honua-io/honua-sdk-js/commit/3651c1dcc314ade61af953ac139747c1c2d85f1e))
-* **esri-compat:** keep leftover FeatureLayer constructor options ([#1805](https://github.com/honua-io/honua-sdk-js/issues/1805)) ([9fb77e6](https://github.com/honua-io/honua-sdk-js/commit/9fb77e625b7873084ea646c6468b8ac25211a6c8))
+* **client-compat:** keep leftover FeatureLayer constructor options ([#1805](https://github.com/honua-io/honua-sdk-js/issues/1805)) ([9fb77e6](https://github.com/honua-io/honua-sdk-js/commit/9fb77e625b7873084ea646c6468b8ac25211a6c8))
 * **mcp:** move ip-address past GHSA-rpw4-54j3-4h4q and GHSA-2vr4-cq9g-pvrc ([#1821](https://github.com/honua-io/honua-sdk-js/issues/1821)) ([5ccaa07](https://github.com/honua-io/honua-sdk-js/commit/5ccaa07ccf8fad216d89da38949ee91300ed5a1e))
 * **mcp:** preserve and qualify bounded setup views ([7ae5927](https://github.com/honua-io/honua-sdk-js/commit/7ae59277c6c00ae43bcc425138e62ac0f143c17a))
 * **mcp:** preserve workflow view across stdio proxy requests ([89494fe](https://github.com/honua-io/honua-sdk-js/commit/89494fefea654b388304053b4b0d715e5d88d53f))

@@ -24,11 +24,11 @@
  */
 
 import type { HonuaClient } from "../core/client.js";
-import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
+import { geoServicesGeometryToGeoJSON } from "../core/geo-services-geojson.js";
 import { HonuaFeatureLayer } from "../core/surfaces.js";
 import type { HonuaFeatureLayerQueryAllRequest } from "../core/surfaces.js";
 import type { EsriGeometryType, HonuaLayerMetadata } from "../core/types.js";
-import { parseFeatureLayerUrl } from "../esri-compat/url.js";
+import { parseFeatureLayerUrl } from "../client-compat/url.js";
 import type { HonuaMap } from "./honua-map.js";
 
 /** A GeoJSON geometry produced by the adapter. */
@@ -165,7 +165,7 @@ export function esriGeometryToGeoJson(
   if (!isValidGenericGeometry(shape)) return null;
   // Optional Esri Z/M can be null. Keep finite spatial coordinates, omit
   // absent Z, and never treat a measure as GeoJSON altitude.
-  const converted = esriGeometryToGeoJSON({ ...shape, z: asFiniteNumber(shape.z) });
+  const converted = geoServicesGeometryToGeoJSON({ ...shape, z: asFiniteNumber(shape.z) });
   if (!converted || !("coordinates" in converted)) return null;
   const hasZ = asFiniteNumber(shape.z) !== undefined || (geometry.hasZ ?? dimensions?.hasZ) === true;
   const coordinates = projectCoordinates(converted.coordinates, hasZ);

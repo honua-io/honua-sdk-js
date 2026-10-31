@@ -71,7 +71,7 @@ not an immutable evidence pin.
    Until the human acts, retain `AwaitingApproval`; do not invent a completed run.
 
 Full Admin MCP exposure, additional analysis families, `analytics.buffer-aggregate`,
-`analysis`/`esri-gp` profile switches, dashboards, and a 441-tool count are not
+`analysis`/`geoservices-gp` profile switches, dashboards, and a 441-tool count are not
 requirements for this bounded cut. Missing required support is a blocker to
 report, not permission to substitute a broader workflow.
 

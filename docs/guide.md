@@ -380,7 +380,7 @@ npm install @honua/sdk-js
 ## Split package artifacts
 
 The same source tree can also be published as focused packages (`@honua/sdk`,
-`@honua/sdk-esri-compat`, `@honua/react`, `@honua/geometry`, `@honua/app-platform`);
+`@honua/sdk-client-compat`, `@honua/react`, `@honua/geometry`, `@honua/app-platform`);
 see [split-packages.md](split-packages.md). `@honua/honua-migrate` is built from the
 [honua-migrate](https://github.com/honua-io/honua-migrate) repository.
 
@@ -1018,7 +1018,7 @@ The codemod is intentionally conservative:
   - `new Search({ ... })` -> `new SearchCompat({ ... })`
   - `new Home/BasemapToggle/Locate/ScaleBar/BasemapGallery/Expand/Compass/Bookmarks/Fullscreen/Zoom/Attribution(...)` -> corresponding `*Compat` constructor
   - dynamic imports for those modules -> `Promise.resolve({ default: HonuaEsriLeaflet.* })`
-  - dynamic imports for compat fallback modules -> `import("@honua/sdk-esri-compat").then((m) => ({ default: m.*Compat }))`
+  - dynamic imports for compat fallback modules -> `import("@honua/sdk-client-compat").then((m) => ({ default: m.*Compat }))`
   - advanced 3D-only modules (for example `Slice` and external-renderer style APIs) are emitted as manual TODO/report entries
 - `--target esri-leaflet` is for ArcGIS JS (`@arcgis/core`) inputs; existing Esri Leaflet apps generally do not need codemod migration
 - it rewrites supported dynamic imports to compat bridge expressions when safe (for example SceneView dynamic import),

@@ -11,7 +11,7 @@
 //     config/sdk-coverage-crosswalk.v1.json.
 //   - A handful of SDK feature areas that support-manifest.v1.json does not
 //     model as protocols/supportClaims (geocoding, routing, offline, plugin,
-//     COG, styling, esri-compat Portal, OAuth, diagnostics, agent-safety) are
+//     COG, styling, client-compat Portal, OAuth, diagnostics, agent-safety) are
 //     hand-specified as `extras` in the same crosswalk file, each with
 //     existence-checked source files and test evidence.
 //   - Capabilities the SDK does not touch are omitted entirely -- never

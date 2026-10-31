@@ -10,7 +10,7 @@ The workbench:
 - loads the versioned JSON report, widget guidance, MapLibre assessment,
   manifest, and patch from `public/artifacts/v1`;
 - imports the committed generated target, which uses the public
-  `@honua/sdk-js/esri-compat` entry point;
+  `@honua/sdk-js/client-compat` entry point;
 - compares the generated target's browser observations with every stored
   expected behavior assertion;
 - retains zero-count, manual, unsupported, failed-gate, and alternative
@@ -35,7 +35,7 @@ that call for you (honua-io/honua-sdk-js#957). Add it once to the migrated entry
 point:
 
 ```ts doc-test=skip reason="wiring snippet requires an application host"
-import { registerHonuaWidgetKit } from "@honua/sdk-js/esri-compat";
+import { registerHonuaWidgetKit } from "@honua/sdk-js/client-compat";
 
 registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
 ```
@@ -65,7 +65,7 @@ npm run test:playwright:migration-workbench
 ```
 
 The Vite configuration uses the shared sample SDK resolver and declares only
-the public `@honua/sdk-js/esri-compat` entry point. The focused Playwright proof
+the public `@honua/sdk-js/client-compat` entry point. The focused Playwright proof
 runs unchanged in source or packed mode:
 
 ```bash

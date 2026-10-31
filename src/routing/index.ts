@@ -16,7 +16,7 @@
  * console.log(route.distanceMeters, route.provenance.attribution);
  * ```
  *
- * @example Back an esri-compat `RouteTaskCompat` with OSRM
+ * @example Back an client-compat `RouteTaskCompat` with OSRM
  * ```ts
  * import { osrmRoutingProvider, routingProviderToCompatRouteProvider } from "@honua/sdk-js/routing";
  * import { RouteTaskCompat } from "@honua/sdk-js/client-compat";

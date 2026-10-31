@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { EditSketchTool } from "../src/contract/edit-sketch.js";
-import { SketchCompat, resolveSketchToolBindingCompat } from "../src/esri-compat/sketch.js";
+import { SketchCompat, resolveSketchToolBindingCompat } from "../src/client-compat/sketch.js";
 
 function fakeBinding() {
   return {
@@ -11,7 +11,7 @@ function fakeBinding() {
   };
 }
 
-describe("esri-compat / Sketch terra-draw delegation", () => {
+describe("client-compat / Sketch terra-draw delegation", () => {
   it("feature-detects a sketch binding by its setTool method", () => {
     const binding = fakeBinding();
     expect(resolveSketchToolBindingCompat(binding)).toBe(binding);

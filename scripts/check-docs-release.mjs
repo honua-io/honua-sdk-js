@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { currentDocsVersions } from "./docs-versions.mjs";
 
 export const MANIFEST_URL = "https://honua-io.github.io/honua-sdk-js/versions.json";
-const PACKAGES = ["@honua/sdk-js", "@honua/sdk-esri-compat"];
+const PACKAGES = ["@honua/sdk-js", "@honua/sdk-client-compat"];
 
 function parseVersion(version) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(version);

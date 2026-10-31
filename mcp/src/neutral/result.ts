@@ -1,6 +1,6 @@
 import { HonuaCapabilityNotSupportedError } from "@honua/sdk-js";
 import type { DegradedReason, Result } from "@honua/sdk-js/contract";
-import { esriToGeoJson, geoJsonToEsri } from "@honua/sdk-js/geometry";
+import { geoServicesToGeoJson, geoJsonToGeoServices } from "@honua/sdk-js/geometry";
 
 /**
  * PROTOCOL-NEUTRAL result projection (#1005).
@@ -29,12 +29,12 @@ export function projectGeometry(
   if (!geometry) return null;
   if (format === "esri-json") {
     if (!looksGeoJson(geometry)) return geometry;
-    const converted = geoJsonToEsri(geometry as never);
+    const converted = geoJsonToGeoServices(geometry as never);
     if (!converted) throw new HonuaCapabilityNotSupportedError("geometryFormat.esri-json", "geometry-projection");
     return converted as unknown as Record<string, unknown>;
   }
   if (looksGeoJson(geometry)) return geometry;
-  const converted = esriToGeoJson(geometry);
+  const converted = geoServicesToGeoJson(geometry);
   return converted ? (converted as unknown as Record<string, unknown>) : null;
 }
 

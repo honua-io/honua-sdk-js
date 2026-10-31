@@ -2,10 +2,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type CompatEvent, CompatEventBus } from "../src/esri-compat/event-bus.js";
-import { LayerListCompat } from "../src/esri-compat/layer-list.js";
-import { LegendCompat } from "../src/esri-compat/legend.js";
-import { HonuaWidgetHost, registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
+import { type CompatEvent, CompatEventBus } from "../src/client-compat/event-bus.js";
+import { LayerListCompat } from "../src/client-compat/layer-list.js";
+import { LegendCompat } from "../src/client-compat/legend.js";
+import { HonuaWidgetHost, registerHonuaWidgetKit } from "../src/client-compat/widget-host.js";
 
 /**
  * Missing-widget-kit diagnostic (issue #957). Compat widget shims render real

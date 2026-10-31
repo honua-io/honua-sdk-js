@@ -543,7 +543,7 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
 
   /**
    * The layer rows currently rendered. Headless hosts (for example the
-   * esri-compat LayerList shim delegating through `HonuaWidgetHost`) can
+   * client-compat LayerList shim delegating through `HonuaWidgetHost`) can
    * assign this directly to bypass the controller; user toggles then surface
    * only through the `honua-layer-visibility-change` event. Assign
    * `undefined` to return to controller-driven rows.
@@ -733,7 +733,7 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
  * while that layer is toggled off, unless the `include-hidden` attribute is
  * present.
  *
- * Headless hosts (for example the esri-compat Legend shim delegating through
+ * Headless hosts (for example the client-compat Legend shim delegating through
  * `HonuaWidgetHost`) can bypass the controller and assign the `items`
  * property directly.
  *

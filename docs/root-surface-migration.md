@@ -185,10 +185,10 @@ Baseline: 263 runtime and 1039 declaration symbols. Final root: 46 runtime and 1
 | `ElevationSampler` | type | `@honua/sdk-js/honua` |
 | `EMPTY_STATE` | runtime | `@honua/sdk-js/exploration` |
 | `EsriEnvelope` | type | `@honua/sdk-js/honua` |
-| `esriFeatureToGeoJSON` | runtime | `@honua/sdk-js/honua` |
+| `geoServicesFeatureToGeoJSON` | runtime | `@honua/sdk-js/honua` |
 | `EsriFieldType` | type | `@honua/sdk-js/honua` |
 | `EsriGeometry` | type | `@honua/sdk-js/honua` |
-| `esriGeometryToGeoJSON` | runtime | `@honua/sdk-js/honua` |
+| `geoServicesGeometryToGeoJSON` | runtime | `@honua/sdk-js/honua` |
 | `EsriGeometryType` | type | `@honua/sdk-js/honua` |
 | `EsriMultipoint` | type | `@honua/sdk-js/honua` |
 | `EsriPoint` | type | `@honua/sdk-js/honua` |

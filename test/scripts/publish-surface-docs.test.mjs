@@ -20,7 +20,7 @@ test("duplicate production claims fail closed", () => {
 
 test("published documentation claims all five actual split packages", () => {
   const docs = readFileSync(new URL("../../docs/split-packages.md", import.meta.url), "utf8");
-  assert.deepEqual([...documentedSplitPackages(docs)].sort(), ["@honua/app-platform", "@honua/geometry", "@honua/react", "@honua/sdk", "@honua/sdk-esri-compat"]);
+  assert.deepEqual([...documentedSplitPackages(docs)].sort(), ["@honua/app-platform", "@honua/geometry", "@honua/react", "@honua/sdk", "@honua/sdk-client-compat"]);
 });
 
 test("malformed production rows cannot silently disappear beside a valid package", () => {

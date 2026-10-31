@@ -28,7 +28,7 @@ export const ZERO_TO_MAP_STAGE_COUNT = 8;
 
 /**
  * Receipt id for the closed operator roster: the MCP tools this journey calls,
- * not a 432/441 catalog total and not the `analysis` or `esri-gp` profiles.
+ * not a 432/441 catalog total and not the `analysis` or `geoservices-gp` profiles.
  */
 export const ZERO_TO_MAP_CLOSED_ROSTER_ID = "operator";
 
@@ -1289,7 +1289,7 @@ function joinSharePath(path: string, mcpUrl: string | undefined): string {
  *
  * The closed roster is the set of tools this journey calls. The preflight does
  * not require a 432- or 441-tool catalog, and it does not require the
- * `analysis` or `esri-gp` profiles. A missing member names the stage and
+ * `analysis` or `geoservices-gp` profiles. A missing member names the stage and
  * action that needs it. Extra advertised tools are not a failure: the server
  * may publish more than this journey uses. Input-schema drift on a planned
  * call still blocks before that call is sent.

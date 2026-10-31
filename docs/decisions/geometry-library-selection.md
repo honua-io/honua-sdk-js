@@ -55,8 +55,8 @@ package's hard-dependency surface.
 wraps `proj4`. Nothing is reimplemented. The API is typed against the SDK's own
 `GeoJsonGeometry` / `GeoJsonFeature` contract (`src/expr/expression.ts`,
 `src/core/types.ts`), and Esri ↔ GeoJSON conversion **reuses** the single
-canonical converter in `src/core/esri-geojson.ts` (heritage of #264) — the
-reverse direction (`geoJsonToEsriGeometry`) was added there rather than forked.
+canonical converter in `src/core/geo-services-geojson.ts` (heritage of #264) — the
+reverse direction (`geoJsonToGeoServices`) was added there rather than forked.
 
 ### 2. Dependency placement: optional peers on the unified package, real deps on the split package
 
@@ -72,7 +72,7 @@ This mirrors the established `maplibre-gl` / `cesium` precedent:
 - **Split `@honua/geometry`:** turf packages + `proj4` are **regular
   `dependencies`**, so the split package's advertised workflow
   (`npm install @honua/geometry`) is zero-config.
-- **`@honua/sdk-esri-compat`:** because the `geometryEngine` compat shim is
+- **`@honua/sdk-client-compat`:** because the `geometryEngine` compat shim is
   backed by the geometry package, the compat split package copies
   `src/geometry` and declares the same turf/proj4 runtime deps.
 

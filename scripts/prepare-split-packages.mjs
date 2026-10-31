@@ -109,7 +109,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-safety"), path.join(packageRoot, "agent-safety"));
   copyDirectory(path.join(DIST_SRC_ROOT, "nl-map-control"), path.join(packageRoot, "nl-map-control"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "client-compat"), path.join(packageRoot, "client-compat"));
   // geometry-engine.js imports ../geometry/index.js, and feature-layer.js imports
   // ../widget-capabilities.js. The SDK entry does not load either module, so
   // turf stays a dependency of the packages whose entry does.
@@ -372,42 +372,41 @@ function createSdkPackage() {
 }
 
 function createCompatPackage() {
-  const packageRoot = path.join(OUTPUT_ROOT, "honua-sdk-esri-compat");
+  const packageRoot = path.join(OUTPUT_ROOT, "honua-sdk-client-compat");
   fs.mkdirSync(packageRoot, { recursive: true });
 
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "client-compat"), path.join(packageRoot, "client-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
-  // The geometryEngine compat shim (esri-compat/geometry-engine.js) imports the
+  // The geometryEngine compat shim (client-compat/geometry-engine.js) imports the
   // geometry package, so the compat tarball ships it and pulls turf/proj4.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
-  // LocatorCompat (esri-compat/locator.js) rides on the provider-pluggable
+  // LocatorCompat (client-compat/locator.js) rides on the provider-pluggable
   // geocoding contract, so the compat tarball ships it and the BYO-endpoint
   // adapters callers configure it with (issue #956).
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
-  // esri-compat/renderer-objects.js projects compat renderers through the
+  // client-compat/renderer-objects.js projects compat renderers through the
   // first-class renderer objects (webmap/convert-renderer.js -> style/renderers.js),
   // so the compat tarball ships both directories (issue #497).
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
-  // esri-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.
-  // That module sits beside esri-compat/ in dist/src, so the tarball has to ship it.
+  // client-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.
+  // That module sits beside client-compat/ in dist/src, so the tarball has to ship it.
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
   copyContractRuntimeClosure(packageRoot);
   // The split package is the renamed entry itself, not the deprecated
-  // `./esri-compat` shim, so importing it never emits the subpath warning.
+  // `./client-compat` shim, so importing it never emits the subpath warning.
   copyFile(path.join(DIST_SRC_ROOT, "client-compat-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "client-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
 
   writePackageJson(packageRoot, {
-    name: "@honua/sdk-esri-compat",
-    description:
-      "ArcGIS JS API compatibility layer for ArcGIS migration from Esri apps to the open Honua + MapLibre stack",
-    keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "compatibility"]),
+    name: "@honua/sdk-client-compat",
+    description: "Compatibility layer for migrating web mapping applications to Honua and MapLibre",
+    keywords: packageKeywords(["geospatial", "web-mapping", "migration", "compatibility"]),
     main: "./index.js",
     types: "./index.d.ts",
     sideEffects: false,
@@ -434,9 +433,9 @@ function createCompatPackage() {
   writeReadme(
     packageRoot,
     [
-      "# @honua/sdk-esri-compat",
+      "# @honua/sdk-client-compat",
       "",
-      "Compatibility bridge APIs for migrating ArcGIS JavaScript apps to Honua.",
+      "Compatibility bridge APIs for migrating web mapping applications to Honua.",
       "",
       "`maplibre-gl` is an optional peer used when a compat map view is mounted.",
       "",
@@ -449,9 +448,9 @@ function createGeometryPackage() {
   const packageRoot = path.join(OUTPUT_ROOT, "honua-geometry");
   fs.mkdirSync(packageRoot, { recursive: true });
 
-  // Runtime graph: geometry/*.js + core/esri-geojson.js (its type imports are
+  // Runtime graph: geometry/*.js + core/geo-services-geojson.js (its type imports are
   // erased). contract/expr/core are copied so the shipped .d.ts references
-  // resolve; only geometry + esri-geojson are actually loaded at runtime.
+  // resolve; only geometry + the GeoServices conversion module load at runtime.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
@@ -499,12 +498,12 @@ function createReactPackage() {
 
   // Precise import closure of `src/react` (react → contract + core + runtime,
   // transitively pulling the map/style/studio stack). Copied so the package is
-  // self-contained, mirroring the esri-compat / migration split targets.
+  // self-contained, mirroring the client-compat / migration split targets.
   const reactClosureDirectories = [
     "contract",
     "control-plane",
     "core",
-    "esri-compat",
+    "client-compat",
     "exploration",
     "expr",
     "filter-registry",
@@ -591,11 +590,11 @@ function createAppPlatformPackage() {
 
   // Application-platform surfaces evicted from the stable SDK in the 1.0 scope
   // split (docs/decisions/scope-split-and-1.0.md). Self-contained, mirroring the
-  // esri-compat / migration / react split targets: the app-platform entrypoints
+  // client-compat / migration / react split targets: the app-platform entrypoints
   // plus their downward stable-tier closure are copied so the package resolves
   // without a separate `@honua/sdk-js` install.
   // A deprecated subpath either moved to the app platform or was renamed inside
-  // `@honua/sdk-js` (`./esri-compat` -> `./client-compat`); only the former
+  // `@honua/sdk-js` (`./client-compat` -> `./client-compat`); only the former
   // belongs in this package.
   const movedSubpaths = entrypointsInTier(publicSurface, "deprecated")
     .filter((entrypoint) => !entrypoint.replacement.startsWith("@honua/sdk-js/"))
@@ -610,7 +609,7 @@ function createAppPlatformPackage() {
   const stableClosureDirectories = [
     "contract",
     "core",
-    "esri-compat",
+    "client-compat",
     "exploration",
     "expr",
     "filter-registry",
@@ -619,7 +618,7 @@ function createAppPlatformPackage() {
     // `web-components/measurement.js` (the survival-tier measurement widget,
     // issue #493) computes distance/area through the public geometry ops, so
     // the geometry closure — and its turf/proj4 runtime deps below — ships
-    // with the app platform (this also completes the esri-compat
+    // with the app platform (this also completes the client-compat
     // geometry-engine closure copied above).
     "geometry",
     "interactions",
@@ -642,7 +641,7 @@ function createAppPlatformPackage() {
   // the app-platform package must carry this internal stable-tier dependency.
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.js"), path.join(packageRoot, "connect-url-safety.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.d.ts"), path.join(packageRoot, "connect-url-safety.d.ts"));
-  // web-components/elements.js and esri-compat/feature-layer.js import
+  // web-components/elements.js and client-compat/feature-layer.js import
   // ../widget-capabilities.js, which lives beside those directories in dist/src.
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));

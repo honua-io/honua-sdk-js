@@ -1,10 +1,10 @@
 /**
  * Honua facade adapter for the {@link RoutingProvider} contract.
  *
- * The SDK's existing routing surface is the esri-compat route-provider
+ * The SDK's existing routing surface is the client-compat route-provider
  * callback (`RouteLayerCompat` / `RouteTaskCompat` `routeProvider`), which
  * solves `stops → { path, totalLengthMeters, totalTimeSeconds }`. This module
- * bridges both directions without importing the (heavy) esri-compat
+ * bridges both directions without importing the (heavy) client-compat
  * entrypoint:
  *
  * - {@link honuaRoutingProvider} wraps a compat-shaped solver in the
@@ -29,7 +29,7 @@ import {
 } from "../provider.js";
 
 /**
- * Structural mirror of esri-compat's `RouteStopCompat` (`location` is
+ * Structural mirror of client-compat's `RouteStopCompat` (`location` is
  * `[longitude, latitude]`), kept import-free so `/routing` stays small.
  *
  * @experimental
@@ -40,7 +40,7 @@ export interface CompatRouteStop {
 }
 
 /**
- * Structural mirror of esri-compat's `RouteSolveResultCompat`.
+ * Structural mirror of client-compat's `RouteSolveResultCompat`.
  *
  * @experimental
  */
@@ -51,7 +51,7 @@ export interface CompatRouteSolveResult {
 }
 
 /**
- * The Honua facade's route solver shape (esri-compat `routeProvider`).
+ * The Honua facade's route solver shape (client-compat `routeProvider`).
  *
  * @experimental
  */
@@ -73,7 +73,7 @@ const HONUA_ATTRIBUTION = "Honua-hosted route service";
 const HONUA_CAPABILITIES: ReadonlyArray<RoutingCapability> = ["route"];
 
 /**
- * Wrap the existing Honua facade route solver (the esri-compat
+ * Wrap the existing Honua facade route solver (the client-compat
  * `routeProvider` callback shape) in the {@link RoutingProvider} contract.
  *
  * The compat solver only reports aggregate totals, so to preserve the
@@ -140,7 +140,7 @@ export function honuaRoutingProvider(
 }
 
 /**
- * Adapt any {@link RoutingProvider} into the esri-compat `routeProvider`
+ * Adapt any {@link RoutingProvider} into the client-compat `routeProvider`
  * callback shape so `RouteTaskCompat` / `RouteLayerCompat` / `DirectionsCompat`
  * can be backed by OSRM, Valhalla, or a custom provider.
  *

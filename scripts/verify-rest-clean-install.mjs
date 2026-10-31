@@ -42,7 +42,7 @@ let preview;
 try {
   assertOutsideRepository(appDir);
   const sdkTar = packSplit("@honua/sdk", "honua-sdk");
-  const compatTar = packSplit("@honua/sdk-esri-compat", "honua-sdk-esri-compat");
+  const compatTar = packSplit("@honua/sdk-client-compat", "honua-sdk-client-compat");
   fs.writeFileSync(
     path.join(appDir, "package.json"),
     `${JSON.stringify(
@@ -52,7 +52,7 @@ try {
         type: "module",
         dependencies: {
           "@honua/sdk": `file:${sdkTar}`,
-          "@honua/sdk-esri-compat": `file:${compatTar}`,
+          "@honua/sdk-client-compat": `file:${compatTar}`,
         },
         devDependencies: {
           vite: ROOT_PACKAGE_JSON.devDependencies.vite,
@@ -130,7 +130,7 @@ function writeConsumerFiles() {
   fs.writeFileSync(
     path.join(appDir, "main.js"),
     `import { createHonua, HonuaClient } from "@honua/sdk";
-import { FeatureLayerCompat } from "@honua/sdk-esri-compat";
+import { FeatureLayerCompat } from "@honua/sdk-client-compat";
 
 const kernel = createHonua();
 if (typeof kernel.connect !== "function") throw new Error("createHonua did not return a kernel");
@@ -255,7 +255,7 @@ function assertLockedClosure() {
       throw new Error(`REST-only install materialized optional gRPC peer ${peerName}`);
     }
   }
-  for (const packageName of ["@honua/sdk", "@honua/sdk-esri-compat"]) {
+  for (const packageName of ["@honua/sdk", "@honua/sdk-client-compat"]) {
     const installed = path.join(appDir, "node_modules", packageName);
     const real = fs.realpathSync(installed);
     if (!real.startsWith(`${fs.realpathSync(appDir)}${path.sep}`)) {
@@ -303,9 +303,9 @@ function assertProductionGraph() {
     }
   }
   const sdkClient = ids.find((id) => id.includes("/@honua/sdk/") && id.endsWith("/core/client.js"));
-  const compatClient = ids.find((id) => id.includes("/@honua/sdk-esri-compat/") && id.endsWith("/core/client.js"));
+  const compatClient = ids.find((id) => id.includes("/@honua/sdk-client-compat/") && id.endsWith("/core/client.js"));
   if (!sdkClient) throw new Error("production graph did not include the installed @honua/sdk client");
-  if (!compatClient) throw new Error("production graph did not include the installed esri-compat client");
+  if (!compatClient) throw new Error("production graph did not include the installed client-compat client");
 }
 
 async function queryProductionBuild() {

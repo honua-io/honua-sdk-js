@@ -8,7 +8,7 @@ import { HonuaClient } from "@honua/sdk";
 // Real-service query/filter/paging/editing/auth-error fixture for #1662. The
 // migrated compat FeatureLayer builds a real HonuaClient and issues real
 // HTTP GeoServices requests (see FeatureLayerCompat in
-// src/esri-compat/feature-layer.ts) against
+// src/client-compat/feature-layer.ts) against
 // honua-featureserver-fixture-server.mjs — a protocol-faithful FeatureServer,
 // not an in-memory mock. `HonuaClient` is imported directly from the
 // installed `@honua/sdk-js` package: the codemod migrates the ArcGIS surface

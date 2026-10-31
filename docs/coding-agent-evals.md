@@ -37,7 +37,7 @@ docs), expected artifact type (`ts`/`tsx`), execution budget, and the
 objective assertions. Covered workflows: FeatureServer connect + count, where
 / outFields query, `connect()` auto-classification, OGC API Features, WFS 2.0,
 STAC search, OData v4, stream/pagination, query-plan explain, MapLibre
-geojson-source mounting (mock lane), geocoding, esri-compat migration snippet,
+geojson-source mounting (mock lane), geocoding, client-compat migration snippet,
 WebMap conversion, CLI usage, capability-error handling, and React hook
 composition.
 

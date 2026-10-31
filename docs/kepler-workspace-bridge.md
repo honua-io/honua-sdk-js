@@ -95,7 +95,7 @@ authorization scope, attribution, freshness validators, and any source
 degradations), plus the ingestion diagnostic and its fidelity losses.
 
 Esri-JSON geometry is converted by the repository's canonical converter
-(`src/core/esri-geojson.ts`), so a polygon with several clockwise exterior rings
+(`src/core/geo-services-geojson.ts`), so a polygon with several clockwise exterior rings
 becomes a `MultiPolygon` instead of one `Polygon` whose later exterior rings are
 misread as holes, and every ring is rewound to the RFC 7946 right-hand rule.
 

@@ -41,7 +41,7 @@ Deep validation is the one place the corpus installs third-party dependencies, s
 | [Owls of Bavaria](#owls-of-bavaria) | builds, new diagnostics | pass | pass | 2 | 4 |
 | [QG Travel System — Qinghai-Gansu Grand Loop trip planner](#qg-travel-system--qinghai-gansu-grand-loop-trip-planner) | builds, new diagnostics | pass | pass | 16 | 0 |
 
-2 of 2 allowlisted apps built post-codemod against `@honua/sdk-esri-compat`.
+2 of 2 allowlisted apps built post-codemod against `@honua/sdk-client-compat`.
 
 ## Owls of Bavaria
 
@@ -53,7 +53,7 @@ Deep validation is the one place the corpus installs third-party dependencies, s
 - Lockfile: `package-lock.json`
 - Codemod scan root: `src`
 
-The codemod rewrote 5 of 7 in-scope call sites across 3 files to `@honua/sdk-esri-compat`, leaving 2 annotated manual TODOs. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
+The codemod rewrote 5 of 7 in-scope call sites across 3 files to `@honua/sdk-client-compat`, leaving 2 annotated manual TODOs. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
 
 1 of those TODOs is a held-back rewrite: the construct is in codemod scope, but its value flows into an ArcGIS module the codemod does not migrate, so rewriting it would have left a compat value in an un-migrated ArcGIS consumer's hands (#1012). Held-back call sites are counted as manual, never as auto-migrated.
 
@@ -94,7 +94,7 @@ The app ships no TypeScript, so the probe type-checks its JavaScript with `allow
 - Lockfile: `package-lock.json`
 - Codemod scan root: `src`
 
-The codemod rewrote 37 of 43 in-scope call sites across 2 files to `@honua/sdk-esri-compat`, leaving 6 annotated manual TODOs. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
+The codemod rewrote 37 of 43 in-scope call sites across 2 files to `@honua/sdk-client-compat`, leaving 6 annotated manual TODOs. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
 
 2 of those TODOs are held-back rewrites: the construct is in codemod scope, but its value flows into an ArcGIS module the codemod does not migrate, so rewriting it would have left a compat value in an un-migrated ArcGIS consumer's hands (#1012). Held-back call sites are counted as manual, never as auto-migrated.
 

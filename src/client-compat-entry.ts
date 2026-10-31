@@ -1,4 +1,4 @@
-export { FeatureLayerCompat } from "./esri-compat/feature-layer.js";
+export { FeatureLayerCompat } from "./client-compat/feature-layer.js";
 export type {
   FeatureLayerAddAttachmentOptions,
   FeatureLayerAttachmentData,
@@ -11,14 +11,14 @@ export type {
   FeatureLayerQueryAttachmentsOptions,
   FeatureLayerQueryCountOptions,
   FeatureLayerUpdateAttachmentOptions,
-} from "./esri-compat/feature-layer.js";
-export { FeatureCompat } from "./esri-compat/feature.js";
+} from "./client-compat/feature-layer.js";
+export { FeatureCompat } from "./client-compat/feature.js";
 export type {
   FeatureCompatOptions,
   FeatureHandleCompat,
   FeatureLoadStatusCompat,
-} from "./esri-compat/feature.js";
-export { FeatureFormCompat } from "./esri-compat/feature-form.js";
+} from "./client-compat/feature.js";
+export { FeatureFormCompat } from "./client-compat/feature-form.js";
 export type {
   FeatureFormCompatOptions,
   FeatureFormFieldErrorCompat,
@@ -26,16 +26,16 @@ export type {
   FeatureFormLoadStatusCompat,
   FeatureFormSubmitResultCompat,
   FeatureFormValidationFn,
-} from "./esri-compat/feature-form.js";
-export { FeatureTemplatesCompat } from "./esri-compat/feature-templates.js";
+} from "./client-compat/feature-form.js";
+export { FeatureTemplatesCompat } from "./client-compat/feature-templates.js";
 export type {
   FeatureTemplatesHandleCompat,
   FeatureTemplatesLoadStatusCompat,
   FeatureTemplateItemCompat,
   FeatureTemplatesCompatOptions,
-} from "./esri-compat/feature-templates.js";
-export { FeatureTableCompat } from "./esri-compat/feature-table.js";
-export { FeatureTableHighlightIdsCompat } from "./esri-compat/feature-table.js";
+} from "./client-compat/feature-templates.js";
+export { FeatureTableCompat } from "./client-compat/feature-table.js";
+export { FeatureTableHighlightIdsCompat } from "./client-compat/feature-table.js";
 export type {
   FeatureTableCompatOptions,
   FeatureTableHighlightIdsChangeEventCompat,
@@ -45,22 +45,22 @@ export type {
   FeatureTableQueryRelatedRecordsOptions,
   FeatureTableRowCompat,
   FeatureTableStateCompat,
-} from "./esri-compat/feature-table.js";
-export { FeatureSetCompat } from "./esri-compat/feature-set.js";
+} from "./client-compat/feature-table.js";
+export { FeatureSetCompat } from "./client-compat/feature-set.js";
 export type {
   FeatureSetCompatOptions,
   FeatureSetHandleCompat,
   FeatureSetLoadStatusCompat,
-} from "./esri-compat/feature-set.js";
-export { ColorCompat } from "./esri-compat/color.js";
+} from "./client-compat/feature-set.js";
+export { ColorCompat } from "./client-compat/color.js";
 export type {
   ColorCompatInput,
   ColorHandleCompat,
   ColorLoadStatusCompat,
-} from "./esri-compat/color.js";
-export { parseFeatureLayerUrl, parseMapServiceUrl } from "./esri-compat/url.js";
-export type { ParsedFeatureLayerUrl, ParsedMapServiceUrl } from "./esri-compat/url.js";
-export { PortalCompat, PortalError } from "./esri-compat/portal.js";
+} from "./client-compat/color.js";
+export { parseFeatureLayerUrl, parseMapServiceUrl } from "./client-compat/url.js";
+export type { ParsedFeatureLayerUrl, ParsedMapServiceUrl } from "./client-compat/url.js";
+export { PortalCompat, PortalError } from "./client-compat/portal.js";
 export type {
   PortalCompatOptions,
   PortalFeatureServiceOpenResult,
@@ -75,12 +75,12 @@ export type {
   PortalSelf,
   PortalServiceOpenResult,
   PortalTokenCredential,
-} from "./esri-compat/portal.js";
+} from "./client-compat/portal.js";
 export {
   createArcGisTokenInterceptor,
   createEsriRequestInterceptors,
   EsriRequestInterceptorRegistry,
-} from "./esri-compat/request.js";
+} from "./client-compat/request.js";
 export type {
   ArcGisTokenInterceptorOptions,
   EsriBeforeRequestParams,
@@ -88,39 +88,39 @@ export type {
   EsriRequestInterceptorCompat,
   EsriRequestOptionsLike,
   EsriUrlPattern,
-} from "./esri-compat/request.js";
-export { esriRequest } from "./esri-compat/esri-request.js";
+} from "./client-compat/request.js";
+export { esriRequest } from "./client-compat/esri-request.js";
 export type {
   EsriRequestCompatOptions,
   EsriRequestCompatResponse,
   EsriRequestResponseTypeCompat,
-} from "./esri-compat/esri-request.js";
+} from "./client-compat/esri-request.js";
 export {
   esriConfig,
   getEsriConfigHonuaInterceptors,
   resetEsriConfig,
-} from "./esri-compat/esri-config.js";
-export type { EsriConfigCompat, EsriConfigRequestCompat } from "./esri-compat/esri-config.js";
-export { identityManager } from "./esri-compat/identity-manager.js";
+} from "./client-compat/esri-config.js";
+export type { EsriConfigCompat, EsriConfigRequestCompat } from "./client-compat/esri-config.js";
+export { identityManager } from "./client-compat/identity-manager.js";
 export type {
   IdentityCredentialCompat,
   IdentityManagerOAuth2Engine,
   IdentityTokenRegistrationCompat,
-} from "./esri-compat/identity-manager.js";
-export { OAuthInfoCompat } from "./esri-compat/oauth-info.js";
+} from "./client-compat/identity-manager.js";
+export { OAuthInfoCompat } from "./client-compat/oauth-info.js";
 export type {
   OAuthInfoCompatOptions,
   OAuthInfoHandleCompat,
   OAuthInfoLoadStatusCompat,
   OAuthInfoToConfigOptions,
-} from "./esri-compat/oauth-info.js";
-export { CompatEventBus } from "./esri-compat/event-bus.js";
+} from "./client-compat/oauth-info.js";
+export { CompatEventBus } from "./client-compat/event-bus.js";
 export type {
   CompatEvent,
   CompatEventListener,
   CompatEventPayloads,
   CompatEventSubscription,
-} from "./esri-compat/event-bus.js";
+} from "./client-compat/event-bus.js";
 export {
   AttributionCompat,
   BasemapToggleCompat,
@@ -130,7 +130,7 @@ export {
   LocateCompat,
   ScaleBarCompat,
   ZoomCompat,
-} from "./esri-compat/controls.js";
+} from "./client-compat/controls.js";
 export type {
   AttributionCompatOptions,
   BasemapToggleCompatOptions,
@@ -146,153 +146,153 @@ export type {
   ScaleBarCompatOptions,
   ScaleBarUnitCompat,
   ZoomCompatOptions,
-} from "./esri-compat/controls.js";
-export { BasemapGalleryCompat } from "./esri-compat/basemap-gallery.js";
+} from "./client-compat/controls.js";
+export { BasemapGalleryCompat } from "./client-compat/basemap-gallery.js";
 export type {
   BasemapGalleryCompatOptions,
   BasemapGalleryHandleCompat,
   BasemapGalleryLoadStatusCompat,
-} from "./esri-compat/basemap-gallery.js";
-export { BasemapCompat } from "./esri-compat/basemap.js";
+} from "./client-compat/basemap-gallery.js";
+export { BasemapCompat } from "./client-compat/basemap.js";
 export type {
   BasemapCompatOptions,
   BasemapHandleCompat,
   BasemapLoadStatusCompat,
-} from "./esri-compat/basemap.js";
-export { BasemapLayerListCompat } from "./esri-compat/basemap-layer-list.js";
+} from "./client-compat/basemap.js";
+export { BasemapLayerListCompat } from "./client-compat/basemap-layer-list.js";
 export type {
   BasemapLayerListCompatOptions,
   BasemapLayerListHandleCompat,
   BasemapLayerListLoadStatusCompat,
-} from "./esri-compat/basemap-layer-list.js";
-export { BookmarksCompat } from "./esri-compat/bookmarks.js";
+} from "./client-compat/basemap-layer-list.js";
+export { BookmarksCompat } from "./client-compat/bookmarks.js";
 export type {
   BookmarkCompatItem,
   BookmarksCompatOptions,
   BookmarksHandleCompat,
   BookmarksLoadStatusCompat,
-} from "./esri-compat/bookmarks.js";
-export { ExpandCompat } from "./esri-compat/expand.js";
+} from "./client-compat/bookmarks.js";
+export { ExpandCompat } from "./client-compat/expand.js";
 export type {
   ExpandCompatOptions,
   ExpandHandleCompat,
   ExpandLoadStatusCompat,
-} from "./esri-compat/expand.js";
-export { GraphicsLayerCompat } from "./esri-compat/graphics-layer.js";
+} from "./client-compat/expand.js";
+export { GraphicsLayerCompat } from "./client-compat/graphics-layer.js";
 export type {
   GraphicsLayerCompatOptions,
   GraphicsLayerHandleCompat,
   GraphicsLayerLoadStatusCompat,
   GraphicsLayerQueryResult,
-} from "./esri-compat/graphics-layer.js";
-export { GraphicCompat } from "./esri-compat/graphic.js";
+} from "./client-compat/graphics-layer.js";
+export { GraphicCompat } from "./client-compat/graphic.js";
 export type {
   GraphicCompatOptions,
   GraphicHandleCompat,
   GraphicLoadStatusCompat,
-} from "./esri-compat/graphic.js";
-export { PointCompat } from "./esri-compat/point.js";
+} from "./client-compat/graphic.js";
+export { PointCompat } from "./client-compat/point.js";
 export type {
   PointCompatOptions,
   PointHandleCompat,
   PointLoadStatusCompat,
-} from "./esri-compat/point.js";
-export { PolylineCompat } from "./esri-compat/polyline.js";
+} from "./client-compat/point.js";
+export { PolylineCompat } from "./client-compat/polyline.js";
 export type {
   PolylineCompatOptions,
   PolylineHandleCompat,
   PolylineLoadStatusCompat,
-} from "./esri-compat/polyline.js";
-export { PolygonCompat } from "./esri-compat/polygon.js";
+} from "./client-compat/polyline.js";
+export { PolygonCompat } from "./client-compat/polygon.js";
 export type {
   PolygonCompatOptions,
   PolygonHandleCompat,
   PolygonLoadStatusCompat,
-} from "./esri-compat/polygon.js";
-export { ExtentCompat } from "./esri-compat/extent.js";
+} from "./client-compat/polygon.js";
+export { ExtentCompat } from "./client-compat/extent.js";
 export type {
   ExtentCompatOptions,
   ExtentHandleCompat,
   ExtentLoadStatusCompat,
-} from "./esri-compat/extent.js";
-export { SpatialReferenceCompat } from "./esri-compat/spatial-reference.js";
+} from "./client-compat/extent.js";
+export { SpatialReferenceCompat } from "./client-compat/spatial-reference.js";
 export type {
   SpatialReferenceCompatOptions,
   SpatialReferenceHandleCompat,
   SpatialReferenceLoadStatusCompat,
-} from "./esri-compat/spatial-reference.js";
-export { SimpleLineSymbolCompat } from "./esri-compat/simple-line-symbol.js";
+} from "./client-compat/spatial-reference.js";
+export { SimpleLineSymbolCompat } from "./client-compat/simple-line-symbol.js";
 export type {
   SimpleLineSymbolCompatOptions,
   SimpleLineSymbolHandleCompat,
   SimpleLineSymbolLoadStatusCompat,
-} from "./esri-compat/simple-line-symbol.js";
-export { SimpleFillSymbolCompat } from "./esri-compat/simple-fill-symbol.js";
+} from "./client-compat/simple-line-symbol.js";
+export { SimpleFillSymbolCompat } from "./client-compat/simple-fill-symbol.js";
 export type {
   SimpleFillSymbolCompatOptions,
   SimpleFillSymbolHandleCompat,
   SimpleFillSymbolLoadStatusCompat,
-} from "./esri-compat/simple-fill-symbol.js";
-export { SimpleMarkerSymbolCompat } from "./esri-compat/simple-marker-symbol.js";
+} from "./client-compat/simple-fill-symbol.js";
+export { SimpleMarkerSymbolCompat } from "./client-compat/simple-marker-symbol.js";
 export type {
   SimpleMarkerSymbolCompatOptions,
   SimpleMarkerSymbolHandleCompat,
   SimpleMarkerSymbolLoadStatusCompat,
-} from "./esri-compat/simple-marker-symbol.js";
-export { PictureMarkerSymbolCompat } from "./esri-compat/picture-marker-symbol.js";
+} from "./client-compat/simple-marker-symbol.js";
+export { PictureMarkerSymbolCompat } from "./client-compat/picture-marker-symbol.js";
 export type {
   PictureMarkerSymbolCompatOptions,
   PictureMarkerSymbolHandleCompat,
   PictureMarkerSymbolLoadStatusCompat,
-} from "./esri-compat/picture-marker-symbol.js";
-export { TextSymbolCompat } from "./esri-compat/text-symbol.js";
+} from "./client-compat/picture-marker-symbol.js";
+export { TextSymbolCompat } from "./client-compat/text-symbol.js";
 export type {
   TextSymbolCompatOptions,
   TextSymbolHandleCompat,
   TextSymbolLoadStatusCompat,
-} from "./esri-compat/text-symbol.js";
-export { LabelClassCompat } from "./esri-compat/label-class.js";
+} from "./client-compat/text-symbol.js";
+export { LabelClassCompat } from "./client-compat/label-class.js";
 export type {
   LabelClassCompatOptions,
   LabelClassHandleCompat,
   LabelClassLoadStatusCompat,
-} from "./esri-compat/label-class.js";
-export { ClassBreaksRendererCompat } from "./esri-compat/class-breaks-renderer.js";
+} from "./client-compat/label-class.js";
+export { ClassBreaksRendererCompat } from "./client-compat/class-breaks-renderer.js";
 export type {
   ClassBreakInfoCompat,
   ClassBreaksRendererHandleCompat,
   ClassBreaksRendererLoadStatusCompat,
   ClassBreaksRendererCompatOptions,
-} from "./esri-compat/class-breaks-renderer.js";
-export { SimpleRendererCompat } from "./esri-compat/simple-renderer.js";
+} from "./client-compat/class-breaks-renderer.js";
+export { SimpleRendererCompat } from "./client-compat/simple-renderer.js";
 export type {
   SimpleRendererCompatOptions,
   SimpleRendererHandleCompat,
   SimpleRendererLoadStatusCompat,
-} from "./esri-compat/simple-renderer.js";
-export { UniqueValueRendererCompat } from "./esri-compat/unique-value-renderer.js";
+} from "./client-compat/simple-renderer.js";
+export { UniqueValueRendererCompat } from "./client-compat/unique-value-renderer.js";
 export type {
   UniqueValueInfoCompat,
   UniqueValueRendererHandleCompat,
   UniqueValueRendererLoadStatusCompat,
   UniqueValueRendererCompatOptions,
-} from "./esri-compat/unique-value-renderer.js";
+} from "./client-compat/unique-value-renderer.js";
 // First-class renderer object emission (issue #497). All @experimental.
 export {
   convertSimpleRendererCompat,
   rendererObjectFromClassBreaksCompat,
   rendererObjectFromUniqueValueCompat,
-} from "./esri-compat/renderer-objects.js";
-export type { CompatRendererProjection } from "./esri-compat/renderer-objects.js";
-export { GroupLayerCompat } from "./esri-compat/group-layer.js";
+} from "./client-compat/renderer-objects.js";
+export type { CompatRendererProjection } from "./client-compat/renderer-objects.js";
+export { GroupLayerCompat } from "./client-compat/group-layer.js";
 export type {
   GroupLayerCompatOptions,
   GroupLayerHandleCompat,
   GroupLayerLoadStatusCompat,
-} from "./esri-compat/group-layer.js";
-export { MapCompat } from "./esri-compat/map.js";
-export type { MapCompatHandle, MapCompatOptions, MapLoadStatusCompat } from "./esri-compat/map.js";
-export { MapImageLayerCompat, MapImageSublayerCompat } from "./esri-compat/map-image-layer.js";
+} from "./client-compat/group-layer.js";
+export { MapCompat } from "./client-compat/map.js";
+export type { MapCompatHandle, MapCompatOptions, MapLoadStatusCompat } from "./client-compat/map.js";
+export { MapImageLayerCompat, MapImageSublayerCompat } from "./client-compat/map-image-layer.js";
 export type {
   MapImageLayerApplyEditsOptions,
   MapImageLayerCreateQueryResult,
@@ -320,14 +320,14 @@ export type {
   MapImageSublayerQueryRelatedFeaturesOptions,
   MapImageSublayerQueryOptions,
   MapImageLayerSublayerLookupId,
-} from "./esri-compat/map-image-layer.js";
-export { TileLayerCompat } from "./esri-compat/tile-layer.js";
+} from "./client-compat/map-image-layer.js";
+export { TileLayerCompat } from "./client-compat/tile-layer.js";
 export type {
   TileLayerCompatOptions,
   TileLayerHandleCompat,
   TileLayerLoadStatusCompat,
-} from "./esri-compat/tile-layer.js";
-export { IdentifyCompat } from "./esri-compat/identify.js";
+} from "./client-compat/tile-layer.js";
+export { IdentifyCompat } from "./client-compat/identify.js";
 export type {
   IdentifyHandleCompat,
   IdentifyLoadStatusCompat,
@@ -336,16 +336,16 @@ export type {
   IdentifyCompatOptions,
   IdentifyCompatRequest,
   IdentifyCompatResult,
-} from "./esri-compat/identify.js";
-export { RouteLayerCompat } from "./esri-compat/route-layer.js";
+} from "./client-compat/identify.js";
+export { RouteLayerCompat } from "./client-compat/route-layer.js";
 export type {
   RouteLayerCompatOptions,
   RouteLayerHandleCompat,
   RouteLayerLoadStatusCompat,
   RouteSolveResultCompat,
   RouteStopCompat,
-} from "./esri-compat/route-layer.js";
-export { RouteTaskCompat } from "./esri-compat/route-task.js";
+} from "./client-compat/route-layer.js";
+export { RouteTaskCompat } from "./client-compat/route-task.js";
 export type {
   RouteTaskHandleCompat,
   RouteTaskLoadStatusCompat,
@@ -358,7 +358,7 @@ export type {
   RouteTaskSolveResultCompat,
   RouteTaskStopFeatureCompat,
   RouteTaskStopsFeatureSetCompat,
-} from "./esri-compat/route-task.js";
+} from "./client-compat/route-task.js";
 export {
   LocatorCompat,
   LocatorSearchSourceCompat,
@@ -366,7 +366,7 @@ export {
   locatorAddressesToLocations,
   locatorLocationToAddress,
   locatorSuggestLocations,
-} from "./esri-compat/locator.js";
+} from "./client-compat/locator.js";
 export type {
   AddressToLocationsParamsCompat,
   AddressesToLocationsParamsCompat,
@@ -383,25 +383,25 @@ export type {
   LocatorSpatialReferenceLike,
   LocatorSuggestionCompat,
   SuggestLocationsParamsCompat,
-} from "./esri-compat/locator.js";
-export { DirectionsCompat, DirectionsViewModelCompat } from "./esri-compat/directions.js";
+} from "./client-compat/locator.js";
+export { DirectionsCompat, DirectionsViewModelCompat } from "./client-compat/directions.js";
 export type {
   DirectionsCompatOptions,
   DirectionsHandleCompat,
   DirectionsLoadStatusCompat,
   DirectionsSolveSummaryCompat,
-} from "./esri-compat/directions.js";
-export { CoordinateConversionCompat } from "./esri-compat/coordinate-conversion.js";
+} from "./client-compat/directions.js";
+export { CoordinateConversionCompat } from "./client-compat/coordinate-conversion.js";
 export type {
   CoordinateConversionHandleCompat,
   CoordinateConversionLoadStatusCompat,
   CoordinateConversionCompatOptions,
   CoordinateConversionResultCompat,
   CoordinateFormatCompat,
-} from "./esri-compat/coordinate-conversion.js";
-export { HonuaWidgetHost, registerHonuaWidgetKit } from "./esri-compat/widget-host.js";
-export type { HonuaWidgetHostElement, HonuaWidgetKitLike, HonuaWidgetKitSource } from "./esri-compat/widget-host.js";
-export { LayerListCompat } from "./esri-compat/layer-list.js";
+} from "./client-compat/coordinate-conversion.js";
+export { HonuaWidgetHost, registerHonuaWidgetKit } from "./client-compat/widget-host.js";
+export type { HonuaWidgetHostElement, HonuaWidgetKitLike, HonuaWidgetKitSource } from "./client-compat/widget-host.js";
+export { LayerListCompat } from "./client-compat/layer-list.js";
 export type {
   LayerListActionCompat,
   LayerListCompatOptions,
@@ -411,21 +411,21 @@ export type {
   LayerListListItemCreatedEventCompat,
   LayerListTriggerActionEventCompat,
   LayerListUpdatedEventCompat,
-} from "./esri-compat/layer-list.js";
-export { LegendCompat } from "./esri-compat/legend.js";
+} from "./client-compat/layer-list.js";
+export { LegendCompat } from "./client-compat/legend.js";
 export type {
   LegendHandleCompat,
   LegendCompatOptions,
   LegendItemCompat,
   LegendLayerGroupCompat,
   LegendLoadStatusCompat,
-} from "./esri-compat/legend.js";
+} from "./client-compat/legend.js";
 export {
   MapViewCompat,
   MapViewLayerViewCompat,
   MapViewPopupCompat,
   MapViewUiCompat,
-} from "./esri-compat/map-view.js";
+} from "./client-compat/map-view.js";
 export type {
   MapViewCenterLike,
   MapViewCompatOptions,
@@ -456,15 +456,15 @@ export type {
   MapViewUiAddOptions,
   MapViewUiComponentRecord,
   MapViewUiPosition,
-} from "./esri-compat/map-view.js";
-export { PopupCompat } from "./esri-compat/popup.js";
+} from "./client-compat/map-view.js";
+export { PopupCompat } from "./client-compat/popup.js";
 export type {
   PopupCompatOptions,
   PopupHandleCompat,
   PopupLoadStatusCompat,
   PopupOpenOptionsCompat,
-} from "./esri-compat/popup.js";
-export { PopupTemplateCompat } from "./esri-compat/popup-template.js";
+} from "./client-compat/popup.js";
+export { PopupTemplateCompat } from "./client-compat/popup-template.js";
 export type {
   PopupTemplateAction,
   PopupTemplateCompatOptions,
@@ -472,20 +472,20 @@ export type {
   PopupTemplateFieldInfo,
   PopupTemplateHandleCompat,
   PopupTemplateLoadStatusCompat,
-} from "./esri-compat/popup-template.js";
-export { reactiveUtils, watch, when, whenOnce } from "./esri-compat/reactive-utils.js";
+} from "./client-compat/popup-template.js";
+export { reactiveUtils, watch, when, whenOnce } from "./client-compat/reactive-utils.js";
 export type {
   ReactiveUtilsHandleCompat,
   ReactiveUtilsWatchOptionsCompat,
   ReactiveUtilsWhenOptionsCompat,
-} from "./esri-compat/reactive-utils.js";
-export { QueryCompat } from "./esri-compat/query.js";
+} from "./client-compat/reactive-utils.js";
+export { QueryCompat } from "./client-compat/query.js";
 export type {
   QueryCompatOptions,
   QueryHandleCompat,
   QueryLoadStatusCompat,
-} from "./esri-compat/query.js";
-export { PrintCompat } from "./esri-compat/print.js";
+} from "./client-compat/query.js";
+export { PrintCompat } from "./client-compat/print.js";
 export type {
   PrintHandleCompat,
   PrintLoadStatusCompat,
@@ -493,20 +493,20 @@ export type {
   PrintExecuteOptionsCompat,
   PrintResultCompat,
   PrintTemplateOptionsCompat,
-} from "./esri-compat/print.js";
-export { SceneViewCompat } from "./esri-compat/scene-view.js";
+} from "./client-compat/print.js";
+export { SceneViewCompat } from "./client-compat/scene-view.js";
 export type {
   SceneViewCompatOptions,
   SceneViewHandleCompat,
   SceneViewLoadStatusCompat,
-} from "./esri-compat/scene-view.js";
-export { WebMapCompat } from "./esri-compat/web-map.js";
+} from "./client-compat/scene-view.js";
+export { WebMapCompat } from "./client-compat/web-map.js";
 export type {
   WebMapCompatOptions,
   WebMapHandleCompat,
   WebMapLoadStatusCompat,
-} from "./esri-compat/web-map.js";
-export { SearchCompat } from "./esri-compat/search.js";
+} from "./client-compat/web-map.js";
+export { SearchCompat } from "./client-compat/search.js";
 export type {
   SearchCompatOptions,
   SearchExtentLike,
@@ -519,21 +519,21 @@ export type {
   SearchSourceCompat,
   SearchSuggestionCompat,
   SuggestResponseCompat,
-} from "./esri-compat/search.js";
-export { SwipeCompat } from "./esri-compat/swipe.js";
+} from "./client-compat/search.js";
+export { SwipeCompat } from "./client-compat/swipe.js";
 export type {
   SwipeCompatOptions,
   SwipeHandleCompat,
   SwipeLoadStatusCompat,
-} from "./esri-compat/swipe.js";
-export { TrackCompat } from "./esri-compat/track.js";
+} from "./client-compat/swipe.js";
+export { TrackCompat } from "./client-compat/track.js";
 export type {
   TrackCompatOptions,
   TrackHandleCompat,
   TrackLoadStatusCompat,
   TrackPositionCompat,
-} from "./esri-compat/track.js";
-export { MeasurementCompat } from "./esri-compat/measurement.js";
+} from "./client-compat/track.js";
+export { MeasurementCompat } from "./client-compat/measurement.js";
 export type {
   AreaUnitCompat,
   LinearUnitCompat,
@@ -542,8 +542,8 @@ export type {
   MeasurementCompatOptions,
   MeasurementResultCompat,
   MeasurementToolCompat,
-} from "./esri-compat/measurement.js";
-export { AreaMeasurement2DCompat, DistanceMeasurement2DCompat } from "./esri-compat/measurement-2d.js";
+} from "./client-compat/measurement.js";
+export { AreaMeasurement2DCompat, DistanceMeasurement2DCompat } from "./client-compat/measurement-2d.js";
 export type {
   AreaMeasurement2DHandleCompat,
   AreaMeasurement2DLoadStatusCompat,
@@ -551,8 +551,8 @@ export type {
   DistanceMeasurement2DHandleCompat,
   DistanceMeasurement2DLoadStatusCompat,
   DistanceMeasurement2DCompatOptions,
-} from "./esri-compat/measurement-2d.js";
-export { TimeSliderCompat } from "./esri-compat/time-slider.js";
+} from "./client-compat/measurement-2d.js";
+export { TimeSliderCompat } from "./client-compat/time-slider.js";
 export type {
   TimeSliderHandleCompat,
   TimeSliderLoadStatusCompat,
@@ -561,14 +561,14 @@ export type {
   TimeSliderIntervalUnitCompat,
   TimeSliderModeCompat,
   TimeSliderStopsCompat,
-} from "./esri-compat/time-slider.js";
-export { TableListCompat } from "./esri-compat/table-list.js";
+} from "./client-compat/time-slider.js";
+export { TableListCompat } from "./client-compat/table-list.js";
 export type {
   TableListCompatOptions,
   TableListHandleCompat,
   TableListLoadStatusCompat,
-} from "./esri-compat/table-list.js";
-export { SketchCompat, resolveSketchToolBindingCompat } from "./esri-compat/sketch.js";
+} from "./client-compat/table-list.js";
+export { SketchCompat, resolveSketchToolBindingCompat } from "./client-compat/sketch.js";
 export type {
   SketchCompatOptions,
   SketchCreateOptionsCompat,
@@ -579,20 +579,20 @@ export type {
   SketchToolBindingCompat,
   SketchToolCompat,
   SketchUpdateOptionsCompat,
-} from "./esri-compat/sketch.js";
-export { EditorCompat } from "./esri-compat/editor.js";
+} from "./client-compat/sketch.js";
+export { EditorCompat } from "./client-compat/editor.js";
 export type {
   EditorHandleCompat,
   EditorLoadStatusCompat,
   EditorCompatOptions,
   EditorLayerInfoCompat,
   EditorWorkflowCompat,
-} from "./esri-compat/editor.js";
-export { snappingOptionsToSnappingConfig } from "./esri-compat/snapping.js";
-export type { SnappingFeatureSourceCompat, SnappingOptionsCompat } from "./esri-compat/snapping.js";
-export { FeatureEffectCompat } from "./esri-compat/feature-effect.js";
-export type { FeatureEffectCompatOptions } from "./esri-compat/feature-effect.js";
-export { FeatureFilterCompat } from "./esri-compat/feature-filter.js";
+} from "./client-compat/editor.js";
+export { snappingOptionsToSnappingConfig } from "./client-compat/snapping.js";
+export type { SnappingFeatureSourceCompat, SnappingOptionsCompat } from "./client-compat/snapping.js";
+export { FeatureEffectCompat } from "./client-compat/feature-effect.js";
+export type { FeatureEffectCompatOptions } from "./client-compat/feature-effect.js";
+export { FeatureFilterCompat } from "./client-compat/feature-filter.js";
 export type {
   FeatureFilterCompatOptions,
   FeatureFilterEsriProperties,
@@ -601,37 +601,37 @@ export type {
   FeatureFilterLoadStatusCompat,
   FeatureFilterSpatialRelationshipCompat,
   FeatureFilterTimeExtentCompat,
-} from "./esri-compat/feature-filter.js";
-export { VectorTileLayerCompat } from "./esri-compat/vector-tile-layer.js";
+} from "./client-compat/feature-filter.js";
+export { VectorTileLayerCompat } from "./client-compat/vector-tile-layer.js";
 export type {
   VectorTileLayerCompatOptions,
   VectorTileLayerHandleCompat,
   VectorTileLayerLoadStatusCompat,
-} from "./esri-compat/vector-tile-layer.js";
-export { GeoJSONLayerCompat } from "./esri-compat/geojson-layer.js";
+} from "./client-compat/vector-tile-layer.js";
+export { GeoJSONLayerCompat } from "./client-compat/geojson-layer.js";
 export type {
   GeoJSONLayerCompatOptions,
   GeoJSONLayerHandleCompat,
   GeoJSONLayerLoadStatusCompat,
   GeoJSONLayerQueryOptions,
   GeoJSONLayerQueryResult,
-} from "./esri-compat/geojson-layer.js";
-export { WMSLayerCompat, WMSSublayerCompat } from "./esri-compat/wms-layer.js";
+} from "./client-compat/geojson-layer.js";
+export { WMSLayerCompat, WMSSublayerCompat } from "./client-compat/wms-layer.js";
 export type {
   WMSLayerCompatOptions,
   WMSLayerHandleCompat,
   WMSLayerLoadStatusCompat,
   WMSSublayerCompatOptions,
-} from "./esri-compat/wms-layer.js";
-export { WFSLayerCompat } from "./esri-compat/wfs-layer.js";
+} from "./client-compat/wms-layer.js";
+export { WFSLayerCompat } from "./client-compat/wfs-layer.js";
 export type {
   WFSLayerCompatOptions,
   WFSLayerHandleCompat,
   WFSLayerLoadStatusCompat,
   WFSLayerQueryOptions,
   WFSLayerQueryResult,
-} from "./esri-compat/wfs-layer.js";
-export { ImageryLayerCompat } from "./esri-compat/imagery-layer.js";
+} from "./client-compat/wfs-layer.js";
+export { ImageryLayerCompat } from "./client-compat/imagery-layer.js";
 export type {
   ImageryLayerCompatOptions,
   ImageryLayerExportOptions,
@@ -639,7 +639,7 @@ export type {
   ImageryLayerIdentifyOptions,
   ImageryLayerLoadStatusCompat,
   ImageryLayerQueryOptions,
-} from "./esri-compat/imagery-layer.js";
+} from "./client-compat/imagery-layer.js";
 export {
   buffer as geometryEngineBuffer,
   contains as geometryEngineContains,
@@ -655,9 +655,9 @@ export {
   planarLength as geometryEnginePlanarLength,
   simplify as geometryEngineSimplify,
   union as geometryEngineUnion,
-} from "./esri-compat/geometry-engine.js";
+} from "./client-compat/geometry-engine.js";
 export type {
   EsriAreaUnit,
   EsriLinearUnit,
   GeometryEngineInput,
-} from "./esri-compat/geometry-engine.js";
+} from "./client-compat/geometry-engine.js";

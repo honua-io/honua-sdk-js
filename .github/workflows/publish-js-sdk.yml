@@ -286,7 +286,7 @@ jobs:
           mkdir -p "$split_pack_dir"
           for package_dir in \
             "./dist/packages/honua-sdk" \
-            "./dist/packages/honua-sdk-esri-compat" \
+            "./dist/packages/honua-sdk-client-compat" \
             "./dist/packages/honua-react" \
             "./dist/packages/honua-geometry" \
             "./dist/packages/honua-app-platform"
@@ -389,7 +389,7 @@ jobs:
           # Split tarballs were packed immediately after they were built.
           publish_package "."
           publish_package "./dist/packages/honua-sdk"
-          publish_package "./dist/packages/honua-sdk-esri-compat"
+          publish_package "./dist/packages/honua-sdk-client-compat"
           publish_package "./dist/packages/honua-react"
           publish_package "./dist/packages/honua-geometry"
           publish_package "./dist/packages/honua-app-platform"
@@ -437,7 +437,7 @@ jobs:
         package:
           - "@honua/sdk-js"
           - "@honua/sdk"
-          - "@honua/sdk-esri-compat"
+          - "@honua/sdk-client-compat"
           - "@honua/react"
           - "@honua/geometry"
           - "@honua/app-platform"

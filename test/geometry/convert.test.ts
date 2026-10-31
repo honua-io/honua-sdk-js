@@ -1,39 +1,39 @@
 import { describe, expect, it } from "vitest";
 
-import { esriToGeoJson, geoJsonToEsri } from "../../src/geometry/index.js";
+import { geoServicesToGeoJson, geoJsonToGeoServices } from "../../src/geometry/index.js";
 import type { GeoJsonPolygon } from "../../src/geometry/index.js";
 
-describe("@honua/geometry convert (reused core esri-geojson)", () => {
+describe("@honua/geometry convert (reused core GeoServices conversion)", () => {
   it("round-trips a point through GeoJSON and back to Esri", () => {
     const esri = { x: -122.4, y: 37.7, spatialReference: { wkid: 4326 } };
-    const geojson = esriToGeoJson(esri);
+    const geojson = geoServicesToGeoJson(esri);
     expect(geojson).toEqual({ type: "Point", coordinates: [-122.4, 37.7] });
-    const back = geoJsonToEsri(geojson, { wkid: 4326 });
+    const back = geoJsonToGeoServices(geojson, { wkid: 4326 });
     expect(back).toMatchObject({ x: -122.4, y: 37.7, spatialReference: { wkid: 4326 } });
   });
 
   it("keeps the altitude of a 3D GeoJSON point as Esri z", () => {
-    expect(geoJsonToEsri({ type: "Point", coordinates: [-122.4, 37.7, 12.5] })).toEqual({
+    expect(geoJsonToGeoServices({ type: "Point", coordinates: [-122.4, 37.7, 12.5] })).toEqual({
       x: -122.4,
       y: 37.7,
       z: 12.5,
     });
-    expect(geoJsonToEsri({ type: "Point", coordinates: [-122.4, 37.7] })).toEqual({ x: -122.4, y: 37.7 });
+    expect(geoJsonToGeoServices({ type: "Point", coordinates: [-122.4, 37.7] })).toEqual({ x: -122.4, y: 37.7 });
   });
 
   it.each([12.5, 0, -45.25])("preserves independently specified point Z=%s through both aliases", (z) => {
     const esri = { x: -80.839, y: 35.226, z };
     const geojson = { type: "Point" as const, coordinates: [-80.839, 35.226, z] };
     const before = structuredClone({ esri, geojson });
-    expect(esriToGeoJson(esri)).toEqual(geojson);
-    expect(geoJsonToEsri(geojson, { wkid: 4326 })).toEqual({ ...esri, spatialReference: { wkid: 4326 } });
+    expect(geoServicesToGeoJson(esri)).toEqual(geojson);
+    expect(geoJsonToGeoServices(geojson, { wkid: 4326 })).toEqual({ ...esri, spatialReference: { wkid: 4326 } });
     expect({ esri, geojson }).toEqual(before);
   });
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
     "rejects a non-finite GeoJSON elevation %s",
     (z) => {
-      expect(geoJsonToEsri({ type: "Point", coordinates: [1, 2, z] })).toBeNull();
+      expect(geoJsonToGeoServices({ type: "Point", coordinates: [1, 2, z] })).toBeNull();
     },
   );
 
@@ -51,7 +51,7 @@ describe("@honua/geometry convert (reused core esri-geojson)", () => {
         ],
       ],
     };
-    const esri = geoJsonToEsri(geojson) as { rings: number[][][] };
+    const esri = geoJsonToGeoServices(geojson) as { rings: number[][][] };
     const ring = esri.rings[0];
     // Esri exterior rings are clockwise → negative signed area.
     let signedArea = 0;
@@ -87,11 +87,11 @@ describe("@honua/geometry convert (reused core esri-geojson)", () => {
         ],
       ],
     };
-    const esri = geoJsonToEsri(geojson) as { rings: number[][][] };
+    const esri = geoJsonToGeoServices(geojson) as { rings: number[][][] };
     expect(esri.rings).toHaveLength(2);
   });
 
   it("returns null for a GeometryCollection (not Esri-representable)", () => {
-    expect(geoJsonToEsri({ type: "GeometryCollection" } as never)).toBeNull();
+    expect(geoJsonToGeoServices({ type: "GeometryCollection" } as never)).toBeNull();
   });
 });
