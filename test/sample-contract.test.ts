@@ -276,7 +276,7 @@ describe("sample publication contract", () => {
       track: "recipe",
       lifecycle: { state: "active" },
     });
-    expect(catalog.siteMappings).toHaveLength(21);
+    expect(catalog.siteMappings).toHaveLength(20);
   });
 
   it("accepts only the reviewed bounded Coverage and WCS browser command", async () => {
@@ -1074,7 +1074,7 @@ describe("sample publication contract", () => {
       schemaVersion: 3,
     });
     expect(projection.samples).toHaveLength(33);
-    expect(projection.routes).toHaveLength(21);
+    expect(projection.routes).toHaveLength(20);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),

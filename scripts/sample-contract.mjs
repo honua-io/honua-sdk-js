@@ -3461,7 +3461,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       sortedUnique(mapping.capabilities, `${mapping.id}.capabilities`);
     }
   }
-  invariant(catalog.siteMappings.length === 21, "the compatibility route fixture must map all 21 existing honua.io samples");
+  invariant(catalog.siteMappings.length === 20, "the compatibility route fixture must map all 20 remaining honua.io samples");
 }
 
 export async function validateLiveEvidenceProducer(evidence, sample, options = {}) {
