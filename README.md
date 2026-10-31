@@ -458,13 +458,62 @@ example (`npm run demo:quickstart:mock`); see
 
 ## Command-line client (`honua`)
 
-For local geoprocessing development, `honua gp` delegates to the separately
-installed `Honua.Geoprocessing.Cli` engine. Follow the
+Install the SDK before any `honua` command. `honua gp` does not talk to a
+server and does not download an engine: it runs `honua-gp-devkit` from `PATH`,
+or the executable named by `HONUA_GP_CLI`. The
 [GP authoring guide](https://docs.honua.io/guides/query-analyze/gp-devkit-authoring)
-to install `honua-gp-devkit`, then put it on PATH or set `HONUA_GP_CLI` to its
-executable path. No engine is automatically downloaded.
+documents that tool as `Honua.Geoprocessing.Cli` on the GitHub Packages feed
+`https://nuget.pkg.github.com/honua-io/index.json`. That feed has no
+`Honua.Geoprocessing.Cli` package, and the guide's checkout pack is the install
+that produces `honua-gp-devkit` without a packages token. The .NET 10 SDK is
+required. These commands pin the public server source, pack that project, put
+the tool on `PATH`, then run the local catalog.
 
 ```bash
+npm i -g @honua/sdk-js
+
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+export DOTNET_NOLOGO=1
+export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+export DOTNET_GENERATE_ASPNET_CERTIFICATE=false
+if ! command -v dotnet >/dev/null 2>&1; then
+  curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$HOME/dotnet-install.sh"
+  bash "$HOME/dotnet-install.sh" --channel 10.0 --install-dir "$HOME/.dotnet"
+  export DOTNET_ROOT="$HOME/.dotnet"
+  export PATH="$DOTNET_ROOT:$PATH"
+fi
+
+SERVER_SHA=b4a69b7093abe351babb9b68544733c945223974
+rm -rf honua-gp-src honua-gp-feed honua-gp
+mkdir -p honua-gp-src honua-gp-feed
+curl -fsSL -o honua-server.tar.gz "https://codeload.github.com/honua-io/honua-server/tar.gz/${SERVER_SHA}"
+tar -xzf honua-server.tar.gz -C honua-gp-src --strip-components=1
+
+cat > honua-gp.nuget.config <<'NUGET'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+  </packageSources>
+</configuration>
+NUGET
+dotnet pack honua-gp-src/src/Honua.Geoprocessing.Cli/Honua.Geoprocessing.Cli.csproj \
+  -c Release -o honua-gp-feed --configfile honua-gp.nuget.config
+
+cat > honua-gp-feed/nuget.config <<NUGET
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="gp-tool" value="${PWD}/honua-gp-feed" />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+  </packageSources>
+</configuration>
+NUGET
+dotnet tool install Honua.Geoprocessing.Cli --tool-path ./honua-gp --configfile honua-gp-feed/nuget.config
+export PATH="$PWD/honua-gp:$PATH"
+
 honua gp doctor --managed-only --json
 honua gp list --json
 honua gp describe geometry.buffer --json
