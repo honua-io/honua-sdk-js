@@ -45,7 +45,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const RELEASE_TAG_PREFIX = "js-sdk-";
 
 // Golden-lane live evidence the reseal re-observes on EVERY regeneration run
-// (regenerate-derived-artifacts.yml runs all four producers unconditionally), so
+// (regenerate-derived-artifacts.yml runs all three producers unconditionally), so
 // its `sdk.version` is stamped from package.json by the reseal, never by Release
 // Please. These files are deliberately absent from release-please-config.json's
 // `extra-files` (honua-io/honua-release#376): each reseal rewrites the
@@ -55,7 +55,6 @@ export const RELEASE_TAG_PREFIX = "js-sdk-";
 export const RESEAL_OWNED_LIVE_EVIDENCE = Object.freeze([
   "samples/evidence/imagery-cog-quickstart/live.v1.json",
   "samples/evidence/maplibre-quickstart/live.v1.json",
-  "samples/evidence/migration-workbench/live.v1.json",
   "samples/evidence/service-explorer/live.v1.json",
 ]);
 

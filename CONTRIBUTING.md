@@ -18,16 +18,15 @@ set. That set is regenerated automatically on trunk after your PR merges.
 Historically every PR had to reseal ~17 generated files (sample evidence
 receipts + runs, `samples/dist/*`, `samples/contract/v2/consumer-fixtures/*`,
 `bench/cross-sdk/corpus.json`, `docs/bundle-sizes.md`, `llms.txt` /
-`llms-full.txt`, `docs/comparison.md`, `docs/errors.md`, `api-report/`,
-`examples/migration-workbench/public/artifacts/*`). Because those outputs were
+`llms-full.txt`, `docs/comparison.md`, `docs/errors.md`, and `api-report/`). Because those outputs were
 bound to a whole-tree source digest, any change invalidated them, they conflicted
 across concurrent PRs, and merges serialized. (honua-io/honua-sdk-js#677.)
 
 Now:
 
 - **PR CI runs in relaxed mode** (`HONUA_DERIVED_ARTIFACTS_RELAX=1`). The
-  sample-publication contract and the llms / comparison / api-report / bench /
-  migration-workbench freshness gates still validate schema, freshness, artifact
+  sample-publication contract and the llms / comparison / api-report / bench
+  freshness gates still validate schema, freshness, artifact
   digests, and catalog/dist coherence, but they do **not** require the derived
   artifacts to have been regenerated against your tree.
 - **The functional gates are unchanged.** `typecheck`, `check`, `build`, unit /
@@ -49,8 +48,7 @@ Now:
 
 So: do not run `samples:run -- evidence ...`, `samples:generate`, `docs:llms`,
 `docs:comparison`, `report:bundle-sizes`, `report:api`, `docs:error-codes`,
-`bench:references:source-tree:write`, or
-`demo:migration-workbench:artifacts:write` just to make CI green. If you commit
+`bench:references:source-tree:write` just to make CI green. If you commit
 stale derived artifacts by habit, it is harmless — trunk overwrites them.
 
 ### If the sample publication contract fails on evidence freshness

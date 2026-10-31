@@ -9,10 +9,9 @@ const GENERATED_FILES = new Set([
   "samples/contract/v2/migrations/catalog.v1-to-v2.json", "samples/contract/v2/release-matrix-lanes.v1.json",
   ...[2, 3, 4].map((version) => `samples/contract/v2/consumer-fixtures/honua-site-consumer.v${version}.json`),
 ]);
-const GENERATED_PREFIXES = ["api-report/", "examples/migration-workbench/public/artifacts/",
-  "examples/migration-workbench/src/generated/", "examples/ai-spatial-app-builder/evidence/",
+const GENERATED_PREFIXES = ["api-report/", "examples/ai-spatial-app-builder/evidence/",
   "examples/realtime-incident-dashboard/evidence/", "examples/spatial-analytics-workbench/evidence/",
-  "samples/dist/", ...["imagery-cog-quickstart", "maplibre-quickstart", "migration-workbench", "service-explorer"]
+  "samples/dist/", ...["imagery-cog-quickstart", "maplibre-quickstart", "service-explorer"]
     .map((name) => `samples/evidence/${name}/`)];
 
 export function validateRecoveryRecord(record, { tag, source, repository }) {

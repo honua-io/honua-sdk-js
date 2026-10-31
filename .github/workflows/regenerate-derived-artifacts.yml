@@ -5,7 +5,7 @@ name: Regenerate derived artifacts
 # Feature PRs no longer regenerate or reseal the shared generated-artifact set
 # (sample evidence, samples/dist, consumer fixtures, bench corpus,
 # docs/bundle-sizes.md, llms*.txt, docs/comparison.md, docs/errors.md,
-# api-report, migration-workbench artifacts). Those outputs are regenerated
+# api-report). Those outputs are regenerated
 # HERE on the six-hour schedule or explicit dispatch, and returned through a protected
 # automation PR. Feature PR CI runs the corresponding gates in relaxed mode
 # (HONUA_DERIVED_ARTIFACTS_RELAX)
@@ -225,12 +225,7 @@ jobs:
         if: steps.decision.outputs.skip == 'false'
         run: npm run report:bundle-sizes
 
-      - name: Regenerate migration-workbench artifacts
-        if: steps.decision.outputs.skip == 'false'
-        run: npm run demo:migration-workbench:artifacts:write
-
-      # The migration generator updates allowlisted example source consumed by
-      # llms-full.txt. The comparison page is also embedded in llms-full.txt, so
+      # The comparison page is embedded in llms-full.txt, so
       # generate every input before producing the final documentation projection.
       - name: Regenerate llms.txt and comparison page
         if: steps.decision.outputs.skip == 'false'
@@ -243,9 +238,8 @@ jobs:
         if: steps.decision.outputs.skip == 'false'
         run: npm run verify:llms
 
-      # Create the non-evidence commit locally in this read-only job. The
-      # migration generator can update runtime source, so this commit must be a
-      # real ancestor of the evidence commit rather than being squashed later.
+      # Create the non-evidence commit locally in this read-only job. This
+      # commit must be a real ancestor of the evidence commit rather than being squashed later.
       - name: Stage and commit regenerated inputs locally
         id: derived
         if: steps.decision.outputs.skip == 'false'
@@ -272,9 +266,7 @@ jobs:
             docs/errors.md \
             docs/generated/mcp-eval-scorecard.md \
             llms.txt \
-            llms-full.txt \
-            examples/migration-workbench/public/artifacts \
-            examples/migration-workbench/src/generated
+            llms-full.txt
           if ! git diff --quiet; then
             echo "A derived-artifact generator modified unexpected tracked content:"
             git status --short
@@ -357,7 +349,7 @@ jobs:
         if: steps.decision.outputs.skip == 'false'
         run: |
           npm run samples:refresh-live-expiry -- --sample ai-spatial-app-builder,realtime-incident-dashboard,spatial-analytics-workbench
-          npm run samples:migrate:v1 -- --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
+          npm run samples:migrate:v1 -- --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,service-explorer
           npm run samples:write-ci-selection
 
       # Commit it before pass one for the same reason the golden-lane refresh
@@ -483,21 +475,20 @@ jobs:
       # bound to the final tree; PASS ONE's output is intentionally
       # overwritten by it and never committed on its own.
       #
-      # All four qualified golden samples share one evidence-neutral digest
+      # All three qualified golden samples share one evidence-neutral digest
       # (catalog entries for any of them are inside it), so a change that
-      # invalidates one invalidates all four -- each reseal names the other
-      # three via --qualification-bootstrap-also so this job can reseal them
+      # invalidates one invalidates all three -- each reseal names the other
+      # two via --qualification-bootstrap-also so this job can reseal them
       # in sequence against the same tree (honua-io/honua-sdk-js#735, PR #738;
-      # extended to a third golden sample by #548, a fourth by #549).
+      # extended to the current qualified set by #548 and #549).
       - name: Reseal sample evidence (pass one, to observe a fresh live timestamp)
         if: steps.decision.outputs.skip == 'false'
         run: |
-          npm run samples:run -- evidence --sample maplibre-quickstart --qualification-bootstrap-also imagery-cog-quickstart,migration-workbench,service-explorer --allow-live
-          npm run samples:run -- evidence --sample imagery-cog-quickstart --qualification-bootstrap-also maplibre-quickstart,migration-workbench,service-explorer --allow-live
-          npm run samples:run -- evidence --sample migration-workbench --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,service-explorer --allow-live
-          npm run samples:run -- evidence --sample service-explorer --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,migration-workbench --allow-live
+          npm run samples:run -- evidence --sample maplibre-quickstart --qualification-bootstrap-also imagery-cog-quickstart,service-explorer --allow-live
+          npm run samples:run -- evidence --sample imagery-cog-quickstart --qualification-bootstrap-also maplibre-quickstart,service-explorer --allow-live
+          npm run samples:run -- evidence --sample service-explorer --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart --allow-live
 
-      # Only the four executed golden lanes belong here -- these are the ones
+      # Only the three executed golden lanes belong here -- these are the ones
       # whose observedAt pass one just renewed. The skip-attested lanes were
       # already refreshed and committed before pass one, because their
       # observedAt does not move and refreshing them late is what allowed a
@@ -505,8 +496,8 @@ jobs:
       - name: Refresh catalog live-evidence expiry for resealed golden lanes
         if: steps.decision.outputs.skip == 'false'
         run: |
-          npm run samples:refresh-live-expiry -- --sample imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
-          npm run samples:migrate:v1 -- --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
+          npm run samples:refresh-live-expiry -- --sample imagery-cog-quickstart,maplibre-quickstart,service-explorer
+          npm run samples:migrate:v1 -- --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,service-explorer
           npm run samples:write-ci-selection
 
       # Record release-matrix lane establishment (#766) in the same slot, and for
@@ -577,10 +568,9 @@ jobs:
       - name: Reseal sample evidence (pass two, bound to the refreshed catalog)
         if: steps.decision.outputs.skip == 'false'
         run: |
-          npm run samples:run -- evidence --sample maplibre-quickstart --qualification-bootstrap-also imagery-cog-quickstart,migration-workbench,service-explorer --allow-live
-          npm run samples:run -- evidence --sample imagery-cog-quickstart --qualification-bootstrap-also maplibre-quickstart,migration-workbench,service-explorer --allow-live
-          npm run samples:run -- evidence --sample migration-workbench --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,service-explorer --allow-live
-          npm run samples:run -- evidence --sample service-explorer --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,migration-workbench --allow-live
+          npm run samples:run -- evidence --sample maplibre-quickstart --qualification-bootstrap-also imagery-cog-quickstart,service-explorer --allow-live
+          npm run samples:run -- evidence --sample imagery-cog-quickstart --qualification-bootstrap-also maplibre-quickstart,service-explorer --allow-live
+          npm run samples:run -- evidence --sample service-explorer --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart --allow-live
 
       - name: Regenerate sample dist projections
         if: steps.decision.outputs.skip == 'false'
@@ -655,7 +645,6 @@ jobs:
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json \
             samples/evidence/imagery-cog-quickstart \
             samples/evidence/maplibre-quickstart \
-            samples/evidence/migration-workbench \
             samples/evidence/service-explorer
           # The v2 consumer fixture and samples/dist projection are one atomic
           # generated contract: samples:generate rewrites the fixture digest to
@@ -928,8 +917,6 @@ jobs:
               docs/bundle-sizes.md | docs/comparison.md | docs/errors.md | \
               docs/generated/mcp-eval-scorecard.md | docs/generated/sample-catalog.md | \
               llms.txt | llms-full.txt | \
-              examples/migration-workbench/public/artifacts/* | \
-              examples/migration-workbench/src/generated/* | \
               examples/ai-spatial-app-builder/evidence/* | \
               examples/realtime-incident-dashboard/evidence/* | \
               examples/spatial-analytics-workbench/evidence/* | \
@@ -940,7 +927,7 @@ jobs:
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json | \
               samples/dist/* | samples/evidence/imagery-cog-quickstart/* | \
-              samples/evidence/maplibre-quickstart/* | samples/evidence/migration-workbench/* | \
+              samples/evidence/maplibre-quickstart/* | \
               samples/evidence/service-explorer/*)
                 ;;
               *)

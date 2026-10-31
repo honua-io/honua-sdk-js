@@ -132,7 +132,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/imagery-cog-quickstart/mock-server.mjs", "demo:imagery-cog:build"],
   ["examples/maplibre-quickstart/mock-server.mjs", "demo:quickstart:build"],
   ["examples/mcp-gis-assistant/mock-server.mjs", "demo:mcp-gis-assistant:build"],
-  ["examples/migration-workbench/mock-server.mjs", "demo:migration-workbench:build"],
   ["examples/oauth-signin/mock-server.mjs", "demo:oauth-signin:build"],
   ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build:offline"],
   ["examples/planning-permitting-workbench/mock-server.mjs", "demo:planning-workbench:build"],
@@ -173,7 +172,6 @@ const RESERVED_GOLDEN_JOURNEY_IDS = [
   "incident-operations",
   "imagery-terrain",
   "cloud-native-analysis",
-  "arcgis-migration",
 ];
 const GOLDEN_VISUAL_GATE_ORDER = Object.freeze([
   "packed-build",
@@ -360,19 +358,6 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
-    "evidence:migration-workbench:live",
-    {
-      definition:
-        "npm run prepare:test-sdk --silent && node scripts/migration-workbench-live-evidence.mjs --output samples/evidence/migration-workbench/live.v1.json",
-      generatorPath: "scripts/migration-workbench-live-evidence.mjs",
-      sampleId: "migration-workbench",
-      operation: "migration-workbench-deterministic-cli-replay",
-      dependencies: {
-        "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",
-      },
-    },
-  ],
-  [
     "evidence:overture:live",
     {
       definition: "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",
@@ -435,7 +420,6 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "imagery-cog",
   "incident",
   "mcp-gis-assistant",
-  "migration-workbench",
   "nl-map-control",
   "oauth-signin",
   "overture",
@@ -470,7 +454,6 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:geocoding",
   "test:playwright:imagery-cog",
   "test:playwright:incident",
-  "test:playwright:migration-workbench",
   "test:playwright:overture",
   "test:playwright:planning-workbench",
   "test:playwright:quickstart",
@@ -8352,7 +8335,7 @@ async function runContract(command, options = {}) {
     validateGeneratedOutputDrift(drift, { relaxed: options.relaxGeneratedOutputs });
   }
   process.stdout.write(
-    `${command === "write" ? "Generated" : "Verified"} ${catalog.samples.length} SDK and docs examples, seven reserved journey IDs, and ${catalog.siteMappings.length} honua.io routes (${catalog.format})\n`,
+    `${command === "write" ? "Generated" : "Verified"} ${catalog.samples.length} SDK and docs examples, six reserved journey IDs, and ${catalog.siteMappings.length} honua.io routes (${catalog.format})\n`,
   );
 }
 
