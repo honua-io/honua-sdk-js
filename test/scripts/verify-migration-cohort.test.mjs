@@ -59,7 +59,7 @@ const options = { sdkVersion: "0.2.4", migrateVersion: "0.3.0-beta.0", sdkSource
 function fixture() {
   return { packages: Object.fromEntries([
     ["@honua/sdk-js", "0.2.4"], ["@honua/honua-migrate", "0.3.0-beta.0"],
-    ["@honua/sdk", "0.2.3"], ["@honua/sdk-esri-compat", "0.2.3"],
+    ["@honua/sdk", "0.2.3"], ["@honua/sdk-client-compat", "0.2.3"],
   ].map(([name, version]) => [`node_modules/${name}`, {
     version, resolved: `https://registry.npmjs.org/${name}/-/package-${version}.tgz`,
     integrity: `sha512-${Buffer.alloc(64).toString("base64")}`,
@@ -105,7 +105,7 @@ test("allows only the top-level packed SDK to use a local tarball", () => {
 
 test("refuses missing, linked and unhashed participating modules", () => {
   for (const mutation of [
-    (lock) => delete lock.packages["node_modules/@honua/sdk-esri-compat"],
+    (lock) => delete lock.packages["node_modules/@honua/sdk-client-compat"],
     (lock) => { lock.packages["node_modules/@honua/sdk"].link = true; },
     (lock) => delete lock.packages["node_modules/@honua/sdk"].integrity,
     (lock) => { lock.packages["node_modules/@honua/honua-migrate"].version = "0.2.0-beta.0"; },
@@ -132,7 +132,7 @@ test("rejects relaxations, arbitrary versions and ambiguous command options", ()
   assert.equal(recovery.sdkPublishRef, "refs/heads/recovery");
   for (const sdkPublishRef of ["refs/heads/recovery", "refs/tags/js-sdk-v0.2.4"]) {
     const cut = { sdkVersion: "0.2.4", sdkPublishRef };
-    for (const name of ["@honua/sdk-js", "@honua/sdk", "@honua/sdk-esri-compat"]) {
+    for (const name of ["@honua/sdk-js", "@honua/sdk", "@honua/sdk-client-compat"]) {
       assert.equal(expectedSdkPublicationRef({ name, version: "0.2.4" }, cut), sdkPublishRef);
       assert.equal(expectedSdkPublicationRef({ name, version: "0.2.3" }, cut), undefined);
     }

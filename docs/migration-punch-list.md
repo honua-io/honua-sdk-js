@@ -18,7 +18,7 @@ below are aspirational — they are concrete work items.
 
 ## What is true today
 
-### Parity surface (`src/esri-compat/`)
+### Parity surface (`src/client-compat/`)
 
 The compat module ships shims for the constructors enumerated in
 `src/migration/codemod.ts::SUPPORTED_ARCGIS_MODULE_KIND_BY_PATH`.
@@ -82,7 +82,7 @@ real AST rewriter built on the TypeScript Compiler API (it does **not** use
 regex). It:
 
 - Detects `import { X } from "@arcgis/core/..."` and rewrites
-  bindings to the matching `XCompat` symbol from `esri-compat`.
+  bindings to the matching `XCompat` symbol from `client-compat`.
 - Detects `new X(opts)` for every kind above and rewrites to the
   compat constructor when the option literal is "safe" — i.e.,
   a top-level object literal whose properties are all in the
@@ -268,7 +268,7 @@ known constructors" into "automated app conversion":
    IdentityManager. CommonJS `require("@arcgis/core/...")` is now
    auto-rewritten for the `honua-compat` target when constructor
    options are safe: the codemod emits
-   `const { XCompat } = require("@honua/sdk-esri-compat");` and
+   `const { XCompat } = require("@honua/sdk-client-compat");` and
    rewrites `new X(opts)` to `new XCompat(opts)` in `.cjs` files
    and `.js` files containing CommonJS markers. The original
    `const X = require("@arcgis/core/...")` declaration is now
@@ -366,7 +366,7 @@ known constructors" into "automated app conversion":
    `target: "honua-compat"`, asserts every expected rewrite landed
    and the readiness gate is `"ready"`, and then runs `tsc
    --noEmit` against the migrated source with `paths` resolving
-   `@honua/sdk-esri-compat` to the workspace `src/esri-compat/`
+   `@honua/sdk-client-compat` to the workspace `src/client-compat/`
    entry. The CI job runs this harness immediately after the unit
    test step. Remaining work: extend the sample to additional
    layer kinds (Imagery / VectorTile / WMS / WFS / GeoJSON) so

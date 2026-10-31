@@ -162,7 +162,7 @@ import {
   GraphicCompat,
   MapCompat,
   MapViewCompat,
-} from "/esri-compat-entry.js";
+} from "/client-compat-entry.js";
 
 const webmap = new MapCompat({ basemap: "dark-gray" });
 const view = new MapViewCompat({

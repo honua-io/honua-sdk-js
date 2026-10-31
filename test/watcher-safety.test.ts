@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 function getCompatSourceDir(): string {
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/esri-compat");
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/client-compat");
 }
 
 describe("compat watcher safety", () => {

@@ -555,57 +555,6 @@
       ]
     },
     {
-      "id": "migration-workbench",
-      "title": "ArcGIS migration workbench",
-      "summary": "Scans and transforms ArcGIS application source with auditable compatibility results.",
-      "tier": "flagship",
-      "supportStatus": "supported",
-      "disposition": {
-        "decision": "rework",
-        "reason": "Make this the canonical file-by-file ArcGIS migration journey."
-      },
-      "sourcePath": "examples/migration-workbench",
-      "docsPath": "docs/migration-honua-maplibre.md",
-      "capabilities": [
-        "codemod",
-        "compatibility",
-        "migration"
-      ],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed ArcGIS source fixtures and migration reports.",
-        "attribution": "Fixture source attribution is preserved in output.",
-        "freshness": "Versioned with the migration corpus."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:migration:featuretable"
-          ]
-        },
-        "live": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:migration:featuretable:live"
-          ]
-        }
-      },
-      "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
-      "validation": [
-        "npm run demo:migration-workbench:typecheck",
-        "npm run demo:migration-workbench:build"
-      ]
-    },
-    {
       "id": "nl-map-control",
       "title": "Ask this map",
       "summary": "Review schema-grounded spatial queries, then synchronize exact fixture results on the map and in a keyboard-accessible table. Recorded suggestions and an optional authenticated live model share the same bounded semantic compiler and execution path.",
@@ -1578,12 +1527,6 @@
       "route": "demo-analyst-workbench.html",
       "ownership": "sdk-projection",
       "sampleId": "spatial-analytics-workbench"
-    },
-    {
-      "id": "codemod",
-      "route": "sample-codemod.html",
-      "ownership": "sdk-projection",
-      "sampleId": "migration-workbench"
     },
     {
       "id": "control-legend",

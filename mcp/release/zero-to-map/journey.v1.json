@@ -587,8 +587,8 @@
           ]
         },
         {
-          "id": "buffer-esri-gpserver",
-          "title": "Prove geometry.buffer through the SDK GPServer runner",
+          "id": "buffer-geoservices-gpserver",
+          "title": "Prove geometry.buffer through the SDK GeoServices REST runner",
           "kind": "gpserver",
           "serviceId": "geoprocessing",
           "taskName": "Buffer",
@@ -603,7 +603,7 @@
           ],
           "captures": [
             {
-              "variable": "gpServerJobId",
+              "variable": "geoservicesGpJobId",
               "pointers": [
                 "/jobId"
               ]

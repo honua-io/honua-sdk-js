@@ -59,7 +59,7 @@ export class LegendCompat {
    * When a `container` is supplied and a DOM is present, the shim delegates
    * its rendering to the app-platform `<honua-legend>` component through
    * {@link HonuaWidgetHost} (issue #493 REQ-004). Headless usage (no
-   * container / no DOM / the standalone esri-compat split package) keeps the
+   * container / no DOM / the standalone client-compat split package) keeps the
    * state-model-only behavior.
    */
   private readonly widgetHost: HonuaWidgetHost | undefined;

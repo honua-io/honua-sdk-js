@@ -7,7 +7,7 @@
  * This barrel is intentionally MCP/QGIS-safe: it exports only types, pure
  * functions, and one typed HTTP client built on the SDK's standard
  * {@link HonuaClient} transport, and never imports from `operator`,
- * `esri-compat`, `web-components`, `interactions`, or `realtime` (which pull
+ * `client-compat`, `web-components`, `interactions`, or `realtime` (which pull
  * in MapLibre / DOM code). The established `map` and `app` shapes are
  * re-exported from their leaf modules; the dedicated `dashboard` authoring
  * contract is owned here so consumers reach every family from one import path.

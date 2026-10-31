@@ -8,7 +8,7 @@ import type { Scenario, WorkflowTranscript } from "./types.js";
  * onto the transcript after the run so a scorecard can show coverage.
  *
  * `buffer-three-ways` stays blocked until the server enables the `analysis` and
- * `esri-gp` profiles (honua-server #3363 / #3430 / #3431). Do not invent the
+ * `geoservices-gp` profiles (honua-server #3363 / #3430 / #3431). Do not invent the
  * configuration key that turns those profiles on.
  */
 
@@ -122,30 +122,30 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     category: "geoprocessing",
     skillId: "honua-geoprocessing",
     journeyStage: "geoprocessing",
-    journeyAction: "buffer-esri-mcp",
-    requiresServerProfiles: ["analysis", "esri-gp"],
+    journeyAction: "buffer-geoservices-mcp",
+    requiresServerProfiles: ["analysis", "geoservices-gp"],
     prompt:
       "Discover the Buffer task, describe it, run it, and keep the job result. Then run the same buffer through the native dataset buffer tool. Report each job id.",
     criteria: {
       requiredTools: [
-        "honua_esri_gp_list_tasks",
-        "honua_esri_gp_describe_task",
-        "honua_esri_gp_execute_task",
+        "honua_geoservices_gp_list_tasks",
+        "honua_geoservices_gp_describe_task",
+        "honua_geoservices_gp_execute_task",
         "honua_buffer_features",
       ],
       expectedToolSequence: [
-        "honua_esri_gp_list_tasks",
-        "honua_esri_gp_describe_task",
-        "honua_esri_gp_execute_task",
+        "honua_geoservices_gp_list_tasks",
+        "honua_geoservices_gp_describe_task",
+        "honua_geoservices_gp_execute_task",
         "honua_buffer_features",
       ],
       answerMustInclude: ["jobId"],
       ...APPROVAL_GATE,
     },
     script: [
-      { tool: "honua_esri_gp_list_tasks", args: {} },
-      { tool: "honua_esri_gp_describe_task", args: { taskName: "Buffer" } },
-      { tool: "honua_esri_gp_execute_task", args: { taskName: "Buffer" } },
+      { tool: "honua_geoservices_gp_list_tasks", args: {} },
+      { tool: "honua_geoservices_gp_describe_task", args: { taskName: "Buffer" } },
+      { tool: "honua_geoservices_gp_execute_task", args: { taskName: "Buffer" } },
       { tool: "honua_buffer_features", args: {} },
     ],
   },

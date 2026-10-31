@@ -49,7 +49,7 @@ describe("Type guards", () => {
 });
 
 describe("URL parsing", () => {
-  describe("parseFeatureLayerUrl (re-exported from esri-compat)", () => {
+  describe("parseFeatureLayerUrl (re-exported from client-compat)", () => {
     it("parses a standard Feature Service URL", () => {
       const result = parseFeatureLayerUrl("https://gis.example.com/rest/services/parcels/FeatureServer/0");
       expect(result).toEqual({
@@ -73,7 +73,7 @@ describe("URL parsing", () => {
     });
   });
 
-  describe("parseMapServiceUrl (re-exported from esri-compat)", () => {
+  describe("parseMapServiceUrl (re-exported from client-compat)", () => {
     it("parses a standard Map Service URL", () => {
       const result = parseMapServiceUrl("https://gis.example.com/rest/services/imagery/MapServer");
       expect(result).toEqual({

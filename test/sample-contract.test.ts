@@ -55,7 +55,7 @@ import type { GoldenJourneyVisualEvidence } from "../scripts/sample-contract.mjs
 // regularly exceeds vitest's 5s default under full-suite contention; the
 // default empty-evidence case was effectively instant, so this was never
 // exercised before. Raise this file's timeout rather than the global
-// default; four qualified journeys' worth of receipts (up from one) need
+// default; three qualified journeys' worth of receipts (up from one) need
 // more headroom than the original single-journey budget.
 vi.setConfig({ testTimeout: 40_000 });
 
@@ -134,7 +134,6 @@ const goldenJourneyIds = [
   "incident-operations",
   "imagery-terrain",
   "cloud-native-analysis",
-  "arcgis-migration",
 ];
 const visualSemanticGates = [
   "packed-build",
@@ -223,24 +222,22 @@ function visualEvidenceAdversary(
 }
 
 describe("sample publication contract", () => {
-  it("discovers every runnable example and reserves exactly seven golden journeys", async () => {
+  it("discovers every runnable example and reserves exactly six golden journeys", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     expect(catalog.configuration.browserSecretPolicy).toMatch(/^Approved browser configuration/);
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(34);
+    expect(catalog.samples).toHaveLength(33);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(30);
+    ).toHaveLength(29);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(4);
-    expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      4,
-    );
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(3);
+    expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(3);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
       3,
     );
@@ -279,7 +276,7 @@ describe("sample publication contract", () => {
       track: "recipe",
       lifecycle: { state: "active" },
     });
-    expect(catalog.siteMappings).toHaveLength(21);
+    expect(catalog.siteMappings).toHaveLength(20);
   });
 
   it("accepts only the reviewed bounded Coverage and WCS browser command", async () => {
@@ -306,29 +303,6 @@ describe("sample publication contract", () => {
 
     const migrated = await migrateCatalogV1ToV2(v1, migration);
     expect(migrated).toEqual(canonical);
-    expect(migrated.samples.find((sample) => sample.id === "migration-workbench")).toMatchObject({
-      track: "golden",
-      journeyId: "arcgis-migration",
-      supportTier: "supported",
-      lifecycle: { state: "active" },
-      data: { configurationStatus: "not-required", config: [] },
-      validation: [
-        "npm run demo:migration-workbench:typecheck",
-        "npm run demo:migration-workbench:build",
-        "npm run test:playwright:migration-workbench",
-      ],
-      evidence: {
-        fixture: {
-          status: "executed",
-          commands: ["npm run demo:migration-workbench:mock"],
-        },
-        live: {
-          mode: "demo-live",
-          status: "executed",
-          commands: ["npm run evidence:migration-workbench:live"],
-        },
-      },
-    });
 
     delete migration.sampleOverrides[Object.keys(migration.sampleOverrides)[0]];
     await expect(migrateCatalogV1ToV2(v1, migration)).rejects.toThrow(
@@ -507,7 +481,7 @@ describe("sample publication contract", () => {
     // migrate-v1 projects the refreshed overlay into samples/catalog.v2.json
     // and write-ci-selection reprojects the dist copy of the same literal;
     // without both, pass one still reads the lapsed value.
-    const bootstrapIds = ["imagery-cog-quickstart", "maplibre-quickstart", "migration-workbench", "service-explorer"];
+    const bootstrapIds = ["imagery-cog-quickstart", "maplibre-quickstart", "service-explorer"];
     expect(refreshStep).toContain(`npm run samples:migrate:v1 -- --qualification-bootstrap ${bootstrapIds.join(",")}`);
     expect(refreshStep).toContain("npm run samples:write-ci-selection");
 
@@ -1058,7 +1032,7 @@ describe("sample publication contract", () => {
       await expect(validateSiteProjection(future)).rejects.toThrow(/unsupported site projection/u);
     });
 
-    // generatedOutputs() reads real qualification evidence for all four golden
+    // generatedOutputs() reads real qualification evidence for all three golden
     // journeys, like the tests below that carry their own budget; on a loaded
     // runner it has exceeded the file's 40s default, so give it the same
     // single-generation headroom rather than inflating every test in the file.
@@ -1077,7 +1051,7 @@ describe("sample publication contract", () => {
     }, 80_000);
   });
 
-  // Reads real qualification evidence for all four golden journeys
+  // Reads real qualification evidence for all three golden journeys
   // (collectQualificationEvidence) plus generates golden-journey visual
   // evidence from it; give this test its own headroom rather than
   // inflating the whole file's budget.
@@ -1099,13 +1073,13 @@ describe("sample publication contract", () => {
       format: "honua.site.sdk-sample-projection.v3",
       schemaVersion: 3,
     });
-    expect(projection.samples).toHaveLength(34);
-    expect(projection.routes).toHaveLength(21);
+    expect(projection.samples).toHaveLength(33);
+    expect(projection.routes).toHaveLength(20);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(34);
+    expect(ciSelection.samples).toHaveLength(33);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(visualEvidence).toMatchObject({
       format: "honua.sdk.golden-journey-visual-evidence.v1",
@@ -1132,16 +1106,15 @@ describe("sample publication contract", () => {
         },
       },
     });
-    // maplibre-quickstart, imagery-cog-quickstart, migration-workbench, and
-    // service-explorer are the four real, evidence-backed golden journeys;
+    // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
+    // the three evidence-backed golden journeys;
     // check their stable identity fields rather than the full volatile
     // object (timestamps, run IDs, screenshot hashes all legitimately
     // change every capture).
-    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(4);
+    expect(visualEvidence.qualifiedGoldenJourneys).toHaveLength(3);
     expect(
       [...visualEvidence.qualifiedGoldenJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
     ).toMatchObject([
-      { journeyId: "arcgis-migration", sampleId: "migration-workbench" },
       { journeyId: "first-map", sampleId: "maplibre-quickstart" },
       { journeyId: "imagery-terrain", sampleId: "imagery-cog-quickstart" },
       { journeyId: "service-explorer", sampleId: "service-explorer" },
@@ -1246,7 +1219,7 @@ describe("sample publication contract", () => {
     await expect(validateCiSelection(flattenedCi)).rejects.toThrow("JSON Schema validation failed");
   }, 80_000);
 
-  // Also reads real qualification evidence for all four golden journeys;
+  // Also reads real qualification evidence for all three golden journeys;
   // give it its own headroom for the same reason as the test above.
   it("rejects overstated, stale, cross-runtime, and non-realtime visual evidence", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
@@ -1267,8 +1240,8 @@ describe("sample publication contract", () => {
     staleCatalog.goldenJourneys[0].status = "qualified";
     staleCatalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").track = "golden";
     // Replace (not push) only the first-map entry: canonical now carries all
-    // four real qualified journeys (first-map, imagery-terrain,
-    // arcgis-migration, and service-explorer), and the orphaned/overstated
+    // three real qualified journeys (first-map, imagery-terrain, and
+    // service-explorer), and the orphaned/overstated
     // coverage check requires visualEvidence to exactly match the catalog's
     // qualified set, so this sub-case isolates a stale freshness window on
     // one journey without orphaning or dropping the other three's genuine
@@ -1407,7 +1380,7 @@ describe("sample publication contract", () => {
   }, 80_000);
 
   // This test calls generatedOutputs() twice (current + bumped-version
-  // catalogs), roughly doubling the file's already-doubled four-journey I/O
+  // catalogs), roughly doubling the file's already-doubled three-journey I/O
   // budget; give it its own headroom rather than inflating every other test
   // in this file to match.
   it("derives release versions without catalog edits and still detects semantic drift", async () => {

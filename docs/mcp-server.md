@@ -75,9 +75,9 @@ deployment's `/mcp` — see [Connect AI agents to Honua over
 MCP](https://github.com/honua-io/honua-server/blob/trunk/docs/guides/connect/ai-agents-mcp.md).
 
 The geoprocessing verbs named in the geospatial-mcp standard's opt-in `analysis`
-and `esri-gp` conformance profiles — `honua_buffer_features`,
-`honua_esri_gp_list_tasks`, `honua_esri_gp_describe_task`,
-`honua_esri_gp_execute_task` — are advertised by neither surface today. They are
+and `geoservices-gp` conformance profiles — `honua_buffer_features`,
+`honua_geoservices_gp_list_tasks`, `honua_geoservices_gp_describe_task`,
+`honua_geoservices_gp_execute_task` — are advertised by neither surface today. They are
 profile members the zero-to-map release preflight checks a *candidate* server
 for. To run geoprocessing now, use `honua_plan_analysis` → `honua_validate_plan`
 → `honua_execute_plan` on a deployment's `/mcp`, or

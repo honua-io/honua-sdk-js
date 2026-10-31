@@ -96,12 +96,6 @@ describe("playground eligibility", () => {
     assert.equal(decision.category, "binary-asset");
   });
 
-  it("excludes a sample that builds through the shared example kit", () => {
-    const decision = decisionById.get("migration-workbench");
-    assert.equal(decision.qualified, false);
-    assert.equal(decision.category, "repository-vite-kit");
-  });
-
   it("keeps a live-backed bundle excluded without a reviewed fixture origin", () => {
     const decision = decisionById.get("service-explorer");
     assert.equal(decision.qualified, false);

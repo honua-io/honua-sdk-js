@@ -13,20 +13,9 @@ through the Esri-shaped compat shims. It is the codemod option that
 produces MapLibre-native output for apps that want to leave the
 ArcGIS JS API behind end-to-end.
 
-## Canonical migration workbench
-
-[`examples/migration-workbench`](../examples/migration-workbench/README.md)
-is the qualified `arcgis-migration` golden journey for the complete migration
-experience. The repository build invokes the real `honua-migrate` CLI against
-the Honua-authored `geoservices-source-app` fixture and commits a deterministic
-report, patch, widget guidance, MapLibre assessment, generated compat target,
-and SHA-256 manifest. The browser only projects and revalidates those
-artifacts; it does not contain a second transform, accept uploads, read
-credentials, or perform cloud import.
-
 ## Which import
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
 
 ## Widget kit registration
 
@@ -35,7 +24,7 @@ A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` f
 that does not construct a host stays state-model-only whether or not a kit is
 registered, and it does not emit the missing-kit diagnostic.
 
-Importing `@honua/sdk-esri-compat` does not load the kit. The compat entry is
+Importing `@honua/sdk-client-compat` does not load the kit. The compat entry is
 bundle-budgeted, and any import of the kit from that entry would pull the
 component set into every compat bundle. The application registers the tag.
 
@@ -49,7 +38,7 @@ defined.
 
 ```ts doc-test=skip reason="wiring snippet requires an application host"
 import { registerComponent } from "@honua/app-platform/controls";
-import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
+import { registerHonuaWidgetKit } from "@honua/sdk-client-compat";
 
 await registerComponent("web-components.legend");
 registerHonuaWidgetKit({
@@ -97,7 +86,7 @@ The diagnostic fires **once per runtime**, on the first mount that finds no
 kit — not once per widget instance — so subscribe before constructing widgets.
 It re-arms whenever `registerHonuaWidgetKit` is called again.
 
-`@honua/sdk-esri-compat` does not ship the kit. Install
+`@honua/sdk-client-compat` does not ship the kit. Install
 `@honua/app-platform` to register tags. `FeaturesCompat`, `AttachmentsCompat`,
 and `ScaleRangeCompat` construct hosts and are not on the stable client-compat
 entry.
@@ -148,7 +137,7 @@ These container-bearing shims do not construct a host. They stay state-model-onl
 
 | Target | Output shape | What it rewrites natively |
 | --- | --- | --- |
-| `honua-compat` (alias `honua`) | `@honua/sdk-esri-compat` shims that mimic the ArcGIS JS API surface | Every kind in `REWRITE_SPECS` (`SUPPORTED_ARCGIS_MODULE_KIND_BY_PATH`) — full 2D constructor surface (layers, views, widgets, controls, tasks, support). |
+| `honua-compat` (alias `honua`) | `@honua/sdk-client-compat` shims that mimic the ArcGIS JS API surface | Every kind in `REWRITE_SPECS` (`SUPPORTED_ARCGIS_MODULE_KIND_BY_PATH`) — full 2D constructor surface (layers, views, widgets, controls, tasks, support). |
 | `honua-maplibre` | `@honua/sdk-js/map` helpers + raw MapLibre style/layer objects | The five kinds in `HONUA_MAPLIBRE_NATIVE_KINDS`: `feature-layer`, `map-image-layer`, `tile-layer`, `map`, `map-view`. Everything else still falls through to a manual TODO. |
 | `esri-leaflet` | Mixed esri-leaflet primitives + compat fallback | `feature-layer`, `map-image-layer`, `tile-layer` natively; the remaining 2D surface via `ESRI_LEAFLET_COMPAT_FALLBACK_KINDS`. |
 
@@ -383,7 +372,5 @@ list:
   `honua-maplibre` they remain manual TODO surfaces.
 
 For the broader migration story — including the `honua-compat`
-parity surface, the codemod gates, and the test corpus — start at
-[`docs/migration-punch-list.md`](./migration-punch-list.md) and the
-fixture-only Esri sample corpus in
-[`docs/esri-sample-corpus.md`](./esri-sample-corpus.md).
+parity surface and codemod gates — see
+[`docs/migration-punch-list.md`](./migration-punch-list.md).

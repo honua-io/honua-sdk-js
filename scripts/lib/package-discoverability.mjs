@@ -57,7 +57,7 @@ const SPLIT_PACKAGE_RULES = {
     keywords: ["arcgis", "ogc-api", "stac", "geocoding"],
     descriptionTerms: ["arcgis", "ogc api", "stac", "maplibre"],
   },
-  "@honua/sdk-esri-compat": {
+  "@honua/sdk-client-compat": {
     keywords: ["arcgis-migration", "esri"],
     descriptionTerms: ["arcgis", "migration", "maplibre"],
   },

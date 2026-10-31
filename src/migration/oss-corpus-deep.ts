@@ -357,7 +357,7 @@ export function formatOssArcGisDeepBuildMarkdown(manifest: OssArcGisCorpusManife
   lines.push(
     [
       `${run.summary.buildsPostCodemod} of ${run.summary.appCount} allowlisted`,
-      `${run.summary.appCount === 1 ? "app" : "apps"} built post-codemod against \`@honua/sdk-esri-compat\`.`,
+      `${run.summary.appCount === 1 ? "app" : "apps"} built post-codemod against \`@honua/sdk-client-compat\`.`,
     ].join(" "),
   );
   lines.push("");

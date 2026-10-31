@@ -349,7 +349,7 @@ export class PortalCompat {
 
   /**
    * Register the currently held token with the shared {@link identityManager}
-   * under this portal's `/sharing/rest` server, so subsequent esri-compat calls
+   * under this portal's `/sharing/rest` server, so subsequent client-compat calls
    * resolve the same credential.
    */
   public registerWithIdentityManager(): void {

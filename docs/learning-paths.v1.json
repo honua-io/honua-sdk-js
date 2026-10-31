@@ -27,7 +27,6 @@
     "linked-large-data-analysis",
     "realtime-operations",
     "imagery-terrain-3d",
-    "migrate-arcgis",
     "safe-agent-automation"
   ],
   "paths": [
@@ -178,23 +177,6 @@
       "api": [
         { "specifier": "@honua/sdk-js/map", "symbols": ["HonuaMap"] },
         { "specifier": "@honua/sdk-js/runtime", "symbols": ["HonuaMapRuntime"] }
-      ]
-    },
-    {
-      "id": "migrate",
-      "title": "Migrate an ArcGIS application",
-      "outcome": "Scan and transform one file at a time with explicit compatibility evidence and manual gaps.",
-      "labels": ["fixture", "public-live", "degraded"],
-      "degradationReason": "Unsupported ArcGIS modules remain manual migration work and are reported rather than removed silently.",
-      "siteJourneyId": "migrate-arcgis",
-      "guidePath": "docs/migration-honua-maplibre.md",
-      "sampleId": "migration-workbench",
-      "sourcePath": "examples/migration-workbench",
-      "sourceEntry": "examples/migration-workbench/src/main.ts",
-      "docsPath": "docs/migration-honua-maplibre.md",
-      "typecheckScript": "demo:migration-workbench:typecheck",
-      "api": [
-        { "specifier": "@honua/sdk-js/migration", "symbols": ["runEsriCompatCodemod", "scanArcGisUsage"] }
       ]
     },
     {

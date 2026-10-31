@@ -67,7 +67,7 @@ describe("legacy JavaScript migration forwarders", () => {
     });
     expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.engines?.node).toBe(">=22.12.0");
     expect(lock.packages?.["node_modules/@honua/sdk"]?.version).toBe("0.2.3");
-    expect(lock.packages?.["node_modules/@honua/sdk-esri-compat"]?.version).toBe("0.2.3");
+    expect(lock.packages?.["node_modules/@honua/sdk-client-compat"]?.version).toBe("0.2.3");
     for (const script of ["scan:arcgis", "scan:arcgis:widgets", "migrate:arcgis"]) {
       expect(manifest.scripts?.[script]).toContain("run-legacy-migration-cli.mjs");
     }

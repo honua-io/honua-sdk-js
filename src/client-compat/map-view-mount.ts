@@ -1,6 +1,6 @@
 /**
  * Mounts a MapLibre map into a compat view container. `maplibre-gl` stays a
- * dynamic peer import so the esri-compat bundle does not inline the renderer.
+ * dynamic peer import so the client-compat bundle does not inline the renderer.
  * Headless callers (no element) get `undefined`. A real element whose renderer
  * fails to start also gets `undefined`, and the view treats that as a failed load.
  */

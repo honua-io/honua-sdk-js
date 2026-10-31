@@ -13,8 +13,8 @@ const envelope = { schema: "honua.sdk-installed-observations/v1", binding, obser
   execution: { mode: "installed-package", assertions: 3, facets: ["positive", "pagination"] } }] };
 
 test("all release packages must be pinned and installed from their declared registry", () => {
-  assert.equal(validatePackageSet(candidate, required).length, 8);
-  assert.equal(validateInstalledLock(candidate, lock).length, 8);
+  assert.equal(validatePackageSet(candidate, required).length, 7);
+  assert.equal(validateInstalledLock(candidate, lock).length, 7);
   for (const p of candidate.packages) {
     const missing = structuredClone(lock);
     delete missing.packages[`node_modules/${p.coordinate}`];

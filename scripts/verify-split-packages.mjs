@@ -22,21 +22,21 @@ const OPTIONAL_GRPC_RUNTIME_PEERS = [
   "@connectrpc/connect-web",
 ];
 const CAPABILITY_PROFILE_COMPANIONS = new Set([
-  "@honua/sdk-esri-compat",
+  "@honua/sdk-client-compat",
   "@honua/react",
   "@honua/geometry",
   "@honua/app-platform",
 ]);
 const GRPC_CLIENT_PACKAGES = new Set([
   "@honua/sdk",
-  "@honua/sdk-esri-compat",
+  "@honua/sdk-client-compat",
   "@honua/react",
   "@honua/app-platform",
 ]);
 
 const packageDirs = {
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
-  "@honua/sdk-esri-compat": path.join(PACKAGES_ROOT, "honua-sdk-esri-compat"),
+  "@honua/sdk-client-compat": path.join(PACKAGES_ROOT, "honua-sdk-client-compat"),
   "@honua/react": path.join(PACKAGES_ROOT, "honua-react"),
   "@honua/geometry": path.join(PACKAGES_ROOT, "honua-geometry"),
   "@honua/app-platform": path.join(PACKAGES_ROOT, "honua-app-platform"),
@@ -79,7 +79,7 @@ for (const [name, directory] of Object.entries(packageDirs)) {
     process.exit(1);
   }
 
-  if (name === "@honua/sdk-esri-compat") {
+  if (name === "@honua/sdk-client-compat") {
     const maplibrePeer = "maplibre-gl";
     const expectedMaplibre = ROOT_PACKAGE_JSON.peerDependencies?.[maplibrePeer];
     if (
@@ -88,7 +88,7 @@ for (const [name, directory] of Object.entries(packageDirs)) {
       packageJson.peerDependenciesMeta?.[maplibrePeer]?.optional !== true
     ) {
       process.stderr.write(
-        `Split @honua/sdk-esri-compat must keep ${maplibrePeer}@${expectedMaplibre ?? "<missing>"} as an optional peer.\n`,
+        `Split @honua/sdk-client-compat must keep ${maplibrePeer}@${expectedMaplibre ?? "<missing>"} as an optional peer.\n`,
       );
       process.exit(1);
     }
@@ -145,12 +145,12 @@ for (const [name, directory] of Object.entries(packageDirs)) {
 for (const fileName of ["widget-capabilities.js", "widget-capabilities.d.ts"]) {
   for (const [name, reason] of [
     [
-      "@honua/sdk-esri-compat",
-      "esri-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.",
+      "@honua/sdk-client-compat",
+      "client-compat/feature-layer.js and feature-form.js import ../widget-capabilities.js.",
     ],
     [
       "@honua/app-platform",
-      "web-components/elements.js and esri-compat/feature-layer.js import ../widget-capabilities.js.",
+      "web-components/elements.js and client-compat/feature-layer.js import ../widget-capabilities.js.",
     ],
   ]) {
     const capabilityFile = path.join(packageDirs[name], fileName);
@@ -189,7 +189,7 @@ try {
     type: "module",
     dependencies: {
       "@honua/sdk": `file:${packageDirs["@honua/sdk"]}`,
-      "@honua/sdk-esri-compat": `file:${packageDirs["@honua/sdk-esri-compat"]}`,
+      "@honua/sdk-client-compat": `file:${packageDirs["@honua/sdk-client-compat"]}`,
       "@honua/react": `file:${packageDirs["@honua/react"]}`,
       react: ROOT_PACKAGE_JSON.devDependencies.react,
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
@@ -433,7 +433,7 @@ import {
   when,
   whenOnce,
   ZoomCompat,
-} from "@honua/sdk-esri-compat";
+} from "@honua/sdk-client-compat";
 import {
   HonuaLayer,
   HonuaMap as HonuaReactMap,
@@ -448,7 +448,7 @@ import {
   useRealtime,
 } from "@honua/react";
 import { area, buffer, project, toWgs84 } from "@honua/geometry";
-import { geometryEngineCompat } from "@honua/sdk-esri-compat";
+import { geometryEngineCompat } from "@honua/sdk-client-compat";
 
 if (typeof HonuaClient !== "function") throw new Error("HonuaClient export missing");
 if (typeof connect !== "function") throw new Error("connect export missing from @honua/sdk");
@@ -1053,7 +1053,7 @@ if (typeof registerHonuaWidgetKit !== "function")
   throw new Error("registerHonuaWidgetKit export missing");
 {
   // Headless (no DOM): the widget host must resolve to unavailable and its
-  // mount must no-op — this is the standalone esri-compat package posture.
+  // mount must no-op — this is the standalone client-compat package posture.
   const headlessHost = new HonuaWidgetHost("honua-legend", "some-container-id");
   if (headlessHost.available) throw new Error("HonuaWidgetHost resolved a container without a DOM");
   if ((await headlessHost.mount()) !== undefined)
@@ -1137,7 +1137,7 @@ if (typeof buffer !== "function" || typeof area !== "function" || typeof project
     throw new Error("@honua/geometry toWgs84 round-trip drifted");
 }
 if (typeof geometryEngineCompat !== "object" || typeof geometryEngineCompat.buffer !== "function")
-  throw new Error("geometryEngineCompat export missing from @honua/sdk-esri-compat");
+  throw new Error("geometryEngineCompat export missing from @honua/sdk-client-compat");
 {
   const point = { x: 0, y: 0, spatialReference: { wkid: 3857 } };
   const disk = geometryEngineCompat.buffer(point, 100, "meters");
@@ -1145,7 +1145,7 @@ if (typeof geometryEngineCompat !== "object" || typeof geometryEngineCompat.buff
 }
 {
   // LocatorCompat rides the geocoding provider contract, so the compat tarball
-  // must resolve @honua/sdk-esri-compat/geocoding/* at runtime (issue #956).
+  // must resolve @honua/sdk-client-compat/geocoding/* at runtime (issue #956).
   const locator = new LocatorCompat({
     provider: {
       id: "smoke",
@@ -1171,7 +1171,7 @@ console.log("splitPackageSmoke=ok");
   fs.writeFileSync(path.join(tempRoot, "smoke.mjs"), smokeScript, "utf8");
 
   const declarationSmoke = `
-import type { SourceDescriptor as EsriCompatSourceDescriptor } from "./node_modules/@honua/sdk-esri-compat/contract/index.js";
+import type { SourceDescriptor as EsriCompatSourceDescriptor } from "./node_modules/@honua/sdk-client-compat/contract/index.js";
 import type { SourceDescriptor as ReactSourceDescriptor } from "./node_modules/@honua/react/contract/index.js";
 import type { SourceDescriptor as GeometrySourceDescriptor } from "./node_modules/@honua/geometry/contract/index.js";
 import type { SourceDescriptor as AppPlatformSourceDescriptor } from "./node_modules/@honua/app-platform/contract/index.js";

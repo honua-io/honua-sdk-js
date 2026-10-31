@@ -1,4 +1,4 @@
-// Original Honua migration-workbench scenario. This file intentionally uses
+// Original CLI migration scenario. This file intentionally uses
 // ArcGIS JS SDK imports so the repository's honua-migrate CLI is the only
 // source-to-target transformation engine exercised by the artifact generator.
 

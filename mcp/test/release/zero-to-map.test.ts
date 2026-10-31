@@ -131,9 +131,9 @@ describe("zero-to-map D9.3 release journey", () => {
     );
     expect(calledTools).not.toEqual(
       expect.arrayContaining([
-        "honua_esri_gp_list_tasks",
-        "honua_esri_gp_describe_task",
-        "honua_esri_gp_execute_task",
+        "honua_geoservices_gp_list_tasks",
+        "honua_geoservices_gp_describe_task",
+        "honua_geoservices_gp_execute_task",
         "honua_buffer_features",
       ]),
     );
@@ -178,15 +178,15 @@ describe("zero-to-map D9.3 release journey", () => {
         }),
       ]),
     });
-    expect(geoprocessing.get("buffer-esri-gpserver")).toMatchObject({
+    expect(geoprocessing.get("buffer-geoservices-gpserver")).toMatchObject({
       kind: "gpserver",
       processId: "geometry.buffer",
       parameters: { wkb: expect.any(String), srid: 4326, distance: 0.00025 },
-      captures: [{ variable: "gpServerJobId", pointers: ["/jobId"] }],
+      captures: [{ variable: "geoservicesGpJobId", pointers: ["/jobId"] }],
     });
-    expect(geoprocessing.get("buffer-esri-gpserver")).not.toHaveProperty("parameters.layerId");
+    expect(geoprocessing.get("buffer-geoservices-gpserver")).not.toHaveProperty("parameters.layerId");
     expect(
-      (geoprocessing.get("buffer-esri-gpserver") as { parameters: Record<string, unknown> }).parameters,
+      (geoprocessing.get("buffer-geoservices-gpserver") as { parameters: Record<string, unknown> }).parameters,
     ).not.toHaveProperty("layerId");
 
     const studio = new Map(plan.stages[4]?.actions.map((action) => [action.id, action]));
@@ -600,7 +600,7 @@ describe("zero-to-map D9.3 release journey", () => {
         "honua_studio_propose_publication",
       ]),
     );
-    expect(roster).not.toEqual(expect.arrayContaining(["honua_esri_gp_list_tasks", "honua_buffer_features"]));
+    expect(roster).not.toEqual(expect.arrayContaining(["honua_geoservices_gp_list_tasks", "honua_buffer_features"]));
     expect(roster.length).toBeLessThan(100);
   });
 
@@ -616,7 +616,7 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(action).toMatchObject({ status: "blocked", code: "mcp-catalog-incomplete" });
     expect(action?.message).toContain("honua_validate_plan (stage 4 geoprocessing, action validate-buffer-plan)");
     expect(action?.message).toContain("honua_execute_plan (stage 4 geoprocessing, action execute-buffer-plan)");
-    expect(action?.message).not.toContain("esri-gp");
+    expect(action?.message).not.toContain("geoservices-gp");
     expect(action?.message).not.toContain("441");
     expect(receipt.catalog).toBeUndefined();
   });

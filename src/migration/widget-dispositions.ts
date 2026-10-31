@@ -11,7 +11,7 @@
  *
  * Dispositions are grounded in what actually ships today:
  * - `automated` / `compat-shim` entries are backed by real shims under
- *   `src/esri-compat/` and codemod rewrite specs in
+ *   `src/client-compat/` and codemod rewrite specs in
  *   `src/migration/codemod.ts::SUPPORTED_ARCGIS_MODULE_KIND_BY_PATH`.
  * - Gaps follow the honest accounting in `docs/migration-punch-list.md`
  *   (scene/3D widgets have no equivalent; visual parity is not byte-identical).
@@ -146,7 +146,7 @@ const MEASUREMENT_UNIT_DELTA =
   "auto-scaling (#1419). Math is at parity: geodesic distance/area come from the `length` / `area` ops " +
   "in @honua/geometry, the same ones behind `geometryEngine` parity elsewhere in the SDK; planar " +
   "fidelity measures in either a local flat-earth frame (the dependency-free approximation " +
-  "`MeasurementCompat` in src/esri-compat/measurement.ts already ships) or explicit EPSG:3857 Web " +
+  "`MeasurementCompat` in src/client-compat/measurement.ts already ships) or explicit EPSG:3857 Web " +
   "Mercator meters, without pulling proj4 into the component kit's bundle. Results name the `crs` they " +
   "were measured in, antimeridian crossings are measured the short way in every frame, invalid vertices " +
   "are rejected, and a self-intersecting area outline is reported invalid instead of as a cancelled-out " +
@@ -199,86 +199,86 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Attribution",
     "automated",
-    "AttributionCompat from @honua/sdk-esri-compat (MapLibre AttributionControl underneath)",
+    "AttributionCompat from @honua/sdk-client-compat (MapLibre AttributionControl underneath)",
     AUTOMATED_NOTE,
-    "src/esri-compat/controls.ts",
+    "src/client-compat/controls.ts",
   ),
   widgetEntry(
     "BasemapGallery",
     "automated",
-    "BasemapGalleryCompat from @honua/sdk-esri-compat",
+    "BasemapGalleryCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/basemap-gallery.ts",
+    "src/client-compat/basemap-gallery.ts",
   ),
   widgetEntry(
     "BasemapLayerList",
     "automated",
-    "BasemapLayerListCompat from @honua/sdk-esri-compat",
+    "BasemapLayerListCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/basemap-layer-list.ts",
+    "src/client-compat/basemap-layer-list.ts",
   ),
   widgetEntry(
     "BasemapToggle",
     "automated",
-    "BasemapToggleCompat from @honua/sdk-esri-compat",
+    "BasemapToggleCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/controls.ts",
+    "src/client-compat/controls.ts",
   ),
   widgetEntry(
     "Bookmarks",
     "automated",
-    "BookmarksCompat from @honua/sdk-esri-compat",
+    "BookmarksCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/bookmarks.ts",
+    "src/client-compat/bookmarks.ts",
   ),
   widgetEntry(
     "Compass",
     "automated",
-    "CompassCompat from @honua/sdk-esri-compat (MapLibre NavigationControl covers the same gesture natively)",
+    "CompassCompat from @honua/sdk-client-compat (MapLibre NavigationControl covers the same gesture natively)",
     AUTOMATED_NOTE,
-    "src/esri-compat/controls.ts",
+    "src/client-compat/controls.ts",
   ),
   widgetEntry(
     "Expand",
     "automated",
-    "ExpandCompat from @honua/sdk-esri-compat",
+    "ExpandCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/expand.ts",
+    "src/client-compat/expand.ts",
   ),
   widgetEntry(
     "Feature",
     "automated",
-    "FeatureCompat from @honua/sdk-esri-compat",
+    "FeatureCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/feature.ts",
+    "src/client-compat/feature.ts",
   ),
   widgetEntry(
     "FeatureTemplates",
     "automated",
-    "FeatureTemplatesCompat from @honua/sdk-esri-compat",
+    "FeatureTemplatesCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/feature-templates.ts",
+    "src/client-compat/feature-templates.ts",
   ),
   widgetEntry(
     "Fullscreen",
     "automated",
-    "FullscreenCompat from @honua/sdk-esri-compat (MapLibre FullscreenControl underneath)",
+    "FullscreenCompat from @honua/sdk-client-compat (MapLibre FullscreenControl underneath)",
     AUTOMATED_NOTE,
-    "src/esri-compat/controls.ts",
+    "src/client-compat/controls.ts",
   ),
   widgetEntry(
     "Home",
     "automated",
-    "HomeCompat from @honua/sdk-esri-compat",
+    "HomeCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/controls.ts",
+    "src/client-compat/controls.ts",
   ),
   widgetEntry(
     "LayerList",
     "automated",
-    "LayerListCompat from @honua/sdk-esri-compat",
+    "LayerListCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/layer-list.ts",
+    "src/client-compat/layer-list.ts",
     appPlatformComponent(
       "honua-layer-list",
       "src/web-components/elements.ts",
@@ -288,9 +288,9 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Legend",
     "automated",
-    "LegendCompat from @honua/sdk-esri-compat",
+    "LegendCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/legend.ts",
+    "src/client-compat/legend.ts",
     appPlatformComponent(
       "honua-legend",
       "src/web-components/elements.ts",
@@ -300,32 +300,32 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Locate",
     "automated",
-    "LocateCompat from @honua/sdk-esri-compat (MapLibre GeolocateControl covers the same behavior natively)",
+    "LocateCompat from @honua/sdk-client-compat (MapLibre GeolocateControl covers the same behavior natively)",
     AUTOMATED_NOTE,
-    "src/esri-compat/controls.ts",
+    "src/client-compat/controls.ts",
   ),
   widgetEntry(
     "Popup",
     "automated",
-    "PopupCompat from @honua/sdk-esri-compat",
+    "PopupCompat from @honua/sdk-client-compat",
     [
       AUTOMATED_NOTE,
       "Popup actions and fieldInfos format callbacks migrate for the simple case only",
       "(docs/migration-punch-list.md, parity gap 5).",
     ].join(" "),
-    "src/esri-compat/popup.ts",
+    "src/client-compat/popup.ts",
   ),
   widgetEntry(
     "ScaleBar",
     "automated",
-    "ScaleBarCompat from @honua/sdk-esri-compat (MapLibre ScaleControl underneath)",
+    "ScaleBarCompat from @honua/sdk-client-compat (MapLibre ScaleControl underneath)",
     AUTOMATED_NOTE,
-    "src/esri-compat/controls.ts",
+    "src/client-compat/controls.ts",
   ),
   widgetEntry(
     "Search",
     "automated",
-    "SearchCompat from @honua/sdk-esri-compat, with LocatorSearchSourceCompat as the address backend",
+    "SearchCompat from @honua/sdk-client-compat, with LocatorSearchSourceCompat as the address backend",
     [
       AUTOMATED_NOTE,
       "Layer search works out of the box. Address search wires LocatorCompat.toSearchSource() (or",
@@ -333,7 +333,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       "the constructor but cannot choose the endpoint. Providers that do not declare `suggest` (Nominatim) omit the",
       "typeahead hook rather than faking it.",
     ].join(" "),
-    "src/esri-compat/search.ts",
+    "src/client-compat/search.ts",
     appPlatformComponent(
       "honua-search",
       "src/web-components/elements.ts",
@@ -343,34 +343,34 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Swipe",
     "automated",
-    "SwipeCompat from @honua/sdk-esri-compat",
+    "SwipeCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/swipe.ts",
+    "src/client-compat/swipe.ts",
   ),
   widgetEntry(
     "TableList",
     "automated",
-    "TableListCompat from @honua/sdk-esri-compat",
+    "TableListCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/table-list.ts",
+    "src/client-compat/table-list.ts",
   ),
   widgetEntry(
     "Track",
     "automated",
-    "TrackCompat from @honua/sdk-esri-compat",
+    "TrackCompat from @honua/sdk-client-compat",
     AUTOMATED_NOTE,
-    "src/esri-compat/track.ts",
+    "src/client-compat/track.ts",
   ),
   widgetEntry(
     "Zoom",
     "automated",
-    "ZoomCompat from @honua/sdk-esri-compat (MapLibre NavigationControl underneath)",
+    "ZoomCompat from @honua/sdk-client-compat (MapLibre NavigationControl underneath)",
     AUTOMATED_NOTE,
-    "src/esri-compat/controls.ts",
+    "src/client-compat/controls.ts",
   ),
   // --- compat-shim / app-platform ---
   //
-  // Both dispositions share a shim under src/esri-compat/ that the codemod
+  // Both dispositions share a shim under src/client-compat/ that the codemod
   // rewrites to; they differ in what a team gets if it stops there.
   //
   // `app-platform` — a native Honua element also ships, and it is the
@@ -388,22 +388,22 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "AreaMeasurement2D",
     "app-platform",
-    "AreaMeasurement2DCompat from @honua/sdk-esri-compat",
+    "AreaMeasurement2DCompat from @honua/sdk-client-compat",
     COMPAT_SHIM_NOTE,
-    "src/esri-compat/measurement-2d.ts",
+    "src/client-compat/measurement-2d.ts",
     measurementComponent(),
     `A native element ships: \`<honua-measurement>\` in area mode. ${MEASUREMENT_UNIT_DELTA}`,
   ),
   widgetEntry(
     "CoordinateConversion",
     "compat-shim",
-    "CoordinateConversionCompat from @honua/sdk-esri-compat",
+    "CoordinateConversionCompat from @honua/sdk-client-compat",
     `${COMPAT_SHIM_NOTE} Custom coordinate formats beyond the built-in set are not reproduced.`,
-    "src/esri-compat/coordinate-conversion.ts",
+    "src/client-compat/coordinate-conversion.ts",
     undefined,
     "No native element exists — this is one of the three genuinely missing ones. The shim implements " +
       "exactly three formats (`lonlat`, `dms`, `dd` — `CoordinateFormatCompat` in " +
-      "src/esri-compat/coordinate-conversion.ts); MGRS, UTM, and USNG are absent, as is ArcGIS's custom " +
+      "src/client-compat/coordinate-conversion.ts); MGRS, UTM, and USNG are absent, as is ArcGIS's custom " +
       "`ConversionInfo` format authoring. Conversion is one-way: `setLocation()` formats a location, and " +
       "there is no parse path for typing a coordinate to move the map, so ArcGIS's capture/reverse input " +
       "mode has no equivalent.",
@@ -411,13 +411,13 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Directions",
     "compat-shim",
-    "DirectionsCompat from @honua/sdk-esri-compat backed by HonuaRouteService (RouteTask parity)",
+    "DirectionsCompat from @honua/sdk-client-compat backed by HonuaRouteService (RouteTask parity)",
     [
       COMPAT_SHIM_NOTE,
       "Only RouteTask-backed routing is shimmed; service-area, closest-facility, and OD-cost-matrix flows",
       "remain unsupported (docs/migration-punch-list.md, parity gap 3).",
     ].join(" "),
-    "src/esri-compat/directions.ts",
+    "src/client-compat/directions.ts",
     undefined,
     "No native element exists, and building one now would be premature: the delta is a server gap, not a " +
       "component gap. HonuaRouteService covers RouteTask-equivalent routing; service-area, " +
@@ -428,22 +428,22 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "DistanceMeasurement2D",
     "app-platform",
-    "DistanceMeasurement2DCompat from @honua/sdk-esri-compat",
+    "DistanceMeasurement2DCompat from @honua/sdk-client-compat",
     COMPAT_SHIM_NOTE,
-    "src/esri-compat/measurement-2d.ts",
+    "src/client-compat/measurement-2d.ts",
     measurementComponent(),
     `A native element ships: \`<honua-measurement>\` in distance mode. ${MEASUREMENT_UNIT_DELTA}`,
   ),
   widgetEntry(
     "Editor",
     "app-platform",
-    "EditorCompat from @honua/sdk-esri-compat",
+    "EditorCompat from @honua/sdk-client-compat",
     [
       COMPAT_SHIM_NOTE,
       "Attribute + geometry editing against feature services works; advanced form elements and",
       "utility-network editing do not.",
     ].join(" "),
-    "src/esri-compat/editor.ts",
+    "src/client-compat/editor.ts",
     appPlatformComponent(
       "honua-editor",
       "src/web-components/elements.ts",
@@ -461,9 +461,9 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "FeatureForm",
     "compat-shim",
-    "FeatureFormCompat from @honua/sdk-esri-compat",
+    "FeatureFormCompat from @honua/sdk-client-compat",
     `${COMPAT_SHIM_NOTE} Arcade-driven form expressions are not evaluated.`,
-    "src/esri-compat/feature-form.ts",
+    "src/client-compat/feature-form.ts",
     undefined,
     "No native element exists, and none should be built in this repo. A standalone form component would " +
       "be superseded by the form-package work: honua-server ADR-0069 owns the `honua.form-package.v1` " +
@@ -473,13 +473,13 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "FeatureTable",
     "app-platform",
-    "FeatureTableCompat from @honua/sdk-esri-compat",
+    "FeatureTableCompat from @honua/sdk-client-compat",
     [
       COMPAT_SHIM_NOTE,
       "Related-records and popup interaction flows are exercised by the demo fixtures; column",
       "virtualization and attachment editing differ from ArcGIS.",
     ].join(" "),
-    "src/esri-compat/feature-table.ts",
+    "src/client-compat/feature-table.ts",
     appPlatformComponent(
       "honua-feature-table",
       "src/web-components/elements.ts",
@@ -497,9 +497,9 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Measurement",
     "app-platform",
-    "MeasurementCompat from @honua/sdk-esri-compat (2D distance/area only)",
+    "MeasurementCompat from @honua/sdk-client-compat (2D distance/area only)",
     `${COMPAT_SHIM_NOTE} 3D measurement modes are not supported.`,
-    "src/esri-compat/measurement.ts",
+    "src/client-compat/measurement.ts",
     measurementComponent(),
     [
       "A native element ships: `<honua-measurement>`, and `Measurement`, `AreaMeasurement2D`, and",
@@ -512,13 +512,13 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Print",
     "app-platform",
-    "PrintCompat from @honua/sdk-esri-compat",
+    "PrintCompat from @honua/sdk-client-compat",
     [
       COMPAT_SHIM_NOTE,
       "Export goes through the Honua rendering pipeline, not an ArcGIS print service; custom print",
       "templates need re-authoring.",
     ].join(" "),
-    "src/esri-compat/print.ts",
+    "src/client-compat/print.ts",
     appPlatformComponent(
       "honua-print-export",
       "src/web-components/elements.ts",
@@ -537,9 +537,9 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Sketch",
     "app-platform",
-    "SketchCompat from @honua/sdk-esri-compat",
+    "SketchCompat from @honua/sdk-client-compat",
     `${COMPAT_SHIM_NOTE} Snapping and 3D sketch tools are not reproduced.`,
-    "src/esri-compat/sketch.ts",
+    "src/client-compat/sketch.ts",
     appPlatformComponent(
       "honua-sketch-control",
       "src/web-components/elements.ts",
@@ -555,7 +555,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "TimeSlider",
     "app-platform",
-    "TimeSliderCompat from @honua/sdk-esri-compat",
+    "TimeSliderCompat from @honua/sdk-client-compat",
     [
       COMPAT_SHIM_NOTE,
       "Time-aware layer filtering works; stops derived from server time-info metadata should be",
@@ -563,7 +563,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       "`<honua-time-slider>`; without the kit it stays state-model-only, and the element's own transport",
       "drives the app-platform temporal playback controller rather than the shim's stop list.",
     ].join(" "),
-    "src/esri-compat/time-slider.ts",
+    "src/client-compat/time-slider.ts",
     appPlatformComponent(
       "honua-time-slider",
       "src/web-components/time-slider.ts",

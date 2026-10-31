@@ -127,27 +127,22 @@ describe("honua-site consumer handoff", () => {
           // 31, not 32, since #1674 retired kepler-analytics: one fewer card and
           // one fewer canonical route. #1681 corrected the sample count in
           // capability-sample-matrix.test.ts and missed these.
-          cards: 31,
-          qualifiedJourneys: 4,
-          canonicalRoutes: 31,
+          cards: 30,
+          qualifiedJourneys: 3,
+          canonicalRoutes: 30,
           legacyRoutes: 20,
           gaps: inputs.matrix.gaps.length,
         },
       });
-      // maplibre-quickstart, imagery-cog-quickstart, migration-workbench,
-      // and service-explorer are the four real, evidence-backed golden
+      // maplibre-quickstart, imagery-cog-quickstart, and service-explorer are
+      // the three real, evidence-backed golden
       // journeys; check stable identity fields rather than the full
       // volatile object (timestamps, run IDs, and screenshot hashes
       // legitimately change every capture).
-      expect(inputs.handoff.qualifiedJourneys).toHaveLength(4);
+      expect(inputs.handoff.qualifiedJourneys).toHaveLength(3);
       expect(
         [...inputs.handoff.qualifiedJourneys].sort((left, right) => left.journeyId.localeCompare(right.journeyId)),
       ).toMatchObject([
-        {
-          journeyId: "arcgis-migration",
-          sampleId: "migration-workbench",
-          canonicalPath: "samples/migration-workbench.html",
-        },
         {
           journeyId: "first-map",
           sampleId: "maplibre-quickstart",
@@ -184,13 +179,12 @@ describe("honua-site consumer handoff", () => {
           (card) => card.track === "golden" || card.track === "recipe" || card.track === "lab",
         ),
       ).toBe(true);
-      // maplibre-quickstart, imagery-cog-quickstart, migration-workbench,
-      // and service-explorer are the four real, evidence-backed qualified
+      // maplibre-quickstart, imagery-cog-quickstart, and service-explorer
+      // are the three real, evidence-backed qualified
       // cards; every OTHER card must still carry no invented evidence.
       const qualifiedCardIds = new Set([
         "maplibre-quickstart",
         "imagery-cog-quickstart",
-        "migration-workbench",
         "service-explorer",
       ]);
       expect(
@@ -204,7 +198,7 @@ describe("honua-site consumer handoff", () => {
         expect(card?.visualEvidence).not.toBeNull();
       }
       expect(inputs.handoff.counts.qualifiedMatrixCells).toEqual({
-        goldenJourneys: 4,
+        goldenJourneys: 3,
         protocolOperations: 5,
         supportClaims: 1,
         packageEntrypoints: 2,

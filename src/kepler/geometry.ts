@@ -2,7 +2,7 @@
  * Geometry classification for the Kepler bridge.
  *
  * Esri-JSON to GeoJSON conversion is delegated to the repository's canonical
- * converter (`src/core/esri-geojson.ts`), which groups clockwise exterior rings
+ * converter (`src/core/geo-services-geojson.ts`), which groups clockwise exterior rings
  * into a `MultiPolygon` and rewinds every ring to the RFC 7946 right-hand rule.
  * A local reimplementation emitted a single `Polygon`, which silently turned
  * later exterior rings into holes of the first. The canonical module is
@@ -18,7 +18,7 @@
  * @module
  */
 
-import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
+import { geoServicesGeometryToGeoJSON } from "../core/geo-services-geojson.js";
 
 export interface KeplerGeoJsonGeometry {
   readonly type: string;
@@ -65,7 +65,7 @@ export function pointCoordinates(geometry: unknown): readonly [number, number] |
  * attribute-only.
  *
  * Geometry that already arrived as GeoJSON passes through untouched; Esri-JSON
- * is delegated to {@link esriGeometryToGeoJSON}, so multi-exterior-ring
+ * is delegated to {@link geoServicesGeometryToGeoJSON}, so multi-exterior-ring
  * polygons become a `MultiPolygon` (not one `Polygon` whose later exterior
  * rings are misread as holes) and every ring is rewound to the RFC 7946
  * right-hand rule Kepler's GeoJSON layer expects.
@@ -77,7 +77,7 @@ export function toKeplerGeoJsonGeometry(geometry: unknown): KeplerGeoJsonGeometr
   if (typeof declaredType === "string" && GEOJSON_GEOMETRY_TYPES.has(declaredType) && "coordinates" in record) {
     return { type: declaredType, coordinates: record["coordinates"] };
   }
-  return esriGeometryToGeoJSON(record);
+  return geoServicesGeometryToGeoJSON(record);
 }
 
 /** UTF-8 byte length of a JSON value, used as the GeoJSON round-trip metric. */

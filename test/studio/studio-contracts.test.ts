@@ -387,7 +387,7 @@ describe("MCP/QGIS-safe surface", () => {
     const studioDir = path.join(process.cwd(), "src", "studio");
     const forbidden = [
       "../operator",
-      "../esri-compat",
+      "../client-compat",
       "../web-components",
       "../interactions",
       "../realtime",

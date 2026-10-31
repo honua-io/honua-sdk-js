@@ -396,7 +396,7 @@ export type { SpatialFilter } from "./core/spatial-filter.js";
 export { batchQuery } from "./core/batch.js";
 export type { BatchQueryItem, BatchQueryOptions, BatchQueryResult } from "./core/batch.js";
 export { decodePbfQueryResponse, isPbfResponse } from "./core/pbf-decoder.js";
-export { esriFeatureToGeoJSON, esriGeometryToGeoJSON } from "./core/esri-geojson.js";
+export { geoServicesFeatureToGeoJSON, geoServicesGeometryToGeoJSON } from "./core/geo-services-geojson.js";
 export {
   decodeElevationPixel,
   decodeTerrainRgbElevation,

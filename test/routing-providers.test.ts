@@ -246,7 +246,7 @@ describe("honuaRoutingProvider", () => {
 });
 
 describe("routingProviderToCompatRouteProvider", () => {
-  it("adapts a RoutingProvider into the esri-compat routeProvider shape", async () => {
+  it("adapts a RoutingProvider into the client-compat routeProvider shape", async () => {
     const { fetchFn } = fixtureFetch("osrm-route.json");
     const provider = osrmRoutingProvider({ baseUrl: "https://osrm.example.test", fetchFn });
     const compatSolve = routingProviderToCompatRouteProvider(provider);

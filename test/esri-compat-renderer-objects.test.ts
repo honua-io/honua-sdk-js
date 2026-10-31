@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { ClassBreaksRendererCompat } from "../src/esri-compat/class-breaks-renderer.js";
+import { ClassBreaksRendererCompat } from "../src/client-compat/class-breaks-renderer.js";
 import {
   rendererObjectFromClassBreaksCompat,
   rendererObjectFromUniqueValueCompat,
-} from "../src/esri-compat/renderer-objects.js";
-import { UniqueValueRendererCompat } from "../src/esri-compat/unique-value-renderer.js";
+} from "../src/client-compat/renderer-objects.js";
+import { UniqueValueRendererCompat } from "../src/client-compat/unique-value-renderer.js";
 import { convertRenderer } from "../src/webmap/index.js";
 import { createWarningCollector } from "../src/webmap/warnings.js";
 
@@ -13,7 +13,7 @@ const RED = { type: "esriSMS", color: [255, 0, 0, 255] as [number, number, numbe
 const GREEN = { type: "esriSMS", color: [0, 255, 0, 255] as [number, number, number, number], size: 10 };
 const GRAY = { type: "esriSMS", color: [128, 128, 128, 255] as [number, number, number, number], size: 8 };
 
-describe("esri-compat renderer shims emit renderer objects", () => {
+describe("client-compat renderer shims emit renderer objects", () => {
   it("ClassBreaksRendererCompat projects to a class-breaks renderer object", () => {
     const compat = new ClassBreaksRendererCompat({
       field: "POP",

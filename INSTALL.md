@@ -28,7 +28,7 @@ published artifact.
 
 ## Which import
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-esri-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
 
 ## Stable subpath entrypoints
 
@@ -44,7 +44,7 @@ minor. At 1.0 the stable tier freezes. See
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
-| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps; replaces `/esri-compat` |
+| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps; replaces `/client-compat` |
 | `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
@@ -130,14 +130,6 @@ replacement's own support status is independent of the shim: promoting
 | `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.3.0` |
 | `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.3.0` |
 | `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.3.0` |
-| `@honua/sdk-js/esri-compat` | `@honua/sdk-js/client-compat` | `2026.2` |
-
-`@honua/sdk-js/esri-compat` was renamed to `@honua/sdk-js/client-compat` in
-`0.1.13`. The old subpath re-exports exactly the same symbols and, on first
-import, warns once per process (Node `DeprecationWarning` code
-`HONUA_ESRI_COMPAT_SUBPATH_RENAMED`, `console.warn` elsewhere) naming the
-replacement. It is removed in the 2026.2 release; change the import specifier
-and nothing else.
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 
@@ -299,7 +291,7 @@ const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
 
 > **Advanced packaging.** Downstream packagers can also produce the split
 > packages, including `@honua/sdk` (`HonuaClient`, not `createHonua`) and
-> `@honua/sdk-esri-compat`, via `npm run build:split-packages`.
+> `@honua/sdk-client-compat`, via `npm run build:split-packages`.
 > `@honua/honua-migrate` is not one of those generated packages.
 > This is an opt-in build target, not the default consumer install. See
 > [`docs/split-packages.md`](./docs/split-packages.md) if you are integrating

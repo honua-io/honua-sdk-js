@@ -13,7 +13,7 @@ describe("split package manifests", () => {
     expect(packageJson.scripts?.["build:split-packages"]).toContain("prepare-split-packages.mjs");
     expect(packageJson.scripts?.["verify:split-packages"]).toContain("verify-split-packages.mjs");
     expect(packageJson.scripts?.["pack:split-packages"]).toContain("dist/packages/honua-sdk");
-    expect(packageJson.scripts?.["pack:split-packages"]).toContain("dist/packages/honua-sdk-esri-compat");
+    expect(packageJson.scripts?.["pack:split-packages"]).toContain("dist/packages/honua-sdk-client-compat");
     expect(packageJson.scripts?.["pack:split-packages"]).not.toContain("dist/packages/honua-migrate");
   });
 
@@ -72,7 +72,7 @@ describe("split package manifests", () => {
 
     expect(verifier).toContain('"@honua/app-platform"');
     expect(verifier).toContain("splitPackageDiscoverabilityErrors");
-    expect(discoverability).toContain('"@honua/sdk-esri-compat"');
+    expect(discoverability).toContain('"@honua/sdk-client-compat"');
     expect(discoverability).toContain('"@honua/app-platform"');
     expect(discoverability).toContain('"arcgis-migration"');
     expect(discoverability).toContain('"maplibre"');

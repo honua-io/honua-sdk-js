@@ -134,9 +134,6 @@ function gitOutput(args, root) {
 //     validated at PR time (verify:root-surface / verify:public-surface).
 //   - bench/cross-sdk/corpus.json: a derived source-tree pin regenerated from
 //     the very src/ tree that IS still inside the digest.
-//   - examples/migration-workbench/public/artifacts: deterministically
-//     generated migration artifacts (regenerated from src + committed fixtures
-//     that remain in the digest).
 //  Because every excluded path is either non-runtime config or is
 //  deterministically derived from source that remains inside the digest,
 //  excluded content cannot let gate evidence drift away from the real SDK and
@@ -153,7 +150,6 @@ const EVIDENCE_NEUTRAL_EXCLUDED_ROOTS = Object.freeze([
   "llms-full.txt",
   "api-report",
   "bench/cross-sdk/corpus.json",
-  "examples/migration-workbench/public/artifacts",
 ]);
 
 // Digest narrowing (honua-io/honua-sdk-js#746 REQ-003): the excluded roots
@@ -1209,12 +1205,8 @@ async function validateLiveEvidence(evidence, evidencePath, receipt, root) {
     "live evidence sample or lane binding mismatch",
   );
   invariant(evidence.sdk.gitCommit === receipt.sourceRevision, "live evidence source revision mismatch");
-  // demo-live samples (e.g. migration-workbench, honua-io/honua-sdk-js#549)
-  // prove liveness against a real, deterministic local process -- never a
-  // network endpoint, per their own no-non-loopback-request requirement --
-  // so their catalog-declared source.endpoint is null. public-live and
-  // authenticated samples still observe a real remote endpoint and must
-  // keep proving it over HTTPS.
+  // Demo-live samples prove liveness against a deterministic local process,
+  // while public-live and authenticated samples observe a remote endpoint.
   const requiresHttpsEndpoint = sample.evidence.live.mode !== "demo-live";
   invariant(
     (requiresHttpsEndpoint

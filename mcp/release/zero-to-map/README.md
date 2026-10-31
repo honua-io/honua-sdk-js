@@ -69,7 +69,7 @@ Prerequisites:
   including `honua_studio_save_version`, `honua_studio_get_version`,
   `honua_studio_reopen_version`, and `honua_studio_propose_publication`.
   It does not require a 432- or 441-tool catalog, and it does not require the
-  `analysis` or `esri-gp` profiles. `honua_esri_gp_*` and `honua_buffer_features`
+  `analysis` or `geoservices-gp` profiles. `honua_geoservices_gp_*` and `honua_buffer_features`
   are not called
 - the `geoprocessing/Buffer` GPServer task seeded for the separate
   `geometry.buffer` proof. That task takes WKB and has no `layerId`
@@ -130,7 +130,7 @@ it does not invoke or pretend to invoke the Docker installer.
 The catalog is checked before the first MCP call. The preflight selects
 `tools/list` view `full` and asserts the closed roster: every tool this journey
 calls, by name, with the stage and action that needs it. It does not require
-432 or 441 tools and it does not require the `analysis` or `esri-gp` profiles.
+432 or 441 tools and it does not require the `analysis` or `geoservices-gp` profiles.
 Extra advertised tools are not a failure. A duplicate name or an input schema
 that rejects a planned argument blocks the run without sending that call.
 Default-profile certification (`certifyAdminCatalogParity`) is a separate gate

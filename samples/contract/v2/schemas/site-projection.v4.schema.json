@@ -62,8 +62,8 @@
     },
     "goldenJourneys": {
       "type": "array",
-      "minItems": 7,
-      "maxItems": 7,
+      "minItems": 6,
+      "maxItems": 6,
       "items": {
         "$ref": "#/$defs/goldenJourney"
       }

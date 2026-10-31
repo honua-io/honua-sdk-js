@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { createPropertyExpression, v8, validateStyleMin } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
-import { ClassBreaksRendererCompat } from "../src/esri-compat/class-breaks-renderer.js";
+import { ClassBreaksRendererCompat } from "../src/client-compat/class-breaks-renderer.js";
 import {
   convertSimpleRendererCompat,
   rendererObjectFromClassBreaksCompat,
   rendererObjectFromUniqueValueCompat,
-} from "../src/esri-compat/renderer-objects.js";
-import { SimpleRendererCompat } from "../src/esri-compat/simple-renderer.js";
-import { UniqueValueRendererCompat } from "../src/esri-compat/unique-value-renderer.js";
+} from "../src/client-compat/renderer-objects.js";
+import { SimpleRendererCompat } from "../src/client-compat/simple-renderer.js";
+import { UniqueValueRendererCompat } from "../src/client-compat/unique-value-renderer.js";
 import { webmapJsonToMapLibreStyle } from "../src/map/webmap-maplibre.js";
 import { rendererFromJSON } from "../src/style/renderers.js";
 import { WEB_MERCATOR_SCALE_AT_ZOOM_ZERO } from "../src/style/visual-variables.js";

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { EditorCompat, SketchCompat, snappingOptionsToSnappingConfig } from "../src/client-compat-entry.js";
 
-describe("esri-compat / snappingOptions mapping", () => {
+describe("client-compat / snappingOptions mapping", () => {
   it("defaults to disabled snapping with the contract tolerance", () => {
     expect(snappingOptionsToSnappingConfig()).toEqual({
       enabled: false,
@@ -41,7 +41,7 @@ describe("esri-compat / snappingOptions mapping", () => {
   });
 });
 
-describe("esri-compat / Sketch snapping options", () => {
+describe("client-compat / Sketch snapping options", () => {
   it("accepts snappingOptions at construction and exposes the mapped config", () => {
     const sketch = new SketchCompat({
       snappingOptions: { enabled: true, distance: 8, featureSources: [{ id: "parcels" }] },
@@ -71,7 +71,7 @@ describe("esri-compat / Sketch snapping options", () => {
   });
 });
 
-describe("esri-compat / Editor snapping options", () => {
+describe("client-compat / Editor snapping options", () => {
   it("accepts snappingOptions and maps them like the Sketch shim", () => {
     const editor = new EditorCompat({
       snappingOptions: { enabled: true, featureSources: [{ layer: { id: "inspections" } }] },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CompatEventBus, FeatureTableCompat } from "../src/client-compat-entry.js";
-import type { FeatureLayerCompat } from "../src/esri-compat/feature-layer.js";
+import type { FeatureLayerCompat } from "../src/client-compat/feature-layer.js";
 
 describe("FeatureTableCompat", () => {
   it("supports when() and watch() for state/rows/filter changes", async () => {

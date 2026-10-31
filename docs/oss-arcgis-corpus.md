@@ -233,7 +233,7 @@ turns that into a CI failure. The three formerly dark apps are measured on the
 page above; the "Detection gaps" section disappears when no app is dark.
 
 The first deep run (2026-08-04) then found the next layer down. `owls-of-bavaria`
-**builds post-codemod** against `@honua/sdk-esri-compat` — baseline build passed,
+**builds post-codemod** against `@honua/sdk-client-compat` — baseline build passed,
 migrated build passed — but it picked up three type diagnostics it did not have
 before, and one of them is structural:
 

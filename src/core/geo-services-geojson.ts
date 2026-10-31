@@ -249,7 +249,7 @@ function hasNumber(geometry: Record<string, unknown>, key: string): boolean {
  * @returns The equivalent GeoJSON geometry, or `null` when the input is empty
  *   or unrecognized.
  */
-export function esriGeometryToGeoJSON(
+export function geoServicesGeometryToGeoJSON(
   geometry: EsriGeometry | Record<string, unknown> | null | undefined,
 ): GeoJsonGeometry | null {
   if (!geometry || typeof geometry !== "object") {
@@ -356,24 +356,24 @@ function readFeatureId(feature: HonuaFeature): string | number | undefined {
  *
  * The feature `id` is derived from common Esri identifier attributes
  * (`OBJECTID`, `objectid`, `id`, `ID`, `FID`) when present, and the geometry is
- * converted with {@link esriGeometryToGeoJSON} (yielding `null` for missing or
+ * converted with {@link geoServicesGeometryToGeoJSON} (yielding `null` for missing or
  * empty geometry).
  *
  * @param feature A contract feature with Esri-shaped `attributes` and
  *   `geometry`.
  * @returns The equivalent GeoJSON feature.
  */
-export function esriFeatureToGeoJSON(feature: HonuaFeature): GeoJsonFeature {
+export function geoServicesFeatureToGeoJSON(feature: HonuaFeature): GeoJsonFeature {
   const id = readFeatureId(feature);
   return {
     type: "Feature",
     ...(id === undefined ? {} : { id }),
-    geometry: esriGeometryToGeoJSON(feature.geometry),
+    geometry: geoServicesGeometryToGeoJSON(feature.geometry),
     properties: feature.attributes ?? {},
   };
 }
 
-// ── GeoJSON → Esri (reverse of esriGeometryToGeoJSON) ─────────────
+// ── GeoJSON → Esri (reverse of geoServicesGeometryToGeoJSON) ─────────────
 //
 // The forward converter rewinds rings to the GeoJSON RFC 7946 right-hand rule
 // (counter-clockwise exterior). Esri uses the opposite convention (clockwise
@@ -398,7 +398,7 @@ function esriRingsFromPolygon(coordinates: readonly (readonly Position[])[]): Po
 
 /**
  * Convert a standard GeoJSON geometry back into Esri-JSON geometry, the inverse
- * of {@link esriGeometryToGeoJSON}. `GeometryCollection` is not representable as
+ * of {@link geoServicesGeometryToGeoJSON}. `GeometryCollection` is not representable as
  * a single Esri geometry and yields `null`.
  *
  * Polygon/MultiPolygon rings are rewound to the Esri winding convention
@@ -411,7 +411,7 @@ function esriRingsFromPolygon(coordinates: readonly (readonly Position[])[]): Po
  * @returns The equivalent Esri geometry, or `null` when the input is empty or
  *   unrepresentable.
  */
-export function geoJsonToEsriGeometry(
+export function geoJsonToGeoServices(
   geometry: GeoJsonGeometry | null | undefined,
   spatialReference?: HonuaSpatialReference,
 ): EsriGeometry | null {

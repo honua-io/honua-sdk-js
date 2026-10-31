@@ -289,7 +289,7 @@ describe("<honua-measurement> units, precision, and fidelity", () => {
 
   // Mean earth radius turf's geodesic ops use (`@turf/helpers` `earthRadius`).
   const EARTH_RADIUS_METERS = 6_371_008.8;
-  // Same WGS84 meters-per-degree constants `MeasurementCompat` (src/esri-compat/measurement.ts) uses.
+  // Same WGS84 meters-per-degree constants `MeasurementCompat` (src/client-compat/measurement.ts) uses.
   const METERS_PER_DEG_LAT = 111_132.92;
   const METERS_PER_DEG_LON_AT_EQUATOR = 111_412.84;
 
@@ -311,7 +311,7 @@ describe("<honua-measurement> units, precision, and fidelity", () => {
   it("computes geodesic area matching the flat-earth parity formula for a small equatorial patch", () => {
     // For a patch this small near the equator, spherical excess is
     // negligible, so the same lat/lon-degree-to-meters approximation the
-    // esri-compat shim uses independently predicts the geodesic area.
+    // client-compat shim uses independently predicts the geodesic area.
     const map = makeMap();
     const element = mount(map);
     modeButton(element, "area").click();

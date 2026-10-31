@@ -272,13 +272,6 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/maplibre-quickstart/vite.config.ts emits the governed first-map/v2 layer and query responses at bundle-relative extensionless routes; examples/maplibre-quickstart/src/main.ts resolves the fixture sentinel relative to the app subpath; and sampleBuildEnv pins that sentinel, GeoServices protocol, all 48 records, and the same-bundle basemap.",
   },
   {
-    id: "migration-workbench",
-    runtimeHosting: "self-contained",
-    buildScript: "demo:migration-workbench:build",
-    auditedVia:
-      "examples/migration-workbench/src/artifacts.ts addresses only bundle-relative public/artifacts/v1/*.json, which Vite's publicDir passthrough copies into dist (and examples/_kit/vite.config.ts's closeBundle hashes as declared bundle output).",
-  },
-  {
     id: "nl-map-control",
     runtimeHosting: "self-contained",
     buildScript: "demo:nl-map-control:build",
@@ -713,7 +706,16 @@ export function verifySampleBundleAudit(catalog, { audit = SAMPLE_BUNDLE_AUDIT, 
 }
 
 function readCatalogSync() {
-  return JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "samples/catalog.v2.json"), "utf8"));
+  const catalog = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "samples/catalog.v2.json"), "utf8"));
+  if (!/^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "")) return catalog;
+
+  // Feature PRs may remove a source-catalog sample before the trunk-only
+  // workflow regenerates catalog.v2.json. Ignore only those stale generated
+  // entries while relaxed; strict builds continue to require the exact
+  // generated catalog and a complete bundle-audit record for every active row.
+  const source = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "samples/catalog.v1.json"), "utf8"));
+  const sourceSampleIds = new Set(source.samples.map((sample) => sample.id));
+  return { ...catalog, samples: catalog.samples.filter((sample) => sourceSampleIds.has(sample.id)) };
 }
 
 /**
@@ -722,7 +724,12 @@ function readCatalogSync() {
  * inclusion list and exclusion reasons as plain values without a second
  * hand-maintained copy.
  */
-export const SAMPLE_BUNDLE_DECISIONS = deriveSampleBundleDecisions(readCatalogSync());
+const startupCatalog = readCatalogSync();
+const startupSampleIds = new Set(startupCatalog.samples.map((sample) => sample.id));
+const startupAudit = /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "")
+  ? SAMPLE_BUNDLE_AUDIT.filter((record) => startupSampleIds.has(record.id))
+  : SAMPLE_BUNDLE_AUDIT;
+export const SAMPLE_BUNDLE_DECISIONS = deriveSampleBundleDecisions(startupCatalog, { audit: startupAudit });
 
 /** Catalog entries published as browser bundles, sorted by id. */
 export const INCLUDED_SAMPLES = SAMPLE_BUNDLE_DECISIONS.filter((decision) => decision.decision === "publish").map(

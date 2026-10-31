@@ -8,7 +8,7 @@ import { canonicalArcGisModulePath, isArcGisModuleSpecifier } from "./module-spe
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
-const DEFAULT_COMPAT_IMPORT_PATH = "@honua/sdk-esri-compat";
+const DEFAULT_COMPAT_IMPORT_PATH = "@honua/sdk-client-compat";
 const ESRI_LEAFLET_IMPORT_PATH = "esri-leaflet";
 const ESRI_LEAFLET_NAMESPACE = "HonuaEsriLeaflet";
 const HONUA_MAP_IMPORT_PATH = "@honua/sdk-js/map";

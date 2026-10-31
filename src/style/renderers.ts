@@ -12,7 +12,7 @@
  * produces byte-identical style JSON.
  *
  * The WebMap JSON converter (`src/webmap/convert-renderer.ts`) and the
- * esri-compat renderer shims emit these objects instead of private
+ * client-compat renderer shims emit these objects instead of private
  * transforms, so there is exactly one class-breaks/unique-value compiler in
  * the SDK.
  *

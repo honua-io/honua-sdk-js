@@ -11,7 +11,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 
-import { deriveExcludedSamples, derivePublishedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
+import { deriveExcludedSamples, derivePublishedSamples } from "./build-sample-bundles.mjs";
 import {
   expectedGateCommand,
   isSampleEvidenceRunId,
@@ -132,7 +132,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/imagery-cog-quickstart/mock-server.mjs", "demo:imagery-cog:build"],
   ["examples/maplibre-quickstart/mock-server.mjs", "demo:quickstart:build"],
   ["examples/mcp-gis-assistant/mock-server.mjs", "demo:mcp-gis-assistant:build"],
-  ["examples/migration-workbench/mock-server.mjs", "demo:migration-workbench:build"],
   ["examples/oauth-signin/mock-server.mjs", "demo:oauth-signin:build"],
   ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build:offline"],
   ["examples/planning-permitting-workbench/mock-server.mjs", "demo:planning-workbench:build"],
@@ -173,7 +172,6 @@ const RESERVED_GOLDEN_JOURNEY_IDS = [
   "incident-operations",
   "imagery-terrain",
   "cloud-native-analysis",
-  "arcgis-migration",
 ];
 const GOLDEN_VISUAL_GATE_ORDER = Object.freeze([
   "packed-build",
@@ -360,19 +358,6 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
   [
-    "evidence:migration-workbench:live",
-    {
-      definition:
-        "npm run prepare:test-sdk --silent && node scripts/migration-workbench-live-evidence.mjs --output samples/evidence/migration-workbench/live.v1.json",
-      generatorPath: "scripts/migration-workbench-live-evidence.mjs",
-      sampleId: "migration-workbench",
-      operation: "migration-workbench-deterministic-cli-replay",
-      dependencies: {
-        "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",
-      },
-    },
-  ],
-  [
     "evidence:overture:live",
     {
       definition: "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",
@@ -435,7 +420,6 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "imagery-cog",
   "incident",
   "mcp-gis-assistant",
-  "migration-workbench",
   "nl-map-control",
   "oauth-signin",
   "overture",
@@ -470,7 +454,6 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:geocoding",
   "test:playwright:imagery-cog",
   "test:playwright:incident",
-  "test:playwright:migration-workbench",
   "test:playwright:overture",
   "test:playwright:planning-workbench",
   "test:playwright:quickstart",
@@ -2992,7 +2975,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     `golden journey IDs must be reserved in canonical order: ${RESERVED_GOLDEN_JOURNEY_IDS.join(", ")}`,
   );
   invariant(
-    new Set(catalog.goldenJourneys.map((journey) => journey.candidateSampleId)).size === 7,
+    new Set(catalog.goldenJourneys.map((journey) => journey.candidateSampleId)).size === 6,
     "golden journey candidate sample IDs must be unique",
   );
 
@@ -3478,7 +3461,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       sortedUnique(mapping.capabilities, `${mapping.id}.capabilities`);
     }
   }
-  invariant(catalog.siteMappings.length === 21, "the compatibility route fixture must map all 21 existing honua.io samples");
+  invariant(catalog.siteMappings.length === 20, "the compatibility route fixture must map all 20 remaining honua.io samples");
 }
 
 export async function validateLiveEvidenceProducer(evidence, sample, options = {}) {
@@ -3610,6 +3593,7 @@ function publicSample(sample, sdk) {
 
 export function generateSiteProjection(catalog, packageJson) {
   const effective = effectiveCatalog(catalog, packageJson);
+  const publishedSamples = derivePublishedSamples(catalog);
   const routes = catalog.siteMappings.map((mapping) => {
     if (mapping.ownership === "site-exception") {
       return {
@@ -3679,8 +3663,8 @@ export function generateSiteProjection(catalog, packageJson) {
         manifestAsset: "sample-bundles.v2.json",
         bundleAsset: "sample-bundles.tar.gz",
       },
-      sampleIds: [...INCLUDED_SAMPLE_IDS].sort(),
-      published: derivePublishedSamples(catalog),
+      sampleIds: publishedSamples.map((sample) => sample.id).sort(),
+      published: publishedSamples,
       excluded: deriveExcludedSamples(catalog),
     },
   };
@@ -8352,7 +8336,7 @@ async function runContract(command, options = {}) {
     validateGeneratedOutputDrift(drift, { relaxed: options.relaxGeneratedOutputs });
   }
   process.stdout.write(
-    `${command === "write" ? "Generated" : "Verified"} ${catalog.samples.length} SDK and docs examples, seven reserved journey IDs, and ${catalog.siteMappings.length} honua.io routes (${catalog.format})\n`,
+    `${command === "write" ? "Generated" : "Verified"} ${catalog.samples.length} SDK and docs examples, six reserved journey IDs, and ${catalog.siteMappings.length} honua.io routes (${catalog.format})\n`,
   );
 }
 

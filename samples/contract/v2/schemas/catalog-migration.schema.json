@@ -27,8 +27,8 @@
     "configuration": { "type": "object" },
     "goldenJourneys": {
       "type": "array",
-      "minItems": 7,
-      "maxItems": 7,
+      "minItems": 6,
+      "maxItems": 6,
       "items": {
         "type": "object",
         "required": ["id", "title", "status", "candidateSampleId"],

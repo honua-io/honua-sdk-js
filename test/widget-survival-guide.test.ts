@@ -67,7 +67,7 @@ describe("widget disposition data", () => {
     }
   });
 
-  it("grounds shim-backed dispositions in real files under src/esri-compat/", () => {
+  it("grounds shim-backed dispositions in real files under src/client-compat/", () => {
     for (const entry of WIDGET_DISPOSITIONS) {
       if (
         entry.disposition === "automated" ||

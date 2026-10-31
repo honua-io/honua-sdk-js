@@ -2,8 +2,8 @@
 
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { LegendCompat } from "../src/esri-compat/legend.js";
-import { HonuaWidgetHost, registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
+import { LegendCompat } from "../src/client-compat/legend.js";
+import { HonuaWidgetHost, registerHonuaWidgetKit } from "../src/client-compat/widget-host.js";
 
 /**
  * Widget-host tag-ownership verification (PR #506 review): when another

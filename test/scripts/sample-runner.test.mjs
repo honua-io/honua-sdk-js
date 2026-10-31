@@ -723,7 +723,6 @@ test("child environment strips host secrets and undefined overrides", () => {
 
 test("fixture mock CLIs reject unknown arguments before binding a server", () => {
   for (const file of [
-    "examples/migration-workbench/mock-server.mjs",
     "examples/service-explorer/mock-server.mjs",
     "examples/maplibre-quickstart/mock-server.mjs",
   ]) {

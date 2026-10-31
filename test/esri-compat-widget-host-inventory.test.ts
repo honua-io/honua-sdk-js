@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
  */
 
 const root = path.resolve(import.meta.dirname, "..");
-const compatDir = path.join(root, "src/esri-compat");
+const compatDir = path.join(root, "src/client-compat");
 const guidePath = path.join(root, "docs/migration-honua-maplibre.md");
 
 const HOST_CALL = /(?:new HonuaWidgetHost|bindHonuaWidgetHost|retargetWidgetHost)\(\s*"([^"]+)"/g;

@@ -58,8 +58,8 @@ field from this crosswalk and fails closed on:
 An entry may legitimately end up with an empty `capabilityKeys` array --
 that is the explicit "no platform capability" state, valid only when every
 one of its `capabilities` slugs is `internalOnly` in the crosswalk (10 of the
-32 current entries, e.g. `react-quickstart`, `web-components-basic`,
-`migration-workbench`: dev-tooling, framework-binding, or SDK-internal
+32 current entries, e.g. `react-quickstart`, `web-components-basic`:
+dev-tooling, framework-binding, or SDK-internal
 demos with no discrete platform capability to claim).
 
 `samples/dist/honua-site-samples.v2.json` (the #401 site projection) carries
@@ -93,7 +93,7 @@ two inputs:
 2. `config/sdk-coverage-crosswalk.v1.json`'s `extras` -- a small, hand-specified
    set of SDK feature areas support-manifest.v1.json does not model as
    protocols/supportClaims (geocoding, routing, offline regions, the plugin
-   SDK, COG range-reads, OGC API Styles, the esri-compat Portal facade, OAuth,
+   SDK, COG range-reads, OGC API Styles, the client-compat Portal facade, OAuth,
    diagnostics, and agent-safety). Each entry names existence-checked
    `sourceFiles` and `evidence` test paths, so a deleted or renamed file fails
    generation. `extras` entries take precedence over an auto-derived entry for

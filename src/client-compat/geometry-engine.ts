@@ -25,7 +25,7 @@
  * @module
  */
 
-import { esriGeometryToGeoJSON, geoJsonToEsriGeometry } from "../core/esri-geojson.js";
+import { geoJsonToGeoServices, geoServicesGeometryToGeoJSON } from "../core/geo-services-geojson.js";
 import type { EsriGeometry, HonuaSpatialReference } from "../core/types.js";
 import type { GeoJsonGeometry } from "../expr/expression.js";
 import {
@@ -119,7 +119,7 @@ function nativeCrs(sr: HonuaSpatialReference | undefined): number {
 
 function toGeoJson(input: GeometryEngineInput): { geometry: GeoJsonGeometry; sr: HonuaSpatialReference | undefined } {
   const esri = resolveEsriGeometry(input);
-  const geometry = esriGeometryToGeoJSON(esri);
+  const geometry = geoServicesGeometryToGeoJSON(esri);
   if (!geometry) {
     throw new TypeError("geometryEngineCompat: input is not a valid geometry");
   }
@@ -127,7 +127,7 @@ function toGeoJson(input: GeometryEngineInput): { geometry: GeoJsonGeometry; sr:
 }
 
 function toEsri(geometry: GeoJsonGeometry | null, sr: HonuaSpatialReference | undefined): EsriGeometry | null {
-  return geometry ? geoJsonToEsriGeometry(geometry, sr) : null;
+  return geometry ? geoJsonToGeoServices(geometry, sr) : null;
 }
 
 // ── Measurement ──────────────────────────────────────────────────
