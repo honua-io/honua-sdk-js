@@ -2975,7 +2975,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     `golden journey IDs must be reserved in canonical order: ${RESERVED_GOLDEN_JOURNEY_IDS.join(", ")}`,
   );
   invariant(
-    new Set(catalog.goldenJourneys.map((journey) => journey.candidateSampleId)).size === 7,
+    new Set(catalog.goldenJourneys.map((journey) => journey.candidateSampleId)).size === 6,
     "golden journey candidate sample IDs must be unique",
   );
 

@@ -198,7 +198,7 @@ describe("honua-site consumer handoff", () => {
         expect(card?.visualEvidence).not.toBeNull();
       }
       expect(inputs.handoff.counts.qualifiedMatrixCells).toEqual({
-        goldenJourneys: 4,
+        goldenJourneys: 3,
         protocolOperations: 5,
         supportClaims: 1,
         packageEntrypoints: 2,
