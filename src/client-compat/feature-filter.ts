@@ -48,13 +48,13 @@ export interface FeatureFilterHandleCompat {
 }
 
 /**
- * ArcGIS-shaped `FeatureFilter` properties, for handing a compat filter to an
- * ArcGIS construct that has not been migrated.
+ * Feature filter properties for passing a compatibility filter to an
+ * application component that has not been migrated.
  *
- * `objectIds` is narrowed to ArcGIS's `number[]` here, which is exactly the
- * narrowing {@link FeatureFilterCompat.toEsriProperties} has to prove.
+ * `objectIds` is narrowed to `number[]` here, which is exactly the narrowing
+ * {@link FeatureFilterCompat.toFeatureFilterProperties} has to prove.
  */
-export interface FeatureFilterEsriProperties {
+export interface FeatureFilterProperties {
   where?: string;
   objectIds?: number[];
   geometry?: FeatureFilterGeometryCompat;
@@ -65,20 +65,18 @@ export interface FeatureFilterEsriProperties {
 }
 
 /**
- * ArcGIS `FeatureFilter` shim.
+ * Feature filter adapter.
  *
- * **Documented divergence — `objectIds` element type (#1013).** ArcGIS
- * declares `objectIds: number[]`. This shim declares
- * `Array<number | string>`: Honua's non-Esri sources (OGC API Features,
- * GeoJSON, STAC) carry string feature ids, and narrowing the property to
- * `number` would make the shim unable to hold ids it has to round-trip
- * through `queryFeatures` / `queryObjectIds`. The array itself is mutable, as
- * ArcGIS declares it — `filter.objectIds.push(id)` is honored, because the
- * array the shim stores is the array it evaluates.
+ * **Documented divergence — `objectIds` element type (#1013).** Some
+ * GeoServices REST services use numeric identifiers, while OGC API Features,
+ * GeoJSON, and STAC sources may use strings. The public filter therefore
+ * accepts `Array<number | string>` so feature identifiers survive a
+ * queryFeatures / queryObjectIds round trip. The array remains mutable, and
+ * `filter.objectIds.push(id)` is honored because the stored array is evaluated.
  *
- * Use {@link FeatureFilterCompat.toEsriProperties} to project the filter onto
- * the exact ArcGIS shape; it fails loudly rather than silently dropping an id
- * ArcGIS cannot represent. See `docs/migration-punch-list.md`.
+ * Use {@link FeatureFilterCompat.toFeatureFilterProperties} to project the
+ * filter onto the legacy feature filter shape. It fails rather than silently
+ * dropping an identifier that the target cannot represent.
  */
 export class FeatureFilterCompat {
   public where: string | null;
@@ -168,16 +166,15 @@ export class FeatureFilterCompat {
   }
 
   /**
-   * Project this filter onto the ArcGIS `FeatureFilterProperties` shape so a
-   * partially migrated app can hand it to an un-migrated `@arcgis/core`
-   * construct (#1013 REQ-003).
+   * Project this filter onto the legacy `FeatureFilterProperties` shape so a
+   * partially migrated app can hand it to an unmigrated component (#1013 REQ-003).
    *
-   * Throws when `objectIds` holds an id ArcGIS cannot represent: ArcGIS object
-   * ids are numbers, and quietly dropping or coercing a string id would hand
-   * back a filter that selects a different set of features than this one.
+   * Throws when `objectIds` holds an identifier the target shape cannot
+   * represent. Quietly dropping or coercing it would return a filter that
+   * selects a different set of features than the caller requested.
    */
-  public toEsriProperties(): FeatureFilterEsriProperties {
-    const properties: FeatureFilterEsriProperties = {
+  public toFeatureFilterProperties(): FeatureFilterProperties {
+    const properties: FeatureFilterProperties = {
       spatialRelationship: this.spatialRelationship,
     };
     if (this.where != null) properties.where = this.where;
@@ -188,7 +185,7 @@ export class FeatureFilterCompat {
       if (unrepresentable.length > 0) {
         const rendered = unrepresentable.map((objectId) => JSON.stringify(objectId)).join(", ");
         throw new Error(
-          `FeatureFilterCompat.toEsriProperties cannot represent non-numeric object ids as ArcGIS number[]: ${rendered}.`,
+          `FeatureFilterCompat.toFeatureFilterProperties cannot represent non-numeric object ids: ${rendered}.`,
         );
       }
       properties.objectIds = this.objectIds as number[];

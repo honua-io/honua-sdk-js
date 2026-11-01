@@ -7,16 +7,15 @@ import {
   WFSLayerCompat,
 } from "../src/client-compat-entry.js";
 
-// #1013 — the compat surface used to declare `objectIds` (and a family of
-// sibling array properties) as `ReadonlyArray`, an undocumented divergence
-// from the mutable arrays ArcGIS declares. The array-mutability divergence is
-// fixed here; the element-type widening is kept, documented, and given an
-// explicit projection.
+// #1013 — the compatibility surface used to declare `objectIds` (and a family
+// of sibling array properties) as `ReadonlyArray`, an undocumented divergence
+// from the mutable arrays used by legacy consumers. The array-mutability
+// divergence is fixed here; the element-type widening is kept and documented.
 describe("FeatureFilterCompat.objectIds contract", () => {
-  it("exposes a mutable array, as ArcGIS declares, and honors mutation", () => {
+  it("exposes a mutable array and honors mutation", () => {
     const filter = new FeatureFilterCompat({ objectIds: [1, 2] });
 
-    // Legal against ArcGIS, and now legal against the shim.
+    // Mutations through the compatibility surface are preserved.
     filter.objectIds?.push(3);
 
     expect(filter.objectIds).toEqual([1, 2, 3]);
@@ -44,7 +43,7 @@ describe("FeatureFilterCompat.objectIds contract", () => {
     expect(filter.objectIds).toEqual([4, 5]);
   });
 
-  it("projects onto the ArcGIS property shape via toEsriProperties()", () => {
+  it("projects onto the legacy feature filter shape", () => {
     const filter = new FeatureFilterCompat({
       where: "TYPE = 'owl'",
       objectIds: [1, 2],
@@ -53,7 +52,7 @@ describe("FeatureFilterCompat.objectIds contract", () => {
       units: "meters",
     });
 
-    const properties = filter.toEsriProperties();
+    const properties = filter.toFeatureFilterProperties();
 
     expect(properties).toEqual({
       where: "TYPE = 'owl'",
@@ -62,25 +61,25 @@ describe("FeatureFilterCompat.objectIds contract", () => {
       distance: 5,
       units: "meters",
     });
-    // ArcGIS wants a mutable `number[]`; the projection hands one over.
+    // The target shape accepts a mutable `number[]`; the projection hands one over.
     properties.objectIds?.push(3);
     expect(properties.objectIds).toEqual([1, 2, 3]);
   });
 
-  it("refuses to project object ids ArcGIS cannot represent instead of dropping them", () => {
+  it("refuses to project object ids the target cannot represent", () => {
     const filter = new FeatureFilterCompat({ objectIds: [1, "urn:feature:a"] });
 
-    expect(() => filter.toEsriProperties()).toThrow(/non-numeric object ids/);
-    expect(() => filter.toEsriProperties()).toThrow(/urn:feature:a/);
+    expect(() => filter.toFeatureFilterProperties()).toThrow(/non-numeric object ids/);
+    expect(() => filter.toFeatureFilterProperties()).toThrow(/urn:feature:a/);
   });
 
   it("omits absent properties from the projection", () => {
-    expect(new FeatureFilterCompat().toEsriProperties()).toEqual({ spatialRelationship: "intersects" });
+    expect(new FeatureFilterCompat().toFeatureFilterProperties()).toEqual({ spatialRelationship: "intersects" });
   });
 });
 
-// REQ-002: the same divergence is fixed as a class, not one property.
-describe("compat array properties ArcGIS declares as mutable", () => {
+// REQ-002: the same divergence is fixed across the adapter, not one property.
+describe("compatibility array properties remain mutable", () => {
   it("GeoJSONLayerCompat.outFields and .fields are mutable copies", () => {
     const outFields: ReadonlyArray<string> = Object.freeze(["NAME"]);
     const fields = [{ name: "NAME" }];
@@ -98,7 +97,7 @@ describe("compat array properties ArcGIS declares as mutable", () => {
   it("ImageryLayerCompat.bandIds is a mutable copy", () => {
     const bandIds: ReadonlyArray<number> = Object.freeze([0, 1]);
     const layer = new ImageryLayerCompat({
-      url: "https://example.test/arcgis/rest/services/demo/ImageServer",
+      url: "https://example.test/rest/services/demo/ImageServer",
       bandIds,
     });
 

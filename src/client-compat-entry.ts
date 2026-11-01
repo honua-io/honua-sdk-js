@@ -595,7 +595,7 @@ export type { FeatureEffectCompatOptions } from "./client-compat/feature-effect.
 export { FeatureFilterCompat } from "./client-compat/feature-filter.js";
 export type {
   FeatureFilterCompatOptions,
-  FeatureFilterEsriProperties,
+  FeatureFilterProperties,
   FeatureFilterGeometryCompat,
   FeatureFilterHandleCompat,
   FeatureFilterLoadStatusCompat,

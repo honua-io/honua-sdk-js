@@ -1,13 +1,13 @@
-# ArcGIS JS SDK → Honua JS SDK migration punch list
+# third-party JavaScript mapping SDK → Honua JS SDK migration punch list
 
 This is an honest accounting of where the Honua JS SDK's two
 public-facing claims stand:
 
-1. **"Parity with the ArcGIS JS SDK"** — the symbol surface app
+1. **"Parity with the third-party JavaScript mapping SDK"** — the symbol surface app
    authors can `import` and call against.
 2. **"Automated app conversion"** — the npm program is `@honua/honua-migrate`.
    `@honua/sdk-js/migration` forwards to that package. `src/migration/codemod.ts`
-   is the in-repo suite, not the npm program. It rewrites ArcGIS
+   is the in-repo suite, not the npm program. It rewrites third-party SDK
    imports and constructors to Honua compat shims.
 
 It is intentionally written so a reader can tell what is shipped,
@@ -21,7 +21,7 @@ below are aspirational — they are concrete work items.
 ### Parity surface (`src/client-compat/`)
 
 The compat module ships shims for the constructors enumerated in
-`src/migration/codemod.ts::SUPPORTED_ARCGIS_MODULE_KIND_BY_PATH`.
+the codemod's supported-module map.
 Every kind in that map has a row in `parity-matrix.ts`, and every
 row is asserted by `test/migration-parity-matrix.test.ts`. The
 shims back onto real Honua surfaces in `src/core/` (HonuaClient,
@@ -49,8 +49,8 @@ than being throwaway no-ops. Specifically:
   `Bookmarks`, `Print`, `Sketch`, `Editor`, `Expand`, `TimeSlider`,
   `Directions`, `CoordinateConversion`, `Measurement`
 - Tasks & support: `RouteTask`, `Locator`, `LocatorSearchSource`,
-  `Query`, `OAuthInfo`, `IdentityManager`, `esriRequest`,
-  `esriConfig`, `reactiveUtils`, `FeatureFilter`
+  `Query`, `OAuthInfo`, `IdentityManager`, `request helper`,
+  `SDK configuration`, `reactiveUtils`, `FeatureFilter`
 
 The `MapViewLayerViewCompat` returned from `view.whenLayerView()`
 now carries `filter` / `effect` / `visible` state and forwards
@@ -59,7 +59,7 @@ filter predicates through `queryFeatures` / `queryFeatureCount` /
 `spatialRelationship`, and `timeExtent` with any per-call options
 (layer-view filter ∧ caller-provided options).
 
-`Sketch` and `Editor` now accept ArcGIS-shaped `snappingOptions`
+`Sketch` and `Editor` now accept source-SDK-shaped `snappingOptions`
 (`enabled`, `distance`, `featureEnabled`, `selfEnabled`,
 `featureSources`) and map them onto the renderer-neutral
 `SnappingConfig` from `@honua/sdk-js/contract`
@@ -81,7 +81,7 @@ scope with the rest of the SceneView surface.
 real AST rewriter built on the TypeScript Compiler API (it does **not** use
 regex). It:
 
-- Detects `import { X } from "@arcgis/core/..."` and rewrites
+- Detects `import { X } from "source SDK module path"` and rewrites
   bindings to the matching `XCompat` symbol from `client-compat`.
 - Detects `new X(opts)` for every kind above and rewrites to the
   compat constructor when the option literal is "safe" — i.e.,
@@ -96,14 +96,14 @@ regex). It:
   for every untouched call site, so app authors can drive cleanup
   against a checklist.
 - Emits a parity report (`src/migration/report.ts`) with four
-  gates (`arcgis-usage-detected`, `no-manual-todos`,
-  `no-unhandled-modules`, `no-blocking-flags`) and a readiness
-  verdict. A scan that recognized no ArcGIS usage reports
+  checks covering source usage, manual TODOs, unhandled modules,
+  and blocking flags, plus a readiness
+  verdict. A scan that recognized no source SDK usage reports
   `no-usage-detected` rather than letting the other three gates pass
   vacuously into a `ready`; `--fail-on-no-usage` fails a CI lane on
   it.
-- Knows the `esri-leaflet` migration target as a separate column,
-  with `ESRI_LEAFLET_COMPAT_FALLBACK_KINDS` gating which kinds are
+- Knows the Leaflet adapter migration target as a separate column,
+  with a fallback-kind set gating which kinds are
   treated as deterministic vs. assisted.
 - Knows the `honua-maplibre` migration target as a third column,
   gated by `HONUA_MAPLIBRE_NATIVE_KINDS` (`feature-layer`,
@@ -148,7 +148,7 @@ hold the surface stable).
    caller supplies the endpoint (Nominatim / Photon / Pelias / a
    Honua GeocodeServer), so the codemod rewrites the constructor
    but cannot choose the provider; that one wiring step stays
-   assisted, and `@arcgis/core/rest/locator` function imports are
+   assisted, and `source SDK locator module` function imports are
    rewritten with a TODO for the URL-to-`LocatorCompat` swap.
    Provider capability misses (no `suggest` on Nominatim) throw
    `HonuaCapabilityNotSupportedError` instead of degrading to a
@@ -163,7 +163,7 @@ hold the surface stable).
    `resultOffset`, `num` → `resultRecordCount`, `outSpatialReference`
    → `outSr`, `spatialRelationship` → `spatialRel`; splits
    `geometry: { type, ...rest }` into a sibling `geometryType`
-   field with the matching `esriGeometry*` enum value; and
+   field with the matching GeoServices REST geometry type value; and
    lowercases `outStatistics[i].statisticType` against the
    STATISTIC_TYPE_MAP keyset (count/sum/min/max/avg/stddev/var).
    Divergent / dynamic shapes emit a manual TODO with a precise
@@ -173,7 +173,7 @@ hold the surface stable).
    Honua support), `geometry` without a string-literal `type`
    discriminator, and `outStatistics` items with a non-literal
    `statisticType` or an unknown enum value. The shim
-   `QueryCompat` accepts either ArcGIS or Honua property
+   `QueryCompat` accepts either source SDK or Honua property
    spellings (`spatialRelationship` / `spatialRel`,
    `outSpatialReference` / `outSr`, `num` / `resultRecordCount`,
    `start` / `resultOffset`) so codemod output and hand-written
@@ -183,7 +183,7 @@ hold the surface stable).
    These rewrite cleanly only for the simple case; arrow-function
    field-info `format` callbacks fall through to manual TODO.
 6. **Widget UI behavior.** The widget shims accept the same
-   constructor options ArcGIS does. A shim that constructs a
+   constructor options the source SDK does. A shim that constructs a
    `HonuaWidgetHost` renders after the app registers the
    web-component kit. A shim that does not construct a host stays
    state-model-only. The current lists are in
@@ -191,12 +191,12 @@ hold the surface stable).
    Visual parity (icons, ARIA, CSS class names that downstream
    apps style against) is **not** byte-identical; apps that rely on
    `calcite-action--`-prefixed selectors will need style work.
-7. **Typed-surface divergences from the emulated ArcGIS shape.**
-   The shims are structurally compatible with the ArcGIS surface
+7. **Typed-surface divergences from the emulated source SDK shape.**
+   The shims are structurally compatible with the source SDK surface
    they emulate except where this list says otherwise. The audit
    of array-valued properties (#1013) settled as follows.
 
-   *Array mutability — fixed, no divergence.* ArcGIS declares
+   *Array mutability — fixed, no divergence.* the source API declares
    these as mutable arrays and the shims now do too:
    `FeatureFilterCompat.objectIds`, `GeoJSONLayerCompat.outFields`,
    `GeoJSONLayerCompat.fields`, `ImageryLayerCompat.bandIds`,
@@ -206,25 +206,25 @@ hold the surface stable).
    the array the caller passed in. The corresponding `*Options`
    input properties stay `ReadonlyArray` on purpose: an input that
    accepts a readonly array is strictly *more* permissive than
-   ArcGIS's, so it is not a divergence.
+   the source API's, so it is not a divergence.
 
    *`FeatureFilterCompat.objectIds` element type — deliberate,
-   kept.* ArcGIS declares `number[]`; the shim declares
-   `Array<number | string>`. Honua's non-Esri sources (OGC API
+   kept.* the source API declares `number[]`; the shim declares
+   `Array<number | string>`. Honua's non-vendor-specific sources (OGC API
    Features, GeoJSON, STAC) carry string feature ids, and
    narrowing the property to `number` would make the shim unable
    to hold ids it has to round-trip through `queryFeatures` /
    `queryObjectIds`. Because `(number | string)[]` is not
    assignable to `number[]`, handing a compat filter straight to
-   an un-migrated ArcGIS construct still does not typecheck — so
-   the shim exposes `FeatureFilterCompat.toEsriProperties()`,
-   which projects onto the exact ArcGIS `FeatureFilterProperties`
-   shape and **throws** on an id ArcGIS cannot represent rather
+   an unmigrated feature-filter consumer still does not typecheck — so
+   the shim exposes `FeatureFilterCompat.toFeatureFilterProperties()`,
+   which projects onto the legacy `FeatureFilterProperties` shape
+   and **throws** when the target cannot represent an identifier rather
    than silently dropping it and returning a filter that selects a
    different feature set. The codemod does not create that handoff
    on its own any more; see codemod gap 7.
 8. **`reactiveUtils.watch` semantics (partial).** Compat `watch` is
-   property-name-based and synchronous. ArcGIS `watch` accepts an
+   property-name-based and synchronous. third-party SDK `watch` accepts an
    accessor function and returns a `WatchHandle` with `pause()` /
    `resume()`. Single-property accessors —
    `reactiveUtils.watch(() => view.scale, h)` where `view` is a
@@ -242,8 +242,8 @@ known constructors" into "automated app conversion":
 1. **Event-name remap (Task D, partial).**
    The codemod now rewrites well-known divergent event names on
    `.on()` and `.watch()` calls in files that have at least one
-   ArcGIS import being touched. The dictionary is in
-   `ARCGIS_TO_COMPAT_EVENT_REMAP` in `src/migration/codemod.ts`
+   source SDK import being touched. The event remap table in
+   `src/migration/codemod.ts`
    and currently covers `layerview-create*`, `layerview-destroy`,
    `visibility-change`, `extent-change`, `rotation-change`,
    `scale-change`, `zoom-change`, `center-change`,
@@ -254,39 +254,39 @@ known constructors" into "automated app conversion":
    `quality-profile-change`, `viewing-mode-change`, and `refresh`.
    Receiver-aware scoping is now in place: the rewrite only fires
    when the receiver is an Identifier whose binding came from
-   `new XCompat(...)` where `X` was a tracked ArcGIS import (via
+   `new XCompat(...)` where `X` was a tracked source SDK import (via
    `resolveAssignedIdentifierForNewExpression`). Receivers that
    don't trace back to a tracked compat instance (e.g.,
    `someEmitter.on("layerview-create", h)`) are left alone even
-   when the file has ArcGIS imports. What is still missing:
+   when the file has source SDK imports. What is still missing:
    pointer/keyboard event handlers (`click`, `pointer-down`,
    `key-down`, …) which compat doesn't emit yet.
 2. **Dynamic / CJS imports (Task F, partial).**
-   Dynamic ESM imports (`import("@arcgis/core/...")`) are
-   rewritten through the `isArcGisDynamicImportCall` pass and have
-   test coverage for SceneView, esriConfig, esriRequest, and
-   IdentityManager. CommonJS `require("@arcgis/core/...")` is now
+   Dynamic ESM imports from the source SDK are rewritten through
+   a dedicated pass and have
+   test coverage for SceneView, SDK configuration, request helper, and
+   IdentityManager. CommonJS `require` calls are now
    auto-rewritten for the `honua-compat` target when constructor
    options are safe: the codemod emits
    `const { XCompat } = require("@honua/sdk-client-compat");` and
    rewrites `new X(opts)` to `new XCompat(opts)` in `.cjs` files
    and `.js` files containing CommonJS markers. The original
-   `const X = require("@arcgis/core/...")` declaration is now
+   the source-module declaration is now
    pruned when no other references to `X` remain in the file
    (constructor calls are the only references in the typical case;
    the codemod scans for non-constructor uses and preserves the
-   require if it sees any). The `esri-leaflet` target still emits
+   require if it sees any). The `Leaflet adapter` target still emits
    a manual TODO for CJS require constructors.
 3. **Module re-exports beyond the registered set.** The codemod
-   already follows `localArcGisReExports` for one level. Deeper
-   barrel-file chains (`./esri.ts` → `./layers/index.ts` → …)
+   already follows local re-export chains for one level. Deeper
+   barrel-file chains (`./source.ts` → `./layers/index.ts` → …)
    aren't followed.
 4. **`view.map.add(layer)` argument-shape transformations.**
    When a `new FeatureLayer({ ... })` is rewritten, its option
    literal is passed through verbatim. We do **not** translate
-   ArcGIS-shaped properties whose Honua-side names differ
+   source-SDK-shaped properties whose Honua-side names differ
    (e.g., `renderer.field` casing, `popupTemplate.content` block
-   shapes). The shim accepts the ArcGIS shape at runtime, but
+   shapes). The shim accepts the source SDK shape at runtime, but
    the report should flag known-divergent property values so app
    authors can confirm intent.
 5. **WebMap JSON → MapLibre style derivation (`honua-maplibre`
@@ -306,7 +306,7 @@ known constructors" into "automated app conversion":
    Arcade label expressions), `unsupported-renderer` (heatmap,
    dotDensity, and any other renderer the converter doesn't
    handle), `scene-3d` (top-level `ground` / `camera` /
-   `viewingMode`, `ArcGISSceneServiceLayer`, `elevationInfo`,
+   `viewingMode`, `scene service layer type`, `elevationInfo`,
    `heightInfo`, `sceneProperties`), `dashboard-reference`,
    `experience-builder-reference`, `custom-widget-reference`
    (`applicationProperties.viewing.widgetsOnScreen` and the
@@ -334,16 +334,16 @@ known constructors" into "automated app conversion":
    cannot synthesize from JSON alone. Each emitted gap is a `//
    TODO` anchor for an app author, not a promise of automated
    migration.
-6. **Compat → ArcGIS seams (detected, not bridged).** *Shipped as
+6. **Compat → third-party SDK seams (detected, not bridged).** *Shipped as
    detection (#1012).* A file can hold an in-scope producer whose
    only consumer is out of scope — the shape the OSS-corpus deep
    lane hit in `lujoh/owls_of_bavaria`, where a `FeatureFilter`
-   feeds an `@arcgis/core/layers/support/FeatureEffect` the
+   feeds a feature-effect module the
    codemod does not migrate. Rewriting only the producer leaves a
-   compat value in an un-migrated ArcGIS constructor's hands: a
+   compat value in an un-migrated source SDK constructor's hands: a
    seam that does not typecheck, previously scored as a clean
    auto-migration. The codemod now detects the handoff
-   syntactically — `new X()` directly in an out-of-scope ArcGIS
+   syntactically — `new X()` directly in an out-of-scope third-party SDK
    consumer's argument, a local bound to one, or a local function
    that returns one, plus assignment onto an out-of-scope
    instance's property — **holds the rewrite back**, and emits a
@@ -352,7 +352,7 @@ known constructors" into "automated app conversion":
    `metrics.seamCallSites` / `JsMigrationReport.seamCallSites`;
    they are never counted as auto-migrated. What is *not* done:
    the codemod does not bridge the seam (no inserted
-   `toEsriProperties()` call, no consumer rewrite), and the
+   `tovendor-specificProperties()` call, no consumer rewrite), and the
    analysis is file-local and bounded by design — a value that
    crosses a module boundary or moves through a data structure it
    cannot follow is not reported.
@@ -383,7 +383,7 @@ In rough effort order:
 | --- | --- | --- |
 | Codemod event-name remap (Task D) | 1–2 days | Pure JS-side work; needs an event-name dictionary plus AST pass. |
 | Codemod dynamic-import + CJS (Task F) | 1–2 days | Mirror the static-ESM path; care needed for awaited dynamic imports' destructuring. |
-| ~~Query argument deep-transform (Task E)~~ | ~~3–5 days~~ | Shipped: codemod renames `start`/`num`/`outSpatialReference`/`spatialRelationship`, splits `geometry` into `geometry`+`geometryType`, normalizes `outStatistics[i].statisticType` against `STATISTIC_TYPE_MAP`, and emits precise manual TODOs for `timeExtent`, `quantizationParameters`, `relationParam`, dynamic statisticType, and geometry without a literal `type`. `QueryCompat` accepts both ArcGIS and Honua property spellings. |
+| ~~Query argument deep-transform (Task E)~~ | ~~3–5 days~~ | Shipped: codemod renames `start`/`num`/`outSpatialReference`/`spatialRelationship`, splits `geometry` into `geometry`+`geometryType`, normalizes `outStatistics[i].statisticType` against `STATISTIC_TYPE_MAP`, and emits precise manual TODOs for `timeExtent`, `quantizationParameters`, `relationParam`, dynamic statisticType, and geometry without a literal `type`. `QueryCompat` accepts both third-party SDK and Honua property spellings. |
 | ~~Locator compat (Task C, geocoding half)~~ | ~~1 week~~ | Shipped: `LocatorCompat` + `LocatorSearchSourceCompat` ride the provider-pluggable geocoding contract, so no `HonuaGeocodeService` was needed. The provider endpoint is caller-configured, which keeps the wiring step assisted. |
 | Geoprocessor compat (Task C, remainder) | 1–2 weeks | Requires a `HonuaGeoprocessService` surface (server work); service-area / OD-cost-matrix / closest-facility likewise. |
 | Scene-layer compat (Task A-rest) | 4–8 weeks | Requires I3S/glTF pipeline on `honua-server`; not pure-JS work. |
@@ -394,7 +394,7 @@ With Tasks D/F/E and the geocoding half of Task C now shipped,
 event-name remap + dynamic/CJS imports + Query argument deep-transform +
 `Locator`/`Search` address backends, plus a manual-TODO report for
 everything else. The remaining rows (Geoprocessor/NetworkAnalyst and
-Scene-layer compat) still gate the unqualified "parity with ArcGIS JS
+Scene-layer compat) still gate the unqualified "parity with third-party JavaScript
 SDK" claim — that should remain qualified as "deterministic 2D parity;
 scene/3D and advanced tasks remain assisted migration" until they
 land.
