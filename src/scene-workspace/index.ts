@@ -1,7 +1,7 @@
 /**
  * `@honua/app-platform/scene-workspace` — framework-neutral 3D scene workspace
  * state and the Cesium renderer adapter. `@honua/sdk-js/scene-workspace` is a
- * deprecated forwarder retained through 0.2.x onto this module.
+ * deprecated forwarder retained through 0.3.x and removed in 0.4.0.
  *
  * This barrel carries two support tiers, and they are enumerated symbol by
  * symbol in `config/support-manifest.v1.json` (projected into
