@@ -16646,7 +16646,7 @@ known constructors" into "automated app conversion":
    `metrics.seamCallSites` / `JsMigrationReport.seamCallSites`;
    they are never counted as auto-migrated. What is *not* done:
    the codemod does not bridge the seam (no inserted
-   `tovendor-specificProperties()` call, no consumer rewrite), and the
+   `toFeatureFilterProperties()` call, no consumer rewrite), and the
    analysis is file-local and bounded by design — a value that
    crosses a module boundary or moves through a data structure it
    cannot follow is not reported.

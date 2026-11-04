@@ -12,8 +12,6 @@ import {
 describe("FeatureFilterCompat.objectIds contract", () => {
   it("exposes a mutable array and honors mutation", () => {
     const filter = new FeatureFilterCompat({ objectIds: [1, 2] });
-
-    // Mutations through the compatibility surface are preserved.
     filter.objectIds?.push(3);
 
     expect(filter.objectIds).toEqual([1, 2, 3]);
@@ -59,7 +57,6 @@ describe("FeatureFilterCompat.objectIds contract", () => {
       distance: 5,
       units: "meters",
     });
-    // The target shape accepts a mutable `number[]`; the projection hands one over.
     properties.objectIds?.push(3);
     expect(properties.objectIds).toEqual([1, 2, 3]);
   });
@@ -76,7 +73,6 @@ describe("FeatureFilterCompat.objectIds contract", () => {
   });
 });
 
-// REQ-002: the same divergence is fixed across the adapter, not one property.
 describe("compatibility array properties remain mutable", () => {
   it("GeoJSONLayerCompat.outFields and .fields are mutable copies", () => {
     const outFields: ReadonlyArray<string> = Object.freeze(["NAME"]);
