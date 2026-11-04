@@ -357,7 +357,7 @@ export function formatOssArcGisDeepBuildMarkdown(manifest: OssArcGisCorpusManife
   lines.push(
     [
       `${run.summary.buildsPostCodemod} of ${run.summary.appCount} allowlisted`,
-      `${run.summary.appCount === 1 ? "app" : "apps"} built post-codemod against \`@honua/sdk-esri-compat\`.`,
+      `${run.summary.appCount === 1 ? "app" : "apps"} built post-codemod against ${observedCompatImportPaths(run)}.`,
     ].join(" "),
   );
   lines.push("");
@@ -487,10 +487,16 @@ function stepText(status: OssArcGisDeepStepStatus | undefined): string {
   return status === "passed" ? "pass" : status === "failed" ? "**fail**" : "skipped";
 }
 
+function observedCompatImportPaths(run: OssArcGisDeepRun): string {
+  const paths = new Set(run.apps.flatMap((app) => (app.codemod ? [app.codemod.compatImportPath] : [])));
+  return [...paths].map((importPath) => `\`${importPath}\``).join(", ");
+}
+
 /**
  * Slug for an in-page heading link, matching GitHub's markdown anchors and the
  * docs-site heading-id generator.
  */
+
 function headingAnchor(title: string): string {
   return title
     .trim()

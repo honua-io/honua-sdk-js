@@ -43,7 +43,7 @@ function writeEsriLeafletStub(moduleRoot: string): void {
   fs.writeFileSync(
     path.join(moduleRoot, "index.js"),
     [
-      "class EsriLeafletFeatureLayerStub {",
+      "class ThirdPartyFeatureLayerStub {",
       "  constructor(options = {}) {",
       "    this.options = options;",
       "    this.url = options.url ?? null;",
@@ -51,7 +51,7 @@ function writeEsriLeafletStub(moduleRoot: string): void {
       "    this.kind = 'feature';",
       "  }",
       "}",
-      "class EsriLeafletDynamicMapLayerStub {",
+      "class ThirdPartyDynamicMapLayerStub {",
       "  constructor(options = {}) {",
       "    this.options = options;",
       "    this.url = options.url ?? null;",
@@ -59,7 +59,7 @@ function writeEsriLeafletStub(moduleRoot: string): void {
       "    this.kind = 'dynamic-map';",
       "  }",
       "}",
-      "class EsriLeafletTiledMapLayerStub {",
+      "class ThirdPartyTiledMapLayerStub {",
       "  constructor(options = {}) {",
       "    this.options = options;",
       "    this.url = options.url ?? null;",
@@ -67,9 +67,9 @@ function writeEsriLeafletStub(moduleRoot: string): void {
       "    this.kind = 'tiled-map';",
       "  }",
       "}",
-      "export function featureLayer(options) { return new EsriLeafletFeatureLayerStub(options); }",
-      "export function dynamicMapLayer(options) { return new EsriLeafletDynamicMapLayerStub(options); }",
-      "export function tiledMapLayer(options) { return new EsriLeafletTiledMapLayerStub(options); }",
+      "export function featureLayer(options) { return new ThirdPartyFeatureLayerStub(options); }",
+      "export function dynamicMapLayer(options) { return new ThirdPartyDynamicMapLayerStub(options); }",
+      "export function tiledMapLayer(options) { return new ThirdPartyTiledMapLayerStub(options); }",
     ].join("\n"),
     "utf8",
   );
@@ -158,8 +158,8 @@ describe("migration esri-leaflet runtime", () => {
       expect(codemodResult.metrics.byKind["search-widget"]).toMatchObject({ autoMigrated: 1, manual: 0 });
 
       const migratedSource = fs.readFileSync(file, "utf8");
-      expect(migratedSource).toContain('import * as HonuaEsriLeaflet from "esri-leaflet";');
-      expect(migratedSource).toContain("const layer = HonuaEsriLeaflet.featureLayer({");
+      expect(migratedSource).toContain('import * as HonuaThirdPartyMapAdapter from "esri-leaflet";');
+      expect(migratedSource).toContain("const layer = HonuaThirdPartyMapAdapter.featureLayer({");
       expect(migratedSource).toContain("new MapCompat({");
       expect(migratedSource).toContain("new MapViewCompat({");
       expect(migratedSource).toContain("new SceneViewCompat({");
@@ -172,7 +172,7 @@ describe("migration esri-leaflet runtime", () => {
       const migrated = await import(moduleUrl);
       expect(migrated.default).toEqual(
         expect.objectContaining({
-          layerCtor: "EsriLeafletFeatureLayerStub",
+          layerCtor: "ThirdPartyFeatureLayerStub",
           layerSource: "esri-leaflet",
           mapCtor: "MapCompat",
           viewCtor: "MapViewCompat",
@@ -243,8 +243,8 @@ describe("migration esri-leaflet runtime", () => {
     const migratedSource = fs.readFileSync(file, "utf8");
     expect(migratedSource).toContain("new FeatureLayerCompat({");
     expect(migratedSource).toContain("new MapImageLayerCompat({");
-    expect(migratedSource).not.toContain("HonuaEsriLeaflet.featureLayer");
-    expect(migratedSource).not.toContain("HonuaEsriLeaflet.dynamicMapLayer");
+    expect(migratedSource).not.toContain("HonuaThirdPartyMapAdapter.featureLayer");
+    expect(migratedSource).not.toContain("HonuaThirdPartyMapAdapter.dynamicMapLayer");
 
     const moduleUrl = `${pathToFileURL(file).href}?cachebust=${Date.now()}`;
     const migrated = await import(moduleUrl);
@@ -311,8 +311,8 @@ describe("migration esri-leaflet runtime", () => {
     const migratedSource = fs.readFileSync(file, "utf8");
     expect(migratedSource).toContain("new FeatureLayerCompat({");
     expect(migratedSource).toContain("new MapImageLayerCompat({");
-    expect(migratedSource).not.toContain("HonuaEsriLeaflet.featureLayer");
-    expect(migratedSource).not.toContain("HonuaEsriLeaflet.dynamicMapLayer");
+    expect(migratedSource).not.toContain("HonuaThirdPartyMapAdapter.featureLayer");
+    expect(migratedSource).not.toContain("HonuaThirdPartyMapAdapter.dynamicMapLayer");
 
     const moduleUrl = `${pathToFileURL(file).href}?cachebust=${Date.now()}`;
     const migrated = await import(moduleUrl);

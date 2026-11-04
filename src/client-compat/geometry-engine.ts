@@ -25,8 +25,8 @@
  * @module
  */
 
-import { esriGeometryToGeoJSON, geoJsonToEsriGeometry } from "../core/esri-geojson.js";
-import type { EsriGeometry, HonuaSpatialReference } from "../core/types.js";
+import { geoJsonToGeoServices, geoServicesGeometryToGeoJSON } from "../core/geoservices-geojson.js";
+import type { GeoServicesGeometry, HonuaSpatialReference } from "../core/types.js";
 import type { GeoJsonGeometry } from "../expr/expression.js";
 import {
   booleanContains,
@@ -44,13 +44,18 @@ import {
 import type { LinearUnit } from "../geometry/index.js";
 
 /** Anything geometry-shaped the shim accepts: Esri JSON or a compat instance. */
-export type GeometryEngineInput = EsriGeometry | { toJSON(): unknown } | Record<string, unknown> | null | undefined;
+export type GeometryEngineInput =
+  | GeoServicesGeometry
+  | { toJSON(): unknown }
+  | Record<string, unknown>
+  | null
+  | undefined;
 
 /** Esri linear unit strings accepted by the length/buffer operations. */
-export type EsriLinearUnit = "meters" | "feet" | "kilometers" | "miles" | "nautical-miles" | "yards" | "us-feet";
+export type GeoServicesLinearUnit = "meters" | "feet" | "kilometers" | "miles" | "nautical-miles" | "yards" | "us-feet";
 
 /** Esri areal unit strings accepted by the area operations. */
-export type EsriAreaUnit =
+export type GeoServicesAreaUnit =
   | "square-meters"
   | "square-kilometers"
   | "square-feet"
@@ -59,7 +64,7 @@ export type EsriAreaUnit =
   | "acres"
   | "hectares";
 
-const LINEAR_UNIT_METERS: Readonly<Record<EsriLinearUnit, number>> = {
+const LINEAR_UNIT_METERS: Readonly<Record<GeoServicesLinearUnit, number>> = {
   meters: 1,
   feet: 0.3048,
   "us-feet": 1200 / 3937,
@@ -69,7 +74,7 @@ const LINEAR_UNIT_METERS: Readonly<Record<EsriLinearUnit, number>> = {
   yards: 0.9144,
 };
 
-const AREA_UNIT_SQUARE_METERS: Readonly<Record<EsriAreaUnit, number>> = {
+const AREA_UNIT_SQUARE_METERS: Readonly<Record<GeoServicesAreaUnit, number>> = {
   "square-meters": 1,
   "square-kilometers": 1_000_000,
   "square-feet": 0.09290304,
@@ -79,7 +84,7 @@ const AREA_UNIT_SQUARE_METERS: Readonly<Record<EsriAreaUnit, number>> = {
   hectares: 10_000,
 };
 
-const ESRI_TO_TURF_LINEAR: Readonly<Partial<Record<EsriLinearUnit, LinearUnit>>> = {
+const GEOSERVICES_TO_TURF_LINEAR: Readonly<Partial<Record<GeoServicesLinearUnit, LinearUnit>>> = {
   meters: "meters",
   kilometers: "kilometers",
   miles: "miles",
@@ -88,17 +93,17 @@ const ESRI_TO_TURF_LINEAR: Readonly<Partial<Record<EsriLinearUnit, LinearUnit>>>
   "nautical-miles": "nauticalmiles",
 };
 
-function resolveEsriGeometry(input: GeometryEngineInput): EsriGeometry | null {
+function resolveEsriGeometry(input: GeometryEngineInput): GeoServicesGeometry | null {
   if (input === null || input === undefined) {
     return null;
   }
   if (typeof (input as { toJSON?: unknown }).toJSON === "function") {
-    return (input as { toJSON(): EsriGeometry }).toJSON();
+    return (input as { toJSON(): GeoServicesGeometry }).toJSON();
   }
-  return input as EsriGeometry;
+  return input as GeoServicesGeometry;
 }
 
-function readSpatialReference(geometry: EsriGeometry | null): HonuaSpatialReference | undefined {
+function readSpatialReference(geometry: GeoServicesGeometry | null): HonuaSpatialReference | undefined {
   const sr = (geometry as { spatialReference?: HonuaSpatialReference } | null)?.spatialReference;
   return sr && typeof sr === "object" ? sr : undefined;
 }
@@ -119,21 +124,21 @@ function nativeCrs(sr: HonuaSpatialReference | undefined): number {
 
 function toGeoJson(input: GeometryEngineInput): { geometry: GeoJsonGeometry; sr: HonuaSpatialReference | undefined } {
   const esri = resolveEsriGeometry(input);
-  const geometry = esriGeometryToGeoJSON(esri);
+  const geometry = geoServicesGeometryToGeoJSON(esri);
   if (!geometry) {
     throw new TypeError("geometryEngineCompat: input is not a valid geometry");
   }
   return { geometry, sr: readSpatialReference(esri) };
 }
 
-function toEsri(geometry: GeoJsonGeometry | null, sr: HonuaSpatialReference | undefined): EsriGeometry | null {
-  return geometry ? geoJsonToEsriGeometry(geometry, sr) : null;
+function toEsri(geometry: GeoJsonGeometry | null, sr: HonuaSpatialReference | undefined): GeoServicesGeometry | null {
+  return geometry ? geoJsonToGeoServices(geometry, sr) : null;
 }
 
 // ── Measurement ──────────────────────────────────────────────────
 
 /** Geodesic (great-circle) area, reprojecting to WGS84 first. */
-export function geodesicArea(input: GeometryEngineInput, unit: EsriAreaUnit = "square-meters"): number {
+export function geodesicArea(input: GeometryEngineInput, unit: GeoServicesAreaUnit = "square-meters"): number {
   const { geometry, sr } = toGeoJson(input);
   const wgs84 = project(geometry, nativeCrs(sr), 4326);
   const squareMeters = geodesicAreaOp(wgs84);
@@ -141,14 +146,14 @@ export function geodesicArea(input: GeometryEngineInput, unit: EsriAreaUnit = "s
 }
 
 /** Planar area in the geometry's native coordinate plane (shoelace). */
-export function planarArea(input: GeometryEngineInput, unit: EsriAreaUnit = "square-meters"): number {
+export function planarArea(input: GeometryEngineInput, unit: GeoServicesAreaUnit = "square-meters"): number {
   const { geometry } = toGeoJson(input);
   const squareMeters = planarAreaSquareMeters(geometry);
   return squareMeters / AREA_UNIT_SQUARE_METERS[unit];
 }
 
 /** Geodesic (great-circle) length, reprojecting to WGS84 first. */
-export function geodesicLength(input: GeometryEngineInput, unit: EsriLinearUnit = "meters"): number {
+export function geodesicLength(input: GeometryEngineInput, unit: GeoServicesLinearUnit = "meters"): number {
   const { geometry, sr } = toGeoJson(input);
   const wgs84 = project(geometry, nativeCrs(sr), 4326);
   const meters = geodesicLengthOp(wgs84, "meters");
@@ -156,7 +161,7 @@ export function geodesicLength(input: GeometryEngineInput, unit: EsriLinearUnit 
 }
 
 /** Planar length/perimeter in the geometry's native coordinate plane. */
-export function planarLength(input: GeometryEngineInput, unit: EsriLinearUnit = "meters"): number {
+export function planarLength(input: GeometryEngineInput, unit: GeoServicesLinearUnit = "meters"): number {
   const { geometry } = toGeoJson(input);
   const meters = planarLengthMeters(geometry);
   return meters / LINEAR_UNIT_METERS[unit];
@@ -224,10 +229,10 @@ function planarAreaSquareMeters(geometry: GeoJsonGeometry): number {
 export function buffer(
   input: GeometryEngineInput,
   distance: number,
-  unit: EsriLinearUnit = "meters",
-): EsriGeometry | null {
+  unit: GeoServicesLinearUnit = "meters",
+): GeoServicesGeometry | null {
   const { geometry, sr } = toGeoJson(input);
-  const turfUnit = ESRI_TO_TURF_LINEAR[unit];
+  const turfUnit = GEOSERVICES_TO_TURF_LINEAR[unit];
   // Fall back to meters via manual scaling for units turf does not name.
   const crs = nativeCrs(sr);
   const wgs84 = project(geometry, crs, 4326);
@@ -241,7 +246,7 @@ export function buffer(
 }
 
 /** Union of two or more geometries. Backed by `@turf/union`. */
-export function union(inputs: readonly GeometryEngineInput[]): EsriGeometry | null {
+export function union(inputs: readonly GeometryEngineInput[]): GeoServicesGeometry | null {
   if (inputs.length === 0) {
     return null;
   }
@@ -252,14 +257,14 @@ export function union(inputs: readonly GeometryEngineInput[]): EsriGeometry | nu
 }
 
 /** Intersection of two geometries. Backed by `@turf/intersect`. */
-export function intersect(input: GeometryEngineInput, intersector: GeometryEngineInput): EsriGeometry | null {
+export function intersect(input: GeometryEngineInput, intersector: GeometryEngineInput): GeoServicesGeometry | null {
   const a = toGeoJson(input);
   const b = toGeoJson(intersector);
   return toEsri(intersectOp(a.geometry, b.geometry), a.sr);
 }
 
 /** Difference `input − subtractor`. Backed by `@turf/difference`. */
-export function difference(input: GeometryEngineInput, subtractor: GeometryEngineInput): EsriGeometry | null {
+export function difference(input: GeometryEngineInput, subtractor: GeometryEngineInput): GeoServicesGeometry | null {
   const a = toGeoJson(input);
   const b = toGeoJson(subtractor);
   return toEsri(differenceOp(a.geometry, b.geometry), a.sr);
@@ -270,19 +275,19 @@ export function difference(input: GeometryEngineInput, subtractor: GeometryEngin
  * the Esri↔GeoJSON round-trip). This mirrors `geometryEngine.simplify`'s intent
  * of producing a topologically valid geometry rather than reducing vertices.
  */
-export function simplify(input: GeometryEngineInput): EsriGeometry | null {
+export function simplify(input: GeometryEngineInput): GeoServicesGeometry | null {
   const { geometry, sr } = toGeoJson(input);
   return toEsri(geometry, sr);
 }
 
 /** Convex hull of a geometry. Backed by `@turf/convex`. */
-export function convexHull(input: GeometryEngineInput): EsriGeometry | null {
+export function convexHull(input: GeometryEngineInput): GeoServicesGeometry | null {
   const { geometry, sr } = toGeoJson(input);
   return toEsri(convex(geometry), sr);
 }
 
 /** Centroid of a geometry. Backed by `@turf/centroid`. */
-export function centroid(input: GeometryEngineInput): EsriGeometry | null {
+export function centroid(input: GeometryEngineInput): GeoServicesGeometry | null {
   const { geometry, sr } = toGeoJson(input);
   return toEsri(centroidOp(geometry), sr);
 }
@@ -327,17 +332,19 @@ export const geometryEngineCompat = {
  * `@arcgis/core/geometry/geometryEngineAsync`.
  */
 export const geometryEngineAsyncCompat = {
-  buffer: (input: GeometryEngineInput, distance: number, unit?: EsriLinearUnit) =>
+  buffer: (input: GeometryEngineInput, distance: number, unit?: GeoServicesLinearUnit) =>
     Promise.resolve(buffer(input, distance, unit)),
   intersect: (input: GeometryEngineInput, intersector: GeometryEngineInput) =>
     Promise.resolve(intersect(input, intersector)),
   union: (inputs: readonly GeometryEngineInput[]) => Promise.resolve(union(inputs)),
   difference: (input: GeometryEngineInput, subtractor: GeometryEngineInput) =>
     Promise.resolve(difference(input, subtractor)),
-  geodesicArea: (input: GeometryEngineInput, unit?: EsriAreaUnit) => Promise.resolve(geodesicArea(input, unit)),
-  planarArea: (input: GeometryEngineInput, unit?: EsriAreaUnit) => Promise.resolve(planarArea(input, unit)),
-  geodesicLength: (input: GeometryEngineInput, unit?: EsriLinearUnit) => Promise.resolve(geodesicLength(input, unit)),
-  planarLength: (input: GeometryEngineInput, unit?: EsriLinearUnit) => Promise.resolve(planarLength(input, unit)),
+  geodesicArea: (input: GeometryEngineInput, unit?: GeoServicesAreaUnit) => Promise.resolve(geodesicArea(input, unit)),
+  planarArea: (input: GeometryEngineInput, unit?: GeoServicesAreaUnit) => Promise.resolve(planarArea(input, unit)),
+  geodesicLength: (input: GeometryEngineInput, unit?: GeoServicesLinearUnit) =>
+    Promise.resolve(geodesicLength(input, unit)),
+  planarLength: (input: GeometryEngineInput, unit?: GeoServicesLinearUnit) =>
+    Promise.resolve(planarLength(input, unit)),
   simplify: (input: GeometryEngineInput) => Promise.resolve(simplify(input)),
   convexHull: (input: GeometryEngineInput) => Promise.resolve(convexHull(input)),
   centroid: (input: GeometryEngineInput) => Promise.resolve(centroid(input)),

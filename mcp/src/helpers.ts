@@ -1,4 +1,4 @@
-import type { EsriGeometryType } from "@honua/sdk-js/honua";
+import type { GeoServicesGeometryType } from "@honua/sdk-js/honua";
 
 const MAX_LIMIT = 2000;
 const DEFAULT_LIMIT = 100;
@@ -26,8 +26,8 @@ export function clampLimit(limit: number | undefined): number {
 
 export function resolveGeometryType(
   geometry: Record<string, unknown> | undefined,
-  geometryType: EsriGeometryType | undefined,
-): EsriGeometryType | undefined {
+  geometryType: GeoServicesGeometryType | undefined,
+): GeoServicesGeometryType | undefined {
   if (geometryType) {
     return geometryType;
   }

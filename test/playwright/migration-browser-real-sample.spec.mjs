@@ -79,7 +79,7 @@ function startServer(projectRoot, appMain, vendors) {
     }
 
     if (requestUrl.pathname === "/compat-entry.js") {
-      const compatEntry = path.join(distSourceRoot, "esri-compat-entry.js");
+      const compatEntry = path.join(distSourceRoot, "client-compat-entry.js");
       res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
       res.end(fs.readFileSync(compatEntry, "utf8"));
       return;

@@ -66,7 +66,7 @@ import {
   quoteIdentifier,
   rowEstimateSql,
 } from "../core/geoparquet-sql.js";
-import type { EsriFieldType, HonuaFieldInfo, HonuaTypedFeature } from "../core/types.js";
+import type { GeoServicesFieldType, HonuaFieldInfo, HonuaTypedFeature } from "../core/types.js";
 import {
   DuckDbLosslessDecodeError,
   type DuckDbLosslessJsonValue,
@@ -798,7 +798,7 @@ function featuresFromRows<T>(
   return rows.map((row, index) => rowToFeature<T>(row, wantGeometry, nativeGeometries?.[index]));
 }
 
-const DUCK_TYPE_TO_ESRI: ReadonlyArray<[RegExp, EsriFieldType]> = [
+const DUCK_TYPE_TO_GEOSERVICES: ReadonlyArray<[RegExp, GeoServicesFieldType]> = [
   [/^BOOLEAN/i, "esriFieldTypeSmallInteger"],
   [/^(TINYINT|SMALLINT|USMALLINT|UTINYINT)/i, "esriFieldTypeSmallInteger"],
   [/^(INTEGER|INT|UINTEGER)/i, "esriFieldTypeInteger"],
@@ -809,8 +809,8 @@ const DUCK_TYPE_TO_ESRI: ReadonlyArray<[RegExp, EsriFieldType]> = [
   [/^(GEOMETRY|GEOGRAPHY)/i, "esriFieldTypeGeometry"],
 ];
 
-function esriFieldType(duckType: string): EsriFieldType {
-  for (const [pattern, esri] of DUCK_TYPE_TO_ESRI) {
+function esriFieldType(duckType: string): GeoServicesFieldType {
+  for (const [pattern, esri] of DUCK_TYPE_TO_GEOSERVICES) {
     if (pattern.test(duckType)) return esri;
   }
   return "esriFieldTypeString";

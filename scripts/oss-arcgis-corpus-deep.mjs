@@ -343,7 +343,7 @@ async function main() {
         manualCallSites: codemodReport.codemodResult.metrics.manualCallSites,
         ...(typeof codemodReport.seamCallSites === "number" ? { seamCallSites: codemodReport.seamCallSites } : {}),
         filesChanged: codemodReport.codemodResult.filesChanged,
-        compatImportPath: "@honua/sdk-esri-compat",
+        compatImportPath: "@honua/sdk-client-compat",
       };
 
       const honuaStep = step("npm install --ignore-scripts --no-save <packed honua tarballs>", () =>

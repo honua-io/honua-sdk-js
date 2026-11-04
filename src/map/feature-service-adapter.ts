@@ -23,12 +23,12 @@
  * @module
  */
 
+import { parseFeatureLayerUrl } from "../client-compat/url.js";
 import type { HonuaClient } from "../core/client.js";
-import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
+import { geoServicesGeometryToGeoJSON } from "../core/geoservices-geojson.js";
 import { HonuaFeatureLayer } from "../core/surfaces.js";
 import type { HonuaFeatureLayerQueryAllRequest } from "../core/surfaces.js";
-import type { EsriGeometryType, HonuaLayerMetadata } from "../core/types.js";
-import { parseFeatureLayerUrl } from "../esri-compat/url.js";
+import type { GeoServicesGeometryType, HonuaLayerMetadata } from "../core/types.js";
 import type { HonuaMap } from "./honua-map.js";
 
 /** A GeoJSON geometry produced by the adapter. */
@@ -132,15 +132,15 @@ function isValidGenericGeometry(geometry: Record<string, unknown>): boolean {
 }
 
 /**
- * Convert a single Esri geometry into a GeoJSON geometry.
+ * Convert a single GeoServices REST geometry into a GeoJSON geometry.
  *
  * Handles the geometry kinds a feature-service query returns (point,
  * multipoint, polyline, polygon, envelope). Returns `null` when the geometry is
  * absent or unrecognised so the feature still renders attribute-only.
  */
-export function esriGeometryToGeoJson(
+export function featureServiceGeometryToGeoJson(
   geometry: Record<string, unknown> | null | undefined,
-  geometryType: EsriGeometryType | undefined,
+  geometryType: GeoServicesGeometryType | undefined,
   dimensions?: Pick<HonuaLayerMetadata, "hasZ" | "hasM">,
 ): AdapterGeoJsonGeometry | null {
   if (!geometry || typeof geometry !== "object" || Array.isArray(geometry)) return null;
@@ -165,7 +165,7 @@ export function esriGeometryToGeoJson(
   if (!isValidGenericGeometry(shape)) return null;
   // Optional Esri Z/M can be null. Keep finite spatial coordinates, omit
   // absent Z, and never treat a measure as GeoJSON altitude.
-  const converted = esriGeometryToGeoJSON({ ...shape, z: asFiniteNumber(shape.z) });
+  const converted = geoServicesGeometryToGeoJSON({ ...shape, z: asFiniteNumber(shape.z) });
   if (!converted || !("coordinates" in converted)) return null;
   const hasZ = asFiniteNumber(shape.z) !== undefined || (geometry.hasZ ?? dimensions?.hasZ) === true;
   const coordinates = projectCoordinates(converted.coordinates, hasZ);
@@ -192,16 +192,16 @@ export function esriGeometryToGeoJson(
  * Convert an array of Esri features (attributes + geometry) into a GeoJSON
  * `FeatureCollection`.
  */
-export function esriFeaturesToGeoJson(
+export function featuresToGeoJson(
   features: ReadonlyArray<{ attributes?: Record<string, unknown>; geometry?: Record<string, unknown> | null }>,
-  geometryType: EsriGeometryType | undefined,
+  geometryType: GeoServicesGeometryType | undefined,
   dimensions?: Pick<HonuaLayerMetadata, "hasZ" | "hasM">,
 ): AdapterGeoJsonFeatureCollection {
   return {
     type: "FeatureCollection",
     features: features.map((feature) => ({
       type: "Feature",
-      geometry: esriGeometryToGeoJson(feature.geometry ?? null, geometryType, dimensions),
+      geometry: featureServiceGeometryToGeoJson(feature.geometry ?? null, geometryType, dimensions),
       properties: { ...(feature.attributes ?? {}) },
     })),
   };
@@ -247,7 +247,7 @@ export async function loadHonuaFeatureServiceGeoJson(
   const features = await layer.queryFeaturesAll(request);
   const metadata = await metadataPromise;
 
-  const data = esriFeaturesToGeoJson(
+  const data = featuresToGeoJson(
     features as ReadonlyArray<{ attributes?: Record<string, unknown>; geometry?: Record<string, unknown> | null }>,
     metadata?.geometryType,
     metadata,

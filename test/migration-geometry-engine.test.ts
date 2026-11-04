@@ -41,14 +41,14 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
     const result = runEsriCompatCodemod({
       rootDir: root,
       write: true,
-      compatImportPath: "@honua/sdk-esri-compat",
+      compatImportPath: "@honua/sdk-client-compat",
     });
 
     expect(result.metrics.byKind["geometry-engine"]).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
     expect(result.manualTodos).toEqual([]);
 
     const nextSource = fs.readFileSync(file, "utf8");
-    expect(nextSource).toContain('import { geometryEngineCompat as geometryEngine } from "@honua/sdk-esri-compat";');
+    expect(nextSource).toContain('import { geometryEngineCompat as geometryEngine } from "@honua/sdk-client-compat";');
     // Covered op call sites are left as-is (they resolve to the shim).
     expect(nextSource).toContain("geometryEngine.union([a, b])");
     expect(nextSource).toContain("geometryEngine.centroid(merged)");
@@ -76,7 +76,7 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
       rootDir: root,
       write: true,
       annotateTodos: true,
-      compatImportPath: "@honua/sdk-esri-compat",
+      compatImportPath: "@honua/sdk-client-compat",
     });
 
     // One covered op (buffer) auto-migrated + one uncovered op (geodesicDensify) flagged.
@@ -86,7 +86,7 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
     expect(result.manualTodos[0].reason).toContain("geodesicDensify");
 
     const nextSource = fs.readFileSync(file, "utf8");
-    expect(nextSource).toContain('import { geometryEngineCompat as geometryEngine } from "@honua/sdk-esri-compat";');
+    expect(nextSource).toContain('import { geometryEngineCompat as geometryEngine } from "@honua/sdk-client-compat";');
     expect(nextSource).toContain("TODO(honua-migrate)[geometry-engine]");
   });
 
@@ -107,13 +107,13 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
     const result = runEsriCompatCodemod({
       rootDir: root,
       write: true,
-      compatImportPath: "@honua/sdk-esri-compat",
+      compatImportPath: "@honua/sdk-client-compat",
     });
 
     expect(result.metrics.byKind["geometry-engine"]).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
     const nextSource = fs.readFileSync(file, "utf8");
     expect(nextSource).toContain(
-      'import { geometryEngineAsyncCompat as geometryEngineAsync } from "@honua/sdk-esri-compat";',
+      'import { geometryEngineAsyncCompat as geometryEngineAsync } from "@honua/sdk-client-compat";',
     );
   });
 });

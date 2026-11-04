@@ -4,7 +4,7 @@
  * Imports ONLY the primary public symbol (`HonuaClient`) from the root entry
  * and re-exports it. When this is bundled the same way a consumer would build
  * it (esbuild --bundle --minify, peers external), esbuild must be able to drop
- * every unrelated subsystem (map runtime, esri-compat, migration, studio, ...).
+ * every unrelated subsystem (map runtime, client-compat, migration, studio, ...).
  *
  * The bundled size of this fixture is budgeted in `bundle-budgets.json` under
  * `tree-shake:HonuaClient`. If a change makes a single-symbol root import drag

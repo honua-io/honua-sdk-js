@@ -135,7 +135,7 @@ export type WebMapSymbol =
 export interface WebMapSimpleFillSymbol {
   type: "esriSFS";
   style?: string;
-  color?: EsriColor;
+  color?: GeoServicesColor;
   outline?: WebMapSimpleLineSymbol;
   [key: string]: unknown;
 }
@@ -143,7 +143,7 @@ export interface WebMapSimpleFillSymbol {
 export interface WebMapSimpleLineSymbol {
   type: "esriSLS";
   style?: string;
-  color?: EsriColor;
+  color?: GeoServicesColor;
   width?: number;
   [key: string]: unknown;
 }
@@ -151,7 +151,7 @@ export interface WebMapSimpleLineSymbol {
 export interface WebMapSimpleMarkerSymbol {
   type: "esriSMS";
   style?: string;
-  color?: EsriColor;
+  color?: GeoServicesColor;
   size?: number;
   outline?: WebMapSimpleLineSymbol;
   [key: string]: unknown;
@@ -169,7 +169,7 @@ export interface WebMapPictureMarkerSymbol {
 
 export interface WebMapTextSymbol {
   type: "esriTS";
-  color?: EsriColor;
+  color?: GeoServicesColor;
   font?: WebMapFont;
   text?: string;
   [key: string]: unknown;
@@ -189,7 +189,7 @@ export interface WebMapFont {
 }
 
 /** Esri RGBA color as `[r, g, b, a]` where a is 0–255. */
-export type EsriColor = [number, number, number, number];
+export type GeoServicesColor = [number, number, number, number];
 
 // ── Popups ──────────────────────────────────────────────────
 

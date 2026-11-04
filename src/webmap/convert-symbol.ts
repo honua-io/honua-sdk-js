@@ -5,7 +5,7 @@
  */
 
 import type {
-  EsriColor,
+  GeoServicesColor,
   WebMapPictureMarkerSymbol,
   WebMapSimpleFillSymbol,
   WebMapSimpleLineSymbol,
@@ -18,7 +18,7 @@ import type { WarningCollector } from "./warnings.js";
 // ── Color conversion ────────────────────────────────────────
 
 /** Convert Esri `[r,g,b,a]` (a 0–255) to CSS `rgba()` string. */
-export function esriColorToCss(color: EsriColor | undefined): string | undefined {
+export function geoServicesColorToCss(color: GeoServicesColor | undefined): string | undefined {
   if (!color || color.length < 4) return undefined;
   const [r, g, b, a] = color;
   const alpha = Math.round((a / 255) * 100) / 100;
@@ -37,7 +37,7 @@ const LINE_DASH_MAP: Record<string, number[] | undefined> = {
   esriSLSNull: [0, 10],
 };
 
-export function esriLineStyleToDashArray(style: string | undefined): number[] | undefined {
+export function geoServicesLineStyleToDashArray(style: string | undefined): number[] | undefined {
   if (!style) return undefined;
   return LINE_DASH_MAP[style];
 }
@@ -75,7 +75,7 @@ export function convertSymbol(
 
 function convertSimpleFill(symbol: WebMapSimpleFillSymbol): SymbolConversionResult {
   const paint: Record<string, unknown> = {};
-  const fillColor = esriColorToCss(symbol.color);
+  const fillColor = geoServicesColorToCss(symbol.color);
   if (fillColor) paint["fill-color"] = fillColor;
 
   if (symbol.color) {
@@ -84,7 +84,7 @@ function convertSimpleFill(symbol: WebMapSimpleFillSymbol): SymbolConversionResu
   }
 
   if (symbol.outline) {
-    const outlineColor = esriColorToCss(symbol.outline.color);
+    const outlineColor = geoServicesColorToCss(symbol.outline.color);
     if (outlineColor) paint["fill-outline-color"] = outlineColor;
   }
 
@@ -95,11 +95,11 @@ function convertSimpleLine(symbol: WebMapSimpleLineSymbol): SymbolConversionResu
   const paint: Record<string, unknown> = {};
   const layout: Record<string, unknown> = {};
 
-  const lineColor = esriColorToCss(symbol.color);
+  const lineColor = geoServicesColorToCss(symbol.color);
   if (lineColor) paint["line-color"] = lineColor;
   if (symbol.width != null) paint["line-width"] = symbol.width;
 
-  const dashArray = esriLineStyleToDashArray(symbol.style);
+  const dashArray = geoServicesLineStyleToDashArray(symbol.style);
   if (dashArray) paint["line-dasharray"] = dashArray;
 
   return { layerType: "line", paint, layout };
@@ -108,12 +108,12 @@ function convertSimpleLine(symbol: WebMapSimpleLineSymbol): SymbolConversionResu
 function convertSimpleMarker(symbol: WebMapSimpleMarkerSymbol): SymbolConversionResult {
   const paint: Record<string, unknown> = {};
 
-  const circleColor = esriColorToCss(symbol.color);
+  const circleColor = geoServicesColorToCss(symbol.color);
   if (circleColor) paint["circle-color"] = circleColor;
   if (symbol.size != null) paint["circle-radius"] = symbol.size / 2;
 
   if (symbol.outline) {
-    const strokeColor = esriColorToCss(symbol.outline.color);
+    const strokeColor = geoServicesColorToCss(symbol.outline.color);
     if (strokeColor) paint["circle-stroke-color"] = strokeColor;
     if (symbol.outline.width != null) paint["circle-stroke-width"] = symbol.outline.width;
   }
@@ -139,7 +139,7 @@ function convertTextSymbol(symbol: WebMapTextSymbol): SymbolConversionResult {
   const paint: Record<string, unknown> = {};
   const layout: Record<string, unknown> = {};
 
-  const textColor = esriColorToCss(symbol.color);
+  const textColor = geoServicesColorToCss(symbol.color);
   if (textColor) paint["text-color"] = textColor;
 
   if (symbol.text) layout["text-field"] = symbol.text;

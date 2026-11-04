@@ -5,19 +5,19 @@ import path from "node:path";
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { BasemapGalleryCompat } from "../src/esri-compat/basemap-gallery.js";
-import { BookmarksCompat } from "../src/esri-compat/bookmarks.js";
-import { BasemapToggleCompat, LocateCompat } from "../src/esri-compat/controls.js";
-import { EditorCompat } from "../src/esri-compat/editor.js";
-import { CompatEventBus } from "../src/esri-compat/event-bus.js";
-import { FeatureFormCompat } from "../src/esri-compat/feature-form.js";
-import { FeatureTableCompat } from "../src/esri-compat/feature-table.js";
-import { MeasurementCompat } from "../src/esri-compat/measurement.js";
-import { PopupCompat } from "../src/esri-compat/popup.js";
-import { PrintCompat } from "../src/esri-compat/print.js";
-import { SearchCompat } from "../src/esri-compat/search.js";
-import { SketchCompat } from "../src/esri-compat/sketch.js";
-import { registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
+import { BasemapGalleryCompat } from "../src/client-compat/basemap-gallery.js";
+import { BookmarksCompat } from "../src/client-compat/bookmarks.js";
+import { BasemapToggleCompat, LocateCompat } from "../src/client-compat/controls.js";
+import { EditorCompat } from "../src/client-compat/editor.js";
+import { CompatEventBus } from "../src/client-compat/event-bus.js";
+import { FeatureFormCompat } from "../src/client-compat/feature-form.js";
+import { FeatureTableCompat } from "../src/client-compat/feature-table.js";
+import { MeasurementCompat } from "../src/client-compat/measurement.js";
+import { PopupCompat } from "../src/client-compat/popup.js";
+import { PrintCompat } from "../src/client-compat/print.js";
+import { SearchCompat } from "../src/client-compat/search.js";
+import { SketchCompat } from "../src/client-compat/sketch.js";
+import { registerHonuaWidgetKit } from "../src/client-compat/widget-host.js";
 
 /**
  * Hosted compat widgets mount the kit class that owns their tag and copy shim
@@ -308,7 +308,7 @@ describe("hosted compat widgets", () => {
   });
 
   it("does not import the web-components kit from the compat sources", () => {
-    const root = path.resolve(import.meta.dirname, "../src/esri-compat");
+    const root = path.resolve(import.meta.dirname, "../src/client-compat");
     const files = fs.readdirSync(root).filter((name) => name.endsWith(".ts"));
     for (const name of files) {
       const source = fs.readFileSync(path.join(root, name), "utf8");

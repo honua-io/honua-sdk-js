@@ -93,7 +93,7 @@ two inputs:
 2. `config/sdk-coverage-crosswalk.v1.json`'s `extras` -- a small, hand-specified
    set of SDK feature areas support-manifest.v1.json does not model as
    protocols/supportClaims (geocoding, routing, offline regions, the plugin
-   SDK, COG range-reads, OGC API Styles, the esri-compat Portal facade, OAuth,
+   SDK, COG range-reads, OGC API Styles, the client-compat Portal facade, OAuth,
    diagnostics, and agent-safety). Each entry names existence-checked
    `sourceFiles` and `evidence` test paths, so a deleted or renamed file fails
    generation. `extras` entries take precedence over an auto-derived entry for

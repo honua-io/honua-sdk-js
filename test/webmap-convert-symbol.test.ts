@@ -1,49 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { convertSymbol, esriColorToCss, esriLineStyleToDashArray } from "../src/webmap/index.js";
+import { convertSymbol, geoServicesColorToCss, geoServicesLineStyleToDashArray } from "../src/webmap/index.js";
 import { createWarningCollector } from "../src/webmap/warnings.js";
 
 describe("WebMap symbol converter", () => {
-  describe("esriColorToCss", () => {
+  describe("geoServicesColorToCss", () => {
     it("converts fully opaque color to rgb()", () => {
-      expect(esriColorToCss([255, 0, 128, 255])).toBe("rgb(255,0,128)");
+      expect(geoServicesColorToCss([255, 0, 128, 255])).toBe("rgb(255,0,128)");
     });
 
     it("converts semi-transparent color to rgba()", () => {
-      expect(esriColorToCss([76, 115, 0, 200])).toBe("rgba(76,115,0,0.78)");
+      expect(geoServicesColorToCss([76, 115, 0, 200])).toBe("rgba(76,115,0,0.78)");
     });
 
     it("converts fully transparent color to rgba()", () => {
-      expect(esriColorToCss([0, 0, 0, 0])).toBe("rgba(0,0,0,0)");
+      expect(geoServicesColorToCss([0, 0, 0, 0])).toBe("rgba(0,0,0,0)");
     });
 
     it("returns undefined for undefined input", () => {
-      expect(esriColorToCss(undefined)).toBeUndefined();
+      expect(geoServicesColorToCss(undefined)).toBeUndefined();
     });
   });
 
-  describe("esriLineStyleToDashArray", () => {
+  describe("geoServicesLineStyleToDashArray", () => {
     it("returns undefined for solid", () => {
-      expect(esriLineStyleToDashArray("esriSLSSolid")).toBeUndefined();
+      expect(geoServicesLineStyleToDashArray("esriSLSSolid")).toBeUndefined();
     });
 
     it("returns [6,4] for dash", () => {
-      expect(esriLineStyleToDashArray("esriSLSDash")).toEqual([6, 4]);
+      expect(geoServicesLineStyleToDashArray("esriSLSDash")).toEqual([6, 4]);
     });
 
     it("returns [2,4] for dot", () => {
-      expect(esriLineStyleToDashArray("esriSLSDot")).toEqual([2, 4]);
+      expect(geoServicesLineStyleToDashArray("esriSLSDot")).toEqual([2, 4]);
     });
 
     it("returns [6,4,2,4] for dashDot", () => {
-      expect(esriLineStyleToDashArray("esriSLSDashDot")).toEqual([6, 4, 2, 4]);
+      expect(geoServicesLineStyleToDashArray("esriSLSDashDot")).toEqual([6, 4, 2, 4]);
     });
 
     it("returns [6,4,2,4,2,4] for dashDotDot", () => {
-      expect(esriLineStyleToDashArray("esriSLSDashDotDot")).toEqual([6, 4, 2, 4, 2, 4]);
+      expect(geoServicesLineStyleToDashArray("esriSLSDashDotDot")).toEqual([6, 4, 2, 4, 2, 4]);
     });
 
     it("returns undefined for unknown style", () => {
-      expect(esriLineStyleToDashArray("esriSLSUnknown")).toBeUndefined();
+      expect(geoServicesLineStyleToDashArray("esriSLSUnknown")).toBeUndefined();
     });
   });
 

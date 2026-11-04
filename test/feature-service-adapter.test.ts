@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { HonuaMap } from "@honua/sdk-js/map";
 import { HonuaClient } from "../src/index.js";
 import {
-  esriFeaturesToGeoJson,
-  esriGeometryToGeoJson,
+  featureServiceGeometryToGeoJson,
+  featuresToGeoJson,
   loadHonuaFeatureServiceGeoJson,
   registerHonuaFeatureServiceSources,
 } from "../src/map/index.js";
@@ -16,16 +16,16 @@ function makeClient(): HonuaClient {
   return new HonuaClient({ baseUrl: "https://gis.example.com" });
 }
 
-describe("esriGeometryToGeoJson", () => {
+describe("featureServiceGeometryToGeoJson", () => {
   it("converts a point geometry", () => {
-    expect(esriGeometryToGeoJson({ x: -157.8, y: 21.3 }, "esriGeometryPoint")).toEqual({
+    expect(featureServiceGeometryToGeoJson({ x: -157.8, y: 21.3 }, "esriGeometryPoint")).toEqual({
       type: "Point",
       coordinates: [-157.8, 21.3],
     });
   });
 
   it("infers a point from structure when geometryType is absent", () => {
-    expect(esriGeometryToGeoJson({ x: 1, y: 2 }, undefined)).toEqual({
+    expect(featureServiceGeometryToGeoJson({ x: 1, y: 2 }, undefined)).toEqual({
       type: "Point",
       coordinates: [1, 2],
     });
@@ -33,7 +33,7 @@ describe("esriGeometryToGeoJson", () => {
 
   it("converts a single-path polyline to LineString", () => {
     expect(
-      esriGeometryToGeoJson(
+      featureServiceGeometryToGeoJson(
         {
           paths: [
             [
@@ -54,7 +54,7 @@ describe("esriGeometryToGeoJson", () => {
   });
 
   it("converts a multi-path polyline to MultiLineString", () => {
-    const result = esriGeometryToGeoJson(
+    const result = featureServiceGeometryToGeoJson(
       {
         paths: [
           [
@@ -73,7 +73,7 @@ describe("esriGeometryToGeoJson", () => {
   });
 
   it("converts a polygon's rings", () => {
-    const result = esriGeometryToGeoJson(
+    const result = featureServiceGeometryToGeoJson(
       {
         rings: [
           [
@@ -100,14 +100,14 @@ describe("esriGeometryToGeoJson", () => {
   });
 
   it("returns null for missing geometry", () => {
-    expect(esriGeometryToGeoJson(null, "esriGeometryPoint")).toBeNull();
-    expect(esriGeometryToGeoJson(undefined, "esriGeometryPolygon")).toBeNull();
+    expect(featureServiceGeometryToGeoJson(null, "esriGeometryPoint")).toBeNull();
+    expect(featureServiceGeometryToGeoJson(undefined, "esriGeometryPolygon")).toBeNull();
   });
 });
 
-describe("esriFeaturesToGeoJson", () => {
+describe("featuresToGeoJson", () => {
   it("builds a standard FeatureCollection", () => {
-    const fc = esriFeaturesToGeoJson([{ attributes: { id: 1 }, geometry: { x: 0, y: 0 } }], "esriGeometryPoint");
+    const fc = featuresToGeoJson([{ attributes: { id: 1 }, geometry: { x: 0, y: 0 } }], "esriGeometryPoint");
     expect(fc).toEqual({
       type: "FeatureCollection",
       features: [{ type: "Feature", geometry: { type: "Point", coordinates: [0, 0] }, properties: { id: 1 } }],

@@ -15,7 +15,7 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
-import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
+import { geoServicesGeometryToGeoJSON } from "../core/geoservices-geojson.js";
 import type { HonuaOdataEncodedEntityKey, HonuaOdataEncodedWriteBody } from "../core/odata-write-codec.js";
 import {
   type HonuaOdataAdvertisedCapabilities,
@@ -47,7 +47,7 @@ import {
   HonuaOgcFeatures,
 } from "../core/surfaces.js";
 import type {
-  EsriSpatialRel,
+  GeoServicesSpatialRel,
   HonuaAttachmentEditResult,
   HonuaAttachmentInfo,
   HonuaFeature,
@@ -3376,7 +3376,7 @@ async function compileOdataQueryFilter<T>(
  * distance family). Every other topological predicate is refused by name so a
  * `within` never silently returns intersecting rows.
  */
-const ODATA_SPATIAL_REL: Partial<Record<QueryFilterSpatialPredicate, EsriSpatialRel>> = {
+const ODATA_SPATIAL_REL: Partial<Record<QueryFilterSpatialPredicate, GeoServicesSpatialRel>> = {
   intersects: "esriSpatialRelIntersects",
   "bbox-intersects": "esriSpatialRelEnvelopeIntersects",
 };
@@ -4083,7 +4083,7 @@ function toStacIntersectsGeometry(geometry: Record<string, unknown>): Record<str
   if (typeof geometry.type === "string" && (geometry.coordinates !== undefined || geometry.geometries !== undefined)) {
     return geometry;
   }
-  const converted = esriGeometryToGeoJSON(geometry);
+  const converted = geoServicesGeometryToGeoJSON(geometry);
   return converted === null ? null : (converted as unknown as Record<string, unknown>);
 }
 
@@ -4264,8 +4264,8 @@ function toFeatureLayerRequest<T>(
   outSr?: string | number;
   orderByFields?: string;
   geometry?: Record<string, unknown>;
-  geometryType?: import("../core/types.js").EsriGeometryType;
-  spatialRel?: import("../core/types.js").EsriSpatialRel;
+  geometryType?: import("../core/types.js").GeoServicesGeometryType;
+  spatialRel?: import("../core/types.js").GeoServicesSpatialRel;
   resultOffset?: number;
   resultRecordCount?: number;
   extraParams?: Record<string, string | number | boolean>;

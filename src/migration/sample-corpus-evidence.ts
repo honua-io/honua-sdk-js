@@ -1,23 +1,23 @@
 import path from "node:path";
 
 import {
+  type ClientMigrationCodemodResult,
   type CodemodConstructorKind,
   type CodemodTarget,
-  type EsriCompatCodemodResult,
   type MigrationTodo,
   runEsriCompatCodemod,
 } from "./codemod.js";
 import {
-  type ArcGisServiceReference,
-  type EsriSampleCorpusManifest,
-  type EsriSampleCorpusSample,
-  type EsriSampleFixtureAnalysis,
-  type EsriSampleGuardrailFlag,
-  type EsriSampleLicenseMetadata,
-  type EsriSampleSkipReason,
-  type EsriSampleSourceReference,
-  type EsriSampleTermsMetadata,
+  type MigrationSample,
+  type MigrationSampleCorpusManifest,
+  type MigrationSampleFixtureAnalysis,
+  type MigrationSampleGuardrailFlag,
+  type MigrationSampleLicenseMetadata,
+  type MigrationSampleSkipReason,
+  type MigrationSampleSourceReference,
+  type MigrationSampleTermsMetadata,
   type PortalItemReference,
+  type SourceApiServiceReference,
   analyzeEsriSampleFixture,
   loadEsriSampleCorpusManifest,
 } from "./sample-corpus.js";
@@ -29,7 +29,7 @@ const DEFAULT_CODEMOD_TARGET: CodemodTarget = "honua-maplibre";
 // access, or private Portal content to even render — the codemod has nothing
 // useful to say about them in a fixture-only lane, so we record them as
 // `status: "skipped"` evidence and surface the manifest skip reasons.
-const RUN_BLOCKING_SKIP_REASONS: ReadonlySet<EsriSampleSkipReason> = new Set([
+const RUN_BLOCKING_SKIP_REASONS: ReadonlySet<MigrationSampleSkipReason> = new Set([
   "requires-api-key",
   "requires-oauth",
   "premium-service",
@@ -38,70 +38,70 @@ const RUN_BLOCKING_SKIP_REASONS: ReadonlySet<EsriSampleSkipReason> = new Set([
   "unsupported-sample-family",
 ]);
 
-export type EsriSampleEvidenceStatus = "migrated" | "skipped" | "error";
+export type MigrationSampleEvidenceStatus = "migrated" | "skipped" | "error";
 
-export interface EsriSampleEvidenceClassification {
+export interface MigrationSampleEvidenceClassification {
   auto: number;
   manual: number;
   unsupported: number;
 }
 
-export interface EsriSampleEvidenceManualTodoReason {
+export interface MigrationSampleManualTodoReason {
   reason: string;
   count: number;
   kinds: CodemodConstructorKind[];
 }
 
-export interface EsriSampleEvidenceManualTodos {
+export interface MigrationSampleManualTodos {
   total: number;
-  reasons: EsriSampleEvidenceManualTodoReason[];
+  reasons: MigrationSampleManualTodoReason[];
 }
 
-export interface EsriSampleEvidenceUrlRewriteSummary {
+export interface MigrationSampleUrlRewriteSummary {
   total: number;
   byKind: Record<string, number>;
 }
 
-export interface EsriSampleEvidenceRecord {
+export interface MigrationSampleEvidenceRecord {
   sampleId: string;
-  status: EsriSampleEvidenceStatus;
+  status: MigrationSampleEvidenceStatus;
   reason?: string;
   codemodTarget: CodemodTarget;
-  sourceRef: EsriSampleSourceReference;
-  license: EsriSampleLicenseMetadata;
-  terms: EsriSampleTermsMetadata;
-  skipReasons: EsriSampleSkipReason[];
-  classification: EsriSampleEvidenceClassification;
-  manualTodos: EsriSampleEvidenceManualTodos;
-  referencedServices: ArcGisServiceReference[];
+  sourceRef: MigrationSampleSourceReference;
+  license: MigrationSampleLicenseMetadata;
+  terms: MigrationSampleTermsMetadata;
+  skipReasons: MigrationSampleSkipReason[];
+  classification: MigrationSampleEvidenceClassification;
+  manualTodos: MigrationSampleManualTodos;
+  referencedServices: SourceApiServiceReference[];
   portalItems: PortalItemReference[];
-  guardrailFlags: EsriSampleGuardrailFlag[];
-  urlRewriteSummary: EsriSampleEvidenceUrlRewriteSummary;
+  guardrailFlags: MigrationSampleGuardrailFlag[];
+  urlRewriteSummary: MigrationSampleUrlRewriteSummary;
   unsupportedApis: string[];
   filesScanned: number;
   filesChanged: number;
 }
 
-export interface EsriSampleEvidenceStatusCounts {
+export interface MigrationSampleEvidenceStatusCounts {
   migrated: number;
   skipped: number;
   error: number;
 }
 
-export interface EsriSampleEvidenceAggregate {
+export interface MigrationSampleEvidenceAggregate {
   sampleCount: number;
   codemodTarget: CodemodTarget;
-  statusCounts: EsriSampleEvidenceStatusCounts;
-  totals: EsriSampleEvidenceClassification;
+  statusCounts: MigrationSampleEvidenceStatusCounts;
+  totals: MigrationSampleEvidenceClassification;
   manualTodoTotal: number;
   uniqueUnsupportedApis: string[];
 }
 
-export interface EsriSampleCorpusEvidence {
+export interface MigrationSampleCorpusEvidence {
   manifestPath?: string;
   codemodTarget: CodemodTarget;
-  samples: EsriSampleEvidenceRecord[];
-  aggregate: EsriSampleEvidenceAggregate;
+  samples: MigrationSampleEvidenceRecord[];
+  aggregate: MigrationSampleEvidenceAggregate;
 }
 
 export interface EmitEsriSampleCorpusEvidenceOptions {
@@ -110,7 +110,7 @@ export interface EmitEsriSampleCorpusEvidenceOptions {
 }
 
 export interface BuildEsriSampleCorpusEvidenceOptions {
-  manifest: EsriSampleCorpusManifest;
+  manifest: MigrationSampleCorpusManifest;
   manifestDir: string;
   codemodTarget?: CodemodTarget;
 }
@@ -122,7 +122,9 @@ export interface BuildEsriSampleCorpusEvidenceOptions {
  * surfaced as `status: "skipped"` with the manifest skip reason; no live Esri
  * services are contacted.
  */
-export function emitEsriSampleCorpusEvidence(options: EmitEsriSampleCorpusEvidenceOptions): EsriSampleCorpusEvidence {
+export function emitEsriSampleCorpusEvidence(
+  options: EmitEsriSampleCorpusEvidenceOptions,
+): MigrationSampleCorpusEvidence {
   const manifest = loadEsriSampleCorpusManifest(options.manifestPath);
   const manifestDir = path.dirname(path.resolve(options.manifestPath));
   const evidence = buildEsriSampleCorpusEvidence({
@@ -141,7 +143,9 @@ export function emitEsriSampleCorpusEvidence(options: EmitEsriSampleCorpusEviden
  * caller has already parsed the manifest and wants to avoid re-reading from
  * disk. Behaves identically to `emitEsriSampleCorpusEvidence` otherwise.
  */
-export function buildEsriSampleCorpusEvidence(options: BuildEsriSampleCorpusEvidenceOptions): EsriSampleCorpusEvidence {
+export function buildEsriSampleCorpusEvidence(
+  options: BuildEsriSampleCorpusEvidenceOptions,
+): MigrationSampleCorpusEvidence {
   const codemodTarget = options.codemodTarget ?? DEFAULT_CODEMOD_TARGET;
   const samples = options.manifest.samples.map((sample) =>
     buildSampleEvidence(sample, options.manifestDir, codemodTarget),
@@ -155,10 +159,10 @@ export function buildEsriSampleCorpusEvidence(options: BuildEsriSampleCorpusEvid
 }
 
 function buildSampleEvidence(
-  sample: EsriSampleCorpusSample,
+  sample: MigrationSample,
   manifestDir: string,
   codemodTarget: CodemodTarget,
-): EsriSampleEvidenceRecord {
+): MigrationSampleEvidenceRecord {
   const analysis = analyzeEsriSampleFixture(sample, { manifestDir });
   const skipReason = resolveSkipReason(sample);
 
@@ -166,7 +170,7 @@ function buildSampleEvidence(
     return buildSkippedEvidence(sample, analysis, codemodTarget, skipReason);
   }
 
-  let codemodResult: EsriCompatCodemodResult;
+  let codemodResult: ClientMigrationCodemodResult;
   try {
     codemodResult = runEsriCompatCodemod({
       rootDir: path.resolve(manifestDir, sample.fixture.root),
@@ -182,13 +186,13 @@ function buildSampleEvidence(
 }
 
 function buildMigratedEvidence(
-  sample: EsriSampleCorpusSample,
-  analysis: EsriSampleFixtureAnalysis,
+  sample: MigrationSample,
+  analysis: MigrationSampleFixtureAnalysis,
   codemodTarget: CodemodTarget,
-  codemodResult: EsriCompatCodemodResult,
-): EsriSampleEvidenceRecord {
+  codemodResult: ClientMigrationCodemodResult,
+): MigrationSampleEvidenceRecord {
   const metrics = codemodResult.metrics;
-  const classification: EsriSampleEvidenceClassification = {
+  const classification: MigrationSampleEvidenceClassification = {
     auto: metrics.autoMigratedCallSites,
     manual: metrics.manualCallSites,
     unsupported: countUnsupportedCallSites(codemodResult.manualTodos),
@@ -218,11 +222,11 @@ function buildMigratedEvidence(
 }
 
 function buildSkippedEvidence(
-  sample: EsriSampleCorpusSample,
-  analysis: EsriSampleFixtureAnalysis,
+  sample: MigrationSample,
+  analysis: MigrationSampleFixtureAnalysis,
   codemodTarget: CodemodTarget,
   reason: string,
-): EsriSampleEvidenceRecord {
+): MigrationSampleEvidenceRecord {
   return {
     sampleId: sample.id,
     status: "skipped",
@@ -245,11 +249,11 @@ function buildSkippedEvidence(
 }
 
 function buildErrorEvidence(
-  sample: EsriSampleCorpusSample,
-  analysis: EsriSampleFixtureAnalysis,
+  sample: MigrationSample,
+  analysis: MigrationSampleFixtureAnalysis,
   codemodTarget: CodemodTarget,
   error: unknown,
-): EsriSampleEvidenceRecord {
+): MigrationSampleEvidenceRecord {
   const message = error instanceof Error ? error.message : String(error);
   return {
     sampleId: sample.id,
@@ -272,7 +276,7 @@ function buildErrorEvidence(
   };
 }
 
-function resolveSkipReason(sample: EsriSampleCorpusSample): string | undefined {
+function resolveSkipReason(sample: MigrationSample): string | undefined {
   if (sample.status !== "skipped") {
     return undefined;
   }
@@ -291,7 +295,7 @@ function countUnsupportedCallSites(todos: readonly MigrationTodo[]): number {
   return todos.filter((todo) => todo.difficulty === "complex").length;
 }
 
-function summarizeManualTodos(todos: readonly MigrationTodo[]): EsriSampleEvidenceManualTodos {
+function summarizeManualTodos(todos: readonly MigrationTodo[]): MigrationSampleManualTodos {
   const grouped = new Map<string, { count: number; kinds: Set<CodemodConstructorKind> }>();
   for (const todo of todos) {
     let bucket = grouped.get(todo.reason);
@@ -322,7 +326,7 @@ function collectUnsupportedApis(todos: readonly MigrationTodo[]): string[] {
   return Array.from(kinds).sort();
 }
 
-function buildUrlRewriteSummary(services: readonly ArcGisServiceReference[]): EsriSampleEvidenceUrlRewriteSummary {
+function buildUrlRewriteSummary(services: readonly SourceApiServiceReference[]): MigrationSampleUrlRewriteSummary {
   const byKind: Record<string, number> = {};
   for (const service of services) {
     byKind[service.kind] = (byKind[service.kind] ?? 0) + 1;
@@ -331,11 +335,11 @@ function buildUrlRewriteSummary(services: readonly ArcGisServiceReference[]): Es
 }
 
 function summarizeEvidence(
-  samples: readonly EsriSampleEvidenceRecord[],
+  samples: readonly MigrationSampleEvidenceRecord[],
   codemodTarget: CodemodTarget,
-): EsriSampleEvidenceAggregate {
-  const statusCounts: EsriSampleEvidenceStatusCounts = { migrated: 0, skipped: 0, error: 0 };
-  const totals: EsriSampleEvidenceClassification = { auto: 0, manual: 0, unsupported: 0 };
+): MigrationSampleEvidenceAggregate {
+  const statusCounts: MigrationSampleEvidenceStatusCounts = { migrated: 0, skipped: 0, error: 0 };
+  const totals: MigrationSampleEvidenceClassification = { auto: 0, manual: 0, unsupported: 0 };
   let manualTodoTotal = 0;
   const uniqueUnsupportedApis = new Set<string>();
 

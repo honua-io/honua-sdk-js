@@ -184,17 +184,17 @@ Baseline: 263 runtime and 1039 declaration symbols. Final root: 46 runtime and 1
 | `ElevationProfileSample` | type | `@honua/sdk-js/honua` |
 | `ElevationSampler` | type | `@honua/sdk-js/honua` |
 | `EMPTY_STATE` | runtime | `@honua/sdk-js/exploration` |
-| `EsriEnvelope` | type | `@honua/sdk-js/honua` |
-| `esriFeatureToGeoJSON` | runtime | `@honua/sdk-js/honua` |
-| `EsriFieldType` | type | `@honua/sdk-js/honua` |
-| `EsriGeometry` | type | `@honua/sdk-js/honua` |
-| `esriGeometryToGeoJSON` | runtime | `@honua/sdk-js/honua` |
-| `EsriGeometryType` | type | `@honua/sdk-js/honua` |
-| `EsriMultipoint` | type | `@honua/sdk-js/honua` |
-| `EsriPoint` | type | `@honua/sdk-js/honua` |
-| `EsriPolygon` | type | `@honua/sdk-js/honua` |
-| `EsriPolyline` | type | `@honua/sdk-js/honua` |
-| `EsriSpatialRel` | type | `@honua/sdk-js/honua` |
+| `EsriEnvelope` | type | `GeoServicesEnvelope` from `@honua/sdk-js/honua` |
+| `esriFeatureToGeoJSON` | runtime | `geoServicesFeatureToGeoJSON` from `@honua/sdk-js/honua` |
+| `EsriFieldType` | type | `GeoServicesFieldType` from `@honua/sdk-js/honua` |
+| `EsriGeometry` | type | `GeoServicesGeometry` from `@honua/sdk-js/honua` |
+| `esriGeometryToGeoJSON` | runtime | `geoServicesGeometryToGeoJSON` from `@honua/sdk-js/honua` |
+| `EsriGeometryType` | type | `GeoServicesGeometryType` from `@honua/sdk-js/honua` |
+| `EsriMultipoint` | type | `GeoServicesMultipoint` from `@honua/sdk-js/honua` |
+| `EsriPoint` | type | `GeoServicesPoint` from `@honua/sdk-js/honua` |
+| `EsriPolygon` | type | `GeoServicesPolygon` from `@honua/sdk-js/honua` |
+| `EsriPolyline` | type | `GeoServicesPolyline` from `@honua/sdk-js/honua` |
+| `EsriSpatialRel` | type | `GeoServicesSpatialRel` from `@honua/sdk-js/honua` |
 | `EXPLORATION_EMPTY_STATE` | runtime | `@honua/sdk-js/honua` |
 | `EXPLORATION_SLICES` | runtime | `@honua/sdk-js/honua` |
 | `ExplorationContext` | type | `@honua/sdk-js/exploration` |

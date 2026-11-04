@@ -1,9 +1,9 @@
 import { HonuaClient } from "../core/client.js";
 import type { HonuaRequestInterceptor } from "../core/types.js";
-import { esriConfig } from "./esri-config.js";
+import { clientConfig } from "./client-config.js";
 import { FeatureLayerCompat } from "./feature-layer.js";
 import { identityManager } from "./identity-manager.js";
-import { createArcGisTokenInterceptor } from "./request.js";
+import { createClientTokenInterceptor } from "./request.js";
 import { parseFeatureLayerUrl, parseImageServiceUrl, parseMapServiceUrl } from "./url.js";
 
 /**
@@ -73,12 +73,12 @@ export interface PortalCompatOptions {
   /**
    * Portal base URL. Accepts either a portal root (`https://portal.example`) or
    * a `/sharing/rest` base; both normalize to the `.../sharing/rest` endpoint
-   * base. Defaults to {@link esriConfig.portalUrl}.
+   * base. Defaults to {@link clientConfig.portalUrl}.
    */
   portalUrl?: string;
   /** Pre-obtained token to attach to authenticated calls. */
   token?: string;
-  /** Static API key (falls back to {@link esriConfig.apiKey}). */
+  /** Static API key (falls back to {@link clientConfig.apiKey}). */
   apiKey?: string;
   /** Override the global `fetch` implementation (useful in tests). */
   fetchFn?: typeof fetch;
@@ -161,7 +161,7 @@ export class PortalError extends Error {
   }
 }
 
-interface EsriErrorEnvelope {
+interface GeoServicesErrorEnvelope {
   error?: {
     code?: number | string;
     message?: string;
@@ -197,10 +197,10 @@ export class PortalCompat {
   private readonly fetchFn: typeof fetch;
 
   public constructor(options: PortalCompatOptions = {}) {
-    this.sharingRestBase = normalizeSharingRestBase(options.portalUrl ?? esriConfig.portalUrl);
+    this.sharingRestBase = normalizeSharingRestBase(options.portalUrl ?? clientConfig.portalUrl);
     this.token = options.token;
     this.tokenExpiresAtMs = undefined;
-    this.apiKey = options.apiKey ?? esriConfig.apiKey;
+    this.apiKey = options.apiKey ?? clientConfig.apiKey;
     // Bind so passing a bare `window.fetch`/`globalThis.fetch` cannot throw an
     // "Illegal invocation" when called as `this.fetchFn(...)`.
     this.fetchFn = (options.fetchFn ?? fetch).bind(globalThis);
@@ -235,7 +235,7 @@ export class PortalCompat {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),
     });
-    const json = (await response.json()) as EsriErrorEnvelope & {
+    const json = (await response.json()) as GeoServicesErrorEnvelope & {
       token?: string;
       expires?: number;
       ssl?: boolean;
@@ -349,7 +349,7 @@ export class PortalCompat {
 
   /**
    * Register the currently held token with the shared {@link identityManager}
-   * under this portal's `/sharing/rest` server, so subsequent esri-compat calls
+   * under this portal's `/sharing/rest` server, so subsequent client-compat calls
    * resolve the same credential.
    */
   public registerWithIdentityManager(): void {
@@ -366,7 +366,7 @@ export class PortalCompat {
   private buildAuthenticatedClient(baseUrl: string): HonuaClient {
     const interceptors: HonuaRequestInterceptor[] = [];
     if (this.token) {
-      interceptors.push(createArcGisTokenInterceptor({ getToken: () => this.token }));
+      interceptors.push(createClientTokenInterceptor({ getToken: () => this.token }));
     }
     return new HonuaClient({
       baseUrl,
@@ -393,7 +393,7 @@ export class PortalCompat {
       query.set("token", authToken);
     }
     const response = await this.fetchFn(`${this.sharingRestBase}${path}?${query.toString()}`);
-    const json = (await response.json()) as T & EsriErrorEnvelope;
+    const json = (await response.json()) as T & GeoServicesErrorEnvelope;
     throwIfEsriError(json, `Portal request to ${path} failed.`);
     return json;
   }
@@ -434,7 +434,7 @@ function isImageService(type: string, serviceUrl: string): boolean {
   return /image\s*service/i.test(type) || /\/ImageServer(\/\d+)?$/i.test(serviceUrl);
 }
 
-function throwIfEsriError(json: EsriErrorEnvelope, fallbackMessage: string): void {
+function throwIfEsriError(json: GeoServicesErrorEnvelope, fallbackMessage: string): void {
   if (json && typeof json === "object" && json.error) {
     const { code, message, details } = json.error;
     throw new PortalError(message ?? fallbackMessage, code, details);

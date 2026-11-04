@@ -13,7 +13,7 @@
  * `/web-components` and `/controls` entrypoints), well past their gzip
  * budgets, for a fidelity mode most apps never enable. Instead this uses the
  * same equirectangular (meters-per-degree-of-latitude/longitude) flat-earth
- * approximation `MeasurementCompat` already ships in `src/esri-compat/
+ * approximation `MeasurementCompat` already ships in `src/client-compat/
  * measurement.ts` — accurate for the local-extent sketches this widget draws,
  * and proven parity math rather than a new approach.
  *

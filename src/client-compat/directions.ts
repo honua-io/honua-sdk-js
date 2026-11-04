@@ -1,4 +1,4 @@
-import { esriConfig } from "./esri-config.js";
+import { clientConfig } from "./client-config.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { identityManager } from "./identity-manager.js";
 import {
@@ -334,8 +334,8 @@ function tokenForRouteService(url: string, apiKey: string | undefined): string |
   if (apiKey) {
     return apiKey;
   }
-  if (esriConfig.apiKey) {
-    return esriConfig.apiKey;
+  if (clientConfig.apiKey) {
+    return clientConfig.apiKey;
   }
   const direct = identityManager.findCredential(url);
   if (direct?.token) {

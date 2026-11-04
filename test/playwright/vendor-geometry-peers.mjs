@@ -2,7 +2,7 @@
  * Vendor bundles + import map for the SDK's DECLARED geometry peers.
  *
  * The migration browser-smoke harnesses serve raw `dist/src/**` modules to a
- * real browser with no bundler. The esri-compat entry re-exports the
+ * real browser with no bundler. The client-compat entry re-exports the
  * geometryEngine compat shim (issue #351), whose backing (`src/geometry`)
  * imports the optional peer dependencies `@turf/*` and `proj4` as bare
  * specifiers — unresolvable in a bundler-less browser without an import map.
@@ -11,7 +11,7 @@
  * package.json `peerDependencies`, so the list cannot drift) into
  * self-contained ESM files and returns an import map for them. Any OTHER bare
  * specifier that sneaks into the compat graph still fails module resolution
- * in these specs — the "esri-compat loads without a bundler beyond its
+ * in these specs — the "client-compat loads without a bundler beyond its
  * declared peers" guard stays intact.
  */
 

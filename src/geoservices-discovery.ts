@@ -876,7 +876,7 @@ function crsFromMetadata(metadata: Readonly<Record<string, unknown>>): readonly 
 }
 
 const VERIFIED_DIRECT_EPSG_CODES = new Set([3857, 4269, 4326]);
-const VERIFIED_ESRI_LEGACY_EPSG_ALIASES = new Map([
+const VERIFIED_GEOGRAPHIC_LEGACY_EPSG_ALIASES = new Map([
   [102100, 3857],
   [102113, 3857],
 ]);
@@ -889,7 +889,7 @@ function validatedEpsgCode(
   const authority = stringValue(metadata, "authority")?.toUpperCase();
   if (authority === "EPSG") return latestWkid ?? wkid;
   if (wkid !== undefined) {
-    const verifiedAlias = VERIFIED_ESRI_LEGACY_EPSG_ALIASES.get(wkid);
+    const verifiedAlias = VERIFIED_GEOGRAPHIC_LEGACY_EPSG_ALIASES.get(wkid);
     if (verifiedAlias !== undefined && latestWkid === verifiedAlias) return verifiedAlias;
     if (VERIFIED_DIRECT_EPSG_CODES.has(wkid) && (latestWkid === undefined || latestWkid === wkid)) return wkid;
   }

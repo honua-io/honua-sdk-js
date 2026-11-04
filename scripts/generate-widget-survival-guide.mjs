@@ -28,7 +28,7 @@ const DISPOSITION_LABELS = {
 const DISPOSITION_DESCRIPTIONS = {
   automated:
     "The `honua-migrate` codemod deterministically rewrites the import and safe constructor call sites to a " +
-    "Honua compat shim from `@honua/sdk-esri-compat`. Unsafe option literals fall through to an annotated manual TODO.",
+    "Honua compat shim from `@honua/sdk-client-compat`. Unsafe option literals fall through to an annotated manual TODO.",
   "compat-shim":
     "A Honua compat shim exists and the codemod rewrites to it, but no native Honua element does the job yet — " +
     "the shim is the destination, not a waypoint. Treat the migration as assisted and verify app-specific " +

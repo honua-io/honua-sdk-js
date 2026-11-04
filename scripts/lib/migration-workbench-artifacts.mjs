@@ -174,7 +174,7 @@ export async function buildMigrationWorkbenchArtifacts(options = {}) {
         "--target",
         "honua-compat",
         "--compat-import-path",
-        "@honua/sdk-js/esri-compat",
+        "@honua/sdk-js/client-compat",
         "--skip-import",
         "--skip-reconcile",
         "--report",

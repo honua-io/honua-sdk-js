@@ -1896,7 +1896,7 @@ function printUsage(): void {
       "",
       "Target semantics:",
       "  honua: alias of honua-compat.",
-      "  honua-compat: migrate ArcGIS JS (@arcgis/core) to @honua/sdk-esri-compat.",
+      "  honua-compat: migrate ArcGIS JS (@arcgis/core) to @honua/sdk-client-compat.",
       "  honua-maplibre: migrate supported ArcGIS JS (@arcgis/core) constructs to @honua/sdk-js/map plus maplibre-gl helpers.",
       "  esri-leaflet: migrate ArcGIS JS (@arcgis/core) to a mixed esri-leaflet + compat output.",
       "  Existing esri-leaflet apps generally do not need this codemod.",

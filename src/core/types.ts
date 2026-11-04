@@ -89,8 +89,8 @@ export interface QueryFeaturesRequest {
   orderByFields?: string;
   objectIds?: number[] | string;
   geometry?: string | Record<string, unknown>;
-  geometryType?: EsriGeometryType;
-  spatialRel?: EsriSpatialRel;
+  geometryType?: GeoServicesGeometryType;
+  spatialRel?: GeoServicesSpatialRel;
   distance?: number;
   units?: string;
   nearestCount?: number;
@@ -117,8 +117,8 @@ export interface MapLayerQueryRequest {
   orderByFields?: string;
   objectIds?: number[] | string;
   geometry?: string | Record<string, unknown>;
-  geometryType?: EsriGeometryType;
-  spatialRel?: EsriSpatialRel;
+  geometryType?: GeoServicesGeometryType;
+  spatialRel?: GeoServicesSpatialRel;
   distance?: number;
   units?: string;
   nearestCount?: number;
@@ -864,7 +864,7 @@ export interface OgcDeleteItemRequest extends OgcItemRequest {}
 // ── Esri Geometry Types ───────────────────────────────────────
 
 /** Well-known Esri geometry type identifiers with open-ended fallback. */
-export type EsriGeometryType =
+export type GeoServicesGeometryType =
   | "esriGeometryPoint"
   | "esriGeometryPolyline"
   | "esriGeometryPolygon"
@@ -873,7 +873,7 @@ export type EsriGeometryType =
   | (string & {});
 
 /** Well-known Esri spatial relationship identifiers. */
-export type EsriSpatialRel =
+export type GeoServicesSpatialRel =
   | "esriSpatialRelIntersects"
   | "esriSpatialRelContains"
   | "esriSpatialRelCrosses"
@@ -885,7 +885,7 @@ export type EsriSpatialRel =
   | (string & {});
 
 /** Well-known Esri field type identifiers. */
-export type EsriFieldType =
+export type GeoServicesFieldType =
   | "esriFieldTypeString"
   | "esriFieldTypeInteger"
   | "esriFieldTypeSmallInteger"
@@ -903,7 +903,7 @@ export type EsriFieldType =
   | (string & {});
 
 /** An Esri point geometry. */
-export interface EsriPoint {
+export interface GeoServicesPoint {
   x: number;
   y: number;
   z?: number;
@@ -912,19 +912,19 @@ export interface EsriPoint {
 }
 
 /** An Esri polyline geometry. */
-export interface EsriPolyline {
+export interface GeoServicesPolyline {
   paths: number[][][];
   spatialReference?: HonuaSpatialReference;
 }
 
 /** An Esri polygon geometry. */
-export interface EsriPolygon {
+export interface GeoServicesPolygon {
   rings: number[][][];
   spatialReference?: HonuaSpatialReference;
 }
 
 /** An Esri envelope (bounding box) geometry. */
-export interface EsriEnvelope {
+export interface GeoServicesEnvelope {
   xmin: number;
   ymin: number;
   xmax: number;
@@ -933,13 +933,18 @@ export interface EsriEnvelope {
 }
 
 /** An Esri multipoint geometry. */
-export interface EsriMultipoint {
+export interface GeoServicesMultipoint {
   points: number[][];
   spatialReference?: HonuaSpatialReference;
 }
 
 /** Union of all Esri geometry shapes. */
-export type EsriGeometry = EsriPoint | EsriPolyline | EsriPolygon | EsriEnvelope | EsriMultipoint;
+export type GeoServicesGeometry =
+  | GeoServicesPoint
+  | GeoServicesPolyline
+  | GeoServicesPolygon
+  | GeoServicesEnvelope
+  | GeoServicesMultipoint;
 
 /** A GeoJSON Feature object. */
 export interface GeoJsonFeature {
@@ -975,7 +980,7 @@ export interface HonuaExtent {
 export interface HonuaFieldInfo {
   name: string;
   /** Esri field type string, e.g. `"esriFieldTypeString"`. */
-  type: EsriFieldType;
+  type: GeoServicesFieldType;
   alias?: string;
   length?: number;
   nullable?: boolean;
@@ -1014,7 +1019,7 @@ export type HonuaFieldDomain =
 /** A single feature with attribute values and optional geometry. */
 export interface HonuaFeature {
   attributes: Record<string, unknown>;
-  geometry?: EsriGeometry | Record<string, unknown> | null;
+  geometry?: GeoServicesGeometry | Record<string, unknown> | null;
 }
 
 // ── Query Responses ───────────────────────────
@@ -1022,7 +1027,7 @@ export interface HonuaFeature {
 /** Response from a feature or map-layer query returning features. */
 export interface HonuaQueryResponse {
   objectIdFieldName?: string;
-  geometryType?: EsriGeometryType;
+  geometryType?: GeoServicesGeometryType;
   spatialReference?: HonuaSpatialReference;
   fields?: HonuaFieldInfo[];
   features?: HonuaFeature[];
@@ -1078,7 +1083,7 @@ export interface HonuaRelatedRecordGroup {
 export interface HonuaRelatedRecordsResponse {
   relatedRecordGroups?: HonuaRelatedRecordGroup[];
   fields?: HonuaFieldInfo[];
-  geometryType?: EsriGeometryType;
+  geometryType?: GeoServicesGeometryType;
   spatialReference?: HonuaSpatialReference;
 }
 
@@ -1218,7 +1223,7 @@ export interface HonuaLayerMetadata {
   id: number;
   name: string;
   type?: string;
-  geometryType?: EsriGeometryType;
+  geometryType?: GeoServicesGeometryType;
   /** Whether GeoServices coordinates include a z ordinate. */
   hasZ?: boolean;
   /** Whether GeoServices coordinates include a measure ordinate. */
@@ -1879,7 +1884,7 @@ export interface HonuaStacLandingResponse extends HonuaOgcLandingResponse {
  */
 export interface HonuaTypedFeature<T = Record<string, unknown>> {
   attributes: T;
-  geometry?: EsriGeometry | Record<string, unknown> | null;
+  geometry?: GeoServicesGeometry | Record<string, unknown> | null;
 }
 
 /**
@@ -1888,7 +1893,7 @@ export interface HonuaTypedFeature<T = Record<string, unknown>> {
  */
 export interface HonuaTypedQueryResponse<T = Record<string, unknown>> {
   objectIdFieldName?: string;
-  geometryType?: EsriGeometryType;
+  geometryType?: GeoServicesGeometryType;
   spatialReference?: HonuaSpatialReference;
   fields?: HonuaFieldInfo[];
   features?: HonuaTypedFeature<T>[];

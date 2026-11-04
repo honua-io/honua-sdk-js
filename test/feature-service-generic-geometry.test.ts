@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { HonuaClient } from "../src/index.js";
-import { esriGeometryToGeoJson, loadHonuaFeatureServiceGeoJson } from "../src/map/index.js";
+import { featureServiceGeometryToGeoJson, loadHonuaFeatureServiceGeoJson } from "../src/map/index.js";
 
 const ring = [
   [0, 0],
@@ -61,7 +61,7 @@ const shapes = [
 
 describe.each([undefined, "esriGeometryNull"])("feature geometry with metadata %s", (metadata) => {
   it.each(shapes)("uses the actual nonpoint shape %j", (geometry, expected) => {
-    expect(esriGeometryToGeoJson(geometry, metadata)).toEqual(expected);
+    expect(featureServiceGeometryToGeoJson(geometry, metadata)).toEqual(expected);
   });
 
   it.each([
@@ -98,12 +98,12 @@ describe.each([undefined, "esriGeometryNull"])("feature geometry with metadata %
     { points: [[Number.POSITIVE_INFINITY, 0]] },
     { xmin: 2, ymin: 0, xmax: 1, ymax: 1 },
   ])("refuses ambiguous or malformed geometry %j", (geometry) => {
-    expect(esriGeometryToGeoJson(geometry, metadata)).toBeNull();
+    expect(featureServiceGeometryToGeoJson(geometry, metadata)).toBeNull();
   });
 });
 
 it("keeps unsupported explicitly declared geometry unsupported", () => {
-  expect(esriGeometryToGeoJson({ rings: [ring] }, "esriGeometryMultipatch")).toBeNull();
+  expect(featureServiceGeometryToGeoJson({ rings: [ring] }, "esriGeometryMultipatch")).toBeNull();
 });
 
 it("preserves the polygon and attributes through the canonical feature-service loader with generic metadata", async () => {
@@ -158,14 +158,14 @@ describe.each([undefined, "esriGeometryNull"])("inferred multipart polygons with
   const reversed = (ring: number[][]) => [...ring].reverse();
 
   it("preserves two independent exterior areas as MultiPolygon", () => {
-    expect(esriGeometryToGeoJson({ rings: [first, second] }, metadata)).toEqual({
+    expect(featureServiceGeometryToGeoJson({ rings: [first, second] }, metadata)).toEqual({
       type: "MultiPolygon",
       coordinates: [[reversed(first)], [reversed(second)]],
     });
   });
 
   it("assigns out-of-order holes to their containing exterior", () => {
-    expect(esriGeometryToGeoJson({ rings: [secondHole, first, second, firstHole] }, metadata)).toEqual({
+    expect(featureServiceGeometryToGeoJson({ rings: [secondHole, first, second, firstHole] }, metadata)).toEqual({
       type: "MultiPolygon",
       coordinates: [
         [reversed(first), reversed(firstHole)],
@@ -190,7 +190,7 @@ it("uses canonical topology for metadata-declared polygon parts too", () => {
     [14, 0],
     [10, 0],
   ];
-  expect(esriGeometryToGeoJson({ rings: [first, second] }, "esriGeometryPolygon")).toEqual({
+  expect(featureServiceGeometryToGeoJson({ rings: [first, second] }, "esriGeometryPolygon")).toEqual({
     type: "MultiPolygon",
     coordinates: [[[...first].reverse()], [[...second].reverse()]],
   });
@@ -198,7 +198,10 @@ it("uses canonical topology for metadata-declared polygon parts too", () => {
 
 it("retains point elevation through the same canonical declared/inferred conversion", () => {
   for (const metadata of [undefined, "esriGeometryNull", "esriGeometryPoint"]) {
-    expect(esriGeometryToGeoJson({ x: 1, y: 2, z: 3 }, metadata)).toEqual({ type: "Point", coordinates: [1, 2, 3] });
+    expect(featureServiceGeometryToGeoJson({ x: 1, y: 2, z: 3 }, metadata)).toEqual({
+      type: "Point",
+      coordinates: [1, 2, 3],
+    });
   }
 });
 
@@ -243,7 +246,7 @@ describe.each([null, "bad", Number.NaN, Number.POSITIVE_INFINITY])(
         `keeps ${position.length}D input drawable for %s without dimension metadata`,
         (declared, geometry, expected) => {
           for (const metadata of [undefined, "esriGeometryNull", declared] as const) {
-            expect(esriGeometryToGeoJson(geometry, metadata)).toEqual(expected);
+            expect(featureServiceGeometryToGeoJson(geometry, metadata)).toEqual(expected);
           }
         },
       );
@@ -254,7 +257,7 @@ describe.each([null, "bad", Number.NaN, Number.POSITIVE_INFINITY])(
 it.each([undefined, "esriGeometryNull", "esriGeometryPoint"] as const)(
   "renders a point with absent Z and metadata %s",
   (metadata) => {
-    expect(esriGeometryToGeoJson({ x: 1, y: 2, z: null, m: null }, metadata)).toEqual({
+    expect(featureServiceGeometryToGeoJson({ x: 1, y: 2, z: null, m: null }, metadata)).toEqual({
       type: "Point",
       coordinates: [1, 2],
     });
@@ -307,12 +310,12 @@ it.each([
   ],
 ] as const)("preserves declared Z and omits null M for %s", (declared, geometry, expected) => {
   for (const metadata of [undefined, "esriGeometryNull", declared] as const) {
-    expect(esriGeometryToGeoJson({ ...geometry, hasZ: true, hasM: true }, metadata)).toEqual(expected);
+    expect(featureServiceGeometryToGeoJson({ ...geometry, hasZ: true, hasM: true }, metadata)).toEqual(expected);
   }
 });
 
 it("does not interpret an M-only position as altitude", () => {
-  expect(esriGeometryToGeoJson({ points: [[1, 2, 99]], hasM: true }, "esriGeometryMultipoint")).toEqual({
+  expect(featureServiceGeometryToGeoJson({ points: [[1, 2, 99]], hasM: true }, "esriGeometryMultipoint")).toEqual({
     type: "MultiPoint",
     coordinates: [[1, 2]],
   });
@@ -358,12 +361,12 @@ it.each([undefined, "esriGeometryNull", "esriGeometryPolygon"] as const)(
     ];
     const geometry = { hasZ: true, rings: [first] };
     const before = JSON.stringify(geometry);
-    expect(esriGeometryToGeoJson(geometry, metadata)).toEqual({
+    expect(featureServiceGeometryToGeoJson(geometry, metadata)).toEqual({
       type: "Polygon",
       coordinates: [[...first, [0, 0, 1]]],
     });
     expect(JSON.stringify(geometry)).toBe(before);
-    expect(esriGeometryToGeoJson({ hasZ: true, rings: [first, second] }, metadata)).toEqual({
+    expect(featureServiceGeometryToGeoJson({ hasZ: true, rings: [first, second] }, metadata)).toEqual({
       type: "MultiPolygon",
       coordinates: [[[...first, [0, 0, 1]]], [[...second, [10, 10, 4]]]],
     });

@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { EsriSpatialRel } from "../core/types.js";
+import type { GeoServicesSpatialRel } from "../core/types.js";
 import { type FesLiteral, type FesNode, UNSUPPORTED_FES, compileSpatialFilter } from "../core/wfs-filter.js";
 import {
   GEOSERVICES_SPATIAL_REL,
@@ -119,7 +119,7 @@ export function compileQueryFilterToFes(filter: QueryFilterExpression, ctx: Quer
   return emit(filter);
 }
 
-function fesSpatialRel(operator: QueryFilterSpatialPredicate, ctx: QueryFilterContext): EsriSpatialRel {
+function fesSpatialRel(operator: QueryFilterSpatialPredicate, ctx: QueryFilterContext): GeoServicesSpatialRel {
   const rel = GEOSERVICES_SPATIAL_REL[operator];
   if (!rel) refuseQueryFilterConstruct(`filter.spatial.${operator}`, ctx);
   return rel;

@@ -1443,57 +1443,68 @@
     {
       "symbol": "EsriEnvelope",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesEnvelope"
     },
     {
       "symbol": "esriFeatureToGeoJSON",
       "kind": "runtime",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "geoServicesFeatureToGeoJSON"
     },
     {
       "symbol": "EsriFieldType",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesFieldType"
     },
     {
       "symbol": "EsriGeometry",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesGeometry"
     },
     {
       "symbol": "esriGeometryToGeoJSON",
       "kind": "runtime",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "geoServicesGeometryToGeoJSON"
     },
     {
       "symbol": "EsriGeometryType",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesGeometryType"
     },
     {
       "symbol": "EsriMultipoint",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesMultipoint"
     },
     {
       "symbol": "EsriPoint",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesPoint"
     },
     {
       "symbol": "EsriPolygon",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesPolygon"
     },
     {
       "symbol": "EsriPolyline",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesPolyline"
     },
     {
       "symbol": "EsriSpatialRel",
       "kind": "type",
-      "replacement": "@honua/sdk-js/honua"
+      "replacement": "@honua/sdk-js/honua",
+      "replacementSymbol": "GeoServicesSpatialRel"
     },
     {
       "symbol": "EXPLORATION_EMPTY_STATE",

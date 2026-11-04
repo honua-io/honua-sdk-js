@@ -47,12 +47,12 @@ test("network guards check both packages and fail closed on HTTP and malformed r
     urls.push(url);
     return { ok: true, json: async () => ({ versions: { "0.1.9-beta.0": {} } }) };
   });
-  assert.deepEqual(urls.map((url) => decodeURIComponent(url.split("/").at(-1))), ["@honua/sdk-js", "@honua/sdk-esri-compat"]);
+  assert.deepEqual(urls.map((url) => decodeURIComponent(url.split("/").at(-1))), ["@honua/sdk-js", "@honua/sdk-client-compat"]);
   await assert.rejects(verifyRegistry(manifest, async () => ({ ok: false, status: 503 })), /HTTP 503/);
   await assert.rejects(verifyRegistry(manifest, async () => ({ ok: true, json: async () => ({}) })), /no versions/);
   await assert.rejects(verifyRegistry(manifest, async (url) => ({ ok: true, json: async () => ({ versions: {
-    [url.includes("esri-compat") ? "0.1.10-beta.0" : "0.1.9-beta.0"]: {},
-  } }) })), /sdk-esri-compat: npm publishes/);
+    [url.includes("client-compat") ? "0.1.10-beta.0" : "0.1.9-beta.0"]: {},
+  } }) })), /sdk-client-compat: npm publishes/);
 });
 
 test("hosted verification catches stale versions, entries, and deployment revisions", async () => {

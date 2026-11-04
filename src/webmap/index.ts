@@ -27,7 +27,7 @@ export { createWarningCollector } from "./warnings.js";
 export type { WebMapWarning, WarningCollector } from "./warnings.js";
 export { CONTRACT, getContractSummary } from "./contract.js";
 export type { ContractEntry, ContractSupport, ContractSummary } from "./contract.js";
-export { convertSymbol, esriColorToCss, esriLineStyleToDashArray } from "./convert-symbol.js";
+export { convertSymbol, geoServicesColorToCss, geoServicesLineStyleToDashArray } from "./convert-symbol.js";
 export type { SymbolConversionResult } from "./convert-symbol.js";
 export {
   classBreaksRendererFromWebMap,
@@ -71,7 +71,7 @@ export type {
   WebMapLabelClass,
   WebMapDrawingInfo,
   WebMapLayerDefinition,
-  EsriColor,
+  GeoServicesColor,
 } from "./types.js";
 
 export type { RendererConversionOptions, VisualVariableLegend } from "../style/visual-variables.js";

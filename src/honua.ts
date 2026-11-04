@@ -167,7 +167,7 @@ export {
   CONTRACT,
   getContractSummary,
   convertSymbol,
-  esriColorToCss,
+  geoServicesColorToCss,
   convertRenderer,
   convertPopupInfo,
   convertLabelingInfo,
@@ -200,7 +200,7 @@ export type {
   WebMapPoint,
   WebMapViewpoint,
   WebMapBookmark,
-  EsriColor,
+  GeoServicesColor,
 } from "./webmap/index.js";
 export {
   expr,
@@ -396,7 +396,7 @@ export type { SpatialFilter } from "./core/spatial-filter.js";
 export { batchQuery } from "./core/batch.js";
 export type { BatchQueryItem, BatchQueryOptions, BatchQueryResult } from "./core/batch.js";
 export { decodePbfQueryResponse, isPbfResponse } from "./core/pbf-decoder.js";
-export { esriFeatureToGeoJSON, esriGeometryToGeoJSON } from "./core/esri-geojson.js";
+export { geoServicesFeatureToGeoJSON, geoServicesGeometryToGeoJSON } from "./core/geoservices-geojson.js";
 export {
   decodeElevationPixel,
   decodeTerrainRgbElevation,
@@ -764,15 +764,15 @@ export type {
   QueryFeaturesRequest,
   QueryMethod,
   QueryRelatedRecordsRequest,
-  EsriGeometryType,
-  EsriSpatialRel,
-  EsriFieldType,
-  EsriPoint,
-  EsriPolyline,
-  EsriPolygon,
-  EsriEnvelope,
-  EsriMultipoint,
-  EsriGeometry,
+  GeoServicesGeometryType,
+  GeoServicesSpatialRel,
+  GeoServicesFieldType,
+  GeoServicesPoint,
+  GeoServicesPolyline,
+  GeoServicesPolygon,
+  GeoServicesEnvelope,
+  GeoServicesMultipoint,
+  GeoServicesGeometry,
   GeoJsonFeature,
   HonuaServicesResponse,
   OgcRecordItemRequest,

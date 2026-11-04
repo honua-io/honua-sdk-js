@@ -1,13 +1,13 @@
 /**
  * Mounts a MapLibre map into a compat view container. `maplibre-gl` stays a
- * dynamic peer import so the esri-compat bundle does not inline the renderer.
+ * dynamic peer import so the client-compat bundle does not inline the renderer.
  * Headless callers (no element) get `undefined`. A real element whose renderer
  * fails to start also gets `undefined`, and the view treats that as a failed load.
  */
 
 const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
-const ESRI_BASEMAP_TILES: Record<string, string> = {
+const THIRD_PARTY_BASEMAP_TILES: Record<string, string> = {
   streets: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
   "streets-vector":
     "https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
@@ -326,7 +326,7 @@ export function coordinateToLonLat(pair: readonly number[], wkid?: number): [num
 
 function tileTemplatesForBasemap(basemap: unknown): string[] {
   if (typeof basemap === "string") {
-    const known = ESRI_BASEMAP_TILES[basemap];
+    const known = THIRD_PARTY_BASEMAP_TILES[basemap];
     return known ? [known] : [];
   }
   if (!basemap || typeof basemap !== "object") {
@@ -350,8 +350,8 @@ function tileTemplatesForBasemap(basemap: unknown): string[] {
     return [];
   }
   const id = typeof record.id === "string" ? record.id : typeof record.title === "string" ? record.title : undefined;
-  if (id && ESRI_BASEMAP_TILES[id]) {
-    return [ESRI_BASEMAP_TILES[id]];
+  if (id && THIRD_PARTY_BASEMAP_TILES[id]) {
+    return [THIRD_PARTY_BASEMAP_TILES[id]];
   }
   return [];
 }

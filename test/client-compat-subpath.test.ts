@@ -68,7 +68,7 @@ describe("@honua/sdk-js/client-compat and the deprecated @honua/sdk-js/esri-comp
       tier: "deprecated",
       replacement: "@honua/sdk-js/client-compat",
       introducedIn: "0.1.13",
-      removeIn: "2026.2",
+      removeIn: "0.4.0",
     });
 
     // The shim adds no symbol of its own: everything it exports comes from the renamed entry.
@@ -125,7 +125,7 @@ describe("@honua/sdk-js/client-compat and the deprecated @honua/sdk-js/esri-comp
       expect(options).toEqual({ code: WARNING_CODE, type: "DeprecationWarning" });
       expect(message).toContain("@honua/sdk-js/esri-compat is deprecated");
       expect(message).toContain("@honua/sdk-js/client-compat");
-      expect(message).toContain("2026.2");
+      expect(message).toContain("0.4.0");
     },
     COLD_IMPORT_TIMEOUT_MS,
   );

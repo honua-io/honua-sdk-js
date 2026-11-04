@@ -62,10 +62,10 @@ describe("workflow corpus", () => {
     expect(graded.violations.some((violation) => violation.includes("visibility"))).toBe(true);
   });
 
-  it("blocks buffer until the analysis and esri-gp profiles are enabled", () => {
+  it("blocks buffer until the analysis and geoservices-gp profiles are enabled", () => {
     const scenario = WORKFLOW_CORPUS.find((item) => item.id === "buffer-three-ways")!;
-    expect(unavailableProfiles(scenario, ["base"])).toEqual(["analysis", "esri-gp"]);
-    const blocked = blockedTranscript("deterministic", scenario, ["analysis", "esri-gp"]);
+    expect(unavailableProfiles(scenario, ["base"])).toEqual(["analysis", "geoservices-gp"]);
+    const blocked = blockedTranscript("deterministic", scenario, ["analysis", "geoservices-gp"]);
     expect(grade(scenario, blocked).outcome).toBe("blocked");
   });
 

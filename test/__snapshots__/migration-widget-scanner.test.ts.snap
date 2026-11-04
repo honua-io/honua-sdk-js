@@ -37,7 +37,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "BasemapGalleryCompat from @honua/sdk-esri-compat",
+      "target": "BasemapGalleryCompat from @honua/sdk-client-compat",
       "widget": "BasemapGallery",
     },
     {
@@ -75,7 +75,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "DirectionsCompat from @honua/sdk-esri-compat backed by HonuaRouteService (RouteTask parity)",
+      "target": "DirectionsCompat from @honua/sdk-client-compat backed by HonuaRouteService (RouteTask parity)",
       "widget": "Directions",
     },
     {
@@ -94,7 +94,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "EditorCompat from @honua/sdk-esri-compat",
+      "target": "EditorCompat from @honua/sdk-client-compat",
       "widget": "Editor",
     },
     {
@@ -132,7 +132,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "ExpandCompat from @honua/sdk-esri-compat",
+      "target": "ExpandCompat from @honua/sdk-client-compat",
       "widget": "Expand",
     },
     {
@@ -151,7 +151,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "FeatureTableCompat from @honua/sdk-esri-compat",
+      "target": "FeatureTableCompat from @honua/sdk-client-compat",
       "widget": "FeatureTable",
     },
     {
@@ -170,7 +170,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "LayerListCompat from @honua/sdk-esri-compat",
+      "target": "LayerListCompat from @honua/sdk-client-compat",
       "widget": "LayerList",
     },
     {
@@ -189,7 +189,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "LegendCompat from @honua/sdk-esri-compat",
+      "target": "LegendCompat from @honua/sdk-client-compat",
       "widget": "Legend",
     },
     {
@@ -208,7 +208,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "PrintCompat from @honua/sdk-esri-compat",
+      "target": "PrintCompat from @honua/sdk-client-compat",
       "widget": "Print",
     },
     {
@@ -246,7 +246,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "SketchCompat from @honua/sdk-esri-compat",
+      "target": "SketchCompat from @honua/sdk-client-compat",
       "widget": "Sketch",
     },
     {
@@ -265,7 +265,7 @@ exports[`widget readiness report on the client-widget-cliff-app fixture > matche
         },
       ],
       "supportModule": false,
-      "target": "TimeSliderCompat from @honua/sdk-esri-compat",
+      "target": "TimeSliderCompat from @honua/sdk-client-compat",
       "widget": "TimeSlider",
     },
   ],
@@ -285,19 +285,19 @@ Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early
 
 | Widget | Sites | Disposition | Target |
 | --- | --- | --- | --- |
-| [BasemapGallery](docs/widget-survival-guide.md#basemapgallery) | 1 | \`automated\` | BasemapGalleryCompat from @honua/sdk-esri-compat |
+| [BasemapGallery](docs/widget-survival-guide.md#basemapgallery) | 1 | \`automated\` | BasemapGalleryCompat from @honua/sdk-client-compat |
 | [Daylight](docs/widget-survival-guide.md#daylight) | 1 | \`no-equivalent\` | None. Requires a 3D scene with sun/shadow simulation. |
-| [Directions](docs/widget-survival-guide.md#directions) | 1 | \`compat-shim\` | DirectionsCompat from @honua/sdk-esri-compat backed by HonuaRouteService (RouteTask parity) |
-| [Editor](docs/widget-survival-guide.md#editor) | 1 | \`app-platform\` | EditorCompat from @honua/sdk-esri-compat |
+| [Directions](docs/widget-survival-guide.md#directions) | 1 | \`compat-shim\` | DirectionsCompat from @honua/sdk-client-compat backed by HonuaRouteService (RouteTask parity) |
+| [Editor](docs/widget-survival-guide.md#editor) | 1 | \`app-platform\` | EditorCompat from @honua/sdk-client-compat |
 | [ElevationProfile](docs/widget-survival-guide.md#elevationprofile) | 1 | \`manual-workaround\` | No drop-in widget. Sample the profile geometry yourself (e.g. @honua/sdk-js/geometry densify + an elevation/terrain source such as maplibre-gl queryTerrainElevation) and chart with your own charting library. |
-| [Expand](docs/widget-survival-guide.md#expand) | 1 | \`automated\` | ExpandCompat from @honua/sdk-esri-compat |
-| [FeatureTable](docs/widget-survival-guide.md#featuretable) | 1 | \`app-platform\` | FeatureTableCompat from @honua/sdk-esri-compat |
-| [LayerList](docs/widget-survival-guide.md#layerlist) | 1 | \`automated\` | LayerListCompat from @honua/sdk-esri-compat |
-| [Legend](docs/widget-survival-guide.md#legend) | 1 | \`automated\` | LegendCompat from @honua/sdk-esri-compat |
-| [Print](docs/widget-survival-guide.md#print) | 1 | \`app-platform\` | PrintCompat from @honua/sdk-esri-compat |
+| [Expand](docs/widget-survival-guide.md#expand) | 1 | \`automated\` | ExpandCompat from @honua/sdk-client-compat |
+| [FeatureTable](docs/widget-survival-guide.md#featuretable) | 1 | \`app-platform\` | FeatureTableCompat from @honua/sdk-client-compat |
+| [LayerList](docs/widget-survival-guide.md#layerlist) | 1 | \`automated\` | LayerListCompat from @honua/sdk-client-compat |
+| [Legend](docs/widget-survival-guide.md#legend) | 1 | \`automated\` | LegendCompat from @honua/sdk-client-compat |
+| [Print](docs/widget-survival-guide.md#print) | 1 | \`app-platform\` | PrintCompat from @honua/sdk-client-compat |
 | [Search (support modules)](docs/widget-survival-guide.md#search) | 1 | \`support-module\` | Support-module import — honua-migrate only rewrites the root Search widget module; migrate these by hand (root Search disposition: automated). |
-| [Sketch](docs/widget-survival-guide.md#sketch) | 1 | \`app-platform\` | SketchCompat from @honua/sdk-esri-compat |
-| [TimeSlider](docs/widget-survival-guide.md#timeslider) | 1 | \`app-platform\` | TimeSliderCompat from @honua/sdk-esri-compat |
+| [Sketch](docs/widget-survival-guide.md#sketch) | 1 | \`app-platform\` | SketchCompat from @honua/sdk-client-compat |
+| [TimeSlider](docs/widget-survival-guide.md#timeslider) | 1 | \`app-platform\` | TimeSliderCompat from @honua/sdk-client-compat |
 
 ## File inventory
 

@@ -33,7 +33,7 @@ export interface CompatEventPayloads {
   /**
    * Emitted the first time a compat widget shim tries to mount its delegated
    * web component while no widget kit is registered (see
-   * `esri-compat/widget-host.ts`). Without a kit the shims stay
+   * `client-compat/widget-host.ts`). Without a kit the shims stay
    * state-model-only and their `container` renders nothing, so this is the
    * machine-readable half of the one-time `console.warn` the host emits.
    *

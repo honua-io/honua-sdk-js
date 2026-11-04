@@ -1,15 +1,15 @@
-export type EsriRequestResponseTypeCompat = "json" | "text" | "blob" | "array-buffer";
+export type ClientRequestResponseTypeCompat = "json" | "text" | "blob" | "array-buffer";
 
-export interface EsriRequestCompatOptions {
+export interface ClientRequestCompatOptions {
   method?: string;
   query?: Record<string, string | number | boolean>;
   headers?: Record<string, string>;
   body?: BodyInit | null;
-  responseType?: EsriRequestResponseTypeCompat;
+  responseType?: ClientRequestResponseTypeCompat;
   signal?: AbortSignal;
 }
 
-export interface EsriRequestCompatResponse<TData = unknown> {
+export interface ClientRequestCompatResponse<TData = unknown> {
   data: TData;
   url: string;
   status: number;
@@ -22,7 +22,7 @@ const MAX_SAFE_REDIRECTS = 20;
 /**
  * Fetch that never auto-follows a cross-origin redirect.
  *
- * `esriRequest` replays caller-supplied auth headers (e.g. `X-API-Key`,
+ * `clientRequest` replays caller-supplied auth headers (e.g. `X-API-Key`,
  * `X-Esri-Authorization`). The default `redirect: "follow"` forwards those
  * custom headers across a 30x to an attacker-supplied `Location` host, leaking
  * the credentials. Mirroring the core client's `fetchWithSafeRedirects`, this
@@ -53,7 +53,7 @@ async function fetchWithSafeRedirects(url: string, init: RequestInit): Promise<R
 
     if (response.type === "opaqueredirect") {
       throw new Error(
-        "esriRequest: refusing to follow an opaque cross-origin redirect; the request's auth headers would be leaked to the redirect target.",
+        "clientRequest: refusing to follow an opaque cross-origin redirect; the request's auth headers would be leaked to the redirect target.",
       );
     }
 
@@ -62,7 +62,7 @@ async function fetchWithSafeRedirects(url: string, init: RequestInit): Promise<R
     }
 
     if (redirects >= MAX_SAFE_REDIRECTS) {
-      throw new Error(`esriRequest: exceeded the maximum of ${MAX_SAFE_REDIRECTS} redirects.`);
+      throw new Error(`clientRequest: exceeded the maximum of ${MAX_SAFE_REDIRECTS} redirects.`);
     }
 
     const location = response.headers.get("location");
@@ -73,7 +73,7 @@ async function fetchWithSafeRedirects(url: string, init: RequestInit): Promise<R
     const nextUrl = new URL(location, currentUrl);
     if (originalOrigin !== undefined && nextUrl.origin !== originalOrigin) {
       throw new Error(
-        `esriRequest: refusing to follow a cross-origin redirect to ${nextUrl.origin}; the request's auth headers would be leaked.`,
+        `clientRequest: refusing to follow a cross-origin redirect to ${nextUrl.origin}; the request's auth headers would be leaked.`,
       );
     }
 
@@ -91,10 +91,10 @@ async function fetchWithSafeRedirects(url: string, init: RequestInit): Promise<R
   }
 }
 
-export async function esriRequest<TData = unknown>(
+export async function clientRequest<TData = unknown>(
   url: string,
-  options: EsriRequestCompatOptions = {},
-): Promise<EsriRequestCompatResponse<TData>> {
+  options: ClientRequestCompatOptions = {},
+): Promise<ClientRequestCompatResponse<TData>> {
   const finalUrl = appendQuery(url, options.query);
   const method = options.method?.toUpperCase() ?? "GET";
   const responseType = options.responseType ?? "json";
@@ -108,7 +108,7 @@ export async function esriRequest<TData = unknown>(
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    throw new Error(`esriRequest failed (${response.status}): ${detail}`);
+    throw new Error(`clientRequest failed (${response.status}): ${detail}`);
   }
 
   const data = (await parseResponseBody(response, responseType)) as TData;
@@ -141,7 +141,7 @@ function appendQuery(urlText: string, query: Record<string, string | number | bo
   return `${withQuery}${hash}`;
 }
 
-async function parseResponseBody(response: Response, responseType: EsriRequestResponseTypeCompat): Promise<unknown> {
+async function parseResponseBody(response: Response, responseType: ClientRequestResponseTypeCompat): Promise<unknown> {
   switch (responseType) {
     case "text":
       return response.text();

@@ -103,8 +103,8 @@ describe("migration cli parity matrix", () => {
     const query = report.matrix.find((row) => row.kind === "query");
     const oauthInfo = report.matrix.find((row) => row.kind === "oauth-info");
     const identityManager = report.matrix.find((row) => row.kind === "identity-manager");
-    const esriRequest = report.matrix.find((row) => row.kind === "esri-request");
-    const esriConfig = report.matrix.find((row) => row.kind === "esri-config");
+    const esriRequest = report.matrix.find((row) => row.kind === "client-request");
+    const esriConfig = report.matrix.find((row) => row.kind === "client-config");
     const reactiveUtils = report.matrix.find((row) => row.kind === "reactive-utils");
     expect(featureLayer).toMatchObject({ honuaCompat: "compat", honuaMapLibre: "native", esriLeaflet: "compat" });
     expect(graphic).toMatchObject({ honuaCompat: "compat", esriLeaflet: "compat" });

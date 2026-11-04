@@ -4,7 +4,7 @@
  * Since issue #497 this module emits first-class renderer objects
  * (`src/style/renderers.ts`) for uniqueValue/classBreaks renderers and
  * compiles them through the shared `/expr`-based compiler, so WebMap
- * conversion, esri-compat, and standalone renderer objects share a single
+ * conversion, client-compat, and standalone renderer objects share a single
  * implementation. The compiled style output is unchanged.
  *
  * @module
@@ -18,7 +18,7 @@ import {
   bindRendererField,
   compileVisualVariables,
 } from "../style/visual-variables.js";
-import { convertSymbol, esriLineStyleToDashArray } from "./convert-symbol.js";
+import { convertSymbol, geoServicesLineStyleToDashArray } from "./convert-symbol.js";
 import type { WebMapClassBreaksRenderer, WebMapRenderer, WebMapSymbol, WebMapUniqueValueRenderer } from "./types.js";
 import type { WarningCollector } from "./warnings.js";
 
@@ -342,7 +342,7 @@ function outlineFromRenderer(
   const firstStyle = styles[0]?.style ?? "esriSLSSolid";
   const paint: Record<string, unknown> = {};
   for (const { style, path } of styles) {
-    if (style !== firstStyle || (style !== "esriSLSSolid" && !esriLineStyleToDashArray(style))) {
+    if (style !== firstStyle || (style !== "esriSLSSolid" && !geoServicesLineStyleToDashArray(style))) {
       warn
         .child(`${path}.outline.style`)
         .warn(
@@ -353,7 +353,7 @@ function outlineFromRenderer(
   }
   if (firstStyle === "esriSLSNull") paint["line-opacity"] = 0;
   else {
-    const dash = esriLineStyleToDashArray(firstStyle);
+    const dash = geoServicesLineStyleToDashArray(firstStyle);
     if (dash) paint["line-dasharray"] = dash;
   }
   const width = (symbol: WebMapSymbol | undefined): number => {

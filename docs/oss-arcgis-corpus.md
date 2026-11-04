@@ -104,7 +104,7 @@ Outputs land under `test-results/oss-arcgis-corpus/` (git-ignored):
 ```text
 test-results/oss-arcgis-corpus/
   readiness.v1.json          aggregate run record
-  apps/<id>/scan.json        ArcGisScanReport
+  apps/<id>/scan.json        SourceApiScanReport
   apps/<id>/widgets.json     WidgetReadinessReport
   apps/<id>/codemod.json     JsMigrationReport
   apps/<id>/readiness.json   per-app corpus record

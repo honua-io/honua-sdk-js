@@ -1,5 +1,5 @@
 /**
- * Bridges the esri-compat renderer shims to the first-class renderer objects
+ * Bridges the client-compat renderer shims to the first-class renderer objects
  * in `@honua/sdk-js/style` (issue #497 REQ-002). The compat classes stay
  * pure state holders; these helpers project their state through the same
  * WebMap symbol/renderer conversion path the WebMap converter uses, so the

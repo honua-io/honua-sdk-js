@@ -244,7 +244,7 @@ const PROTOCOL_LANES = [
 const PROTOCOL_FOOTNOTES = [
   "Notes:",
   "",
-  "- (a) OpenLayers ships an `EsriJSON` format; service discovery, paging, auth, and edits are hand-rolled requests.",
+  "- (a) OpenLayers ships an `GeoServicesJSON` format; service discovery, paging, auth, and edits are hand-rolled requests.",
   "- (b) Raw MapLibre renders XYZ/raster endpoints you template by hand; there is no capabilities negotiation, feature query, or typed error surface.",
   "- (c) Point a MapLibre GeoJSON source at an `items` URL; paging, filters, CRS negotiation, and edits are yours to build.",
   "- (d) OpenLayers parses GeoJSON and has OGC API tile sources, but has no OGC API Features items client (paging, filters, transactions).",

@@ -153,7 +153,7 @@ The current Node 22 release is tracked by
 | `./browser` | stable-1.0 | Build-less/CDN variant of `.` (same `types`, prebuilt ESM). A build target of the root, not a distinct API. |
 | `./honua` | stable-1.0 | `HonuaClient` — the raw GeoServices/OGC client. The irreducible core of the SDK. |
 | `./contract` | stable-1.0 | Protocol-neutral `Dataset`/`Source`/`Query`/`Result` — the cross-language contract the whole SDK identity rests on. |
-| `./esri-compat` | stable-1.0 | ArcGIS JS-API compatibility layer; a headline adoption driver and already its own split package. |
+| `./client-compat` | stable-1.0 | ArcGIS JS-API compatibility layer; a headline adoption driver and already its own split package. |
 | `./migration` | stable-1.0 | Codemod/scanner behind `honua-migrate`; headline adoption driver, own split package. |
 | `./runtime` | stable-1.0 | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`). Core render path. (Must shed its Studio re-exports — see Evidence.) |
 | `./expr` | stable-1.0 | Typed expression builder; low-level primitive used across map/style/filter. |
@@ -208,7 +208,7 @@ green throughout. This ADR fixes the design so that PR is mechanical.
 
 - `@honua/app-platform` builds from the **same `src/` tree** via the existing
   `scripts/prepare-split-packages.mjs` mechanism (the pattern already used for
-  `honua-sdk`, `honua-sdk-esri-compat`, `honua-migrate`, `honua-react`,
+  `honua-sdk`, `honua-sdk-client-compat`, `honua-migrate`, `honua-react`,
   `honua-geometry`). Add an `app-platform` package descriptor whose entrypoints
   are the 18 "move" subpaths, that declares `@honua/sdk-js` (stable) as a
   `dependency`, and that carries the optional peers those subpaths need
