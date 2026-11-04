@@ -20,6 +20,10 @@ updates:
           - "vitest"
           - "typescript"
           - "@types/*"
+      # First matching group wins, so buf-connect and dev-tooling stay separate.
+      npm:
+        patterns:
+          - "*"
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]

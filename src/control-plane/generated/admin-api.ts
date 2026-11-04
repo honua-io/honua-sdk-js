@@ -17788,11 +17788,13 @@ export type components = {
             readonly acceptedIssuerSubjects?: readonly string[];
             /** @description SHA-1 thumbprints of accepted issuer/CA certificates (leaf thumbprints are not honored). Matching is gated by cryptographic chain build, so the issuing CA must be reachable through the OS trust store or the profile's customTrustAnchorCertificates; a thumbprint that only appears in a forged leaf's attached chain will not match. */
             readonly acceptedIssuerThumbprints?: readonly string[];
-            /** @default [
+            /**
+             * @default [
              *       "sanUri",
              *       "sanEmail",
              *       "sanDns"
-             *     ] */
+             *     ]
+             */
             readonly allowedSanTypes?: readonly components["schemas"]["ClientCertificateIdentityType"][];
             /** @default false */
             readonly allowSubjectFallback?: boolean;
