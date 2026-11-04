@@ -302,7 +302,7 @@ export async function runContentExport(options: ContentExportOptions): Promise<C
           fs.writeFileSync(featureSetFilePath, `${JSON.stringify(featureSet, null, 2)}\n`, "utf8");
           featureSetPath = path.relative(outputDir, featureSetFilePath);
 
-          const geoJson = convertEsriFeatureSetToGeoJson(featureSet);
+          const geoJson = convertFeatureSetToGeoJson(featureSet);
           if (geoJson) {
             const geoJsonFilePath = path.join(serviceDir, `layer-${layerId}.features.geojson`);
             fs.writeFileSync(geoJsonFilePath, `${JSON.stringify(geoJson, null, 2)}\n`, "utf8");
@@ -698,7 +698,7 @@ function toContentPortalItemSummary(item: PortalSearchItem): ContentPortalItemSu
   };
 }
 
-interface ArcGisFeatureSet {
+interface SourceApiFeatureSet {
   geometryType?: string;
   spatialReference?: Record<string, unknown>;
   features: Array<{
@@ -713,7 +713,7 @@ async function queryAllLayerFeatures(options: {
   fetchFn: typeof fetch;
   pageSize: number;
   maxFeatures?: number;
-}): Promise<ArcGisFeatureSet> {
+}): Promise<SourceApiFeatureSet> {
   const features: Array<{ attributes?: Record<string, unknown>; geometry?: Record<string, unknown> }> = [];
   let geometryType: string | undefined;
   let spatialReference: Record<string, unknown> | undefined;
@@ -806,7 +806,7 @@ interface PolygonRingNode {
   depth?: number;
 }
 
-function convertEsriFeatureSetToGeoJson(featureSet: ArcGisFeatureSet): GeoJsonFeatureCollection | undefined {
+function convertFeatureSetToGeoJson(featureSet: SourceApiFeatureSet): GeoJsonFeatureCollection | undefined {
   const geometryType = featureSet.geometryType;
   if (!geometryType) {
     return undefined;
@@ -815,7 +815,7 @@ function convertEsriFeatureSetToGeoJson(featureSet: ArcGisFeatureSet): GeoJsonFe
   const features: GeoJsonFeature[] = featureSet.features.map((feature) => ({
     type: "Feature",
     properties: feature.attributes ?? {},
-    geometry: convertEsriGeometryToGeoJson(feature.geometry, geometryType),
+    geometry: convertGeoServicesGeometryToGeoJson(feature.geometry, geometryType),
   }));
 
   return {
@@ -824,7 +824,7 @@ function convertEsriFeatureSetToGeoJson(featureSet: ArcGisFeatureSet): GeoJsonFe
   };
 }
 
-function convertEsriGeometryToGeoJson(
+function convertGeoServicesGeometryToGeoJson(
   geometry: Record<string, unknown> | undefined,
   geometryType: string,
 ): { type: string; coordinates: unknown } | null {

@@ -33,7 +33,7 @@ const replacementPriority = [
   "@honua/sdk-js/expr",
   "@honua/sdk-js/cli",
   "@honua/sdk-js/migration",
-  "@honua/sdk-js/esri-compat",
+  "@honua/sdk-js/client-compat",
   "@honua/sdk-js/honua",
 ];
 

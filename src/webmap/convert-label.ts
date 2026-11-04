@@ -8,7 +8,7 @@
  */
 
 import type { HonuaLayerSpecification } from "../style/specification.js";
-import { esriColorToCss } from "./convert-symbol.js";
+import { geoServicesColorToCss } from "./convert-symbol.js";
 import type { WebMapLabelClass, WebMapTextSymbol } from "./types.js";
 import type { WarningCollector } from "./warnings.js";
 
@@ -124,7 +124,7 @@ function parseSimpleConcatExpression(expr: string, warn: WarningCollector): unkn
 
 function applyTextSymbolStyle(symbol: WebMapTextSymbol, layer: HonuaLayerSpecification): void {
   if (symbol.color) {
-    const color = esriColorToCss(symbol.color);
+    const color = geoServicesColorToCss(symbol.color);
     if (color) (layer.paint as Record<string, unknown>)["text-color"] = color;
   }
   if (symbol.font) {

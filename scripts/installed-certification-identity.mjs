@@ -17,6 +17,28 @@ export const sha256 = (value) => `sha256:${createHash("sha256").update(value).di
 // starts with scheme//host carries neither a username nor a password.
 const credentialFree = (url) => url.href.startsWith(`${url.protocol}//${url.host}`);
 
+// The legacy cohort installs bytes that were published. @honua/sdk-client-compat is the
+// current release name and is not on the registry yet; the pinned cohort published that
+// package as @honua/sdk-esri-compat. A release snapshot carries releaseInput and keeps
+// the current names.
+const LEGACY_PUBLISHED_COORDINATE = {
+  "@honua/sdk-client-compat": "@honua/sdk-esri-compat",
+};
+
+export function coordinatesForCandidate(releaseCoordinates, candidate) {
+  if (candidate.releaseInput) return releaseCoordinates;
+  return releaseCoordinates.map((name) => LEGACY_PUBLISHED_COORDINATE[name] ?? name);
+}
+
+export function releaseArtifactForCoordinate(artifacts, coordinate) {
+  const named = artifacts.find((artifact) => artifact.npmName === coordinate);
+  if (named) return named;
+  const currentName = Object.keys(LEGACY_PUBLISHED_COORDINATE).find(
+    (name) => LEGACY_PUBLISHED_COORDINATE[name] === coordinate,
+  );
+  return currentName === undefined ? undefined : artifacts.find((artifact) => artifact.npmName === currentName);
+}
+
 export function validatePackageSet(candidate, required) {
   const packages = candidate.packages;
   assert.ok(Array.isArray(packages) && packages.length > 0, "candidate package set is missing");
@@ -62,7 +84,7 @@ export function validateInstalledLock(candidate, lock) {
 export async function freezeCertification(candidate, denominator, root) {
   const { errors } = evaluateCertificationDenominator({ frozen: denominator, inputs: loadCertificationDenominatorInputs(root) });
   assert.deepEqual(errors, [], "certification denominator has drifted");
-  validatePackageSet(candidate, denominator.candidatePackages);
+  validatePackageSet(candidate, coordinatesForCandidate(denominator.candidatePackages, candidate));
   assert.ok(denominator.rows.some((row) => row.counts), "empty supported denominator");
   assert.equal(new Set(denominator.rows.map((r) => r.id)).size, denominator.rows.length, "duplicate denominator ID");
   const inputs = {};

@@ -45,7 +45,7 @@ export type TimeSliderLoadStatusCompat = "not-loaded" | "loading" | "loaded";
 /**
  * Structural slice of the app-platform time-slider element's `playback`
  * contract (`HonuaTimeSliderPlayback`), restated here rather than imported:
- * `/esri-compat` is bundle-budgeted and must not reach into the component kit
+ * `/client-compat` is bundle-budgeted and must not reach into the component kit
  * (see `./widget-host.ts`). Drift is caught by the delegation test, which
  * mounts a real `<honua-time-slider>` against this adapter.
  */

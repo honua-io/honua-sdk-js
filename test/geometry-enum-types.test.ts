@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type { GeoJsonFeature } from "@honua/sdk-js/geometry";
 import type {
-  EsriEnvelope,
-  EsriFieldType,
-  EsriGeometry,
-  EsriGeometryType,
-  EsriMultipoint,
-  EsriPoint,
-  EsriPolygon,
-  EsriPolyline,
-  EsriSpatialRel,
+  GeoServicesEnvelope,
+  GeoServicesFieldType,
+  GeoServicesGeometry,
+  GeoServicesGeometryType,
+  GeoServicesMultipoint,
+  GeoServicesPoint,
+  GeoServicesPolygon,
+  GeoServicesPolyline,
+  GeoServicesSpatialRel,
   HonuaFeature,
   HonuaFieldInfo,
   HonuaLayerMetadata,
@@ -22,9 +22,9 @@ import type {
 } from "@honua/sdk-js/honua";
 
 describe("Geometry & enum type narrowing (Direction 12)", () => {
-  describe("EsriGeometryType literal union", () => {
+  describe("GeoServicesGeometryType literal union", () => {
     it("accepts known geometry type literals", () => {
-      const types: EsriGeometryType[] = [
+      const types: GeoServicesGeometryType[] = [
         "esriGeometryPoint",
         "esriGeometryPolyline",
         "esriGeometryPolygon",
@@ -35,14 +35,14 @@ describe("Geometry & enum type narrowing (Direction 12)", () => {
     });
 
     it("accepts arbitrary strings via open-ended union", () => {
-      const custom: EsriGeometryType = "esriGeometryCustom";
+      const custom: GeoServicesGeometryType = "esriGeometryCustom";
       expect(custom).toBe("esriGeometryCustom");
     });
   });
 
-  describe("EsriSpatialRel literal union", () => {
+  describe("GeoServicesSpatialRel literal union", () => {
     it("accepts known spatial relationship literals", () => {
-      const rels: EsriSpatialRel[] = [
+      const rels: GeoServicesSpatialRel[] = [
         "esriSpatialRelIntersects",
         "esriSpatialRelContains",
         "esriSpatialRelCrosses",
@@ -52,27 +52,27 @@ describe("Geometry & enum type narrowing (Direction 12)", () => {
     });
   });
 
-  describe("EsriFieldType literal union", () => {
+  describe("GeoServicesFieldType literal union", () => {
     it("accepts known field type literals", () => {
-      const fieldType: EsriFieldType = "esriFieldTypeOID";
+      const fieldType: GeoServicesFieldType = "esriFieldTypeOID";
       expect(fieldType).toBe("esriFieldTypeOID");
     });
   });
 
   describe("Esri geometry interfaces", () => {
-    it("EsriPoint shape is assignable", () => {
-      const point: EsriPoint = { x: -117.2, y: 32.7 };
+    it("GeoServicesPoint shape is assignable", () => {
+      const point: GeoServicesPoint = { x: -117.2, y: 32.7 };
       expect(point.x).toBe(-117.2);
     });
 
-    it("EsriPoint with optional z/m", () => {
-      const point: EsriPoint = { x: 0, y: 0, z: 100, m: 1.5 };
+    it("GeoServicesPoint with optional z/m", () => {
+      const point: GeoServicesPoint = { x: 0, y: 0, z: 100, m: 1.5 };
       expect(point.z).toBe(100);
       expect(point.m).toBe(1.5);
     });
 
-    it("EsriPolyline shape is assignable", () => {
-      const polyline: EsriPolyline = {
+    it("GeoServicesPolyline shape is assignable", () => {
+      const polyline: GeoServicesPolyline = {
         paths: [
           [
             [0, 0],
@@ -84,8 +84,8 @@ describe("Geometry & enum type narrowing (Direction 12)", () => {
       expect(polyline.paths).toHaveLength(1);
     });
 
-    it("EsriPolygon shape is assignable", () => {
-      const polygon: EsriPolygon = {
+    it("GeoServicesPolygon shape is assignable", () => {
+      const polygon: GeoServicesPolygon = {
         rings: [
           [
             [0, 0],
@@ -98,8 +98,8 @@ describe("Geometry & enum type narrowing (Direction 12)", () => {
       expect(polygon.rings).toHaveLength(1);
     });
 
-    it("EsriEnvelope shape is assignable", () => {
-      const envelope: EsriEnvelope = {
+    it("GeoServicesEnvelope shape is assignable", () => {
+      const envelope: GeoServicesEnvelope = {
         xmin: -180,
         ymin: -90,
         xmax: 180,
@@ -108,8 +108,8 @@ describe("Geometry & enum type narrowing (Direction 12)", () => {
       expect(envelope.xmin).toBe(-180);
     });
 
-    it("EsriMultipoint shape is assignable", () => {
-      const mp: EsriMultipoint = {
+    it("GeoServicesMultipoint shape is assignable", () => {
+      const mp: GeoServicesMultipoint = {
         points: [
           [0, 0],
           [1, 1],
@@ -118,8 +118,8 @@ describe("Geometry & enum type narrowing (Direction 12)", () => {
       expect(mp.points).toHaveLength(2);
     });
 
-    it("EsriGeometry union accepts all shapes", () => {
-      const geoms: EsriGeometry[] = [
+    it("GeoServicesGeometry union accepts all shapes", () => {
+      const geoms: GeoServicesGeometry[] = [
         { x: 0, y: 0 },
         {
           paths: [
@@ -200,7 +200,7 @@ describe("Geometry & enum type narrowing (Direction 12)", () => {
       expect(meta.geometryType).toBe("esriGeometryPolyline");
     });
 
-    it("HonuaFeature.geometry accepts EsriGeometry", () => {
+    it("HonuaFeature.geometry accepts GeoServicesGeometry", () => {
       const feat: HonuaFeature = {
         attributes: { id: 1 },
         geometry: { x: 0, y: 0 },

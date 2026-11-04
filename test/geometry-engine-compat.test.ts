@@ -14,7 +14,7 @@ import {
   planarArea,
   planarLength,
   union,
-} from "../src/esri-compat/geometry-engine.js";
+} from "../src/client-compat/geometry-engine.js";
 
 // Parity fixtures. Esri geometries are tagged Web Mercator (wkid 3857) so that
 // the planar* ops operate in a projected meter plane and can be checked against

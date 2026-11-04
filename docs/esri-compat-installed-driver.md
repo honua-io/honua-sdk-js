@@ -2,7 +2,7 @@
 type: guide
 title: "Esri-compat installed-package browser driver"
 description: "What test/playwright/migration-browser-installed-package.spec.mjs proves against installed dist/packages bytes, and how to reproduce it."
-tags: [esri-compat, playwright, migration, testing]
+tags: [client-compat, playwright, migration, testing]
 ---
 
 # Esri-compat installed-package browser driver
@@ -20,13 +20,13 @@ split-package boundary (`scripts/prepare-split-packages.mjs`) rewrites
 cross-package imports and changes what a consumer actually receives. This
 driver closes that gap by proving the same fixtures run correctly when:
 
-1. `dist/packages/honua-sdk` and `dist/packages/honua-sdk-esri-compat` are
+1. `dist/packages/honua-sdk` and `dist/packages/honua-sdk-client-compat` are
    `npm pack`ed and `npm install`ed into a throwaway consumer — never a
    directory reference into this checkout, the same technique
    [`docs/oss-arcgis-corpus-post-codemod-build.md`](./oss-arcgis-corpus-post-codemod-build.md)
    uses for third-party apps.
 2. The codemod (`src/migration/codemod.ts`, unmodified) runs with its
-   **default** `compatImportPath` (`@honua/sdk-esri-compat`) — real migrated
+   **default** `compatImportPath` (`@honua/sdk-client-compat`) — real migrated
    output imports the published package by name, not a repo-relative path.
 3. The installed package trees are served to a real Chromium instance with
    an import map resolving those bare specifiers to the installed bytes.
@@ -57,7 +57,7 @@ driver closes that gap by proving the same fixtures run correctly when:
   to an `arcgis`-origin host, checked against what Chromium actually issued,
   not inferred from the codemod's manual-call-site count.
 - **Required widget registration fails visibly, not silently** — already
-  covered end to end by `test/esri-compat-widget-kit-diagnostic.test.ts`
+  covered end to end by `test/client-compat-widget-kit-diagnostic.test.ts`
   (issue #957): a compat widget mount with no registered widget kit emits a
   `console.warn` plus a `widget-kit.missing` bus event rather than rendering
   an inert control. This driver does not duplicate that coverage.

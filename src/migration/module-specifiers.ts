@@ -51,7 +51,7 @@ export function isLegacyArcGisModuleSpecifier(modulePath: string): boolean {
  *
  * Non-ArcGIS specifiers are returned unchanged apart from the `.js` trim.
  */
-export function canonicalArcGisModulePath(modulePath: string): string {
+export function canonicalClientModulePath(modulePath: string): string {
   const withoutExtension = modulePath.endsWith(".js") ? modulePath.slice(0, -3) : modulePath;
   if (withoutExtension === ARCGIS_LEGACY_MODULE_ROOT) {
     return "@arcgis/core";

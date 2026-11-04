@@ -34,7 +34,7 @@
     "checkoutRoot": ".tmp/oss-arcgis-corpus-deep",
     "reportRoot": "test-results/oss-arcgis-corpus-deep",
     "publishedObservationPath": "docs/data/oss-arcgis-corpus-deep-build.v1.json",
-    "honuaPackageDirs": ["dist/packages/honua-sdk", "dist/packages/honua-sdk-esri-compat"],
+    "honuaPackageDirs": ["dist/packages/honua-sdk", "dist/packages/honua-sdk-client-compat"],
     "supplyChain": {
       "installScriptsDisabled": true,
       "requiresCommittedLockfile": true,

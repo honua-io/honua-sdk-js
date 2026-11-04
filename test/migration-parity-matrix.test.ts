@@ -57,8 +57,8 @@ describe("JS parity matrix", () => {
     const query = matrix.find((row) => row.kind === "query");
     const oauthInfo = matrix.find((row) => row.kind === "oauth-info");
     const identityManager = matrix.find((row) => row.kind === "identity-manager");
-    const esriRequest = matrix.find((row) => row.kind === "esri-request");
-    const esriConfig = matrix.find((row) => row.kind === "esri-config");
+    const esriRequest = matrix.find((row) => row.kind === "client-request");
+    const esriConfig = matrix.find((row) => row.kind === "client-config");
     const reactiveUtils = matrix.find((row) => row.kind === "reactive-utils");
 
     expect(featureLayer).toMatchObject({

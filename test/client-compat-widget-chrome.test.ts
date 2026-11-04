@@ -9,12 +9,12 @@ import {
   HomeCompat,
   ScaleBarCompat,
   ZoomCompat,
-} from "../src/esri-compat/controls.js";
-import { DirectionsCompat } from "../src/esri-compat/directions.js";
-import { FeatureFormCompat } from "../src/esri-compat/feature-form.js";
-import { FeatureLayerCompat } from "../src/esri-compat/feature-layer.js";
-import { registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
-import { AttachmentsCompat, FeaturesCompat, ScaleRangeCompat } from "../src/esri-compat/widget-shell-hosts.js";
+} from "../src/client-compat/controls.js";
+import { DirectionsCompat } from "../src/client-compat/directions.js";
+import { FeatureFormCompat } from "../src/client-compat/feature-form.js";
+import { FeatureLayerCompat } from "../src/client-compat/feature-layer.js";
+import { registerHonuaWidgetKit } from "../src/client-compat/widget-host.js";
+import { AttachmentsCompat, FeaturesCompat, ScaleRangeCompat } from "../src/client-compat/widget-shell-hosts.js";
 import {
   HonuaAttachmentsElement,
   HonuaAttributionElement,

@@ -48,18 +48,18 @@
       "notes": "Stable-tier split SDK. Versioned from the root manifest, so it can only ever ship at the root package's version."
     },
     {
-      "id": "sdk-esri-compat",
-      "npmName": "@honua/sdk-esri-compat",
+      "id": "sdk-client-compat",
+      "npmName": "@honua/sdk-client-compat",
       "source": {
         "kind": "split-package",
         "generator": "scripts/prepare-split-packages.mjs",
-        "splitPackageDirectory": "honua-sdk-esri-compat"
+        "splitPackageDirectory": "honua-sdk-client-compat"
       },
       "versionSource": "package.json",
       "publish": {
         "workflow": ".github/workflows/publish-js-sdk.yml",
         "workingDirectory": ".",
-        "publishArgument": "./dist/packages/honua-sdk-esri-compat",
+        "publishArgument": "./dist/packages/honua-sdk-client-compat",
         "releaseTagPrefix": "js-sdk-",
         "releasePleasePackage": "."
       },
@@ -102,7 +102,7 @@
         "releasePleasePackage": "."
       },
       "sourceBinding": "sealed-js-sdk-tag",
-      "notes": "Curated turf/proj4 geometry operations; backs the esri-compat geometryEngine shim."
+      "notes": "Curated turf/proj4 geometry operations; backs the client-compat geometryEngine shim."
     },
     {
       "id": "app-platform",

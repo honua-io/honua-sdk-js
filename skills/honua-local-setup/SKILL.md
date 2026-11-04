@@ -127,7 +127,7 @@ bounded view omits `geometry.buffer`, when HTTP and stdio descriptor hashes
 differ, or when the rendered PNG is empty or flat.
 
 Unsupported for this cut: the full Admin MCP roster, the `analysis` and
-`esri-gp` profiles, a guessed `Mcp__Profiles` value, a hard-coded 441-tool
+`geoservices-gp` profiles, a guessed `Mcp__Profiles` value, a hard-coded 441-tool
 success count, and dashboard publication.
 
 ## 3. Secure handoff — the part agents get wrong

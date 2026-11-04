@@ -102,7 +102,7 @@ function loadPackageVersions() {
     // The root package and every split package published from it.
     ["@honua/sdk-js", root],
     ["honua-sdk", root],
-    ["honua-sdk-esri-compat", root],
+    ["honua-sdk-client-compat", root],
     ["honua-migrate", root],
     ["@honua/react", root],
     ["honua-react", root],
@@ -323,7 +323,7 @@ function checkToolNames(body, relFile) {
 function pinnedPackageVersions(body) {
   const pins = new Map();
   const scoped = /(@honua\/[a-z0-9-]+)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/g;
-  const bare = /(?<![\w@/-])(honua-sdk-esri-compat|honua-sdk|honua-migrate|honua-react|honua-geometry|create-honua-app)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/g;
+  const bare = /(?<![\w@/-])(honua-sdk-client-compat|honua-sdk|honua-migrate|honua-react|honua-geometry|create-honua-app)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/g;
   for (const pattern of [scoped, bare]) {
     for (const match of body.matchAll(pattern)) {
       pins.set(`${match[1]}@${match[2]}`, { name: match[1], version: match[2] });

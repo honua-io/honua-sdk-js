@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { esriRequest } from "../src/client-compat-entry.js";
+import { clientRequest } from "../src/client-compat-entry.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("esriRequest compat", () => {
+describe("clientRequest compat", () => {
   it("executes JSON requests with query params", async () => {
     const fetchMock = vi.fn(
       async () =>
@@ -17,7 +17,7 @@ describe("esriRequest compat", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await esriRequest("https://example.test/rest/services/demo", {
+    const result = await clientRequest("https://example.test/rest/services/demo", {
       query: {
         f: "json",
         where: "1=1",
@@ -35,7 +35,7 @@ describe("esriRequest compat", () => {
     const fetchMock = vi.fn(async () => new Response("ok", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await esriRequest<string>("https://example.test/ping", {
+    const result = await clientRequest<string>("https://example.test/ping", {
       responseType: "text",
     });
 
@@ -54,7 +54,7 @@ describe("esriRequest compat", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await esriRequest("https://example.test/start");
+    const result = await clientRequest("https://example.test/start");
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.data).toEqual({ ok: true });
@@ -68,9 +68,9 @@ describe("esriRequest compat", () => {
       .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "https://evil.test/steal" } }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(esriRequest("https://example.test/start", { headers: { "X-API-Key": "secret-key" } })).rejects.toThrow(
-      /cross-origin/i,
-    );
+    await expect(
+      clientRequest("https://example.test/start", { headers: { "X-API-Key": "secret-key" } }),
+    ).rejects.toThrow(/cross-origin/i);
     // The credentialed request is never replayed to the attacker origin.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -85,7 +85,7 @@ describe("esriRequest compat", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await esriRequest("/rest/services/demo/FeatureServer/0/query", {
+    await clientRequest("/rest/services/demo/FeatureServer/0/query", {
       query: {
         f: "json",
         where: "1=1",

@@ -91,8 +91,8 @@ export type {
   HonuaTileServiceLayerOptions,
 } from "./maplibre-target.js";
 export {
-  esriFeaturesToGeoJson,
-  esriGeometryToGeoJson,
+  featuresToGeoJson,
+  featureServiceGeometryToGeoJson,
   loadHonuaFeatureServiceGeoJson,
   registerHonuaFeatureServiceSources,
 } from "./feature-service-adapter.js";

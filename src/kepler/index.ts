@@ -48,7 +48,7 @@ export {
   isKnownColumnarType,
   keplerField,
   keplerTypeForColumnarType,
-  keplerTypeForEsriFieldType,
+  keplerTypeForGeoServicesFieldType,
   normalizeKeplerValue,
   resolveKeplerCrs,
 } from "./fields.js";

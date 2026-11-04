@@ -2,16 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { readAmdDependencies, readImportEqualsBinding } from "./loader-bindings.js";
-import { canonicalArcGisModulePath, isArcGisModuleSpecifier } from "./module-specifiers.js";
+import { canonicalClientModulePath, isArcGisModuleSpecifier } from "./module-specifiers.js";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
 
-const ESRI_LEAFLET_MODULE = "esri-leaflet";
+const THIRD_PARTY_MAP_MODULE = "esri-leaflet";
 
 /**
  * `importClause` sentinels for usage shapes that have no source-level clause
- * text. `report.ts` maps these onto `ArcGisUsageStyle` values, so the two files
+ * text. `report.ts` maps these onto `SourceApiUsageStyle` values, so the two files
  * must agree on the exact strings.
  */
 const SIDE_EFFECT_IMPORT_CLAUSE = "side-effect-import";
@@ -22,29 +22,29 @@ const AMD_DEPENDENCY_IMPORT_CLAUSE = "amd-dependency-array";
 /** TypeScript import-equals: `import X = require("esri/...")`. */
 const IMPORT_EQUALS_IMPORT_CLAUSE = "import-equals-require(...)";
 
-export interface ArcGisImportHit {
+export interface SourceApiImportHit {
   file: string;
   modulePath: string;
   importClause: string;
   symbols: string[];
 }
 
-export interface ArcGisScanReport {
+export interface SourceApiScanReport {
   rootDir: string;
   filesScanned: number;
   filesWithArcGisImports: number;
-  imports: ArcGisImportHit[];
+  imports: SourceApiImportHit[];
   filesWithEsriLeafletImports?: number;
   esriLeafletImportCount?: number;
-  esriLeafletImports?: ArcGisImportHit[];
+  esriLeafletImports?: SourceApiImportHit[];
   symbolUsageCounts: Record<string, number>;
   flags: string[];
 }
 
-export function scanArcGisUsage(rootDir: string): ArcGisScanReport {
+export function scanArcGisUsage(rootDir: string): SourceApiScanReport {
   const files = collectSourceFiles(rootDir);
-  const imports: ArcGisImportHit[] = [];
-  const esriLeafletImports: ArcGisImportHit[] = [];
+  const imports: SourceApiImportHit[] = [];
+  const esriLeafletImports: SourceApiImportHit[] = [];
   const flags = new Set<string>();
   const symbolUsageCounts: Record<string, number> = {};
 
@@ -102,7 +102,7 @@ export function scanArcGisUsage(rootDir: string): ArcGisScanReport {
   };
 }
 
-export function summarizeArcGisScan(report: ArcGisScanReport): string {
+export function summarizeArcGisScan(report: SourceApiScanReport): string {
   const topSymbols = Object.entries(report.symbolUsageCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
@@ -182,9 +182,9 @@ function scriptKindForFile(file: string): ts.ScriptKind {
 function findModuleImports(
   source: string,
   file: string,
-): { arcGis: ArcGisImportHit[]; esriLeaflet: ArcGisImportHit[] } {
-  const arcGis: ArcGisImportHit[] = [];
-  const esriLeaflet: ArcGisImportHit[] = [];
+): { arcGis: SourceApiImportHit[]; esriLeaflet: SourceApiImportHit[] } {
+  const arcGis: SourceApiImportHit[] = [];
+  const esriLeaflet: SourceApiImportHit[] = [];
   if (!mayReferenceEsriModules(source)) {
     return { arcGis, esriLeaflet };
   }
@@ -192,7 +192,7 @@ function findModuleImports(
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKindForFile(file));
 
   const record = (modulePath: string, importClause: string, symbols: readonly string[]): void => {
-    const hit: ArcGisImportHit = {
+    const hit: SourceApiImportHit = {
       file,
       modulePath,
       importClause,
@@ -202,7 +202,7 @@ function findModuleImports(
       arcGis.push(hit);
       return;
     }
-    if (modulePath === ESRI_LEAFLET_MODULE) {
+    if (modulePath === THIRD_PARTY_MAP_MODULE) {
       esriLeaflet.push(hit);
     }
   };
@@ -349,7 +349,7 @@ function countIdentifierUsage(source: string, symbol: string): number {
   return Math.max(0, matches.length - 1);
 }
 
-function addFileLevelFlags(source: string, fileImports: readonly ArcGisImportHit[], flags: Set<string>): void {
+function addFileLevelFlags(source: string, fileImports: readonly SourceApiImportHit[], flags: Set<string>): void {
   if (/SceneView\b/.test(source) || /WebScene\b/.test(source)) {
     flags.add("scene-3d-detected");
   }
@@ -375,7 +375,7 @@ function addFileLevelFlags(source: string, fileImports: readonly ArcGisImportHit
 }
 
 function isArcGisBarrelModulePath(modulePath: string): boolean {
-  const normalized = canonicalArcGisModulePath(modulePath);
+  const normalized = canonicalClientModulePath(modulePath);
 
   return (
     normalized === "@arcgis/core/layers" ||

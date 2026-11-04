@@ -68,14 +68,14 @@ describe("shared sample kit", () => {
 
     const subpathOnly = createSampleViteConfig(
       new URL("../examples/maplibre-quickstart/vite.config.ts", import.meta.url).href,
-      { sdkEntrypoints: ["@honua/sdk-js/esri-compat"] },
+      { sdkEntrypoints: ["@honua/sdk-js/client-compat"] },
     );
     const subpathGuard = (subpathOnly.plugins as Array<{ resolveId?: (source: string) => unknown }>)[0];
     expect(() => subpathGuard?.resolveId?.("@honua/sdk-js")).toThrow("undeclared public SDK entrypoint");
-    expect(() => subpathGuard?.resolveId?.("@honua/sdk-js/esri-compat/internal")).toThrow(
+    expect(() => subpathGuard?.resolveId?.("@honua/sdk-js/client-compat/internal")).toThrow(
       "undeclared public SDK entrypoint",
     );
-    expect(() => subpathGuard?.resolveId?.("@honua/sdk-js/esri-compat")).not.toThrow();
+    expect(() => subpathGuard?.resolveId?.("@honua/sdk-js/client-compat")).not.toThrow();
   });
 
   it("resolves declared runtime peers beside packed SDK bytes", () => {

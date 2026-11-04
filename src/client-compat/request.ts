@@ -1,58 +1,58 @@
 import type { HonuaRequestContext, HonuaRequestInterceptor, HonuaRequestMutation, QueryMethod } from "../core/types.js";
 
-export type EsriUrlPattern = string | RegExp;
+export type RequestUrlPattern = string | RegExp;
 
-export interface EsriRequestOptionsLike {
+export interface ClientRequestOptionsLike {
   method?: string;
   headers?: Record<string, string>;
   body?: BodyInit | null;
 }
 
-export interface EsriBeforeRequestParams {
+export interface ClientBeforeRequestParams {
   url: string;
-  requestOptions: EsriRequestOptionsLike;
+  requestOptions: ClientRequestOptionsLike;
 }
 
-export interface EsriRequestInterceptorCompat {
-  urls?: EsriUrlPattern | readonly EsriUrlPattern[];
-  before?(params: EsriBeforeRequestParams): void | Promise<void>;
+export interface ClientRequestInterceptorCompat {
+  urls?: RequestUrlPattern | readonly RequestUrlPattern[];
+  before?(params: ClientBeforeRequestParams): void | Promise<void>;
   after?(response: Response): void | Promise<void>;
   error?(error: unknown): void | Promise<void>;
 }
 
-export interface ArcGisTokenInterceptorOptions {
+export interface ClientTokenInterceptorOptions {
   getToken(): string | undefined | Promise<string | undefined>;
-  applyTo?: EsriUrlPattern | readonly EsriUrlPattern[];
+  applyTo?: RequestUrlPattern | readonly RequestUrlPattern[];
   mode?: "query" | "bearer";
   queryParamName?: string;
   headerName?: string;
   bearerPrefix?: string;
 }
 
-export interface EsriRequestInterceptorHandle {
+export interface ClientRequestInterceptorHandle {
   remove(): void;
 }
 
 const VALID_QUERY_METHODS: ReadonlySet<QueryMethod> = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
-export function createEsriRequestInterceptors(
-  interceptors: readonly EsriRequestInterceptorCompat[],
+export function createClientRequestInterceptors(
+  interceptors: readonly ClientRequestInterceptorCompat[],
 ): HonuaRequestInterceptor[] {
-  return interceptors.map((interceptor) => createHonuaInterceptorFromEsri(interceptor));
+  return interceptors.map((interceptor) => createHonuaInterceptorFromClient(interceptor));
 }
 
-export class EsriRequestInterceptorRegistry {
-  private readonly interceptorsInternal: EsriRequestInterceptorCompat[];
+export class ClientRequestInterceptorRegistry {
+  private readonly interceptorsInternal: ClientRequestInterceptorCompat[];
 
-  public constructor(initialInterceptors: readonly EsriRequestInterceptorCompat[] = []) {
+  public constructor(initialInterceptors: readonly ClientRequestInterceptorCompat[] = []) {
     this.interceptorsInternal = [...initialInterceptors];
   }
 
-  public get interceptors(): readonly EsriRequestInterceptorCompat[] {
+  public get interceptors(): readonly ClientRequestInterceptorCompat[] {
     return [...this.interceptorsInternal];
   }
 
-  public add(interceptor: EsriRequestInterceptorCompat): EsriRequestInterceptorHandle {
+  public add(interceptor: ClientRequestInterceptorCompat): ClientRequestInterceptorHandle {
     this.interceptorsInternal.push(interceptor);
     return {
       remove: () => {
@@ -61,7 +61,7 @@ export class EsriRequestInterceptorRegistry {
     };
   }
 
-  public remove(interceptor: EsriRequestInterceptorCompat): boolean {
+  public remove(interceptor: ClientRequestInterceptorCompat): boolean {
     const index = this.interceptorsInternal.indexOf(interceptor);
     if (index < 0) {
       return false;
@@ -75,7 +75,7 @@ export class EsriRequestInterceptorRegistry {
   }
 
   public toHonuaInterceptors(): HonuaRequestInterceptor[] {
-    return createEsriRequestInterceptors(this.interceptorsInternal);
+    return createClientRequestInterceptors(this.interceptorsInternal);
   }
 
   public asHonuaInterceptor(): HonuaRequestInterceptor {
@@ -122,7 +122,7 @@ export class EsriRequestInterceptorRegistry {
   }
 }
 
-export function createArcGisTokenInterceptor(options: ArcGisTokenInterceptorOptions): HonuaRequestInterceptor {
+export function createClientTokenInterceptor(options: ClientTokenInterceptorOptions): HonuaRequestInterceptor {
   const mode = options.mode ?? "query";
   const queryParamName = options.queryParamName ?? "token";
   const headerName = options.headerName ?? "Authorization";
@@ -169,7 +169,7 @@ function normalizeMethod(method: string | undefined, fallback: QueryMethod): Que
   return fallback;
 }
 
-function createHonuaInterceptorFromEsri(interceptor: EsriRequestInterceptorCompat): HonuaRequestInterceptor {
+function createHonuaInterceptorFromClient(interceptor: ClientRequestInterceptorCompat): HonuaRequestInterceptor {
   return {
     before: async (context) => {
       if (!matchesPattern(context.url, interceptor.urls) || !interceptor.before) {
@@ -194,7 +194,7 @@ function createHonuaInterceptorFromEsri(interceptor: EsriRequestInterceptorCompa
   };
 }
 
-function toEsriBeforeRequestParams(context: HonuaRequestContext): EsriBeforeRequestParams {
+function toEsriBeforeRequestParams(context: HonuaRequestContext): ClientBeforeRequestParams {
   return {
     url: context.url,
     requestOptions: {
@@ -207,7 +207,7 @@ function toEsriBeforeRequestParams(context: HonuaRequestContext): EsriBeforeRequ
 
 function fromEsriBeforeRequestParams(
   context: HonuaRequestContext,
-  params: EsriBeforeRequestParams,
+  params: ClientBeforeRequestParams,
 ): HonuaRequestMutation {
   const method = normalizeMethod(params.requestOptions.method, context.method);
   return {
@@ -251,7 +251,7 @@ function cloneRequestContext(context: HonuaRequestContext): HonuaRequestContext 
   };
 }
 
-function matchesPattern(url: string, pattern: EsriUrlPattern | readonly EsriUrlPattern[] | undefined): boolean {
+function matchesPattern(url: string, pattern: RequestUrlPattern | readonly RequestUrlPattern[] | undefined): boolean {
   if (!pattern) {
     return true;
   }

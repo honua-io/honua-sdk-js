@@ -1,7 +1,7 @@
 /**
  * `HonuaWidgetHost` — mounts the app-platform survival-tier web components
  * (`@honua/sdk-js/web-components`, moving to `@honua/app-platform`) into the
- * `container` an esri-compat widget shim was constructed with, so shim UI
+ * `container` an client-compat widget shim was constructed with, so shim UI
  * renders through the shared component set instead of shim-only markup
  * (issue #493, REQ-004).
  *
@@ -11,14 +11,14 @@
  * must own each tag.
  *
  * The host **never imports the web-component kit** — not even dynamically:
- * the `/esri-compat` entrypoint is bundle-budgeted, and any intra-package
+ * the `/client-compat` entrypoint is bundle-budgeted, and any intra-package
  * import (static or `import()`) would pull the whole kit plus its geometry
  * closure into every compat bundle. Instead the application injects the kit
  * once via {@link registerHonuaWidgetKit}:
  *
  * ```ts doc-test=skip reason="wiring snippet requires an application host"
  * import { registerComponent } from "@honua/app-platform/controls";
- * import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
+ * import { registerHonuaWidgetKit } from "@honua/sdk-client-compat";
  *
  * // One tag. registerComponent imports the side-effect-free elements module
  * // and calls defineHonuaWebComponent for that catalog id only.
@@ -34,7 +34,7 @@
  *   element id) only when a DOM is present; headless (Node) shim usage keeps
  *   working with no DOM side effects.
  * - Without a registered kit — the default, and the only possibility in the
- *   standalone `@honua/sdk-esri-compat` split package unless the app installs
+ *   standalone `@honua/sdk-client-compat` split package unless the app installs
  *   the kit — mounting no-ops and the shims stay state-model-only, exactly
  *   their pre-delegation behavior. That degradation is deliberate but silent
  *   in a way that reads as a broken app, so the **first** mount in that state
@@ -143,7 +143,7 @@ export function registerHonuaWidgetKit(source: HonuaWidgetKitSource | undefined)
 /** Human-readable half of the missing-kit diagnostic. */
 function missingWidgetKitMessage(tagName: string): string {
   return [
-    `[honua/esri-compat] <${tagName}> was not mounted because no Honua widget kit is registered,`,
+    `[honua/client-compat] <${tagName}> was not mounted because no Honua widget kit is registered,`,
     "so this widget stays state-model-only and its container renders nothing.",
     "Call registerComponent from @honua/app-platform/controls for that one tag, then",
     "registerHonuaWidgetKit with the registered constructor and without defineHonuaWebComponents,",

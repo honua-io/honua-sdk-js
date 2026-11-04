@@ -1,7 +1,7 @@
 import type { HonuaClient } from "./client.js";
 import type {
-  EsriGeometryType,
-  EsriSpatialRel,
+  GeoServicesGeometryType,
+  GeoServicesSpatialRel,
   HonuaOgcFeatureCollectionResponse,
   HonuaQueryResponse,
   MapLayerQueryRequest,
@@ -43,8 +43,8 @@ export class QueryBuilder {
   private whereClause: string | undefined;
   private fields: string[] | undefined;
   private geometryFilter: string | Record<string, unknown> | undefined;
-  private geometryTypeValue: EsriGeometryType | undefined;
-  private spatialRelValue: EsriSpatialRel | undefined;
+  private geometryTypeValue: GeoServicesGeometryType | undefined;
+  private spatialRelValue: GeoServicesSpatialRel | undefined;
   private returnGeometryValue: boolean | undefined;
   private orderByFieldsValue: string | undefined;
   private resultOffsetValue: number | undefined;
@@ -93,13 +93,13 @@ export class QueryBuilder {
   }
 
   /** Set the geometry type for the geometry filter. */
-  public geometryType(type: EsriGeometryType): this {
+  public geometryType(type: GeoServicesGeometryType): this {
     this.geometryTypeValue = type;
     return this;
   }
 
   /** Set the spatial relationship for the geometry filter. */
-  public spatialRel(rel: EsriSpatialRel): this {
+  public spatialRel(rel: GeoServicesSpatialRel): this {
     this.spatialRelValue = rel;
     return this;
   }
@@ -250,8 +250,8 @@ export class MapLayerQueryBuilder {
   private whereClause: string | undefined;
   private fields: string[] | undefined;
   private geometryFilter: string | Record<string, unknown> | undefined;
-  private geometryTypeValue: EsriGeometryType | undefined;
-  private spatialRelValue: EsriSpatialRel | undefined;
+  private geometryTypeValue: GeoServicesGeometryType | undefined;
+  private spatialRelValue: GeoServicesSpatialRel | undefined;
   private returnGeometryValue: boolean | undefined;
   private orderByFieldsValue: string | undefined;
   private resultOffsetValue: number | undefined;
@@ -300,13 +300,13 @@ export class MapLayerQueryBuilder {
   }
 
   /** Set the geometry type for the geometry filter. */
-  public geometryType(type: EsriGeometryType): this {
+  public geometryType(type: GeoServicesGeometryType): this {
     this.geometryTypeValue = type;
     return this;
   }
 
   /** Set the spatial relationship for the geometry filter. */
-  public spatialRel(rel: EsriSpatialRel): this {
+  public spatialRel(rel: GeoServicesSpatialRel): this {
     this.spatialRelValue = rel;
     return this;
   }

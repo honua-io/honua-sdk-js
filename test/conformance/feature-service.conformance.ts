@@ -27,7 +27,7 @@ import { conformanceSuite, runWithDiagnostics } from "./harness.js";
 import {
   type CanonQueryRequest,
   type CanonQueryResponse,
-  VALID_ESRI_FIELD_TYPES,
+  VALID_GEOSERVICES_FIELD_TYPES,
   canonRequestToQuery,
   goldenToExpectedQueryResult,
 } from "./mapping.js";
@@ -69,7 +69,7 @@ conformanceSuite<CanonQueryRequest, CanonQueryResponse>(
       );
       // The seed must return at least one feature so the shape is observable.
       expect(result.features.length).toBeGreaterThan(0);
-      const drift = findLiveProjectionDrift(expected, result, VALID_ESRI_FIELD_TYPES);
+      const drift = findLiveProjectionDrift(expected, result, VALID_GEOSERVICES_FIELD_TYPES);
       expect(drift, formatDriftFindings("feature_query/geoservices", drift)).toEqual([]);
     });
 
@@ -85,7 +85,7 @@ conformanceSuite<CanonQueryRequest, CanonQueryResponse>(
       // OGC Features does not carry an Esri-style fields[] schema, so check the
       // feature-level projection shape (geometry presence + attribute count).
       const ogcExpected = { ...expected, fields: [] };
-      const drift = findLiveProjectionDrift(ogcExpected, result, VALID_ESRI_FIELD_TYPES);
+      const drift = findLiveProjectionDrift(ogcExpected, result, VALID_GEOSERVICES_FIELD_TYPES);
       expect(drift, formatDriftFindings("feature_query/ogc-features", drift)).toEqual([]);
     });
   },

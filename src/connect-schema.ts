@@ -34,7 +34,7 @@ import {
   getOdataSourceSchemaProjectionSafety,
 } from "./core/odata.js";
 import type {
-  EsriGeometryType,
+  GeoServicesGeometryType,
   HonuaFieldDomain,
   HonuaFieldInfo,
   HonuaLayerMetadata,
@@ -521,7 +521,7 @@ function geoServicesGeometry(
 }
 
 function geoServicesGeometryType(
-  type: EsriGeometryType | undefined,
+  type: GeoServicesGeometryType | undefined,
   protocol: "geoservices-feature-service" | "geoservices-map-service",
 ): GeometryTypeKnowledge {
   switch (type) {

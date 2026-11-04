@@ -12,7 +12,7 @@ import type {
 } from "../contract/types.js";
 import { type HonuaErrorOptions, HonuaSdkError } from "../core/error-envelope.js";
 import type { GeometryEncoding } from "../core/geoparquet-sql.js";
-import type { EsriGeometryType, EsriSpatialRel } from "../core/types.js";
+import type { GeoServicesGeometryType, GeoServicesSpatialRel } from "../core/types.js";
 import type { GeoParquetResourceHandleV1, GeoParquetResourceResolver } from "./resource.js";
 
 export const QUERY_IR_VERSION = "1.0" as const;
@@ -32,8 +32,8 @@ export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: 
 
 export interface CanonicalSpatialFilter {
   readonly geometry: { readonly [key: string]: JsonValue };
-  readonly geometryType: EsriGeometryType;
-  readonly spatialRel?: EsriSpatialRel;
+  readonly geometryType: GeoServicesGeometryType;
+  readonly spatialRel?: GeoServicesSpatialRel;
 }
 
 /**
@@ -463,8 +463,8 @@ export interface GeoServicesCompiledQueryV1 {
   readonly outSr?: string | number;
   readonly orderByFields?: string;
   readonly geometry?: { readonly [key: string]: JsonValue };
-  readonly geometryType?: EsriGeometryType;
-  readonly spatialRel?: EsriSpatialRel;
+  readonly geometryType?: GeoServicesGeometryType;
+  readonly spatialRel?: GeoServicesSpatialRel;
   /** GeoServices `time=` value compiled from a source-dimension temporal filter. */
   readonly time?: string;
   readonly resultOffset?: number;
@@ -630,7 +630,7 @@ export interface GrpcCompiledQueryV1 {
   readonly resultRecordCountLong?: string;
   readonly spatialFilter?: {
     readonly geometry: { readonly [key: string]: JsonValue };
-    readonly geometryType: EsriGeometryType;
+    readonly geometryType: GeoServicesGeometryType;
     readonly spatialRelationship: GrpcSpatialRelationship;
   };
   readonly outStatistics?: readonly {

@@ -1,4 +1,4 @@
-import { esriConfig } from "./esri-config.js";
+import { clientConfig } from "./client-config.js";
 import { CompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { identityManager } from "./identity-manager.js";
 import { coordinateToLonLat } from "./map-view-mount.js";
@@ -290,7 +290,7 @@ export function arcGisRouteServiceProvider(
     if (travelMode !== undefined && travelMode !== null) {
       solveUrl.searchParams.set("travelMode", typeof travelMode === "string" ? travelMode : JSON.stringify(travelMode));
     }
-    const token = apiKey ?? esriConfig.apiKey ?? identityManager.findCredential(url)?.token;
+    const token = apiKey ?? clientConfig.apiKey ?? identityManager.findCredential(url)?.token;
     if (token) {
       solveUrl.searchParams.set("token", token);
     }

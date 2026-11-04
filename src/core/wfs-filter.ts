@@ -21,7 +21,7 @@
  * @module
  */
 
-import { groupEsriPolygonRings } from "./odata.js";
+import { groupGeoServicesPolygonRings } from "./odata.js";
 import type { SpatialFilter } from "./spatial-filter.js";
 import { type WfsAxisOrder, requireWfsAxisOrder } from "./wfs-axis-order.js";
 
@@ -349,7 +349,7 @@ function geometryToGml(
     case "esriGeometryPolygon": {
       const rings = (geometry as { rings?: unknown }).rings;
       if (!Array.isArray(rings) || rings.length === 0) return undefined;
-      const polygons = groupEsriPolygonRings(rings as unknown[][][]).map((part) =>
+      const polygons = groupGeoServicesPolygonRings(rings as unknown[][][]).map((part) =>
         polygonPartToGml(part, srsAttr, axisOrder),
       );
       if (polygons.some((polygon) => polygon === undefined)) return undefined;

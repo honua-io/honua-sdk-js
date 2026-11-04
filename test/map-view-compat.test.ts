@@ -888,7 +888,7 @@ describe("MapViewCompat", () => {
     const view = new MapViewCompat({ eventBus });
     await view.load();
 
-    const { FeatureLayerCompat } = await import("../src/esri-compat/feature-layer.js");
+    const { FeatureLayerCompat } = await import("../src/client-compat/feature-layer.js");
     const layer = new FeatureLayerCompat({
       url: "https://example.test/rest/services/transport/FeatureServer/3",
       eventBus,

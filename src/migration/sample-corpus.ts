@@ -197,13 +197,13 @@ const API_KEY_REGEX = /\b(?:apiKey|api_key)\b/i;
 const OAUTH_REGEX = /\b(?:OAuthInfo|IdentityManager|registerToken|checkSignInStatus|getCredential)\b/i;
 const PREMIUM_REGEX = /\b(?:Directions|RouteLayer|RouteTask|ClosestFacility|ServiceArea|UtilityNetwork)\b/i;
 
-export type EsriSampleCorpusSchemaVersion = "honua.esri-sample-corpus.v1";
+export type MigrationSampleCorpusSchemaVersion = "honua.esri-sample-corpus.v1";
 
-export type EsriSampleCorpusLane = "pr-fixture" | "manual-live" | "scheduled-live";
+export type MigrationSampleCorpusLane = "pr-fixture" | "manual-live" | "scheduled-live";
 
-export type EsriSampleCorpusSampleStatus = "ci-fixture" | "live-evidence" | "skipped";
+export type MigrationSampleStatus = "ci-fixture" | "live-evidence" | "skipped";
 
-export type EsriSampleSkipReason =
+export type MigrationSampleSkipReason =
   | "requires-api-key"
   | "requires-oauth"
   | "premium-service"
@@ -211,7 +211,7 @@ export type EsriSampleSkipReason =
   | "unclear-content-terms"
   | "unsupported-sample-family";
 
-export type ArcGisServiceKind =
+export type SourceApiServiceKind =
   | "FeatureServer"
   | "MapServer"
   | "ImageServer"
@@ -223,70 +223,70 @@ export type ArcGisServiceKind =
   | "NAServer"
   | "unknown";
 
-export interface EsriSampleCorpusManifest {
-  schemaVersion: EsriSampleCorpusSchemaVersion;
+export interface MigrationSampleCorpusManifest {
+  schemaVersion: MigrationSampleCorpusSchemaVersion;
   generatedBy: "honua";
-  guardrails: EsriSampleCorpusGuardrails;
-  samples: EsriSampleCorpusSample[];
+  guardrails: MigrationSampleCorpusGuardrails;
+  samples: MigrationSample[];
 }
 
-export interface EsriSampleCorpusGuardrails {
+export interface MigrationSampleCorpusGuardrails {
   noVendoredEsriSampleCode: boolean;
   noCommittedEsriServiceData: boolean;
   prCiUsesFixtureOnly: boolean;
   liveRunsRequireOptIn: boolean;
-  liveRunLanes: EsriSampleCorpusLane[];
+  liveRunLanes: MigrationSampleCorpusLane[];
   notes: string[];
 }
 
-export interface EsriSampleCorpusSample {
+export interface MigrationSample {
   id: string;
   title: string;
-  source: EsriSampleSourceReference;
-  fixture: EsriSampleFixtureReference;
-  status: EsriSampleCorpusSampleStatus;
-  license: EsriSampleLicenseMetadata;
-  terms: EsriSampleTermsMetadata;
-  skipReasons?: EsriSampleSkipReason[];
-  expected?: EsriSampleExpectedReferences;
+  source: MigrationSampleSourceReference;
+  fixture: MigrationSampleFixtureReference;
+  status: MigrationSampleStatus;
+  license: MigrationSampleLicenseMetadata;
+  terms: MigrationSampleTermsMetadata;
+  skipReasons?: MigrationSampleSkipReason[];
+  expected?: MigrationSampleExpectedReferences;
 }
 
-export interface EsriSampleSourceReference {
+export interface MigrationSampleSourceReference {
   url: string;
   sampleCodePath?: string;
   referenceOnly: boolean;
   retrievedAt?: string;
 }
 
-export interface EsriSampleFixtureReference {
+export interface MigrationSampleFixtureReference {
   root: string;
   entrypoints: string[];
   ownership: "honua";
   description: string;
 }
 
-export interface EsriSampleLicenseMetadata {
+export interface MigrationSampleLicenseMetadata {
   label: string;
   url: string;
   notice: string;
 }
 
-export interface EsriSampleTermsMetadata {
+export interface MigrationSampleTermsMetadata {
   sampleCode: string;
   serviceContent: string;
   liveEvidence: string;
 }
 
-export interface EsriSampleExpectedReferences {
-  serviceKinds?: ArcGisServiceKind[];
+export interface MigrationSampleExpectedReferences {
+  serviceKinds?: SourceApiServiceKind[];
   portalItemIds?: string[];
-  guardrailFlags?: EsriSampleGuardrailFlag[];
+  guardrailFlags?: MigrationSampleGuardrailFlag[];
 }
 
-export interface ArcGisServiceReference {
+export interface SourceApiServiceReference {
   url: string;
   normalizedUrl: string;
-  kind: ArcGisServiceKind;
+  kind: SourceApiServiceKind;
   servicePath?: string;
   layerId?: number;
 }
@@ -295,26 +295,26 @@ export interface PortalItemReference {
   id: string;
 }
 
-export type EsriSampleGuardrailFlag =
+export type MigrationSampleGuardrailFlag =
   | "api-key-reference"
   | "oauth-reference"
   | "premium-service-reference"
   | "external-live-service-reference";
 
-export interface EsriSampleReferenceExtraction {
-  serviceUrls: ArcGisServiceReference[];
+export interface MigrationSampleReferenceExtraction {
+  serviceUrls: SourceApiServiceReference[];
   portalItems: PortalItemReference[];
-  guardrailFlags: EsriSampleGuardrailFlag[];
+  guardrailFlags: MigrationSampleGuardrailFlag[];
 }
 
-export interface EsriSampleFixtureAnalysis extends EsriSampleReferenceExtraction {
+export interface MigrationSampleFixtureAnalysis extends MigrationSampleReferenceExtraction {
   sampleId: string;
   filesScanned: number;
-  status: EsriSampleCorpusSampleStatus;
-  skipReasons: EsriSampleSkipReason[];
+  status: MigrationSampleStatus;
+  skipReasons: MigrationSampleSkipReason[];
 }
 
-export interface EsriSampleCorpusSummary {
+export interface MigrationSampleCorpusSummary {
   sampleCount: number;
   fixtureCiCount: number;
   liveEvidenceCount: number;
@@ -322,12 +322,12 @@ export interface EsriSampleCorpusSummary {
   guardrailFailures: string[];
 }
 
-export function loadEsriSampleCorpusManifest(manifestPath: string): EsriSampleCorpusManifest {
+export function loadEsriSampleCorpusManifest(manifestPath: string): MigrationSampleCorpusManifest {
   const parsed = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as unknown;
   return parseEsriSampleCorpusManifest(parsed, manifestPath);
 }
 
-export function parseEsriSampleCorpusManifest(value: unknown, sourceName = "manifest"): EsriSampleCorpusManifest {
+export function parseEsriSampleCorpusManifest(value: unknown, sourceName = "manifest"): MigrationSampleCorpusManifest {
   const record = expectRecord(value, sourceName);
   if (record.schemaVersion !== "honua.esri-sample-corpus.v1") {
     throw new Error(`${sourceName} must use schemaVersion honua.esri-sample-corpus.v1.`);
@@ -339,7 +339,7 @@ export function parseEsriSampleCorpusManifest(value: unknown, sourceName = "mani
   const guardrails = expectRecord(
     record.guardrails,
     `${sourceName}.guardrails`,
-  ) as unknown as EsriSampleCorpusGuardrails;
+  ) as unknown as MigrationSampleCorpusGuardrails;
   const samples = expectArray(record.samples, `${sourceName}.samples`).map((sample, index) =>
     parseSample(sample, `${sourceName}.samples[${index}]`),
   );
@@ -367,14 +367,14 @@ export function parseEsriSampleCorpusManifest(value: unknown, sourceName = "mani
       liveRunLanes: expectStringArray(
         guardrails.liveRunLanes,
         `${sourceName}.guardrails.liveRunLanes`,
-      ) as EsriSampleCorpusLane[],
+      ) as MigrationSampleCorpusLane[],
       notes: expectStringArray(guardrails.notes, `${sourceName}.guardrails.notes`),
     },
     samples,
   };
 }
 
-export function summarizeEsriSampleCorpus(manifest: EsriSampleCorpusManifest): EsriSampleCorpusSummary {
+export function summarizeEsriSampleCorpus(manifest: MigrationSampleCorpusManifest): MigrationSampleCorpusSummary {
   const guardrailFailures: string[] = [];
   if (!manifest.guardrails.noVendoredEsriSampleCode) {
     guardrailFailures.push("guardrails.noVendoredEsriSampleCode must remain true");
@@ -411,13 +411,13 @@ export function summarizeEsriSampleCorpus(manifest: EsriSampleCorpusManifest): E
 }
 
 export function analyzeEsriSampleFixture(
-  sample: EsriSampleCorpusSample,
+  sample: MigrationSample,
   options: { manifestDir: string },
-): EsriSampleFixtureAnalysis {
+): MigrationSampleFixtureAnalysis {
   const fixtureRoot = path.resolve(options.manifestDir, sample.fixture.root);
   const entrypointFiles = sample.fixture.entrypoints.map((entrypoint) => path.resolve(fixtureRoot, entrypoint));
   const files = entrypointFiles.length > 0 ? entrypointFiles : collectSourceFiles(fixtureRoot);
-  const combined: EsriSampleReferenceExtraction = {
+  const combined: MigrationSampleReferenceExtraction = {
     serviceUrls: [],
     portalItems: [],
     guardrailFlags: [],
@@ -445,13 +445,13 @@ export function analyzeEsriSampleFixture(
   };
 }
 
-export function extractEsriSampleReferences(source: string): EsriSampleReferenceExtraction {
-  const serviceUrls: ArcGisServiceReference[] = [];
+export function extractEsriSampleReferences(source: string): MigrationSampleReferenceExtraction {
+  const serviceUrls: SourceApiServiceReference[] = [];
   const portalItems: PortalItemReference[] = [];
-  const guardrailFlags = new Set<EsriSampleGuardrailFlag>();
+  const guardrailFlags = new Set<MigrationSampleGuardrailFlag>();
 
   for (const rawUrl of findArcGisServiceUrls(source)) {
-    const service = classifyArcGisServiceUrl(rawUrl);
+    const service = classifyServiceUrl(rawUrl);
     serviceUrls.push(service);
     if (service.normalizedUrl.startsWith("http://") || service.normalizedUrl.startsWith("https://")) {
       guardrailFlags.add("external-live-service-reference");
@@ -485,7 +485,7 @@ export function extractEsriSampleReferences(source: string): EsriSampleReference
   };
 }
 
-export function classifyArcGisServiceUrl(url: string): ArcGisServiceReference {
+export function classifyServiceUrl(url: string): SourceApiServiceReference {
   const cleanedUrl = trimTrailingCharsIn(url, "),.;]");
   const parsed = new URL(cleanedUrl);
   parsed.search = "";
@@ -503,7 +503,7 @@ export function classifyArcGisServiceUrl(url: string): ArcGisServiceReference {
     };
   }
 
-  const kind = serviceMatch[2] as ArcGisServiceKind;
+  const kind = serviceMatch[2] as SourceApiServiceKind;
   // For NAServer, the third capture is the network-analyst sub-service name
   // (e.g., Route_World, ClosestFacility_World) — fold it into servicePath so
   // downstream consumers see it. For other kinds it's the numeric layer id.
@@ -527,24 +527,24 @@ export function classifyArcGisServiceUrl(url: string): ArcGisServiceReference {
   };
 }
 
-function parseSample(value: unknown, sourceName: string): EsriSampleCorpusSample {
+function parseSample(value: unknown, sourceName: string): MigrationSample {
   const record = expectRecord(value, sourceName);
-  const status = expectString(record.status, `${sourceName}.status`) as EsriSampleCorpusSampleStatus;
+  const status = expectString(record.status, `${sourceName}.status`) as MigrationSampleStatus;
   const skipReasons =
     record.skipReasons === undefined
       ? undefined
-      : (expectStringArray(record.skipReasons, `${sourceName}.skipReasons`) as EsriSampleSkipReason[]);
+      : (expectStringArray(record.skipReasons, `${sourceName}.skipReasons`) as MigrationSampleSkipReason[]);
 
   return {
     id: expectString(record.id, `${sourceName}.id`),
     title: expectString(record.title, `${sourceName}.title`),
-    source: expectRecord(record.source, `${sourceName}.source`) as unknown as EsriSampleSourceReference,
-    fixture: expectRecord(record.fixture, `${sourceName}.fixture`) as unknown as EsriSampleFixtureReference,
+    source: expectRecord(record.source, `${sourceName}.source`) as unknown as MigrationSampleSourceReference,
+    fixture: expectRecord(record.fixture, `${sourceName}.fixture`) as unknown as MigrationSampleFixtureReference,
     status,
-    license: expectRecord(record.license, `${sourceName}.license`) as unknown as EsriSampleLicenseMetadata,
-    terms: expectRecord(record.terms, `${sourceName}.terms`) as unknown as EsriSampleTermsMetadata,
+    license: expectRecord(record.license, `${sourceName}.license`) as unknown as MigrationSampleLicenseMetadata,
+    terms: expectRecord(record.terms, `${sourceName}.terms`) as unknown as MigrationSampleTermsMetadata,
     skipReasons,
-    expected: record.expected as EsriSampleExpectedReferences | undefined,
+    expected: record.expected as MigrationSampleExpectedReferences | undefined,
   };
 }
 

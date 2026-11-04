@@ -25,12 +25,12 @@ import type {
   GeoJsonPolygon,
 } from "../expr/expression.js";
 import type {
-  EsriGeometry,
-  EsriMultipoint,
-  EsriPoint,
-  EsriPolygon,
-  EsriPolyline,
   GeoJsonFeature,
+  GeoServicesGeometry,
+  GeoServicesMultipoint,
+  GeoServicesPoint,
+  GeoServicesPolygon,
+  GeoServicesPolyline,
   HonuaFeature,
   HonuaSpatialReference,
 } from "./types.js";
@@ -249,8 +249,8 @@ function hasNumber(geometry: Record<string, unknown>, key: string): boolean {
  * @returns The equivalent GeoJSON geometry, or `null` when the input is empty
  *   or unrecognized.
  */
-export function esriGeometryToGeoJSON(
-  geometry: EsriGeometry | Record<string, unknown> | null | undefined,
+export function geoServicesGeometryToGeoJSON(
+  geometry: GeoServicesGeometry | Record<string, unknown> | null | undefined,
 ): GeoJsonGeometry | null {
   if (!geometry || typeof geometry !== "object") {
     return null;
@@ -356,24 +356,24 @@ function readFeatureId(feature: HonuaFeature): string | number | undefined {
  *
  * The feature `id` is derived from common Esri identifier attributes
  * (`OBJECTID`, `objectid`, `id`, `ID`, `FID`) when present, and the geometry is
- * converted with {@link esriGeometryToGeoJSON} (yielding `null` for missing or
+ * converted with {@link geoServicesGeometryToGeoJSON} (yielding `null` for missing or
  * empty geometry).
  *
  * @param feature A contract feature with Esri-shaped `attributes` and
  *   `geometry`.
  * @returns The equivalent GeoJSON feature.
  */
-export function esriFeatureToGeoJSON(feature: HonuaFeature): GeoJsonFeature {
+export function geoServicesFeatureToGeoJSON(feature: HonuaFeature): GeoJsonFeature {
   const id = readFeatureId(feature);
   return {
     type: "Feature",
     ...(id === undefined ? {} : { id }),
-    geometry: esriGeometryToGeoJSON(feature.geometry),
+    geometry: geoServicesGeometryToGeoJSON(feature.geometry),
     properties: feature.attributes ?? {},
   };
 }
 
-// ── GeoJSON → Esri (reverse of esriGeometryToGeoJSON) ─────────────
+// ── GeoJSON → Esri (reverse of geoServicesGeometryToGeoJSON) ─────────────
 //
 // The forward converter rewinds rings to the GeoJSON RFC 7946 right-hand rule
 // (counter-clockwise exterior). Esri uses the opposite convention (clockwise
@@ -398,7 +398,7 @@ function esriRingsFromPolygon(coordinates: readonly (readonly Position[])[]): Po
 
 /**
  * Convert a standard GeoJSON geometry back into Esri-JSON geometry, the inverse
- * of {@link esriGeometryToGeoJSON}. `GeometryCollection` is not representable as
+ * of {@link geoServicesGeometryToGeoJSON}. `GeometryCollection` is not representable as
  * a single Esri geometry and yields `null`.
  *
  * Polygon/MultiPolygon rings are rewound to the Esri winding convention
@@ -411,10 +411,10 @@ function esriRingsFromPolygon(coordinates: readonly (readonly Position[])[]): Po
  * @returns The equivalent Esri geometry, or `null` when the input is empty or
  *   unrepresentable.
  */
-export function geoJsonToEsriGeometry(
+export function geoJsonToGeoServices(
   geometry: GeoJsonGeometry | null | undefined,
   spatialReference?: HonuaSpatialReference,
-): EsriGeometry | null {
+): GeoServicesGeometry | null {
   if (!geometry || typeof geometry !== "object") {
     return null;
   }
@@ -432,29 +432,29 @@ export function geoJsonToEsriGeometry(
       }
       // Keep the altitude of a 3D position: dropping it would hand back a
       // different geometry than the source served.
-      return { x, y, ...(typeof z === "number" && Number.isFinite(z) ? { z } : {}), ...sr } satisfies EsriPoint;
+      return { x, y, ...(typeof z === "number" && Number.isFinite(z) ? { z } : {}), ...sr } satisfies GeoServicesPoint;
     }
     case "MultiPoint": {
-      return { points: geometry.coordinates.map((position) => [...position]), ...sr } satisfies EsriMultipoint;
+      return { points: geometry.coordinates.map((position) => [...position]), ...sr } satisfies GeoServicesMultipoint;
     }
     case "LineString": {
-      return { paths: [geometry.coordinates.map((position) => [...position])], ...sr } satisfies EsriPolyline;
+      return { paths: [geometry.coordinates.map((position) => [...position])], ...sr } satisfies GeoServicesPolyline;
     }
     case "MultiLineString": {
       return {
         paths: geometry.coordinates.map((line) => line.map((position) => [...position])),
         ...sr,
-      } satisfies EsriPolyline;
+      } satisfies GeoServicesPolyline;
     }
     case "Polygon": {
-      return { rings: esriRingsFromPolygon(geometry.coordinates as Position[][]), ...sr } satisfies EsriPolygon;
+      return { rings: esriRingsFromPolygon(geometry.coordinates as Position[][]), ...sr } satisfies GeoServicesPolygon;
     }
     case "MultiPolygon": {
       const rings: Position[][] = [];
       for (const polygon of geometry.coordinates as Position[][][]) {
         rings.push(...esriRingsFromPolygon(polygon));
       }
-      return { rings, ...sr } satisfies EsriPolygon;
+      return { rings, ...sr } satisfies GeoServicesPolygon;
     }
     default:
       return null;

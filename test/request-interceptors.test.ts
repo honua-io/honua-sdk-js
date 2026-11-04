@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  EsriRequestInterceptorRegistry,
-  createArcGisTokenInterceptor,
-  createEsriRequestInterceptors,
+  ClientRequestInterceptorRegistry,
+  createClientRequestInterceptors,
+  createClientTokenInterceptor,
 } from "../src/client-compat-entry.js";
 import { HonuaClient, HonuaHttpError } from "../src/index.js";
 
@@ -162,7 +162,7 @@ describe("esri-style request bridge", () => {
     let requestedHeaders: HeadersInit | undefined;
     let afterStatus: number | undefined;
 
-    const [bridge] = createEsriRequestInterceptors([
+    const [bridge] = createClientRequestInterceptors([
       {
         urls: "/rest/services/default",
         before: (params) => {
@@ -207,12 +207,12 @@ describe("esri-style request bridge", () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",
       interceptors: [
-        createArcGisTokenInterceptor({
+        createClientTokenInterceptor({
           applyTo: "/rest/services/default",
           getToken: () => "query-token",
           mode: "query",
         }),
-        createArcGisTokenInterceptor({
+        createClientTokenInterceptor({
           applyTo: /FeatureServer\/0\//,
           getToken: () => "bearer-token",
           mode: "bearer",
@@ -237,7 +237,7 @@ describe("esri-style request bridge", () => {
     const client = new HonuaClient({
       baseUrl: "",
       interceptors: [
-        createArcGisTokenInterceptor({
+        createClientTokenInterceptor({
           applyTo: "/rest/services/default",
           getToken: () => "relative-token",
           mode: "query",
@@ -261,7 +261,7 @@ describe("esri-style request bridge", () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",
       interceptors: [
-        createArcGisTokenInterceptor({
+        createClientTokenInterceptor({
           applyTo: "/rest/services/default",
           getToken: () => "bare-token",
           mode: "bearer",
@@ -280,7 +280,7 @@ describe("esri-style request bridge", () => {
   });
 
   it("supports dynamic interceptor add/remove via registry bridge", async () => {
-    const registry = new EsriRequestInterceptorRegistry();
+    const registry = new ClientRequestInterceptorRegistry();
     const requestedHeaders: HeadersInit[] = [];
 
     const client = new HonuaClient({
@@ -313,7 +313,7 @@ describe("esri-style request bridge", () => {
 
   it("applies global regex url patterns consistently across repeated requests", async () => {
     const requestedHeaders: HeadersInit[] = [];
-    const [bridge] = createEsriRequestInterceptors([
+    const [bridge] = createClientRequestInterceptors([
       {
         urls: /FeatureServer\/0\/query/g,
         before: (params) => {
@@ -343,7 +343,7 @@ describe("esri-style request bridge", () => {
 
   it("matches string URL patterns on path boundaries only", async () => {
     let matchedCount = 0;
-    const [bridge] = createEsriRequestInterceptors([
+    const [bridge] = createClientRequestInterceptors([
       {
         urls: "/rest/services/default",
         before: () => {
@@ -372,7 +372,7 @@ describe("esri-style request bridge", () => {
 
   it("rejects cross-origin URL mutations from esri-style before interceptors", async () => {
     let fetchCalled = false;
-    const [bridge] = createEsriRequestInterceptors([
+    const [bridge] = createClientRequestInterceptors([
       {
         before: (params) => {
           params.url = "https://attacker.test/rest/services/default/FeatureServer/0/query";
@@ -401,7 +401,7 @@ describe("esri-style request bridge", () => {
 
   it("preserves valid HTTP methods set by esri-style interceptors", async () => {
     let requestedMethod: string | undefined;
-    const [bridge] = createEsriRequestInterceptors([
+    const [bridge] = createClientRequestInterceptors([
       {
         before: (params) => {
           params.requestOptions.method = "patch";
@@ -428,7 +428,7 @@ describe("esri-style request bridge", () => {
 
   it("falls back to the original method when interceptor method is invalid", async () => {
     let requestedMethod: string | undefined;
-    const [bridge] = createEsriRequestInterceptors([
+    const [bridge] = createClientRequestInterceptors([
       {
         before: (params) => {
           params.requestOptions.method = "invalid-method";

@@ -4,7 +4,7 @@ import type {
   QueryFilterSpatialPredicate,
   QueryTemporalFilter,
 } from "@honua/sdk-js/contract";
-import { geoJsonToEsri } from "@honua/sdk-js/geometry";
+import { geoJsonToGeoServices } from "@honua/sdk-js/geometry";
 import { z } from "zod";
 import { GEOMETRY_TYPES, resolveGeometryType } from "../helpers.js";
 
@@ -172,8 +172,8 @@ export function toGeometryOperand(
   srid?: number,
 ): QueryFilterGeometryOperand {
   if (isGeoJsonGeometry(geometry)) {
-    const converted = geoJsonToEsri(
-      geometry as unknown as Parameters<typeof geoJsonToEsri>[0],
+    const converted = geoJsonToGeoServices(
+      geometry as unknown as Parameters<typeof geoJsonToGeoServices>[0],
       srid !== undefined ? { wkid: srid } : undefined,
     );
     if (!converted) {

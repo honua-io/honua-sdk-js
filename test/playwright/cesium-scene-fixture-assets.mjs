@@ -271,7 +271,7 @@ export const ARCGIS_MAP_SERVER_LAYER_ID = "0";
  * route around it and additionally pull in Cesium's missing-tile discard policy,
  * neither of which this row exists to cover.
  */
-export function buildArcGisMapServerMetadata() {
+export function buildMapServerMetadata() {
   return {
     currentVersion: 11.2,
     serviceDescription: "Honua SDK scene-adapter fixture MapServer",
