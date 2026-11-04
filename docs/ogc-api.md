@@ -116,7 +116,7 @@ custom query parameter can still pass one through `extraParams`.
 
 For the end-to-end discover, describe, synchronous/asynchronous execute,
 results, and cancellation workflow—and the equivalent `IJobRun` lifecycle for
-Esri-compatible GPServer tasks—see the dedicated
+GPServer tasks—see the dedicated
 [geoprocessing guide](./geoprocessing.md).
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"

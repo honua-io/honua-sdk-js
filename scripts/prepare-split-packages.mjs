@@ -398,8 +398,6 @@ function createCompatPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.js"), path.join(packageRoot, "widget-capabilities.js"));
   copyFile(path.join(DIST_SRC_ROOT, "widget-capabilities.d.ts"), path.join(packageRoot, "widget-capabilities.d.ts"));
   copyContractRuntimeClosure(packageRoot);
-  // The split package is the renamed entry itself, not the deprecated
-  // `./esri-compat` shim, so importing it never emits the subpath warning.
   copyFile(path.join(DIST_SRC_ROOT, "client-compat-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "client-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -593,9 +591,8 @@ function createAppPlatformPackage() {
   // client-compat / migration / react split targets: the app-platform entrypoints
   // plus their downward stable-tier closure are copied so the package resolves
   // without a separate `@honua/sdk-js` install.
-  // A deprecated subpath either moved to the app platform or was renamed inside
-  // `@honua/sdk-js` (`./esri-compat` -> `./client-compat`); only the former
-  // belongs in this package.
+  // A deprecated subpath whose replacement stays inside @honua/sdk-js is not an
+  // app-platform move. Only app-platform replacements belong in this package.
   const movedSubpaths = entrypointsInTier(publicSurface, "deprecated")
     .filter((entrypoint) => !entrypoint.replacement.startsWith("@honua/sdk-js/"))
     .map((entrypoint) => {

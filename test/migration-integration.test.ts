@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runEsriCompatCodemod } from "../src/migration/codemod.js";
+import { runClientMigrationCodemod } from "../src/migration/codemod.js";
 import { buildJsMigrationReport } from "../src/migration/report.js";
 import { scanArcGisUsage } from "../src/migration/scanner.js";
 
@@ -24,11 +24,11 @@ function fixturePath(...parts: string[]): string {
 
 function runFixtureMigration(
   fixtureName: string,
-  codemodOptions: Partial<Parameters<typeof runEsriCompatCodemod>[0]> = {},
+  codemodOptions: Partial<Parameters<typeof runClientMigrationCodemod>[0]> = {},
 ): {
   workingCopy: string;
   scanReport: ReturnType<typeof scanArcGisUsage>;
-  codemodResult: ReturnType<typeof runEsriCompatCodemod>;
+  codemodResult: ReturnType<typeof runClientMigrationCodemod>;
   report: ReturnType<typeof buildJsMigrationReport>;
 } {
   const tempRoot = makeTempDir();
@@ -37,7 +37,7 @@ function runFixtureMigration(
   fs.cpSync(sampleSource, workingCopy, { recursive: true });
 
   const scanReport = scanArcGisUsage(workingCopy);
-  const codemodResult = runEsriCompatCodemod({
+  const codemodResult = runClientMigrationCodemod({
     rootDir: workingCopy,
     write: true,
     compatImportPath: "@honua/sdk-client-compat",

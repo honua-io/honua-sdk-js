@@ -40,8 +40,8 @@ support profile, terminal journey, SQL fixture and executable fixture oracle.
 All 72 non-counting rows remain visible; the 228 counting rows cannot pass via a
 skip, an unknown ID or a missing scenario facet.
 
-The isolated consumer installs all eight manifest packages with `npm ci`:
-SDK, split SDK, Esri compatibility, React, geometry, app-platform and MCP at
+The isolated consumer installs the legacy manifest packages with `npm ci`:
+SDK, split SDK, React, geometry, app-platform and MCP at
 `0.1.9-beta.0`, plus the independently versioned scaffold at `0.1.3`. The existing
 published-release verifier checks tarball bytes, provenance and source revisions
 for each package. Installation then checks exact registry URLs and SHA-512

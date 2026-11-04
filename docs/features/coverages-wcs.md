@@ -20,7 +20,7 @@ Use `@honua/sdk-js/coverages` when the output is a raster value grid rather than
 | Discover axes/range fields and request a subset | OGC API Coverages | JSON discovery and straightforward HTTP resources |
 | Integrate an established scientific/enterprise coverage service | WCS 2.0.1 | Broad compatibility and explicit KVP coverage operations |
 | Read windows directly from an object-store file | COG | Range requests without a coverage service |
-| Use ImageServer rendering, statistics, or Esri-compatible clients | ImageServer | GeoServices raster operations and ecosystem compatibility |
+| Use ImageServer rendering, statistics, or GeoServices clients | ImageServer | GeoServices raster operations and ecosystem compatibility |
 
 ## 1. Create one authenticated request pipeline
 

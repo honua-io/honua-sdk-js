@@ -1,5 +1,5 @@
 diff --git a/src/main.ts b/src/main.ts
-index 85e2506..a8ae0c9 100644
+index 3430c53..f2b8aae 100644
 --- a/src/main.ts
 +++ b/src/main.ts
 @@ -9,11 +9,9 @@
@@ -11,7 +11,7 @@ index 85e2506..a8ae0c9 100644
 -import MapView from "@arcgis/core/views/MapView";
 
  import { configureViewer, type ParcelViewerOptions } from "./viewer-config.js";
-+import { FeatureLayerCompat, MapCompat, MapViewCompat } from "@honua/sdk-js/esri-compat";
++import { FeatureLayerCompat, MapCompat, MapViewCompat } from "@honua/sdk-js/client-compat";
 
  export interface ParcelViewerHandle {
    parcels: unknown;
@@ -47,11 +47,11 @@ index 85e2506..a8ae0c9 100644
    });
 
 diff --git a/src/workbench-scenario.js b/src/workbench-scenario.js
-index 705aa39..20a4f55 100644
+index 705aa39..bd15966 100644
 --- a/src/workbench-scenario.js
 +++ b/src/workbench-scenario.js
 @@ -1,13 +1,8 @@
-+import { FeatureLayerCompat, FeatureTableCompat, LayerListCompat, MapCompat, MapViewCompat, PopupCompat } from "@honua/sdk-js/esri-compat";
++import { FeatureLayerCompat, FeatureTableCompat, LayerListCompat, MapCompat, MapViewCompat, PopupCompat } from "@honua/sdk-js/client-compat";
  // Original Honua migration-workbench scenario. This file intentionally uses
  // ArcGIS JS SDK imports so the repository's honua-migrate CLI is the only
  // source-to-target transformation engine exercised by the artifact generator.

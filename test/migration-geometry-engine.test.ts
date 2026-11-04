@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runEsriCompatCodemod } from "../src/migration/codemod.js";
+import { runClientMigrationCodemod } from "../src/migration/codemod.js";
 
 const tempDirs: string[] = [];
 
@@ -20,7 +20,7 @@ afterEach(() => {
   }
 });
 
-describe("runEsriCompatCodemod — geometryEngine mapping", () => {
+describe("runClientMigrationCodemod — geometryEngine mapping", () => {
   it("rewrites a default geometryEngine import to the compat shim and leaves covered ops untouched", () => {
     const root = makeTempProject();
     const file = path.join(root, "measure.ts");
@@ -38,7 +38,7 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -72,7 +72,7 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       annotateTodos: true,
@@ -104,7 +104,7 @@ describe("runEsriCompatCodemod — geometryEngine mapping", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",

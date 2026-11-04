@@ -28,7 +28,7 @@ const BUILD_INPUT_FILES = [
 ];
 const REQUIRED_DIST_FILES = [
   "dist/src/migration/cli.js",
-  "dist/src/esri-compat-entry.js",
+  "dist/src/client-compat-entry.js",
   "dist/src/honua.js",
 ];
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;

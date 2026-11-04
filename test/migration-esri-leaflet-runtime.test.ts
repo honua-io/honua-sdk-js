@@ -5,8 +5,8 @@ import { pathToFileURL } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runEsriCompatCodemod } from "../src/migration/codemod.js";
-import { getPreparedEsriCompatEntryPath } from "./prepared-sdk-artifacts.js";
+import { runClientMigrationCodemod } from "../src/migration/codemod.js";
+import { getPreparedClientCompatEntryPath } from "./prepared-sdk-artifacts.js";
 
 const tempDirs: string[] = [];
 
@@ -17,11 +17,11 @@ function makeTempDir(): string {
 }
 
 function compatDistEntry(): string {
-  return getPreparedEsriCompatEntryPath();
+  return getPreparedClientCompatEntryPath();
 }
 
 function ensureBuiltCompatArtifacts(): void {
-  getPreparedEsriCompatEntryPath();
+  getPreparedClientCompatEntryPath();
 }
 
 function writeEsriLeafletStub(moduleRoot: string): void {
@@ -137,7 +137,7 @@ describe("migration esri-leaflet runtime", () => {
         "utf8",
       );
 
-      const codemodResult = runEsriCompatCodemod({
+      const codemodResult = runClientMigrationCodemod({
         rootDir: tempRoot,
         target: "esri-leaflet",
         write: true,
@@ -226,7 +226,7 @@ describe("migration esri-leaflet runtime", () => {
       "utf8",
     );
 
-    const codemodResult = runEsriCompatCodemod({
+    const codemodResult = runClientMigrationCodemod({
       rootDir: tempRoot,
       target: "esri-leaflet",
       write: true,
@@ -294,7 +294,7 @@ describe("migration esri-leaflet runtime", () => {
       "utf8",
     );
 
-    const codemodResult = runEsriCompatCodemod({
+    const codemodResult = runClientMigrationCodemod({
       rootDir: tempRoot,
       target: "esri-leaflet",
       write: true,

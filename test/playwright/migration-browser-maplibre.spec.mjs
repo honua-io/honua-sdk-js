@@ -242,8 +242,8 @@ for (const mapLibreTarget of [
     const appRoot = path.join(tempRoot, "app");
     const appMain = writeFixtureApp(appRoot);
 
-    const { runEsriCompatCodemod } = await importCodemod(projectRoot);
-    const codemodResult = runEsriCompatCodemod({
+    const { runClientMigrationCodemod } = await importCodemod(projectRoot);
+    const codemodResult = runClientMigrationCodemod({
       rootDir: tempRoot,
       target: "honua-maplibre",
       write: true,

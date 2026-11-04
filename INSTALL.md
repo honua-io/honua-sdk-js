@@ -1,7 +1,7 @@
 # Installing the Honua JavaScript SDK
 
 The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** — with multiple
-subpath entrypoints. The core client, the Esri compatibility layer, the migration helpers,
+subpath entrypoints. The core client, the client compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.
 
 <!-- support-manifest:install-status:start -->
@@ -9,7 +9,7 @@ and the protocol-neutral contract are all reachable from this one install.
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
 It projects 22 supported (documented below as stable), 26 experimental,
-and 19 deprecated package entrypoints. Protocol status is independent
+and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
@@ -44,7 +44,7 @@ minor. At 1.0 the stable tier freezes. See
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
-| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps; replaces the deprecated `/esri-compat` |
+| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps |
 | `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
@@ -130,7 +130,6 @@ replacement's own support status is independent of the shim: promoting
 | `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.3.0` |
 | `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.3.0` |
 | `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.3.0` |
-| `@honua/sdk-js/esri-compat` | `@honua/sdk-js/client-compat` | `0.4.0` |
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 

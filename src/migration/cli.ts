@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseWebMap } from "../webmap/parse.js";
 import type { WebMapJson } from "../webmap/types.js";
-import { type CodemodMetricsByKind, type CodemodTarget, runEsriCompatCodemod } from "./codemod.js";
+import { type CodemodMetricsByKind, type CodemodTarget, runClientMigrationCodemod } from "./codemod.js";
 import {
   type ContentImportReport,
   runContentExport,
@@ -727,7 +727,7 @@ function buildFixtureMetricSnapshot(
   }
 
   const scanReport = scanArcGisUsage(rootDir);
-  const codemodResult = runEsriCompatCodemod({
+  const codemodResult = runClientMigrationCodemod({
     rootDir,
     write: false,
     annotateTodos: false,
@@ -860,7 +860,7 @@ function evaluateFixtureMetricsGates(
 
 function runCodemod(args: ParsedArgs): void {
   const scanReport = scanArcGisUsage(args.target);
-  const codemodResult = runEsriCompatCodemod({
+  const codemodResult = runClientMigrationCodemod({
     rootDir: args.target,
     write: args.write,
     compatImportPath: args.compatImportPath,

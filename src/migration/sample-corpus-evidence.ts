@@ -5,7 +5,7 @@ import {
   type CodemodConstructorKind,
   type CodemodTarget,
   type MigrationTodo,
-  runEsriCompatCodemod,
+  runClientMigrationCodemod,
 } from "./codemod.js";
 import {
   type MigrationSample,
@@ -172,7 +172,7 @@ function buildSampleEvidence(
 
   let codemodResult: ClientMigrationCodemodResult;
   try {
-    codemodResult = runEsriCompatCodemod({
+    codemodResult = runClientMigrationCodemod({
       rootDir: path.resolve(manifestDir, sample.fixture.root),
       target: codemodTarget,
       write: false,

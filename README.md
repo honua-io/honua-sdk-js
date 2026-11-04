@@ -86,7 +86,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.2.10`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
-19 deprecated compatibility subpaths have explicit removal versions. See
+18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
@@ -122,7 +122,7 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 
 - **Protocol-neutral data access.** One `Source.query(...)` call works against
   GeoServices, OGC, WFS, OData and friends. Geoprocessing uses one `IJobRun`
-  lifecycle across raw OGC API Processes and Esri-compatible GPServer tasks.
+  lifecycle across raw OGC API Processes and GPServer tasks.
   Capability misses throw
   `HonuaCapabilityNotSupportedError` instead of returning empty results. Large
   results ride an experimental columnar data plane (GeoArrow batches, streaming

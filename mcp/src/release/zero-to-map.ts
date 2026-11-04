@@ -168,11 +168,6 @@ export interface JourneyMcpResourceAction extends JourneyActionBase {
 }
 
 /**
- * An Esri-compatible GPServer invocation through the SDK's unified process
- * runner. Parameters stay schema-driven: the Buffer alias keeps Honua's
- * advertised geometry.buffer parameter contract.
- */
-/**
  * Read a rendered image artifact the server returned by reference and prove it
  * is real pixels rather than an empty or non-image placeholder.
  *
