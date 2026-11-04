@@ -227,7 +227,7 @@ jobs:
           # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
           # a release version bump rewrites those and nothing in CI is able
           # to move this constant (#1357).
-          EXPECTED_LOCKFILE_SHA256: 1fb69e3e8ee93fd0150398a9295a1f7559b0c78428f7ee1eedd40a0fad6edd84
+          EXPECTED_LOCKFILE_SHA256: 207069bbf181e4c41ffb1d79b70c8fefeb8cf60b5172b58b43e96e824bc33981
         run: |
           set -euo pipefail
           python3 - <<'PY'
