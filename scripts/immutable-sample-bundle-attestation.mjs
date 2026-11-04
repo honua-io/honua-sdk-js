@@ -32,7 +32,7 @@ export const ACTIONS = Object.freeze({
   downloadArtifact:
     "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
   createGithubAppToken:
-    "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
+    "actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510",
   attestBuildProvenance:
     "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 });
@@ -64,7 +64,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Pack independent sample contracts twice":
     "63deabe1d53f7bc1a0eee8ed92271a5b29f5a1530674318a0c351f2142c4544e",
   "attest-and-publish/Validate all bytes before tokens":
-    "44983b17a0be4b2eb192b410c0419b1ed1b1374c1ee65bc9f0a4324a0bce87ad",
+    "5a131c4ddd03e2cc08a8fd42297259de007290e9be72aa4456056e4ba246e25e",
   "attest-and-publish/Gate current trunk and source epoch":
     "ad239ec9400281d2942ca84f60742b45988cbc368f0b71c81a9733ae91aabe1b",
   "attest-and-publish/Require dedicated immutable-policy reader credentials":
