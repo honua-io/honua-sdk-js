@@ -2,7 +2,7 @@
 
 `@honua/sdk-js`: the TypeScript client for Honua. One protocol-neutral `Dataset` -> `Source` ->
 `Query` -> `Result` contract (`src/contract/`) over GeoServices, OGC API, STAC, WMS/WMTS/WFS and
-OData, plus a MapLibre runtime, an Esri compatibility layer and the `honua-migrate` codemod.
+OData, plus a MapLibre runtime, a client compatibility layer and the `honua-migrate` codemod.
 Capability gaps throw `HonuaCapabilityNotSupportedError`; never return empty data instead.
 `mcp/` is a separate package (`@honua/mcp-server`) that peer-depends on the SDK.
 

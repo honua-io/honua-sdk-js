@@ -17,26 +17,17 @@ export const sha256 = (value) => `sha256:${createHash("sha256").update(value).di
 // starts with scheme//host carries neither a username nor a password.
 const credentialFree = (url) => url.href.startsWith(`${url.protocol}//${url.host}`);
 
-// The legacy cohort installs bytes that were published. @honua/sdk-client-compat is the
-// current release name and is not on the registry yet; the pinned cohort published that
-// package as @honua/sdk-esri-compat. A release snapshot carries releaseInput and keeps
-// the current names.
-const LEGACY_PUBLISHED_COORDINATE = {
-  "@honua/sdk-client-compat": "@honua/sdk-esri-compat",
-};
+// Legacy candidates omit @honua/sdk-client-compat. Release snapshots set
+// releaseInput and keep every current release name.
+const LEGACY_OMITTED_COORDINATES = new Set(["@honua/sdk-client-compat"]);
 
 export function coordinatesForCandidate(releaseCoordinates, candidate) {
   if (candidate.releaseInput) return releaseCoordinates;
-  return releaseCoordinates.map((name) => LEGACY_PUBLISHED_COORDINATE[name] ?? name);
+  return releaseCoordinates.filter((name) => !LEGACY_OMITTED_COORDINATES.has(name));
 }
 
 export function releaseArtifactForCoordinate(artifacts, coordinate) {
-  const named = artifacts.find((artifact) => artifact.npmName === coordinate);
-  if (named) return named;
-  const currentName = Object.keys(LEGACY_PUBLISHED_COORDINATE).find(
-    (name) => LEGACY_PUBLISHED_COORDINATE[name] === coordinate,
-  );
-  return currentName === undefined ? undefined : artifacts.find((artifact) => artifact.npmName === currentName);
+  return artifacts.find((artifact) => artifact.npmName === coordinate);
 }
 
 export function validatePackageSet(candidate, required) {

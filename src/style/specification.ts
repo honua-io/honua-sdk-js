@@ -25,7 +25,7 @@ export interface HonuaSourceBase {
 }
 
 /**
- * A source backed by an Esri-compatible Feature Service layer.
+ * A source backed by a GeoServices Feature Service layer.
  *
  * URL format: `https://host/rest/services/{serviceId}/FeatureServer/{layerId}`
  */
@@ -42,7 +42,7 @@ export interface HonuaFeatureServiceSourceSpecification extends HonuaSourceBase 
 }
 
 /**
- * A source backed by an Esri-compatible Map Service (dynamic map export).
+ * A source backed by a GeoServices Map Service (dynamic map export).
  *
  * URL format: `https://host/rest/services/{serviceId}/MapServer`
  */

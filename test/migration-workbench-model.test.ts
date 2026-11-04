@@ -125,7 +125,7 @@ describe("migration workbench artifact model", () => {
     expect(presentationSource).not.toContain("VITE_");
     expect(presentationSource).not.toContain("adminApiKey");
     expect(presentationSource).not.toContain("Cloud import");
-    expect(presentationSource).not.toContain("runEsriCompatCodemod");
+    expect(presentationSource).not.toContain("runClientMigrationCodemod");
   });
 });
 

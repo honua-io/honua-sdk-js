@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runEsriCompatCodemod } from "../src/migration/codemod.js";
+import { runClientMigrationCodemod } from "../src/migration/codemod.js";
 import { buildJsMigrationReport } from "../src/migration/report.js";
 import { scanArcGisUsage } from "../src/migration/scanner.js";
 
@@ -45,7 +45,7 @@ describe("e2e ArcGIS sample app conversion", () => {
     fs.cpSync(sampleSource, workingCopy, { recursive: true });
 
     const scanReport = scanArcGisUsage(workingCopy);
-    const codemodResult = runEsriCompatCodemod({
+    const codemodResult = runClientMigrationCodemod({
       rootDir: workingCopy,
       write: true,
       target: "honua-compat",

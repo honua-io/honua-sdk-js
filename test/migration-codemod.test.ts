@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runEsriCompatCodemod } from "../src/migration/codemod.js";
+import { runClientMigrationCodemod } from "../src/migration/codemod.js";
 
 const tempDirs: string[] = [];
 
@@ -20,7 +20,7 @@ afterEach(() => {
   }
 });
 
-describe("runEsriCompatCodemod", () => {
+describe("runClientMigrationCodemod", () => {
   it("rewrites safe FeatureLayer constructor and removes ArcGIS import", () => {
     const root = makeTempProject();
     const file = path.join(root, "app.ts");
@@ -35,7 +35,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -71,7 +71,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -114,7 +114,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -151,7 +151,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -193,7 +193,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -232,7 +232,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -291,7 +291,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -353,7 +353,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       compatImportPath: "@honua/sdk-client-compat",
@@ -395,7 +395,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -444,7 +444,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       compatImportPath: "@honua/sdk-client-compat",
@@ -500,7 +500,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -570,7 +570,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       compatImportPath: "@honua/sdk-client-compat",
@@ -619,7 +619,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -664,7 +664,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -710,7 +710,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -748,7 +748,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -785,7 +785,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -819,7 +819,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       annotateTodos: true,
@@ -844,7 +844,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       annotateTodos: true,
@@ -877,7 +877,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -903,7 +903,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -925,7 +925,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -951,7 +951,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -994,7 +994,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1052,7 +1052,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1106,7 +1106,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1152,7 +1152,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1194,7 +1194,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1233,7 +1233,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1272,7 +1272,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1315,7 +1315,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1356,7 +1356,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1400,7 +1400,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1462,7 +1462,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1505,7 +1505,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1544,7 +1544,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1581,7 +1581,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1685,7 +1685,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -1914,7 +1914,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -1975,7 +1975,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "honua-maplibre",
       write: true,
@@ -2027,7 +2027,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "honua-maplibre",
       write: true,
@@ -2064,7 +2064,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "honua-maplibre",
       write: true,
@@ -2095,7 +2095,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "honua-maplibre",
       write: true,
@@ -2134,7 +2134,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "honua-maplibre",
       write: true,
@@ -2203,7 +2203,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -2364,7 +2364,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -2403,7 +2403,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -2444,7 +2444,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -2490,7 +2490,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -2532,7 +2532,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: false,
@@ -2579,7 +2579,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -2614,7 +2614,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2644,7 +2644,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2674,7 +2674,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2708,7 +2708,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2744,7 +2744,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2776,7 +2776,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2805,7 +2805,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2835,7 +2835,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2864,7 +2864,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2886,7 +2886,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2917,7 +2917,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -2991,7 +2991,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
     });
@@ -3022,7 +3022,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3058,12 +3058,12 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    runEsriCompatCodemod({
+    runClientMigrationCodemod({
       rootDir: root,
       write: true,
       annotateTodos: true,
     });
-    runEsriCompatCodemod({
+    runClientMigrationCodemod({
       rootDir: root,
       write: true,
       annotateTodos: true,
@@ -3089,7 +3089,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3121,7 +3121,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3156,7 +3156,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3189,7 +3189,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3224,7 +3224,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3264,7 +3264,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3298,7 +3298,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3333,7 +3333,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3369,7 +3369,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3404,7 +3404,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3442,7 +3442,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3486,7 +3486,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -3522,7 +3522,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       target: "esri-leaflet",
       write: true,
@@ -3556,7 +3556,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       annotateTodos: true,
@@ -3595,7 +3595,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3630,7 +3630,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3680,7 +3680,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3716,7 +3716,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3754,7 +3754,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3797,7 +3797,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3833,7 +3833,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3865,7 +3865,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3896,7 +3896,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3927,7 +3927,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3960,7 +3960,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -3986,7 +3986,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4009,7 +4009,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4036,7 +4036,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4067,7 +4067,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4098,7 +4098,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4130,7 +4130,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4157,7 +4157,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4188,7 +4188,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4215,7 +4215,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4244,7 +4244,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4277,7 +4277,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4311,7 +4311,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4346,7 +4346,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4376,7 +4376,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4409,7 +4409,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4440,7 +4440,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4474,7 +4474,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4505,7 +4505,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4539,7 +4539,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       annotateTodos: false,
@@ -4577,7 +4577,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    runEsriCompatCodemod({
+    runClientMigrationCodemod({
       rootDir: root,
       write: true,
       annotateTodos: true,
@@ -4602,7 +4602,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4646,7 +4646,7 @@ describe("runEsriCompatCodemod", () => {
       ].join("\n");
       fs.writeFileSync(file, source, "utf8");
 
-      const result = runEsriCompatCodemod({
+      const result = runClientMigrationCodemod({
         rootDir: root,
         write: true,
         annotateTodos: true,
@@ -4683,7 +4683,7 @@ describe("runEsriCompatCodemod", () => {
         "utf8",
       );
 
-      const result = runEsriCompatCodemod({
+      const result = runClientMigrationCodemod({
         rootDir: root,
         write: false,
         compatImportPath: "@honua/sdk-client-compat",
@@ -4708,7 +4708,7 @@ describe("runEsriCompatCodemod", () => {
         "utf8",
       );
 
-      const result = runEsriCompatCodemod({
+      const result = runClientMigrationCodemod({
         rootDir: root,
         write: false,
         compatImportPath: "@honua/sdk-client-compat",
@@ -4735,7 +4735,7 @@ describe("runEsriCompatCodemod", () => {
         "utf8",
       );
 
-      const result = runEsriCompatCodemod({
+      const result = runClientMigrationCodemod({
         rootDir: root,
         write: false,
         compatImportPath: "@honua/sdk-client-compat",
@@ -4761,7 +4761,7 @@ describe("runEsriCompatCodemod", () => {
         "utf8",
       );
 
-      const result = runEsriCompatCodemod({
+      const result = runClientMigrationCodemod({
         rootDir: root,
         write: false,
         compatImportPath: "@honua/sdk-client-compat",
@@ -4790,7 +4790,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4822,7 +4822,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4847,7 +4847,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: false,
       compatImportPath: "@honua/sdk-client-compat",
@@ -4870,7 +4870,7 @@ describe("runEsriCompatCodemod", () => {
       "utf8",
     );
 
-    const result = runEsriCompatCodemod({
+    const result = runClientMigrationCodemod({
       rootDir: root,
       write: true,
       compatImportPath: "@honua/sdk-client-compat",

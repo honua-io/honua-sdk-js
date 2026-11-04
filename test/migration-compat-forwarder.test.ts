@@ -6,6 +6,7 @@ import path from "node:path";
 import * as canonicalMigration from "@honua/honua-migrate";
 import { describe, expect, it } from "vitest";
 
+import { migratorCompatPackageName } from "../scripts/verify-migration-cohort.mjs";
 import * as sdkMigration from "../src/migration-entry.js";
 
 const projectRoot = process.cwd();
@@ -67,7 +68,7 @@ describe("legacy JavaScript migration forwarders", () => {
     });
     expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.engines?.node).toBe(">=22.12.0");
     expect(lock.packages?.["node_modules/@honua/sdk"]?.version).toBe("0.2.3");
-    expect(lock.packages?.["node_modules/@honua/sdk-esri-compat"]?.version).toBe("0.2.3");
+    expect(lock.packages?.[`node_modules/${migratorCompatPackageName(lock)}`]?.version).toBe("0.2.3");
     for (const script of ["scan:arcgis", "scan:arcgis:widgets", "migrate:arcgis"]) {
       expect(manifest.scripts?.[script]).toContain("run-legacy-migration-cli.mjs");
     }

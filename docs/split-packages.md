@@ -77,9 +77,7 @@ import { FeatureLayerCompat } from "@honua/sdk-js/client-compat";
 ```
 
 The former standalone package name is not shipped as an alias. The former
-`@honua/sdk-js/esri-compat` subpath remains for 0.3.x as a deprecated re-export of
-`@honua/sdk-js/client-compat` that warns once on first import; it is removed in
-0.4.0.
+compatibility subpath is removed. Import `@honua/sdk-js/client-compat`.
 
 A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and [@honua/honua-migrate](https://www.npmjs.com/package/@honua/honua-migrate). Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
 

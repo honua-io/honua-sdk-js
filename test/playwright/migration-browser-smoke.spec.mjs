@@ -137,8 +137,8 @@ test("migrated arcgis sample executes in real browser runtime", async ({ page })
   const appRoot = path.join(tempRoot, "app");
   writeFixtureApp(appRoot);
 
-  const { runEsriCompatCodemod } = await importCodemod(projectRoot);
-  const codemodResult = runEsriCompatCodemod({
+  const { runClientMigrationCodemod } = await importCodemod(projectRoot);
+  const codemodResult = runClientMigrationCodemod({
     rootDir: tempRoot,
     write: true,
     compatImportPath: "/compat-entry.js",

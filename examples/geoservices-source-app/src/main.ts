@@ -1,6 +1,6 @@
 // Parcel viewer sample app written against the ArcGIS JS SDK 4.x.
 // The migration e2e harness (test/migration-e2e.test.ts) copies this
-// directory into a tempdir and runs runEsriCompatCodemod against it.
+// directory into a tempdir and runs runClientMigrationCodemod against it.
 //
 // Expected codemod outcomes:
 // - "@arcgis/core/..." default imports rewritten to named compat imports

@@ -7,7 +7,7 @@ accepted by both endpoint evidence and the SDK planner.
 
 The browser shell imports only public `@honua/sdk-js`,
 `@honua/sdk-js/contract`, and `@honua/sdk-js/map` entrypoints. It does not use
-the deprecated app shell, app-workspace, exploration, or Esri compatibility
+the deprecated app shell, app-workspace, exploration, or client compatibility
 surfaces.
 
 ## Workflow

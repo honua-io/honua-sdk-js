@@ -1,6 +1,6 @@
 /**
  * WMS 1.3.0 axis-order helpers, shared by the first-party WMS client path and
- * the Esri-compat `WMSLayer` so both emit BBOX in the authority-defined axis
+ * the compatibility `WMSLayer` so both emit BBOX in the authority-defined axis
  * order.
  *
  * Under WMS 1.3.0 the authority-defined axis order for geographic EPSG codes

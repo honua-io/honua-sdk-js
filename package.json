@@ -58,10 +58,6 @@
       "types": "./dist/src/client-compat-entry.d.ts",
       "default": "./dist/src/client-compat-entry.js"
     },
-    "./esri-compat": {
-      "types": "./dist/src/esri-compat-entry.d.ts",
-      "default": "./dist/src/esri-compat-entry.js"
-    },
     "./migration": {
       "types": "./dist/src/migration-entry.d.ts",
       "default": "./dist/src/migration-entry.js"
@@ -996,8 +992,6 @@
   "sideEffects": [
     "./dist/src/migration-entry.js",
     "./src/migration-entry.ts",
-    "./dist/src/esri-compat-entry.js",
-    "./src/esri-compat-entry.ts",
     "./dist/src/client-compat-entry.js",
     "./src/client-compat-entry.ts",
     "./dist/src/web-components/index.js",

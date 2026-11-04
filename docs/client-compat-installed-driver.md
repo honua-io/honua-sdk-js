@@ -1,11 +1,11 @@
 ---
 type: guide
-title: "Esri-compat installed-package browser driver"
+title: "Client-compat installed-package browser driver"
 description: "What test/playwright/migration-browser-installed-package.spec.mjs proves against installed dist/packages bytes, and how to reproduce it."
 tags: [client-compat, playwright, migration, testing]
 ---
 
-# Esri-compat installed-package browser driver
+# Client-compat installed-package browser driver
 
 `test/playwright/migration-browser-installed-package.spec.mjs` is the
 installed-package browser driver for the 2026.1 codemod cohort

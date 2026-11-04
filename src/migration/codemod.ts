@@ -864,7 +864,7 @@ export interface CodemodFileError {
   message: string;
 }
 
-export function runEsriCompatCodemod(options: ClientMigrationCodemodOptions): ClientMigrationCodemodResult {
+export function runClientMigrationCodemod(options: ClientMigrationCodemodOptions): ClientMigrationCodemodResult {
   const rootDir = path.resolve(options.rootDir);
   const files = collectSourceFiles(rootDir);
   const sourceFilesSet = new Set(files.map((file) => path.resolve(file)));

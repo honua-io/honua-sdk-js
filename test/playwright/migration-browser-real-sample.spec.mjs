@@ -121,8 +121,8 @@ async function runMigratedFixtureBrowserSmoke(page, options) {
   fs.mkdirSync(appRoot, { recursive: true });
   fs.copyFileSync(fixtureFile, appMain);
 
-  const { runEsriCompatCodemod } = await importCodemod(projectRoot);
-  const codemodResult = runEsriCompatCodemod({
+  const { runClientMigrationCodemod } = await importCodemod(projectRoot);
+  const codemodResult = runClientMigrationCodemod({
     rootDir: tempRoot,
     write: true,
     compatImportPath: "/compat-entry.js",

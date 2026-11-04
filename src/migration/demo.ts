@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { trimTrailingSlashes } from "../core/path-utils.js";
-import { type CodemodTarget, runEsriCompatCodemod } from "./codemod.js";
+import { type CodemodTarget, runClientMigrationCodemod } from "./codemod.js";
 import {
   type LayerReconciliationOptions,
   type LayerReconciliationReport,
@@ -118,7 +118,7 @@ export async function runMigrationDemo(options: MigrationDemoOptions): Promise<M
   }
 
   const scanReport = scanArcGisUsage(workingAppDir);
-  const codemodResult = runEsriCompatCodemod({
+  const codemodResult = runClientMigrationCodemod({
     rootDir: workingAppDir,
     write: true,
     annotateTodos: options.annotateTodos ?? true,

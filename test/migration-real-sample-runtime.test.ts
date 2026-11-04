@@ -5,10 +5,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runEsriCompatCodemod } from "../src/migration/codemod.js";
+import { runClientMigrationCodemod } from "../src/migration/codemod.js";
 import { buildJsMigrationReport } from "../src/migration/report.js";
 import { scanArcGisUsage } from "../src/migration/scanner.js";
-import { getPreparedEsriCompatEntryPath } from "./prepared-sdk-artifacts.js";
+import { getPreparedClientCompatEntryPath } from "./prepared-sdk-artifacts.js";
 
 const tempDirs: string[] = [];
 
@@ -24,15 +24,15 @@ function fixturePath(...parts: string[]): string {
 }
 
 function compatDistEntry(): string {
-  return getPreparedEsriCompatEntryPath();
+  return getPreparedClientCompatEntryPath();
 }
 
 function ensureBuiltCompatArtifacts(): void {
-  getPreparedEsriCompatEntryPath();
+  getPreparedClientCompatEntryPath();
 }
 
 async function migrateAndRunFixture(fixtureName: string): Promise<{
-  codemodResult: ReturnType<typeof runEsriCompatCodemod>;
+  codemodResult: ReturnType<typeof runClientMigrationCodemod>;
   report: ReturnType<typeof buildJsMigrationReport>;
   output: unknown;
   moduleNamespace: Record<string, unknown>;
@@ -45,7 +45,7 @@ async function migrateAndRunFixture(fixtureName: string): Promise<{
   fs.cpSync(sourceDir, workingCopy, { recursive: true });
 
   const scanReport = scanArcGisUsage(workingCopy);
-  const codemodResult = runEsriCompatCodemod({
+  const codemodResult = runClientMigrationCodemod({
     rootDir: workingCopy,
     write: true,
     compatImportPath: compatDistEntry(),

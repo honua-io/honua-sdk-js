@@ -161,7 +161,7 @@ The package provides:
 Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
-- Esri compat bridge: `@honua/sdk-js/client-compat`
+- Client compatibility bridge: `@honua/sdk-js/client-compat`
 - Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
@@ -829,7 +829,7 @@ const slider = new TimeSliderCompat({
 // Connect slider to layer — time extent changes auto-filter queries
 const connection = slider.connectLayer(layer);
 
-// Esri compatibility APIs retain raw ArcGIS SQL during migration.
+// Compatibility APIs retain raw ArcGIS SQL during migration.
 // Queries now include the time parameter automatically.
 const features = await layer.queryFeatures({ where: "1=1" });
 
