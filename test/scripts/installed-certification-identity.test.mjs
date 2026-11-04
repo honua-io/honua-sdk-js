@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { validateInstalledLock, validatePackageSet, validateObservationEnvelope } from "../../scripts/installed-certification-identity.mjs";
+import {
+  coordinatesForCandidate,
+  releaseArtifactForCoordinate,
+  validateInstalledLock,
+  validateObservationEnvelope,
+  validatePackageSet,
+} from "../../scripts/installed-certification-identity.mjs";
 
 const candidate = JSON.parse(await readFile(new URL("../../config/installed-package-certification.v1.json", import.meta.url)));
 const required = candidate.packages.map((p) => p.coordinate);
@@ -13,13 +19,30 @@ const envelope = { schema: "honua.sdk-installed-observations/v1", binding, obser
   execution: { mode: "installed-package", assertions: 3, facets: ["positive", "pagination"] } }] };
 
 test("all release packages must be pinned and installed from their declared registry", () => {
-  assert.equal(validatePackageSet(candidate, required).length, 7);
-  assert.equal(validateInstalledLock(candidate, lock).length, 7);
+  assert.equal(validatePackageSet(candidate, required).length, 8);
+  assert.equal(validateInstalledLock(candidate, lock).length, 8);
   for (const p of candidate.packages) {
     const missing = structuredClone(lock);
     delete missing.packages[`node_modules/${p.coordinate}`];
     assert.throws(() => validateInstalledLock(candidate, missing), /installed version mismatch/);
   }
+});
+
+test("the legacy cohort fills the release set with the published compat package", async () => {
+  const root = new URL("../..", import.meta.url);
+  const artifacts = JSON.parse(await readFile(new URL("config/release-artifacts.v1.json", root)));
+  const denominator = JSON.parse(await readFile(new URL("config/certification-denominator.v1.json", root)));
+  const releaseNames = artifacts.included.map((artifact) => artifact.npmName);
+  const legacyNames = coordinatesForCandidate(releaseNames, candidate);
+  const sorted = (names) => [...names].sort();
+  assert.deepEqual(sorted(legacyNames), sorted(coordinatesForCandidate(denominator.candidatePackages, candidate)));
+  assert.equal(validatePackageSet(candidate, legacyNames).length, 8);
+  assert.equal(releaseArtifactForCoordinate(artifacts.included, "@honua/sdk-esri-compat").npmName, "@honua/sdk-client-compat");
+  const dropped = structuredClone(candidate);
+  dropped.packages = dropped.packages.filter((entry) => entry.coordinate !== "@honua/sdk-esri-compat");
+  assert.throws(() => validatePackageSet(dropped, coordinatesForCandidate(releaseNames, dropped)), /candidate package set differs/);
+  const snapshot = { releaseInput: { kind: "honua-release-snapshot" } };
+  assert.deepEqual(coordinatesForCandidate(releaseNames, snapshot), releaseNames);
 });
 
 test("partial, duplicate, floating, unprovenanced and foreign-registry packages fail closed", () => {

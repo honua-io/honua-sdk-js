@@ -101,6 +101,12 @@ export {
   resetClientConfig,
 } from "./client-compat/client-config.js";
 export type { ClientConfigCompat, ClientConfigRequestCompat } from "./client-compat/client-config.js";
+export {
+  esriConfig,
+  esriRequest,
+  getEsriConfigHonuaInterceptors,
+  resetEsriConfig,
+} from "./client-compat/deprecated-aliases.js";
 export { identityManager } from "./client-compat/identity-manager.js";
 export type {
   IdentityCredentialCompat,

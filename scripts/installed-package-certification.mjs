@@ -6,7 +6,16 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-import { canonical, sha256, freezeCertification, validateInstalledLock, validateObservationEnvelope, validatePackageSet } from "./installed-certification-identity.mjs";
+import {
+  canonical,
+  coordinatesForCandidate,
+  freezeCertification,
+  releaseArtifactForCoordinate,
+  sha256,
+  validateInstalledLock,
+  validateObservationEnvelope,
+  validatePackageSet,
+} from "./installed-certification-identity.mjs";
 import { executeCandidateFixture } from "./installed-candidate-fixture.mjs";
 import { verifyPublishedRelease } from "./verify-published-release.mjs";
 import { runNpmSync } from "./lib/npm-cli.mjs";
@@ -63,14 +72,15 @@ export async function withInstalledCandidate(candidate, callback, { consumerDepe
     throw new Error(`server image digest mismatch: ${imageDigest ?? "missing"} vs ${candidate.server?.digest ?? "missing"}`);
   }
   const manifest = JSON.parse(await readFile(path.join(root, "config/release-artifacts.v1.json"), "utf8"));
-  validatePackageSet(candidate, manifest.included.map((p) => p.npmName));
+  validatePackageSet(candidate, coordinatesForCandidate(manifest.included.map((p) => p.npmName), candidate));
   for (const p of candidate.packages) {
     if (p.coordinate in consumerDependencies && consumerDependencies[p.coordinate] !== p.version) {
       throw new Error(`${p.coordinate}: consumer dependency cannot override candidate`);
     }
   }
   const targets = candidate.packages.map((p) => {
-    const artifact = manifest.included.find((a) => a.npmName === p.coordinate);
+    const artifact = releaseArtifactForCoordinate(manifest.included, p.coordinate);
+    if (!artifact) throw new Error(`${p.coordinate}: not in the release manifest`);
     const tag = `${artifact.publish.releaseTagPrefix}v${p.version}`;
     return { id: artifact.id, npmName: p.coordinate, version: p.version, distTag: candidate.releaseInput ? null : "latest", tag,
       commit: p.sourceRevision, expectedRef: p.sourceRef ?? `refs/tags/${tag}`, workflow: artifact.publish.workflow,
