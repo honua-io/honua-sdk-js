@@ -316,6 +316,10 @@ jobs:
               reasoning that holds up against the code as it stands. Say which
               thread and what evidence is missing.
 
+            Also apply the "Review guidelines" in the checkout's AGENTS.md (the
+            trusted workflow implementation, not PR code) to lines the diff adds
+            or changes: Clean Code, citing smell codes such as G5, C1 or F3.
+
             Do NOT re-raise a finding that was already adjudicated with
             evidence, and do not restate the first pass's accepted findings.
             Judge every finding you do raise as fix-worthy (it needs a change)
