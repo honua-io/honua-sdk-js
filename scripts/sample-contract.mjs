@@ -7282,6 +7282,19 @@ function withPendingSchemaBinding(expected, handoff) {
   return relaxed;
 }
 
+async function validateLiveSiteConsumerSources(handoff, { verifyCheckout, historicalArchive }) {
+  for (const card of handoff.cards) {
+    invariant(
+      card.source.repository === "honua-io/honua-sdk-js",
+      `${card.id}: executable source owner is not canonical`,
+    );
+    // A legacy receipt archive keeps cards whose sample trees are absent from this checkout.
+    if (verifyCheckout === false || historicalArchive) continue;
+    await validateSiteConsumerLocalLink(card.source.path, `${card.id} source link`, "directory");
+    await validateSiteConsumerLocalLink(card.source.docsPath, `${card.id} docs link`, "file");
+  }
+}
+
 export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   validateSiteConsumerJsonBudget(handoff, "site consumer handoff");
   validateSensitiveMetadata(handoff, "site consumer handoff", {
@@ -7439,17 +7452,10 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
     ),
     "site consumer lifecycle status or replacement route is incomplete",
   );
-  for (const card of handoff.cards) {
-    invariant(
-      card.source.repository === "honua-io/honua-sdk-js",
-      `${card.id}: executable source owner is not canonical`,
-    );
-    // A legacy receipt archive keeps cards whose sample trees are absent from this checkout.
-    if (inputs.verifyCheckout !== false && archivedReceipts === undefined) {
-      await validateSiteConsumerLocalLink(card.source.path, `${card.id} source link`, "directory");
-      await validateSiteConsumerLocalLink(card.source.docsPath, `${card.id} docs link`, "file");
-    }
-  }
+  await validateLiveSiteConsumerSources(handoff, {
+    verifyCheckout: inputs.verifyCheckout,
+    historicalArchive: archivedReceipts !== undefined,
+  });
   for (const notice of handoff.lifecycleNotices) {
     if (notice.replacement?.kind === "external") {
       validateSiteConsumerExternalUrl(notice.replacement.url, `${notice.sampleId} replacement link`);
