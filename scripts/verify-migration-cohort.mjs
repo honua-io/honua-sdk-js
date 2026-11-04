@@ -29,14 +29,40 @@ function packageGeneration(version) {
   return version?.split(".").slice(0, 2).join(".");
 }
 
-function migratorRegistryHoldAllows(location, name, version, migrateVersion) {
+function readLockPackage(parts, index) {
+  if (parts[index] !== "node_modules") return undefined;
+  const scopeOrName = parts[index + 1];
+  if (!scopeOrName) return undefined;
+  if (!scopeOrName.startsWith("@")) return { name: scopeOrName, next: index + 2 };
+  const packageName = parts[index + 2];
+  if (!packageName) return undefined;
+  return { name: `${scopeOrName}/${packageName}`, next: index + 3 };
+}
+
+function lockPackageChain(location) {
+  const parts = location.split("/");
+  const chain = [];
+  for (let index = 0; index < parts.length;) {
+    const entry = readLockPackage(parts, index);
+    if (!entry) return undefined;
+    chain.push(entry.name);
+    index = entry.next;
+  }
+  return chain;
+}
+
+function migratorRegistryAncestryAllows(chain, name) {
+  if (chain.at(-1) !== name || chain.includes(SDK)) return false;
+  return chain.slice(0, -1).every((ancestor) =>
+    ancestor === MIGRATE || (name === CORE && ancestor === COMPAT));
+}
+
+function migratorRegistryHoldAllows({ location, name, version, migrateVersion }) {
   if (migrateVersion !== MIGRATOR_REGISTRY_GENERATION_HOLD.pin) return false;
   if (name !== CORE && name !== COMPAT) return false;
   if (packageGeneration(version) !== MIGRATOR_REGISTRY_GENERATION_HOLD.generation) return false;
-  if (location.includes(`/node_modules/${SDK}/`)) return false;
-  if (location === `node_modules/${name}`) return true;
-  if (location.endsWith(`/node_modules/${MIGRATE}/node_modules/${name}`)) return true;
-  return name === CORE && location.endsWith(`/node_modules/${COMPAT}/node_modules/${CORE}`);
+  const chain = lockPackageChain(location);
+  return chain !== undefined && migratorRegistryAncestryAllows(chain, name);
 }
 
 export function migratorCompatPackageName(lock) {
@@ -116,7 +142,12 @@ export function validateLock(lock, { sdkVersion, migrateVersion, sdkSource }) {
     if (name !== MIGRATE) {
       const sameGeneration = packageGeneration(entry.version) === generation;
       assert.ok(
-        sameGeneration || migratorRegistryHoldAllows(location, name, entry.version, migrateVersion),
+        sameGeneration || migratorRegistryHoldAllows({
+          location,
+          name,
+          version: entry.version,
+          migrateVersion,
+        }),
         `${location} incompatible SDK generation`,
       );
     } else {
