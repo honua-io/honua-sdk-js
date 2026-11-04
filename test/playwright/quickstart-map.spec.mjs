@@ -8,6 +8,19 @@ import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from
 
 const SAMPLE_ID = "maplibre-quickstart";
 
+async function expectVisibleInspectTextInsideAccessibleName(page) {
+  const featureButtons = page.locator("#feature-list .feature-inspect-button");
+  await expect(featureButtons.first()).toBeVisible();
+  const names = await featureButtons.evaluateAll((buttons) =>
+    buttons.map((button) => ({
+      text: button.textContent ?? "",
+      name: button.getAttribute("aria-label") ?? "",
+    })),
+  );
+  expect(names.length).toBeGreaterThan(0);
+  expect(names.every(({ text, name }) => text.length > 0 && name.includes(text))).toBe(true);
+}
+
 test.setTimeout(90_000);
 
 test("First Map proves the canonical fixture journey in source or packed mode", async ({ browser, browserName }, testInfo) => {
@@ -234,7 +247,10 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await page.locator("#clear-filter-button").click();
     await expect(page.locator("#linked-visible-count")).toHaveText("48");
 
+    await expectVisibleInspectTextInsideAccessibleName(page);
+
     const inspect = page.getByRole("button", { name: "Inspect Census Tract 302.01" });
+    await expect(inspect).toHaveText("Inspect");
     await inspect.focus();
     await expect(inspect).toBeFocused();
     await inspect.press("Enter");
