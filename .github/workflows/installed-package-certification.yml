@@ -86,7 +86,7 @@ jobs:
             echo "HONUA_RELEASE_MANIFEST_SHA256=$MANIFEST_SHA256"
             echo "HONUA_RELEASE_MATRIX_SHA256=$MATRIX_SHA256"
           } >> "$GITHUB_ENV"
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         if: steps.candidate.outputs.mode == 'release-snapshot'
         with:
           python-version: "3.12"
