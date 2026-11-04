@@ -228,7 +228,7 @@ const ALWAYS_INSTALLED = [
 const PINNED_DEV_DEPENDENCIES = Object.freeze({
   "@types/node": "24.13.3",
   typescript: "5.9.3",
-  vite: "8.2.0",
+  vite: "8.2.4",
 });
 
 /**
