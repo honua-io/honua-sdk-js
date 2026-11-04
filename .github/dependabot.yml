@@ -25,7 +25,11 @@ updates:
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
-    directory: /
+    # "/" covers .github/workflows. The composite action under
+    # .github/actions carries its own SHA pins and is only scanned when listed.
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: weekly
       day: monday
@@ -33,3 +37,7 @@ updates:
     labels:
       - dependencies
       - area/infrastructure
+    groups:
+      github-actions:
+        patterns:
+          - "*"
