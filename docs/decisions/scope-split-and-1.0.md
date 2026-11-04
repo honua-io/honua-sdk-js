@@ -88,14 +88,13 @@ imports of app-platform directories):
   consumer.
 - **`examples/` consume only a handful of app-platform surfaces**, all of which
   move together cleanly:
-  - `/app-workspace` — 9 demos (service-explorer, stac-imagery-browser,
+  - `/app-workspace` — 8 demos (service-explorer, stac-imagery-browser,
     spatial-analytics-workbench, planning-permitting-workbench, mcp-gis-assistant,
-    geoprocessing-job-runner, edit-workflow-demo, ai-spatial-app-builder,
-    unified-ops-workspace).
+    geoprocessing-job-runner, edit-workflow-demo, ai-spatial-app-builder).
   - `/scene-workspace` — 2 demos (terrain-rgb-elevation, storytelling-25d-map).
   - `/app-controller` — 1 demo (runtime-parity-showcase).
-  - `/app` — 1 demo (app-bootstrap-basic).
-  - `/controls` — 2 demos; `/web-components` — 2 demos.
+  - `/app` — the app-bootstrap example was removed with the 0.3.0 sample retirement.
+  - `/controls` — 2 demos. The web-components host lives at `test/fixtures/web-components-host`.
   - `/control-plane` — README prose only, no source import.
 - **`mcp/` imports one app-platform-adjacent surface:** `/agent-tools`
   (`explainHonuaCapabilityGap`). See its disposition below — it stays in the

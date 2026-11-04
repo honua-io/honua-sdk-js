@@ -140,7 +140,7 @@ test("offline cache primitives select every direct browser consumer", () => {
 });
 
 test("discovers SDK package entry dependencies from browser fixtures", () => {
-  const dependencies = discoverLocalModuleDependencies("examples/unified-ops-workspace");
+  const dependencies = discoverLocalModuleDependencies("examples/realtime-incident-dashboard");
   assert.ok(dependencies.some((path) => path.startsWith("src/realtime/")));
 });
 

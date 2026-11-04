@@ -13,17 +13,17 @@
     "schemaPath": "samples/contract/v2/schemas/site-consumer-handoff.schema.json",
     "format": "honua.site.sdk-sample-consumer-handoff.v1",
     "schemaVersion": 1,
-    "bytes": 387846,
-    "sha256": "2b8c05547fb83e99ea290e9afb95813a9b770a2abac874a8cf19dd39ef18fd13",
+    "bytes": 378476,
+    "sha256": "1f04dc94ee8c13ba0e8918a523fb62a8d9e0f74fd9cf47d040d48e31b2fdd1b4",
     "schemaBytes": 28368,
     "schemaSha256": "669043ca11eb2913fa4ba7bf743fb1c933e5d9b174a4e9b383c241b1822eb21d"
   },
   "assertions": {
-    "cardCount": 31,
+    "cardCount": 28,
     "qualifiedJourneyCount": 4,
-    "canonicalRouteCount": 31,
+    "canonicalRouteCount": 28,
     "legacyRouteCount": 20,
-    "gapCount": 472,
+    "gapCount": 471,
     "everyQualifiedTrackHandedOff": true,
     "honestZeroQualificationAllowed": true,
     "allLegacyRoutesResolved": true,
@@ -40,7 +40,6 @@
       "filters": {},
       "expectedSampleIds": [
         "ai-spatial-app-builder",
-        "app-bootstrap-basic",
         "cesium-route-playback",
         "columnar-query-quickstart",
         "coverages-wcs-basic",
@@ -67,9 +66,7 @@
         "stac-imagery-browser",
         "storytelling-25d-map",
         "temporal-playback",
-        "terrain-rgb-elevation",
-        "unified-ops-workspace",
-        "web-components-basic"
+        "terrain-rgb-elevation"
       ]
     },
     {

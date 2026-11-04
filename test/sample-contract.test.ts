@@ -229,10 +229,10 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(34);
+    expect(catalog.samples).toHaveLength(31);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(30);
+    ).toHaveLength(27);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
@@ -245,7 +245,7 @@ describe("sample publication contract", () => {
       3,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
-      lifecycle: { state: "rework", targetRelease: "0.3.0" },
+      lifecycle: { state: "rework", targetRelease: "0.4.0" },
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
     expect(
@@ -937,17 +937,21 @@ describe("sample publication contract", () => {
     expect(isRunnableRootExampleDirectory("shared-test-helpers", ["README.md", "tsconfig.json"])).toBe(false);
   });
 
-  it("refuses unfinished sample transitions at the approved 0.3 deadline", async () => {
+  it("refuses a sample whose target release the package has reached", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
-    // Apply the actual pending policy to the first sorted fixture entry so the
-    // deadline guard runs before unrelated current-version live receipts. This
-    // synthetic negative fixture changes no receipt or production catalog.
-    const pending = catalog.samples.find((sample: { id: string }) => sample.id === "app-bootstrap-basic");
-    expect(pending.lifecycle.targetRelease).toBe("0.3.0");
-    catalog.samples[0].lifecycle = structuredClone(pending.lifecycle);
+    // Apply the pending policy to the first sorted entry so the deadline guard
+    // runs before unrelated current-version live receipts. This synthetic
+    // negative fixture changes no receipt or production catalog.
+    const pending = catalog.samples.find(
+      (sample: { lifecycle: { state: string } }) => sample.lifecycle.state !== "active",
+    );
+    expect(pending.lifecycle.targetRelease).toBe("0.4.0");
+    const expired = structuredClone(pending.lifecycle);
+    expired.targetRelease = "0.3.0";
+    catalog.samples[0].lifecycle = expired;
     await expect(validateCatalog(catalog, { ...packageJson, version: "0.3.0" }, validationTime)).rejects.toThrow(
-      `${catalog.samples[0].id}: lifecycle retire expired at 0.3.0`,
+      `${catalog.samples[0].id}: lifecycle ${expired.state} expired at 0.3.0`,
     );
   });
 
@@ -1099,13 +1103,13 @@ describe("sample publication contract", () => {
       format: "honua.site.sdk-sample-projection.v3",
       schemaVersion: 3,
     });
-    expect(projection.samples).toHaveLength(34);
+    expect(projection.samples).toHaveLength(31);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(34);
+    expect(ciSelection.samples).toHaveLength(31);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(visualEvidence).toMatchObject({
       format: "honua.sdk.golden-journey-visual-evidence.v1",
@@ -1549,10 +1553,10 @@ describe("sample publication contract", () => {
 
     const expiredLifecycle = await readJson("samples/catalog.v2.json");
     expiredLifecycle.samples.find(
-      (sample: { id: string }) => sample.id === "app-bootstrap-basic",
+      (sample: { id: string }) => sample.id === "cesium-route-playback",
     ).lifecycle.targetRelease = packageJson.version;
     await expect(validateCatalog(expiredLifecycle, packageJson, validationTime)).rejects.toThrow(
-      `lifecycle retire expired at ${packageJson.version}`,
+      `lifecycle rework expired at ${packageJson.version}`,
     );
 
     const missingReplacement = await readJson("samples/catalog.v2.json");
@@ -2288,7 +2292,7 @@ runNpmScriptSync("demo:wrong:build", {
         "demo:fixture:build",
       ),
     ).toThrow("expected exactly one demo:fixture:build fixture build");
-    await expect(validateFixtureBuildHarnesses()).resolves.toBe(24);
+    await expect(validateFixtureBuildHarnesses()).resolves.toBe(21);
   });
 
   it("keeps the columnar browser validation exact and bounded", async () => {

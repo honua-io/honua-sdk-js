@@ -192,7 +192,7 @@ test("deep-freezes and brands every rendered model claim", async () => {
   const cards = galleryCards(gallery);
   const endpointCard = cards.find((card) => card.sample.id === "maplibre-quickstart");
   const incidentCard = cards.find((card) => card.sample.id === "realtime-incident-dashboard");
-  const replacementCard = cards.find((card) => card.sample.id === "web-components-basic");
+  const replacementCard = cards.find((card) => card.sample.id === "runtime-parity-showcase");
 
   assertDeepFrozen(gallery);
   const mutations = [
@@ -263,7 +263,7 @@ test("deep-freezes and brands every rendered model claim", async () => {
       incidentCard.journey.title = "Forged journey";
     },
     () => {
-      replacementCard.replacement.url = "https://example.test/forged";
+      replacementCard.replacement.id = "forged";
     },
     () => {
       gallery.filters.capabilities.push("forged");
@@ -448,13 +448,6 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
     candidateSampleId: "service-explorer",
     publicSampleId: "service-explorer",
   });
-  assert.deepEqual(byId.get("web-components-basic").replacement, {
-    kind: "external",
-    id: "honua-app-platform",
-    title: "@honua/app-platform",
-    url: "https://www.npmjs.com/package/@honua/app-platform",
-  });
-  assert.equal(byId.get("web-components-basic").sample.lifecycle.state, "retire");
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
   assert.deepEqual(byId.get("edit-workflow-demo").replacement, {
     kind: "journey",
@@ -727,9 +720,10 @@ test("rejects unsafe public source paths before minting a model or invoking a re
 test("escapes projected content and links only credential-free HTTPS replacements", async () => {
   for (const url of ["javascript:alert(1)", "http://example.test/replacement"]) {
     const unsafe = structuredClone(projection);
-    const sample = sampleById(unsafe, "web-components-basic");
+    const sample = sampleById(unsafe, "edit-workflow-demo");
     sample.title = '<img src=x onerror="alert(1)">';
     sample.data.provenance = '</dd><script>alert("x")</script>';
+    sample.lifecycle.replacement = { kind: "external", id: unsafe.externalReplacements[0].id };
     unsafe.externalReplacements[0].url = url;
     const html = renderGallery(await verifiedGallery(unsafe));
 
@@ -739,7 +733,10 @@ test("escapes projected content and links only credential-free HTTPS replacement
     assert.match(html, /external: @honua\/app-platform \(honua-app-platform\)/);
   }
 
-  const safeHtml = renderGallery(await canonicalGallery());
+  const linked = structuredClone(projection);
+  const linkedSample = sampleById(linked, "edit-workflow-demo");
+  linkedSample.lifecycle.replacement = { kind: "external", id: linked.externalReplacements[0].id };
+  const safeHtml = renderGallery(await verifiedGallery(linked));
   assert.match(
     safeHtml,
     /href="https:\/\/www\.npmjs\.com\/package\/@honua\/app-platform" rel="noopener noreferrer"/,

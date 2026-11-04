@@ -18,8 +18,8 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.v3.schema.json",
       "format": "honua.site.sdk-sample-projection.v3",
       "schemaVersion": 3,
-      "bytes": 86536,
-      "sha256": "01c93bae9f3f5892617ef23d522d3d5355ed2411e1509ad5a1fb98fa2a88aa6e",
+      "bytes": 82331,
+      "sha256": "fcfd09ec3fbc8e56dc8dbf6929a3ad578bcaa780b0fa19805c70354cde3dd11d",
       "schemaBytes": 15096,
       "schemaSha256": "a73e66887e74d0e6c8a0bbda4b00792e615f91d0e5e1e40a1642ad04d657ce84"
     },
@@ -28,8 +28,8 @@
       "schemaPath": "samples/contract/v2/schemas/capability-sample-matrix.schema.json",
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
-      "bytes": 506962,
-      "sha256": "84f96e227ce7a6a684220d9f5729dccd5bd85d32be66106d32893f890b11b986",
+      "bytes": 502238,
+      "sha256": "5c5b02b4e90227bdfddbb89a85a41c845e0c6766ddf52c1d6a2d4e6ffe6aae15",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -39,7 +39,7 @@
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
       "bytes": 45309,
-      "sha256": "fc9fef19608d83d5cf24e299434a7abb1e4fcfcf19d20b9e41f66d4ba8361523",
+      "sha256": "86f8f7df4bf90513b8ed4cb2e9dfe34ca4ed62c6ba2d83b28ad13957b30488d7",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -161,7 +161,6 @@
       "agent-tools",
       "aggregation",
       "analysis",
-      "app-bootstrap",
       "async-jobs",
       "atomic-authorization",
       "attachments",
@@ -175,9 +174,7 @@
       "cog",
       "columnar",
       "compatibility",
-      "controls",
       "coverage",
-      "custom-elements",
       "direct-connect",
       "discovery",
       "editing",
@@ -233,8 +230,7 @@
       "terrain",
       "three-dimensional",
       "typed-agent-tools",
-      "vector-tiles",
-      "workspace"
+      "vector-tiles"
     ],
     "capabilities": [
       "agent-tools-facade",
@@ -317,7 +313,6 @@
       "oauth"
     ],
     "supportTiers": [
-      "deprecated",
       "experimental",
       "supported"
     ],
@@ -325,7 +320,6 @@
       "active",
       "merge",
       "replace",
-      "retire",
       "rework"
     ],
     "qualificationStates": [
@@ -337,12 +331,12 @@
     ]
   },
   "counts": {
-    "cards": 31,
+    "cards": 28,
     "qualifiedJourneys": 4,
-    "canonicalRoutes": 31,
+    "canonicalRoutes": 28,
     "legacyRoutes": 20,
-    "lifecycleNotices": 11,
-    "gaps": 472,
+    "lifecycleNotices": 8,
+    "gaps": 471,
     "qualifiedMatrixCells": {
       "goldenJourneys": 4,
       "protocolOperations": 5,
@@ -429,74 +423,6 @@
       "searchText": "ai-spatial-app-builder safe agent workbench proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states. lab agent-approval agent-planning atomic-authorization query-planning receipts typed-agent-tools compatibility-gate-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service grpc geoservices honua none hybrid host-mediated experimental active experimental missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy."
     },
     {
-      "id": "app-bootstrap-basic",
-      "title": "Application bootstrap basic",
-      "summary": "Bootstraps a minimal application through the legacy app-platform compatibility surface.",
-      "canonicalPath": "samples/app-bootstrap-basic.html",
-      "track": "lab",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/app-bootstrap-basic",
-        "docsPath": "examples/app-bootstrap-basic/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.2.10"
-      },
-      "tasks": [
-        "app-bootstrap"
-      ],
-      "capabilities": [
-        "compatibility-gate-facade"
-      ],
-      "protocols": [
-        "grpc"
-      ],
-      "catalogProtocols": [
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed bootstrap fixture.",
-        "attribution": "Honua fixture data.",
-        "freshness": "Deterministic replay.",
-        "configurationStatus": "not-required"
-      },
-      "supportTier": "deprecated",
-      "lifecycle": {
-        "state": "retire",
-        "reason": "The app-platform split supersedes this SDK-owned compatibility demonstration.",
-        "targetRelease": "0.3.0",
-        "replacement": {
-          "kind": "external",
-          "id": "honua-app-platform"
-        }
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
-        }
-      },
-      "expectedDegradation": "Compatibility APIs are retained through 0.2.x and removed when the package advances to 0.3.0.",
-      "qualification": {
-        "state": "unsupported",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "app-bootstrap-basic application bootstrap basic bootstraps a minimal application through the legacy app-platform compatibility surface. lab app-bootstrap compatibility-gate-facade grpc honua maplibre fixture none deprecated retire unsupported compatibility apis are retained through 0.2.x and removed when the package advances to 0.3.0."
-    },
-    {
       "id": "cesium-route-playback",
       "title": "Cesium route playback lab",
       "summary": "Explores bounded route playback and elevation context through an optional Cesium consumer integration.",
@@ -543,8 +469,8 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "rework",
-        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion.",
-        "targetRelease": "0.3.0"
+        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0"
       },
       "evidence": {
         "fixture": {
@@ -750,8 +676,8 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "replace",
-        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow.",
-        "targetRelease": "0.3.0",
+        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0",
         "replacement": {
           "kind": "journey",
           "id": "planning-permitting"
@@ -887,8 +813,8 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "merge",
-        "reason": "Fold into the analysis journey while retaining this focused recipe.",
-        "targetRelease": "0.3.0",
+        "reason": "Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0",
         "replacement": {
           "kind": "journey",
           "id": "cloud-native-analysis"
@@ -1600,8 +1526,8 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "rework",
-        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey.",
-        "targetRelease": "0.3.0"
+        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0"
       },
       "evidence": {
         "fixture": {
@@ -2531,8 +2457,8 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "replace",
-        "reason": "Replace parity claims with renderer-specific execution and fidelity reports.",
-        "targetRelease": "0.3.0",
+        "reason": "Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0",
         "replacement": {
           "kind": "journey",
           "id": "service-explorer"
@@ -3088,8 +3014,8 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "rework",
-        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans.",
-        "targetRelease": "0.3.0"
+        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0"
       },
       "evidence": {
         "fixture": {
@@ -3234,8 +3160,8 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "merge",
-        "reason": "Use its strongest interactions inside the imagery and 3D journey.",
-        "targetRelease": "0.3.0",
+        "reason": "Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0",
         "replacement": {
           "kind": "journey",
           "id": "imagery-terrain"
@@ -3364,8 +3290,8 @@
       "supportTier": "supported",
       "lifecycle": {
         "state": "merge",
-        "reason": "Combine point/profile proof with the imagery and 3D flagship.",
-        "targetRelease": "0.3.0",
+        "reason": "Combine point/profile proof with the imagery and 3D flagship. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0",
         "replacement": {
           "kind": "journey",
           "id": "imagery-terrain"
@@ -3389,148 +3315,6 @@
       "evidenceBindingId": null,
       "visualEvidence": null,
       "searchText": "terrain-rgb-elevation terrain rgb elevation reads terrain-rgb tiles for point elevation and route profiles. recipe elevation profile terrain terrain-rgb maplibre hybrid api-key supported merge partial profile and map terrain expose independent capability failures."
-    },
-    {
-      "id": "unified-ops-workspace",
-      "title": "Unified operations workspace",
-      "summary": "Composes incident command, analysis, and shared workspace state.",
-      "canonicalPath": "samples/unified-ops-workspace.html",
-      "track": "lab",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/unified-ops-workspace",
-        "docsPath": "examples/unified-ops-workspace/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.2.10"
-      },
-      "tasks": [
-        "analysis",
-        "realtime",
-        "workspace"
-      ],
-      "capabilities": [
-        "compatibility-gate-facade",
-        "realtime-facade"
-      ],
-      "protocols": [
-        "grpc"
-      ],
-      "catalogProtocols": [
-        "honua",
-        "sse"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed operations workspace fixture.",
-        "attribution": "Synthetic Honua operations data.",
-        "freshness": "Deterministic snapshot and delta replay.",
-        "configurationStatus": "not-required"
-      },
-      "supportTier": "deprecated",
-      "lifecycle": {
-        "state": "retire",
-        "reason": "Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately.",
-        "targetRelease": "0.3.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "incident-operations"
-        }
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
-        }
-      },
-      "expectedDegradation": "Deprecated app-shell APIs remain available only through their transition window.",
-      "qualification": {
-        "state": "unsupported",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "unified-ops-workspace unified operations workspace composes incident command, analysis, and shared workspace state. lab analysis realtime workspace compatibility-gate-facade realtime-facade grpc honua sse maplibre fixture none deprecated retire unsupported deprecated app-shell apis remain available only through their transition window."
-    },
-    {
-      "id": "web-components-basic",
-      "title": "Web components basic",
-      "summary": "Demonstrates the SDK custom-element controls against a map.",
-      "canonicalPath": "samples/web-components-basic.html",
-      "track": "lab",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/web-components-basic",
-        "docsPath": "examples/web-components-basic/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.2.10"
-      },
-      "tasks": [
-        "controls",
-        "custom-elements",
-        "map"
-      ],
-      "capabilities": [
-        "compatibility-gate-facade"
-      ],
-      "protocols": [
-        "grpc"
-      ],
-      "catalogProtocols": [
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed control-gallery fixture.",
-        "attribution": "Honua fixture data.",
-        "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required"
-      },
-      "supportTier": "deprecated",
-      "lifecycle": {
-        "state": "retire",
-        "reason": "Controls move with app-platform rather than remaining in the core SDK gallery.",
-        "targetRelease": "0.3.0",
-        "replacement": {
-          "kind": "external",
-          "id": "honua-app-platform"
-        }
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
-        }
-      },
-      "expectedDegradation": "Deprecated controls are linked to their app-platform replacements.",
-      "qualification": {
-        "state": "unsupported",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "web-components-basic web components basic demonstrates the sdk custom-element controls against a map. lab controls custom-elements map compatibility-gate-facade grpc honua maplibre fixture none deprecated retire unsupported deprecated controls are linked to their app-platform replacements."
     }
   ],
   "qualifiedJourneys": [
@@ -4432,14 +4216,6 @@
       "externalListingEligible": true
     },
     {
-      "sampleId": "app-bootstrap-basic",
-      "path": "samples/app-bootstrap-basic.html",
-      "track": "lab",
-      "lifecycleState": "retire",
-      "presentation": "lifecycle-status",
-      "externalListingEligible": true
-    },
-    {
       "sampleId": "cesium-route-playback",
       "path": "samples/cesium-route-playback.html",
       "track": "lab",
@@ -4654,22 +4430,6 @@
       "lifecycleState": "merge",
       "presentation": "sample-detail",
       "externalListingEligible": true
-    },
-    {
-      "sampleId": "unified-ops-workspace",
-      "path": "samples/unified-ops-workspace.html",
-      "track": "lab",
-      "lifecycleState": "retire",
-      "presentation": "lifecycle-status",
-      "externalListingEligible": true
-    },
-    {
-      "sampleId": "web-components-basic",
-      "path": "samples/web-components-basic.html",
-      "track": "lab",
-      "lifecycleState": "retire",
-      "presentation": "lifecycle-status",
-      "externalListingEligible": true
     }
   ],
   "legacyRoutes": [
@@ -4806,16 +4566,16 @@
       "routeIds": [
         "controls-kit"
       ],
-      "ownership": "sdk-projection",
-      "resolution": "canonical-sample",
-      "sampleId": "web-components-basic",
-      "canonicalPath": "samples/web-components-basic.html",
-      "httpStatus": 308,
-      "presentation": "permanent-redirect",
-      "title": "Web components basic",
+      "ownership": "site-exception",
+      "resolution": "site-exception",
+      "sampleId": null,
+      "canonicalPath": null,
+      "httpStatus": null,
+      "presentation": "status-page",
+      "title": "SDK controls",
       "track": "lab",
       "supportTier": "deprecated",
-      "reason": "Redirect to the stable canonical SDK sample route."
+      "reason": "Display an explicit site-owned exception or retirement status. The web-components sample retired with the 0.3.0 removal. This route stays site-owned until app-platform publishes the controls gallery."
     },
     {
       "path": "demo-two-protocols.html",
@@ -4935,16 +4695,16 @@
       "routeIds": [
         "hello-webmap"
       ],
-      "ownership": "sdk-projection",
-      "resolution": "canonical-sample",
-      "sampleId": "app-bootstrap-basic",
-      "canonicalPath": "samples/app-bootstrap-basic.html",
-      "httpStatus": 308,
-      "presentation": "permanent-redirect",
-      "title": "Application bootstrap basic",
+      "ownership": "site-exception",
+      "resolution": "site-exception",
+      "sampleId": null,
+      "canonicalPath": null,
+      "httpStatus": null,
+      "presentation": "status-page",
+      "title": "Hello web map",
       "track": "lab",
       "supportTier": "deprecated",
-      "reason": "Redirect to the stable canonical SDK sample route."
+      "reason": "Display an explicit site-owned exception or retirement status. The app-bootstrap sample retired with the 0.3.0 removal. This route stays site-owned until app-platform publishes the bootstrap executable."
     },
     {
       "path": "sample-raster-overlay.html",
@@ -4997,32 +4757,19 @@
   ],
   "lifecycleNotices": [
     {
-      "sampleId": "app-bootstrap-basic",
-      "canonicalPath": "samples/app-bootstrap-basic.html",
-      "state": "retire",
-      "reason": "The app-platform split supersedes this SDK-owned compatibility demonstration.",
-      "targetRelease": "0.3.0",
-      "replacement": {
-        "kind": "external",
-        "id": "honua-app-platform",
-        "title": "@honua/app-platform",
-        "url": "https://www.npmjs.com/package/@honua/app-platform"
-      }
-    },
-    {
       "sampleId": "cesium-route-playback",
       "canonicalPath": "samples/cesium-route-playback.html",
       "state": "rework",
-      "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion.",
-      "targetRelease": "0.3.0",
+      "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "targetRelease": "0.4.0",
       "replacement": null
     },
     {
       "sampleId": "edit-workflow-demo",
       "canonicalPath": "samples/edit-workflow-demo.html",
       "state": "replace",
-      "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow.",
-      "targetRelease": "0.3.0",
+      "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "targetRelease": "0.4.0",
       "replacement": {
         "kind": "journey",
         "id": "planning-permitting",
@@ -5036,8 +4783,8 @@
       "sampleId": "geoprocessing-job-runner",
       "canonicalPath": "samples/geoprocessing-job-runner.html",
       "state": "merge",
-      "reason": "Fold into the analysis journey while retaining this focused recipe.",
-      "targetRelease": "0.3.0",
+      "reason": "Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "targetRelease": "0.4.0",
       "replacement": {
         "kind": "journey",
         "id": "cloud-native-analysis",
@@ -5051,16 +4798,16 @@
       "sampleId": "mcp-gis-assistant",
       "canonicalPath": "samples/mcp-gis-assistant.html",
       "state": "rework",
-      "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey.",
-      "targetRelease": "0.3.0",
+      "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "targetRelease": "0.4.0",
       "replacement": null
     },
     {
       "sampleId": "runtime-parity-showcase",
       "canonicalPath": "samples/runtime-parity-showcase.html",
       "state": "replace",
-      "reason": "Replace parity claims with renderer-specific execution and fidelity reports.",
-      "targetRelease": "0.3.0",
+      "reason": "Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "targetRelease": "0.4.0",
       "replacement": {
         "kind": "journey",
         "id": "service-explorer",
@@ -5074,16 +4821,16 @@
       "sampleId": "spatial-analytics-workbench",
       "canonicalPath": "samples/spatial-analytics-workbench.html",
       "state": "rework",
-      "reason": "Join the large-data journey and distinguish fixture estimates from executed plans.",
-      "targetRelease": "0.3.0",
+      "reason": "Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "targetRelease": "0.4.0",
       "replacement": null
     },
     {
       "sampleId": "storytelling-25d-map",
       "canonicalPath": "samples/storytelling-25d-map.html",
       "state": "merge",
-      "reason": "Use its strongest interactions inside the imagery and 3D journey.",
-      "targetRelease": "0.3.0",
+      "reason": "Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "targetRelease": "0.4.0",
       "replacement": {
         "kind": "journey",
         "id": "imagery-terrain",
@@ -5097,8 +4844,8 @@
       "sampleId": "terrain-rgb-elevation",
       "canonicalPath": "samples/terrain-rgb-elevation.html",
       "state": "merge",
-      "reason": "Combine point/profile proof with the imagery and 3D flagship.",
-      "targetRelease": "0.3.0",
+      "reason": "Combine point/profile proof with the imagery and 3D flagship. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "targetRelease": "0.4.0",
       "replacement": {
         "kind": "journey",
         "id": "imagery-terrain",
@@ -5106,34 +4853,6 @@
         "status": "qualified",
         "candidateSampleId": "imagery-cog-quickstart",
         "canonicalPath": "samples/imagery-cog-quickstart.html"
-      }
-    },
-    {
-      "sampleId": "unified-ops-workspace",
-      "canonicalPath": "samples/unified-ops-workspace.html",
-      "state": "retire",
-      "reason": "Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately.",
-      "targetRelease": "0.3.0",
-      "replacement": {
-        "kind": "journey",
-        "id": "incident-operations",
-        "title": "Realtime Incident Operations",
-        "status": "planned",
-        "candidateSampleId": "realtime-incident-dashboard",
-        "canonicalPath": "samples/realtime-incident-dashboard.html"
-      }
-    },
-    {
-      "sampleId": "web-components-basic",
-      "canonicalPath": "samples/web-components-basic.html",
-      "state": "retire",
-      "reason": "Controls move with app-platform rather than remaining in the core SDK gallery.",
-      "targetRelease": "0.3.0",
-      "replacement": {
-        "kind": "external",
-        "id": "honua-app-platform",
-        "title": "@honua/app-platform",
-        "url": "https://www.npmjs.com/package/@honua/app-platform"
       }
     }
   ],
@@ -5377,16 +5096,9 @@
       "targetId": "./controls",
       "supportStatus": "deprecated",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "web-components-basic"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "web-components-basic",
-          "canonicalPath": "samples/web-components-basic.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "package-entrypoint",
@@ -5413,15 +5125,6 @@
       "coverageState": "experimental",
       "candidateSampleIds": [],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
-      "candidateRoutes": []
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./esri-compat",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated.",
       "candidateRoutes": []
     },
     {
@@ -5526,10 +5229,7 @@
         "runtime-parity-showcase",
         "shared-renderer-state",
         "offline-region-reference",
-        "edit-workflow-demo",
-        "app-bootstrap-basic",
-        "unified-ops-workspace",
-        "web-components-basic"
+        "edit-workflow-demo"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
       "candidateRoutes": [
@@ -5568,18 +5268,6 @@
         {
           "sampleId": "edit-workflow-demo",
           "canonicalPath": "samples/edit-workflow-demo.html"
-        },
-        {
-          "sampleId": "app-bootstrap-basic",
-          "canonicalPath": "samples/app-bootstrap-basic.html"
-        },
-        {
-          "sampleId": "unified-ops-workspace",
-          "canonicalPath": "samples/unified-ops-workspace.html"
-        },
-        {
-          "sampleId": "web-components-basic",
-          "canonicalPath": "samples/web-components-basic.html"
         }
       ]
     },
@@ -5792,8 +5480,7 @@
       "coverageState": "experimental",
       "candidateSampleIds": [
         "realtime-incident-dashboard",
-        "temporal-playback",
-        "unified-ops-workspace"
+        "temporal-playback"
       ],
       "reason": "Only experimental catalog samples map to this supported SDK cell.",
       "candidateRoutes": [
@@ -5804,10 +5491,6 @@
         {
           "sampleId": "temporal-playback",
           "canonicalPath": "samples/temporal-playback.html"
-        },
-        {
-          "sampleId": "unified-ops-workspace",
-          "canonicalPath": "samples/unified-ops-workspace.html"
         }
       ]
     },
@@ -9604,6 +9287,15 @@
     },
     {
       "targetType": "support-claim",
+      "targetId": "client-compat-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+      "candidateRoutes": []
+    },
+    {
+      "targetType": "support-claim",
       "targetId": "collaboration-deprecated",
       "supportStatus": "deprecated",
       "coverageState": "unsupported",
@@ -9645,15 +9337,6 @@
       "coverageState": "experimental",
       "candidateSampleIds": [],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
-      "candidateRoutes": []
-    },
-    {
-      "targetType": "support-claim",
-      "targetId": "esri-compat-standalone",
-      "supportStatus": "supported",
-      "coverageState": "planned",
-      "candidateSampleIds": [],
-      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
       "candidateRoutes": []
     },
     {
@@ -9855,8 +9538,7 @@
       "coverageState": "experimental",
       "candidateSampleIds": [
         "realtime-incident-dashboard",
-        "temporal-playback",
-        "unified-ops-workspace"
+        "temporal-playback"
       ],
       "reason": "Only experimental catalog samples map to this supported SDK cell.",
       "candidateRoutes": [
@@ -9867,10 +9549,6 @@
         {
           "sampleId": "temporal-playback",
           "canonicalPath": "samples/temporal-playback.html"
-        },
-        {
-          "sampleId": "unified-ops-workspace",
-          "canonicalPath": "samples/unified-ops-workspace.html"
         }
       ]
     },

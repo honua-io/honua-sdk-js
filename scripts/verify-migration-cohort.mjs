@@ -19,7 +19,25 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const SDK = "@honua/sdk-js";
 const MIGRATE = "@honua/honua-migrate";
 const CORE = "@honua/sdk";
+const COMPAT = "@honua/sdk-esri-compat";
 const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+// Published @honua/honua-migrate@0.3.0-beta.0 still installs generation 0.2
+// registry packages. The hold is that pin only.
+const MIGRATOR_REGISTRY_GENERATION_HOLD = { pin: "0.3.0-beta.0", generation: "0.2" };
+
+function packageGeneration(version) {
+  return version?.split(".").slice(0, 2).join(".");
+}
+
+function migratorRegistryHoldAllows(location, name, version, migrateVersion) {
+  if (migrateVersion !== MIGRATOR_REGISTRY_GENERATION_HOLD.pin) return false;
+  if (name !== CORE && name !== COMPAT) return false;
+  if (packageGeneration(version) !== MIGRATOR_REGISTRY_GENERATION_HOLD.generation) return false;
+  if (location.includes(`/node_modules/${SDK}/`)) return false;
+  if (location === `node_modules/${name}`) return true;
+  if (location.endsWith(`/node_modules/${MIGRATE}/node_modules/${name}`)) return true;
+  return name === CORE && location.endsWith(`/node_modules/${COMPAT}/node_modules/${CORE}`);
+}
 
 export function migratorCompatPackageName(lock) {
   const dependencies = lock.packages?.[`node_modules/${MIGRATE}`]?.dependencies ?? {};
@@ -96,7 +114,11 @@ export function validateLock(lock, { sdkVersion, migrateVersion, sdkSource }) {
     if (!name) continue;
     assert.ok(!entry.link, `${location} must not be a linked package`);
     if (name !== MIGRATE) {
-      assert.equal(entry.version?.split(".").slice(0, 2).join("."), generation, `${location} incompatible SDK generation`);
+      const sameGeneration = packageGeneration(entry.version) === generation;
+      assert.ok(
+        sameGeneration || migratorRegistryHoldAllows(location, name, entry.version, migrateVersion),
+        `${location} incompatible SDK generation`,
+      );
     } else {
       assert.equal(entry.version, migrateVersion, `${location} contains a second migrator version`);
     }

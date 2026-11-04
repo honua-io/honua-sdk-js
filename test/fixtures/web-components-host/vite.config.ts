@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(exampleRoot, "../..");
+const repoRoot = path.resolve(exampleRoot, "../../..");
 
 export default defineConfig({
   root: exampleRoot,
@@ -12,12 +12,20 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: "@honua/sdk-js/app",
-        replacement: path.resolve(repoRoot, "src/app/index.ts"),
+        find: "@honua/sdk-js/web-components",
+        replacement: path.resolve(repoRoot, "src/web-components/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/controls",
+        replacement: path.resolve(repoRoot, "src/controls/index.ts"),
       },
       {
         find: "@honua/sdk-js/runtime",
         replacement: path.resolve(repoRoot, "src/runtime/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/map",
+        replacement: path.resolve(repoRoot, "src/map/index.ts"),
       },
       {
         find: "@honua/sdk-js",

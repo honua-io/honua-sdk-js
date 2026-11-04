@@ -125,7 +125,6 @@ const REVIEWED_FIXTURE_HARNESS_IMPORTS = new Set([
 ]);
 const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/ai-spatial-app-builder/mock-server.mjs", "demo:ai-spatial-builder:build"],
-  ["examples/app-bootstrap-basic/mock-server.mjs", "demo:app-bootstrap:build"],
   ["examples/edit-workflow-demo/mock-server.mjs", "demo:edit-workflow:build"],
   ["examples/geocoding-quickstart/mock-server.mjs", "demo:geocoding:build"],
   ["examples/geoprocessing-job-runner/mock-server.mjs", "demo:gp-runner:build"],
@@ -146,8 +145,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/stac-imagery-browser/mock-server.mjs", "demo:stac-browser:build"],
   ["examples/storytelling-25d-map/mock-server.mjs", "demo:25d:build"],
   ["examples/terrain-rgb-elevation/mock-server.mjs", "demo:terrain-elevation:build"],
-  ["examples/unified-ops-workspace/mock-server.mjs", "demo:unified-ops:build"],
-  ["examples/web-components-basic/mock-server.mjs", "demo:web-components:build"],
 ]);
 const CHILD_PROCESS_LAUNCH_APIS = new Set([
   "exec",
@@ -7447,7 +7444,8 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
       card.source.repository === "honua-io/honua-sdk-js",
       `${card.id}: executable source owner is not canonical`,
     );
-    if (inputs.verifyCheckout !== false) {
+    // A legacy receipt archive keeps cards whose sample trees are absent from this checkout.
+    if (inputs.verifyCheckout !== false && archivedReceipts === undefined) {
       await validateSiteConsumerLocalLink(card.source.path, `${card.id} source link`, "directory");
       await validateSiteConsumerLocalLink(card.source.docsPath, `${card.id} docs link`, "file");
     }

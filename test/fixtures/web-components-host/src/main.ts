@@ -1,5 +1,5 @@
 import "maplibre-gl/dist/maplibre-gl.css";
-import "../../shared/maplibre-vite-worker.js";
+import "../../../examples/shared/maplibre-vite-worker.js";
 
 // Side-effect import registers <honua-basemap-switcher> and
 // <honua-swipe-control>. <honua-legend> also has a controller-driven

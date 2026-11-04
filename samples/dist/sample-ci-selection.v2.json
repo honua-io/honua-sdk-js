@@ -81,7 +81,6 @@
       },
       "sampleIds": [
         "ai-spatial-app-builder",
-        "app-bootstrap-basic",
         "cesium-route-playback",
         "mcp-gis-assistant",
         "nl-map-control",
@@ -91,9 +90,7 @@
         "runtime-parity-showcase",
         "shared-renderer-state",
         "spatial-analytics-workbench",
-        "storytelling-25d-map",
-        "unified-ops-workspace",
-        "web-components-basic"
+        "storytelling-25d-map"
       ]
     },
     {
@@ -222,46 +219,6 @@
         "status": "skipped",
         "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
         "expiresAt": "2026-12-11T06:57:14.942Z"
-      }
-    },
-    {
-      "id": "app-bootstrap-basic",
-      "sourcePath": "examples/app-bootstrap-basic",
-      "track": "lab",
-      "supportTier": "deprecated",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:app-bootstrap:typecheck",
-            "npm run demo:app-bootstrap:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:app-bootstrap:build"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
       }
     },
     {
@@ -1531,86 +1488,6 @@
       "liveEvidence": {
         "mode": "authenticated",
         "status": "planned"
-      }
-    },
-    {
-      "id": "unified-ops-workspace",
-      "sourcePath": "examples/unified-ops-workspace",
-      "track": "lab",
-      "supportTier": "deprecated",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:unified-ops:typecheck",
-            "npm run demo:unified-ops:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:unified-ops:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
-      }
-    },
-    {
-      "id": "web-components-basic",
-      "sourcePath": "examples/web-components-basic",
-      "track": "lab",
-      "supportTier": "deprecated",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:web-components:typecheck",
-            "npm run demo:web-components:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:web-components:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
       }
     }
   ]

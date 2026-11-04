@@ -35,6 +35,10 @@ the SDK, installs it into a fresh consumer using npm's default resolver, and
 checks its published migration dependency. The check compares installed export
 identity and CLI output, verifies that the migrator and compat package resolve
 the same SDK, and rejects nested packages from an incompatible SDK generation.
+While the SDK depends on `@honua/honua-migrate@0.3.0-beta.0`, that migrator's
+registry `@honua/sdk` and `@honua/sdk-esri-compat` may stay on generation 0.2.
+The packed `@honua/sdk-js` must still match `package.json`. Any other pin must
+match the SDK generation.
 
 After SDK publication, `npm run verify:migration-cohort:registry` performs the
 same checks with every package installed from the public registry. This is the

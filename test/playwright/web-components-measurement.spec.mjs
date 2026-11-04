@@ -11,7 +11,7 @@
 
 import { expect, test } from "@playwright/test";
 
-import { startWebComponentsFixtureServer } from "../../examples/web-components-basic/mock-server.mjs";
+import { startWebComponentsFixtureServer } from "../fixtures/web-components-host/mock-server.mjs";
 
 test.setTimeout(120_000);
 

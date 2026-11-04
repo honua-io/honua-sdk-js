@@ -59,7 +59,7 @@
           "HONUA_LIVE_DATA_URL"
         ],
         "provenance": "Committed parcel fixture plus optional host-mediated proposal and live-data endpoints.",
-        "attribution": "City and County of Honolulu \u2014 deterministic demonstration fixture.",
+        "attribution": "City and County of Honolulu — deterministic demonstration fixture.",
         "freshness": "Fixture snapshot 2026-07-10; optional live lane records its observation time."
       },
       "lanes": {
@@ -83,53 +83,6 @@
         "npm run demo:ai-spatial-builder:build",
         "npm run demo:ai-spatial-builder:evidence",
         "npm run test:playwright:ai-spatial-builder"
-      ]
-    },
-    {
-      "id": "app-bootstrap-basic",
-      "title": "Application bootstrap basic",
-      "summary": "Bootstraps a minimal application through the legacy app-platform compatibility surface.",
-      "tier": "reference",
-      "supportStatus": "deprecated",
-      "disposition": {
-        "decision": "retire",
-        "reason": "The app-platform split supersedes this SDK-owned compatibility demonstration."
-      },
-      "sourcePath": "examples/app-bootstrap-basic",
-      "docsPath": "examples/app-bootstrap-basic/README.md",
-      "capabilities": [
-        "app-bootstrap"
-      ],
-      "protocols": [
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed bootstrap fixture.",
-        "attribution": "Honua fixture data.",
-        "freshness": "Deterministic replay."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:app-bootstrap:build"
-          ]
-        },
-        "live": {
-          "status": "not-applicable",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Compatibility APIs are removed when the package advances to 0.2.0.",
-      "validation": [
-        "npm run demo:app-bootstrap:typecheck",
-        "npm run demo:app-bootstrap:build"
       ]
     },
     {
@@ -1471,105 +1424,6 @@
         "npm run demo:terrain-elevation:typecheck",
         "npm run demo:terrain-elevation:build"
       ]
-    },
-    {
-      "id": "unified-ops-workspace",
-      "title": "Unified operations workspace",
-      "summary": "Composes incident command, analysis, and shared workspace state.",
-      "tier": "advanced",
-      "supportStatus": "deprecated",
-      "disposition": {
-        "decision": "retire",
-        "reason": "Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately."
-      },
-      "sourcePath": "examples/unified-ops-workspace",
-      "docsPath": "examples/unified-ops-workspace/README.md",
-      "capabilities": [
-        "analysis",
-        "realtime",
-        "workspace"
-      ],
-      "protocols": [
-        "honua",
-        "sse"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed operations workspace fixture.",
-        "attribution": "Synthetic Honua operations data.",
-        "freshness": "Deterministic snapshot and delta replay."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:unified-ops:mock"
-          ]
-        },
-        "live": {
-          "status": "not-applicable",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Deprecated app-shell APIs remain available only through their transition window.",
-      "validation": [
-        "npm run demo:unified-ops:typecheck",
-        "npm run demo:unified-ops:build"
-      ]
-    },
-    {
-      "id": "web-components-basic",
-      "title": "Web components basic",
-      "summary": "Demonstrates the SDK custom-element controls against a map.",
-      "tier": "reference",
-      "supportStatus": "deprecated",
-      "disposition": {
-        "decision": "retire",
-        "reason": "Controls move with app-platform rather than remaining in the core SDK gallery."
-      },
-      "sourcePath": "examples/web-components-basic",
-      "docsPath": "examples/web-components-basic/README.md",
-      "capabilities": [
-        "controls",
-        "custom-elements",
-        "map"
-      ],
-      "protocols": [
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed control-gallery fixture.",
-        "attribution": "Honua fixture data.",
-        "freshness": "Versioned with the repository."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:web-components:mock"
-          ]
-        },
-        "live": {
-          "status": "not-applicable",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Deprecated controls are linked to their app-platform replacements.",
-      "validation": [
-        "npm run demo:web-components:typecheck",
-        "npm run demo:web-components:build"
-      ]
     }
   ],
   "siteMappings": [
@@ -1616,8 +1470,16 @@
     {
       "id": "controls-kit",
       "route": "demo-sdk-controls.html",
-      "ownership": "sdk-projection",
-      "sampleId": "web-components-basic"
+      "ownership": "site-exception",
+      "exceptionReason": "The web-components sample retired with the 0.3.0 removal. This route stays site-owned until app-platform publishes the controls gallery.",
+      "title": "SDK controls",
+      "summary": "Former SDK custom-element gallery. The executable sample is removed.",
+      "tier": "reference",
+      "supportStatus": "deprecated",
+      "capabilities": [
+        "controls",
+        "web-components"
+      ]
     },
     {
       "id": "editing",
@@ -1652,8 +1514,15 @@
     {
       "id": "hello-webmap",
       "route": "sample-hello-webmap.html",
-      "ownership": "sdk-projection",
-      "sampleId": "app-bootstrap-basic"
+      "ownership": "site-exception",
+      "exceptionReason": "The app-bootstrap sample retired with the 0.3.0 removal. This route stays site-owned until app-platform publishes the bootstrap executable.",
+      "title": "Hello web map",
+      "summary": "Former SDK application bootstrap demonstration. The executable sample is removed.",
+      "tier": "reference",
+      "supportStatus": "deprecated",
+      "capabilities": [
+        "app-bootstrap"
+      ]
     },
     {
       "id": "imagery-terrain",

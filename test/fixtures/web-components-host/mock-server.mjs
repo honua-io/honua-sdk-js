@@ -3,11 +3,11 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
-import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
+import { createFixtureBuildEnvironment } from "../../../scripts/lib/fixture-build-environment.mjs";
+import { runNpmScriptSync } from "../../../scripts/lib/npm-cli.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = path.resolve(exampleRoot, "../..");
+const projectRoot = path.resolve(exampleRoot, "../../..");
 const distRoot = path.resolve(exampleRoot, "dist");
 
 const MIME_TYPES = {
