@@ -124,12 +124,3 @@ error carries HTTP `401` / `403` or equivalent auth codes. Tolerant source
 binding failures from the runtime are reported as `degraded` events, allowing
 remaining sources and layers to continue rendering.
 
-## Runnable Example
-
-`examples/app-bootstrap-basic` renders an inline MapPackage with default layer
-visibility and controller wiring:
-
-```sh
-npm run demo:app-bootstrap
-```
-

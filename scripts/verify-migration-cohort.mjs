@@ -19,7 +19,51 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const SDK = "@honua/sdk-js";
 const MIGRATE = "@honua/honua-migrate";
 const CORE = "@honua/sdk";
+const COMPAT = "@honua/sdk-esri-compat";
 const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+// Published @honua/honua-migrate@0.3.0-beta.0 still installs generation 0.2
+// registry packages. The hold is that pin only.
+const MIGRATOR_REGISTRY_GENERATION_HOLD = { pin: "0.3.0-beta.0", generation: "0.2" };
+
+function packageGeneration(version) {
+  return version?.split(".").slice(0, 2).join(".");
+}
+
+function readLockPackage(parts, index) {
+  if (parts[index] !== "node_modules") return undefined;
+  const scopeOrName = parts[index + 1];
+  if (!scopeOrName) return undefined;
+  if (!scopeOrName.startsWith("@")) return { name: scopeOrName, next: index + 2 };
+  const packageName = parts[index + 2];
+  if (!packageName) return undefined;
+  return { name: `${scopeOrName}/${packageName}`, next: index + 3 };
+}
+
+function lockPackageChain(location) {
+  const parts = location.split("/");
+  const chain = [];
+  for (let index = 0; index < parts.length;) {
+    const entry = readLockPackage(parts, index);
+    if (!entry) return undefined;
+    chain.push(entry.name);
+    index = entry.next;
+  }
+  return chain;
+}
+
+function migratorRegistryAncestryAllows(chain, name) {
+  if (chain.at(-1) !== name || chain.includes(SDK)) return false;
+  return chain.slice(0, -1).every((ancestor) =>
+    ancestor === MIGRATE || (name === CORE && ancestor === COMPAT));
+}
+
+function migratorRegistryHoldAllows({ location, name, version, migrateVersion }) {
+  if (migrateVersion !== MIGRATOR_REGISTRY_GENERATION_HOLD.pin) return false;
+  if (name !== CORE && name !== COMPAT) return false;
+  if (packageGeneration(version) !== MIGRATOR_REGISTRY_GENERATION_HOLD.generation) return false;
+  const chain = lockPackageChain(location);
+  return chain !== undefined && migratorRegistryAncestryAllows(chain, name);
+}
 
 export function migratorCompatPackageName(lock) {
   const dependencies = lock.packages?.[`node_modules/${MIGRATE}`]?.dependencies ?? {};
@@ -96,7 +140,16 @@ export function validateLock(lock, { sdkVersion, migrateVersion, sdkSource }) {
     if (!name) continue;
     assert.ok(!entry.link, `${location} must not be a linked package`);
     if (name !== MIGRATE) {
-      assert.equal(entry.version?.split(".").slice(0, 2).join("."), generation, `${location} incompatible SDK generation`);
+      const sameGeneration = packageGeneration(entry.version) === generation;
+      assert.ok(
+        sameGeneration || migratorRegistryHoldAllows({
+          location,
+          name,
+          version: entry.version,
+          migrateVersion,
+        }),
+        `${location} incompatible SDK generation`,
+      );
     } else {
       assert.equal(entry.version, migrateVersion, `${location} contains a second migrator version`);
     }

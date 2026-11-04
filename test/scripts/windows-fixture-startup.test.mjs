@@ -23,7 +23,7 @@ const FIXTURES = [
   },
   {
     name: "web components",
-    file: "examples/web-components-basic/mock-server.mjs",
+    file: "test/fixtures/web-components-host/mock-server.mjs",
     marker: "webComponentsUrl",
   },
 ];

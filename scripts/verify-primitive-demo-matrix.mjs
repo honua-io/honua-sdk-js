@@ -5,7 +5,7 @@ import process from "node:process";
 const repoRoot = process.cwd();
 const matrixPath = path.join(repoRoot, "docs", "primitive-demo-integration-matrix.md");
 const packagePath = path.join(repoRoot, "package.json");
-const requiredIssues = new Set([177, 178, 179, 180, 181, 182, 183, 184, 185, 186]);
+const requiredIssues = new Set([178, 179, 180, 181, 182, 183, 184, 185, 186]);
 
 const matrix = fs.readFileSync(matrixPath, "utf8");
 const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
@@ -75,7 +75,7 @@ function parseRow(line) {
   const issue = Number(cells[0].match(/^#(\d+)$/)?.[1]);
   return {
     issue,
-    demoPaths: codeSpans(cells[2]).filter((value) => value.startsWith("examples/")),
+    demoPaths: codeSpans(cells[2]).filter((value) => value.startsWith("examples/") || value.startsWith("test/fixtures/")),
     validationCommands: codeSpans(cells[3]).filter((value) => value.startsWith("npm run ")),
     proofMarkers: codeSpans(cells[4] ?? ""),
   };

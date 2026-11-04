@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 
-import { startWebComponentsFixtureServer } from "../../examples/web-components-basic/mock-server.mjs";
+import { startWebComponentsFixtureServer } from "../fixtures/web-components-host/mock-server.mjs";
 
 const qualification = JSON.parse(
   fs.readFileSync(path.resolve("config/component-qualification.v1.json"), "utf8"),

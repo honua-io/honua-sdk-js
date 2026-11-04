@@ -10,18 +10,18 @@
       "path": "config/support-manifest.v1.json",
       "format": "honua.sdk.support-manifest.v1",
       "schemaVersion": 1,
-      "sha256": "4d7410ae23b5d343ba46686d28432975ebbdd13c1218715540b9300997ec8b9e"
+      "sha256": "703a8cea13258d042e88d749c627bda122e59fe6f474c0f1f3fcf95cdfcb5751"
     },
     "packageExports": {
       "path": "package.json",
       "package": "@honua/sdk-js",
-      "sha256": "4842e23668d7de3dc56e019c82fb0e54c5cd56a384a3a41cc8ba55445aae51c7"
+      "sha256": "1296b91bb07d56fb0bb1301da253c4da6ed4e4b73cf03f88bff2319e6e9c169c"
     },
     "catalog": {
       "path": "samples/catalog.v2.json",
       "format": "honua.sdk.sample-catalog.v2",
       "schemaVersion": 2,
-      "sha256": "ce0ed6f9bb464a486f1f361c9ea63b65f02f121a74c290c0100b31e205f689f2"
+      "sha256": "e2f98ba4c4862de54b756be7cd5e2fe7012fdc9b753c030169c6f2566a20802f"
     },
     "qualificationEvidence": {
       "root": "samples/evidence",
@@ -55,7 +55,6 @@
       "agent-tools",
       "aggregation",
       "analysis",
-      "app-bootstrap",
       "arcgis",
       "async-jobs",
       "atomic-authorization",
@@ -70,9 +69,7 @@
       "cog",
       "columnar",
       "compatibility",
-      "controls",
       "coverage",
-      "custom-elements",
       "direct-connect",
       "discovery",
       "editing",
@@ -130,8 +127,7 @@
       "terrain",
       "three-dimensional",
       "typed-agent-tools",
-      "vector-tiles",
-      "workspace"
+      "vector-tiles"
     ],
     "catalogProtocols": [
       "geojson",
@@ -200,7 +196,6 @@
       "oauth"
     ],
     "supportTiers": [
-      "deprecated",
       "experimental",
       "internal",
       "supported"
@@ -209,7 +204,6 @@
       "active",
       "merge",
       "replace",
-      "retire",
       "rework"
     ],
     "packageEntrypoints": [
@@ -235,7 +229,6 @@
       "./coverages",
       "./deckgl",
       "./diagnostics",
-      "./esri-compat",
       "./exploration",
       "./expr",
       "./filter-registry",
@@ -481,47 +474,6 @@
       "lifecycleState": "active",
       "qualification": {
         "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "app-bootstrap-basic",
-      "title": "Application bootstrap basic",
-      "sourcePath": "examples/app-bootstrap-basic",
-      "track": "lab",
-      "tasks": [
-        "app-bootstrap"
-      ],
-      "catalogProtocols": [
-        "honua"
-      ],
-      "protocolIds": [
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "deprecated",
-      "lifecycleState": "retire",
-      "qualification": {
-        "state": "unsupported",
         "catalogStatus": "not-a-golden-journey"
       }
     },
@@ -2271,102 +2223,6 @@
       "lifecycleState": "merge",
       "qualification": {
         "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "unified-ops-workspace",
-      "title": "Unified operations workspace",
-      "sourcePath": "examples/unified-ops-workspace",
-      "track": "lab",
-      "tasks": [
-        "analysis",
-        "realtime",
-        "workspace"
-      ],
-      "catalogProtocols": [
-        "honua",
-        "sse"
-      ],
-      "protocolIds": [
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade",
-        "realtime-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        },
-        {
-          "catalogProtocol": "sse",
-          "protocolIds": [],
-          "supportClaimIds": [
-            "realtime-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "deprecated",
-      "lifecycleState": "retire",
-      "qualification": {
-        "state": "unsupported",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "web-components-basic",
-      "title": "Web components basic",
-      "sourcePath": "examples/web-components-basic",
-      "track": "lab",
-      "tasks": [
-        "controls",
-        "custom-elements",
-        "map"
-      ],
-      "catalogProtocols": [
-        "honua"
-      ],
-      "protocolIds": [
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "deprecated",
-      "lifecycleState": "retire",
-      "qualification": {
-        "state": "unsupported",
         "catalogStatus": "not-a-golden-journey"
       }
     }
@@ -9388,6 +9244,32 @@
       }
     },
     {
+      "id": "client-compat-standalone",
+      "label": "Client compatibility layer",
+      "operations": [
+        "query",
+        "applyEdits"
+      ],
+      "api": "@honua/sdk-js/client-compat",
+      "apiEntrypoints": [
+        "./client-compat"
+      ],
+      "supportStatus": "supported",
+      "environment": "standalone",
+      "executionMode": "native",
+      "truthEvidence": [
+        "client-compat-fixtures"
+      ],
+      "candidateEvidence": [],
+      "coverage": {
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
       "id": "collaboration-deprecated",
       "label": "Collaboration and saved maps compatibility shim",
       "operations": [
@@ -9514,32 +9396,6 @@
       "coverage": {
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "id": "esri-compat-standalone",
-      "label": "Client compatibility layer",
-      "operations": [
-        "query",
-        "applyEdits"
-      ],
-      "api": "@honua/sdk-js/client-compat",
-      "apiEntrypoints": [
-        "./client-compat"
-      ],
-      "supportStatus": "supported",
-      "environment": "standalone",
-      "executionMode": "native",
-      "truthEvidence": [
-        "esri-compat-fixtures"
-      ],
-      "candidateEvidence": [],
-      "coverage": {
-        "state": "planned",
-        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -10181,13 +10037,6 @@
             "realtime"
           ],
           "binding": "exact"
-        },
-        {
-          "sampleId": "unified-ops-workspace",
-          "matchedOperations": [
-            "realtime"
-          ],
-          "binding": "exact"
         }
       ],
       "coverage": {
@@ -10195,8 +10044,7 @@
         "reason": "Only experimental catalog samples map to this supported SDK cell.",
         "candidateSampleIds": [
           "realtime-incident-dashboard",
-          "temporal-playback",
-          "unified-ops-workspace"
+          "temporal-playback"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
@@ -10777,12 +10625,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "web-components-basic"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "web-components-basic"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -10825,22 +10670,6 @@
       "coverage": {
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./esri-compat",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/sdk-js/client-compat",
-      "targets": {
-        "types": "./dist/src/esri-compat-entry.d.ts",
-        "default": "./dist/src/esri-compat-entry.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -10980,10 +10809,7 @@
           "runtime-parity-showcase",
           "shared-renderer-state",
           "offline-region-reference",
-          "edit-workflow-demo",
-          "app-bootstrap-basic",
-          "unified-ops-workspace",
-          "web-components-basic"
+          "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
@@ -11068,7 +10894,6 @@
           "columnar-query-quickstart",
           "temporal-playback",
           "nl-map-control",
-          "web-components-basic",
           "automatic-source-workflow"
         ],
         "qualifyingSampleIds": [
@@ -11353,8 +11178,7 @@
         "reason": "Only experimental catalog samples map to this supported SDK cell.",
         "candidateSampleIds": [
           "realtime-incident-dashboard",
-          "temporal-playback",
-          "unified-ops-workspace"
+          "temporal-playback"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
@@ -11792,9 +11616,7 @@
       "targetId": "./controls",
       "supportStatus": "deprecated",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "web-components-basic"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -11820,14 +11642,6 @@
       "coverageState": "experimental",
       "candidateSampleIds": [],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./esri-compat",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
       "targetType": "package-entrypoint",
@@ -11906,10 +11720,7 @@
         "runtime-parity-showcase",
         "shared-renderer-state",
         "offline-region-reference",
-        "edit-workflow-demo",
-        "app-bootstrap-basic",
-        "unified-ops-workspace",
-        "web-components-basic"
+        "edit-workflow-demo"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
@@ -12076,8 +11887,7 @@
       "coverageState": "experimental",
       "candidateSampleIds": [
         "realtime-incident-dashboard",
-        "temporal-playback",
-        "unified-ops-workspace"
+        "temporal-playback"
       ],
       "reason": "Only experimental catalog samples map to this supported SDK cell."
     },
@@ -15250,6 +15060,14 @@
     },
     {
       "targetType": "support-claim",
+      "targetId": "client-compat-standalone",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
+    },
+    {
+      "targetType": "support-claim",
       "targetId": "collaboration-deprecated",
       "supportStatus": "deprecated",
       "coverageState": "unsupported",
@@ -15287,14 +15105,6 @@
       "coverageState": "experimental",
       "candidateSampleIds": [],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
-    },
-    {
-      "targetType": "support-claim",
-      "targetId": "esri-compat-standalone",
-      "supportStatus": "supported",
-      "coverageState": "planned",
-      "candidateSampleIds": [],
-      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "support-claim",
@@ -15461,8 +15271,7 @@
       "coverageState": "experimental",
       "candidateSampleIds": [
         "realtime-incident-dashboard",
-        "temporal-playback",
-        "unified-ops-workspace"
+        "temporal-playback"
       ],
       "reason": "Only experimental catalog samples map to this supported SDK cell."
     },
