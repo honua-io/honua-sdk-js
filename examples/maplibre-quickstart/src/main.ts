@@ -245,7 +245,7 @@ function renderFeatureList(
     button.dataset.selected = summary.id === selectedId ? "true" : "false";
     button.setAttribute("aria-pressed", summary.id === selectedId ? "true" : "false");
     button.setAttribute("aria-label", `Inspect ${summary.title}`);
-    button.textContent = "View";
+    button.textContent = "Inspect";
     button.addEventListener("click", () => select(summary));
     action.append(button);
   }
