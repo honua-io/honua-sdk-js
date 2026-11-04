@@ -19,6 +19,7 @@ async function expectVisibleInspectTextInsideAccessibleName(page) {
   );
   expect(names.length).toBeGreaterThan(0);
   expect(names.every(({ text, name }) => text.length > 0 && name.includes(text))).toBe(true);
+  await expect(page.getByRole("button", { name: "Inspect Census Tract 302.01" })).toHaveText("Inspect");
 }
 
 test.setTimeout(90_000);
@@ -250,7 +251,6 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await expectVisibleInspectTextInsideAccessibleName(page);
 
     const inspect = page.getByRole("button", { name: "Inspect Census Tract 302.01" });
-    await expect(inspect).toHaveText("Inspect");
     await inspect.focus();
     await expect(inspect).toBeFocused();
     await inspect.press("Enter");
