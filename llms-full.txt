@@ -96,7 +96,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.2.10`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
-18 deprecated compatibility subpaths have explicit removal versions. See
+19 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
@@ -132,7 +132,7 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 
 - **Protocol-neutral data access.** One `Source.query(...)` call works against
   GeoServices, OGC, WFS, OData and friends. Geoprocessing uses one `IJobRun`
-  lifecycle across raw OGC API Processes and GPServer tasks.
+  lifecycle across raw OGC API Processes and Esri-compatible GPServer tasks.
   Capability misses throw
   `HonuaCapabilityNotSupportedError` instead of returning empty results. Large
   results ride an experimental columnar data plane (GeoArrow batches, streaming
@@ -862,7 +862,7 @@ Please do not open public issues for security reports.
 # Installing the Honua JavaScript SDK
 
 The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** — with multiple
-subpath entrypoints. The core client, the client compatibility layer, the migration helpers,
+subpath entrypoints. The core client, the Esri compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.
 
 <!-- support-manifest:install-status:start -->
@@ -870,7 +870,7 @@ and the protocol-neutral contract are all reachable from this one install.
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
 It projects 22 supported (documented below as stable), 26 experimental,
-and 18 deprecated package entrypoints. Protocol status is independent
+and 19 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
@@ -905,7 +905,7 @@ minor. At 1.0 the stable tier freezes. See
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
-| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps |
+| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps; replaces the deprecated `/esri-compat` |
 | `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
@@ -991,6 +991,7 @@ replacement's own support status is independent of the shim: promoting
 | `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.3.0` |
 | `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.3.0` |
 | `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.3.0` |
+| `@honua/sdk-js/esri-compat` | `@honua/sdk-js/client-compat` | `0.4.0` |
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 
@@ -12000,7 +12001,7 @@ The package provides:
 Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
-- Client compatibility bridge: `@honua/sdk-js/client-compat`
+- Esri compat bridge: `@honua/sdk-js/client-compat`
 - Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
@@ -12668,7 +12669,7 @@ const slider = new TimeSliderCompat({
 // Connect slider to layer — time extent changes auto-filter queries
 const connection = slider.connectLayer(layer);
 
-// Compatibility APIs retain raw ArcGIS SQL during migration.
+// Esri compatibility APIs retain raw ArcGIS SQL during migration.
 // Queries now include the time parameter automatically.
 const features = await layer.queryFeatures({ where: "1=1" });
 
@@ -13002,7 +13003,7 @@ custom query parameter can still pass one through `extraParams`.
 
 For the end-to-end discover, describe, synchronous/asynchronous execute,
 results, and cancellation workflow—and the equivalent `IJobRun` lifecycle for
-GPServer tasks—see the dedicated
+Esri-compatible GPServer tasks—see the dedicated
 [geoprocessing guide](./geoprocessing.md).
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
