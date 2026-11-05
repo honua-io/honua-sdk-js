@@ -59,20 +59,23 @@ describe("managed MCP minor-line bridge", () => {
   }
 
   it("keeps the actual managed package and lockfile on the reviewed bridge", async () => {
-    expect(verifyManagedMcpPeerPolicy(await inputs()).peerRange).toBe("^0.1.17 || ^0.2.0");
+    expect(verifyManagedMcpPeerPolicy(await inputs()).peerRange).toBe("^0.2.0 || ^0.3.0");
   });
 
-  it.each(["0.1.17", "0.1.99", "0.2.0", "0.2.99"])("admits stable SDK %s", async (version) => {
+  it.each(["0.2.0", "0.2.99", "0.3.0", "0.3.99"])("admits stable SDK %s", async (version) => {
     const value = await inputs();
     value.sdk.version = version;
     expect(() => verifyManagedMcpPeerPolicy(value)).not.toThrow();
   });
 
-  it.each(["0.1.16", "0.0.99", "0.3.0", "1.0.0", "0.2.0-beta.1"])("refuses SDK %s", async (version) => {
-    const value = await inputs();
-    value.sdk.version = version;
-    expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/outside the reviewed/);
-  });
+  it.each(["0.1.17", "0.1.99", "0.0.99", "0.4.0", "1.0.0", "0.2.0-beta.1", "0.3.0-beta.1"])(
+    "refuses SDK %s",
+    async (version) => {
+      const value = await inputs();
+      value.sdk.version = version;
+      expect(() => verifyManagedMcpPeerPolicy(value)).toThrow(/outside the reviewed/);
+    },
+  );
 
   it("refuses managed narrowing, absent metadata, or an unrelated policy", async () => {
     const value = await inputs();
