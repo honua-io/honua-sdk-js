@@ -94,9 +94,9 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.2.10`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.3.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 26 experimental subpaths may change before 1.0, and
-19 deprecated compatibility subpaths have explicit removal versions. See
+18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
@@ -132,7 +132,7 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 
 - **Protocol-neutral data access.** One `Source.query(...)` call works against
   GeoServices, OGC, WFS, OData and friends. Geoprocessing uses one `IJobRun`
-  lifecycle across raw OGC API Processes and Esri-compatible GPServer tasks.
+  lifecycle across raw OGC API Processes and GPServer tasks.
   Capability misses throw
   `HonuaCapabilityNotSupportedError` instead of returning empty results. Large
   results ride an experimental columnar data plane (GeoArrow batches, streaming
@@ -593,7 +593,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 4 qualified golden samples, 13 recipes, 14 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 31 executable examples: 4 qualified golden samples, 13 recipes, 11 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at
@@ -754,8 +754,8 @@ correctly use this SDK:
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
     `/operator/*`) have **moved to the separate `@honua/app-platform` package**; the old
-    18 deprecated compatibility subpaths remain through `0.2.x` and are removed in
-    `0.3.0`. The `/console` entrypoint was removed outright (no shim).
+    18 deprecated compatibility subpaths remain through `0.3.x` and are removed in
+    `0.4.0`. The `/console` entrypoint was removed outright (no shim).
     `@honua/app-platform/scene-workspace` is the first of those replacements promoted to
     **`beta`**: the renderer-neutral workspace state, the scene primitive contract, and
     the Cesium primitive adapter carry a shape commitment through `0.1.x`, while Honua
@@ -788,7 +788,7 @@ We publish a lifecycle because a library you build on should tell you what it pr
   entrypoints are being extracted to a separate `@honua/app-platform` package that versions at
   its own pre-1.0 cadence, so the client SDK can reach a frozen 1.0 without waiting on them.
   Their old `@honua/sdk-js/*` subpaths remain as `@deprecated` re-export shims through
-  `0.2.x` and are removed in `0.3.0` — promoting a replacement (the Cesium scene surface is
+  `0.3.x` and are removed in `0.4.0`. Promoting a replacement (the Cesium scene surface is
   now `beta`) does not extend or shorten a forwarder's removal window. See
   [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
 - **What we don't promise.** No security-backport window or LTS branch pre-1.0; fixes land on
@@ -862,7 +862,7 @@ Please do not open public issues for security reports.
 # Installing the Honua JavaScript SDK
 
 The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** — with multiple
-subpath entrypoints. The core client, the Esri compatibility layer, the migration helpers,
+subpath entrypoints. The core client, the client compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.
 
 <!-- support-manifest:install-status:start -->
@@ -870,7 +870,7 @@ and the protocol-neutral contract are all reachable from this one install.
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
 It projects 22 supported (documented below as stable), 26 experimental,
-and 19 deprecated package entrypoints. Protocol status is independent
+and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
@@ -905,7 +905,7 @@ minor. At 1.0 the stable tier freezes. See
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
-| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps; replaces the deprecated `/esri-compat` |
+| `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps |
 | `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
 | `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
@@ -965,33 +965,32 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 ## Deprecated compatibility entrypoints
 
 The application-platform shims were introduced in `0.1.0-beta.0` when
-the application platform moved. They remain available throughout `0.2.x` and
-are removed in `0.3.0`; new code must import the replacement directly. A
+the application platform moved. They remain available throughout `0.3.x` and
+are removed in `0.4.0`; new code must import the replacement directly. A
 replacement's own support status is independent of the shim: promoting
 `@honua/app-platform/scene-workspace` to `beta` did not move the
 `@honua/sdk-js/scene-workspace` removal window.
 
 | Deprecated subpath | Replacement | Remove in |
 |--------------------|-------------|-----------|
-| `@honua/sdk-js/app` | `@honua/app-platform/app` | `0.3.0` |
-| `@honua/sdk-js/app-controller` | `@honua/app-platform/app-controller` | `0.3.0` |
-| `@honua/sdk-js/app-workspace` | `@honua/app-platform/app-workspace` | `0.3.0` |
-| `@honua/sdk-js/scene-workspace` | `@honua/app-platform/scene-workspace` | `0.3.0` |
-| `@honua/sdk-js/collaboration` | `@honua/app-platform/collaboration` | `0.3.0` |
-| `@honua/sdk-js/control-plane` | `@honua/app-platform/control-plane` | `0.3.0` |
-| `@honua/sdk-js/replica-sync` | `@honua/app-platform/replica-sync` | `0.3.0` |
-| `@honua/sdk-js/share` | `@honua/app-platform/share` | `0.3.0` |
-| `@honua/sdk-js/operate` | `@honua/app-platform/operate` | `0.3.0` |
-| `@honua/sdk-js/generated-app` | `@honua/app-platform/generated-app` | `0.3.0` |
-| `@honua/sdk-js/studio` | `@honua/app-platform/studio` | `0.3.0` |
-| `@honua/sdk-js/operator` | `@honua/app-platform/operator` | `0.3.0` |
-| `@honua/sdk-js/operator/controllers` | `@honua/app-platform/operator/controllers` | `0.3.0` |
-| `@honua/sdk-js/operator/workspace` | `@honua/app-platform/operator/workspace` | `0.3.0` |
-| `@honua/sdk-js/operator/theming` | `@honua/app-platform/operator/theming` | `0.3.0` |
-| `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.3.0` |
-| `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.3.0` |
-| `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.3.0` |
-| `@honua/sdk-js/esri-compat` | `@honua/sdk-js/client-compat` | `0.4.0` |
+| `@honua/sdk-js/app` | `@honua/app-platform/app` | `0.4.0` |
+| `@honua/sdk-js/app-controller` | `@honua/app-platform/app-controller` | `0.4.0` |
+| `@honua/sdk-js/app-workspace` | `@honua/app-platform/app-workspace` | `0.4.0` |
+| `@honua/sdk-js/scene-workspace` | `@honua/app-platform/scene-workspace` | `0.4.0` |
+| `@honua/sdk-js/collaboration` | `@honua/app-platform/collaboration` | `0.4.0` |
+| `@honua/sdk-js/control-plane` | `@honua/app-platform/control-plane` | `0.4.0` |
+| `@honua/sdk-js/replica-sync` | `@honua/app-platform/replica-sync` | `0.4.0` |
+| `@honua/sdk-js/share` | `@honua/app-platform/share` | `0.4.0` |
+| `@honua/sdk-js/operate` | `@honua/app-platform/operate` | `0.4.0` |
+| `@honua/sdk-js/generated-app` | `@honua/app-platform/generated-app` | `0.4.0` |
+| `@honua/sdk-js/studio` | `@honua/app-platform/studio` | `0.4.0` |
+| `@honua/sdk-js/operator` | `@honua/app-platform/operator` | `0.4.0` |
+| `@honua/sdk-js/operator/controllers` | `@honua/app-platform/operator/controllers` | `0.4.0` |
+| `@honua/sdk-js/operator/workspace` | `@honua/app-platform/operator/workspace` | `0.4.0` |
+| `@honua/sdk-js/operator/theming` | `@honua/app-platform/operator/theming` | `0.4.0` |
+| `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.4.0` |
+| `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.4.0` |
+| `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.4.0` |
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 
@@ -1022,7 +1021,7 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 | `@honua/app-platform/operator/i18n` | Operator message catalog + resolution |
 
 During the transition, the deprecated imports listed above keep working through
-`0.2.x`; they are removed in `0.3.0`. Update imports to
+`0.3.x`; they are removed in `0.4.0`. Update imports to
 `@honua/app-platform/<subpath>`. The `@honua/sdk-js/console`
 entrypoint was removed outright (its projection helpers are owned by the
 `@honua/console` application) and has no shim.
@@ -1172,7 +1171,7 @@ directories are removed after both successful and failed runs.
 
 # Documentation versions and compatibility
 
-You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.2.10)**.
+You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.3.0)**.
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
@@ -1203,7 +1202,8 @@ To verify the file consumed by the site, run
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.2.10` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.10/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.9...js-sdk-v0.2.10) |
+| `0.3.0` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.10...js-sdk-v0.3.0) |
+| `0.2.10` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.10/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.9...js-sdk-v0.2.10) |
 | `0.2.9` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.9/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.8...js-sdk-v0.2.9) |
 | `0.2.8` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.8/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.7...js-sdk-v0.2.8) |
 | `0.2.7` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.2.7/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.6...js-sdk-v0.2.7) |
@@ -1288,7 +1288,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v2.json`](../../samples/catalog.v2.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v2` Â· SDK: `@honua/sdk-js` (effective version derived from `package.json`) Â· 34 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v2` Â· SDK: `@honua/sdk-js` (effective version derived from `package.json`) Â· 31 executable examples
 
 ## Golden journey readiness
 
@@ -1317,7 +1317,6 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | Sample | Track | Journey candidate | Support | Lifecycle | Quality profile | Data | Configuration | Demonstration |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | <a id="ai-spatial-app-builder"></a>[`ai-spatial-app-builder`](../../examples/ai-spatial-app-builder/README.md) | lab | - | experimental | active | browser-lab | hybrid | approved | Proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states. |
-| <a id="app-bootstrap-basic"></a>[`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
 | <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
 | <a id="columnar-query-quickstart"></a>[`columnar-query-quickstart`](../../examples/columnar-query-quickstart/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff. |
@@ -1348,8 +1347,6 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | <a id="storytelling-25d-map"></a>[`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | lab | - | supported | merge | browser-lab | hybrid | legacy-unsafe | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
 | <a id="temporal-playback"></a>[`temporal-playback`](../../examples/temporal-playback/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
 | <a id="terrain-rgb-elevation"></a>[`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Reads Terrain-RGB tiles for point elevation and route profiles. |
-| <a id="unified-ops-workspace"></a>[`unified-ops-workspace`](../../examples/unified-ops-workspace/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Composes incident command, analysis, and shared workspace state. |
-| <a id="web-components-basic"></a>[`web-components-basic`](../../examples/web-components-basic/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Demonstrates the SDK custom-element controls against a map. |
 
 The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers, and [`v4`](../../samples/dist/honua-site-samples.v4.json) is published for cutover -- identical to v3 except that `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the name the `{sourceCommit}` template has needed since honua-io/honua-sdk-js#1325.
 
@@ -1465,7 +1462,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.2.10 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.3.0 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -1634,7 +1631,7 @@ Labels: `fixture` · `experimental` · `degraded`
 - Live sample: [demo-analyst-workbench.html](https://honua.io/demo-analyst-workbench.html) · [sample-spatial-analytics.html](https://honua.io/sample-spatial-analytics.html)
 - Supported API imports: `@honua/sdk-js/contract` (`resolveSpatialAggregationWidgetSummary`); `@honua/sdk-js/exploration` (`createExplorationContext`)
 - honua.io journey: `linked-large-data-analysis`
-- Degradation: The current shell still uses the app-workspace compatibility shim retained through 0.2.x; #399 owns its supported-import migration.
+- Degradation: The current shell still uses the app-workspace compatibility shim retained through 0.3.x and removed in 0.4.0; #399 owns its supported-import migration.
 
 ### 6. Plan, analyze, and edit with recovery
 
@@ -1909,7 +1906,7 @@ column first, and only compares within a category — or says explicitly when it
 | Product | Package compared | Category |
 | --- | --- | --- |
 | Honua SDK | `@honua/sdk-js` | Headless service clients |
-| MapLibre GL JS | `maplibre-gl` (6.11.2 pinned and measured here; 6.1.0 published) | Renderer engines |
+| MapLibre GL JS | `maplibre-gl` (6.16.0 pinned and measured here; 6.1.0 published) | Renderer engines |
 | ArcGIS Maps SDK for JavaScript | `@arcgis/core` | Vendor-integrated renderer SDKs |
 | ArcGIS REST JS | `@esri/arcgis-rest-request` | Headless service clients |
 | OpenLayers | `ol` | Renderer engines |
@@ -1932,7 +1929,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-02 at commit `bf734da89`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-05 at commit `00af887c7`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -1942,20 +1939,20 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Importing only `HonuaClient` (tree-shake guard) | 232.7 KiB | 59.2 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.2 KiB | 15.0 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 383.9 KiB | 104.3 KiB |
-| Client compatibility layer (drop-in migration surface) | 1107.6 KiB | 274.5 KiB |
+| Client compatibility layer (drop-in migration surface) | 1076.8 KiB | 270.7 KiB |
 | Geocoding client | 32.7 KiB | 9.2 KiB |
 | Routing client | 26.1 KiB | 7.8 KiB |
 
-For context, the rendering engine itself — `maplibre-gl` 6.11.2, measured locally from
-this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1098.9 KiB minified / **296.6 KiB gzip**.
+For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
+this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1589.3 KiB minified / **433.2 KiB gzip**.
 The gzip figure compresses each distributed ESM file independently, as separate HTTP responses, then sums them.
 A complete Honua + MapLibre app therefore ships roughly the engine plus whichever Honua
 entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1098.9 KiB + Honua root 758.8 KiB ≈ **1.81 MB**.
-- **Gzip:** engine 296.6 KiB + Honua root 202.7 KiB ≈ **0.49 MB**.
+- **Minified:** engine 1589.3 KiB + Honua root 758.8 KiB ≈ **2.29 MB**.
+- **Gzip:** engine 433.2 KiB + Honua root 202.7 KiB ≈ **0.62 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -10524,7 +10521,7 @@ try {
 | `HonuaRealtimeResumeError` | `@honua/sdk-js/realtime` | Realtime initialization, decoding, checkpoint, ordering, transport, or terminal delivery fails. | Branch on the existing reason `.code`; reconnect or request a replacement snapshot only when the stream contract already permits it. Envelope retryability is metadata and does not initiate reconnects. |
 | `HonuaRealtimeReconciliationError` | `@honua/sdk-js/realtime`, `@honua/sdk-js/map` | Delta reconciliation (`reconciliation.ts`) or its MapLibre adapter (`realtime-reconciliation-adapter.ts`) receives an invalid option, or a reconciler/cache/adapter already disposed receives another patch. | Branch on `.code` (`"disposed"` / `"invalid-option"`). Recreate the reconciler/cache/adapter instead of reusing a disposed one; correct the option that failed validation. Not retryable. |
 | `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, atomic store work, or an offline read the persisted region cannot answer fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Treat `cache-miss` / `scope-mismatch` / `out-of-region` (`offline.region.miss`) as "download a region for this selection", never as an empty answer. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
-| `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.2.x) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
+| `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.3.x and is removed in 0.4.0) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
 | `HonuaPluginRegistryError` | `@honua/sdk-js/plugin` | Plugin registry validation, compatibility, policy, capability, activation, execution validation, cancellation, or cleanup fails. | Branch on the existing `PLUGIN_*` `.code` or its grouped `.sdkCode`. Correct declarations or host policy/capability, treat cancellation as terminal, and inspect `.cause` / `.cleanupErrors` locally for activation or cleanup failures. No plugin classification is automatically retryable. |
 | `HonuaPmtilesLifecycleError` | `@honua/sdk-js/pmtiles` | PMTiles archive/publish request validation, bounded response parsing, polling, terminal job state, signed access, or cleanup capability fails. | Branch on `.lifecycleCode`; correct invalid input/response shape, re-publish expired signed access, treat cancellation as terminal, and use server TTL/overwrite policy when managed deletion is unavailable. |
 | `HonuaAgentToolError` | `@honua/sdk-js/agent-tools` | An agent tool call names an unknown tool, the tool kit is created without a usable runtime, a selection target is not source-qualified, or the adapted runtime does not implement the requested tool method. | Branch on `.code` or `.sdkCode`; correct the tool name, provide a runtime/controller/generated-app runtime, or qualify the selection. Not retryable. |
@@ -11779,7 +11776,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-02 at commit `bf734da89`._
+_Generated 2026-11-05 at commit `00af887c7`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11800,7 +11797,7 @@ _Generated 2026-11-02 at commit `bf734da89`._
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 706.8 KiB | 778.7 KiB | 170.8 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.1 KiB | 183.6 KiB | 52.5 KiB | 55.8 KiB |
-| `/client-compat` | 1107.6 KiB | 1139.7 KiB | 274.5 KiB | 309.5 KiB |
+| `/client-compat` | 1076.8 KiB | 1139.7 KiB | 270.7 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
 | `/geocoding` | 32.7 KiB | 35.9 KiB | 9.2 KiB | 10.1 KiB |
@@ -11812,15 +11809,15 @@ _Generated 2026-11-02 at commit `bf734da89`._
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 326.2 KiB | 364.2 KiB | 87.2 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1178.5 KiB | 1275.0 KiB | 307.5 KiB | 312.7 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1283.7 KiB | 1395.4 KiB | 339.1 KiB | 356.1 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1177.3 KiB | 1275.0 KiB | 307.4 KiB | 312.7 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1282.5 KiB | 1395.4 KiB | 339.0 KiB | 356.1 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 563.2 KiB | 619.8 KiB | 152.5 KiB | 165.2 KiB |
-| `/geometry` (turf/proj4 bundled — real consumer cost) | 553.8 KiB | 568.0 KiB | 147.7 KiB | 157.0 KiB |
+| `/geometry` (turf/proj4 bundled — real consumer cost) | 519.6 KiB | 568.0 KiB | 143.4 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 759.1 KiB | 832.8 KiB | 202.8 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 758.6 KiB | 828.5 KiB | 202.7 KiB | 221.7 KiB |
+| browser ESM (`./browser`) | 758.6 KiB | 828.5 KiB | 202.6 KiB | 221.7 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 232.7 KiB | 280.2 KiB | 59.2 KiB | 74.3 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 616.2 KiB | 695.1 KiB | 163.1 KiB | 186.7 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.2 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
@@ -11828,7 +11825,7 @@ _Generated 2026-11-02 at commit `bf734da89`._
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.1 KiB | 18.5 KiB | 3.6 KiB | 3.9 KiB |
 | tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 718.4 KiB | 791.3 KiB | 192.1 KiB | 210.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 256.8 KiB | 296.3 KiB | 65.5 KiB | 77.7 KiB |
-| tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.5 KiB | 316.3 KiB | 65.3 KiB | 72.2 KiB |
+| tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.0 KiB | 316.3 KiB | 65.2 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 49.2 KiB | 54.4 KiB | 15.0 KiB | 16.4 KiB |
 | tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 34.8 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.4 KiB | 3.8 KiB | 1.5 KiB | 1.7 KiB |
@@ -11900,7 +11897,6 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 - [`examples/edit-workflow-demo/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
 - [`examples/geocoding-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
 - [`examples/terrain-rgb-elevation/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/terrain-rgb-elevation/README.md): legacy focused Terrain-RGB proof retained while its public point/profile and 2.5D route converges on the credential-safe Imagery and Terrain journey.
-- [`examples/unified-ops-workspace/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/unified-ops-workspace/README.md): fixture-backed operational workspace shell that composes incident command and analysis review modules over one shared app workspace, linked-view context, realtime state, review drafts, and saved snapshot diagnostics.
 - [`docs/examples/cesium-route-playback/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
@@ -12001,7 +11997,7 @@ The package provides:
 Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
-- Esri compat bridge: `@honua/sdk-js/client-compat`
+- Client compatibility bridge: `@honua/sdk-js/client-compat`
 - Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
@@ -12669,7 +12665,7 @@ const slider = new TimeSliderCompat({
 // Connect slider to layer — time extent changes auto-filter queries
 const connection = slider.connectLayer(layer);
 
-// Esri compatibility APIs retain raw ArcGIS SQL during migration.
+// Compatibility APIs retain raw ArcGIS SQL during migration.
 // Queries now include the time parameter automatically.
 const features = await layer.queryFeatures({ where: "1=1" });
 
@@ -13003,7 +12999,7 @@ custom query parameter can still pass one through `extraParams`.
 
 For the end-to-end discover, describe, synchronous/asynchronous execute,
 results, and cancellation workflow—and the equivalent `IJobRun` lifecycle for
-Esri-compatible GPServer tasks—see the dedicated
+GPServer tasks—see the dedicated
 [geoprocessing guide](./geoprocessing.md).
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
