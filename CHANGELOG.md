@@ -44,7 +44,7 @@ Commits and are kept verbatim for traceability.
 ### ⚠ BREAKING CHANGES
 
 * The @honua/sdk-js/esri-compat subpath is removed. Import @honua/sdk-js/client-compat. The standalone package is @honua/sdk-client-compat; the former package name is not installed by this SDK.
-* @honua/sdk-esri-compat is replaced by @honua/sdk-client-compat, and the renamed exports have no aliases (see docs/split-packages.md). @honua/sdk-js/esri-compat is deprecated and removed in 0.4.0; import from @honua/sdk-js/client-compat instead.
+* @honua/sdk-esri-compat is replaced by @honua/sdk-client-compat, and the renamed exports have no aliases (see docs/split-packages.md). @honua/sdk-js/esri-compat is removed in 0.3.0; import from @honua/sdk-js/client-compat instead.
 * **sdk:** new HonuaClient() now throws when apiKey, bearerToken or auth is configured with a plain http:// baseUrl on a non-loopback host, because those credentials were being sent in cleartext. Switch the baseUrl to https://, use a loopback host (localhost, 127.0.0.0/8, [::1]) for local development, or set allowInsecureHttp: true to accept cleartext credentials on a trusted network. See docs/auth.md#migrating-credentials-over-plain-http.
 
 ### refactor
