@@ -230,9 +230,7 @@ function nextMinorTarget(version: string) {
 async function promotedIncidentDashboard() {
   const catalog = await readJson("samples/catalog.v2.json");
   catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status = "qualified";
-  const sample = catalog.samples.find(
-    (candidate: { id: string }) => candidate.id === "realtime-incident-dashboard",
-  );
+  const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "realtime-incident-dashboard");
   sample.track = "golden";
   sample.validationProfile = "golden-browser";
   return { catalog, sample };
