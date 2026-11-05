@@ -40,6 +40,7 @@ Commits and are kept verbatim for traceability.
 
 ## [0.3.1](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.0...js-sdk-v0.3.1) (2026-11-05)
 
+The @honua/sdk-js/esri-compat path is removed. Import @honua/sdk-js/client-compat. js-sdk 0.3.0 never reached npm.
 
 ### Bug Fixes
 
