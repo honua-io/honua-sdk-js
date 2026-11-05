@@ -222,7 +222,7 @@ jobs:
     name: Quickstart budget (clean install)
     needs: admission
     if: needs.admission.outputs.enabled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Worst-case OS-dependency provisioning (3 x 300 s + backoff) plus the
     # five-minute clock and setup; see the workflow test that derives it.
     timeout-minutes: 25
@@ -905,7 +905,7 @@ jobs:
     name: Browser (${{ matrix.shard }})
     needs: [admission, build]
     if: needs.admission.outputs.enabled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       # One failed domain must not cancel the other three: the whole point is
