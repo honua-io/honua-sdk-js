@@ -6,7 +6,11 @@
 ### ⚠ BREAKING CHANGES
 
 * The @honua/sdk-js/esri-compat subpath is removed. Import @honua/sdk-js/client-compat. The standalone package is @honua/sdk-client-compat; the former package name is not installed by this SDK.
-* @honua/sdk-esri-compat is replaced by @honua/sdk-client-compat, and the renamed exports have no aliases (see docs/split-packages.md). @honua/sdk-js/esri-compat is deprecated and removed in 0.4.0; import from @honua/sdk-js/client-compat instead.
+* @honua/sdk-esri-compat is replaced by @honua/sdk-client-compat, and the renamed exports have no aliases (see docs/split-packages.md). @honua/sdk-js/esri-compat is removed in 0.3.0; import from @honua/sdk-js/client-compat instead.
+* @honua/mcp-server tool names changed. Update agent tool allowlists:
+  * honua_esri_gp_list_tasks -> honua_geoservices_gp_list_tasks
+  * honua_esri_gp_describe_task -> honua_geoservices_gp_describe_task
+  * honua_esri_gp_execute_task -> honua_geoservices_gp_execute_task
 
 ### refactor
 
@@ -28,11 +32,11 @@
 
 ### Dependencies
 
-* The following workspace dependencies were updated
+* The following workspace dependencies were updated or retained
   * devDependencies
-    * @honua/sdk-js bumped from file:.. to 0.3.0
+    * @honua/sdk-js retained at file:..
   * peerDependencies
-    * @honua/sdk-js bumped from ^0.2.0 || ^0.3.0 to ^0.3.0
+    * @honua/sdk-js retained at ^0.2.0 || ^0.3.0
 
 ## [0.2.10](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.9...mcp-server-v0.2.10) (2026-10-24)
 
