@@ -7,7 +7,7 @@ resource: "honua://capability/fieldops.offline-sync"
 # Disconnected replica sync
 
 `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync`
-shim remains through 0.2.x) ships one product-level contract for disconnected
+shim remains through 0.3.x and is removed in 0.4.0) ships one product-level contract for disconnected
 replica metadata and sync-conflict review — `ReplicaSyncTransport` — plus two
 implementations of it:
 
