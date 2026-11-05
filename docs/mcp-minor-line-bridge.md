@@ -17,8 +17,8 @@ each publisher waiting for the other. The Node 22 engine-floor change remains a
 breaking change; it must not be disguised as a compatible patch.
 
 `config/mcp-sdk-peer-policy.v1.json` declares the reviewed bridge
-`^0.1.17 || ^0.2.0`. It admits stable releases on those two adjacent minor lines
-and excludes earlier SDKs, prereleases, and 0.3+. Release Please continues to
+`^0.2.0 || ^0.3.0`. It admits stable releases on 0.2 and 0.3 and excludes 0.1,
+prereleases, and 0.4+. Release Please continues to
 manage package versions and development dependencies, but its workspace plugin
 preserves this peer range. `verify:mcp-pin` and the unit suite refuse a changed
 package/lockfile range, automatic peer replacement, or a source SDK outside the
@@ -85,7 +85,9 @@ the current synchronized pin.
 The current generated-client pin is published `@honua/mcp-server@0.2.6`.
 `config/mcp-pinned-peer.v1.json`, `src/local-install.ts`, and all three shipped
 zero-to-map client configurations identify that release and its verified
-registry integrity. Its SDK peer range remains `^0.1.17 || ^0.2.0`.
+registry integrity. That published package still declares `^0.1.17 || ^0.2.0`.
+`sync:mcp-pin` records the next published package; the pin is not inferred from
+the reviewed bridge above.
 
 The previous pin pair, public SDK 0.2.4 and MCP 0.2.4, passed a real co-install under npm's
 default peer resolver. Keep using `sync:mcp-pin` after a coordinated MCP
