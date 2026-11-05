@@ -2425,10 +2425,11 @@ runNpmScriptSync("demo:wrong:build", {
     );
 
     const inactive = await promoteIncident();
+    const [major, minor] = String(packageJson.version).split(".");
     inactive.sample.lifecycle = {
       state: "rework",
       reason: "Promotion regression fixture.",
-      targetRelease: "0.3.0",
+      targetRelease: `${major}.${Number(minor) + 1}.0`,
     };
     await expect(validateCatalog(inactive.catalog, packageJson, validationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples must be active",
