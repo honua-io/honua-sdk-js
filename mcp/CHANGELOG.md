@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.3.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.10...mcp-server-v0.3.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* The @honua/sdk-js/esri-compat subpath is removed. Import @honua/sdk-js/client-compat. The standalone package is @honua/sdk-client-compat; the former package name is not installed by this SDK.
+* @honua/sdk-esri-compat is replaced by @honua/sdk-client-compat, and the renamed exports have no aliases (see docs/split-packages.md). @honua/sdk-js/esri-compat is removed in 0.3.0; import from @honua/sdk-js/client-compat instead.
+* @honua/mcp-server tool names changed. Update agent tool allowlists:
+  * honua_esri_gp_list_tasks -> honua_geoservices_gp_list_tasks
+  * honua_esri_gp_describe_task -> honua_geoservices_gp_describe_task
+  * honua_esri_gp_execute_task -> honua_geoservices_gp_execute_task
+
+### refactor
+
+* neutralize SDK public identifiers and the compatibility package ([#2283](https://github.com/honua-io/honua-sdk-js/issues/2283)) ([77aa010](https://github.com/honua-io/honua-sdk-js/commit/77aa010d0d712dc685f42dab84fd3451aa22e082))
+
+
+### Features
+
+* remove the esri-compat entry point ([#2314](https://github.com/honua-io/honua-sdk-js/issues/2314)) ([11e1a9c](https://github.com/honua-io/honua-sdk-js/commit/11e1a9c6cb4c8c6d8971214fee884afbeb5eafc6))
+
+
+### Bug Fixes
+
+* **mcp-cert:** give the scheduled candidate a real layer and count GeoServices extents ([#2253](https://github.com/honua-io/honua-sdk-js/issues/2253)) ([bb570cc](https://github.com/honua-io/honua-sdk-js/commit/bb570cc3d1ebce20b1bf3eabdf37ec2b7d1defc7)), closes [#2249](https://github.com/honua-io/honua-sdk-js/issues/2249)
+* **mcp:** answer honua-mcp --help without a configured endpoint ([#2247](https://github.com/honua-io/honua-sdk-js/issues/2247)) ([5a79811](https://github.com/honua-io/honua-sdk-js/commit/5a7981115c58458f5b71bfd47d6cf50b82120119)), closes [#2246](https://github.com/honua-io/honua-sdk-js/issues/2246)
+* **mcp:** raise @hono/node-server and qs above the production audit floors ([#2267](https://github.com/honua-io/honua-sdk-js/issues/2267)) ([3de57af](https://github.com/honua-io/honua-sdk-js/commit/3de57afc5dfda3a5cce60e52f6f3b636a3494812))
+* **mcp:** review the SDK peer bridge onto 0.2 and 0.3 ([#2320](https://github.com/honua-io/honua-sdk-js/issues/2320)) ([d990583](https://github.com/honua-io/honua-sdk-js/commit/d990583174d1a4e29228b025e6ab56414349939d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.2.0 || ^0.3.0
+
 ## [0.2.10](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.9...mcp-server-v0.2.10) (2026-10-24)
 
 
