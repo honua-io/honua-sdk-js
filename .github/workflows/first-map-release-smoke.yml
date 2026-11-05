@@ -30,7 +30,7 @@ jobs:
   # below asserts exactly that, in seconds, before the browser matrix runs.
   source-packed-parity:
     name: Three-engine smoke and source-packed parity
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix-outcome: ${{ steps.matrix.outcome }}
       receipt-sealed: ${{ steps.seal.outputs.sealed }}

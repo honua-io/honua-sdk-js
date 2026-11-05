@@ -96,7 +96,7 @@ jobs:
     # skipped dependency would otherwise skip this job too. A genuine failure
     # there still blocks the publish.
     if: ${{ !cancelled() && needs.ensure-fresh-evidence.result != 'failure' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       # Trusted publishing: npm >= 11.5 exchanges the Actions OIDC token for
