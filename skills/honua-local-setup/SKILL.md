@@ -148,8 +148,13 @@ list as the rule, not as journey trivia:
   transcript, commit, or skill.
 - Reference the credential by id and by `referenceDigestSha256`. If you need to
   prove which credential is in play, compare digests — do not fetch the value.
-- Pass secrets to the server by reference (`secretType: "environment"` with a
-  `secretReference` such as `env:HONUA_ZERO_TO_MAP_DB_CONNECTION`), never inline.
+- Pass secrets to the server by reference (`secretType: "environment"` with
+  `secretReference` `env:HONUA_LOCAL_DB_PASSWORD`), never inline. That is the
+  one variable this installer allowlists, and its value is the full
+  `Host=postgres;...` connection string.
+  `env:HONUA_ZERO_TO_MAP_DB_CONNECTION` applies only when a journey injects
+  that variable itself. A password-only reference returns `isHealthy: false`
+  with no reason.
 - `requestedGrants` and `effectiveGrants` can differ. The effective set is the
   truth; if a later call is denied, re-read the effective grants instead of
   escalating to a shared admin key.
@@ -190,16 +195,18 @@ replaces credential-bearing values with `[REDACTED]`
 
 ## 4. Wire the MCP client
 
-The local deployment exposes one MCP catalog at `/mcp`. Bridge a stdio client
-to it with the `honua-mcp-proxy` bin rather than reimplementing the catalog:
+The installer listens on `http://127.0.0.1:<http-port>/mcp`. `--http-port`
+defaults to 8080, so the default catalog is `http://127.0.0.1:8080/mcp`.
+Nothing listens on `https://localhost:8443`. The installer writes that HTTP URL
+into `.mcp.json` for `honua-mcp-proxy`, with the admin key in the same file.
+Use that file. Do not print it.
 
-```bash
-HONUA_MCP_REMOTE_URL="https://localhost:8443/mcp" honua-mcp-proxy
-```
-
-Auth env vars are `HONUA_MCP_AUTH_TOKEN` (sent as `Authorization: Bearer`) and
-`HONUA_API_KEY` (sent as `x-api-key`). Set them in the client's process
-environment; do not embed them in a config file that gets committed.
+The proxy accepts exactly one of `HONUA_ADMIN_KEY`, `HONUA_API_KEY` (both sent
+as `x-api-key`), or `HONUA_MCP_AUTH_TOKEN` (sent as `Authorization: Bearer`).
+Setting both key variables, or a key together with the bearer token, makes the
+proxy refuse to start. Loopback HTTP is accepted. Any other host needs `https`
+when a credential is set. A connection refused on port 8443 means the URL above
+was replaced; point the proxy at the URL in `.mcp.json`.
 
 For the platform-free path — pointing at any public FeatureServer with no Honua
 server at all — use the `honua-mcp` bin and the `honua-mcp-setup` skill instead.

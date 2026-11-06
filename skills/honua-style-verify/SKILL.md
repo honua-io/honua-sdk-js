@@ -46,7 +46,13 @@ one flat colour, fails. Dashboard share URLs are not this proof.
 ## Prove a published layer's style reaches pixels (stage `style`)
 
 Stage 3 is the only place the journey proves that styling a *published* layer —
-not a draft — changes what gets drawn. Six steps, in order:
+not a draft — changes what gets drawn. These six calls are the Honua server
+catalog behind `honua-mcp-proxy`. The standalone `honua-mcp` `honua_get_style`
+accepts only `styleId`. Passing `serviceId` and `layerId` to that tool drops
+them, and the call lists the catalog instead of the layer. Its
+`honua_apply_style_preset` rejects those fields. Use the proxy for this proof.
+
+Six steps, in order:
 
 1. `honua_get_style` with `serviceId` + `layerId` — the layer's style before
    anything is applied. Keep the `styleVersion`; it is the baseline a reviewer

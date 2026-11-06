@@ -66,10 +66,14 @@ Contract idioms to keep straight:
 - Method casing is per-language; the JS surface is `queryAll()` / `query()` /
   `stream()`. Semantics match the .NET / Python SDKs.
 - Do not generate `Query.where` for new protocol-neutral examples. It remains a
-  deprecated source-native compatibility string, and no stable semantic-filter
-  builder is wired into `Source.query()` yet. If filtering is required, either
-  use a typed raw protocol request or explicitly opt into the experimental
-  `@honua/sdk-js/query-planner` semantic AST and state that lifecycle.
+  deprecated source-native compatibility string, and its language changes with
+  the adapter. Filter with `Query.filter`, built by `queryFilter` from
+  `@honua/sdk-js`, plus `spatialFilter` and `temporalFilter` when needed.
+  `Source.query()` compiles that expression and throws
+  `HonuaCapabilityNotSupportedError` when the protocol cannot express a
+  construct. `@honua/sdk-js/query-planner` is a separate experimental compiler.
+  It is not required to filter. A `where` string that works on GeoServices and
+  returns nothing, or a different set, on OGC or WFS is this mistake.
 - For raw protocol operations the canonical surface does not cover, drop to the
   typed escape hatch `source.protocol(...)`.
 
