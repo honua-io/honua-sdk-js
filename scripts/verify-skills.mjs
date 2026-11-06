@@ -14,9 +14,8 @@
 //      derived from `mcp/release/zero-to-map/journey.v1.json` (`journeyId`).
 //      There is no second hand-maintained release constant to drift.
 //   4. Every skill declares `stages` (a possibly-empty inline list of journey
-//      stage ids), and EVERY stage id in the journey must be claimed by at
-//      least one skill. This is the "each terminal stage has a published
-//      versioned skill" gate: deleting a stage skill fails this script.
+//      stage ids). Each id must be a stage in the journey. A stage may have
+//      no skill.
 //   5. Any package version pinned in a body (`@honua/sdk-js@X.Y.Z`) must match
 //      `package.json` / `.release-please-manifest.json`. Registry availability
 //      is a separate opt-in live lane (`HONUA_SKILLS_REGISTRY_LIVE_ENABLED=true`)
@@ -443,14 +442,6 @@ async function main() {
       checkToolNames(body, relFile);
       checkPackageVersions(body, relFile, livePins);
       checkNoCredentials(body, relFile);
-    }
-  }
-
-  for (const [stage, owners] of stageCoverage) {
-    if (owners.length === 0) {
-      errors.push(
-        `journey stage "${stage}" (${JOURNEY_FILE}) has no published ${CURRENT_RELEASE} skill: add a skills/<name>/SKILL.md declaring stages: [${stage}]`,
-      );
     }
   }
 

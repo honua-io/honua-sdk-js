@@ -18,45 +18,35 @@ serves (an empty list means the skill is not tied to a terminal stage).
 
 Every skill declares the release it was written for and the zero-to-map journey
 stage(s) it serves. `npm run verify:skills` fails when a skill drifts from the
-release, cites a tool or file that does not exist, pins a package version this
-repository does not publish, or leaves a journey stage with no skill.
+release, cites a tool or file that does not exist, or pins a package version this
+repository does not publish.
 
 ### Terminal-journey skills
 
-| Skill | Stage(s) | Use it when |
-| --- | --- | --- |
-| [`honua-datasource-connect`](./honua-datasource-connect/SKILL.md) | `admin` | Connecting Honua to a datasource and proving the connection works before publishing anything — creating a secure connection by secret reference, testing it, listing and validating tables, and discovering already-reachable sources on a plain endpoint. |
-| [`honua-diagnostics`](./honua-diagnostics/SKILL.md) | `console`, `artifact` | A Honua call fails, a deployment looks unhealthy, or a published share URL does not return HTTP 200 — capturing a sanitized diagnostic bundle with honua doctor, reading health/audit/operation status, distinguishing capability gaps from real failures, and staying inside bounded, reversible remediation. |
-| [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) | `geoprocessing` | An agent must validate, execute, poll, and consume a Honua geoprocessing plan — the bounded geometry.buffer process through discovered server tools or SDK process runners — including job polling to a terminal state and turning a result artifact into something a map can bind. |
-| [`honua-local-setup`](./honua-local-setup/SKILL.md) | `install` | Installing Honua on a laptop for the first time and handing the resulting credential to an agent — running the control-plane Docker installer, verifying API/MCP/Console readiness, and wiring an MCP client to the local deployment without ever reading or echoing secret material. |
-| [`honua-map-composition`](./honua-map-composition/SKILL.md) | `studio`, `proposal` | Composing a bounded 2D Honua map through Studio MCP tools — creating a draft, adding layers/style/view/basic controls, saving and reopening an immutable version, and proposing publication for a separate human approver. |
-| [`honua-publish-layers`](./honua-publish-layers/SKILL.md) | `admin` | Turning an imported table into a served Honua layer and setting who can read it — publishing a layer from a tested connection, capturing the layer id, setting the service access policy, and confirming the layer is queryable. |
-| [`honua-style-verify`](./honua-style-verify/SKILL.md) | `style`, `studio`, `artifact` | Applying a style to a Honua published layer or Studio draft and proving the rendered map is actually correct — resolving styles from the server, applying a preset to a published layer and rendering it to a PNG, applying a preset client-side, setting a draft layer's style and visibility, framing the view, and verifying the approved public URL responds. |
+None.
 
 ### Supporting skills
 
 | Skill | Use it when |
 | --- | --- |
-| [`honua-geoservices-migration`](./honua-geoservices-migration/SKILL.md) | Migrate an existing ArcGIS JavaScript app and its service dependencies to Honua using native SDK primitives, agentic code conversion and optional canonical codemods. |
 | [`honua-mcp-setup`](./honua-mcp-setup/SKILL.md) | Connecting an MCP client (Claude Desktop, Claude Code, or any MCP-compatible agent) to ANY public ArcGIS/OGC FeatureServer via @honua/mcp-server — the platform-free geospatial MCP server. |
-| [`honua-sdk-quickstart`](./honua-sdk-quickstart/SKILL.md) | Writing or reviewing code that uses @honua/sdk-js — installing the SDK, constructing a HonuaClient, building a Dataset/Source and querying features across GeoServices/OGC/WFS/STAC/OData, or handling capability errors. |
 
 ### 2026.1 terminal-stage coverage
 
 Stages come from [`mcp/release/zero-to-map/journey.v1.json`](../mcp/release/zero-to-map/journey.v1.json)
-(see [the journey overview](../docs/zero-to-map-release-journey.md)). A stage with
-no skill fails `npm run verify:skills`.
+(see [the journey overview](../docs/zero-to-map-release-journey.md)). A stage
+with no skill is **none**.
 
 | # | Stage | Skill(s) |
 | --- | --- | --- |
-| 1 | `install` — Install Honua locally and verify the handoff surfaces | [`honua-local-setup`](./honua-local-setup/SKILL.md) |
-| 2 | `admin` — Configure a connection, import data, publish layers, and set access | [`honua-datasource-connect`](./honua-datasource-connect/SKILL.md) · [`honua-publish-layers`](./honua-publish-layers/SKILL.md) |
-| 3 | `style` — Apply a canonical style to the published layer and prove it reaches rendered pixels | [`honua-style-verify`](./honua-style-verify/SKILL.md) |
-| 4 | `geoprocessing` — Buffer the published parcels, then prove geometry.buffer on GPServer | [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) |
-| 5 | `studio` — Compose, validate, save, read, and reopen distinct map, app, and dashboard families | [`honua-map-composition`](./honua-map-composition/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
-| 6 | `proposal` — Publish each saved version and capture its share URL | [`honua-map-composition`](./honua-map-composition/SKILL.md) |
-| 7 | `console` — Fetch the admin-published share URLs | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) |
-| 8 | `artifact` — Require HTTP 200 from the map, app, and dashboard share URLs | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
+| 1 | `install` — Install Honua locally and verify the handoff surfaces | **none** |
+| 2 | `admin` — Configure a connection, import data, publish layers, and set access | **none** |
+| 3 | `style` — Apply a canonical style to the published layer and prove it reaches rendered pixels | **none** |
+| 4 | `geoprocessing` — Buffer the published parcels, then prove geometry.buffer on GPServer | **none** |
+| 5 | `studio` — Compose, validate, save, read, and reopen distinct map, app, and dashboard families | **none** |
+| 6 | `proposal` — Publish each saved version and capture its share URL | **none** |
+| 7 | `console` — Fetch the admin-published share URLs | **none** |
+| 8 | `artifact` — Require HTTP 200 from the map, app, and dashboard share URLs | **none** |
 
 <!-- skills-table:end -->
 
@@ -65,14 +55,14 @@ no skill fails `npm run verify:skills`.
 The table above and everything it claims are checked, not trusted:
 
 ```bash
-npm run verify:skills   # frontmatter, release, stage coverage, tools, versions, secrets, README freshness
+npm run verify:skills   # frontmatter, release, stage ids, tools, versions, secrets, README freshness
 npm run skills:readme   # regenerate the managed table after adding or re-scoping a skill
 ```
 
 `npm run verify:skills` fails when a skill's `release` is not the current
-release, a journey stage has no skill, a body cites an `npm run` script, repo
-file, or `honua_*` tool that does not exist, a body pins a package version this
-repository does not publish, or a body contains a credential-shaped literal. The
+release, a body cites an `npm run` script, repo file, or `honua_*` tool that
+does not exist, a body pins a package version this repository does not publish,
+or a body contains a credential-shaped literal. The
 optional registry lane
 (`HONUA_SKILLS_REGISTRY_LIVE_ENABLED=true npm run verify:skills`) additionally
 confirms each pinned version resolves on the public npm registry; it is never
@@ -86,14 +76,14 @@ agent looks for skills.
 - **Personal (all projects):** copy a skill directory into `~/.claude/skills/`.
 
   ```bash
-  cp -R skills/honua-sdk-quickstart ~/.claude/skills/
+  cp -R skills/honua-mcp-setup ~/.claude/skills/
   ```
 
 - **Project-scoped (checked in with the repo):** copy into `.claude/skills/` at
   your project root.
 
   ```bash
-  mkdir -p .claude/skills && cp -R skills/honua-geoservices-migration .claude/skills/
+  mkdir -p .claude/skills && cp -R skills/honua-mcp-setup .claude/skills/
   ```
 
 Each skill keeps its own directory name (which must match the `name` in its

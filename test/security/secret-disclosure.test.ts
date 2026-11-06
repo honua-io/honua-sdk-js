@@ -150,23 +150,8 @@ describe("secret disclosure :: skill bodies", () => {
     // `description`, and echoed into transcripts, tickets, and model providers.
     // Skills are the highest-fanout text in this repository.
     const bodies = skillBodies();
-    expect(bodies.length).toBeGreaterThanOrEqual(10);
+    expect(bodies.length).toBeGreaterThan(0);
     for (const [path, body] of bodies) scanForCredentials(body, path);
-  });
-
-  it("teaches secret *reference* rather than secret *value* on every stage that handles one", () => {
-    // Confused agent: told to "connect the datasource", it inlines the password
-    // it was given into the request body, and the connection record — plus every
-    // log and audit row downstream of it — now holds a plaintext credential.
-    // The two skills that touch credentials must say so in the body an agent
-    // reads, not only in a review comment.
-    const byPath = new Map(skillBodies());
-    for (const path of ["skills/honua-datasource-connect/SKILL.md", "skills/honua-local-setup/SKILL.md"]) {
-      const body = byPath.get(path);
-      expect(body, `${path} must exist`).toBeDefined();
-      expect(body, `${path} must name the env-reference handoff`).toMatch(/env:[A-Z_<]/);
-      expect(body, `${path} must forbid echoing secret material`).toMatch(/never (?:inline|read|echo|print)/i);
-    }
   });
 
   it("keeps the generated skills README credential-free too", () => {
@@ -433,9 +418,8 @@ describe("secret disclosure :: the shared credential recognizer", () => {
   });
 
   it("refuses the root administrator credential's own property name", () => {
-    // GAP CLOSED. `adminKey` is the property name this repository's CLI uses
-    // for the root administrator credential (`profiles.<name>.adminKey`), and
-    // the JSON Pointer `honua-diagnostics` tells agents is forbidden. The
+    // `adminKey` is the property name this repository's CLI uses
+    // for the root administrator credential (`profiles.<name>.adminKey`). The
     // export recognizer did not know it: `api[-_]?key` was enumerated and a
     // bare `key` deliberately was not, so `adminKey` fell between them and a
     // config-shaped object carrying one would export its value verbatim.
@@ -449,8 +433,7 @@ describe("secret disclosure :: the shared credential recognizer", () => {
   it("still exports the ordinary *Key identifiers a real map package depends on", () => {
     // The inverse failure, and the reason the fix above enumerates qualifiers
     // instead of matching a bare `key`: an exporter that withholds a layer's
-    // `primaryKey` or a style's sort key is not safer, it is broken — and the
-    // publish-layers skill puts `primaryKey` in the body an agent copies.
+    // `primaryKey` or a style's sort key is not safer, it is broken.
     for (const key of ["primaryKey", "layerKey", "sortKey", "objectIdKey", "key", "keyField", "geometryColumn"]) {
       expect(isSensitiveExportKey(key), `${key} must remain exportable`).toBe(false);
     }

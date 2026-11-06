@@ -31,7 +31,6 @@ not an immutable evidence pin.
    input schema and a bounded geometry. For the advertised GPServer WKB path,
    provide `wkb`, `srid`, and `distance`; EPSG:4326 distance is in degrees. A
    `layerId` is not a geometry input. Retain the terminal job and result identity.
-   See [geoprocessing guidance](../skills/honua-geoprocessing/SKILL.md).
 5. Prove the published layer's style through get-style → apply-preset → read-back
    → render → MCP `resources/read`. Verify style identity and nonempty rendered
    pixels, not merely PNG byte length. `honua admin qualify` joins the catalog
@@ -39,8 +38,7 @@ not an immutable evidence pin.
 6. Compose one 2D map with the imported layer, style, view, and basic controls.
    Validate, save an immutable version, read it back, reopen it, and prove the
    same content survives restart and a distinct replica read. Retain item,
-   version, and content hash. See
-   [map composition](../skills/honua-map-composition/SKILL.md).
+   version, and content hash.
 7. Propose publication of that exact saved version under the supported proposer
    policy. Require a durable pending proposal. Prove separation of duties with
    an independently approval-capable proposer under a supported policy that

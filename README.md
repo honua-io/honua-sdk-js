@@ -664,10 +664,9 @@ correctly use this SDK:
   concatenated for single-fetch ingestion. Both are generated from `docs/` +
   `README.md` + entrypoint JSDoc by `npm run docs:llms` (freshness-checked in CI
   via `npm run verify:llms`).
-- **Agent skills** under [`skills/`](./skills/README.md) — `honua-sdk-quickstart`,
-  `honua-geoservices-migration`, and `honua-mcp-setup` load procedural instructions
-  into Claude Code and compatible agents. See [`skills/README.md`](./skills/README.md)
-  for installation.
+- **Agent skills** under [`skills/`](./skills/README.md) — `honua-mcp-setup`
+  loads procedural instructions into Claude Code and compatible agents. See
+  [`skills/README.md`](./skills/README.md) for installation.
 - **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**
   geospatial MCP server: point `honua-mcp` at **any** public ArcGIS FeatureServer
   or OGC API endpoint (no Honua server required) and it exposes discovery, query,
