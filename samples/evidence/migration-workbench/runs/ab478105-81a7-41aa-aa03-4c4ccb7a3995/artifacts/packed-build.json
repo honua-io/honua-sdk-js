@@ -1,0 +1,178 @@
+{
+  "format": "honua.sdk.sample-packed-build-gate.v1",
+  "sampleId": "migration-workbench",
+  "sourceRevision": "d9c6e2263712497ccb36af8fdfa0f484370c24cf",
+  "command": [
+    "npm",
+    "run",
+    "demo:migration-workbench:build"
+  ],
+  "sdkMode": "packed",
+  "packageTarballSha256": "856a67919a47a07bee1732884a1e47b01abb6546f2ed037050f31d2c4a473146",
+  "packageTarball": "samples/evidence/migration-workbench/runs/ab478105-81a7-41aa-aa03-4c4ccb7a3995/artifacts/honua-sdk-js-0.3.2.tgz",
+  "packageTarballBytes": 3707540,
+  "sampleDistRoot": "samples/evidence/migration-workbench/runs/ab478105-81a7-41aa-aa03-4c4ccb7a3995/artifacts/packed-sample-dist",
+  "resolution": {
+    "format": "honua.sdk.sample-resolution.v1",
+    "schemaVersion": 1,
+    "mode": "packed",
+    "package": {
+      "name": "@honua/sdk-js",
+      "version": "0.3.2"
+    },
+    "entrypoints": [
+      {
+        "specifier": "@honua/sdk-js/client-compat",
+        "exportTarget": "./dist/src/client-compat-entry.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "2a166b2cb4a67f50bf517c0b2a86815d06be3a3cd1adfdd32b626e0435da6fcb"
+      }
+    ],
+    "bundle": [
+      {
+        "fileName": "assets/index-Cv6X2jpf.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 33125,
+        "sha256": "0ddab43afe7cc447a20e10b45ba68735674f698e80fbab3d17c5c72ffec99976"
+      },
+      {
+        "fileName": "assets/maplibre-gl-BbcplU_l.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1354762,
+        "sha256": "4815709af5e0f61fef3fd49c78c8ad1ddc61c21610999659bfb14c780f85040d"
+      },
+      {
+        "fileName": "assets/migrated-main-dhNL2FtR.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 677832,
+        "sha256": "d74deda3301cbf7e4438b05cec88a3cf9aa2a39e47298dcd2dca80d52880f41e"
+      },
+      {
+        "fileName": "assets/preload-helper-DDTdSCVL.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 3047,
+        "sha256": "e6665338b08038d553db98a30deeb708c06461a5e430c059deb123e8533de87d"
+      },
+      {
+        "fileName": "artifacts/v1/migrated-main.js",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 5161,
+        "sha256": "9eabc71fa1719ad0c39077704d00606b292b26a1b440c227cc1b238e8493633f"
+      },
+      {
+        "fileName": "assets/index-BaXHBYR1.css",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 56424,
+        "sha256": "5140cf483219f32642f91e950844d5c36e56c5f8f24d67a61a7390c554536a19"
+      },
+      {
+        "fileName": "artifacts/v1/manifest.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 6168,
+        "sha256": "5cc0a510ad43ac9ddf6bbb5354f1615738307d48761e76ccbd286abbd34bbfc0"
+      },
+      {
+        "fileName": "artifacts/v1/maplibre-assessment.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 52226,
+        "sha256": "4d071406bd49b24a29955a2aee9a35e48885064a46eb066709e40f4e628bb55f"
+      },
+      {
+        "fileName": "artifacts/v1/migration-report.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 63200,
+        "sha256": "8c057e17fd56eca74eab1beabf65ee96d7716030dbfcc5dc8cc7700d6c66a3a9"
+      },
+      {
+        "fileName": "artifacts/v1/migration.v1.patch",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 3868,
+        "sha256": "c7efaa82d5586636457004e9170294285a7ae65c7e6709bd9d5482743bd21f50"
+      },
+      {
+        "fileName": "artifacts/v1/widget-readiness.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 5644,
+        "sha256": "067647a8e8dcf496210095484653e9da4d0ac1906172ce307a4df7bc72df80e9"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "artifacts/v1/manifest.v1.json",
+      "bytes": 6168,
+      "sha256": "5cc0a510ad43ac9ddf6bbb5354f1615738307d48761e76ccbd286abbd34bbfc0"
+    },
+    {
+      "path": "artifacts/v1/maplibre-assessment.v1.json",
+      "bytes": 52226,
+      "sha256": "4d071406bd49b24a29955a2aee9a35e48885064a46eb066709e40f4e628bb55f"
+    },
+    {
+      "path": "artifacts/v1/migrated-main.js",
+      "bytes": 5161,
+      "sha256": "9eabc71fa1719ad0c39077704d00606b292b26a1b440c227cc1b238e8493633f"
+    },
+    {
+      "path": "artifacts/v1/migration-report.v1.json",
+      "bytes": 63200,
+      "sha256": "8c057e17fd56eca74eab1beabf65ee96d7716030dbfcc5dc8cc7700d6c66a3a9"
+    },
+    {
+      "path": "artifacts/v1/migration.v1.patch",
+      "bytes": 3868,
+      "sha256": "c7efaa82d5586636457004e9170294285a7ae65c7e6709bd9d5482743bd21f50"
+    },
+    {
+      "path": "artifacts/v1/widget-readiness.v1.json",
+      "bytes": 5644,
+      "sha256": "067647a8e8dcf496210095484653e9da4d0ac1906172ce307a4df7bc72df80e9"
+    },
+    {
+      "path": "assets/index-BaXHBYR1.css",
+      "bytes": 56424,
+      "sha256": "5140cf483219f32642f91e950844d5c36e56c5f8f24d67a61a7390c554536a19"
+    },
+    {
+      "path": "assets/index-Cv6X2jpf.js",
+      "bytes": 33125,
+      "sha256": "0ddab43afe7cc447a20e10b45ba68735674f698e80fbab3d17c5c72ffec99976"
+    },
+    {
+      "path": "assets/maplibre-gl-BbcplU_l.js",
+      "bytes": 1354762,
+      "sha256": "4815709af5e0f61fef3fd49c78c8ad1ddc61c21610999659bfb14c780f85040d"
+    },
+    {
+      "path": "assets/migrated-main-dhNL2FtR.js",
+      "bytes": 677832,
+      "sha256": "d74deda3301cbf7e4438b05cec88a3cf9aa2a39e47298dcd2dca80d52880f41e"
+    },
+    {
+      "path": "assets/preload-helper-DDTdSCVL.js",
+      "bytes": 3047,
+      "sha256": "e6665338b08038d553db98a30deeb708c06461a5e430c059deb123e8533de87d"
+    },
+    {
+      "path": "honua-sample-sdk-resolution.json",
+      "bytes": 3159,
+      "sha256": "31319f54d83c43e40d9e25286a44839f840734eaf17d0716dc62839ee1c3f931"
+    },
+    {
+      "path": "index.html",
+      "bytes": 10936,
+      "sha256": "78a625e08a021690c55e35f9fb275a0e926237b6c24fe375f1647614f19630ec"
+    }
+  ]
+}

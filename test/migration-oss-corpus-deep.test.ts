@@ -321,6 +321,8 @@ describe("formatOssArcGisDeepBuildMarkdown", () => {
     const parsed = manifest();
     const run = observation();
     const markdown = formatOssArcGisDeepBuildMarkdown(parsed, run);
+    expect(markdown).toContain("Current applications use `@honua/sdk-client-compat`");
+    expect(markdown).toContain("historical package names below are not installation guidance");
     for (const app of run.apps as OssArcGisDeepAppResult[]) {
       for (const diagnostic of app.introducedDiagnostics) {
         expect(markdown).toContain(diagnostic);

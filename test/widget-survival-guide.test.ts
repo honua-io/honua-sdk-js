@@ -33,6 +33,12 @@ const NATIVE_ELEMENT_COMPONENTS = [
   { widget: "TimeSlider", tagName: "honua-time-slider", source: "src/web-components/time-slider.ts" },
 ] as const;
 describe("widget disposition data", () => {
+  it("retains source attribution and independence in the generated guide", () => {
+    const markdown = generateWidgetSurvivalGuideMarkdown(widgetDispositionData);
+    expect(markdown).toContain("ArcGIS Maps SDK for JavaScript");
+    expect(markdown).toContain("Honua is independent of Esri");
+  });
+
   it("has unique widget names and module paths", () => {
     const widgets = WIDGET_DISPOSITIONS.map((entry) => entry.widget);
     expect(new Set(widgets).size).toBe(widgets.length);
