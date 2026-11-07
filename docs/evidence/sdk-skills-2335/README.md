@@ -1,11 +1,13 @@
 ---
-type: reference
-title: "SDK skills paired runs"
-description: "Paired Opus 5.5 tasks on a real local server; only the MCP setup skill improved on its unaided run."
+type: index
+title: "SDK skill retirement record"
+description: "Retained narrative and limits of the SDK skill evaluation; no skill ships without auditable paired-run receipts."
 ---
-# SDK skills paired runs
+# SDK skill retirement record
 
-Date: 2026-11-06 PT. Model: Claude Code with `claude-opus-5-5`. One local Compose quickstart on port 18080. Each task ran twice: once with only that skill installed at `.claude/skills`, and once with no skill files. Both arms received the package README and `AGENTS.md` sections 1–6. Pass or fail is an independent check of the server or the artifact, not the model's own report. A wrong turn is a tool result with is_error set, or a shell result whose text contained a traceback, the word unauthenticated, isError set to true, or a status of error.
+The previous lane recorded the following narrative. Its per-arm transcripts, checker outputs, SDK revision, and immutable server identity were not retained in the available handoff. These results cannot be independently audited and do not qualify any skill for shipment. All ten skills are deleted. Failed or tied arms never justify retention; environment-blocked tasks do not establish whether a skill helps.
+
+Reported date: 2026-11-06 PT. Model: Claude Code with `claude-opus-5-5`. One local Compose quickstart on port 18080. Each task ran twice: once with only that skill installed at `.claude/skills`, and once with no skill files. Both arms received the package README and `AGENTS.md` sections 1–6. Pass or fail is an independent check of the server or the artifact, not the model's own report. A wrong turn is a tool result with is_error set, or a shell result whose text contained a traceback, the word unauthenticated, isError set to true, or a status of error.
 
 A skill stays only when the run with it passes and the run without it fails, or both pass and the run with it has fewer wrong turns.
 
@@ -15,7 +17,7 @@ A skill stays only when the run with it passes and the run without it fails, or 
 | honua-datasource-connect | Fail, secret reference refused, 1 wrong turn | Fail, `env:HONUA_LOCAL_DB_PASSWORD` refused, 1 wrong turn | Deleted |
 | honua-publish-layers | Fail, stopped unauthenticated, 1 wrong turn | Fail, stopped unauthenticated, 1 wrong turn | Deleted |
 | honua-diagnostics | Pass, bundle share false, ready 200, 0 wrong turns | Pass, bundle share false, ready 200, 0 wrong turns | Deleted |
-| honua-mcp-setup | Pass, 12 tool names, 2 wrong turns | Pass, 12 tool names, 0 wrong turns | Kept |
+| honua-mcp-setup | Pass, 12 tool names, 2 wrong turns | Pass, 12 tool names, 0 wrong turns | Deleted; receipts unavailable |
 | honua-sdk-quickstart | Fail, HTTP 499, 2 wrong turns | Fail, HTTP 499, 0 wrong turns | Deleted |
 | honua-geoservices-migration | Fail, HTTP 499, 0 wrong turns | Fail, HTTP 499, 0 wrong turns | Deleted |
 | honua-style-verify | Fail, no style applied, 3 wrong turns | Fail, no style applied, 1 wrong turn | Deleted |
@@ -52,7 +54,7 @@ Task: write `mcp-client.json` for a stdio client of this server's `/mcp`, with n
 
 Without the skill the agent ran `honua mcp` (unknown command) and imported a Python `mcp` module that is not installed, then wrote an `mcp-remote` client for `http://localhost:18080/mcp`. Twelve names matched.
 
-With the skill the agent wrote `honua-mcp-proxy` and `HONUA_MCP_REMOTE_URL` on the first try. Twelve names matched, and the file did not contain the admin secret. Fewer wrong turns, so the skill stays.
+With the skill the agent wrote `honua-mcp-proxy` and `HONUA_MCP_REMOTE_URL` on the first try. Twelve names matched, and the file did not contain the admin secret. The narrative reports fewer wrong turns, but the missing per-arm receipts prevent retaining the skill.
 
 ## SDK quickstart
 

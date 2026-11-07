@@ -119,9 +119,14 @@ export function renderSkillsBlock(skills, journey) {
     }
   }
 
-  lines.push("", "### Supporting skills", "", "| Skill | Use it when |", "| --- | --- |");
-  for (const skill of supporting) {
-    lines.push(`| [\`${skill.name}\`](./${skill.dir}/SKILL.md) | ${useItWhen(skill.description)} |`);
+  lines.push("", "### Supporting skills", "");
+  if (supporting.length === 0) {
+    lines.push("None.");
+  } else {
+    lines.push("| Skill | Use it when |", "| --- | --- |");
+    for (const skill of supporting) {
+      lines.push(`| [\`${skill.name}\`](./${skill.dir}/SKILL.md) | ${useItWhen(skill.description)} |`);
+    }
   }
 
   lines.push(

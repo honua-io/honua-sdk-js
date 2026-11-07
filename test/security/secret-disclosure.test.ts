@@ -107,11 +107,20 @@ function scanForCredentials(text: string, label: string): void {
   }
 }
 
-function skillBodies(): Array<[string, string]> {
+function skillInstructions(): Array<[string, string]> {
   const dir = resolve(repoRoot, "skills");
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => [`skills/${entry.name}/SKILL.md`, readFileSync(resolve(dir, entry.name, "SKILL.md"), "utf8")]);
+  return [
+    ["skills/README.md", readFileSync(resolve(dir, "README.md"), "utf8")] as [string, string],
+    ...readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map(
+        (entry) =>
+          [`skills/${entry.name}/SKILL.md`, readFileSync(resolve(dir, entry.name, "SKILL.md"), "utf8")] as [
+            string,
+            string,
+          ],
+      ),
+  ];
 }
 
 function basePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
@@ -144,20 +153,14 @@ function basePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage 
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("secret disclosure :: skill bodies", () => {
-  it("carries no credential material in any release-scoped skill body", () => {
+  it("carries no credential material in skill instructions or their README", () => {
     // Attacker: a working credential pasted into a skill while debugging is
     // then loaded verbatim into every agent context that matches the skill's
     // `description`, and echoed into transcripts, tickets, and model providers.
     // Skills are the highest-fanout text in this repository.
-    const bodies = skillBodies();
+    const bodies = skillInstructions();
     expect(bodies.length).toBeGreaterThan(0);
     for (const [path, body] of bodies) scanForCredentials(body, path);
-  });
-
-  it("keeps the generated skills README credential-free too", () => {
-    // The README is generated from the frontmatter and is what a human reviews
-    // before trusting the corpus; a leak that survives only there is still a leak.
-    scanForCredentials(readFileSync(resolve(repoRoot, "skills/README.md"), "utf8"), "skills/README.md");
   });
 });
 

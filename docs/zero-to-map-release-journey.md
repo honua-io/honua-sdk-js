@@ -75,7 +75,7 @@ report, not permission to substitute a broader workflow.
 
 ## Versioned guidance and receipt consumers
 
-Use the [task skills](../skills/README.md) and local docs from the exact reviewed
+Use the local docs from the exact reviewed
 SDK source commit associated with the candidate; retain that commit and the
 corpus digest alongside package versions. The npm packages do not currently
 ship the complete repository skills/docs corpus. A registry-installed docs

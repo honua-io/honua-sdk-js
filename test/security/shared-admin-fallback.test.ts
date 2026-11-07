@@ -272,18 +272,21 @@ describe("shared-admin fallback :: the honua admin escape hatch", () => {
     ).toThrow(/credentials/);
   });
 
-  it("keeps the stage skills free of any journey step that reaches for the root key", () => {
+  it("keeps skill instructions and their README free of root-key fallback", () => {
     // A skill that tells the agent to export HONUA_ADMIN_KEY when a scoped
     // credential is refused is loaded verbatim into agent context.
-    const bodies = readdirSync(resolve(repoRoot, "skills"), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map(
-        (entry) =>
-          [
-            `skills/${entry.name}/SKILL.md`,
-            readFileSync(resolve(repoRoot, "skills", entry.name, "SKILL.md"), "utf8"),
-          ] as const,
-      );
+    const bodies = [
+      ["skills/README.md", readFileSync(resolve(repoRoot, "skills/README.md"), "utf8")] as const,
+      ...readdirSync(resolve(repoRoot, "skills"), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map(
+          (entry) =>
+            [
+              `skills/${entry.name}/SKILL.md`,
+              readFileSync(resolve(repoRoot, "skills", entry.name, "SKILL.md"), "utf8"),
+            ] as const,
+        ),
+    ];
     expect(bodies.length).toBeGreaterThan(0);
 
     for (const [path, body] of bodies) {
