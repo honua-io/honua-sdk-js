@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.3.0...mcp-server-v0.3.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **mcp:** pin the published MCP server at 0.3.0 ([#2323](https://github.com/honua-io/honua-sdk-js/issues/2323)) ([838965e](https://github.com/honua-io/honua-sdk-js/commit/838965ef57c04e5583027968d8b348b8cc80a7f9))
+
 ## [0.3.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.10...mcp-server-v0.3.0) (2026-11-05)
 
 
