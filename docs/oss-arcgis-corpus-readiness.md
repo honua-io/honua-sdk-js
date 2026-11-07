@@ -3,16 +3,18 @@
                        docs/data/oss-arcgis-corpus-readiness.v1.json
      Regenerate with: npm run docs:oss-arcgis-corpus -->
 
-# Third-party open-source ArcGIS app readiness
+# Third-party open-source mapping app readiness
 
-Every other migration number Honua publishes comes from Honua-authored fixtures. This page does not: it reports what `honua-migrate` does to **real, third-party, open-source ArcGIS JS applications** that were written by other people, for their own purposes, with no knowledge of the codemod.
+The source SDK is Esri's ArcGIS Maps SDK for JavaScript. Input names and module paths retain attribution; each measurement is bounded by its recorded revision.
+
+Every other migration number Honua publishes comes from Honua-authored fixtures. This page does not: it reports what `honua-migrate` does to **real, third-party, open-source JavaScript mapping applications** that were written by other people, for their own purposes, with no knowledge of the codemod.
 
 The corpus pins 7 public GitHub repositories at an exact commit with a reviewed permissive license. No third-party source is vendored here — the lane clones into an ignored scratch directory, analyzes the working copy, and keeps only the structured records below.
 
 - Observation generated: `2026-09-15T00:35:57.619Z`
 - Manifest revision: `2026-08-04`
 - Codemod target: `honua-compat`
-- Lane: opt-in only (`HONUA_OSS_ARCGIS_CORPUS_ENABLED=true`), never part of pull-request CI, static analysis only (no live Esri service contact).
+- Lane: opt-in only (`HONUA_OSS_ARCGIS_CORPUS_ENABLED=true`), never part of pull-request CI, static analysis only (no live upstream service contact).
 
 ## Corpus totals
 
@@ -25,8 +27,8 @@ The corpus pins 7 public GitHub repositories at an exact commit with a reviewed 
 | Codemod-scoped call sites | 214 |
 | Auto-migrated call sites | 107 |
 | Auto-migrated call-site ratio | 50.0% |
-| ArcGIS module hits outside codemod scope | 151 |
-| Apps with no ArcGIS usage detected | 0 |
+| source SDK module hits outside codemod scope | 151 |
+| Apps with no source SDK usage detected | 0 |
 
 ### Top manual-TODO kinds across the corpus
 
@@ -71,7 +73,7 @@ filesScanned=136 filesWithArcGisImports=22 importCount=69 esriLeafletImportCount
 | --- | --- |
 | Readiness | `assisted` |
 | Files scanned | 136 |
-| Files importing ArcGIS modules | 22 |
+| Files importing source SDK modules | 22 |
 | Codemod-scoped call sites | 27 |
 | Auto-migrated call-site ratio | 0.0% |
 | Manual-rewrite ratio | 100.0% |
@@ -87,7 +89,7 @@ Top manual-TODO kinds:
 - `simple-line-symbol` — 3
 - `extent-geometry` — 2
 
-Top ArcGIS modules outside codemod scope:
+Top source SDK modules outside codemod scope:
 
 - `esri/layers/GraphicsLayer` (`amd-dependency`) — 5
 - `esri/graphic` (`amd-dependency`) — 3
@@ -114,7 +116,7 @@ filesScanned=1 filesWithArcGisImports=1 importCount=21 esriLeafletImportCount=0 
 | --- | --- |
 | Readiness | `assisted` |
 | Files scanned | 1 |
-| Files importing ArcGIS modules | 1 |
+| Files importing source SDK modules | 1 |
 | Codemod-scoped call sites | 11 |
 | Auto-migrated call-site ratio | 27.3% |
 | Manual-rewrite ratio | 72.7% |
@@ -129,7 +131,7 @@ Top manual-TODO kinds:
 - `feature-layer` — 2
 - `unique-value-renderer` — 2
 
-Top ArcGIS modules outside codemod scope:
+Top source SDK modules outside codemod scope:
 
 - `esri` (`static-import`) — 1
 - `esri/dijit/BasemapGallery` (`static-import`) — 1
@@ -156,7 +158,7 @@ filesScanned=23 filesWithArcGisImports=16 importCount=66 esriLeafletImportCount=
 | --- | --- |
 | Readiness | `assisted` |
 | Files scanned | 23 |
-| Files importing ArcGIS modules | 16 |
+| Files importing source SDK modules | 16 |
 | Codemod-scoped call sites | 69 |
 | Auto-migrated call-site ratio | 21.7% |
 | Manual-rewrite ratio | 78.3% |
@@ -172,7 +174,7 @@ Top manual-TODO kinds:
 - `expand-widget` — 4
 - `feature-layer` — 4
 
-Top ArcGIS modules outside codemod scope:
+Top source SDK modules outside codemod scope:
 
 - `esri/symbols` (`amd-dependency`) — 4
 - `esri/views/MapView` (`import-equals`) — 4
@@ -199,7 +201,7 @@ filesScanned=11 filesWithArcGisImports=6 importCount=14 esriLeafletImportCount=0
 | --- | --- |
 | Readiness | `assisted` |
 | Files scanned | 11 |
-| Files importing ArcGIS modules | 6 |
+| Files importing source SDK modules | 6 |
 | Codemod-scoped call sites | 48 |
 | Auto-migrated call-site ratio | 83.3% |
 | Manual-rewrite ratio | 16.7% |
@@ -215,7 +217,7 @@ Top manual-TODO kinds:
 - `point-geometry` — 1
 - `reactive-utils` — 1
 
-Top ArcGIS modules outside codemod scope:
+Top source SDK modules outside codemod scope:
 
 - `@arcgis/core/Viewpoint` (`static-import`) — 2
 
@@ -238,7 +240,7 @@ filesScanned=26 filesWithArcGisImports=4 importCount=10 esriLeafletImportCount=0
 | --- | --- |
 | Readiness | `assisted` |
 | Files scanned | 26 |
-| Files importing ArcGIS modules | 4 |
+| Files importing source SDK modules | 4 |
 | Codemod-scoped call sites | 9 |
 | Auto-migrated call-site ratio | 77.8% |
 | Manual-rewrite ratio | 22.2% |
@@ -251,7 +253,7 @@ Top manual-TODO kinds:
 - `basemap` — 1
 - `map-view` — 1
 
-Top ArcGIS modules outside codemod scope:
+Top source SDK modules outside codemod scope:
 
 - `@arcgis/core/symbols/support/symbolUtils` (`static-import`) — 1
 
@@ -274,7 +276,7 @@ filesScanned=15 filesWithArcGisImports=3 importCount=8 esriLeafletImportCount=0 
 | --- | --- |
 | Readiness | `assisted` |
 | Files scanned | 15 |
-| Files importing ArcGIS modules | 3 |
+| Files importing source SDK modules | 3 |
 | Codemod-scoped call sites | 7 |
 | Auto-migrated call-site ratio | 71.4% |
 | Manual-rewrite ratio | 28.6% |
@@ -287,7 +289,7 @@ Top manual-TODO kinds:
 - `feature-filter` — 1
 - `feature-layer` — 1
 
-Top ArcGIS modules outside codemod scope:
+Top source SDK modules outside codemod scope:
 
 - `@arcgis/core/layers/support/FeatureEffect` (`static-import`) — 1
 
@@ -310,7 +312,7 @@ filesScanned=13 filesWithArcGisImports=4 importCount=24 esriLeafletImportCount=0
 | --- | --- |
 | Readiness | `assisted` |
 | Files scanned | 13 |
-| Files importing ArcGIS modules | 4 |
+| Files importing source SDK modules | 4 |
 | Codemod-scoped call sites | 43 |
 | Auto-migrated call-site ratio | 86.1% |
 | Manual-rewrite ratio | 14.0% |
@@ -323,7 +325,7 @@ Top manual-TODO kinds:
 - `point-geometry` — 4
 - `reactive-utils` — 2
 
-Top ArcGIS modules outside codemod scope:
+Top source SDK modules outside codemod scope:
 
 - `@arcgis/core/layers/WebTileLayer` (`static-import`) — 2
 - `@arcgis/core/assets/esri/themes/light/main.css` (`static-import`) — 1

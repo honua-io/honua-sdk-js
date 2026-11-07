@@ -1,19 +1,21 @@
 ---
 type: reference
-title: "Esri Sample Migration Corpus"
-description: "This corpus is the first bounded slice for paired Esri sample app and referenced"
+title: "Source Sample Migration Corpus"
+description: "This corpus is the first bounded slice for paired upstream sample app and referenced"
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
-# Esri Sample Migration Corpus
+# Source Sample Migration Corpus
 
-This corpus is the first bounded slice for paired Esri sample app and referenced
+The source SDK is Esri's ArcGIS Maps SDK for JavaScript. Source names, module paths and upstream links identify the input format and retain its attribution.
+
+This corpus is the first bounded slice for paired upstream sample app and referenced
 service migration evidence. It is intentionally fixture-first.
 
 ## PR CI Guardrails
 
-- PR CI must not contact live Esri services.
-- PR CI must not vendor Esri sample source code.
-- PR CI must not commit Esri-hosted service data, basemaps, screenshots, or
+- PR CI must not contact live upstream services.
+- PR CI must not vendor upstream sample source code.
+- PR CI must not commit upstream-hosted service data, basemaps, screenshots, or
   Portal exports.
 - Sample source URLs are metadata references only.
 - Samples that require API keys, OAuth, private content, premium services, or
@@ -22,7 +24,7 @@ service migration evidence. It is intentionally fixture-first.
 
 The committed manifest lives at
 `test/fixtures/esri-sample-corpus/manifest.json`. Its fixtures are tiny
-Honua-owned snippets that mimic common ArcGIS Maps SDK for JavaScript patterns:
+Honua-owned snippets that mimic common source JavaScript mapping SDK patterns:
 service URL references, Portal item references, API-key routing references, and
 OAuth/private Portal references.
 
@@ -30,7 +32,7 @@ OAuth/private Portal references.
 
 The manifest uses `schemaVersion: "honua.esri-sample-corpus.v1"` and records:
 
-- global guardrails for no vendored Esri code, no committed Esri service data,
+- global guardrails for no vendored upstream code, no committed upstream service data,
   fixture-only PR CI, and opt-in live evidence lanes
 - one entry per curated sample with `id`, `title`, source URL metadata,
   fixture location, status, license metadata, terms notes, skip reasons, and
@@ -90,7 +92,7 @@ void uniqueUnsupportedApis;
 Samples whose manifest entry is `status: "skipped"` (private-portal, routing
 API-key, premium-service, etc.) appear in the evidence record with
 `status: "skipped"` and the manifest skip reason — they always count toward the
-aggregate, but never as `migrated`. No live Esri services are contacted; the
+aggregate, but never as `migrated`. No live upstream services are contacted; the
 helper operates entirely on the committed fixture corpus.
 
 The same evidence can be persisted to disk via the migration CLI subcommand
@@ -108,17 +110,17 @@ node dist/src/migration/cli.js corpus-evidence \
 
 ## Live Evidence Lanes
 
-Live Esri sample/service evidence is reserved for scheduled or manual runs. A
+Live upstream sample/service evidence is reserved for scheduled or manual runs. A
 live lane should:
 
 - require an explicit environment flag and any needed credentials
-- rate-limit requests and avoid load/performance testing against Esri services
+- rate-limit requests and avoid load/performance testing against upstream services
 - record source sample URL, retrieved date, service URLs, Portal item ids,
   service import result, app migration result, unsupported/manual-review items,
   and browser smoke result
 - skip samples requiring credentials, premium services, private content, or
   unclear content terms unless the lane has explicit permission
-- emit artifacts for review rather than committing Esri source or service data
+- emit artifacts for review rather than committing upstream source or service data
 
 Follow-on issue #206 work can layer service import, app codemod, URL rewriting,
 and Playwright smoke evidence on top of this manifest and extraction helper.

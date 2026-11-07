@@ -482,7 +482,7 @@ describe("formatOssArcGisCorpusMarkdown", () => {
     const markdown = formatOssArcGisCorpusMarkdown(manifest, observation);
 
     expect(markdown).toContain("GENERATED FILE - DO NOT EDIT");
-    expect(markdown).toContain("# Third-party open-source ArcGIS app readiness");
+    expect(markdown).toContain("# Third-party open-source mapping app readiness");
     for (const app of manifest.apps) {
       expect(markdown, app.id).toContain(app.repo.commit);
       expect(markdown, app.id).toContain(app.title);
