@@ -1,21 +1,23 @@
 ---
 type: reference
-title: "ArcGIS widget-removal survival guide"
-description: "Every classic ArcGIS JS SDK widget, what replaces it in Honua, and whether the migration is automated, shimmed, hand-written or has no equivalent yet."
+title: "Source SDK widget-removal survival guide"
+description: "Classic source SDK widgets, what replaces them in Honua, and whether the migration is automated, shimmed, hand-written or has no equivalent yet."
 resource: "https://www.npmjs.com/package/@honua/honua-migrate"
-tags: [migration, arcgis, widgets, reference, generated]
+tags: [migration, migration-source-sdk, widgets, reference, generated]
 ---
 <!-- GENERATED FILE - DO NOT EDIT.
      Source of truth: src/migration/widget-dispositions.ts
      Regenerate with: npm run docs:widget-guide -->
 
-# ArcGIS widget-removal survival guide
+# Source SDK widget-removal survival guide
 
-Every classic ArcGIS JS SDK widget (`esri/widgets/*` / `@arcgis/core/widgets/*`) is deprecated as of ArcGIS JS 5.0 and is removed at 6.0 — **as early as Q1 2027**. If your app constructs any of these widgets, that code stops compiling and running when you take the 6.0 upgrade.
+The source SDK here is Esri's ArcGIS Maps SDK for JavaScript. Module paths and release numbers identify that product; Honua is independent of Esri.
 
-This guide answers, for each deprecated widget, what happens if you migrate to Honua/MapLibre instead of rewriting onto Esri's web components. Dispositions are deliberately honest — including "no equivalent" — in the spirit of [docs/migration-punch-list.md](./migration-punch-list.md).
+Every classic source SDK widget (`esri/widgets/*` / `@arcgis/core/widgets/*`) is deprecated as of source SDK 5.0 and is removed at 6.0 — **as early as Q1 2027**. If your app constructs any of these widgets, that code stops compiling and running when you take the 6.0 upgrade.
 
-This document is generated from the versioned disposition data in [`src/migration/widget-dispositions.ts`](../src/migration/widget-dispositions.ts) (v1.4.0); the `honua-migrate` widget scanner consumes the same data, so the scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS release against https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets.html (5.0 deprecation list) and updated manually.
+This guide answers, for each deprecated widget, what happens if you migrate to Honua/MapLibre instead of rewriting onto the source SDK's web components. Dispositions are deliberately honest — including "no equivalent" — in the spirit of [docs/migration-punch-list.md](./migration-punch-list.md).
+
+This document is generated from the versioned disposition data in [`src/migration/widget-dispositions.ts`](../src/migration/widget-dispositions.ts) (v1.4.0); the `honua-migrate` widget scanner consumes the same data, so the scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per source SDK release against https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets.html (5.0 deprecation list) and updated manually.
 
 ## Scan your app first
 
@@ -556,6 +558,6 @@ These surfaces are intentionally **not** covered by the dispositions above:
 ## Related reading
 
 - [Migration punch list](./migration-punch-list.md) — the honest parity/codemod accounting.
-- [Third-party OSS ArcGIS app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod actually do to real, pinned, third-party open-source ArcGIS apps (including the ones they cannot see at all).
+- [Third-party OSS source SDK app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod actually do to real, pinned, third-party open-source apps built on the source SDK (including the ones they cannot see at all).
 - [Honua ⇄ MapLibre migration notes](./migration-honua-maplibre.md) — the `honua-maplibre` codemod target.
 - [SDK guide: Migration CLI](./guide.md#migration-cli) — every `honua-migrate` subcommand.

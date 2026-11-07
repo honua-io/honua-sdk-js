@@ -5,6 +5,8 @@
 
 # Post-codemod build validation
 
+These saved results cover only the recorded source and package revisions. Current applications use `@honua/sdk-client-compat`; historical package names below are not installation guidance.
+
 The [readiness page](./oss-arcgis-corpus-readiness.md) counts call sites. It cannot tell you whether the result still *builds*. This page answers that question the only way it can be answered honestly: by installing a pinned third-party app's real dependency tree, running the codemod over it, installing the Honua compat packages, and building it.
 
 Every app is measured **twice at the same commit with the same dependency tree** — once pristine (`baseline`) and once after `codemod --write` (`migrated`). Third-party apps carry their own pre-existing type errors, so only the *delta* is attributable to the migration. Diagnostics that were already there are reported as the app's, not as ours.
@@ -55,7 +57,7 @@ Deep validation is the one place the corpus installs third-party dependencies, s
 
 The codemod rewrote 5 of 7 in-scope call sites across 3 files to `@honua/sdk-esri-compat`, leaving 2 annotated manual TODOs. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
 
-1 of those TODOs is a held-back rewrite: the construct is in codemod scope, but its value flows into an ArcGIS module the codemod does not migrate, so rewriting it would have left a compat value in an un-migrated ArcGIS consumer's hands (#1012). Held-back call sites are counted as manual, never as auto-migrated.
+1 of those TODOs is a held-back rewrite: the construct is in codemod scope, but its value flows into a source SDK module the codemod does not migrate, so rewriting it would have left a compat value in an un-migrated source SDK consumer's hands (#1012). Held-back call sites are counted as manual, never as auto-migrated.
 
 | Step | Baseline | Migrated |
 | --- | --- | --- |
@@ -96,7 +98,7 @@ The app ships no TypeScript, so the probe type-checks its JavaScript with `allow
 
 The codemod rewrote 37 of 43 in-scope call sites across 2 files to `@honua/sdk-esri-compat`, leaving 6 annotated manual TODOs. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
 
-2 of those TODOs are held-back rewrites: the construct is in codemod scope, but its value flows into an ArcGIS module the codemod does not migrate, so rewriting it would have left a compat value in an un-migrated ArcGIS consumer's hands (#1012). Held-back call sites are counted as manual, never as auto-migrated.
+2 of those TODOs are held-back rewrites: the construct is in codemod scope, but its value flows into a source SDK module the codemod does not migrate, so rewriting it would have left a compat value in an un-migrated source SDK consumer's hands (#1012). Held-back call sites are counted as manual, never as auto-migrated.
 
 | Step | Baseline | Migrated |
 | --- | --- | --- |
