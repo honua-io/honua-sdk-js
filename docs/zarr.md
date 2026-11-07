@@ -74,7 +74,8 @@ const tile = await zarr.tile({
   v3 permits uncompressed or gzip chunks. Blosc, Zstandard, big-endian dtypes,
   and version-mismatched or ambiguous metadata fail explicitly. Server v3
   metadata's canonical NumPy descriptor is normalized to the corresponding v3
-  name when a registration response enters the SDK.
+  name when a registration response enters the SDK. The server also reads v2
+  gzip chunks, but this SDK readiness check currently rejects that combination.
 - `assess()` mirrors the server's primary-or-first variable selection. Its
   readiness options require the requested tile matrix SRID and a finite,
   non-degenerate storage extent from the associated layer/coverage metadata,

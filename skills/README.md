@@ -108,7 +108,7 @@ The repo root ships a `context7.json` so [Context7](https://context7.com) parses
 and serves this library's docs to coding agents. To (re)submit:
 
 1. Confirm `context7.json` at the repo root is current (see the
-   [Library Owners guide](https://context7.com/library-owners) for the schema).
+   [Library Owners guide](https://context7.com/docs/library-owners) for the schema).
 2. Open <https://context7.com/add-library>, choose the GitHub tab, and paste the
    `honua-io/honua-sdk-js` repository URL.
 3. Context7 reads `context7.json` (folders/excludes/rules) and indexes the docs,

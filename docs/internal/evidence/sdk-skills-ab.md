@@ -1,3 +1,8 @@
+---
+type: reference
+title: "SDK skills paired runs"
+description: "Paired Opus 5.5 tasks on a real local server; only the MCP setup skill improved on its unaided run."
+---
 # SDK skills paired runs
 
 Date: 2026-11-06 PT. Model: Claude Code with `claude-opus-5-5`. One local Compose quickstart on port 18080. Each task ran twice: once with only that skill installed at `.claude/skills`, and once with no skill files. Both arms received the package README and `AGENTS.md` sections 1–6. Pass or fail is an independent check of the server or the artifact, not the model's own report. A wrong turn is a tool result with is_error set, or a shell result whose text contained a traceback, the word unauthenticated, isError set to true, or a status of error.
