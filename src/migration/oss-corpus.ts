@@ -5,7 +5,7 @@ import type { JsMigrationReport, MigrationReadiness } from "./report.js";
 import type { WidgetReadinessReport } from "./widget-scanner.js";
 
 /**
- * Third-party open-source JavaScript mapping app corpus.
+ * Third-party open-source app corpus for the source SDK.
  *
  * The corpus is a *manifest of pointers*: every entry names a public GitHub
  * repository, the exact commit the lane checks out, and the reviewed license
@@ -756,15 +756,15 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
   lines.push(`                       ${manifest.lane.publishedObservationPath}`);
   lines.push("     Regenerate with: npm run docs:oss-arcgis-corpus -->");
   lines.push("");
-  lines.push("# Third-party open-source mapping app readiness");
+  lines.push("# Third-party open-source source SDK app readiness");
   lines.push("");
   lines.push(
-    "The source SDK is Esri's ArcGIS Maps SDK for JavaScript. Input names and module paths retain attribution; each measurement is bounded by its recorded revision.",
+    "The source SDK is Esri's ArcGIS Maps SDK for JavaScript, including its predecessor ArcGIS API for JavaScript 3.x (`esri/*` AMD modules); Esri Leaflet imports are counted separately.",
   );
   lines.push("");
   lines.push(
     "Every other migration number Honua publishes comes from Honua-authored fixtures. This page does not: " +
-      "it reports what `honua-migrate` does to **real, third-party, open-source JavaScript mapping applications** that " +
+      "it reports what `honua-migrate` does to **real, third-party, open-source applications built on the source SDK** that " +
       "were written by other people, for their own purposes, with no knowledge of the codemod.",
   );
   lines.push("");
@@ -799,7 +799,7 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
   lines.push(`| Codemod-scoped call sites | ${run.summary.totalCallSites} |`);
   lines.push(`| Auto-migrated call sites | ${run.summary.autoMigratedCallSites} |`);
   lines.push(`| Auto-migrated call-site ratio | ${formatRatio(run.summary.autoMigratedRatio)} |`);
-  lines.push(`| source SDK module hits outside codemod scope | ${run.summary.unhandledUsageHits} |`);
+  lines.push(`| Source SDK module hits outside codemod scope | ${run.summary.unhandledUsageHits} |`);
   lines.push(`| Apps with no source SDK usage detected | ${run.summary.undetectedApps.length} |`);
   lines.push("");
 

@@ -3,7 +3,7 @@ type: reference
 title: "Source SDK widget-removal survival guide"
 description: "Classic source SDK widgets, what replaces them in Honua, and whether the migration is automated, shimmed, hand-written or has no equivalent yet."
 resource: "https://www.npmjs.com/package/@honua/honua-migrate"
-tags: [migration, client-compat, widgets, reference, generated]
+tags: [migration, migration-source-sdk, widgets, reference, generated]
 ---
 <!-- GENERATED FILE - DO NOT EDIT.
      Source of truth: src/migration/widget-dispositions.ts
@@ -558,6 +558,6 @@ These surfaces are intentionally **not** covered by the dispositions above:
 ## Related reading
 
 - [Migration punch list](./migration-punch-list.md) — the honest parity/codemod accounting.
-- [Third-party OSS source mapping app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod actually do to real, pinned, third-party open-source source mapping apps (including the ones they cannot see at all).
+- [Third-party OSS source SDK app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod actually do to real, pinned, third-party open-source apps built on the source SDK (including the ones they cannot see at all).
 - [Honua ⇄ MapLibre migration notes](./migration-honua-maplibre.md) — the `honua-maplibre` codemod target.
 - [SDK guide: Migration CLI](./guide.md#migration-cli) — every `honua-migrate` subcommand.

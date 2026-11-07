@@ -406,8 +406,8 @@ export function formatOssArcGisDeepBuildMarkdown(manifest: OssArcGisCorpusManife
           [
             `${app.codemod.seamCallSites} of those TODOs`,
             `${app.codemod.seamCallSites === 1 ? "is a held-back rewrite" : "are held-back rewrites"}: the construct`,
-            "is in codemod scope, but its value flows into an source SDK module the codemod does not migrate, so",
-            "rewriting it would have left a compat value in an un-migrated ArcGIS consumer's hands (#1012).",
+            "is in codemod scope, but its value flows into a source SDK module the codemod does not migrate, so",
+            "rewriting it would have left a compat value in an un-migrated source SDK consumer's hands (#1012).",
             "Held-back call sites are counted as manual, never as auto-migrated.",
           ].join(" "),
         );

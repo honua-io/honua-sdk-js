@@ -78,7 +78,7 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
       'equivalent yet."',
   );
   lines.push('resource: "https://www.npmjs.com/package/@honua/honua-migrate"');
-  lines.push("tags: [migration, client-compat, widgets, reference, generated]");
+  lines.push("tags: [migration, migration-source-sdk, widgets, reference, generated]");
   lines.push("---");
   lines.push("<!-- GENERATED FILE - DO NOT EDIT.");
   lines.push("     Source of truth: src/migration/widget-dispositions.ts");
@@ -240,8 +240,8 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   lines.push("");
   lines.push("- [Migration punch list](./migration-punch-list.md) — the honest parity/codemod accounting.");
   lines.push(
-    "- [Third-party OSS source mapping app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod " +
-      "actually do to real, pinned, third-party open-source source mapping apps (including the ones they cannot see at all).",
+    "- [Third-party OSS source SDK app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod " +
+      "actually do to real, pinned, third-party open-source apps built on the source SDK (including the ones they cannot see at all).",
   );
   lines.push("- [Honua ⇄ MapLibre migration notes](./migration-honua-maplibre.md) — the `honua-maplibre` codemod target.");
   lines.push("- [SDK guide: Migration CLI](./guide.md#migration-cli) — every `honua-migrate` subcommand.");

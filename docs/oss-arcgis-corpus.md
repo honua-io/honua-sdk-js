@@ -1,4 +1,6 @@
-# Third-party open-source mapping app corpus
+# Third-party open-source source SDK app corpus
+
+The source SDK is Esri's ArcGIS Maps SDK for JavaScript, including its predecessor ArcGIS API for JavaScript 3.x (`esri/*` AMD modules); Esri Leaflet imports are counted separately.
 
 Every migration number Honua published before this corpus came from
 Honua-authored fixtures — code written to exercise the codemod, by people who
@@ -67,7 +69,6 @@ measures.
 ```bash
 # Full corpus (clones every pinned app, then deletes the checkouts)
 
-The source SDK is Esri's ArcGIS Maps SDK for JavaScript. Source names, module paths and upstream links identify the input format and retain its attribution.
 HONUA_OSS_ARCGIS_CORPUS_ENABLED=true npm run corpus:oss-arcgis
 
 # One app, keeping the checkout for inspection
@@ -120,7 +121,7 @@ most, and they must be read together:
 - **Auto-migrated call-site ratio** — of the call sites the codemod claims,
   how many did it rewrite without leaving a manual TODO.
 - **Apps with no source SDK usage detected** — apps where the scanner found
-  *nothing*, despite reviewed evidence that they are source mapping apps. For those
+  *nothing*, despite reviewed evidence that they use the source SDK. For those
   apps there is no readiness verdict to read: the report says
   `readiness: "no-usage-detected"` and every number beside it measures the
   scanner's blind spot, not the app. This count is `0` in the current

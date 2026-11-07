@@ -3,11 +3,11 @@
                        docs/data/oss-arcgis-corpus-readiness.v1.json
      Regenerate with: npm run docs:oss-arcgis-corpus -->
 
-# Third-party open-source mapping app readiness
+# Third-party open-source source SDK app readiness
 
-The source SDK is Esri's ArcGIS Maps SDK for JavaScript. Input names and module paths retain attribution; each measurement is bounded by its recorded revision.
+The source SDK is Esri's ArcGIS Maps SDK for JavaScript, including its predecessor ArcGIS API for JavaScript 3.x (`esri/*` AMD modules); Esri Leaflet imports are counted separately.
 
-Every other migration number Honua publishes comes from Honua-authored fixtures. This page does not: it reports what `honua-migrate` does to **real, third-party, open-source JavaScript mapping applications** that were written by other people, for their own purposes, with no knowledge of the codemod.
+Every other migration number Honua publishes comes from Honua-authored fixtures. This page does not: it reports what `honua-migrate` does to **real, third-party, open-source applications built on the source SDK** that were written by other people, for their own purposes, with no knowledge of the codemod.
 
 The corpus pins 7 public GitHub repositories at an exact commit with a reviewed permissive license. No third-party source is vendored here — the lane clones into an ignored scratch directory, analyzes the working copy, and keeps only the structured records below.
 
@@ -27,7 +27,7 @@ The corpus pins 7 public GitHub repositories at an exact commit with a reviewed 
 | Codemod-scoped call sites | 214 |
 | Auto-migrated call sites | 107 |
 | Auto-migrated call-site ratio | 50.0% |
-| source SDK module hits outside codemod scope | 151 |
+| Source SDK module hits outside codemod scope | 151 |
 | Apps with no source SDK usage detected | 0 |
 
 ### Top manual-TODO kinds across the corpus
