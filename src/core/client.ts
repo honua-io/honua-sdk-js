@@ -12,6 +12,8 @@ import {
   withHonuaCacheState,
   withoutHonuaCacheState,
 } from "./cache-state.js";
+import { getCatalogItem, listCatalog } from "./catalog.js";
+import type { HonuaCatalogItem, HonuaCatalogPage, HonuaCatalogQuery, HonuaCatalogRequestOptions } from "./catalog.js";
 import {
   HONUA_MINIMUM_SUPPORTED_SERVER_VERSION,
   MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL,
@@ -1085,6 +1087,14 @@ export class HonuaClient {
       },
       signal,
     ) as Promise<MigrationSourceInventoryArtifact>;
+  }
+
+  public listCatalog(request: HonuaCatalogQuery = {}): Promise<HonuaCatalogPage> {
+    return listCatalog(this.protocolTransport, request);
+  }
+
+  public getCatalogItem(id: string, options: HonuaCatalogRequestOptions = {}): Promise<HonuaCatalogItem> {
+    return getCatalogItem(this.protocolTransport, { ...options, id });
   }
 
   public async request<T = unknown>(request: HonuaRawRequest): Promise<T> {

@@ -20,6 +20,17 @@
  * @packageDocumentation
  */
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
+export type {
+  HonuaCatalogAccess,
+  HonuaCatalogFacet,
+  HonuaCatalogFacetName,
+  HonuaCatalogItem,
+  HonuaCatalogItemType,
+  HonuaCatalogLink,
+  HonuaCatalogPage,
+  HonuaCatalogQuery,
+  HonuaCatalogRequestOptions,
+} from "./core/catalog.js";
 export {
   HONUA_CONNECT_ADAPTER_VERSION,
   HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
