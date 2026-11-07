@@ -273,7 +273,7 @@ const SECTIONS = [
     entries: [
       {
         path: "skills/README.md",
-        description: "Agent skills for Claude Code / compatible agents and how to install them.",
+        description: "Operating skill shipment status and paired-run evidence requirements.",
       },
       {
         path: "docs/zero-to-map-release-journey.md",
