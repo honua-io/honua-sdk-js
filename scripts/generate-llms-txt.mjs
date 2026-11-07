@@ -273,7 +273,7 @@ const SECTIONS = [
     entries: [
       {
         path: "skills/README.md",
-        description: "Operating skill shipment status and paired-run evidence requirements.",
+        description: "Agent skill status, release scope, and verification gates.",
       },
       {
         path: "docs/zero-to-map-release-journey.md",
