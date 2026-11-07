@@ -9,7 +9,7 @@ The previous lane recorded the following narrative. Its per-arm transcripts, che
 
 Reported date: 2026-11-06 PT. Model: Claude Code with `claude-opus-5-5`. One local Compose quickstart on port 18080. Each task ran twice: once with only that skill installed at `.claude/skills`, and once with no skill files. Both arms received the package README and `AGENTS.md` sections 1–6. Pass or fail is an independent check of the server or the artifact, not the model's own report. A wrong turn is a tool result with is_error set, or a shell result whose text contained a traceback, the word unauthenticated, isError set to true, or a status of error.
 
-A skill stays only when the run with it passes and the run without it fails, or both pass and the run with it has fewer wrong turns.
+The previous lane used this decision rule: a skill stays only when the run with it passes and the run without it fails, or both pass and the run with it has fewer wrong turns.
 
 | Skill | Without | With | Decision |
 | --- | --- | --- | --- |

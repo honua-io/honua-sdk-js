@@ -3,7 +3,7 @@
 A growing share of integration code is written by coding agents, and "agents
 use this SDK correctly on the first try" is a measurable, winnable property.
 This repo already ships the inputs — [`llms.txt`](../llms.txt) /
-[`llms-full.txt`](../llms-full.txt), agent skills, Context7 registration, the
+[`llms-full.txt`](../llms-full.txt), Context7 registration, the
 MCP server — and this harness measures whether they work, with the same
 discipline the MCP package applies through its certification/eval kits
 (`mcp/src/certification/`, `mcp/src/eval/`).

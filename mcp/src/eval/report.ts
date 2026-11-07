@@ -19,7 +19,6 @@ export interface EvalResult {
    */
   missingTools: string[];
   /** Copied from the transcript so a saved artifact can be audited without the live run. */
-  skillId?: string;
   journeyStage?: string;
   journeyAction?: string;
   surface?: WorkflowTranscript["surface"];
@@ -138,7 +137,6 @@ export function assembleReport(input: AssembleInput): EvalReport {
     errorCount: grade.errorCount,
     driverError: transcript.driverError,
     missingTools: (requiredByScenario.get(grade.scenarioId) ?? []).filter((t) => !advertised.has(t)),
-    skillId: transcript.skillId,
     journeyStage: transcript.journeyStage,
     journeyAction: transcript.journeyAction,
     surface: transcript.surface,

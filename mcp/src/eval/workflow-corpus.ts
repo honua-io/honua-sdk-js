@@ -255,7 +255,6 @@ export function blockedTranscript(
     errorCount: 0,
     blockedReason: `server profile not enabled: ${profiles.join(", ")}`,
     surface: "mcp",
-    skillId: scenario.skillId,
     journeyStage: scenario.journeyStage,
     journeyAction: scenario.journeyAction,
     attribution: "HARNESS_DRIVEN",
@@ -285,7 +284,6 @@ export function annotateTranscript(
   return {
     ...transcript,
     surface: transcript.surface ?? "mcp",
-    skillId: scenario.skillId,
     journeyStage: scenario.journeyStage,
     journeyAction: scenario.journeyAction,
     attribution,
