@@ -49,8 +49,6 @@ export interface WorkflowTranscript {
   driverError?: string;
   /** Which surface produced the step. Docs lookups are `docs`; CLI-only steps are `cli`. */
   surface?: "mcp" | "docs" | "cli";
-  /** Skill whose operator sentence was the prompt. */
-  skillId?: string;
   /** Copied from the journey oracle after the run. The model never sees these. */
   journeyStage?: string;
   journeyAction?: string;
@@ -121,8 +119,6 @@ export interface Scenario {
    * with `criteria.expectClarification: true`.
    */
   clarify?: { question: string };
-  /** Skill file the prompt was taken from. Not shown to the model as an id. */
-  skillId?: string;
   /** Journey stage id this scenario covers. Applied to the transcript after the run. */
   journeyStage?: string;
   /** Journey action id this scenario covers. */

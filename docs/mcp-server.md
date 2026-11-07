@@ -94,6 +94,6 @@ the environment variables, and the bootstrap-only local-install mode. The
 local installer hands MCP clients a `honua-local-agent` key carrying
 `admin:read`, `admin:write`, and `read:*`; `read:*` is what lets it list,
 query, and render layers, and a key minted before it was added is re-issued
-on the next `honua admin install local` (see the `honua-local-setup` skill). How well
+on the next `honua admin install local`. How well
 different client models actually drive this surface is measured, not claimed:
 see the [cross-model eval scorecard](generated/mcp-eval-scorecard.md).

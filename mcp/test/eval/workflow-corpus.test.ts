@@ -36,7 +36,6 @@ describe("workflow corpus", () => {
       expect(scenario.prompt).not.toContain("journey.v1.json");
       expect(scenario.prompt).not.toContain("-157.8616");
       expect(scenario.journeyStage).toBeTruthy();
-      expect(scenario.skillId).toBeTruthy();
     }
     expect(WORKFLOW_CORPUS.map((scenario) => scenario.id)).toContain("buffer-three-ways");
   });
@@ -124,7 +123,6 @@ describe("workflow corpus", () => {
       annotateTranscript(await new DeterministicDriver().runWorkflow(scenario, ctx), scenario, "HARNESS_DRIVEN"),
     );
     expect(grade(scenario, result).outcome).toBe("pass");
-    expect(result.skillId).toBe("honua-datasource-connect");
   });
 
   it("requires a full lifecycle for map, app, and dashboard", () => {
