@@ -182,3 +182,27 @@ test("validates a complete snippet collection", () => {
     skipped: 1,
   });
 });
+
+test("compiles component package imports against the built split-package declarations", () => {
+  const root = fixtureProject();
+  const declarations = path.join(root, "dist", "src", "catalog-components");
+  fs.mkdirSync(declarations, { recursive: true });
+  fs.writeFileSync(
+    path.join(declarations, "index.d.ts"),
+    "export declare function defineCatalogComponents(options: { enabled?: boolean }): void;\n",
+  );
+  const registration = (enabled) => snippet(
+    [
+      "```ts doc-test=compile",
+      "import { defineCatalogComponents } from '@honua/components';",
+      `defineCatalogComponents({ enabled: ${enabled} });`,
+      "```",
+    ].join("\n"),
+    "docs/catalog-components.md",
+  );
+  assert.deepEqual(validateSnippetWithCompiler(registration("true"), root), []);
+  assert.match(
+    validateSnippetWithCompiler(registration('"yes"'), root).join("\n"),
+    /Type 'string' is not assignable to type 'boolean/,
+  );
+});

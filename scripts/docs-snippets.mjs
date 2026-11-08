@@ -73,7 +73,7 @@ function compilerOptions(projectRoot) {
   const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, projectRoot, undefined, configPath);
   if (parsed.errors.length > 0) throw new Error(ts.formatDiagnostics(parsed.errors, diagnosticHost));
   const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
-  const splitPaths = {};
+  const splitPaths = { "@honua/components": ["dist/src/catalog-components/index.d.ts"] };
   for (const [packageName, subpath] of [
     ["@honua/geometry", "./geometry"],
     ["@honua/react", "./react"],

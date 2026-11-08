@@ -16,7 +16,7 @@ bytes with the repository's esbuild settings. Its normal bundle gate allows
 
 This slice supports fixture development. Registration is disabled by default:
 
-```ts
+```ts doc-test=compile
 import { defineCatalogComponents } from '@honua/components';
 
 defineCatalogComponents({ enabled: true });
