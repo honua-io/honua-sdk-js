@@ -11,6 +11,7 @@ test("catalog search stays keyboard accessible at 390px under restrictive respon
   await page.addInitScript(() => document.addEventListener("securitypolicyviolation", event => window.recordViolation({directive:event.violatedDirective, blocked:event.blockedURI, source:event.sourceFile, line:event.lineNumber})));
   try {
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: server.url });
     const response = await page.goto(server.url);
     expect(response.headers()["content-security-policy"]).not.toContain("unsafe-inline");
     await expect.poll(() => page.evaluate(() => window.fixtureReady)).toBe(true);
@@ -20,7 +21,8 @@ test("catalog search stays keyboard accessible at 390px under restrictive respon
     await expect(endpoints.getByRole("link")).toHaveCount(2);
     await endpoints.getByRole("button").first().focus();
     await page.keyboard.press("Enter");
-    await expect(endpoints.getByRole("status")).toContainText(/Copied|Copy is unavailable/);
+    await expect(endpoints.getByRole("status")).toContainText("Copied");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(await endpoints.getByRole("link").first().getAttribute("href"));
     const apps = page.locator("honua-apps-using");
     await expect(apps.locator("article")).toHaveCount(1);
     await apps.getByRole("button", { name: "Next", exact: true }).focus();

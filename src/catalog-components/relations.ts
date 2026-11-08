@@ -1,13 +1,13 @@
-import { CatalogElement } from "./base.js";
-import { catalogHref, node, renderCard, renderCatalogPaging, visibleCard } from "./dom.js";
+import { PagedCatalogElement } from "./base.js";
+import { catalogHref, node, renderCardList, renderItemLink, visibleCard } from "./dom.js";
 import type { CatalogAppsUsingProjection, CatalogEndpointProjection, CatalogRelationQuery } from "./presentation.js";
 
-abstract class CatalogRelationElement extends CatalogElement {
+abstract class CatalogRelationElement extends PagedCatalogElement {
   protected identity(): Omit<CatalogRelationQuery, "offset" | "limit"> | undefined {
     const catalogId = this.getAttribute("catalog");
     const service = this.getAttribute("service");
     const layer = this.getAttribute("layer");
-    if (!catalogId || Number(service !== null) + Number(layer !== null) !== 1 || !(service || layer)) {
+    if (!catalogId || (service === null) === (layer === null) || !(service || layer)) {
       this.state("configuration", "Configure a catalog and exactly one service or layer.");
       return;
     }
@@ -45,25 +45,33 @@ export class HonuaServiceEndpointsElement extends CatalogRelationElement {
           ?.split(",")
           .map((value) => value.trim())
           .filter(Boolean);
-        const endpoints = item.endpoints.filter(
-          (endpoint) => catalogHref(endpoint.href) && (!protocols?.length || protocols.includes(endpoint.protocol)),
-        );
+        const endpoints = item.endpoints.flatMap((endpoint) => {
+          const href = catalogHref(endpoint.href);
+          return href && (!protocols?.length || protocols.includes(endpoint.protocol)) ? [{ ...endpoint, href }] : [];
+        });
         this.renderEndpoints(endpoints, generation);
         this.structuredData(item.structuredData);
         if (this.isCurrent(generation))
-          this.state(endpoints.length ? "ready" : "empty", endpoints.length ? "" : "No advertised endpoints.");
+          this.state(
+            endpoints.length ? "ready" : "empty",
+            endpoints.length ? "" : item.endpoints.length ? "No matching safe endpoints." : "No advertised endpoints.",
+          );
       },
     );
   }
 
   private renderEndpoints(endpoints: readonly CatalogEndpointProjection[], generation: number): void {
+    if (!this.hasAttribute("group")) {
+      for (const endpoint of endpoints) this.content.append(this.endpointRow(endpoint, generation));
+      return;
+    }
     const groups = new Map<string, CatalogEndpointProjection[]>();
     for (const endpoint of endpoints)
       groups.set(endpoint.protocol, [...(groups.get(endpoint.protocol) ?? []), endpoint]);
     for (const [protocol, entries] of groups) {
       const section = node(this.ownerDocument, "section");
       section.className = "catalog-endpoints";
-      section.append(node(this.ownerDocument, "h2", protocol));
+      section.setAttribute("aria-label", `${protocol} endpoints`);
       for (const endpoint of entries) section.append(this.endpointRow(endpoint, generation));
       this.content.append(section);
     }
@@ -72,11 +80,11 @@ export class HonuaServiceEndpointsElement extends CatalogRelationElement {
   private endpointRow(endpoint: CatalogEndpointProjection, generation: number): HTMLElement {
     const row = node(this.ownerDocument, "p");
     const link = node(this.ownerDocument, "a", endpoint.href);
-    link.href = catalogHref(endpoint.href) as string;
+    link.href = endpoint.href;
     row.append(link);
     if (endpoint.mediaType) row.append(node(this.ownerDocument, "span", ` (${endpoint.mediaType})`));
     if (this.hasAttribute("copy")) {
-      const copy = node(this.ownerDocument, "button", `Copy ${endpoint.protocol} URL`);
+      const copy = node(this.ownerDocument, "button", `Copy ${endpoint.protocol} URL ${endpoint.href}`);
       copy.type = "button";
       copy.addEventListener("click", () => void this.copyEndpoint(endpoint, generation));
       row.append(copy);
@@ -91,12 +99,12 @@ export class HonuaServiceEndpointsElement extends CatalogRelationElement {
       if (!clipboard) throw new Error("Clipboard is unavailable");
       await clipboard.writeText(endpoint.href);
       if (!this.isCurrent(generation)) return;
-      this.state("ready", `Copied ${endpoint.protocol} URL.`);
+      this.status.textContent = `Copied ${endpoint.protocol} URL.`;
       if (!this.isCurrent(generation)) return;
       this.dispatchEvent(new CustomEvent("honua-endpoint-copy", { detail: endpoint, bubbles: true, composed: true }));
     } catch {
       if (this.isCurrent(generation))
-        this.state("ready", "Copy is unavailable. Select the endpoint link to copy its address.");
+        this.status.textContent = "Copy is unavailable. Select the endpoint link to copy its address.";
     }
   }
 }
@@ -105,8 +113,7 @@ export class HonuaAppsUsingElement extends CatalogRelationElement {
   static get observedAttributes(): string[] {
     return ["catalog", "service", "layer", "view", "limit"];
   }
-  private offset = 0;
-  private focusKey?: string;
+  private recovering = false;
 
   override attributeChangedCallback(): void {
     this.offset = 0;
@@ -114,8 +121,12 @@ export class HonuaAppsUsingElement extends CatalogRelationElement {
   }
 
   override refresh(): void {
-    this.focusKey = this.focusedControl();
-    const generation = this.clear();
+    this.recovering = false;
+    this.loadPage();
+  }
+
+  private loadPage(): void {
+    const generation = this.beginPageRead();
     if (!this.isCurrent(generation)) return;
     const identity = this.identity();
     if (!identity) return;
@@ -150,6 +161,7 @@ export class HonuaAppsUsingElement extends CatalogRelationElement {
       !Number.isInteger(page.total) ||
       page.total < 0 ||
       page.items.length > query.limit ||
+      (page.items.length === 0 && page.total > query.offset) ||
       (page.items.length > 0 && page.total < query.offset + page.items.length) ||
       page.items.some((item) => !["map", "app"].includes(item.kind) || !visibleCard(item))
     ) {
@@ -158,17 +170,18 @@ export class HonuaAppsUsingElement extends CatalogRelationElement {
     }
     if (!page.items.length && this.offset > 0) {
       const offset = Math.max(0, Math.floor((page.total - 1) / query.limit) * query.limit);
-      if (offset === this.offset) {
+      if (this.recovering || offset >= this.offset) {
         this.state("unavailable", "This page is unavailable. Refresh to try again.");
         return;
       }
       this.offset = offset;
-      this.refresh();
+      this.recovering = true;
+      this.loadPage();
       return;
     }
     this.renderItems(page);
-    this.renderPaging(page);
-    this.restoreControlFocus(this.focusKey);
+    this.renderPaging(page.total, page.limit, "Apps and maps pages");
+    this.restorePageFocus();
     if (!this.isCurrent(generation)) return;
     this.structuredData(page.structuredData);
     if (this.isCurrent(generation))
@@ -180,14 +193,7 @@ export class HonuaAppsUsingElement extends CatalogRelationElement {
 
   private renderItems(page: CatalogAppsUsingProjection): void {
     if (this.getAttribute("view") !== "table") {
-      const list = node(this.ownerDocument, "ul");
-      list.className = "catalog-results";
-      for (const item of page.items) {
-        const row = node(this.ownerDocument, "li");
-        row.append(renderCard(this.ownerDocument, item));
-        list.append(row);
-      }
-      this.content.append(list);
+      this.content.append(renderCardList(this.ownerDocument, page.items));
       return;
     }
     const table = node(this.ownerDocument, "table");
@@ -206,26 +212,11 @@ export class HonuaAppsUsingElement extends CatalogRelationElement {
       const row = node(this.ownerDocument, "tr");
       row.append(node(this.ownerDocument, "td", item.kind === "app" ? "App" : "Map"));
       const cell = node(this.ownerDocument, "td");
-      const link = node(this.ownerDocument, "a", item.title);
-      link.href = catalogHref(item.detailHref) as string;
-      cell.append(link);
+      cell.append(renderItemLink(this.ownerDocument, item));
       row.append(cell);
       body.append(row);
     }
     table.append(body);
     this.content.append(table);
-  }
-
-  private renderPaging(page: CatalogAppsUsingProjection): void {
-    this.content.append(
-      renderCatalogPaging(
-        this.ownerDocument,
-        { offset: this.offset, total: page.total, limit: page.limit, label: "Apps and maps pages" },
-        (offset) => {
-          this.offset = offset;
-          this.refresh();
-        },
-      ),
-    );
   }
 }

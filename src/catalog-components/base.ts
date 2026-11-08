@@ -1,4 +1,4 @@
-import { node } from "./dom.js";
+import { node, renderCatalogPaging } from "./dom.js";
 import type { CatalogComponentClient, CatalogStructuredData } from "./presentation.js";
 import { contributeCatalogStructuredData } from "./structured-data.js";
 
@@ -139,4 +139,28 @@ export abstract class CatalogElement extends ElementBase {
   }
 
   abstract refresh(): void;
+}
+
+export abstract class PagedCatalogElement extends CatalogElement {
+  protected offset = 0;
+  protected focusKey?: string;
+
+  protected beginPageRead(): number {
+    this.focusKey = this.focusedControl() ?? this.focusKey;
+    return this.clear();
+  }
+
+  protected restorePageFocus(): void {
+    this.restoreControlFocus(this.focusKey);
+    this.focusKey = undefined;
+  }
+
+  protected renderPaging(total: number, limit: number, label: string): void {
+    this.content.append(
+      renderCatalogPaging(this.ownerDocument, { offset: this.offset, total, limit, label }, (offset) => {
+        this.offset = offset;
+        this.refresh();
+      }),
+    );
+  }
 }

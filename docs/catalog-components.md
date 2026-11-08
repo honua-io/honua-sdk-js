@@ -113,16 +113,18 @@ binding may turn into fixture data.
 
 `honua-service-endpoints` accepts `catalog`, exactly one of `service` or `layer`,
 an optional comma-separated `protocols` filter, `group="protocol"` and the boolean
-`copy` attribute. It renders only safe advertised URLs from `getCatalogItem`'s
+`copy` attribute. Without `group` it renders a flat list; `group="protocol"` adds
+labeled protocol sections. It renders only safe advertised URLs from `getCatalogItem`'s
 optional `endpoints` projection. Copy requires a visitor action and the browser
 clipboard permission; success or failure is announced. Successful copies emit
-`honua-endpoint-copy` with the advertised endpoint. No endpoint is synthesized.
+`honua-endpoint-copy` with the normalized safe endpoint URL. No endpoint is synthesized.
 
 `honua-apps-using` accepts the same catalog/item identity, `view="cards|table"`
 and `limit` from 1 to 100. It reads the optional `listCatalogAppsUsing` capability
 with bounded offset/limit paging, validates the response's catalog and subject,
 and accepts only Released Apps and Maps. Missing capabilities render unsupported,
-never a regular catalog-search fallback. A shrinking visible total resets paging.
+never a regular catalog-search fallback. A shrinking visible total moves to the
+last available page with one bounded recovery attempt.
 
 Both elements share the cards/search cancellation lifecycle and external stylesheet.
 They contribute only visitor-filtered server crosswalk JSON-LD, clear it on client

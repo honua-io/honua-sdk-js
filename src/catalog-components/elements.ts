@@ -1,5 +1,5 @@
-import { CatalogElement } from "./base.js";
-import { node, renderCard, renderCatalogPaging, visibleCard } from "./dom.js";
+import { CatalogElement, PagedCatalogElement } from "./base.js";
+import { node, renderCard, renderCardList, visibleCard } from "./dom.js";
 import type { CatalogCardProjection, CatalogSearchProjection, CatalogSearchQuery } from "./presentation.js";
 
 const kinds = ["dataset", "layer", "service", "map", "app"];
@@ -42,15 +42,13 @@ export class HonuaCatalogCardElement extends CatalogElement {
   }
 }
 
-export class HonuaCatalogSearchElement extends CatalogElement {
+export class HonuaCatalogSearchElement extends PagedCatalogElement {
   static get observedAttributes(): string[] {
     return ["catalog", "kind", "category", "limit", "label"];
   }
   private searchText = "";
-  private offset = 0;
   private selectedKind = "";
   private sort: "title" | "-updated" = "title";
-  private focusKey?: string;
   private filtersOpen = false;
 
   override attributeChangedCallback(name?: string): void {
@@ -60,8 +58,7 @@ export class HonuaCatalogSearchElement extends CatalogElement {
   }
 
   override refresh(): void {
-    this.focusKey = this.focusedControl();
-    const generation = this.clear();
+    const generation = this.beginPageRead();
     if (!this.isCurrent(generation)) return;
     const catalogId = this.getAttribute("catalog");
     const kind = this.getAttribute("kind") ?? this.selectedKind;
@@ -137,16 +134,9 @@ export class HonuaCatalogSearchElement extends CatalogElement {
       return;
     }
     this.renderFilters(page);
-    const list = node(this.ownerDocument, "ul");
-    list.className = "catalog-results";
-    for (const item of page.items) {
-      const row = node(this.ownerDocument, "li");
-      row.append(renderCard(this.ownerDocument, item));
-      list.append(row);
-    }
-    this.content.append(list);
-    this.renderPaging(page, query.limit ?? 12);
-    this.restoreControlFocus(this.focusKey);
+    this.content.append(renderCardList(this.ownerDocument, page.items));
+    this.renderPaging(page.total, query.limit ?? 12, "Catalog pages");
+    this.restorePageFocus();
     if (!this.isCurrent(generation)) return;
     this.structuredData(page.structuredData);
     if (!this.isCurrent(generation)) return;
@@ -203,18 +193,5 @@ export class HonuaCatalogSearchElement extends CatalogElement {
     sortLabel.append(sort);
     filters.append(sortLabel);
     this.content.append(filters);
-  }
-
-  private renderPaging(page: CatalogSearchProjection, limit: number): void {
-    this.content.append(
-      renderCatalogPaging(
-        this.ownerDocument,
-        { offset: this.offset, total: page.total, limit, label: "Catalog pages" },
-        (offset) => {
-          this.offset = offset;
-          this.refresh();
-        },
-      ),
-    );
   }
 }

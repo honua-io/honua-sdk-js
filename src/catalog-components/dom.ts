@@ -45,17 +45,7 @@ export function renderCard(document: Document, item: CatalogCardProjection): HTM
   } else article.append(thumbnailFallback(document, item));
   article.append(node(document, "p", kindLabel(item)));
   const heading = node(document, "h2");
-  const link = node(document, "a", item.title);
-  link.href = catalogHref(item.detailHref) ?? "";
-  link.addEventListener("click", (event) => {
-    const navigation = new CustomEvent("honua-catalog-item-activate", {
-      detail: { kind: item.kind, id: item.id, href: link.href },
-      bubbles: true,
-      composed: true,
-      cancelable: true,
-    });
-    if (!article.dispatchEvent(navigation)) event.preventDefault();
-  });
+  const link = renderItemLink(document, item);
   heading.append(link);
   article.append(heading);
   if (item.summary) article.append(node(document, "p", item.summary));
@@ -73,6 +63,32 @@ export function renderCard(document: Document, item: CatalogCardProjection): HTM
   badge.dataset.health = ["healthy", "degraded", "down"].includes(health ?? "") ? (health ?? "unknown") : "unknown";
   article.append(badge);
   return article;
+}
+
+export function renderItemLink(document: Document, item: CatalogCardProjection): HTMLAnchorElement {
+  const link = node(document, "a", item.title);
+  link.href = catalogHref(item.detailHref) ?? "";
+  link.addEventListener("click", (event) => {
+    const navigation = new CustomEvent("honua-catalog-item-activate", {
+      detail: { kind: item.kind, id: item.id, href: link.href },
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    if (!link.dispatchEvent(navigation)) event.preventDefault();
+  });
+  return link;
+}
+
+export function renderCardList(document: Document, items: readonly CatalogCardProjection[]): HTMLElement {
+  const list = node(document, "ul");
+  list.className = "catalog-results";
+  for (const item of items) {
+    const row = node(document, "li");
+    row.append(renderCard(document, item));
+    list.append(row);
+  }
+  return list;
 }
 
 function thumbnailFallback(document: Document, item: CatalogCardProjection): HTMLElement {
