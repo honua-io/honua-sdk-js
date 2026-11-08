@@ -48,10 +48,10 @@ test("explicit snapshot input requires both immutable source revisions and adopt
   });
 });
 
-test("all eight published npm identities and the server come from the same adopted manifest", async () => {
+test("all declared published npm identities and the server come from the same adopted manifest", async () => {
   await fixture(async ({ env }) => {
     const candidate = await readInstalledCandidateInput({ env });
-    assert.equal(candidate.packages.length, 8);
+    assert.equal(candidate.packages.length, artifacts.included.length);
     assert.deepEqual(candidate.packages.map((entry) => entry.coordinate), artifacts.included.map((entry) => entry.npmName));
     assert.equal(candidate.package.version, "0.1.14");
     assert.equal(candidate.server.image, `ghcr.io/honua-io/honua-server@sha256:${"a".repeat(64)}`);

@@ -28,7 +28,7 @@ test("all release packages must be pinned and installed from their declared regi
   }
 });
 
-test("the legacy cohort omits the compat package that the pinned release did not publish under its current name", async () => {
+test("the legacy cohort retains its compat mapping but cannot qualify newly introduced packages", async () => {
   const root = new URL("../..", import.meta.url);
   const artifacts = JSON.parse(await readFile(new URL("config/release-artifacts.v1.json", root)));
   const denominator = JSON.parse(await readFile(new URL("config/certification-denominator.v1.json", root)));
@@ -37,7 +37,9 @@ test("the legacy cohort omits the compat package that the pinned release did not
   const sorted = (names) => [...names].sort();
   assert.deepEqual(sorted(legacyNames), sorted(coordinatesForCandidate(denominator.candidatePackages, candidate)));
   assert.equal(legacyNames.includes("@honua/sdk-client-compat"), false);
-  assert.equal(validatePackageSet(candidate, legacyNames).length, 7);
+  assert.equal(legacyNames.includes("@honua/components"), true);
+  assert.equal(candidate.packages.some(entry => entry.coordinate === "@honua/components"), false);
+  assert.throws(() => validatePackageSet(candidate, legacyNames), /candidate package set differs/);
   assert.equal(releaseArtifactForCoordinate(artifacts.included, "@honua/sdk-client-compat").npmName, "@honua/sdk-client-compat");
   assert.throws(() => validatePackageSet(candidate, releaseNames), /candidate package set differs/);
   const snapshot = { releaseInput: { kind: "honua-release-snapshot" } };
