@@ -1,7 +1,11 @@
 import { HonuaCatalogCardElement, HonuaCatalogSearchElement } from "./elements.js";
+import { HonuaAppsUsingElement, HonuaServiceEndpointsElement } from "./relations.js";
 
-export { HonuaCatalogCardElement, HonuaCatalogSearchElement };
+export { HonuaCatalogCardElement, HonuaCatalogSearchElement, HonuaServiceEndpointsElement, HonuaAppsUsingElement };
 export type {
+  CatalogAppsUsingProjection,
+  CatalogEndpointProjection,
+  CatalogRelationQuery,
   CatalogCardProjection,
   CatalogComponentClient,
   CatalogSearchProjection,
@@ -11,6 +15,8 @@ export type {
 
 const components: Readonly<Record<string, CustomElementConstructor>> = {
   "honua-catalog-search": HonuaCatalogSearchElement,
+  "honua-service-endpoints": HonuaServiceEndpointsElement,
+  "honua-apps-using": HonuaAppsUsingElement,
   "honua-dataset-card": class extends HonuaCatalogCardElement {},
   "honua-layer-card": class extends HonuaCatalogCardElement {},
   "honua-service-card": class extends HonuaCatalogCardElement {},

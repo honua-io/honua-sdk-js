@@ -31,12 +31,17 @@ export async function startCatalogComponentsServer() {
           const filtered = items.filter(item => (!query.q || item.title.toLowerCase().includes(query.q.toLowerCase())) && (!query.kind || query.kind.includes(item.kind)));
           return {...fixtures.responses.publicAnonymous, items:filtered.slice(query.offset, query.offset+query.limit), total:filtered.length, offset:query.offset, limit:query.limit};
         },
-        async getCatalogItem({kind,id}) { return items.find(item => item.kind===kind && item.id===id); }
+        async getCatalogItem({kind,id}) { return id === fixtures.serviceDetail.id ? fixtures.serviceDetail : items.find(item => item.kind===kind && item.id===id); },
+        async listCatalogAppsUsing(query) {
+          const page = fixtures.responses.serviceUsedBy;
+          return {...page, subject:{kind:query.kind,id:query.id}, offset:query.offset,limit:query.limit,
+            items:page.items.slice(query.offset,query.offset+query.limit).map(item=>({...item,detailHref:new URL(item.detailHref,location.origin).href,thumbnail:null}))};
+        }
       };
-      document.querySelector('honua-catalog-search').client=client;
+      document.querySelectorAll('honua-catalog-search,honua-service-endpoints,honua-apps-using').forEach(element=>element.client=client);
       window.fixtureReady=true;
     `);
-    if (pathname === "/") return send(response, "text/html", `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width"><title>Catalog components fixture</title><link rel="stylesheet" href="/catalog.css"><script type="module" src="/fixture.js"></script></head><body><main><h1>Catalog fixture preview</h1><honua-catalog-search catalog="open-data" limit="2"></honua-catalog-search></main></body></html>`);
+    if (pathname === "/") return send(response, "text/html", `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width"><title>Catalog components fixture</title><link rel="stylesheet" href="/catalog.css"><script type="module" src="/fixture.js"></script></head><body><main><h1>Catalog fixture preview</h1><honua-catalog-search catalog="open-data" limit="2"></honua-catalog-search><honua-service-endpoints catalog="open-data" service="park-service" copy></honua-service-endpoints><honua-apps-using catalog="open-data" service="park-service" limit="1"></honua-apps-using></main></body></html>`);
     response.writeHead(404).end();
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));

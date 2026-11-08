@@ -43,3 +43,8 @@ nav { justify-content: space-between; font-variant-numeric: tabular-nums; }
   .catalog-health[data-health="down"] { color: var(--honua-catalog-down, #ffa6a6); }
 }
 @media (forced-colors: active) { :host, a, .catalog-health { color: CanvasText; } }
+
+.catalog-endpoints p { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+.catalog-endpoints a { overflow-wrap: anywhere; min-width: 0; }
+table { width: 100%; border-collapse: collapse; text-align: start; }
+th, td { padding: .75rem; overflow-wrap: anywhere; }

@@ -215,8 +215,8 @@ try {
   const smokeScript = `
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defineCatalogComponents, HonuaCatalogSearchElement } from "@honua/components";
-if (typeof HonuaCatalogSearchElement !== "function") throw new Error("Catalog class export missing");
+import { defineCatalogComponents, HonuaCatalogSearchElement, HonuaServiceEndpointsElement, HonuaAppsUsingElement } from "@honua/components";
+if ([HonuaCatalogSearchElement, HonuaServiceEndpointsElement, HonuaAppsUsingElement].some(element => typeof element !== "function")) throw new Error("Catalog class export missing");
 defineCatalogComponents({ registry: { get() {}, define() { throw new Error("Catalog registration must be opt-in"); } } });
 if (!existsSync(fileURLToPath(import.meta.resolve("@honua/components/catalog.css")))) throw new Error("Catalog stylesheet missing");
 import {

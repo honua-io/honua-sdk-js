@@ -86,3 +86,34 @@ function kindLabel(item: CatalogCardProjection): string {
     return item.datasetKind === "coverage" ? "Coverage" : item.spatial === false ? "Table" : "Feature type";
   return item.kind.charAt(0).toUpperCase() + item.kind.slice(1);
 }
+
+export function renderCatalogPaging(
+  document: Document,
+  page: { readonly offset: number; readonly total: number; readonly limit: number; readonly label: string },
+  changeOffset: (offset: number) => void,
+): HTMLElement {
+  const navigation = node(document, "nav");
+  navigation.setAttribute("aria-label", page.label);
+  for (const direction of ["previous", "next"]) {
+    const button = node(document, "button", direction === "previous" ? "Previous" : "Next");
+    button.type = "button";
+    button.dataset.page = direction;
+    button.dataset.focus = direction;
+    button.disabled = direction === "previous" ? page.offset === 0 : page.offset + page.limit >= page.total;
+    button.addEventListener("click", () =>
+      changeOffset(Math.max(0, page.offset + (direction === "previous" ? -page.limit : page.limit))),
+    );
+    navigation.append(button);
+    if (direction === "previous")
+      navigation.append(
+        node(
+          document,
+          "span",
+          page.total === 0
+            ? "0 results"
+            : `${page.offset + 1}–${Math.min(page.offset + page.limit, page.total)} of ${page.total}`,
+        ),
+      );
+  }
+  return navigation;
+}

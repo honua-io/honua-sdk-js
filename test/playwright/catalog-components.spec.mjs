@@ -16,6 +16,17 @@ test("catalog search stays keyboard accessible at 390px under restrictive respon
     await expect.poll(() => page.evaluate(() => window.fixtureReady)).toBe(true);
     const search = page.locator("honua-catalog-search");
     await expect(search.locator("article")).toHaveCount(2);
+    const endpoints = page.locator("honua-service-endpoints");
+    await expect(endpoints.getByRole("link")).toHaveCount(2);
+    await endpoints.getByRole("button").first().focus();
+    await page.keyboard.press("Enter");
+    await expect(endpoints.getByRole("status")).toContainText(/Copied|Copy is unavailable/);
+    const apps = page.locator("honua-apps-using");
+    await expect(apps.locator("article")).toHaveCount(1);
+    await apps.getByRole("button", { name: "Next", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(apps.getByRole("button", { name: "Previous", exact: true })).toBeFocused();
+    await expect(apps.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
     await search.getByRole("searchbox").focus();
     await page.keyboard.type("flood");
     await page.keyboard.press("Enter");

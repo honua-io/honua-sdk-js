@@ -1,133 +1,8 @@
-import { node, renderCard, visibleCard } from "./dom.js";
-import type {
-  CatalogCardProjection,
-  CatalogComponentClient,
-  CatalogSearchProjection,
-  CatalogSearchQuery,
-  CatalogStructuredData,
-} from "./presentation.js";
-import { contributeCatalogStructuredData } from "./structured-data.js";
+import { CatalogElement } from "./base.js";
+import { node, renderCard, renderCatalogPaging, visibleCard } from "./dom.js";
+import type { CatalogCardProjection, CatalogSearchProjection, CatalogSearchQuery } from "./presentation.js";
 
-const ElementBase = globalThis.HTMLElement ?? (class {} as typeof HTMLElement);
 const kinds = ["dataset", "layer", "service", "map", "app"];
-const stylesheet = new URL("./catalog.css", import.meta.url).href;
-
-abstract class CatalogElement extends ElementBase {
-  private currentClient?: CatalogComponentClient;
-  private generation = 0;
-  private request?: AbortController;
-  private clearStructuredData?: () => void;
-  protected readonly content: HTMLElement;
-  protected readonly status: HTMLElement;
-
-  constructor() {
-    super();
-    const root = this.attachShadow({ mode: "open" });
-    const styles = node(this.ownerDocument, "link");
-    styles.rel = "stylesheet";
-    styles.href = stylesheet;
-    this.content = node(this.ownerDocument, "div");
-    this.status = node(this.ownerDocument, "p");
-    this.status.setAttribute("role", "status");
-    this.status.setAttribute("aria-live", "polite");
-    root.append(styles, this.status, this.content);
-  }
-
-  get client(): CatalogComponentClient | undefined {
-    return this.currentClient;
-  }
-  set client(client: CatalogComponentClient | undefined) {
-    this.currentClient = client;
-    this.refresh();
-  }
-
-  connectedCallback(): void {
-    this.refresh();
-  }
-  disconnectedCallback(): void {
-    this.clear();
-  }
-  attributeChangedCallback(): void {
-    this.refresh();
-  }
-
-  protected clear(): number {
-    const generation = ++this.generation;
-    const request = this.request;
-    this.request = undefined;
-    const clearStructuredData = this.clearStructuredData;
-    this.clearStructuredData = undefined;
-    clearStructuredData?.();
-    this.content.replaceChildren();
-    this.status.textContent = "";
-    if (clearStructuredData) this.structuredData();
-    request?.abort();
-    return generation;
-  }
-
-  protected isCurrent(generation: number): boolean {
-    return generation === this.generation && this.isConnected;
-  }
-
-  protected state(state: string, message: string): void {
-    this.status.textContent = message;
-    this.dispatchEvent(
-      new CustomEvent("honua-catalog-state-change", {
-        detail: { state },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-
-  protected async read<T>(
-    generation: number,
-    load: (client: CatalogComponentClient, signal: AbortSignal) => Promise<T>,
-    render: (result: T) => void,
-  ): Promise<void> {
-    if (!this.isCurrent(generation)) return;
-    const client = this.client;
-    if (!client) {
-      this.state("unsupported", "Catalog client is not configured.");
-      return;
-    }
-    const request = new AbortController();
-    this.request = request;
-    this.state("loading", "Loading…");
-    if (!this.isCurrent(generation) || request.signal.aborted) return;
-    try {
-      const result = await load(client, request.signal);
-      if (this.isCurrent(generation) && !request.signal.aborted) render(result);
-    } catch {
-      if (this.isCurrent(generation) && !request.signal.aborted) {
-        const failedGeneration = this.clear();
-        if (!this.isCurrent(failedGeneration)) return;
-        this.recover();
-        this.state("unavailable", "Catalog content is unavailable. Try again or sign in on the catalog site.");
-      }
-    }
-  }
-
-  protected recover(): void {
-    const retry = node(this.ownerDocument, "button", "Retry");
-    retry.type = "button";
-    retry.addEventListener("click", () => this.refresh());
-    this.content.append(retry);
-  }
-
-  protected structuredData(projection?: CatalogStructuredData): void {
-    if (projection) this.clearStructuredData = contributeCatalogStructuredData(this.ownerDocument, this, projection);
-    this.dispatchEvent(
-      new CustomEvent("honua-catalog-structured-data-change", {
-        detail: projection ?? null,
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-
-  abstract refresh(): void;
-}
 
 export class HonuaCatalogCardElement extends CatalogElement {
   static get observedAttributes(): string[] {
@@ -185,7 +60,7 @@ export class HonuaCatalogSearchElement extends CatalogElement {
   }
 
   override refresh(): void {
-    this.focusKey = (this.shadowRoot?.activeElement as HTMLElement | null)?.dataset.focus;
+    this.focusKey = this.focusedControl();
     const generation = this.clear();
     if (!this.isCurrent(generation)) return;
     const catalogId = this.getAttribute("catalog");
@@ -197,7 +72,7 @@ export class HonuaCatalogSearchElement extends CatalogElement {
       return;
     }
     this.renderForm();
-    this.restoreFocus();
+    this.restoreControlFocus(this.focusKey);
     if (!this.isCurrent(generation)) return;
     const query: CatalogSearchQuery = {
       catalogId,
@@ -271,7 +146,7 @@ export class HonuaCatalogSearchElement extends CatalogElement {
     }
     this.content.append(list);
     this.renderPaging(page, query.limit ?? 12);
-    this.restoreFocus();
+    this.restoreControlFocus(this.focusKey);
     if (!this.isCurrent(generation)) return;
     this.structuredData(page.structuredData);
     if (!this.isCurrent(generation)) return;
@@ -331,50 +206,15 @@ export class HonuaCatalogSearchElement extends CatalogElement {
   }
 
   private renderPaging(page: CatalogSearchProjection, limit: number): void {
-    const navigation = node(this.ownerDocument, "nav");
-    navigation.setAttribute("aria-label", "Catalog pages");
-    const previous = this.button("Previous", () => {
-      this.offset = Math.max(0, this.offset - limit);
-      this.refresh();
-    });
-    previous.dataset.page = "previous";
-    previous.dataset.focus = "previous";
-    previous.disabled = this.offset === 0;
-    const next = this.button("Next", () => {
-      this.offset += limit;
-      this.refresh();
-    });
-    next.dataset.page = "next";
-    next.dataset.focus = "next";
-    next.disabled = this.offset + limit >= page.total;
-    navigation.append(
-      previous,
-      node(
+    this.content.append(
+      renderCatalogPaging(
         this.ownerDocument,
-        "span",
-        page.total === 0
-          ? "0 results"
-          : `${this.offset + 1}–${Math.min(this.offset + limit, page.total)} of ${page.total}`,
+        { offset: this.offset, total: page.total, limit, label: "Catalog pages" },
+        (offset) => {
+          this.offset = offset;
+          this.refresh();
+        },
       ),
-      next,
     );
-    this.content.append(navigation);
-  }
-
-  private button(label: string, action: () => void): HTMLButtonElement {
-    const button = node(this.ownerDocument, "button", label);
-    button.type = "button";
-    button.addEventListener("click", action);
-    return button;
-  }
-
-  private restoreFocus(): void {
-    const active = this.ownerDocument.activeElement;
-    if (!this.focusKey || this.shadowRoot?.activeElement || (active !== this && active !== this.ownerDocument.body))
-      return;
-    const target = this.content.querySelector<HTMLElement>(`[data-focus="${this.focusKey}"]`);
-    if (target instanceof HTMLButtonElement && target.disabled)
-      this.content.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
-    else target?.focus();
   }
 }

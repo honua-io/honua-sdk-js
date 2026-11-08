@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Experimental catalog components"
-description: "Opt-in native catalog search and cards, fixture presentation boundaries, and package verification."
+description: "Opt-in native catalog search, cards, endpoints and lineage, fixture presentation boundaries, and package verification."
 ---
 
 # Experimental catalog components
@@ -108,3 +108,24 @@ Before enabling a live binding, verify canonical installed-package reads on an
 immutable live server, public/signed-in visibility and revocation, approved
 crosswalk output, and the required live integration workflows. No missing server
 binding may turn into fixture data.
+
+## Endpoints and apps using an item
+
+`honua-service-endpoints` accepts `catalog`, exactly one of `service` or `layer`,
+an optional comma-separated `protocols` filter, `group="protocol"` and the boolean
+`copy` attribute. It renders only safe advertised URLs from `getCatalogItem`'s
+optional `endpoints` projection. Copy requires a visitor action and the browser
+clipboard permission; success or failure is announced. Successful copies emit
+`honua-endpoint-copy` with the advertised endpoint. No endpoint is synthesized.
+
+`honua-apps-using` accepts the same catalog/item identity, `view="cards|table"`
+and `limit` from 1 to 100. It reads the optional `listCatalogAppsUsing` capability
+with bounded offset/limit paging, validates the response's catalog and subject,
+and accepts only Released Apps and Maps. Missing capabilities render unsupported,
+never a regular catalog-search fallback. A shrinking visible total resets paging.
+
+Both elements share the cards/search cancellation lifecycle and external stylesheet.
+They contribute only visitor-filtered server crosswalk JSON-LD, clear it on client
+replacement/disconnect, and never infer metadata mappings in the browser. Hosts
+must replace or clear the client when authorization changes. The fixture adapter
+is test-only; canonical transport integration and publication remain pending.
