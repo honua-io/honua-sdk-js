@@ -142,6 +142,7 @@ const TARGETS = [
     entry: "dist/src/catalog-components/index.js",
     label: "`@honua/components` (experimental catalog search and cards)",
     forbiddenInputs: [
+      ...EXTERNAL,
       ...COMPONENT_KIT_FORBIDDEN_INPUTS,
       "dist/src/migration/",
       "dist/src/studio-agent/",
@@ -464,7 +465,7 @@ function gzipBytes(buffer) {
   return gzipSync(buffer, { level: 9 }).byteLength;
 }
 
-async function measureBundle(entryAbs, extraExternal = [], forbiddenInputs = []) {
+export async function measureBundle(entryAbs, extraExternal = [], forbiddenInputs = []) {
   const result = await esbuild.build({
     ...SHARED_ESBUILD_OPTIONS,
     external: [...EXTERNAL, ...extraExternal],
@@ -474,9 +475,9 @@ async function measureBundle(entryAbs, extraExternal = [], forbiddenInputs = [])
   });
   if (forbiddenInputs.length > 0) {
     const retainedInputs = Object.values(result.metafile.outputs).flatMap((output) =>
-      Object.entries(output.inputs)
+      [...output.imports.filter(entry => entry.external).map(entry => entry.path), ...Object.entries(output.inputs)
         .filter(([, metadata]) => metadata.bytesInOutput > 0)
-        .map(([input]) => input.replaceAll("\\", "/")),
+        .map(([input]) => input.replaceAll("\\", "/"))],
     );
     for (const forbiddenInput of forbiddenInputs) {
       const retained = retainedInputs.find((input) => input.includes(forbiddenInput));

@@ -443,6 +443,7 @@ jobs:
           - "@honua/react"
           - "@honua/geometry"
           - "@honua/app-platform"
+          - "@honua/components"
     permissions:
       contents: read
       id-token: write

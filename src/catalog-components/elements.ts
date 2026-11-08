@@ -51,13 +51,22 @@ abstract class CatalogElement extends ElementBase {
     this.refresh();
   }
 
-  protected clear(): void {
-    this.generation++;
-    this.request?.abort();
-    this.clearStructuredData?.();
+  protected clear(): number {
+    const generation = ++this.generation;
+    const request = this.request;
+    this.request = undefined;
+    const clearStructuredData = this.clearStructuredData;
     this.clearStructuredData = undefined;
+    clearStructuredData?.();
     this.content.replaceChildren();
     this.status.textContent = "";
+    if (clearStructuredData) this.structuredData();
+    request?.abort();
+    return generation;
+  }
+
+  protected isCurrent(generation: number): boolean {
+    return generation === this.generation && this.isConnected;
   }
 
   protected state(state: string, message: string): void {
@@ -72,9 +81,11 @@ abstract class CatalogElement extends ElementBase {
   }
 
   protected async read<T>(
+    generation: number,
     load: (client: CatalogComponentClient, signal: AbortSignal) => Promise<T>,
     render: (result: T) => void,
   ): Promise<void> {
+    if (!this.isCurrent(generation)) return;
     const client = this.client;
     if (!client) {
       this.state("unsupported", "Catalog client is not configured.");
@@ -82,17 +93,26 @@ abstract class CatalogElement extends ElementBase {
     }
     const request = new AbortController();
     this.request = request;
-    const generation = this.generation;
     this.state("loading", "Loading…");
+    if (!this.isCurrent(generation) || request.signal.aborted) return;
     try {
       const result = await load(client, request.signal);
-      if (generation === this.generation && this.isConnected && !request.signal.aborted) render(result);
+      if (this.isCurrent(generation) && !request.signal.aborted) render(result);
     } catch {
-      if (generation === this.generation && !request.signal.aborted && this.isConnected) {
-        this.clear();
+      if (this.isCurrent(generation) && !request.signal.aborted) {
+        const failedGeneration = this.clear();
+        if (!this.isCurrent(failedGeneration)) return;
+        this.recover();
         this.state("unavailable", "Catalog content is unavailable. Try again or sign in on the catalog site.");
       }
     }
+  }
+
+  protected recover(): void {
+    const retry = node(this.ownerDocument, "button", "Retry");
+    retry.type = "button";
+    retry.addEventListener("click", () => this.refresh());
+    this.content.append(retry);
   }
 
   protected structuredData(projection?: CatalogStructuredData): void {
@@ -115,8 +135,8 @@ export class HonuaCatalogCardElement extends CatalogElement {
   }
 
   override refresh(): void {
-    this.clear();
-    if (!this.isConnected) return;
+    const generation = this.clear();
+    if (!this.isCurrent(generation)) return;
     const kind = this.localName.split("-")[1];
     const id = this.getAttribute(kind);
     const catalogId = this.getAttribute("catalog");
@@ -125,19 +145,20 @@ export class HonuaCatalogCardElement extends CatalogElement {
       return;
     }
     void this.read(
+      generation,
       (client, signal) => client.getCatalogItem({ catalogId, kind, id }, { signal }),
-      (item) => this.renderItem(item, kind, id),
+      (item) => this.renderItem(item, kind, id, generation),
     );
   }
 
-  private renderItem(item: CatalogCardProjection, kind: string, id: string): void {
+  private renderItem(item: CatalogCardProjection, kind: string, id: string, generation: number): void {
     if (!visibleCard(item) || item.kind !== kind || item.id !== id) {
       this.state("unavailable", "Catalog content is unavailable.");
       return;
     }
     this.content.append(renderCard(this.ownerDocument, item));
     this.structuredData(item.structuredData);
-    this.state("ready", "");
+    if (this.isCurrent(generation)) this.state("ready", "");
   }
 }
 
@@ -152,17 +173,18 @@ export class HonuaCatalogSearchElement extends CatalogElement {
   private focusKey?: string;
   private filtersOpen = false;
 
-  override attributeChangedCallback(): void {
+  override attributeChangedCallback(name?: string): void {
+    if (name === "kind") this.selectedKind = "";
     this.offset = 0;
     this.refresh();
   }
 
   override refresh(): void {
     this.focusKey = (this.shadowRoot?.activeElement as HTMLElement | null)?.dataset.focus;
-    this.clear();
-    if (!this.isConnected) return;
+    const generation = this.clear();
+    if (!this.isCurrent(generation)) return;
     const catalogId = this.getAttribute("catalog");
-    const kind = this.selectedKind || this.getAttribute("kind");
+    const kind = this.getAttribute("kind") ?? this.selectedKind;
     const limitText = this.getAttribute("limit");
     const limit = limitText === null ? 12 : Number(limitText);
     if (!catalogId || !Number.isInteger(limit) || limit < 1 || limit > 100 || (kind && !kinds.includes(kind))) {
@@ -171,6 +193,7 @@ export class HonuaCatalogSearchElement extends CatalogElement {
     }
     this.renderForm();
     this.restoreFocus();
+    if (!this.isCurrent(generation)) return;
     const query: CatalogSearchQuery = {
       catalogId,
       q: this.searchText || undefined,
@@ -182,9 +205,15 @@ export class HonuaCatalogSearchElement extends CatalogElement {
     };
     this.dispatchEvent(new CustomEvent("honua-catalog-query-change", { detail: query, bubbles: true, composed: true }));
     void this.read(
+      generation,
       (client, signal) => client.listCatalog(query, { signal }),
-      (page) => this.renderPage(page, query),
+      (page) => this.renderPage(page, query, generation),
     );
+  }
+
+  protected override recover(): void {
+    this.renderForm();
+    super.recover();
   }
 
   private renderForm(): void {
@@ -212,7 +241,11 @@ export class HonuaCatalogSearchElement extends CatalogElement {
     this.content.append(form);
   }
 
-  private renderPage(page: CatalogSearchProjection, query: CatalogSearchQuery): void {
+  private renderPage(page: CatalogSearchProjection, query: CatalogSearchQuery, generation: number): void {
+    if (page.items.some((item) => !visibleCard(item))) {
+      this.state("unavailable", "Catalog results are unavailable. Try another search.");
+      return;
+    }
     if (page.items.length === 0 && this.offset > 0) {
       const offset = Math.max(0, Math.floor((page.total - 1) / (query.limit ?? 12)) * (query.limit ?? 12));
       if (offset === this.offset) {
@@ -227,7 +260,6 @@ export class HonuaCatalogSearchElement extends CatalogElement {
     const list = node(this.ownerDocument, "ul");
     list.className = "catalog-results";
     for (const item of page.items) {
-      if (!visibleCard(item)) continue;
       const row = node(this.ownerDocument, "li");
       row.append(renderCard(this.ownerDocument, item));
       list.append(row);
@@ -235,7 +267,9 @@ export class HonuaCatalogSearchElement extends CatalogElement {
     this.content.append(list);
     this.renderPaging(page, query.limit ?? 12);
     this.restoreFocus();
+    if (!this.isCurrent(generation)) return;
     this.structuredData(page.structuredData);
+    if (!this.isCurrent(generation)) return;
     this.state(page.total === 0 ? "empty" : "ready", page.total === 0 ? "No matching items." : `${page.total} items`);
   }
 
@@ -331,7 +365,8 @@ export class HonuaCatalogSearchElement extends CatalogElement {
 
   private restoreFocus(): void {
     const active = this.ownerDocument.activeElement;
-    if (!this.focusKey || (active !== this && active !== this.ownerDocument.body)) return;
+    if (!this.focusKey || this.shadowRoot?.activeElement || (active !== this && active !== this.ownerDocument.body))
+      return;
     const target = this.content.querySelector<HTMLElement>(`[data-focus="${this.focusKey}"]`);
     if (target instanceof HTMLButtonElement && target.disabled)
       this.content.querySelector<HTMLInputElement>('input[type="search"]')?.focus();

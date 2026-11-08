@@ -51,6 +51,14 @@ test("the committed manifest describes the repository as it is today", () => {
   assert.deepEqual(errors, []);
 });
 
+test("every coordinated artifact receives publisher attestations", () => {
+  const workflow = ".github/workflows/publish-js-sdk.yml";
+  const packages = inputs.workflows[workflow].parsed.jobs["attest-published-packages"].strategy.matrix.package;
+  const expected = inputs.manifest.included.filter((artifact) => artifact.publish.workflow === workflow)
+    .map((artifact) => artifact.npmName);
+  assert.deepEqual([...packages].sort(), expected.sort());
+});
+
 test("the cut covers the coordinated SDK, the split SDK, React, app-platform, and MCP", () => {
   // The acceptance criterion names these by hand; assert them by hand so a
   // manifest edit that quietly drops one is a test failure, not a silent

@@ -2,37 +2,13 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineCatalogComponents } from "../src/catalog-components/index.js";
-import type { CatalogCardProjection, CatalogComponentClient } from "../src/catalog-components/presentation.js";
+import type { CatalogCardProjection } from "../src/catalog-components/presentation.js";
 
-const card: CatalogCardProjection = {
-  id: "flood-zones",
-  kind: "dataset",
-  title: "Flood zones",
-  summary: "Current flood areas",
-  detailHref: "https://catalog.example/items/flood-zones",
-  datasetKind: "feature-type",
-  spatial: true,
-  thumbnail: { href: "https://catalog.example/thumbnail.png", alt: "Flood areas along the river" },
-  health: { status: "degraded" },
-  releasedVersionId: null,
-};
-
-function source(item = card): CatalogComponentClient {
-  return {
-    listCatalog: vi.fn(async () => ({ items: [item], total: 1, offset: 0, limit: 12, facets: {} })),
-    getCatalogItem: vi.fn(async () => item),
-  };
-}
-
-function mount(tag: string, client = source()) {
-  defineCatalogComponents({ enabled: true });
-  const element = document.createElement(tag) as HTMLElement & { client: CatalogComponentClient };
-  element.setAttribute("catalog", "open-data");
-  if (tag.endsWith("-card")) element.setAttribute(tag.split("-")[1], card.id);
-  element.client = client;
-  document.body.append(element);
-  return element;
-}
+import {
+  catalogCardFixture as card,
+  mountCatalogFixture as mount,
+  catalogClientFixture as source,
+} from "./fixtures/catalog-components/elements.js";
 
 afterEach(() => document.body.replaceChildren());
 

@@ -189,6 +189,7 @@ try {
     private: true,
     type: "module",
     dependencies: {
+      "@honua/components": `file:${packageDirs["@honua/components"]}`,
       "@honua/sdk": `file:${packageDirs["@honua/sdk"]}`,
       "@honua/sdk-client-compat": `file:${packageDirs["@honua/sdk-client-compat"]}`,
       "@honua/react": `file:${packageDirs["@honua/react"]}`,

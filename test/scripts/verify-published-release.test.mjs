@@ -246,7 +246,8 @@ test("a tag that cannot be resolved fails closed instead of being skipped", () =
       throw new Error(`fatal: Needed a single revision: ${tag}`);
     },
   });
-  assert.equal(targets.length, 6);
+  assert.deepEqual(targets.map((target) => target.npmName).sort(), manifest.included
+    .filter((artifact) => artifact.sourceBinding === "sealed-js-sdk-tag").map((artifact) => artifact.npmName).sort());
   assert.equal(errors.length, 2);
   assert.ok(
     errors.every((error) => error.includes("Fetch the release tags")),
@@ -678,7 +679,8 @@ test("planning errors reach the receipt even when every reachable artifact verif
     },
   });
   assert.equal(receipt.status, "failed");
-  assert.equal(receipt.artifacts.length, 6);
+  assert.deepEqual(receipt.artifacts.map((artifact) => artifact.npmName).sort(), manifest.included
+    .filter((artifact) => artifact.sourceBinding === "sealed-js-sdk-tag").map((artifact) => artifact.npmName).sort());
   assert.ok(receipt.artifacts.every((artifact) => artifact.status === "verified"));
   assert.equal(receipt.failures.length, 2);
 });
