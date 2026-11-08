@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Experimental catalog components"
+description: "Opt-in native catalog search and cards, fixture presentation boundaries, and package verification."
+---
+
 # Experimental catalog components
 
 `@honua/components` is a focused split package built from this repository with
