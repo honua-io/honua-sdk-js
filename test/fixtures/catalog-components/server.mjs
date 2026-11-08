@@ -31,7 +31,7 @@ export async function startCatalogComponentsServer() {
           const filtered = items.filter(item => (!query.q || item.title.toLowerCase().includes(query.q.toLowerCase())) && (!query.kind || query.kind.includes(item.kind)));
           return {...fixtures.responses.publicAnonymous, items:filtered.slice(query.offset, query.offset+query.limit), total:filtered.length, offset:query.offset, limit:query.limit};
         },
-        async getCatalogItem({kind,id}) { return id === fixtures.serviceDetail.id ? fixtures.serviceDetail : items.find(item => item.kind===kind && item.id===id); },
+        async getCatalogItem({kind,id}) { return id === fixtures.serviceDetail.id ? {...fixtures.serviceDetail,endpoints:fixtures.serviceDetail.endpoints.map((endpoint,index)=>({...endpoint,href:index ? endpoint.href : new URL('/services/'+'roads-'.repeat(60)+'/wms?SERVICE=WMS&REQUEST=GetCapabilities',location.origin).href}))} : items.find(item => item.kind===kind && item.id===id); },
         async listCatalogAppsUsing(query) {
           const page = fixtures.responses.serviceUsedBy;
           return {...page, subject:{kind:query.kind,id:query.id}, offset:query.offset,limit:query.limit,

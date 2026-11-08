@@ -137,36 +137,48 @@ it("clears endpoint links and JSON-LD as soon as the visitor client is revoked",
 it.each(["identity", "client"])(
   "keeps the current lineage after %s replacement and aborts the old read",
   async (replacement) => {
-    let resolve!: (page: typeof relationPage) => void;
-    let signal!: AbortSignal;
+    const pending: { resolve: (page: typeof relationPage) => void; signal: AbortSignal }[] = [];
     const client = {
       ...catalogClientFixture(),
-      listCatalogAppsUsing: vi.fn((_query, options) => {
-        signal = options.signal;
-        return new Promise<typeof relationPage>((accept) => {
-          resolve = accept;
-        });
-      }),
+      listCatalogAppsUsing: vi.fn(
+        (_query, options) =>
+          new Promise<typeof relationPage>((resolve) => pending.push({ resolve, signal: options.signal })),
+      ),
     };
     const element = mountCatalogFixture("honua-apps-using", client, (element) =>
       element.setAttribute("service", "roads"),
     );
+    const original = pending[0];
+    const currentId = replacement === "identity" ? "new" : "roads";
     const currentPage = {
       ...relationPage,
-      subject: { ...relationPage.subject, id: replacement === "identity" ? "new" : "roads" },
+      subject: { ...relationPage.subject, id: currentId },
       items: [{ ...releasedApp, title: "Current app" }],
+      structuredData: {
+        ...relationPage.structuredData,
+        "@graph": [{ "@id": "https://catalog.example/current", "@type": "schema:WebApplication" }],
+      },
     };
     if (replacement === "identity") element.setAttribute("service", "new");
-    const replacementClient = { ...catalogClientFixture(), listCatalogAppsUsing: vi.fn(async () => currentPage) };
-    element.client = replacementClient;
+    else element.client = { ...catalogClientFixture(), listCatalogAppsUsing: client.listCatalogAppsUsing };
+    expect(original.signal.aborted).toBe(true);
+    expect(pending).toHaveLength(2);
+    pending[1].resolve(currentPage);
     await vi.waitFor(() => expect(element.shadowRoot?.textContent).toContain("Current app"));
-    resolve({ ...relationPage, items: [{ ...releasedApp, title: "Stale app" }] });
-    await new Promise((accept) => setTimeout(accept, 0));
-    expect(signal.aborted).toBe(true);
+    const projections = vi.fn();
+    element.addEventListener("honua-catalog-structured-data-change", projections);
+    original.resolve({ ...relationPage, items: [{ ...releasedApp, title: "Stale app" }] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(element.shadowRoot?.textContent).toContain("Current app");
     expect(element.shadowRoot?.textContent).not.toContain("Stale app");
     expect(element.shadowRoot?.querySelector('[role="status"]')?.textContent).toContain("1 apps and maps");
-    expect(document.querySelector("script[type='application/ld+json']")?.textContent).toContain(releasedApp.detailHref);
+    expect(document.querySelector("script[type='application/ld+json']")?.textContent).toContain(
+      "https://catalog.example/current",
+    );
+    expect(document.querySelector("script[type='application/ld+json']")?.textContent).not.toContain(
+      releasedApp.detailHref,
+    );
+    expect(projections).not.toHaveBeenCalled();
   },
 );
 

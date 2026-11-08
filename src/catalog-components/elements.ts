@@ -57,7 +57,7 @@ export class HonuaCatalogSearchElement extends PagedCatalogElement {
     this.refresh();
   }
 
-  override refresh(): void {
+  protected override loadPage(): void {
     const generation = this.beginPageRead();
     if (!this.isCurrent(generation)) return;
     const catalogId = this.getAttribute("catalog");
@@ -124,13 +124,7 @@ export class HonuaCatalogSearchElement extends PagedCatalogElement {
       return;
     }
     if (page.items.length === 0 && this.offset > 0) {
-      const offset = Math.max(0, Math.floor((page.total - 1) / (query.limit ?? 12)) * (query.limit ?? 12));
-      if (offset === this.offset) {
-        this.state("unavailable", "This catalog page is unavailable. Search again to refresh the results.");
-        return;
-      }
-      this.offset = offset;
-      this.refresh();
+      this.recoverShrunkPage(page.total, query.limit ?? 12);
       return;
     }
     this.renderFilters(page);

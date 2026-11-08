@@ -144,6 +144,25 @@ export abstract class CatalogElement extends ElementBase {
 export abstract class PagedCatalogElement extends CatalogElement {
   protected offset = 0;
   protected focusKey?: string;
+  private recovering = false;
+
+  override refresh(): void {
+    this.recovering = false;
+    this.loadPage();
+  }
+
+  protected abstract loadPage(): void;
+
+  protected recoverShrunkPage(total: number, limit: number): void {
+    if (this.recovering || total > this.offset) {
+      this.focusKey = undefined;
+      this.state("unavailable", "This catalog page is unavailable. Refresh to try again.");
+      return;
+    }
+    this.offset = Math.max(0, Math.floor((total - 1) / limit) * limit);
+    this.recovering = true;
+    this.loadPage();
+  }
 
   protected beginPageRead(): number {
     this.focusKey = this.focusedControl() ?? this.focusKey;

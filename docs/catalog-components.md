@@ -117,7 +117,8 @@ an optional comma-separated `protocols` filter, `group="protocol"` and the boole
 labeled protocol sections. It renders only safe advertised URLs from `getCatalogItem`'s
 optional `endpoints` projection. Copy requires a visitor action and the browser
 clipboard permission; success or failure is announced. Successful copies emit
-`honua-endpoint-copy` with the normalized safe endpoint URL. No endpoint is synthesized.
+`honua-endpoint-copy` with the advertised endpoint object and its `href` normalized.
+No endpoint is synthesized.
 
 `honua-apps-using` accepts the same catalog/item identity, `view="cards|table"`
 and `limit` from 1 to 100. It reads the optional `listCatalogAppsUsing` capability

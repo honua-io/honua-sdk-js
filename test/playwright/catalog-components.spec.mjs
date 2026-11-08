@@ -19,6 +19,9 @@ test("catalog search stays keyboard accessible at 390px under restrictive respon
     await expect(search.locator("article")).toHaveCount(2);
     const endpoints = page.locator("honua-service-endpoints");
     await expect(endpoints.getByRole("link")).toHaveCount(2);
+    expect((await endpoints.getByRole("link").first().getAttribute("href")).length).toBeGreaterThan(300);
+    await expect(endpoints.getByRole("button").first()).toHaveText(/^Copy [^ ]+ URL$/);
+    await expect(endpoints.locator(".catalog-endpoints")).toHaveCount(1);
     await endpoints.getByRole("button").first().focus();
     await page.keyboard.press("Enter");
     await expect(endpoints.getByRole("status")).toContainText("Copied");

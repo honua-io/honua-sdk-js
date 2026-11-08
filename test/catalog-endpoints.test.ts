@@ -45,11 +45,15 @@ it("groups endpoints only when requested and names each copy control distinctly"
   });
   await vi.waitFor(() => expect(element.shadowRoot?.querySelectorAll("a")).toHaveLength(2));
   expect(element.shadowRoot?.querySelectorAll("section")).toHaveLength(0);
-  const names = [...element.shadowRoot!.querySelectorAll("button")].map((button) => button.textContent);
+  const names = [...element.shadowRoot!.querySelectorAll("button")].map((button) => button.getAttribute("aria-label"));
   expect(new Set(names).size).toBe(2);
+  expect(element.shadowRoot?.querySelector("button")?.textContent).toBe("Copy wms URL");
   element.setAttribute("group", "protocol");
   await vi.waitFor(() => expect(element.shadowRoot?.querySelectorAll("section")).toHaveLength(1));
   expect(element.shadowRoot?.querySelector("section")?.getAttribute("aria-label")).toBe("wms endpoints");
+  element.removeAttribute("copy");
+  await vi.waitFor(() => expect(element.shadowRoot?.querySelectorAll("button")).toHaveLength(0));
+  expect(element.shadowRoot?.querySelector("section h2")?.textContent).toBe("wms");
 });
 
 it("reports filtered endpoints honestly", async () => {
