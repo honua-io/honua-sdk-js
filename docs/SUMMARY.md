@@ -45,6 +45,7 @@
 * [Query correctness audit record for issue 1985](audit/platform-20261006/issue-1985.md)
 * [Authentication layer](auth.md)
 * [Prebuilt browser bundle (CDN / build-less)](browser-bundle.md)
+* [Experimental catalog components](catalog-components.md)
 * [Experimental Cesium entity adapter](cesium-entity-adapter.md)
 * [Discover cloud-native sources](cloud-native-source-discovery.md)
 * [Direct COG inspection, bounded reads, and MapLibre rendering](cog.md)
