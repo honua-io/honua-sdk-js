@@ -53,6 +53,10 @@ export const PUBLISHED_PACKAGE_RULES = {
 // every split package should remain discoverable as part of the Honua GIS /
 // MapLibre family.
 const SPLIT_PACKAGE_RULES = {
+  "@honua/components": {
+    keywords: ["catalog", "web-components", "accessibility"],
+    descriptionTerms: ["catalog", "search", "cards"],
+  },
   "@honua/sdk": {
     keywords: ["geoservices", "ogc-api", "stac", "geocoding"],
     descriptionTerms: ["geoservices rest", "ogc api", "stac", "maplibre"],

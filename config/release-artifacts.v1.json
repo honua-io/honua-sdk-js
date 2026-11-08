@@ -124,6 +124,25 @@
       "notes": "Application-platform surfaces evicted from @honua/sdk-js in the 1.0 scope split (docs/decisions/scope-split-and-1.0.md)."
     },
     {
+      "id": "components",
+      "npmName": "@honua/components",
+      "source": {
+        "kind": "split-package",
+        "generator": "scripts/prepare-split-packages.mjs",
+        "splitPackageDirectory": "honua-components"
+      },
+      "versionSource": "package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-js-sdk.yml",
+        "workingDirectory": ".",
+        "publishArgument": "./dist/packages/honua-components",
+        "releaseTagPrefix": "js-sdk-",
+        "releasePleasePackage": "."
+      },
+      "sourceBinding": "sealed-js-sdk-tag",
+      "notes": "Experimental native catalog search and cards. Live catalog binding remains unsupported until the canonical contracts are available."
+    },
+    {
       "id": "mcp-server",
       "npmName": "@honua/mcp-server",
       "source": { "kind": "workspace-package", "packageManifest": "mcp/package.json" },

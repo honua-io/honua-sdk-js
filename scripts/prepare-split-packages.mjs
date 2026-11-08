@@ -82,8 +82,30 @@ createCompatPackage();
 createReactPackage();
 createGeometryPackage();
 createAppPlatformPackage();
+createComponentsPackage();
 
 process.stdout.write(`splitPackagesWritten=${OUTPUT_ROOT}\n`);
+
+function createComponentsPackage() {
+  const packageRoot = path.join(OUTPUT_ROOT, "honua-components");
+  copyDirectory(path.join(DIST_SRC_ROOT, "catalog-components"), path.join(packageRoot, "catalog-components"));
+  copyEmittedModule(packageRoot, "connect-url-safety");
+  copyEmittedModule(packageRoot, "web-components/display-href");
+  copyFile(path.join(PROJECT_ROOT, "src/catalog-components/catalog.css"), path.join(packageRoot, "catalog-components/catalog.css"));
+  writePackageJson(packageRoot, {
+    name: "@honua/components",
+    description: "Experimental visitor catalog search and cards for Honua",
+    keywords: packageKeywords(["catalog", "web-components", "accessibility"]),
+    main: "./catalog-components/index.js",
+    types: "./catalog-components/index.d.ts",
+    sideEffects: false,
+    exports: {
+      ".": { types: "./catalog-components/index.d.ts", default: "./catalog-components/index.js" },
+      "./catalog.css": "./catalog-components/catalog.css",
+    },
+  });
+  writeReadme(packageRoot, fs.readFileSync(path.join(PROJECT_ROOT, "docs/catalog-components.md"), "utf8"));
+}
 
 function resetOutputRoot() {
   fs.rmSync(OUTPUT_ROOT, { recursive: true, force: true });

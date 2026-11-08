@@ -289,7 +289,8 @@ jobs:
             "./dist/packages/honua-sdk-client-compat" \
             "./dist/packages/honua-react" \
             "./dist/packages/honua-geometry" \
-            "./dist/packages/honua-app-platform"
+            "./dist/packages/honua-app-platform" \
+            "./dist/packages/honua-components"
           do
             filename="$(node "${PINNED_NPM}" pack "$package_dir" --pack-destination "$split_pack_dir" --json | node -e 'let raw=""; process.stdin.on("data", (chunk) => { raw += chunk; }); process.stdin.on("end", () => { const parsed = JSON.parse(raw); const entry = Array.isArray(parsed) ? parsed[0] : parsed; process.stdout.write(entry.filename); });')"
             split_tarball_for["$package_dir"]="${split_pack_dir}/${filename}"
@@ -393,6 +394,7 @@ jobs:
           publish_package "./dist/packages/honua-react"
           publish_package "./dist/packages/honua-geometry"
           publish_package "./dist/packages/honua-app-platform"
+          publish_package "./dist/packages/honua-components"
 
       - name: Upload packed migration cohort receipt and installed lock
         if: always()

@@ -119,6 +119,10 @@
   "the compatibility entrypoint gzip was reset because feature-layer and feature-form now import widget-capabilities (histogram bins, form expressions, applyToFeatures, and vertex snapping). Measured 288,077 gzip bytes against the 287,597 ceiling. Only that exceeded gzip metric is reset, to 316,885 (ceil(actual * 1.1)). The minified ceiling still fits and is unchanged."
  ],
  "entrypoints": {
+  "@honua/components": {
+   "min": 12203,
+   "gzip": 4563
+  },
   ".": {
    "min": 849224,
    "gzip": 216894

@@ -58,6 +58,7 @@ test("the cut covers the coordinated SDK, the split SDK, React, app-platform, an
   const names = inputs.manifest.included.map((artifact) => artifact.npmName).sort();
   assert.deepEqual(names, [
     "@honua/app-platform",
+    "@honua/components",
     "@honua/geometry",
     "@honua/mcp-server",
     "@honua/react",
@@ -81,6 +82,7 @@ test("the split package list is derived from the generator, not restated", () =>
   const generated = splitPackagesFromGenerator(inputs.generatorSource);
   assert.deepEqual(generated.map((entry) => entry.npmName).sort(), [
     "@honua/app-platform",
+    "@honua/components",
     "@honua/geometry",
     "@honua/react",
     "@honua/sdk",
@@ -101,6 +103,7 @@ test("publish invocations are read out of the workflows themselves", () => {
       "./dist/packages/honua-react",
       "./dist/packages/honua-geometry",
       "./dist/packages/honua-app-platform",
+      "./dist/packages/honua-components",
     ],
   );
 

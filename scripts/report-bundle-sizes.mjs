@@ -137,6 +137,19 @@ const PMTILES_FORBIDDEN_INPUTS = [
  */
 const TARGETS = [
   {
+    key: "@honua/components",
+    kind: "bundle",
+    entry: "dist/src/catalog-components/index.js",
+    label: "`@honua/components` (experimental catalog search and cards)",
+    forbiddenInputs: [
+      ...COMPONENT_KIT_FORBIDDEN_INPUTS,
+      "dist/src/migration/",
+      "dist/src/studio-agent/",
+      "node_modules/@bufbuild/",
+      "node_modules/@connectrpc/",
+    ],
+  },
+  {
     key: ".",
     kind: "bundle",
     entry: "dist/src/index.js",

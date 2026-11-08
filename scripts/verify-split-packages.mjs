@@ -35,6 +35,7 @@ const GRPC_CLIENT_PACKAGES = new Set([
 ]);
 
 const packageDirs = {
+  "@honua/components": path.join(PACKAGES_ROOT, "honua-components"),
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
   "@honua/sdk-client-compat": path.join(PACKAGES_ROOT, "honua-sdk-client-compat"),
   "@honua/react": path.join(PACKAGES_ROOT, "honua-react"),
@@ -211,6 +212,12 @@ try {
   );
 
   const smokeScript = `
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { defineCatalogComponents, HonuaCatalogSearchElement } from "@honua/components";
+if (typeof HonuaCatalogSearchElement !== "function") throw new Error("Catalog class export missing");
+defineCatalogComponents({ registry: { get() {}, define() { throw new Error("Catalog registration must be opt-in"); } } });
+if (!existsSync(fileURLToPath(import.meta.resolve("@honua/components/catalog.css")))) throw new Error("Catalog stylesheet missing");
 import {
   HonuaClient,
   HonuaGeometryService,
@@ -1171,6 +1178,8 @@ console.log("splitPackageSmoke=ok");
   fs.writeFileSync(path.join(tempRoot, "smoke.mjs"), smokeScript, "utf8");
 
   const declarationSmoke = `
+import type { HonuaCatalogSearchElement } from "@honua/components";
+export const refreshCatalog = (element: HonuaCatalogSearchElement): void => element.refresh();
 import type { SourceDescriptor as ClientSourceDescriptor } from "./node_modules/@honua/sdk-client-compat/contract/index.js";
 import type { SourceDescriptor as ReactSourceDescriptor } from "./node_modules/@honua/react/contract/index.js";
 import type { SourceDescriptor as GeometrySourceDescriptor } from "./node_modules/@honua/geometry/contract/index.js";

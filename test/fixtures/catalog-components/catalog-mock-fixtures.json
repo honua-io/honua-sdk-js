@@ -1,0 +1,1648 @@
+{
+  "contract": "catalog-planning-v0",
+  "catalogView": {
+    "id": "open-data",
+    "title": "Open data",
+    "audience": "public",
+    "publicHref": "https://catalog.example.test/catalogs/open-data",
+    "description": "Synthetic public catalog.",
+    "revision": "fixture-catalog-r7",
+    "branding": {
+      "logo": null,
+      "lightAccent": "#1d4ed8",
+      "darkAccent": "#93c5fd"
+    },
+    "sections": [
+      {
+        "id": "search",
+        "kind": "search",
+        "title": "Find items",
+        "categoryId": null
+      },
+      {
+        "id": "featured",
+        "kind": "featured",
+        "title": "Featured",
+        "categoryId": null
+      },
+      {
+        "id": "categories",
+        "kind": "categories",
+        "title": "Categories",
+        "categoryId": null
+      }
+    ],
+    "categories": [
+      {
+        "id": "recreation",
+        "title": "Recreation",
+        "count": 5
+      }
+    ],
+    "feeds": [
+      {
+        "format": "records",
+        "href": "/api/v1/catalogs/open-data/records",
+        "mediaType": "application/geo+json"
+      }
+    ]
+  },
+  "responses": {
+    "publicAnonymous": {
+      "catalogId": "open-data",
+      "revision": "fixture-catalog-r7",
+      "items": [
+        {
+          "kind": "app",
+          "id": "park-app",
+          "title": "Parks app",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": false,
+          "extent": null,
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/app?id=park-app",
+          "launchHref": "https://catalog.example.test/apps/park-app",
+          "releasedVersionId": "app-version-3",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/app/thumbnail?id=park-app",
+            "alt": "Parks app preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "dataset",
+          "id": "park-dataset",
+          "title": "Parks dataset",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": "feature-type",
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/dataset?id=park-dataset",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/dataset/thumbnail?id=park-dataset",
+            "alt": "Parks dataset preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "layer",
+          "id": "park-layer",
+          "title": "Parks layer",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/layer?id=park-layer",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/layer/thumbnail?id=park-layer",
+            "alt": "Parks layer preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [
+            {
+              "protocol": "ogc-api-features",
+              "href": "https://catalog.example.test/ogc/features/collections/parks",
+              "mediaType": "application/json"
+            }
+          ],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "map",
+          "id": "park-map",
+          "title": "Parks map",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/map?id=park-map",
+          "launchHref": "https://catalog.example.test/maps/park-map",
+          "releasedVersionId": "map-version-2",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/map/thumbnail?id=park-map",
+            "alt": "Parks map preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "service",
+          "id": "park-service",
+          "title": "Parks service",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/service?id=park-service",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/service/thumbnail?id=park-service",
+            "alt": "Parks service preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [
+            {
+              "protocol": "ogc-api-features",
+              "href": "https://catalog.example.test/ogc/features/collections/parks",
+              "mediaType": "application/json"
+            },
+            {
+              "protocol": "wms",
+              "href": "https://catalog.example.test/ogc/services/parks/wms",
+              "mediaType": null
+            }
+          ],
+          "health": {
+            "status": "healthy",
+            "observedAt": "2000-01-01T00:00:00Z",
+            "uptimePercent": 99.9,
+            "windowHours": 24
+          },
+          "usage": null
+        }
+      ],
+      "total": 5,
+      "offset": 0,
+      "limit": 50,
+      "facets": {
+        "kind": [
+          {
+            "value": "app",
+            "label": "app",
+            "count": 1
+          },
+          {
+            "value": "dataset",
+            "label": "dataset",
+            "count": 1
+          },
+          {
+            "value": "layer",
+            "label": "layer",
+            "count": 1
+          },
+          {
+            "value": "map",
+            "label": "map",
+            "count": 1
+          },
+          {
+            "value": "service",
+            "label": "service",
+            "count": 1
+          }
+        ],
+        "protocol": [
+          {
+            "value": "ogc-api-features",
+            "label": "ogc-api-features",
+            "count": 2
+          },
+          {
+            "value": "wms",
+            "label": "wms",
+            "count": 1
+          }
+        ],
+        "folder": [
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 5
+          }
+        ],
+        "tag": [
+          {
+            "value": "outdoors",
+            "label": "outdoors",
+            "count": 5
+          }
+        ],
+        "owner": [
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 5
+          }
+        ],
+        "category": [
+          {
+            "value": "recreation",
+            "label": "recreation",
+            "count": 5
+          }
+        ],
+        "status": [
+          {
+            "value": "active",
+            "label": "active",
+            "count": 5
+          }
+        ]
+      }
+    },
+    "publicSignedIn": {
+      "catalogId": "open-data",
+      "revision": "fixture-catalog-r7",
+      "items": [
+        {
+          "kind": "app",
+          "id": "park-app",
+          "title": "Parks app",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": false,
+          "extent": null,
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/app?id=park-app",
+          "launchHref": "https://catalog.example.test/apps/park-app",
+          "releasedVersionId": "app-version-3",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/app/thumbnail?id=park-app",
+            "alt": "Parks app preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "dataset",
+          "id": "park-dataset",
+          "title": "Parks dataset",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": "feature-type",
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/dataset?id=park-dataset",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/dataset/thumbnail?id=park-dataset",
+            "alt": "Parks dataset preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "layer",
+          "id": "park-layer",
+          "title": "Parks layer",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/layer?id=park-layer",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/layer/thumbnail?id=park-layer",
+            "alt": "Parks layer preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [
+            {
+              "protocol": "ogc-api-features",
+              "href": "https://catalog.example.test/ogc/features/collections/parks",
+              "mediaType": "application/json"
+            }
+          ],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "map",
+          "id": "park-map",
+          "title": "Parks map",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/map?id=park-map",
+          "launchHref": "https://catalog.example.test/maps/park-map",
+          "releasedVersionId": "map-version-2",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/map/thumbnail?id=park-map",
+            "alt": "Parks map preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "service",
+          "id": "park-service",
+          "title": "Parks service",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/service?id=park-service",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/service/thumbnail?id=park-service",
+            "alt": "Parks service preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [
+            {
+              "protocol": "ogc-api-features",
+              "href": "https://catalog.example.test/ogc/features/collections/parks",
+              "mediaType": "application/json"
+            },
+            {
+              "protocol": "wms",
+              "href": "https://catalog.example.test/ogc/services/parks/wms",
+              "mediaType": null
+            }
+          ],
+          "health": {
+            "status": "healthy",
+            "observedAt": "2000-01-01T00:00:00Z",
+            "uptimePercent": 99.9,
+            "windowHours": 24
+          },
+          "usage": null
+        }
+      ],
+      "total": 5,
+      "offset": 0,
+      "limit": 50,
+      "facets": {
+        "kind": [
+          {
+            "value": "app",
+            "label": "app",
+            "count": 1
+          },
+          {
+            "value": "dataset",
+            "label": "dataset",
+            "count": 1
+          },
+          {
+            "value": "layer",
+            "label": "layer",
+            "count": 1
+          },
+          {
+            "value": "map",
+            "label": "map",
+            "count": 1
+          },
+          {
+            "value": "service",
+            "label": "service",
+            "count": 1
+          }
+        ],
+        "protocol": [
+          {
+            "value": "ogc-api-features",
+            "label": "ogc-api-features",
+            "count": 2
+          },
+          {
+            "value": "wms",
+            "label": "wms",
+            "count": 1
+          }
+        ],
+        "folder": [
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 5
+          }
+        ],
+        "tag": [
+          {
+            "value": "outdoors",
+            "label": "outdoors",
+            "count": 5
+          }
+        ],
+        "owner": [
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 5
+          }
+        ],
+        "category": [
+          {
+            "value": "recreation",
+            "label": "recreation",
+            "count": 5
+          }
+        ],
+        "status": [
+          {
+            "value": "active",
+            "label": "active",
+            "count": 5
+          }
+        ]
+      }
+    },
+    "staffSignedIn": {
+      "catalogId": "staff",
+      "revision": "fixture-catalog-r7",
+      "items": [
+        {
+          "kind": "app",
+          "id": "park-app",
+          "title": "Parks app",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": false,
+          "extent": null,
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/staff/items/app?id=park-app",
+          "launchHref": "https://catalog.example.test/apps/park-app",
+          "releasedVersionId": "app-version-3",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/staff/items/app/thumbnail?id=park-app",
+            "alt": "Parks app preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "dataset",
+          "id": "park-dataset",
+          "title": "Parks dataset",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": "feature-type",
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/staff/items/dataset?id=park-dataset",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/staff/items/dataset/thumbnail?id=park-dataset",
+            "alt": "Parks dataset preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "layer",
+          "id": "park-layer",
+          "title": "Parks layer",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/staff/items/layer?id=park-layer",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/staff/items/layer/thumbnail?id=park-layer",
+            "alt": "Parks layer preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [
+            {
+              "protocol": "ogc-api-features",
+              "href": "https://catalog.example.test/ogc/features/collections/parks",
+              "mediaType": "application/json"
+            }
+          ],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "map",
+          "id": "park-map",
+          "title": "Parks map",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/staff/items/map?id=park-map",
+          "launchHref": "https://catalog.example.test/maps/park-map",
+          "releasedVersionId": "map-version-2",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/staff/items/map/thumbnail?id=park-map",
+            "alt": "Parks map preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "service",
+          "id": "park-service",
+          "title": "Parks service",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/staff/items/service?id=park-service",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/staff/items/service/thumbnail?id=park-service",
+            "alt": "Parks service preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [
+            {
+              "protocol": "ogc-api-features",
+              "href": "https://catalog.example.test/ogc/features/collections/parks",
+              "mediaType": "application/json"
+            },
+            {
+              "protocol": "wms",
+              "href": "https://catalog.example.test/ogc/services/parks/wms",
+              "mediaType": null
+            }
+          ],
+          "health": {
+            "status": "healthy",
+            "observedAt": "2000-01-01T00:00:00Z",
+            "uptimePercent": 99.9,
+            "windowHours": 24
+          },
+          "usage": null
+        },
+        {
+          "kind": "dataset",
+          "id": "staff-table",
+          "title": "Staff table",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "operations",
+          "access": "org",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "operations",
+            "title": "Operations"
+          },
+          "tags": [
+            "operations"
+          ],
+          "categories": [],
+          "status": "active",
+          "datasetKind": "feature-type",
+          "spatial": false,
+          "extent": null,
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/staff/items/dataset?id=staff-table",
+          "launchHref": null,
+          "releasedVersionId": null,
+          "thumbnail": {
+            "href": "/api/v1/catalogs/staff/items/dataset/thumbnail?id=staff-table",
+            "alt": "Staff table preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        }
+      ],
+      "total": 6,
+      "offset": 0,
+      "limit": 50,
+      "facets": {
+        "kind": [
+          {
+            "value": "app",
+            "label": "app",
+            "count": 1
+          },
+          {
+            "value": "dataset",
+            "label": "dataset",
+            "count": 2
+          },
+          {
+            "value": "layer",
+            "label": "layer",
+            "count": 1
+          },
+          {
+            "value": "map",
+            "label": "map",
+            "count": 1
+          },
+          {
+            "value": "service",
+            "label": "service",
+            "count": 1
+          }
+        ],
+        "protocol": [
+          {
+            "value": "ogc-api-features",
+            "label": "ogc-api-features",
+            "count": 2
+          },
+          {
+            "value": "wms",
+            "label": "wms",
+            "count": 1
+          }
+        ],
+        "folder": [
+          {
+            "value": "operations",
+            "label": "operations",
+            "count": 1
+          },
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 5
+          }
+        ],
+        "tag": [
+          {
+            "value": "operations",
+            "label": "operations",
+            "count": 1
+          },
+          {
+            "value": "outdoors",
+            "label": "outdoors",
+            "count": 5
+          }
+        ],
+        "owner": [
+          {
+            "value": "operations",
+            "label": "operations",
+            "count": 1
+          },
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 5
+          }
+        ],
+        "category": [
+          {
+            "value": "recreation",
+            "label": "recreation",
+            "count": 5
+          }
+        ],
+        "status": [
+          {
+            "value": "active",
+            "label": "active",
+            "count": 6
+          }
+        ]
+      }
+    },
+    "publicSearchApps": {
+      "catalogId": "open-data",
+      "revision": "fixture-catalog-r7",
+      "items": [
+        {
+          "kind": "app",
+          "id": "park-app",
+          "title": "Parks app",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": false,
+          "extent": null,
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/app?id=park-app",
+          "launchHref": "https://catalog.example.test/apps/park-app",
+          "releasedVersionId": "app-version-3",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/app/thumbnail?id=park-app",
+            "alt": "Parks app preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        }
+      ],
+      "total": 1,
+      "offset": 0,
+      "limit": 50,
+      "facets": {
+        "kind": [
+          {
+            "value": "app",
+            "label": "app",
+            "count": 1
+          }
+        ],
+        "protocol": [],
+        "folder": [
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 1
+          }
+        ],
+        "tag": [
+          {
+            "value": "outdoors",
+            "label": "outdoors",
+            "count": 1
+          }
+        ],
+        "owner": [
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 1
+          }
+        ],
+        "category": [
+          {
+            "value": "recreation",
+            "label": "recreation",
+            "count": 1
+          }
+        ],
+        "status": [
+          {
+            "value": "active",
+            "label": "active",
+            "count": 1
+          }
+        ]
+      }
+    },
+    "serviceUsedBy": {
+      "catalogId": "open-data",
+      "revision": "fixture-catalog-r7",
+      "items": [
+        {
+          "kind": "app",
+          "id": "park-app",
+          "title": "Parks app",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": false,
+          "extent": null,
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/app?id=park-app",
+          "launchHref": "https://catalog.example.test/apps/park-app",
+          "releasedVersionId": "app-version-3",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/app/thumbnail?id=park-app",
+            "alt": "Parks app preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        },
+        {
+          "kind": "map",
+          "id": "park-map",
+          "title": "Parks map",
+          "summary": "Synthetic catalog fixture.",
+          "owner": "parks",
+          "access": "public",
+          "created": null,
+          "updated": null,
+          "folder": {
+            "id": "parks",
+            "title": "Parks"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "categories": [
+            "recreation"
+          ],
+          "status": "active",
+          "datasetKind": null,
+          "spatial": true,
+          "extent": [
+            -158.1,
+            21.2,
+            -157.7,
+            21.7
+          ],
+          "temporalExtent": null,
+          "detailHref": "/api/v1/catalogs/open-data/items/map?id=park-map",
+          "launchHref": "https://catalog.example.test/maps/park-map",
+          "releasedVersionId": "map-version-2",
+          "thumbnail": {
+            "href": "/api/v1/catalogs/open-data/items/map/thumbnail?id=park-map",
+            "alt": "Parks map preview",
+            "source": "placeholder",
+            "width": 320,
+            "height": 180
+          },
+          "endpoints": [],
+          "health": {
+            "status": "unknown",
+            "observedAt": null,
+            "uptimePercent": null,
+            "windowHours": null
+          },
+          "usage": null
+        }
+      ],
+      "total": 2,
+      "offset": 0,
+      "limit": 50,
+      "facets": {
+        "kind": [
+          {
+            "value": "app",
+            "label": "app",
+            "count": 1
+          },
+          {
+            "value": "map",
+            "label": "map",
+            "count": 1
+          }
+        ],
+        "protocol": [],
+        "folder": [
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 2
+          }
+        ],
+        "tag": [
+          {
+            "value": "outdoors",
+            "label": "outdoors",
+            "count": 2
+          }
+        ],
+        "owner": [
+          {
+            "value": "parks",
+            "label": "parks",
+            "count": 2
+          }
+        ],
+        "category": [
+          {
+            "value": "recreation",
+            "label": "recreation",
+            "count": 2
+          }
+        ],
+        "status": [
+          {
+            "value": "active",
+            "label": "active",
+            "count": 2
+          }
+        ]
+      }
+    }
+  },
+  "serviceDetail": {
+    "kind": "service",
+    "id": "park-service",
+    "title": "Parks service",
+    "summary": "Synthetic catalog fixture.",
+    "owner": "parks",
+    "access": "public",
+    "created": null,
+    "updated": null,
+    "folder": {
+      "id": "parks",
+      "title": "Parks"
+    },
+    "tags": [
+      "outdoors"
+    ],
+    "categories": [
+      "recreation"
+    ],
+    "status": "active",
+    "datasetKind": null,
+    "spatial": true,
+    "extent": [
+      -158.1,
+      21.2,
+      -157.7,
+      21.7
+    ],
+    "temporalExtent": null,
+    "detailHref": "/api/v1/catalogs/open-data/items/service?id=park-service",
+    "launchHref": null,
+    "releasedVersionId": null,
+    "thumbnail": {
+      "href": "/api/v1/catalogs/open-data/items/service/thumbnail?id=park-service",
+      "alt": "Parks service preview",
+      "source": "placeholder",
+      "width": 320,
+      "height": 180
+    },
+    "endpoints": [
+      {
+        "protocol": "ogc-api-features",
+        "href": "https://catalog.example.test/ogc/features/collections/parks",
+        "mediaType": "application/json"
+      },
+      {
+        "protocol": "wms",
+        "href": "https://catalog.example.test/ogc/services/parks/wms",
+        "mediaType": null
+      }
+    ],
+    "health": {
+      "status": "healthy",
+      "observedAt": "2000-01-01T00:00:00Z",
+      "uptimePercent": 99.9,
+      "windowHours": 24
+    },
+    "usage": null,
+    "description": "Synthetic service detail, with visible related content only.",
+    "feeds": [],
+    "relations": [
+      {
+        "relation": "used-by",
+        "href": "/api/v1/catalogs/open-data/items/service/related?id=park-service&relation=used-by"
+      },
+      {
+        "relation": "layers",
+        "href": "/api/v1/catalogs/open-data/items/service/related?id=park-service&relation=layers"
+      }
+    ],
+    "replacement": null,
+    "metadataHref": null
+  },
+  "rolesAnonymous": {
+    "status": 401,
+    "problem": {
+      "type": "about:blank",
+      "title": "Sign in required",
+      "status": 401
+    }
+  },
+  "restrictedEmbed": {
+    "state": "sign-in-required",
+    "signInHref": "https://catalog.example.test/auth/signin"
+  },
+  "admin": {
+    "config": {
+      "id": "open-data",
+      "title": "Open data",
+      "description": "Synthetic public catalog.",
+      "revision": "fixture-catalog-r7",
+      "audience": {
+        "kind": "public",
+        "roleIds": []
+      },
+      "scope": {
+        "folderIds": [
+          "parks"
+        ],
+        "tags": [
+          "outdoors"
+        ],
+        "kinds": [
+          "dataset",
+          "layer",
+          "service",
+          "map",
+          "app"
+        ]
+      },
+      "defaultListing": "after-review",
+      "branding": {
+        "logo": null,
+        "lightAccent": "#1d4ed8",
+        "darkAccent": "#93c5fd"
+      },
+      "hostName": "catalog.example.test",
+      "allowedEmbedOrigins": [
+        "https://embed.example.test"
+      ],
+      "sections": [
+        {
+          "id": "search",
+          "kind": "search",
+          "title": "Find items",
+          "categoryId": null
+        },
+        {
+          "id": "featured",
+          "kind": "featured",
+          "title": "Featured",
+          "categoryId": null
+        },
+        {
+          "id": "categories",
+          "kind": "categories",
+          "title": "Categories",
+          "categoryId": null
+        }
+      ],
+      "categories": [
+        {
+          "id": "recreation",
+          "title": "Recreation",
+          "tags": [
+            "outdoors"
+          ],
+          "items": []
+        }
+      ],
+      "feeds": {
+        "formats": [
+          "records",
+          "dcat",
+          "schema-org"
+        ],
+        "indexing": true
+      },
+      "templates": [
+        {
+          "slot": "home",
+          "contentId": "home-template",
+          "versionId": "template-version-2"
+        }
+      ],
+      "memberships": [
+        {
+          "item": {
+            "kind": "app",
+            "id": "park-app"
+          },
+          "inclusion": "scope",
+          "hiddenHere": false,
+          "categoryIds": [
+            "recreation"
+          ],
+          "featuredPosition": 0,
+          "approvedItemRevision": "fixture-item-r3",
+          "appearance": null
+        },
+        {
+          "item": {
+            "kind": "dataset",
+            "id": "park-dataset"
+          },
+          "inclusion": "scope",
+          "hiddenHere": false,
+          "categoryIds": [
+            "recreation"
+          ],
+          "featuredPosition": null,
+          "approvedItemRevision": "fixture-item-r3",
+          "appearance": null
+        },
+        {
+          "item": {
+            "kind": "layer",
+            "id": "park-layer"
+          },
+          "inclusion": "scope",
+          "hiddenHere": false,
+          "categoryIds": [
+            "recreation"
+          ],
+          "featuredPosition": null,
+          "approvedItemRevision": "fixture-item-r3",
+          "appearance": null
+        },
+        {
+          "item": {
+            "kind": "map",
+            "id": "park-map"
+          },
+          "inclusion": "scope",
+          "hiddenHere": false,
+          "categoryIds": [
+            "recreation"
+          ],
+          "featuredPosition": null,
+          "approvedItemRevision": "fixture-item-r3",
+          "appearance": null
+        },
+        {
+          "item": {
+            "kind": "service",
+            "id": "park-service"
+          },
+          "inclusion": "scope",
+          "hiddenHere": false,
+          "categoryIds": [
+            "recreation"
+          ],
+          "featuredPosition": null,
+          "approvedItemRevision": "fixture-item-r3",
+          "appearance": null
+        }
+      ]
+    },
+    "overview": {
+      "catalogId": "open-data",
+      "revision": "fixture-catalog-r7",
+      "counts": {
+        "listed": 5,
+        "audienceRestricted": 1,
+        "hiddenHere": 1,
+        "optedOut": 1,
+        "matched": 8
+      },
+      "needsAttention": []
+    },
+    "listing": {
+      "item": {
+        "kind": "service",
+        "id": "park-service"
+      },
+      "canAppearInCatalogs": true,
+      "itemRevision": "fixture-item-r3",
+      "catalogs": [
+        {
+          "catalogId": "open-data",
+          "reason": "scope",
+          "audienceEligible": true,
+          "categoryIds": [
+            "recreation"
+          ],
+          "featuredPosition": null
+        }
+      ]
+    },
+    "templates": [
+      {
+        "contentId": "home-template",
+        "title": "Catalog home",
+        "slot": "home",
+        "revision": "fixture-template-r2",
+        "draftId": null,
+        "releasedVersionId": "template-version-2",
+        "proposalId": null,
+        "componentBundleDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ]
+  }
+}

@@ -17,6 +17,8 @@ import { featureSelectionKey, sourceFeatureSelectionTarget } from "../exploratio
 import type { SourceQualifiedFeatureSelectionTarget } from "../exploration/types.js";
 import type { HonuaApplicationContext, HonuaApplicationContextChangeEvent } from "./application-context.js";
 import { renderCspSafeShadowHtml } from "./csp-styles.js";
+import { sanitizeDisplayHref as sanitizeHonuaInspectionHref } from "./display-href.js";
+export { sanitizeDisplayHref as sanitizeHonuaInspectionHref } from "./display-href.js";
 
 const DEFAULT_PAGE_SIZE = 10;
 const DEFAULT_MAX_PAGES = 5;
@@ -1421,24 +1423,6 @@ function decodeHonuaInspectionEntities(value: string): string {
     /&(nbsp|lt|gt|amp|quot|#39|#x27);/gi,
     (entity, name: string) => entities[name.toLocaleLowerCase()] ?? entity,
   );
-}
-
-/** Resolve a display link without carrying credentials or unsafe schemes. */
-export function sanitizeHonuaInspectionHref(
-  value: string,
-  options: { readonly baseHref?: string; readonly allowedOrigins?: readonly string[] } = {},
-): string | undefined {
-  try {
-    const url = options.baseHref ? new URL(value, options.baseHref) : new URL(value);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
-    if (url.username || url.password) return undefined;
-    const allowed = options.allowedOrigins;
-    if (allowed && allowed.length > 0 && !allowed.includes(url.origin)) return undefined;
-    url.hash = "";
-    return url.href;
-  } catch {
-    return undefined;
-  }
 }
 
 /** Format a scalar popup/detail value without interpreting it as markup. */

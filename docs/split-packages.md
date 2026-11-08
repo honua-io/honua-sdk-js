@@ -8,7 +8,7 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 
 For nearly all consumers the canonical install is the single `@honua/sdk-js`
 package described in [`INSTALL.md`](../INSTALL.md). The repository also carries
-an opt-in build target that produces five focused npm packages from the
+an opt-in build target that produces six focused npm packages from the
 same source tree, for downstream packagers and organizations that only want a
 subset of the surface.
 
@@ -51,6 +51,7 @@ owner inventory, integrity and toolchain identity. Ceilings leave approximately
 
 | Package | Subpath equivalent | What it contains |
 |---------|--------------------|------------------|
+| `@honua/components` | Dedicated focused package | Off-by-default experimental catalog search/cards; fixture development only until canonical catalog contracts land |
 | `@honua/sdk` | `@honua/sdk-js/honua` + most stable subpaths | `HonuaClient`, not `createHonua`. Also the shared contract, query planner, offline-region contract, and plan-bound MapLibre adapter |
 | `@honua/sdk-client-compat` | `@honua/sdk-js/client-compat` | Web mapping compatibility layer, including the geometry engine shim |
 | `@honua/react` | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers) |
