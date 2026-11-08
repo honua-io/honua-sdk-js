@@ -144,15 +144,20 @@ export class HonuaCatalogCardElement extends CatalogElement {
       this.state("configuration", "Configure a catalog and item identity.");
       return;
     }
+    const identity = { catalogId, kind, id };
     void this.read(
       generation,
-      (client, signal) => client.getCatalogItem({ catalogId, kind, id }, { signal }),
-      (item) => this.renderItem(item, kind, id, generation),
+      (client, signal) => client.getCatalogItem(identity, { signal }),
+      (item) => this.renderItem(item, identity, generation),
     );
   }
 
-  private renderItem(item: CatalogCardProjection, kind: string, id: string, generation: number): void {
-    if (!visibleCard(item) || item.kind !== kind || item.id !== id) {
+  private renderItem(
+    item: CatalogCardProjection,
+    identity: { readonly kind: string; readonly id: string },
+    generation: number,
+  ): void {
+    if (!visibleCard(item) || item.kind !== identity.kind || item.id !== identity.id) {
       this.state("unavailable", "Catalog content is unavailable.");
       return;
     }
