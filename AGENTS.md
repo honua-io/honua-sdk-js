@@ -58,6 +58,8 @@ before touching the pin, playgrounds, capability keys or sample fixtures.
   `Refs` explanations need a progress marker (`slice`, `remains`, `follow-up`, `blocked`, ...).
   Grammar and a local parse command: CONTRIBUTING.md "PR issue disposition footer".
 - Resolve every review thread; reject a false positive with evidence, not a no-op change.
+- Unit coverage reruns reuse shard artifacts; inspect the original shard failure. A rerun of the
+  coverage merger cannot disprove a shard timing flake. Keep latency ceilings in `bench:lab`.
 - A `Missing script` failure means your branch predates a new gate: merge `origin/trunk` first.
 - On a `docs/bundle-sizes.md` conflict, take trunk's copy and regenerate; never hand-merge it.
 - File SDK, examples, MCP and migration-tool work here; backlog items use the Specifica
