@@ -51,12 +51,12 @@ const REGISTRY_OPERATORS = {
   "is-null": "is-null",
   "is-not-null": "is-not-null",
 } as const;
-const MAX_ROWS = 32;
+export const FILTER_BUILDER_MAX_ROWS = 32;
 
 /** Compile a bounded, schema-checked builder draft without mutating shared state. */
 export function compileFilterBuilder(draft: HonuaFilterBuilderDraft): HonuaFilterBuilderProjection {
-  if (!draft.ownerId || !draft.sourceId || draft.rows.length > MAX_ROWS)
-    throw new Error("Choose a source and at most 32 filter rows.");
+  if (!draft.ownerId || !draft.sourceId || draft.rows.length > FILTER_BUILDER_MAX_ROWS)
+    throw new Error(`Choose a source and at most ${FILTER_BUILDER_MAX_ROWS} filter rows.`);
   const nodes: QueryFilterExpression[] = [];
   const clauses: FilterClause[] = [];
   const add = (node: QueryFilterExpression, clause: Partial<FilterClause>): void => {
@@ -151,9 +151,17 @@ function parseValue(field: HonuaFilterBuilderField, value: string | undefined): 
 function assertInstant(value: string): void {
   if (
     !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(value) ||
-    !Number.isFinite(Date.parse(value))
+    !Number.isFinite(Date.parse(value)) ||
+    !isCalendarDate(value)
   )
     throw new Error("Enter a timestamp with a timezone.");
+}
+
+function isCalendarDate(value: string): boolean {
+  // Check the local calendar separately: Date.parse silently normalizes February 30.
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day;
 }
 
 function compileTime(time: HonuaFilterBuilderTime, fields: readonly HonuaFilterBuilderField[]): QueryFilterExpression {

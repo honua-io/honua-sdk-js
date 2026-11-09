@@ -951,8 +951,8 @@ through the canonical query compiler. The editor supports at most 32 rows,
 schema field names that are identifiers, typed numeric and boolean values,
 string patterns, null checks, and timestamps with an explicit timezone. Invalid
 input preserves the previously applied registry state and CQL2. Extents must be
-ordered west/south/east/north; split an extent crossing the antimeridian in the
-host before presenting it here.
+ordered west/south/east/north. An extent crossing the antimeridian requires a
+host-provided spatial editor that supports multiple extents.
 
 Set `countRows` to an async `(query, signal) => number` callback to display a
 matching count. The callback and `honua-filter-change` detail contain this

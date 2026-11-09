@@ -2,7 +2,7 @@ import type { Query } from "../contract/types.js";
 import type { FilterRegistry } from "../filter-registry/index.js";
 import { HTMLElementBase, globalDom, renderShadowRoot } from "./element-utils.js";
 import { FILTER_BUILDER_CSS, filterBuilderMarkup, readFilterBuilderDraft } from "./filter-builder-view.js";
-import { applyFilterBuilder, compileFilterBuilder } from "./filter-builder.js";
+import { FILTER_BUILDER_MAX_ROWS, applyFilterBuilder, compileFilterBuilder } from "./filter-builder.js";
 import type { HonuaFilterBuilderDraft, HonuaFilterBuilderProjection } from "./filter-builder.js";
 
 export type HonuaFilterBuilderCount = (query: Query, signal: AbortSignal) => Promise<number>;
@@ -45,6 +45,7 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
     this.#invalidateCount();
     this.#clearOwner();
     this.#registry = value;
+    this.#refreshStatus();
   }
   public get countRows(): HonuaFilterBuilderCount | undefined {
     return this.#count;
@@ -77,7 +78,7 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
       ? { countRows: this.#count, query: projection.query, abort: new AbortController() }
       : undefined;
     this.#abort = task?.abort;
-    this.render();
+    this.#refreshStatus();
     if (globalDom.CustomEvent && typeof this.dispatchEvent === "function")
       this.dispatchEvent(
         new globalDom.CustomEvent("honua-filter-change", { detail: projection, bubbles: true, composed: true }),
@@ -106,7 +107,7 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
   }
   #addRow(): void {
     this.#capture();
-    if (!this.#draft || !this.#draft.fields[0] || this.#draft.rows.length >= 32) return;
+    if (!this.#draft || !this.#draft.fields[0] || this.#draft.rows.length >= FILTER_BUILDER_MAX_ROWS) return;
     this.#draft = {
       ...this.#draft,
       rows: [...this.#draft.rows, { field: this.#draft.fields[0].name, operator: "eq", value: "" }],
@@ -142,6 +143,8 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
   #refreshStatus(): void {
     const output = this.shadowRoot?.querySelector("output");
     if (output) output.textContent = this.#status;
+    const cql2 = this.shadowRoot?.querySelector("pre");
+    if (cql2) cql2.textContent = this.#cql2 || "No attribute, extent or time filter applied.";
   }
   #invalidateCount(): void {
     this.#abort?.abort();
@@ -149,10 +152,12 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
   }
   #clearOwner(): void {
     if (this.#draft) this.#registry?.clearOwner({ kind: "control", id: this.#draft.ownerId });
+    this.#cql2 = "";
+    this.#status = "Apply filters to update matching rows.";
   }
   #showError(): void {
     this.#status = "Filters were not applied. Check field values, extent bounds and timestamps with timezones.";
-    this.render();
+    this.#refreshStatus();
   }
 }
 

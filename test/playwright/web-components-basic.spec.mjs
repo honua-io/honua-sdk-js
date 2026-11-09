@@ -588,12 +588,14 @@ test("filter builder keyboard editing emits the canonical query and count", asyn
     await control.locator("[data-value]").fill("42");
     await control.getByRole("button", { name: "Apply filters" }).focus();
     await page.keyboard.press("Enter");
+    await expect(control.getByRole("button", { name: "Apply filters" })).toBeFocused();
     await expect(control.locator("output")).toHaveText("12 matching rows");
     await expect(control.locator("pre")).toHaveText("people >= 42");
     expect(await page.evaluate(() => window.__filterProjection.query.filter)).toMatchObject({ kind: "comparison", operator: "gte" });
     await control.locator("[data-value]").fill("NaN");
     await control.getByRole("button", { name: "Apply filters" }).click();
     await expect(control.locator("output")).toContainText("Filters were not applied");
+    await expect(control.getByRole("button", { name: "Apply filters" })).toBeFocused();
     await expect(control.locator("pre")).toHaveText("people >= 42");
     await control.getByRole("button", { name: "Remove filter 1" }).click();
     await expect(control.getByRole("button", { name: "Add filter" })).toBeFocused();

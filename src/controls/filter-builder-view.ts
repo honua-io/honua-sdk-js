@@ -1,4 +1,5 @@
 import { escapeAttribute as attr, escapeHtml } from "./element-utils.js";
+import { FILTER_BUILDER_MAX_ROWS } from "./filter-builder.js";
 import type { HonuaFilterBuilderDraft, HonuaFilterBuilderRow } from "./filter-builder.js";
 
 const OPERATORS = {
@@ -53,7 +54,7 @@ export function filterBuilderMarkup(draft: HonuaFilterBuilderDraft, status: stri
   const bounds = ["West", "South", "East", "North"]
     .map(
       (label, index) =>
-        `<label>${label}<input data-bound type="number" step="any" value="${draft.extent?.[index] ?? ""}"></label>`,
+        `<label>${label}<input data-bound type="number" step="any" value="${attr(String(draft.extent?.[index] ?? ""))}"></label>`,
     )
     .join("");
   const timeOptions = options(
@@ -67,7 +68,7 @@ export function filterBuilderMarkup(draft: HonuaFilterBuilderDraft, status: stri
   );
   return `<form part="root" aria-label="Filter rows">
 <fieldset><legend>Attribute filters (all must match)</legend>${draft.rows.map((row, index) => rowMarkup(row, index, draft)).join("")}
-<button type="button" data-add ${draft.rows.length >= 32 || !draft.fields.length ? "disabled" : ""}>Add filter</button></fieldset>
+<button type="button" data-add ${draft.rows.length >= FILTER_BUILDER_MAX_ROWS || !draft.fields.length ? "disabled" : ""}>Add filter</button></fieldset>
 <fieldset><legend>Map extent</legend><label><input data-extent type="checkbox" ${draft.extent ? "checked" : ""}>Limit to WGS84 extent</label><div class="bounds">${bounds}</div></fieldset>
 <fieldset><legend>Time range</legend><label>Date field<select data-time-field>${timeOptions}</select></label>
 <label>Start (timestamp with timezone)<input data-start placeholder="2026-01-01T00:00:00Z" value="${attr(draft.time?.start ?? "")}"></label>

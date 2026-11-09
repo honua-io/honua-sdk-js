@@ -70,3 +70,16 @@ test("registry and owner changes remove stale filters without erasing other owne
   element.draft = { ...draft, ownerId: "next" };
   expect(second.snapshot.clauses).toHaveLength(0);
 });
+
+test("disconnect and registry replacement reset applied feedback", async () => {
+  const element = new HonuaFilterBuilderElement();
+  element.registry = createFilterRegistry();
+  element.draft = draft;
+  await element.apply();
+  element.disconnectedCallback();
+  element.connectedCallback();
+  expect(element.countStatus).toBe("Apply filters to update matching rows.");
+  await element.apply();
+  element.registry = createFilterRegistry();
+  expect(element.countStatus).toBe("Apply filters to update matching rows.");
+});

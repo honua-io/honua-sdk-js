@@ -52,6 +52,7 @@ describe("visual filter builder projection", () => {
     { rows: [{ field: "population", operator: "eq", value: "NaN" }] },
     { rows: [{ field: "unknown", operator: "eq", value: "x" }] },
     { rows: [{ field: "population", operator: "like", value: "x" }] },
+    { rows: [{ field: "observed", operator: "eq", value: "2026-02-30T00:00:00Z" }] },
     { rows: [], extent: [-157, 20, -158, 22] },
     { rows: [], extent: [-190, 20, -158, 22] },
     { rows: [], time: { field: "observed", start: "2026-02-01T00:00:00Z", end: "2026-01-01T00:00:00Z" } },
@@ -87,4 +88,19 @@ describe("visual filter builder projection", () => {
       }),
     ).toThrow();
   });
+});
+
+test("escapes untyped host extent values before rendering", async () => {
+  const { filterBuilderMarkup } = await import("../../src/controls/filter-builder-view.js");
+  const markup = filterBuilderMarkup(
+    {
+      ...options,
+      rows: [],
+      extent: ['" autofocus onfocus="window.__x=1', 0, 0, 0] as unknown as [number, number, number, number],
+    },
+    "",
+    "",
+  );
+  expect(markup).not.toContain('value="" autofocus');
+  expect(markup).toContain("&quot;");
 });
