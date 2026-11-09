@@ -86,7 +86,7 @@ describe("PR-fast timing policy", () => {
     try {
       const status = await runValidation(
         { budgetMs: 1, startedAtMonotonicMs: 1, output },
-        async (command: string, args: string[]) => ({ command: [command, ...args].join(" "), exitCode }),
+        async (command, args) => ({ command: [command, ...args].join(" "), durationMs: 0, exitCode }),
       );
       expect(status).toBe(exitCode === 0 ? 0 : 1);
       const report = JSON.parse(await readFile(output, "utf8"));
