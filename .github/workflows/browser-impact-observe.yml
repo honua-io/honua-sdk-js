@@ -81,6 +81,7 @@ jobs:
               SUPERSEDED_SOURCE_RUN,
               resolveTrustedPullRequestWorkflowRun,
             } = require("./scripts/trusted-pr-workflow-run.cjs");
+            const { browserShardsComplete } = await import("./scripts/browser-impact-observe.mjs");
             let resolved;
             try {
               resolved = await resolveTrustedPullRequestWorkflowRun({
@@ -116,6 +117,7 @@ jobs:
             core.setOutput("pull_request", resolved.pullRequestNumber);
             core.setOutput("base_sha", resolved.baseSha);
             core.setOutput("head_sha", resolved.headSha);
+            core.setOutput("browser_shards", browserShardsComplete(resolved) ? "complete" : "incomplete");
             core.setOutput("job_id", resolved.job.id);
             core.setOutput("job_name", resolved.job.name);
             core.setOutput("job_conclusion", resolved.job.conclusion);
@@ -163,6 +165,7 @@ jobs:
           CANDIDATE_ROOT: ${{ steps.merge.outputs.candidate_root }}
           SOURCE_JOB_ID: ${{ steps.resolve.outputs.job_id }}
           SOURCE_JOB_NAME: ${{ steps.resolve.outputs.job_name }}
+          SOURCE_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}
           SOURCE_JOB_CONCLUSION: ${{ steps.resolve.outputs.job_conclusion }}
           SOURCE_CHECK_RUN_ID: ${{ steps.resolve.outputs.check_run_id }}
         run: |
@@ -184,6 +187,7 @@ jobs:
             --source-run-conclusion "$SOURCE_RUN_CONCLUSION" \
             --source-job-id "$SOURCE_JOB_ID" \
             --source-job-name "$SOURCE_JOB_NAME" \
+            --source-browser-shards "$SOURCE_BROWSER_SHARDS" \
             --source-job-conclusion "$SOURCE_JOB_CONCLUSION" \
             --source-check-run-id "$SOURCE_CHECK_RUN_ID" \
             --output test-results/browser-impact-observation.json \
@@ -201,6 +205,7 @@ jobs:
           EXPECTED_BASE: ${{ steps.resolve.outputs.base_sha }}
           EXPECTED_HEAD: ${{ steps.resolve.outputs.head_sha }}
           EXPECTED_JOB_ID: ${{ steps.resolve.outputs.job_id }}
+          EXPECTED_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}
           EXPECTED_JOB_CONCLUSION: ${{ steps.resolve.outputs.job_conclusion }}
           EXPECTED_CHECK_RUN_ID: ${{ steps.resolve.outputs.check_run_id }}
         with:
@@ -209,6 +214,7 @@ jobs:
               SUPERSEDED_SOURCE_RUN,
               resolveTrustedPullRequestWorkflowRun,
             } = require("./scripts/trusted-pr-workflow-run.cjs");
+            const { browserShardsComplete } = await import("./scripts/browser-impact-observe.mjs");
             let resolved;
             try {
               resolved = await resolveTrustedPullRequestWorkflowRun({
@@ -247,6 +253,7 @@ jobs:
               checkRunId: Number(process.env.EXPECTED_CHECK_RUN_ID),
             };
             if (
+              (browserShardsComplete(resolved) ? "complete" : "incomplete") !== process.env.EXPECTED_BROWSER_SHARDS ||
               resolved.pullRequestNumber !== expected.pullRequestNumber ||
               resolved.baseSha !== expected.baseSha ||
               resolved.headSha !== expected.headSha ||

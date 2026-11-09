@@ -15,6 +15,7 @@ import {
   assignSpecs,
   assertTrustedPolicyCommit,
   buildTrust,
+  browserShardsComplete,
   discoverBrowserFixtureRoots,
   discoverLocalModuleDependencies,
   discoverSpecs,
@@ -47,6 +48,7 @@ function trustedMetadata(overrides = {}) {
     sourceRunConclusion: "success",
     sourceJobId: "456",
     sourceJobName: "SDK verified",
+    sourceBrowserShards: "complete",
     sourceJobConclusion: "success",
     sourceCheckRunId: "456",
     policyCommitSha: "a".repeat(40),
@@ -378,6 +380,37 @@ test("binds verified graph evidence to a fixed ordered trusted-policy manifest",
   }
 });
 
+test("browser execution requires successful same-attempt same-head shards", () => {
+  const run = { id: 123, run_attempt: 2, head_sha: "a".repeat(40) };
+  const jobs = ["map", "offline"].map((name) => ({
+    name: `Browser (${name})`, run_id: run.id, run_attempt: run.run_attempt,
+    head_sha: run.head_sha, workflow_name: "SDK Verification",
+    status: "completed", conclusion: "success",
+  }));
+  assert.equal(browserShardsComplete({ jobs, run }), true);
+  assert.equal(browserShardsComplete({ jobs: [], run }), false);
+  for (const [field, value] of [
+    ["run_id", 999], ["run_attempt", 1], ["head_sha", "b".repeat(40)],
+    ["workflow_name", "SDK CI"], ["status", "in_progress"],
+    ["conclusion", "skipped"], ["conclusion", "failure"], ["conclusion", "cancelled"],
+  ]) {
+    const changed = [{ ...jobs[0], [field]: value }, jobs[1]];
+    assert.equal(browserShardsComplete({ jobs: changed, run }), false, field);
+  }
+});
+
+test("disabled graph success cannot qualify without browser execution", () => {
+  const trust = buildTrust(trustedMetadata({ sourceBrowserShards: "incomplete" }));
+  const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
+  assert.equal(report.comparison.promotion_sample_eligible, false);
+  assert.equal(report.legacy.runs_all_specs, false);
+  assert.deepEqual(report.comparison.promotion_exclusion_reasons, ["browser-authority-not-comparable"]);
+});
+
+test("rejects a graph receipt missing its browser execution proof", () => {
+  assert.throws(() => buildTrust(trustedMetadata({ sourceBrowserShards: undefined })), /browser execution/u);
+});
+
 test("excludes policy and source-workflow changes from promotion samples", () => {
   const trust = buildTrust(trustedMetadata());
   const report = evaluate(
@@ -482,6 +515,9 @@ test("trusted observer workflow rejects permission and identity regressions", ()
       source.replace("  pull-requests: read", "  pull-requests: write"),
       source.replace("  contents: read", "  contents: read\n  issues: read"),
       source.replace('jobName: "SDK verified"', 'jobName: "MCP SDK"'),
+      source.replace("browserShardsComplete(resolved)", "true"),
+      source.replace('--source-browser-shards "$SOURCE_BROWSER_SHARDS"', '--source-browser-shards "complete"'),
+      source.replace("EXPECTED_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}", "EXPECTED_BROWSER_SHARDS: complete"),
       source.replace('workflows: ["SDK Verification"]', 'workflows: ["Lookalike"]'),
       source.replace(
         "github.event.workflow_run.pull_requests[0].base.ref ==",

@@ -336,6 +336,7 @@ export function validateWorkflow(root) {
     'workflowPath: ".github/workflows/sdk-verification.yml"',
     'workflowName: "SDK Verification"',
     'jobName: "SDK verified"',
+    "browserShardsComplete(resolved)",
   ]) {
     if (workflow.split(binding).length - 1 !== 2) {
       throw new PolicyError("browser observer source identity must match in both resolutions");
@@ -378,6 +379,10 @@ export function validateWorkflow(root) {
     );
   }
   for (const argument of [
+    '--source-browser-shards "$SOURCE_BROWSER_SHARDS"',
+    "SOURCE_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}",
+    "EXPECTED_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}",
+    "process.env.EXPECTED_BROWSER_SHARDS",
     '--observer-run-id "$GITHUB_RUN_ID"',
     '--observer-run-attempt "$GITHUB_RUN_ATTEMPT"',
     '--observer-event "$GITHUB_EVENT_NAME"',
@@ -521,7 +526,8 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
   if (!metadata.trust) promotionExclusionReasons.push("missing-trusted-identity");
   if (metadata.trust?.source_job_conclusion === "failure") {
     promotionExclusionReasons.push("browser-authority-failure-unattributed");
-  } else if (metadata.trust && metadata.trust.source_job_conclusion !== "success") {
+  } else if (metadata.trust && (metadata.trust.source_job_conclusion !== "success" ||
+      metadata.trust.source_browser_shards !== "complete")) {
     promotionExclusionReasons.push("browser-authority-not-comparable");
   }
   if ([".github/workflows/ci.yml", ".github/workflows/sdk-verification.yml"]
@@ -545,7 +551,7 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
     changed_paths: normalizedChangedPaths,
     ignored_paths: ignored,
     fail_closed_paths: failClosed,
-    legacy: { runs_all_specs: true, spec_count: specs.length },
+    legacy: { runs_all_specs: metadata.trust?.source_browser_shards === "complete", spec_count: specs.length },
     candidate: {
       selected_lanes: selectedLanes,
       skipped_lanes: allLanes.filter((lane) => !selectedLanes.includes(lane)),
@@ -688,6 +694,21 @@ function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+export function browserShardsComplete({ jobs, run }) {
+  const browsers = jobs.filter((job) => job.name?.startsWith("Browser ("));
+  return browsers.length > 0 && browsers.every((job) =>
+    job.run_id === run.id && job.run_attempt === run.run_attempt &&
+    job.workflow_name === "SDK Verification" && job.head_sha === run.head_sha &&
+    job.status === "completed" && job.conclusion === "success");
+}
+
+function parseBrowserShardExecution(value) {
+  if (value !== "complete" && value !== "incomplete") {
+    throw new PolicyError("trusted browser execution proof is missing or invalid");
+  }
+  return value;
+}
+
 export function buildTrust(metadata) {
   const trust = {
     observer_run_id: parsePositiveSafeInteger(metadata.observerRunId, "observer run id"),
@@ -706,6 +727,7 @@ export function buildTrust(metadata) {
     source_run_conclusion: String(metadata.sourceRunConclusion ?? ""),
     source_job_id: parsePositiveSafeInteger(metadata.sourceJobId, "source job id"),
     source_job_name: String(metadata.sourceJobName ?? ""),
+    source_browser_shards: parseBrowserShardExecution(metadata.sourceBrowserShards),
     source_job_conclusion: String(metadata.sourceJobConclusion ?? ""),
     source_check_run_id: parsePositiveSafeInteger(
       metadata.sourceCheckRunId,
@@ -825,6 +847,7 @@ function main(argv) {
     sourceRunConclusion: args["source-run-conclusion"],
     sourceJobId: args["source-job-id"],
     sourceJobName: args["source-job-name"],
+    sourceBrowserShards: args["source-browser-shards"],
     sourceJobConclusion: args["source-job-conclusion"],
     sourceCheckRunId: args["source-check-run-id"],
     policyCommitSha: execFileSync("git", ["rev-parse", "HEAD"], {

@@ -348,7 +348,9 @@ Promotion proceeds after the guarded retirement PR lands with both workflows gre
 Browser-impact observation consumes completed `SDK Verification` runs and resolves the exact
 `SDK verified` job/check twice, before collection and before publishing. That aggregate retains
 all browser shards, so observation keeps comparable evidence after the legacy jobs retire.
-Skipped or cancelled graph results remain ineligible; selecting `off` also disables usable
+The observer also requires a nonempty successful browser-job set bound to the same run,
+attempt and source head at both resolutions. A successful aggregate with no browser execution
+remains ineligible, as do skipped or cancelled shards; selecting `off` also disables usable
 graph-based observation. Existing observation artifacts remain unchanged.
 
 To roll back, first set the variable to `shadow` so both legacy jobs run, wait for genuine
