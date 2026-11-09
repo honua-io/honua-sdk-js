@@ -76,7 +76,7 @@ test("public admission ignores inherited npm relaxation and configuration files"
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-function fixture(t, { peer = "^0.1.15", installedSdk = "0.1.15", installedMcp = "0.1.16", missingSdk = false, wrongName = false } = {}) {
+function fixture(t, { peer = "^0.1.15", installedSdk = "0.1.15", installedMcp = "0.1.16", missingSdk = false, wrongName = false, mcpModule = "export const ready = true;" } = {}) {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-publish-proof-"));
   t.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));
   fs.mkdirSync(path.join(projectRoot, "mcp"));
@@ -93,7 +93,11 @@ function fixture(t, { peer = "^0.1.15", installedSdk = "0.1.15", installedMcp = 
     for (const [name, version] of [["@honua/sdk-js", installedSdk], ["@honua/mcp-server", installedMcp]]) {
       const root = path.join(options.cwd, "node_modules", name);
       fs.mkdirSync(root, { recursive: true });
-      fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: wrongName ? "wrong-package" : name, version, peerDependencies: name === "@honua/mcp-server" ? { "@honua/sdk-js": peer } : undefined }));
+      fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: wrongName ? "wrong-package" : name, version, type: "module", exports: name === "@honua/sdk-js" ? { ".": "./index.js", "./geometry": "./geometry.js" } : "./index.js", peerDependencies: name === "@honua/mcp-server" ? { "@honua/sdk-js": peer } : undefined }));
+      fs.writeFileSync(path.join(root, "index.js"), name === "@honua/mcp-server" ? mcpModule : "export const ready = true;");
+      if (name === "@honua/sdk-js") {
+        fs.writeFileSync(path.join(root, "geometry.js"), "export const geoJsonToGeoServices = (geometry) => geometry;");
+      }
     }
     return { status: 0, stdout: "installed" };
   };
@@ -119,6 +123,22 @@ test("missing public SDK refuses publication with an actionable exact-tag retry 
   await assert.rejects(verifyPair(publishArgs, f), /retry the same MCP tag after SDK publication.*failed[\s\S]*ETARGET/);
   assert.equal(f.calls.length, 2, "no legacy-peer retry or workspace fallback");
   assert.equal(fs.existsSync(f.calls[1].cwd), false);
+});
+
+test("an installed MCP imports the current SDK geometry export", async (t) => {
+  const f = fixture(t, { mcpModule: "import { geoJsonToGeoServices } from '@honua/sdk-js/geometry'; export const geometry = geoJsonToGeoServices({type:'Point',coordinates:[12,34]});" });
+  await verifyPair(publishArgs, f);
+  assert.equal(fs.existsSync(f.calls.at(-1).cwd), false);
+});
+
+for (const [name, mcpModule, error] of [
+  ["retired SDK geometry export", "import { geoJsonToEsri } from '@honua/sdk-js/geometry'; export { geoJsonToEsri };", /installed MCP module import failed[\s\S]*geoJsonToEsri/],
+  ["module initialization exception", "throw new Error('synthetic installed MCP startup failure');", /installed MCP module import failed[\s\S]*synthetic installed MCP startup failure/],
+  ["nonzero process exit", "process.exit(7);", /installed MCP module import failed \(exit 7\)/],
+]) test(`an otherwise installable pair rejects ${name}`, async (t) => {
+  const f = fixture(t, { mcpModule });
+  await assert.rejects(verifyPair(publishArgs, f), error);
+  assert.equal(fs.existsSync(f.calls.at(-1).cwd), false);
 });
 
 for (const [name, options, error] of [
