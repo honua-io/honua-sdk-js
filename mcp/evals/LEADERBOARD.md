@@ -1,12 +1,12 @@
 # Honua MCP Evals — Leaderboard
 
-_Generated 2026-11-02T16:55:54.934Z from 3 eval + 21 certification run artifact(s) in [`runs/`](./runs)._
+_Generated 2026-11-09T17:17:19.161Z from 3 eval + 23 certification run artifact(s) in [`runs/`](./runs)._
 
 Every row is reproducible: each source artifact records its target surface, negotiated protocol version, tool count, auth mode, and the git SHA of the suite that produced it. All model calls run through AWS Bedrock; the deterministic control makes no model calls and is the CI gate.
 
 ## Latest scheduled certification
 
-**Verdict: ❌ FAIL** (2026-11-02, pinned candidate live honua /mcp (http://localhost:8080/mcp), auth `api-key`, 0 failure(s), 1 blocked contract(s). Source: [`runs/2026-11-02/cert-candidate.json`](./runs/2026-11-02/cert-candidate.json).)
+**Verdict: ❌ FAIL** (2026-11-09, pinned candidate live honua /mcp (http://localhost:8080/mcp), auth `api-key`, 0 failure(s), 1 blocked contract(s). Source: [`runs/2026-11-09/cert-candidate.json`](./runs/2026-11-09/cert-candidate.json).)
 
 > The cross-model rows below are history (latest eval run 2026-07-07). They are not a current verdict.
 
@@ -61,4 +61,6 @@ Legend: ✅ pass · ❌ fail · ❓ clarified · ⚠️ error · · not run
 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 8 | ❌ fail | 2026-10-05 | `73bdd0e8f7` |
 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 6 | ❌ fail | 2026-11-02 | `c8715bcc9e` |
 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 9 | ✅ pass | 2026-11-02 | `c8715bcc9e` |
+| live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 6 | ❌ fail | 2026-11-09 | `c7d67205c6` |
+| honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 9 | ✅ pass | 2026-11-09 | `c7d67205c6` |
 

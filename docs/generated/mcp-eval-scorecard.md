@@ -16,10 +16,10 @@ produced it. Nothing here is hand-typed, and the generator recomputes every rate
 per-scenario rows before publishing it, so a summary that disagreed with its own graded
 evidence would fail the build instead of reaching this page.
 
-**Observation window:** 2026-07-05 → 2026-11-02
-(12 distinct observation dates,
+**Observation window:** 2026-07-05 → 2026-11-09
+(13 distinct observation dates,
 3 cross-model eval artifacts,
-21 certification artifacts).
+23 certification artifacts).
 
 > This is a small, honest corpus, not a benchmark leaderboard. Read
 > [What this does and does not measure](#what-this-does-and-does-not-measure) before citing a
@@ -135,10 +135,12 @@ schedule and it fails loudly.
 | 2026-10-05 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 8 | 40 | ❌ fail | `73bdd0e8f70b` |
 | 2026-11-02 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `c8715bcc9e32` |
 | 2026-11-02 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `c8715bcc9e32` |
+| 2026-11-09 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `c7d67205c6da` |
+| 2026-11-09 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `c7d67205c6da` |
 
-### Certification failures and skips — 2026-11-02
+### Certification failures and skips — 2026-11-09
 
-From [`mcp/evals/runs/2026-11-02/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-standalone.json). Failures are real conformance defects in the
+From [`mcp/evals/runs/2026-11-09/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-09/cert-standalone.json). Failures are real conformance defects in the
 certified surface, published unedited; skips name the reason they could not be checked.
 
 | Contract | Target | Status | Detail |
@@ -155,7 +157,7 @@ certified surface, published unedited; skips name the reason they could not be c
 
 The same run recorded **54 known standard gaps** — tool families in the
 geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), Analysis verbs, App composition, Composition controls, Composition exploration, Composition interactions, Composition review (reference shape), Control-plane proposal (reference shape), Discovery and grounding (Honua extension), Discovery and query (reference shape), Execution, Execution (reference shape), Feature editing, Intent and planning, Map composition, Platform operations (reference shape), Publishing, unclassified).
-They are enumerated in [`mcp/evals/runs/2026-11-02/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-standalone.json) under `knownGaps`.
+They are enumerated in [`mcp/evals/runs/2026-11-09/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-09/cert-standalone.json) under `knownGaps`.
 
 ## What this does and does not measure
 
@@ -215,6 +217,8 @@ Every artifact behind this page, with the surface it targeted and the suite that
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-05/cert-standalone.json) | 2026-10-05 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `73bdd0e8f70b` |
 | [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-candidate.json) | 2026-11-02 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `c8715bcc9e32` |
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-standalone.json) | 2026-11-02 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `c8715bcc9e32` |
+| [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-09/cert-candidate.json) | 2026-11-09 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `c7d67205c6da` |
+| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-09/cert-standalone.json) | 2026-11-09 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `c7d67205c6da` |
 
 3 of the artifacts above predate the self-proving provenance
 block and therefore carry no suite SHA or negotiated protocol version. They are published
