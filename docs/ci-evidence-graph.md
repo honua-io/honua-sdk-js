@@ -313,7 +313,9 @@ than reusing stale bytes. That is intended: rebuild by rerunning the whole run.
 
 ## Rollout, promotion, and rollback
 
-The graph is **not authoritative**. `ci.yml` remains the required check.
+The graph defaults to **shadow** until main changes the required contexts and rollout variable.
+In shadow, `ci.yml` remains the required check. The guarded retirement preserves both legacy
+jobs for rollback and manual release dispatch.
 
 Not-authoritative is a property of **check-run names**, not of intent.
 Repository ruleset 18085797 requires the contexts `JS SDK` and `MCP SDK`
@@ -333,12 +335,30 @@ believing the graph cannot gate anything.
 | --- | --- |
 | `off` | `admission` reports and every long job skips. No workflow file edit needed. |
 | `shadow` (default) | The graph runs beside `ci.yml` and is compared against it. |
-| `authoritative` | Set only after parity and cost thresholds pass. |
+| `authoritative` | The graph runs; ordinary PR and push events skip the two legacy jobs. Manual dispatch still runs them. |
 
-Promotion is its own pull request: flip the variable, make `SDK verified` the
-required check, and retire `ci.yml`'s `JS SDK` and `MCP SDK` jobs there. Do not
-retire them in the same change that introduces the graph — a bypassed gate and
-a promoted graph look identical from the outside.
+Promotion proceeds after the guarded retirement PR lands with both workflows green:
+
+1. Main replaces only the `JS SDK` and `MCP SDK` required contexts in ruleset 18085797 with
+   `SDK verified` (GitHub Actions integration 15368), preserving every other context and policy.
+2. Main sets `HONUA_SDK_VERIFICATION_MODE=authoritative`.
+3. Verify the next PR runs the graph to `SDK verified`, skips the two legacy jobs and retains
+   the cheap `ci.yml` policy gates. Manual release dispatch remains available.
+
+To roll back, first set the variable to `shadow` so both legacy jobs run, wait for genuine
+exact-head green receipts, then restore the prior required-context payload. Do not set `off`
+while `SDK verified` is required. The jobs and their complete command inventory remain in
+`ci.yml`; the workflow contract test covers unset/off/shadow/authoritative modes across PR,
+push and dispatch events.
+
+The approved post-runner-fix parity window starts at #2328 (`a352a5555`). The read-only collector
+reported 29 comparable heads, 29 agreements and zero disagreements, with every head verified
+to contain that repair. Earlier raw 44-agreement/1-disagreement evidence remains retained;
+the disagreement was Chromium installation on Ubuntu 26 before the Ubuntu 24.04 fix. The graph's
+critical-path p50/p90 was 12.5/16.5 minutes versus 41.9/53.7 for the legacy jobs. Raw job-minute
+p50 was 63.0 versus 45.3. Main approved promotion for shorter feedback latency; these public
+hosted jobs are free. This does not claim the original 60% billed-minute reduction or sub-15
+p90 target was achieved. Run pairs and exact settings payloads are attached to the promotion PR.
 
 `test/scripts/sdk-verification-workflow.test.mjs` compares the commands the
 graph executes against the commands `ci.yml`'s `JS SDK` and `MCP SDK` jobs

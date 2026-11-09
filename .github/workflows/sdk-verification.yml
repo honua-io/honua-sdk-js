@@ -19,15 +19,12 @@ name: SDK Verification
 #   browser (matrix)   one job per owned browser failure domain
 #   verified           the single aggregate result a reviewer reads
 #
-# ROLLOUT. This graph is deliberately NOT authoritative yet (NFR-004): ci.yml
-# remains the required check while shadow runs accumulate. `vars.HONUA_SDK_VERIFICATION_MODE`
-# is the switch and the rollback: `off` skips the graph entirely without editing
-# a workflow file, `shadow` (the default) runs it alongside ci.yml, and
-# `authoritative` is set only once parity and cost thresholds pass -- at which
-# point ci.yml's `JS SDK` and `MCP SDK` jobs are retired in their own pull
-# request, not silently bypassed by this one. Nothing here removes, weakens, or
-# skips a gate that ci.yml enforces today; test/scripts/sdk-verification-workflow.test.mjs
-# fails if it ever does.
+# ROLLOUT. HONUA_SDK_VERIFICATION_MODE defaults to shadow, running this graph
+# beside the legacy jobs. In authoritative mode the graph runs and ordinary
+# PR/push events skip those jobs; manual release dispatch retains them.
+# Setting shadow restores the legacy jobs before their required contexts are
+# restored. Off skips the graph, so it requires the legacy contexts first.
+# The workflow contract test preserves the complete verification inventory.
 #
 # NOT REUSED, ON PURPOSE. `quickstart-budget` measures clean-install time to a
 # first usable map. Handing it a prebuilt SDK would measure something else, so

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { runInNewContext } from "node:vm";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -716,6 +717,25 @@ describe("ci.yml stays the authoritative workflow while the graph runs in shadow
   it("still owns the JS SDK and MCP SDK jobs", () => {
     for (const jobId of ["pr-fast", "benchmark-lab", "js-sdk", "mcp-sdk"]) {
       assert.ok(ci.jobs[jobId], `${jobId} must remain in ci.yml until the graph is promoted`);
+    }
+  });
+
+  it("retires monoliths only after promotion while preserving manual dispatch and rollback", () => {
+    assert.ok(Object.hasOwn(ci.on, "workflow_dispatch"));
+    for (const jobId of ["js-sdk", "mcp-sdk"]) {
+      const condition = ci.jobs[jobId].if;
+      assert.equal(condition,
+        "vars.HONUA_SDK_VERIFICATION_MODE != 'authoritative' || github.event_name == 'workflow_dispatch'");
+      for (const mode of ["", "off", "shadow", "authoritative"]) {
+        for (const event of ["pull_request", "push", "workflow_dispatch"]) {
+          const enabled = runInNewContext(condition, {
+            vars: { HONUA_SDK_VERIFICATION_MODE: mode },
+            github: { event_name: event },
+          });
+          assert.equal(enabled, event === "workflow_dispatch" || mode !== "authoritative",
+            `${jobId}: mode=${mode} event=${event}`);
+        }
+      }
     }
   });
 
