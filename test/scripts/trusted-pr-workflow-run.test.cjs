@@ -146,7 +146,7 @@ function fixtures(overrides = {}) {
       return jobs;
     },
   };
-  return { github, calls };
+  return { github, calls, jobs };
 }
 
 function resolve(github, { runAttempt = "2", runConclusion = "failure" } = {}) {
@@ -166,13 +166,14 @@ function resolve(github, { runAttempt = "2", runConclusion = "failure" } = {}) {
 }
 
 test("binds a multi-job workflow to the exact browser authority job", async () => {
-  const { github } = fixtures();
+  const { github, jobs } = fixtures();
   const result = await resolve(github);
   assert.equal(result.pullRequestNumber, 42);
   assert.equal(result.baseSha, BASE);
   assert.equal(result.headSha, HEAD);
   assert.equal(result.run.conclusion, "failure");
   assert.equal(result.job.conclusion, "success");
+  assert.equal(result.jobs, jobs);
 });
 
 test("explicitly excludes fork workflow runs from the evidence denominator", async () => {

@@ -220,6 +220,7 @@ jobs:
 
   js-sdk:
     name: JS SDK
+    if: vars.HONUA_SDK_VERIFICATION_MODE != 'authoritative' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 80
     env:
@@ -821,6 +822,7 @@ jobs:
 
   mcp-sdk:
     name: MCP SDK
+    if: vars.HONUA_SDK_VERIFICATION_MODE != 'authoritative' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
