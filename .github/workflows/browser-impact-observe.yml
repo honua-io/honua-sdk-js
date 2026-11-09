@@ -81,7 +81,7 @@ jobs:
               SUPERSEDED_SOURCE_RUN,
               resolveTrustedPullRequestWorkflowRun,
             } = require("./scripts/trusted-pr-workflow-run.cjs");
-            const { browserShardsComplete } = await import("./scripts/browser-impact-observe.mjs");
+            const { browserShardsComplete } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/browser-impact-observe.mjs`);
             let resolved;
             try {
               resolved = await resolveTrustedPullRequestWorkflowRun({
@@ -214,7 +214,7 @@ jobs:
               SUPERSEDED_SOURCE_RUN,
               resolveTrustedPullRequestWorkflowRun,
             } = require("./scripts/trusted-pr-workflow-run.cjs");
-            const { browserShardsComplete } = await import("./scripts/browser-impact-observe.mjs");
+            const { browserShardsComplete } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/browser-impact-observe.mjs`);
             let resolved;
             try {
               resolved = await resolveTrustedPullRequestWorkflowRun({

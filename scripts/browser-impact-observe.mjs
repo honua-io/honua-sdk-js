@@ -337,6 +337,7 @@ export function validateWorkflow(root) {
     'workflowName: "SDK Verification"',
     'jobName: "SDK verified"',
     "browserShardsComplete(resolved)",
+    'const { browserShardsComplete } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/browser-impact-observe.mjs`);',
   ]) {
     if (workflow.split(binding).length - 1 !== 2) {
       throw new PolicyError("browser observer source identity must match in both resolutions");

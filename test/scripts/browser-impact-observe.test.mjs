@@ -501,6 +501,30 @@ test("observes the verified graph after the legacy browser authority is retired"
   }
 });
 
+test("loads the actual inline observer import from an external action module", () => {
+  const source = readFileSync(".github/workflows/browser-impact-observe.yml", "utf8");
+  const imports = source.match(/const \{ browserShardsComplete \} = await import\(.+\);/gu);
+  assert.equal(imports.length, 2);
+  const directory = mkdtempSync(join(tmpdir(), "honua-observer-action-"));
+  try {
+    const runner = join(directory, "runner.cjs");
+    for (const statement of imports) {
+      writeFileSync(runner, `
+        const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+        new AsyncFunction(${JSON.stringify(statement + "; return typeof browserShardsComplete;")})()
+          .then((kind) => require("node:assert/strict").equal(kind, "function"))
+          .catch((error) => { console.error(error); process.exitCode = 1; });
+      `);
+      execFileSync(process.execPath, [runner], {
+        cwd: process.cwd(), env: { ...process.env, GITHUB_WORKSPACE: process.cwd() },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("trusted observer workflow rejects permission and identity regressions", () => {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "honua-browser-impact-workflow-"));
   const workflowDirectory = join(fixtureRoot, ".github", "workflows");
@@ -516,6 +540,7 @@ test("trusted observer workflow rejects permission and identity regressions", ()
       source.replace("  contents: read", "  contents: read\n  issues: read"),
       source.replace('jobName: "SDK verified"', 'jobName: "MCP SDK"'),
       source.replace("browserShardsComplete(resolved)", "true"),
+      source.replace('const { browserShardsComplete } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/browser-impact-observe.mjs`);', 'const { browserShardsComplete } = await import("./scripts/browser-impact-observe.mjs");'),
       source.replace('--source-browser-shards "$SOURCE_BROWSER_SHARDS"', '--source-browser-shards "complete"'),
       source.replace("EXPECTED_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}", "EXPECTED_BROWSER_SHARDS: complete"),
       source.replace('workflows: ["SDK Verification"]', 'workflows: ["Lookalike"]'),
