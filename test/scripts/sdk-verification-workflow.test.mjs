@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { runInNewContext } from "node:vm";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 
 import { parse as parseYaml } from "yaml";
 
@@ -713,28 +713,29 @@ describe("the shadow graph cannot satisfy or block a required status context", (
   });
 });
 
-describe("ci.yml stays the authoritative workflow while the graph runs in shadow", () => {
-  it("still owns the JS SDK and MCP SDK jobs", () => {
+describe("ci.yml keeps legacy jobs for rollback and manual dispatch", () => {
+  it("keeps legacy verification jobs and cheap policy gates", () => {
     for (const jobId of ["pr-fast", "benchmark-lab", "js-sdk", "mcp-sdk"]) {
-      assert.ok(ci.jobs[jobId], `${jobId} must remain in ci.yml until the graph is promoted`);
+      assert.ok(ci.jobs[jobId], `${jobId} must remain in ci.yml for rollback and manual dispatch`);
     }
   });
 
   it("retires monoliths only after promotion while preserving manual dispatch and rollback", () => {
     assert.ok(Object.hasOwn(ci.on, "workflow_dispatch"));
+    const modes = ["", "off", "shadow", "authoritative"];
+    const events = ["pull_request", "push", "workflow_dispatch"];
+    const cases = modes.flatMap((mode) => events.map((event) => ({ mode, event })));
     for (const jobId of ["js-sdk", "mcp-sdk"]) {
       const condition = ci.jobs[jobId].if;
       assert.equal(condition,
         "vars.HONUA_SDK_VERIFICATION_MODE != 'authoritative' || github.event_name == 'workflow_dispatch'");
-      for (const mode of ["", "off", "shadow", "authoritative"]) {
-        for (const event of ["pull_request", "push", "workflow_dispatch"]) {
-          const enabled = runInNewContext(condition, {
-            vars: { HONUA_SDK_VERIFICATION_MODE: mode },
-            github: { event_name: event },
-          });
-          assert.equal(enabled, event === "workflow_dispatch" || mode !== "authoritative",
-            `${jobId}: mode=${mode} event=${event}`);
-        }
+      for (const { mode, event } of cases) {
+        const enabled = runInNewContext(condition, {
+          vars: { HONUA_SDK_VERIFICATION_MODE: mode },
+          github: { event_name: event },
+        });
+        assert.equal(enabled, event === "workflow_dispatch" || mode !== "authoritative",
+          `${jobId}: mode=${mode} event=${event}`);
       }
     }
   });

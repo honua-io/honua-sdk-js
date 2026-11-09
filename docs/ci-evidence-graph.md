@@ -356,7 +356,7 @@ reported 29 comparable heads, 29 agreements and zero disagreements, with every h
 to contain that repair. Earlier raw 44-agreement/1-disagreement evidence remains retained;
 the disagreement was Chromium installation on Ubuntu 26 before the Ubuntu 24.04 fix. The graph's
 critical-path p50/p90 was 12.5/16.5 minutes versus 41.9/53.7 for the legacy jobs. Raw job-minute
-p50 was 63.0 versus 45.3. Main approved promotion for shorter feedback latency; these public
+p50 was graph 63.0 versus legacy 45.3. Main approved promotion for shorter feedback latency; these public
 hosted jobs are free. This does not claim the original 60% billed-minute reduction or sub-15
 p90 target was achieved. Run pairs and exact settings payloads are attached to the promotion PR.
 
@@ -368,8 +368,8 @@ retire a gate.
 
 ### Measuring parity, so promotion is a decision and not a feeling
 
-"Parity and cost thresholds pass" is only actionable if somebody can say what
-the current number is. `scripts/ci-shadow-parity.mjs` computes it:
+Promotion requires measured parity and an explicit human decision on latency
+and runner minutes. `scripts/ci-shadow-parity.mjs` computes those measurements:
 
 ```bash
 npm run ci:parity:collect    # needs `gh` with actions:read; rewrites the evidence

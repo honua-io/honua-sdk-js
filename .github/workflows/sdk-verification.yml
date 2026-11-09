@@ -21,7 +21,7 @@ name: SDK Verification
 #
 # ROLLOUT. HONUA_SDK_VERIFICATION_MODE defaults to shadow, running this graph
 # beside the legacy jobs. In authoritative mode the graph runs and ordinary
-# PR/push events skip those jobs; manual release dispatch retains them.
+# PR/push events skip those jobs; manual dispatch retains them.
 # Setting shadow restores the legacy jobs before their required contexts are
 # restored. Off skips the graph, so it requires the legacy contexts first.
 # The workflow contract test preserves the complete verification inventory.
