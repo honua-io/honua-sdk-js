@@ -29,6 +29,15 @@ if (tool !== 'apt-get') process.exit(0);
 fs.appendFileSync(process.env.FAKE_APT_LOG, JSON.stringify(args)+'\n');
 const sources = args.find(arg => arg.startsWith('Dir::Etc::sourceparts='))?.split('=').slice(1).join('=');
 if (!sources || !args.includes('Dir::Etc::sourcelist=/dev/null')) { console.error('Microsoft vendor feed: 403 Forbidden'); process.exit(100); }
+if (process.env.FAKE_APT_MODE === 'private-temp') {
+  for (let directory = sources; ; directory = path.dirname(directory)) {
+    if ((fs.statSync(directory).mode & 0o001) === 0) {
+      console.error('Downloading mirror file failed: directory is not searchable by _apt');
+      process.exit(100);
+    }
+    if (directory === path.dirname(directory)) break;
+  }
+}
 const files = fs.readdirSync(sources);
 if (files.length !== 1 || !fs.readFileSync(path.join(sources, files[0]), 'utf8').includes('Signed-By: /ubuntu-keyring')) process.exit(101);
 if (!args.some(arg => arg.startsWith('Dir::State::lists='))) process.exit(102);
@@ -88,4 +97,9 @@ test("a sustained Ubuntu outage fails closed after three bounded attempts", () =
   assert.notEqual(result.status, 0);
   assert.equal(calls.filter(args => args.includes("update")).length, 3);
   assert.equal(calls.some(args => args.includes("install")), false);
+});
+
+test("apt's sandbox can traverse its state beneath a private runner temporary directory", () => {
+  const { result } = runStep("verify-package", "private-temp");
+  assert.equal(result.status, 0, result.stderr);
 });

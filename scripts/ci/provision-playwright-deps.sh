@@ -7,7 +7,8 @@ if [[ ! -f "$ubuntu_sources" ]]; then
   exit 1
 fi
 
-apt_state="$(mktemp -d "${RUNNER_TEMP:-/tmp}/honua-browser-apt.XXXXXX")"
+# The _apt sandbox must traverse every ancestor; RUNNER_TEMP can be private.
+apt_state="$(mktemp -d /tmp/honua-browser-apt.XXXXXX)"
 trap 'sudo rm -rf "${apt_state:?}"' EXIT
 mkdir "$apt_state/sources" "$apt_state/lists"
 chmod 755 "$apt_state" "$apt_state/sources" "$apt_state/lists"
