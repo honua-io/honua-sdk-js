@@ -22,8 +22,6 @@ if (tool === 'sudo') {
 if (tool === 'npx') {
   if (args.includes('--dry-run')) {
     console.log('sh -c "apt-get update && apt-get install -y --no-install-recommends libnss3 libatk-bridge2.0-0"');
-  } else if (args.includes('--with-deps')) {
-    process.exit(spawnSync('apt-get', ['update'], {stdio:'inherit'}).status ?? 1);
   }
   process.exit(0);
 }
@@ -54,8 +52,11 @@ function runStep(job, mode = "ok") {
   const log = path.join(directory, "apt.log");
   const name = job === "quickstart-budget" ? "Provision Playwright operating-system dependencies" : "Install Playwright browser";
   const script = workflow.jobs[job].steps.find(step => step.name === name).run;
+  const expected = ["scripts/ci/provision-playwright-deps.sh"];
+  if (job !== "quickstart-budget") expected.push("npx playwright install chromium");
   try {
-    const result = spawnSync("bash", ["-e", "-c", script], {
+    assert.deepEqual(script.trim().split("\n").map(line => line.trim()).filter(Boolean), expected);
+    const result = spawnSync("bash", ["scripts/ci/provision-playwright-deps.sh"], {
       cwd: root, encoding: "utf8", timeout: 10000,
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, HONUA_UBUNTU_APT_SOURCES: sources,
         RUNNER_TEMP: directory, FAKE_APT_LOG: log, FAKE_APT_MODE: mode },
