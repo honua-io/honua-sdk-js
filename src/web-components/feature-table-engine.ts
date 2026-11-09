@@ -39,6 +39,7 @@ import type {
   SortSpec,
   SourceDescriptor,
 } from "../contract/types.js";
+import { encodeCsvCell } from "../core/csv.js";
 import { type SpatialFilter, envelope } from "../core/spatial-filter.js";
 import type { HonuaExtent, HonuaTypedFeature } from "../core/types.js";
 import { isSourceQualifiedSelectionTarget, sourceFeatureSelectionTarget } from "../exploration/selection.js";
@@ -2249,10 +2250,12 @@ function toCsv<T>(
   columns: readonly HonuaFeatureTableResolvedColumn[],
 ): string {
   const byField = new Map(columns.map((column) => [column.field, column] as const));
-  const lines = [fields.map(csvCell).join(",")];
+  const lines = [fields.map((field) => encodeCsvCell(field)).join(",")];
   for (const row of rows) {
     const attributes = row.attributes as Record<string, unknown>;
-    lines.push(fields.map((field) => csvCell(formatFeatureTableCell(attributes[field], byField.get(field)))).join(","));
+    lines.push(
+      fields.map((field) => encodeCsvCell(formatFeatureTableCell(attributes[field], byField.get(field)))).join(","),
+    );
   }
   return lines.join("\n");
 }
@@ -2300,16 +2303,6 @@ function serializeBoundedExport<T>(
   }
   if (best) return { content: best.content, rowCount: best.rowCount, truncated: best.rowCount < rows.length };
   return { content: "", rowCount: 0, truncated: true };
-}
-
-function csvCell(value: string): string {
-  // Spreadsheet programs treat leading =, +, -, @, tab, and carriage return
-  // as formula/control syntax even in a CSV cell. Prefixing an apostrophe
-  // forces literal display and prevents a server-returned value from becoming
-  // executable spreadsheet content when a user opens the bounded export.
-  const safe = /^[\t\r]|^\s*[=+\-@]/.test(value) ? `'${value}` : value;
-  if (!safe.includes(",") && !safe.includes('"') && !safe.includes("\n")) return safe;
-  return `"${safe.split('"').join('""')}"`;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {

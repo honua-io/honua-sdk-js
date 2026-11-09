@@ -1,6 +1,7 @@
 /** Credential-free downloads of an application's already-filtered feature rows. */
 import type { CanonicalFeature } from "../contract/types.js";
 import { assertCredentialFreeExportText, isSensitiveExportKey } from "../core/credential-redaction.js";
+import { encodeCsvCell } from "../core/csv.js";
 import { toGeoJsonGeometry } from "../map/geojson-projection.js";
 
 export type HonuaDataExportFormat = "csv" | "geojson";
@@ -64,14 +65,14 @@ function validateExportOptions(options: HonuaDataExportOptions): void {
 function safeJson(value: unknown): string {
   return JSON.stringify(value, (key, item: unknown) => {
     if (key && isSensitiveExportKey(key)) throw new Error("Sensitive fields cannot be exported.");
+    if (typeof item === "string") assertCredentialFreeExportText(item, "Selected export value");
     return item;
   });
 }
 
 function csvCell(value: unknown): string {
-  let raw = value == null ? "" : typeof value === "object" ? safeJson(value) : String(value);
-  if (typeof value === "string" && /^[\s]*[=+@-]|^[\t\r\n]/.test(raw)) raw = `'${raw}`;
-  return `"${raw.replaceAll('"', '""')}"`;
+  const raw = value == null ? "" : typeof value === "object" ? safeJson(value) : String(value);
+  return encodeCsvCell(raw, { quoting: "always", formula: typeof value === "string" ? "escape" : "preserve" });
 }
 
 function serializeCsv(fields: readonly string[], properties: readonly Record<string, unknown>[]): string {

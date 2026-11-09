@@ -53,6 +53,13 @@ describe("filtered-row export", () => {
       }),
     ).toThrow(/sensitive/i);
   });
+  test.each(["csv", "geojson"] as const)("rejects raw credentials before %s escaping", (format) => {
+    for (const value of ["Bearer\nabcdefgh12345678", { nested: ["Bearer\nabcdefgh12345678"] }]) {
+      expect(() =>
+        serializeHonuaDataExport({ rows: [{ attributes: { value } }], fields: ["value"], format }),
+      ).toThrow();
+    }
+  });
   test("refuses projected geometry rather than labelling it RFC 7946", () => {
     expect(() =>
       serializeHonuaDataExport({
