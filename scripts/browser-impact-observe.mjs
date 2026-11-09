@@ -288,8 +288,8 @@ export function assignSpecs(policy, specs) {
 export function validateWorkflow(root) {
   const workflowPath = resolve(root, ".github/workflows/browser-impact-observe.yml");
   const workflow = readFileSync(workflowPath, "utf8");
-  if (!workflow.includes("workflow_run:") || !workflow.includes('workflows: ["SDK CI"]')) {
-    throw new PolicyError("browser observer must consume completed SDK CI workflow runs");
+  if (!workflow.includes("workflow_run:") || !workflow.includes('workflows: ["SDK Verification"]')) {
+    throw new PolicyError("browser observer must consume completed SDK Verification workflow runs");
   }
   for (const forbidden of [
     "playwright test",
@@ -330,12 +330,12 @@ export function validateWorkflow(root) {
       workflow,
     )
   ) {
-    throw new PolicyError("browser observer must resolve the exact trusted JS SDK workflow job");
+    throw new PolicyError("browser observer must resolve the exact trusted SDK verified workflow job");
   }
   for (const binding of [
-    'workflowPath: ".github/workflows/ci.yml"',
-    'workflowName: "SDK CI"',
-    'jobName: "JS SDK"',
+    'workflowPath: ".github/workflows/sdk-verification.yml"',
+    'workflowName: "SDK Verification"',
+    'jobName: "SDK verified"',
   ]) {
     if (workflow.split(binding).length - 1 !== 2) {
       throw new PolicyError("browser observer source identity must match in both resolutions");
@@ -524,7 +524,8 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
   } else if (metadata.trust && metadata.trust.source_job_conclusion !== "success") {
     promotionExclusionReasons.push("browser-authority-not-comparable");
   }
-  if (normalizedChangedPaths.includes(".github/workflows/ci.yml")) {
+  if ([".github/workflows/ci.yml", ".github/workflows/sdk-verification.yml"]
+    .some((path) => normalizedChangedPaths.includes(path))) {
     promotionExclusionReasons.push("source-workflow-changed");
   }
   if (normalizedChangedPaths.some((path) => TRUSTED_POLICY_INPUTS.has(path))) {
@@ -611,7 +612,7 @@ export function supersededMarkdown(record) {
     "",
     `- Outcome: \`${record.status}\` at stage \`${record.stage}\` -- **no routing comparison was produced**`,
     `- Reason: \`${record.reason}\``,
-    `- Source SDK CI run: \`${record.source_run_id}\` attempt \`${record.source_run_attempt}\` (\`${record.source_run_conclusion}\`)`,
+    `- Source SDK Verification run: \`${record.source_run_id}\` attempt \`${record.source_run_attempt}\` (\`${record.source_run_conclusion}\`)`,
     `- Observer run: \`${record.observer_run_id}\` attempt \`${record.observer_run_attempt}\``,
     `- Detail: \`${record.detail || "none"}\``,
     "",
@@ -619,7 +620,7 @@ export function supersededMarkdown(record) {
     "observable pull request: GitHub recomputes the check-run association from",
     "live repository state, so a later push, or a merge that deletes the head",
     "branch, detaches it. Nothing was compared and nothing is wrong. The head",
-    "that superseded this one gets its own SDK CI run and its own observation.",
+    "that superseded this one gets its own SDK Verification run and its own observation.",
     "",
   ].join("\n");
 }
@@ -644,7 +645,7 @@ export function markdown(report) {
     const rendered = laneReasons.slice(0, 6).map((path) => `\`${path}\``).join("<br>") || "—";
     lines.push(`| \`${lane}\` | \`${laneReasons.length > 0}\` | \`${specs.length}\` | ${rendered} |`);
   }
-  lines.push("", "This report is shadow evidence only. The existing JS SDK job still runs every Playwright spec.", "");
+  lines.push("", "This report is shadow evidence only. SDK verified retains every browser shard.", "");
   return lines.join("\n");
 }
 
@@ -723,7 +724,7 @@ export function buildTrust(metadata) {
     !OBSERVER_EVENTS.has(trust.observer_event) ||
     trust.observer_ref !== "refs/heads/trunk" ||
     trust.observer_repository !== "honua-io/honua-sdk-js" ||
-    trust.source_job_name !== "JS SDK" ||
+    trust.source_job_name !== "SDK verified" ||
     !TERMINAL_CONCLUSIONS.has(trust.source_run_conclusion) ||
     !TERMINAL_CONCLUSIONS.has(trust.source_job_conclusion)
   ) {

@@ -345,6 +345,12 @@ Promotion proceeds after the guarded retirement PR lands with both workflows gre
 3. Verify the next PR runs the graph to `SDK verified`, skips the two legacy jobs and retains
    the cheap `ci.yml` policy gates. Manual release dispatch remains available.
 
+Browser-impact observation consumes completed `SDK Verification` runs and resolves the exact
+`SDK verified` job/check twice, before collection and before publishing. That aggregate retains
+all browser shards, so observation keeps comparable evidence after the legacy jobs retire.
+Skipped or cancelled graph results remain ineligible; selecting `off` also disables usable
+graph-based observation. Existing observation artifacts remain unchanged.
+
 To roll back, first set the variable to `shadow` so both legacy jobs run, wait for genuine
 exact-head green receipts, then restore the prior required-context payload. Do not set `off`
 while `SDK verified` is required. The jobs and their complete command inventory remain in

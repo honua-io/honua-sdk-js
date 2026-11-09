@@ -330,8 +330,8 @@ test("records the source head and merge-tree evaluation snapshot separately", ()
   assert.match(report.mode, /^observe$/u);
 });
 
-test("binds v2 evidence to a fixed ordered trusted-policy manifest", () => {
-  const trust = buildTrust({
+test("binds verified graph evidence to a fixed ordered trusted-policy manifest", () => {
+  const metadata = {
     observerRunId: "789",
     observerRunAttempt: "1",
     observerEvent: "workflow_run",
@@ -341,7 +341,7 @@ test("binds v2 evidence to a fixed ordered trusted-policy manifest", () => {
     sourceRunAttempt: "2",
     sourceRunConclusion: "failure",
     sourceJobId: "456",
-    sourceJobName: "JS SDK",
+    sourceJobName: "SDK verified",
     sourceJobConclusion: "success",
     sourceCheckRunId: "456",
     policyCommitSha: "a".repeat(40),
@@ -349,7 +349,8 @@ test("binds v2 evidence to a fixed ordered trusted-policy manifest", () => {
     policyBlobSha256: "e".repeat(64),
     resolverBlobSha256: "f".repeat(64),
     selectorBlobSha256: "0".repeat(64),
-  });
+  };
+  const trust = buildTrust(metadata);
   const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
   assert.equal(report.schema, "honua.sdk.browser-impact-observation/v2");
   assert.equal(report.trust.source_run_id, 123);
@@ -357,6 +358,13 @@ test("binds v2 evidence to a fixed ordered trusted-policy manifest", () => {
   assert.equal(report.trust.source_job_conclusion, "success");
   assert.equal(report.comparison.promotion_sample_eligible, true);
   assert.match(report.trust.policy_manifest_sha256, /^[0-9a-f]{64}$/u);
+  for (const conclusion of ["skipped", "cancelled"]) {
+    const excluded = evaluate(policy, ["docs/decisions/unrelated.md"], {
+      trust: buildTrust({ ...metadata, sourceJobConclusion: conclusion }),
+    });
+    assert.equal(excluded.comparison.promotion_sample_eligible, false);
+    assert.deepEqual(excluded.comparison.promotion_exclusion_reasons, ["browser-authority-not-comparable"]);
+  }
 });
 
 test("excludes policy and source-workflow changes from promotion samples", () => {
@@ -370,7 +378,7 @@ test("excludes policy and source-workflow changes from promotion samples", () =>
     sourceRunAttempt: "2",
     sourceRunConclusion: "success",
     sourceJobId: "456",
-    sourceJobName: "JS SDK",
+    sourceJobName: "SDK verified",
     sourceJobConclusion: "success",
     sourceCheckRunId: "456",
     policyCommitSha: "a".repeat(40),
@@ -381,7 +389,7 @@ test("excludes policy and source-workflow changes from promotion samples", () =>
   });
   const report = evaluate(
     policy,
-    [".github/workflows/ci.yml", "scripts/trusted-pr-workflow-run.cjs"],
+    [".github/workflows/sdk-verification.yml", "scripts/trusted-pr-workflow-run.cjs"],
     { trust },
   );
   assert.equal(report.comparison.promotion_sample_eligible, false);
@@ -402,7 +410,7 @@ test("excludes unattributed browser failures from promotion samples", () => {
     sourceRunAttempt: "1",
     sourceRunConclusion: "failure",
     sourceJobId: "456",
-    sourceJobName: "JS SDK",
+    sourceJobName: "SDK verified",
     sourceJobConclusion: "failure",
     sourceCheckRunId: "456",
     policyCommitSha: "a".repeat(40),
@@ -429,7 +437,7 @@ test("rejects incomplete or malformed trusted evidence identity", () => {
     sourceRunAttempt: "2",
     sourceRunConclusion: "success",
     sourceJobId: "456",
-    sourceJobName: "JS SDK",
+    sourceJobName: "SDK verified",
     sourceJobConclusion: "success",
     sourceCheckRunId: "456",
     policyCommitSha: "a".repeat(40),
@@ -439,6 +447,7 @@ test("rejects incomplete or malformed trusted evidence identity", () => {
     selectorBlobSha256: "e".repeat(64),
   };
   assert.throws(() => buildTrust({ ...valid, sourceRunAttempt: "0" }), /source run attempt/u);
+  assert.throws(() => buildTrust({ ...valid, sourceJobName: "JS SDK" }), /workflow identity/u);
   assert.throws(
     () => buildTrust({ ...valid, policyCommitSha: "short" }),
     /policy commit SHA/u,
@@ -486,6 +495,18 @@ test("rejects an event policy snapshot outside default-branch history", () => {
   );
 });
 
+test("observes the verified graph after the legacy browser authority is retired", () => {
+  const source = readFileSync(".github/workflows/browser-impact-observe.yml", "utf8");
+  assert.ok(source.includes('workflows: ["SDK Verification"]'));
+  for (const binding of [
+    'workflowPath: ".github/workflows/sdk-verification.yml"',
+    'workflowName: "SDK Verification"',
+    'jobName: "SDK verified"',
+  ]) {
+    assert.equal(source.split(binding).length - 1, 2, binding);
+  }
+});
+
 test("trusted observer workflow rejects permission and identity regressions", () => {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "honua-browser-impact-workflow-"));
   const workflowDirectory = join(fixtureRoot, ".github", "workflows");
@@ -499,8 +520,8 @@ test("trusted observer workflow rejects permission and identity regressions", ()
       source.replace("  checks: read", "  checks: write"),
       source.replace("  pull-requests: read", "  pull-requests: write"),
       source.replace("  contents: read", "  contents: read\n  issues: read"),
-      source.replace('jobName: "JS SDK"', 'jobName: "MCP SDK"'),
-      source.replace('workflows: ["SDK CI"]', 'workflows: ["Lookalike"]'),
+      source.replace('jobName: "SDK verified"', 'jobName: "MCP SDK"'),
+      source.replace('workflows: ["SDK Verification"]', 'workflows: ["Lookalike"]'),
       source.replace(
         "github.event.workflow_run.pull_requests[0].base.ref ==",
         "github.event.workflow_run.pull_requests[0].base.ref !=",

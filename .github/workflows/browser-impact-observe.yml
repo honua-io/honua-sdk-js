@@ -1,17 +1,17 @@
 name: Browser Impact Observation
 
 # Trusted, report-only shadow router for honua-io/honua-sdk-js#1286. This
-# workflow always executes from the default branch after the canonical SDK CI
+# workflow always executes from the default branch after the canonical SDK Verification
 # run completes. Candidate content is checked out only as inert data; no script,
 # action, package hook, or generated executable from the pull request runs here.
 on:
   workflow_run:
-    workflows: ["SDK CI"]
+    workflows: ["SDK Verification"]
     types: [completed]
   workflow_dispatch:
     inputs:
       run_id:
-        description: Completed canonical SDK CI workflow run ID
+        description: Completed canonical SDK Verification workflow run ID
         required: true
         type: string
       run_attempt:
@@ -69,7 +69,7 @@ jobs:
           node --test test/scripts/browser-impact-observe.test.mjs
           node --test test/scripts/trusted-pr-workflow-run.test.cjs
 
-      - name: Resolve exact SDK CI browser authority
+      - name: Resolve exact SDK Verification browser authority
         id: resolve
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
@@ -90,9 +90,9 @@ jobs:
               runId: process.env.SOURCE_RUN_ID,
               runAttempt: process.env.SOURCE_RUN_ATTEMPT,
               runConclusion: process.env.SOURCE_RUN_CONCLUSION,
-              workflowPath: ".github/workflows/ci.yml",
-              workflowName: "SDK CI",
-              jobName: "JS SDK",
+              workflowPath: ".github/workflows/sdk-verification.yml",
+              workflowName: "SDK Verification",
+              jobName: "SDK verified",
               defaultBranch: process.env.DEFAULT_BRANCH,
               repositoryId: Number(process.env.REPOSITORY_ID),
             });
@@ -104,7 +104,7 @@ jobs:
               // silent.
               core.warning(
                 `Browser impact observation skipped: ${error.reason}. ` +
-                  `SDK CI run ${process.env.SOURCE_RUN_ID} attempt ${process.env.SOURCE_RUN_ATTEMPT} ` +
+                  `SDK Verification run ${process.env.SOURCE_RUN_ID} attempt ${process.env.SOURCE_RUN_ATTEMPT} ` +
                   `is no longer bound to an observable pull request.`,
               );
               core.setOutput("superseded", "true");
@@ -218,9 +218,9 @@ jobs:
               runId: process.env.SOURCE_RUN_ID,
               runAttempt: process.env.SOURCE_RUN_ATTEMPT,
               runConclusion: process.env.SOURCE_RUN_CONCLUSION,
-              workflowPath: ".github/workflows/ci.yml",
-              workflowName: "SDK CI",
-              jobName: "JS SDK",
+              workflowPath: ".github/workflows/sdk-verification.yml",
+              workflowName: "SDK Verification",
+              jobName: "SDK verified",
               defaultBranch: process.env.DEFAULT_BRANCH,
               repositoryId: Number(process.env.REPOSITORY_ID),
             });
@@ -254,7 +254,7 @@ jobs:
               resolved.job.conclusion !== expected.jobConclusion ||
               resolved.checkRun.id !== expected.checkRunId
             ) {
-              core.setFailed("SDK CI source identity changed during observation");
+              core.setFailed("SDK Verification source identity changed during observation");
             }
 
       - name: Revalidate event-time merge tree before publishing evidence
