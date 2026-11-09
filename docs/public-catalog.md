@@ -1,6 +1,6 @@
 # Discover published content
 
-`HonuaClient.listCatalog()` reads one page from the server's public catalog. The server filters services, layers and folders using the caller's access before computing totals and facet counts.
+`HonuaClient.listCatalog()` reads one page from the server's public catalog. The server filters services, layers, folders and published apps using the caller's access before computing totals and facet counts.
 
 ```ts
 import { HonuaClient } from "@honua/sdk-js/honua";
@@ -24,3 +24,5 @@ Filters include `q`, `type`, `protocol`, `folder`, `tag`, `owner`, `bbox` and `d
 Read one item with `client.getCatalogItem(id)`. Both methods accept an abort signal and per-request headers. They inherit the client's credentials, retries, timeout and error handling, and read through the regular request pipeline without the metadata cache. Servers that do not provide the catalog return the standard `HonuaHttpError`.
 
 Named request and result types are exported from `@honua/sdk-js/honua`, including `HonuaCatalogQuery`, `HonuaCatalogPage` and `HonuaCatalogItem`.
+
+Published apps carry an optional `thumbnail` and a `services` array of visible service IDs. Service items carry an `apps` array of visible published app IDs. These fields are optional in the client types for servers that provide the catalog without app discovery. App display metadata comes from the published version; drafts stay out of the catalog.

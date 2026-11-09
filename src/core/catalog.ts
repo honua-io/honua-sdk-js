@@ -21,6 +21,9 @@ export interface HonuaCatalogItem {
   readonly folder?: string | null;
   readonly serviceId?: string | null;
   readonly url?: string | null;
+  readonly thumbnail?: string | null;
+  readonly services?: readonly string[];
+  readonly apps?: readonly string[];
   readonly tags: readonly string[];
   readonly layers: readonly string[];
   readonly endpoints: readonly HonuaCatalogLink[];

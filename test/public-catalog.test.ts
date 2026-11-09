@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaHttpError } from "../src/core/errors.js";
+import type { HonuaCatalogItem } from "../src/honua.js";
 
 const item = {
   id: "survey/publication",
@@ -15,6 +16,33 @@ const item = {
 const page = { items: [item], total: 1, offset: 0, limit: 10, facets: { type: [{ value: "layer", count: 1 }] } };
 
 describe("public catalog client", () => {
+  it("preserves published app display and both lineage directions", async () => {
+    const app: HonuaCatalogItem = {
+      ...item,
+      id: "survey-app",
+      type: "app",
+      access: "public",
+      thumbnail: "/images/survey.png",
+      services: ["survey-service"],
+    };
+    const service: HonuaCatalogItem = {
+      ...item,
+      id: "survey-service",
+      type: "service",
+      access: "public",
+      apps: [app.id],
+    };
+    const response = { ...page, items: [app, service], total: 2 };
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () => new Response(JSON.stringify(response)),
+    });
+    const result = await client.listCatalog();
+    expect(result.items[0].thumbnail).toBe(app.thumbnail);
+    expect(result.items[0].services).toEqual([service.id]);
+    expect(result.items[1].apps).toEqual([app.id]);
+  });
+
   it("passes all filters and caller credentials through the existing transport", async () => {
     const fetchFn = vi.fn(async () => new Response(JSON.stringify(page)));
     const client = new HonuaClient({ baseUrl: "https://example.test", fetchFn, apiKey: "catalog-reader" });
