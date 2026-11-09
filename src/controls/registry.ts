@@ -43,6 +43,7 @@
 import { defineHonuaBasemapSwitcher } from "./basemap-switcher.js";
 import { HONUA_COMPONENT_CATALOG, type HonuaComponentCatalogEntry, getComponentCatalogEntry } from "./catalog.js";
 import { globalDom } from "./element-utils.js";
+import { defineHonuaFilterBuilder } from "./filter-builder-element.js";
 import { defineHonuaLayerList } from "./layer-list.js";
 import { defineHonuaLegend } from "./legend.js";
 import { defineHonuaSwipeControl } from "./swipe-control.js";
@@ -74,6 +75,7 @@ export class HonuaComponentCatalogError extends Error {
 type ControlsRegistrar = (registry?: CustomElementRegistry) => void;
 
 const CONTROLS_REGISTRARS: Readonly<Record<string, ControlsRegistrar>> = {
+  "controls.filter-builder": defineHonuaFilterBuilder,
   "controls.basemap-switcher": defineHonuaBasemapSwitcher,
   "controls.swipe-control": defineHonuaSwipeControl,
   "controls.legend": defineHonuaLegend,

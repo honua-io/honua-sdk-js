@@ -1117,6 +1117,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
       {
         ids: allExcept(
           FEATURE_EDITOR,
+          "controls.filter-builder",
           "controls.swipe-control",
           "controls.layer-list",
           "controls.basemap-switcher",

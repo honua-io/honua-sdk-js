@@ -16,6 +16,8 @@ import type {
   HonuaBasemapSwitcherElement,
 } from "@honua/sdk-js/controls";
 import { HonuaLayerListElement, HonuaLegendElement } from "@honua/sdk-js/controls";
+import { defineHonuaFilterBuilder } from "@honua/sdk-js/controls";
+defineHonuaFilterBuilder();
 import { createTemporalPlayback } from "@honua/sdk-js/map";
 import {
   type HonuaChartModel,

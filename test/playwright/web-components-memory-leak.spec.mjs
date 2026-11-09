@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { startWebComponentsFixtureServer } from "../fixtures/web-components-host/mock-server.mjs";
 
 const HOSTS = {
+  "controls.filter-builder": "honua-filter-builder",
   "controls.basemap-switcher": "honua-basemap-switcher",
   "controls.swipe-control": "honua-swipe-control",
   "controls.legend": "honua-controls-legend",
@@ -40,6 +41,7 @@ test("detached catalog components are collectible", async ({ page }) => {
     for (const [id, tag] of Object.entries(HOSTS)) {
       await page.evaluate((elementTag) => {
         const element = document.createElement(elementTag);
+        if (elementTag === "honua-filter-builder") element.draft = { ownerId: "memory", sourceId: "towns", fields: [{ name: "people", type: "number" }], rows: [{ field: "people", operator: "gte", value: "10" }] };
         if (elementTag !== "honua-map") element.setAttribute("for", "missing-memory-map");
         document.body.append(element);
         window.__HONUA_MEMORY_REF__ = new WeakRef(element);

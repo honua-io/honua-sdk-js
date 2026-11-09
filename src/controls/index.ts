@@ -111,3 +111,15 @@ export type {
   HonuaSwipeMap,
   HonuaSwipeOrientation,
 } from "./types.js";
+
+export { compileFilterBuilder, applyFilterBuilder } from "./filter-builder.js";
+export type {
+  HonuaFilterBuilderField,
+  HonuaFilterBuilderOperator,
+  HonuaFilterBuilderRow,
+  HonuaFilterBuilderTime,
+  HonuaFilterBuilderDraft,
+  HonuaFilterBuilderProjection,
+} from "./filter-builder.js";
+export { HonuaFilterBuilderElement, defineHonuaFilterBuilder } from "./filter-builder-element.js";
+export type { HonuaFilterBuilderCount } from "./filter-builder-element.js";

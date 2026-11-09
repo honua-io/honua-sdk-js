@@ -78,6 +78,17 @@ export interface HonuaComponentCatalogEntry {
  * the two is `canonical: true`.
  */
 export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
+  {
+    id: "controls.filter-builder",
+    tag: "honua-filter-builder",
+    source: "controls",
+    className: "HonuaFilterBuilderElement",
+    supportTier: "survival-tier",
+    canonical: true,
+    requiredAdapters: ["source field schema"],
+    events: ["honua-filter-change"],
+    collidesWithIds: [],
+  },
   // ── controls kit (@honua/sdk-js/controls) ──────────────────────────────
   {
     id: "controls.basemap-switcher",
