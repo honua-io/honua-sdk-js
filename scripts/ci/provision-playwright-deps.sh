@@ -18,6 +18,7 @@ plan="$(npx --yes "playwright@${version}" install-deps --dry-run chromium)"
 packages="$(sed -n 's/.*apt-get install -y --no-install-recommends \([^"]*\)".*/\1/p' <<<"$plan")"
 if [[ -z "$packages" ]]; then
   echo "::error::Could not read Playwright's OS dependency list"
+  echo "$plan"
   exit 1
 fi
 

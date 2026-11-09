@@ -110,6 +110,11 @@ const CONSUMER_JOBS = ["verify-core", "unit-coverage", "verify-package", "verify
 const LONG_JOBS = ["quickstart-budget", "build", "coverage-gate", ...CONSUMER_JOBS];
 
 describe("the SDK verification graph produces one build and consumes it", () => {
+  it("runs executable browser bootstrap controls during admission", () => {
+    const policy = steps(graph, "admission").find(step => step.name === "Test verification graph policy");
+    assert.match(policy?.run ?? "", /node --test[^\n]*test\/scripts\/playwright-bootstrap\.test\.mjs/u);
+  });
+
   it("builds the SDK in exactly one job", () => {
     const builders = Object.keys(graph.jobs).filter((jobId) => jobCommands(graph, jobId).has("npm run build"));
     assert.deepEqual(builders, ["build"], "exactly one producer job may compile the SDK");

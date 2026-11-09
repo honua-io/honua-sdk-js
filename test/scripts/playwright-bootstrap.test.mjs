@@ -30,7 +30,7 @@ if (tool === 'npx') {
 if (tool !== 'apt-get') process.exit(0);
 fs.appendFileSync(process.env.FAKE_APT_LOG, JSON.stringify(args)+'\n');
 const sources = args.find(arg => arg.startsWith('Dir::Etc::sourceparts='))?.split('=').slice(1).join('=');
-if (!sources) { console.error('Microsoft vendor feed: 403 Forbidden'); process.exit(100); }
+if (!sources || !args.includes('Dir::Etc::sourcelist=/dev/null')) { console.error('Microsoft vendor feed: 403 Forbidden'); process.exit(100); }
 const files = fs.readdirSync(sources);
 if (files.length !== 1 || !fs.readFileSync(path.join(sources, files[0]), 'utf8').includes('Signed-By: /ubuntu-keyring')) process.exit(101);
 if (!args.some(arg => arg.startsWith('Dir::State::lists='))) process.exit(102);
