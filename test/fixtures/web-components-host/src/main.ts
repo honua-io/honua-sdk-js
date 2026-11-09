@@ -9,6 +9,8 @@ import "../../../../examples/shared/maplibre-vite-worker.js";
 // instead is the explicit, ordered `./register-controls-legend.js` import
 // just below, not an import-order accident.
 import "@honua/sdk-js/controls";
+import { defineHonuaDataExport } from "@honua/sdk-js/controls";
+defineHonuaDataExport();
 import "./register-controls-legend.js";
 import type {
   HonuaBasemapDefinition,

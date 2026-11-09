@@ -27,6 +27,26 @@ export interface HonuaDataExportArtifact {
  * CSV prefixes spreadsheet formula triggers with an apostrophe.
  */
 export function serializeHonuaDataExport(options: HonuaDataExportOptions): HonuaDataExportArtifact {
+  validateExportOptions(options);
+  const { rows, fields, format } = options;
+  const properties = rows.map((row) =>
+    Object.fromEntries(
+      fields.map((field) => [field, Object.hasOwn(row.attributes, field) ? row.attributes[field] : null]),
+    ),
+  );
+  // Inspect structured values before CSV flattening can hide sensitive keys.
+  assertCredentialFreeExportText(safeJson(properties), "Selected export data");
+  const text = format === "csv" ? serializeCsv(fields, properties) : serializeGeoJson(rows, properties);
+  assertCredentialFreeExportText(text, "Data export");
+  return {
+    text,
+    mimeType: format === "csv" ? "text/csv;charset=utf-8" : "application/geo+json",
+    filename: `data.${format}`,
+    rowCount: rows.length,
+  };
+}
+
+function validateExportOptions(options: HonuaDataExportOptions): void {
   const { rows, fields, format } = options;
   const maxRows = options.maxRows ?? 10_000;
   if (!Number.isSafeInteger(maxRows) || maxRows < 1 || maxRows > 100_000) {
@@ -39,64 +59,86 @@ export function serializeHonuaDataExport(options: HonuaDataExportOptions): Honua
     if (isSensitiveExportKey(field)) throw new Error("Sensitive fields cannot be exported.");
     assertCredentialFreeExportText(field, "Export field");
   }
-  const properties = rows.map((row) =>
-    Object.fromEntries(
-      fields.map((field) => [field, Object.hasOwn(row.attributes, field) ? row.attributes[field] : null]),
-    ),
-  );
-  // Inspect selected structured values before flattening them into CSV cells.
-  const safeJson = (value: unknown): string =>
-    JSON.stringify(value, (key, item: unknown) => {
-      if (key && isSensitiveExportKey(key)) throw new Error("Sensitive fields cannot be exported.");
-      return item;
-    });
-  assertCredentialFreeExportText(safeJson(properties), "Selected export data");
-  let text: string;
-  if (format === "csv") {
-    const cell = (value: unknown): string => {
-      let raw = value == null ? "" : typeof value === "object" ? safeJson(value) : String(value);
-      if (/^[\s]*[=+@-]|^[\t\r\n]/.test(raw)) raw = `'${raw}`;
-      return `"${raw.replaceAll('"', '""')}"`;
-    };
-    text = `${[fields.map(cell).join(","), ...properties.map((row) => fields.map((field) => cell(row[field])).join(","))].join("\r\n")}\r\n`;
-  } else {
-    const features = rows.map((row, index) => {
-      const source = row.geometry;
-      const sr = source?.spatialReference as { wkid?: number; latestWkid?: number } | undefined;
-      if (source && ("crs" in source || (sr && (sr.latestWkid ?? sr.wkid) !== 4326))) {
-        throw new Error("GeoJSON export requires WGS84 geometry.");
-      }
-      const geometry = source == null ? null : toGeoJsonGeometry(source);
-      if (source != null && !geometry) throw new Error("Unsupported geometry in GeoJSON export.");
-      if (geometry && !hasWgs84Coordinates(geometry.coordinates))
-        throw new Error("GeoJSON export requires finite WGS84 coordinates.");
-      return {
-        type: "Feature",
-        ...(row.id === undefined ? {} : { id: row.id }),
-        geometry,
-        properties: properties[index],
-      };
-    });
-    text = safeJson({ type: "FeatureCollection", features });
-  }
-  assertCredentialFreeExportText(text, "Data export");
-  return {
-    text,
-    mimeType: format === "csv" ? "text/csv;charset=utf-8" : "application/geo+json",
-    filename: `data.${format}`,
-    rowCount: rows.length,
-  };
 }
 
-function hasWgs84Coordinates(value: unknown): boolean {
-  if (!Array.isArray(value) || value.length === 0) return false;
-  if (typeof value[0] === "number") {
-    return (
-      value.length >= 2 &&
-      value.every((ordinate) => typeof ordinate === "number" && Number.isFinite(ordinate)) &&
-      Math.abs(value[0]) <= 180 &&
-      Math.abs(value[1]) <= 90
-    );
+function safeJson(value: unknown): string {
+  return JSON.stringify(value, (key, item: unknown) => {
+    if (key && isSensitiveExportKey(key)) throw new Error("Sensitive fields cannot be exported.");
+    return item;
+  });
+}
+
+function csvCell(value: unknown): string {
+  let raw = value == null ? "" : typeof value === "object" ? safeJson(value) : String(value);
+  if (typeof value === "string" && /^[\s]*[=+@-]|^[\t\r\n]/.test(raw)) raw = `'${raw}`;
+  return `"${raw.replaceAll('"', '""')}"`;
+}
+
+function serializeCsv(fields: readonly string[], properties: readonly Record<string, unknown>[]): string {
+  const lines = properties.map((row) => fields.map((field) => csvCell(row[field])).join(","));
+  return `${[fields.map(csvCell).join(","), ...lines].join("\r\n")}\r\n`;
+}
+
+function serializeGeoJson(rows: readonly CanonicalFeature[], properties: readonly Record<string, unknown>[]): string {
+  const features = rows.map((row, index) => ({
+    type: "Feature",
+    ...(row.id === undefined ? {} : { id: row.id }),
+    geometry: exportGeometry(row.geometry),
+    properties: properties[index],
+  }));
+  return safeJson({ type: "FeatureCollection", features });
+}
+
+function exportGeometry(source: CanonicalFeature["geometry"]) {
+  if (source == null) return null;
+  const sr = source.spatialReference as { wkid?: number; latestWkid?: number } | undefined;
+  if ("crs" in source || (sr && (sr.latestWkid ?? sr.wkid) !== 4326)) {
+    throw new Error("GeoJSON export requires WGS84 geometry.");
   }
-  return value.every(hasWgs84Coordinates);
+  const geometry = toGeoJsonGeometry(source);
+  if (!geometry || !validWgs84Geometry(geometry))
+    throw new Error("GeoJSON export requires valid finite WGS84 geometry.");
+  return geometry;
+}
+
+function validWgs84Geometry(geometry: { type: string; coordinates: unknown }): boolean {
+  const coordinates = geometry.coordinates;
+  switch (geometry.type) {
+    case "Point":
+      return isWgs84Position(coordinates);
+    case "MultiPoint":
+      return everyCoordinate(coordinates, isWgs84Position);
+    case "LineString":
+      return isLine(coordinates);
+    case "MultiLineString":
+      return everyCoordinate(coordinates, isLine);
+    case "Polygon":
+      return everyCoordinate(coordinates, isRing);
+    case "MultiPolygon":
+      return everyCoordinate(coordinates, (polygon) => everyCoordinate(polygon, isRing));
+    default:
+      return false;
+  }
+}
+
+function everyCoordinate(value: unknown, predicate: (item: unknown) => boolean): boolean {
+  return Array.isArray(value) && value.length > 0 && value.every(predicate);
+}
+function isWgs84Position(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    value.every((ordinate) => typeof ordinate === "number" && Number.isFinite(ordinate)) &&
+    Math.abs(value[0]) <= 180 &&
+    Math.abs(value[1]) <= 90
+  );
+}
+function isLine(value: unknown): boolean {
+  return Array.isArray(value) && value.length >= 2 && value.every(isWgs84Position);
+}
+function isRing(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length < 4 || !value.every(isWgs84Position)) return false;
+  const first = value[0] as number[];
+  const last = value[value.length - 1] as number[];
+  return first.length === last.length && first.every((ordinate, index) => ordinate === last[index]);
 }

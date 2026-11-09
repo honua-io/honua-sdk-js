@@ -78,3 +78,32 @@ test("rejects out-of-range and nonfinite GeoJSON coordinates", () => {
     ).toThrow(/WGS84/i);
   }
 });
+
+test("preserves numeric negatives while neutralizing formula strings", () => {
+  expect(
+    serializeHonuaDataExport({
+      rows: [{ attributes: { number: -157, text: "-157" } }],
+      fields: ["number", "text"],
+      format: "csv",
+    }).text,
+  ).toBe('"number","text"\r\n"-157","\'-157"\r\n');
+});
+test.each([
+  { type: "Point", coordinates: [[-157, 21]] },
+  { type: "LineString", coordinates: [[-157, 21]] },
+  {
+    type: "Polygon",
+    coordinates: [
+      [
+        [-157, 21],
+        [-156, 21],
+        [-156, 22],
+        [-155, 21],
+      ],
+    ],
+  },
+])("rejects malformed GeoJSON %s", (geometry) => {
+  expect(() =>
+    serializeHonuaDataExport({ rows: [{ attributes: {}, geometry }], fields: [], format: "geojson" }),
+  ).toThrow(/geometry/i);
+});

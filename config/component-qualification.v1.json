@@ -135,8 +135,8 @@
     "cells": 612,
     "passing": 398,
     "failing": 44,
-    "pending": 98,
-    "notApplicable": 72,
+    "pending": 99,
+    "notApplicable": 71,
     "productionQualifiedComponents": 2,
     "productionTierComponents": 2
   },
@@ -158,13 +158,14 @@
         "visual-regression",
         "zero-console-error",
         "deterministic-disposal",
-        "duplicate-listener"
+        "duplicate-listener",
+        "secure-export"
       ],
       "summary": {
         "passing": 5,
         "failing": 4,
-        "pending": 7,
-        "notApplicable": 2
+        "pending": 8,
+        "notApplicable": 1
       },
       "gates": [
         {
@@ -278,8 +279,8 @@
         {
           "gate": "secure-export",
           "requirement": "REQ-005",
-          "status": "not-applicable",
-          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+          "status": "pending",
+          "note": "Filtered-row export has serializer and browser credential checks; full cross-cutting secure-export qualification remains pending."
         },
         {
           "gate": "bundle-budget",

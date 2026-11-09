@@ -1,3 +1,9 @@
+---
+type: guide
+title: Filtered-row data export
+description: Download filtered public attributes as credential-free CSV and GeoJSON.
+---
+
 # Filtered-row data export
 
 `@honua/app-platform/controls` provides `HonuaDataExportElement` and the

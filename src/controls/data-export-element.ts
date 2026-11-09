@@ -1,7 +1,7 @@
 import type { CanonicalFeature } from "../contract/types.js";
 import { serializeHonuaDataExport } from "./data-export.js";
 import type { HonuaDataExportArtifact, HonuaDataExportFormat } from "./data-export.js";
-import { HTMLElementBase, globalDom, renderShadowRoot } from "./element-utils.js";
+import { HTMLElementBase, escapeAttribute, globalDom, renderShadowRoot } from "./element-utils.js";
 
 /**
  * Downloads only the filtered rows supplied by the host application. Set
@@ -18,6 +18,12 @@ export class HonuaDataExportElement extends HTMLElementBase {
   #maxRows = 10_000;
   #busy = false;
 
+  public static get observedAttributes(): string[] {
+    return ["label"];
+  }
+  public attributeChangedCallback(): void {
+    this.render();
+  }
   public constructor() {
     super();
     if (typeof this.attachShadow === "function") this.attachShadow({ mode: "open" });
@@ -26,7 +32,7 @@ export class HonuaDataExportElement extends HTMLElementBase {
     return this.#rows;
   }
   public set rows(value: readonly CanonicalFeature[]) {
-    this.#rows = value;
+    this.#rows = [...value];
     this.render();
   }
   public get fields(): readonly string[] {
@@ -62,7 +68,7 @@ export class HonuaDataExportElement extends HTMLElementBase {
       .status { flex-basis:100%; overflow-wrap:anywhere; }
       button:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
     `,
-      `<div class="root" part="root" role="group" aria-label="Export filtered rows">
+      `<div class="root" part="root" role="group" aria-label="${escapeAttribute(this.getAttribute("label") ?? "Export filtered rows")}">
       <button part="button" type="button" data-format="csv" ${this.#busy || this.#rows.length === 0 ? "disabled" : ""}>Download CSV</button>
       <button part="button" type="button" data-format="geojson" ${this.#busy || this.#rows.length === 0 ? "disabled" : ""}>Download GeoJSON</button>
       <span class="status" part="status" role="status">${this.#rows.length === 0 ? "No rows to export. Adjust your filters." : `${this.#rows.length} filtered ${this.#rows.length === 1 ? "row" : "rows"}`}</span>
