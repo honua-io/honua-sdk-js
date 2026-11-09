@@ -35,6 +35,29 @@ function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 
+function trustedMetadata(overrides = {}) {
+  return {
+    observerRunId: "789",
+    observerRunAttempt: "1",
+    observerEvent: "workflow_run",
+    observerRef: "refs/heads/trunk",
+    observerRepository: "honua-io/honua-sdk-js",
+    sourceRunId: "123",
+    sourceRunAttempt: "2",
+    sourceRunConclusion: "success",
+    sourceJobId: "456",
+    sourceJobName: "SDK verified",
+    sourceJobConclusion: "success",
+    sourceCheckRunId: "456",
+    policyCommitSha: "a".repeat(40),
+    observerWorkflowSha256: "b".repeat(64),
+    policyBlobSha256: "c".repeat(64),
+    resolverBlobSha256: "d".repeat(64),
+    selectorBlobSha256: "e".repeat(64),
+    ...overrides,
+  };
+}
+
 test("owns every current Playwright spec exactly once", () => {
   const { specs, ownership } = validatePolicy(policy);
   assert.equal(specs.length, discoverSpecs().length);
@@ -331,25 +354,13 @@ test("records the source head and merge-tree evaluation snapshot separately", ()
 });
 
 test("binds verified graph evidence to a fixed ordered trusted-policy manifest", () => {
-  const metadata = {
-    observerRunId: "789",
-    observerRunAttempt: "1",
-    observerEvent: "workflow_run",
-    observerRef: "refs/heads/trunk",
-    observerRepository: "honua-io/honua-sdk-js",
-    sourceRunId: "123",
-    sourceRunAttempt: "2",
+  const metadata = trustedMetadata({
     sourceRunConclusion: "failure",
-    sourceJobId: "456",
-    sourceJobName: "SDK verified",
-    sourceJobConclusion: "success",
-    sourceCheckRunId: "456",
-    policyCommitSha: "a".repeat(40),
     observerWorkflowSha256: "d".repeat(64),
     policyBlobSha256: "e".repeat(64),
     resolverBlobSha256: "f".repeat(64),
     selectorBlobSha256: "0".repeat(64),
-  };
+  });
   const trust = buildTrust(metadata);
   const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
   assert.equal(report.schema, "honua.sdk.browser-impact-observation/v2");
@@ -368,25 +379,7 @@ test("binds verified graph evidence to a fixed ordered trusted-policy manifest",
 });
 
 test("excludes policy and source-workflow changes from promotion samples", () => {
-  const trust = buildTrust({
-    observerRunId: "789",
-    observerRunAttempt: "1",
-    observerEvent: "workflow_run",
-    observerRef: "refs/heads/trunk",
-    observerRepository: "honua-io/honua-sdk-js",
-    sourceRunId: "123",
-    sourceRunAttempt: "2",
-    sourceRunConclusion: "success",
-    sourceJobId: "456",
-    sourceJobName: "SDK verified",
-    sourceJobConclusion: "success",
-    sourceCheckRunId: "456",
-    policyCommitSha: "a".repeat(40),
-    observerWorkflowSha256: "b".repeat(64),
-    policyBlobSha256: "c".repeat(64),
-    resolverBlobSha256: "d".repeat(64),
-    selectorBlobSha256: "e".repeat(64),
-  });
+  const trust = buildTrust(trustedMetadata());
   const report = evaluate(
     policy,
     [".github/workflows/sdk-verification.yml", "scripts/trusted-pr-workflow-run.cjs"],
@@ -400,25 +393,11 @@ test("excludes policy and source-workflow changes from promotion samples", () =>
 });
 
 test("excludes unattributed browser failures from promotion samples", () => {
-  const trust = buildTrust({
-    observerRunId: "789",
-    observerRunAttempt: "1",
-    observerEvent: "workflow_run",
-    observerRef: "refs/heads/trunk",
-    observerRepository: "honua-io/honua-sdk-js",
-    sourceRunId: "123",
+  const trust = buildTrust(trustedMetadata({
     sourceRunAttempt: "1",
     sourceRunConclusion: "failure",
-    sourceJobId: "456",
-    sourceJobName: "SDK verified",
     sourceJobConclusion: "failure",
-    sourceCheckRunId: "456",
-    policyCommitSha: "a".repeat(40),
-    observerWorkflowSha256: "b".repeat(64),
-    policyBlobSha256: "c".repeat(64),
-    resolverBlobSha256: "d".repeat(64),
-    selectorBlobSha256: "e".repeat(64),
-  });
+  }));
   const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
   assert.equal(report.comparison.promotion_sample_eligible, false);
   assert.deepEqual(report.comparison.promotion_exclusion_reasons, [
@@ -427,25 +406,7 @@ test("excludes unattributed browser failures from promotion samples", () => {
 });
 
 test("rejects incomplete or malformed trusted evidence identity", () => {
-  const valid = {
-    observerRunId: "789",
-    observerRunAttempt: "1",
-    observerEvent: "workflow_run",
-    observerRef: "refs/heads/trunk",
-    observerRepository: "honua-io/honua-sdk-js",
-    sourceRunId: "123",
-    sourceRunAttempt: "2",
-    sourceRunConclusion: "success",
-    sourceJobId: "456",
-    sourceJobName: "SDK verified",
-    sourceJobConclusion: "success",
-    sourceCheckRunId: "456",
-    policyCommitSha: "a".repeat(40),
-    observerWorkflowSha256: "b".repeat(64),
-    policyBlobSha256: "c".repeat(64),
-    resolverBlobSha256: "d".repeat(64),
-    selectorBlobSha256: "e".repeat(64),
-  };
+  const valid = trustedMetadata();
   assert.throws(() => buildTrust({ ...valid, sourceRunAttempt: "0" }), /source run attempt/u);
   assert.throws(() => buildTrust({ ...valid, sourceJobName: "JS SDK" }), /workflow identity/u);
   assert.throws(
