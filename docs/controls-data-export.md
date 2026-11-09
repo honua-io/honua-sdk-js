@@ -11,7 +11,7 @@ SSR-safe `serializeHonuaDataExport` helper. The control creates CSV and GeoJSON
 files from the rows your application supplies. It never runs a query or fetches
 additional pages.
 
-```ts
+```ts doc-test=skip reason="requires the filtered result and browser host supplied by the application"
 import { defineHonuaDataExport, HonuaDataExportElement } from "@honua/app-platform/controls";
 
 defineHonuaDataExport();
