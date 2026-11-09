@@ -1,0 +1,67 @@
+{
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "lane": "live",
+  "status": "executed",
+  "reason": null,
+  "observedAt": "2026-11-09T08:17:24.824Z",
+  "authMode": "anonymous",
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.3.2",
+    "gitCommit": "a6be03a842c3ceda1d743163c471f9b482edd060"
+  },
+  "source": {
+    "provider": "honua-demo",
+    "identity": "geoservices-feature-service:1",
+    "endpoint": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
+    "deploymentVersion": null,
+    "dataVersion": null
+  },
+  "provenance": {
+    "sourceId": "geoservices-feature-service:1",
+    "observedAt": "2026-11-09T08:17:25.914Z",
+    "validAt": null,
+    "state": "live",
+    "attribution": "maui-parcels"
+  },
+  "semantics": {
+    "operation": "first-map-anonymous-public-endpoint",
+    "outcome": "map-popup-filter-plan-ready",
+    "itemCount": 5,
+    "assertions": [
+      "protocol=\"geoservices-feature-service\"",
+      "sourceId=\"1\"",
+      "attribution=\"maui-parcels\"",
+      "freshness=\"observed\"",
+      "cacheStatus=\"miss\"",
+      "degradationCount=0",
+      "planFingerprint=\"sha256:cbb32924538685137a0b7f3c56b9eb53670d108798757ee4d13ae2e923254c90\"",
+      "mode=\"Anonymous live\"",
+      "credentialsSent=false",
+      "unexpectedNetworkRequests=0",
+      "cleanupBudgetMet=true"
+    ]
+  },
+  "timing": {
+    "totalMs": 3515,
+    "firstSuccessfulInteractionMs": 3515
+  },
+  "degradation": {
+    "state": "none",
+    "reasons": []
+  },
+  "artifacts": [
+    {
+      "kind": "producer-generator",
+      "path": "scripts/first-map-live-evidence.mjs",
+      "sha256": "5ef2da2d1ecb90c65a120d6633b5afd7bff5493a8e4db15fcf6d2f901ad33375"
+    },
+    {
+      "kind": "live-screenshot",
+      "path": "samples/evidence/maplibre-quickstart/runs/a2479a45-3b31-480c-b448-35ec69b129cb/artifacts/live-evidence.png",
+      "sha256": "9c45b1ba3462f0f115ce2d7b529d56f8e3455bcd4b28534c0a9452253000067b"
+    }
+  ]
+}
