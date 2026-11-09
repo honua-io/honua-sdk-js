@@ -84,10 +84,11 @@ describe("PR-fast timing policy", () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "pr-fast-"));
     const output = path.join(directory, "report.json");
     try {
-      const status = await runValidation(
-        { budgetMs: 1, startedAtMonotonicMs: 1, output },
-        async (command, args) => ({ command: [command, ...args].join(" "), durationMs: 0, exitCode }),
-      );
+      const status = await runValidation({ budgetMs: 1, startedAtMonotonicMs: 1, output }, async (command, args) => ({
+        command: [command, ...args].join(" "),
+        durationMs: 0,
+        exitCode,
+      }));
       expect(status).toBe(exitCode === 0 ? 0 : 1);
       const report = JSON.parse(await readFile(output, "utf8"));
       expect(report.withinBudget).toBe(false);
