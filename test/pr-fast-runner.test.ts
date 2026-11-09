@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { PR_FAST_STEPS, commandInvocation, parseArgs, runSteps } from "../scripts/run-pr-fast.mjs";
+import { PR_FAST_STEPS, commandInvocation, parseArgs, runSteps, runValidation } from "../scripts/run-pr-fast.mjs";
 
 describe("PR-fast runner arguments", () => {
   it("keeps the monotonic timestamp and output arguments distinct", () => {
@@ -74,5 +76,27 @@ describe("PR-fast runner arguments", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Unknown argument: --unknown");
+  });
+});
+
+describe("PR-fast timing policy", () => {
+  it.each([0, 1, null])("keeps exit code %s blocking only when a command fails, even over budget", async (exitCode) => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "pr-fast-"));
+    const output = path.join(directory, "report.json");
+    try {
+      const status = await runValidation(
+        { budgetMs: 1, startedAtMonotonicMs: 1, output },
+        async (command: string, args: string[]) => ({ command: [command, ...args].join(" "), exitCode }),
+      );
+      expect(status).toBe(exitCode === 0 ? 0 : 1);
+      const report = JSON.parse(await readFile(output, "utf8"));
+      expect(report.withinBudget).toBe(false);
+      expect(report.elapsedMs).toBeGreaterThan(report.budgetMs);
+      expect(report.commandsPassed).toBe(exitCode === 0);
+      expect(report.steps).toHaveLength(PR_FAST_STEPS.length);
+      expect(report.environment.cpuModel).toBeTruthy();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

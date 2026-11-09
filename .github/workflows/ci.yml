@@ -181,6 +181,36 @@ jobs:
           name: pr-fast-timing
           path: test-results/pr-fast.json
           if-no-files-found: warn
+          retention-days: 90
+
+  pr-fast-timing:
+    name: PR Fast timing (advisory)
+    needs: pr-fast
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: pr-fast-timing
+          path: timing
+      - name: Publish timing trend summary
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const report = JSON.parse(readFileSync('timing/pr-fast.json', 'utf8'));
+          const elapsed = (report.elapsedMs / 1000).toFixed(2);
+          const budget = (report.budgetMs / 1000).toFixed(0);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `## PR Fast timing\n\nElapsed: ${elapsed}s / ${budget}s target.\n\n` +
+            `Commands passed: ${report.commandsPassed}. Within target: ${report.withinBudget}.\n\n` +
+            'Per-step timings and runner metadata are retained in the pr-fast-timing artifact for 90 days.\n');
+          if (!report.withinBudget) {
+            console.log(`::warning::PR Fast took ${elapsed}s against a ${budget}s target; timing is advisory.`);
+          }
+          NODE
 
   benchmark-lab:
     name: Deterministic Benchmark Lab
