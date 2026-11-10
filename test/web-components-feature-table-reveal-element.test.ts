@@ -10,6 +10,43 @@ import {
 import { contrast } from "./contrast.js";
 import { type Row, makeEngine, mount, orderedSource, shadow } from "./feature-table-element-fixture.js";
 
+async function mountLocatingSelection(onIdentityQuery?: (where: string) => Promise<void> | void) {
+  let releaseOlder: (() => void) | undefined;
+  const source = orderedSource(400);
+  const original = source.query.bind(source);
+  source.query = async (request) => {
+    const where = request?.where ?? "";
+    if (where.includes("OBJECTID = 75") && where.includes(" OR ") !== true) {
+      await new Promise<void>((resolve) => {
+        releaseOlder = resolve;
+      });
+    }
+    await onIdentityQuery?.(where);
+    return original(request);
+  };
+  const element = mount();
+  const engine = createHonuaFeatureTable<Row>({
+    source,
+    sourceId: "incidents",
+    columns: [
+      { field: "OBJECTID", label: "ID", type: "integer" },
+      { field: "NAME", label: "Name", type: "string" },
+    ],
+    budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 },
+  });
+  element.table = engine;
+  await engine.refresh();
+  const context = createHonuaApplicationContext<Row>({
+    status: "ready",
+    binding: { sourceIdentity: "incidents" },
+    authorization: { status: "authorized", scopes: ["incidents:read"] },
+    selection: [{ sourceId: "incidents", id: 75 }],
+  });
+  const mounted = await mountHonuaApplication({ host: document.body, context, register: false });
+  await vi.waitFor(() => expect(releaseOlder).toBeTypeOf("function"));
+  return { engine, context, mounted, releaseOlder: () => releaseOlder?.() };
+}
+
 describe("<honua-feature-table> pointer, reveal, and theme", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -211,37 +248,7 @@ describe("<honua-feature-table> pointer, reveal, and theme", () => {
   });
 
   it("keeps a newer application selection when an older reveal is still locating", async () => {
-    let releaseOlder: (() => void) | undefined;
-    const source = orderedSource(400);
-    const original = source.query.bind(source);
-    source.query = async (request) => {
-      if (request?.where?.includes("OBJECTID = 75") && request.where.includes(" OR ") !== true) {
-        await new Promise<void>((resolve) => {
-          releaseOlder = resolve;
-        });
-      }
-      return original(request);
-    };
-    const element = mount();
-    const engine = createHonuaFeatureTable<Row>({
-      source,
-      sourceId: "incidents",
-      columns: [
-        { field: "OBJECTID", label: "ID", type: "integer" },
-        { field: "NAME", label: "Name", type: "string" },
-      ],
-      budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 },
-    });
-    element.table = engine;
-    await engine.refresh();
-    const context = createHonuaApplicationContext<Row>({
-      status: "ready",
-      binding: { sourceIdentity: "incidents" },
-      authorization: { status: "authorized", scopes: ["incidents:read"] },
-      selection: [{ sourceId: "incidents", id: 75 }],
-    });
-    const mounted = await mountHonuaApplication({ host: document.body, context, register: false });
-    await vi.waitFor(() => expect(releaseOlder).toBeTypeOf("function"));
+    const { engine, context, mounted, releaseOlder } = await mountLocatingSelection();
     const staleWindows: number[] = [];
     engine.subscribe((snapshot) => {
       if (snapshot.selection.includes("incidents:40") && snapshot.window.startIndex >= 70) {
@@ -250,7 +257,7 @@ describe("<honua-feature-table> pointer, reveal, and theme", () => {
     });
 
     context.update({ selection: [{ sourceId: "incidents", id: 40 }] });
-    releaseOlder?.();
+    releaseOlder();
     await vi.waitFor(() => {
       expect(engine.snapshot.selection).toEqual(["incidents:40"]);
       expect(engine.snapshot.rows.some((row) => row?.id === 40)).toBe(true);
@@ -264,44 +271,14 @@ describe("<honua-feature-table> pointer, reveal, and theme", () => {
   });
 
   it("keeps the newer application selection when its reveal query fails", async () => {
-    let releaseOlder: (() => void) | undefined;
-    const source = orderedSource(400);
-    const original = source.query.bind(source);
-    source.query = async (request) => {
-      const where = request?.where ?? "";
-      if (where.includes("OBJECTID = 75") && where.includes(" OR ") !== true) {
-        await new Promise<void>((resolve) => {
-          releaseOlder = resolve;
-        });
-      }
+    const { engine, context, mounted, releaseOlder } = await mountLocatingSelection((where) => {
       if (where.includes("OBJECTID = 40") && where.includes(" OR ") !== true) {
         throw new Error("newer reveal query failed");
       }
-      return original(request);
-    };
-    const element = mount();
-    const engine = createHonuaFeatureTable<Row>({
-      source,
-      sourceId: "incidents",
-      columns: [
-        { field: "OBJECTID", label: "ID", type: "integer" },
-        { field: "NAME", label: "Name", type: "string" },
-      ],
-      budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 },
     });
-    element.table = engine;
-    await engine.refresh();
-    const context = createHonuaApplicationContext<Row>({
-      status: "ready",
-      binding: { sourceIdentity: "incidents" },
-      authorization: { status: "authorized", scopes: ["incidents:read"] },
-      selection: [{ sourceId: "incidents", id: 75 }],
-    });
-    const mounted = await mountHonuaApplication({ host: document.body, context, register: false });
-    await vi.waitFor(() => expect(releaseOlder).toBeTypeOf("function"));
 
     context.update({ selection: [{ sourceId: "incidents", id: 40 }] });
-    releaseOlder?.();
+    releaseOlder();
     await vi.waitFor(() => expect(engine.snapshot.selection).toEqual(["incidents:40"]));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
