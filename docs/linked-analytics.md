@@ -27,8 +27,8 @@ Two rules make the seam worth having:
 
 ## The artifact
 
-An artifact is one of four kinds — `category`, `histogram`, `aggregate`,
-`time-series` — and always declares units, null handling, ordering, source
+An artifact is one of five kinds — `category`, `histogram`, `aggregate`,
+`time-series`, `scatter` — and always declares units, null handling, ordering, source
 identity, and provenance. Marks carry a stable `key` that is the interaction
 identity: a click, a hover, and a brush all resolve back through it.
 
@@ -94,6 +94,8 @@ bindings in `@honua/sdk-js/interactions` already use.
 |---|---|
 | `mark-select` on a category | `=` or `in` clause on the dimension (`is-null` for the null bucket); publishes the mark's `targets` as selection when it has them |
 | `mark-select` on a time series | `between` clause on the temporal clause id — clicks and brushes share one temporal contract |
+| `mark-select` on scatter | Publishes enumerable point `targets` as feature selection, reflected by map/table peers |
+| `rectangle-brush` on scatter | Two numeric `between` clauses, one per axis, under the binding’s range namespace |
 | `range-brush` | `between` clause on the range clause id |
 | `temporal-brush` | `between` clause on the temporal clause id |
 | `hover` | Ephemeral. Shared with peer presentations through the binding, never written into the reducer, so it cannot pollute a shareable snapshot |
@@ -252,3 +254,42 @@ the root, `/honua`, or browser entrypoints.
 - Presentation adapters own no persistent caches. Caching belongs to the widget
   source and the metadata cache, not the seam.
 - Mixed null-and-value category selections drop the null bucket (see above).
+
+## Scatter points and rectangle brushing
+
+The experimental `@honua/app-platform/analytics` entrypoint exports
+`acceptScatterArtifact()`. Set `dimension` to the horizontal numeric field and
+`yDimension` to a distinct vertical numeric field. Each mark has a stable `key`,
+`label`, finite horizontal `x`, and finite vertical `value`; `measure` formats
+the vertical coordinate. Attach enumerable feature `targets` to link point
+selection to the map and table. Missing coordinates must be excluded by the
+producer and declared through the artifact's null policy, never coerced to zero.
+
+```ts doc-test=skip reason="requires an accepted scatter artifact and an exploration view"
+import { bindAnalyticsToExploration } from "@honua/app-platform/analytics";
+
+const binding = bindAnalyticsToExploration(view, scatterArtifact);
+const commit = binding.apply({
+  kind: "rectangle-brush",
+  adapterId: "dashboard",
+  artifactId: scatterArtifact.identity.artifactId,
+  rectangle: { x: { min: 5, max: 15 }, y: { min: 10, max: 25 } },
+});
+commit.undo();
+binding.apply({ kind: "clear", adapterId: "dashboard", artifactId: scatterArtifact.identity.artifactId, channel: "rectangle" });
+```
+
+Both ranges must have finite, ordered bounds. Invalid rectangles leave shared
+state unchanged. Clearing the rectangle preserves peer filters and point
+selection; clearing `marks` releases feature selection. Selection from a map or
+table updates the point highlights through the same shared exploration state.
+
+The default presentation supplies a coordinate table, keyboard point buttons,
+and native numeric minimum/maximum inputs grouped by axis. Apply rectangle
+commits both axes; Clear rectangle releases them. This presentation has no chart
+dependency, and its HTML projection works during server rendering. Empty results
+show No points; errors and partial/stale results retain the common honesty
+banner and provenance. Third-party scatter renderers can consume the same
+artifact and emit `rectangle-brush`; copy `artifactYDimension` along with the
+existing lineage fields to reject events from a replaced vertical axis. A change
+to either axis invalidates a mounted artifact rather than patching its meaning.

@@ -129,3 +129,68 @@ test("the real optional uPlot adapter mounts, links brush state, patches, and di
     await server.close();
   }
 });
+
+test("scatter rectangle controls and keyboard point selection share map/table state", async ({ page }) => {
+  const server = await startSdkFixtureServer();
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await page.goto(server.url);
+    await page.evaluate(async () => {
+      const a = await import("/dist/src/analytics/index.js");
+      const { createExplorationContext } = await import("/dist/src/exploration/context.js");
+      const context = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+      const view = context.connectView({ id: "scatter", role: "chart" });
+      const peer = context.connectView({ id: "map-table", role: "table" });
+      peer.setFilter("peer", { field: "active", operator: "=", value: true });
+      const artifact = a.acceptScatterArtifact({
+        identity: a.analyticsArtifactIdentity({ artifactId: "scatter", sourceId: "s", acceptedAt: "2026-11-10T00:00:00Z" }),
+        provenance: a.analyticsProvenance({ computedBy: "server", bounds: a.UNBOUNDED }),
+        dimension: "height", yDimension: "weight", measure: { field: "weight", fn: "avg" },
+        marks: [
+          { key: "a", label: "Point A", x: 10, value: 20, targets: [{ sourceId: "s", id: 1 }] },
+          { key: "b", label: "Point B", x: 30, value: 40, targets: [{ sourceId: "s", id: 2 }] },
+        ],
+      });
+      const registry = a.createAnalyticsAdapterRegistry({ adapters: [a.createDefaultAnalyticsPresentation()] });
+      const session = a.createAnalyticsLinkedSession({ view, artifact, registry });
+      const target = document.createElement("div");
+      document.body.append(target);
+      await session.present({ target });
+      window.scatterFixture = { session, peer };
+    });
+    const x = page.getByRole("group", { name: "height", exact: true });
+    const y = page.getByRole("group", { name: "weight", exact: true });
+    await x.getByLabel("Minimum").fill("5");
+    await x.getByLabel("Maximum").fill("15");
+    await y.getByLabel("Minimum").fill("10");
+    await y.getByLabel("Maximum").fill("25");
+    await page.getByRole("button", { name: "Apply rectangle" }).focus();
+    await page.keyboard.press("Enter");
+    expect(await page.evaluate(() => Object.values(window.scatterFixture.peer.state.filters))).toEqual(
+      expect.arrayContaining([
+        { field: "height", operator: "between", value: [5, 15], appliesTo: ["s"] },
+        { field: "weight", operator: "between", value: [10, 25], appliesTo: ["s"] },
+      ]),
+    );
+    await page.getByRole("button", { name: "Point A", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: "Point A", exact: true })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Point A", exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => window.scatterFixture.peer.state.selection)).toEqual([{ sourceId: "s", id: 1 }]);
+    await page.evaluate(() => window.scatterFixture.peer.select([{ sourceId: "s", id: 2 }], { replace: true }));
+    await expect(page.getByRole("button", { name: "Point B", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await x.getByLabel("Minimum").fill("100");
+    await page.getByRole("button", { name: "Apply rectangle" }).click();
+    await expect(page.getByRole("status")).toContainText("minimum at or below its maximum");
+    expect(await page.evaluate(() => window.scatterFixture.session.linkedState.rectangle.x)).toEqual({ min: 5, max: 15 });
+    await page.getByRole("button", { name: "Clear rectangle" }).click();
+    expect(await page.evaluate(() => Object.keys(window.scatterFixture.peer.state.filters))).toEqual(["peer"]);
+    expect(await page.evaluate(() => window.scatterFixture.peer.state.selection)).toEqual([{ sourceId: "s", id: 2 }]);
+    await page.evaluate(() => window.scatterFixture.session.dispose());
+    await expect(page.locator("table")).toHaveCount(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await server.close();
+  }
+});

@@ -34,6 +34,7 @@ import type {
   AnalyticsLinkedState,
   AnalyticsLinkedStateBinding,
   AnalyticsNumericRange,
+  AnalyticsNumericRectangle,
   AnalyticsTemporalWindow,
 } from "./types.js";
 
@@ -61,7 +62,7 @@ export function analyticsMarkFilterClause(
   artifact: AnalyticsArtifact,
   markKeys: readonly string[],
 ): FilterClause | undefined {
-  if (markKeys.length === 0 || artifact.kind === "aggregate") return undefined;
+  if (markKeys.length === 0 || artifact.kind === "aggregate" || artifact.kind === "scatter") return undefined;
 
   if (artifact.kind === "category") {
     const selected = artifact.marks.filter((mark) => markKeys.includes(mark.key) && mark.overflow !== true);
@@ -151,11 +152,22 @@ export function selectAnalyticsLinkedState(
   const markClause = filters[artifact.kind === "time-series" ? clauseIds.temporal : clauseIds.marks];
   const rangeClause = filters[clauseIds.range];
   const temporalClause = filters[clauseIds.temporal];
+  const xClause = filters[`${clauseIds.range}:x`];
+  const yClause = filters[`${clauseIds.range}:y`];
+  const x = xClause && rangeFromClause(xClause);
+  const y = yClause && rangeFromClause(yClause);
 
   return {
     selectedMarkKeys: markClause ? marksMatchingClause(artifact, markClause) : [],
     ...(hoveredMarkKey ? { hoveredMarkKey } : {}),
     ...(rangeClause ? { range: rangeFromClause(rangeClause) } : {}),
+    ...(artifact.kind === "scatter" &&
+    x &&
+    y &&
+    xClause?.field === artifact.dimension &&
+    yClause?.field === artifact.yDimension
+      ? { rectangle: { x, y } }
+      : {}),
     ...(temporalClause ? { temporalWindow: windowFromClause(temporalClause) } : {}),
   };
 }
@@ -177,7 +189,7 @@ function windowFromClause(clause: FilterClause): AnalyticsTemporalWindow | undef
 }
 
 function marksMatchingClause(artifact: AnalyticsArtifact, clause: FilterClause): readonly string[] {
-  if (artifact.kind === "aggregate") return [];
+  if (artifact.kind === "aggregate" || artifact.kind === "scatter") return [];
   if (clause.field !== artifact.dimension) return [];
 
   if (artifact.kind === "category") {
@@ -240,7 +252,15 @@ export function bindAnalyticsToExploration(
   const listeners = new Set<(state: AnalyticsLinkedState) => void>();
 
   function currentState(): AnalyticsLinkedState {
-    return selectAnalyticsLinkedState(artifact, view.state.filters, clauseIds, hoveredMarkKey);
+    const state = selectAnalyticsLinkedState(artifact, view.state.filters, clauseIds, hoveredMarkKey);
+    if (artifact.kind !== "scatter") return state;
+    const selected = new Set(view.state.selection.map(featureSelectionKey));
+    return {
+      ...state,
+      selectedMarkKeys: artifact.marks
+        .filter((mark) => mark.targets?.some((target) => selected.has(featureSelectionKey(target))))
+        .map((mark) => mark.key),
+    };
   }
 
   /**
@@ -339,9 +359,11 @@ export function bindAnalyticsToExploration(
     const inverses: Array<() => void> = [];
     const touched: string[] = [];
 
-    const clauseId = marksClauseId();
-    inverses.push(writeClause(clauseId, analyticsMarkFilterClause(artifact, nextKeys)));
-    touched.push(clauseId);
+    if (artifact.kind !== "scatter") {
+      const clauseId = marksClauseId();
+      inverses.push(writeClause(clauseId, analyticsMarkFilterClause(artifact, nextKeys)));
+      touched.push(clauseId);
+    }
 
     let touchedSelection = false;
     if (publishSelection) {
@@ -389,6 +411,17 @@ export function bindAnalyticsToExploration(
         case "mark-select":
           return applyMarkSelect(interaction);
 
+        case "rectangle-brush": {
+          const contributions = rectangleContributions(artifact, interaction.rectangle, clauseIds);
+          const inverses = contributions.map(({ id, clause }) => writeClause(id, clause));
+          return commit(
+            interaction,
+            inverses,
+            contributions.map(({ id }) => id),
+            false,
+          );
+        }
+
         case "range-brush": {
           const inverse = writeClause(clauseIds.range, analyticsRangeFilterClause(artifact, interaction.range));
           return commit(interaction, [inverse], [clauseIds.range], false);
@@ -434,6 +467,10 @@ export function bindAnalyticsToExploration(
           const clearing = new Set<string>();
           if (!channel || channel === "marks") clearing.add(marksClauseId());
           if (!channel || channel === "range") clearing.add(clauseIds.range);
+          if (artifact.kind === "scatter" && (!channel || channel === "rectangle")) {
+            clearing.add(`${clauseIds.range}:x`);
+            clearing.add(`${clauseIds.range}:y`);
+          }
           if (!channel || channel === "temporal") clearing.add(clauseIds.temporal);
           for (const id of clearing) {
             inverses.push(writeClause(id, undefined));
@@ -501,9 +538,49 @@ export function analyticsFilterContributions(
     const clause = analyticsRangeFilterClause(artifact, state.range);
     if (clause) contributions.push({ id: clauseIds.range, clause });
   }
+  if (state.rectangle) contributions.push(...rectangleContributions(artifact, state.rectangle, clauseIds));
   if (state.temporalWindow) {
     const clause = analyticsTemporalFilterClause(artifact, state.temporalWindow);
     if (clause) contributions.push({ id: clauseIds.temporal, clause });
   }
   return contributions;
+}
+
+/** Validate the complete brush before any reducer write, then project both axes. */
+function rectangleContributions(
+  artifact: AnalyticsArtifact,
+  rectangle: AnalyticsNumericRectangle,
+  clauseIds: AnalyticsFilterClauseIds,
+): readonly AnalyticsFilterContribution[] {
+  if (artifact.kind !== "scatter") {
+    throw new HonuaAnalyticsError("artifact-invalid", "A rectangle brush requires a scatter artifact.");
+  }
+  for (const range of [rectangle?.x, rectangle?.y]) {
+    if (!range || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.min > range.max) {
+      throw new HonuaAnalyticsError(
+        "artifact-invalid",
+        "Rectangle axes require finite inclusive ranges with min <= max.",
+      );
+    }
+  }
+  return [
+    {
+      id: `${clauseIds.range}:x`,
+      clause: {
+        field: artifact.dimension,
+        operator: "between",
+        value: [rectangle.x.min, rectangle.x.max],
+        appliesTo: [artifact.identity.sourceId],
+      },
+    },
+    {
+      id: `${clauseIds.range}:y`,
+      clause: {
+        field: artifact.yDimension,
+        operator: "between",
+        value: [rectangle.y.min, rectangle.y.max],
+        appliesTo: [artifact.identity.sourceId],
+      },
+    },
+  ];
 }

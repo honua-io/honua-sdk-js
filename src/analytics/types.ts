@@ -45,7 +45,7 @@ export type AnalyticsContractVersion = typeof ANALYTICS_CONTRACT_VERSION;
  * defined units, null handling, ordering, and interaction meaning. A chart
  * library may render a kind however it likes, but it may not invent a kind.
  */
-export type AnalyticsArtifactKind = "category" | "histogram" | "aggregate" | "time-series";
+export type AnalyticsArtifactKind = "category" | "histogram" | "aggregate" | "time-series" | "scatter";
 
 /**
  * Honesty state of an accepted artifact. Every state is renderable and
@@ -269,11 +269,18 @@ export interface AnalyticsAggregateMark extends AnalyticsMarkBase {
   readonly measure: AnalyticsMeasure;
 }
 
+/** One numeric point. `x` is the horizontal coordinate; `value` is the vertical coordinate. */
+export interface AnalyticsScatterMark extends AnalyticsMarkBase {
+  readonly x: number;
+  readonly value: number;
+}
+
 /** Any mark, in artifact order. */
 export type AnalyticsMark =
   | AnalyticsCategoryMark
   | AnalyticsHistogramMark
   | AnalyticsTimeSeriesMark
+  | AnalyticsScatterMark
   | AnalyticsAggregateMark;
 
 // ── Artifacts ─────────────────────────────────────────────────
@@ -330,6 +337,16 @@ export interface AnalyticsAggregateArtifact extends AnalyticsArtifactBase {
   readonly marks: readonly AnalyticsAggregateMark[];
 }
 
+/** Bounded numeric points, with feature targets for linked point selection. */
+export interface AnalyticsScatterArtifact extends AnalyticsArtifactBase {
+  readonly kind: "scatter";
+  /** Horizontal field. */
+  readonly dimension: string;
+  /** Vertical field, distinct from `dimension`. `measure` formats this axis. */
+  readonly yDimension: string;
+  readonly marks: readonly AnalyticsScatterMark[];
+}
+
 /**
  * The accepted analytics artifact. One value, owned by the host, shared by
  * reference with every linked presentation.
@@ -338,6 +355,7 @@ export type AnalyticsArtifact =
   | AnalyticsCategoryArtifact
   | AnalyticsHistogramArtifact
   | AnalyticsTimeSeriesArtifact
+  | AnalyticsScatterArtifact
   | AnalyticsAggregateArtifact;
 
 /** How a newly accepted artifact relates to the one a presentation holds. */
@@ -372,6 +390,12 @@ export interface AnalyticsNumericRange {
   readonly max: number;
 }
 
+/** Inclusive numeric ranges on both scatter axes. */
+export interface AnalyticsNumericRectangle {
+  readonly x: AnalyticsNumericRange;
+  readonly y: AnalyticsNumericRange;
+}
+
 interface AnalyticsInteractionBase {
   /** Adapter id that produced the interaction, for provenance and loop-breaking. */
   readonly adapterId: string;
@@ -387,6 +411,7 @@ interface AnalyticsInteractionBase {
   readonly artifactKind?: AnalyticsArtifact["kind"];
   /** Artifact dimension rendered when the interaction was produced. */
   readonly artifactDimension?: string;
+  readonly artifactYDimension?: string;
 }
 
 /** A mark was activated (click, Enter/Space, or programmatic toggle). */
@@ -401,6 +426,12 @@ export interface AnalyticsMarkSelectInteraction extends AnalyticsInteractionBase
 export interface AnalyticsRangeBrushInteraction extends AnalyticsInteractionBase {
   readonly kind: "range-brush";
   readonly range: AnalyticsNumericRange;
+}
+
+/** A two-dimensional numeric brush; both axes are validated before writing filters. */
+export interface AnalyticsRectangleBrushInteraction extends AnalyticsInteractionBase {
+  readonly kind: "rectangle-brush";
+  readonly rectangle: AnalyticsNumericRectangle;
 }
 
 /** A temporal window was brushed (time-series axis). */
@@ -419,7 +450,7 @@ export interface AnalyticsHoverInteraction extends AnalyticsInteractionBase {
 export interface AnalyticsClearInteraction extends AnalyticsInteractionBase {
   readonly kind: "clear";
   /** Limit the clear to one channel. Omit to clear everything this view owns. */
-  readonly channel?: "marks" | "range" | "temporal" | "hover";
+  readonly channel?: "marks" | "range" | "rectangle" | "temporal" | "hover";
 }
 
 /**
@@ -429,6 +460,7 @@ export interface AnalyticsClearInteraction extends AnalyticsInteractionBase {
 export type AnalyticsInteraction =
   | AnalyticsMarkSelectInteraction
   | AnalyticsRangeBrushInteraction
+  | AnalyticsRectangleBrushInteraction
   | AnalyticsTemporalBrushInteraction
   | AnalyticsHoverInteraction
   | AnalyticsClearInteraction;
@@ -444,6 +476,7 @@ export interface AnalyticsLinkedState {
   readonly selectedMarkKeys: readonly string[];
   readonly hoveredMarkKey?: string;
   readonly range?: AnalyticsNumericRange;
+  readonly rectangle?: AnalyticsNumericRectangle;
   readonly temporalWindow?: AnalyticsTemporalWindow;
 }
 
@@ -472,7 +505,13 @@ export type AnalyticsSupportDecision =
   | { readonly supported: false; readonly reason: AnalyticsUnsupportedReason; readonly message: string };
 
 /** Interaction channels an adapter can originate. */
-export type AnalyticsInteractionChannel = "mark-select" | "range-brush" | "temporal-brush" | "hover" | "clear";
+export type AnalyticsInteractionChannel =
+  | "mark-select"
+  | "range-brush"
+  | "rectangle-brush"
+  | "temporal-brush"
+  | "hover"
+  | "clear";
 
 /**
  * Callbacks the host hands to an adapter at mount time. The adapter may call

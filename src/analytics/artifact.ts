@@ -32,6 +32,8 @@ import type {
   AnalyticsNullPolicy,
   AnalyticsOrdering,
   AnalyticsProvenance,
+  AnalyticsScatterArtifact,
+  AnalyticsScatterMark,
   AnalyticsTemporalWindow,
   AnalyticsTimeSeriesArtifact,
   AnalyticsTimeSeriesMark,
@@ -184,6 +186,19 @@ export function validateAnalyticsArtifact<T extends AnalyticsArtifact>(artifact:
     validateTimeSeriesMarks(artifact.marks);
   }
 
+  if (artifact.kind === "scatter") {
+    requireDimension(artifact.dimension, artifact.status);
+    requireDimension(artifact.yDimension, artifact.status);
+    if (artifact.dimension === artifact.yDimension && artifact.status !== "unsupported") {
+      fail("artifact-invalid", "Scatter axes must name distinct fields.");
+    }
+    for (const mark of artifact.marks) {
+      if (!Number.isFinite(mark.x) || !Number.isFinite(mark.value)) {
+        fail("artifact-invalid", "Scatter coordinates must be finite numbers.");
+      }
+    }
+  }
+
   assertOrdering(artifact);
   return Object.freeze(artifact);
 }
@@ -306,7 +321,11 @@ export function analyticsArtifactIdentity(input: AnalyticsIdentityInput): Analyt
 }
 
 function dimensionOf(artifact: AnalyticsArtifact): string | undefined {
-  return artifact.kind === "aggregate" ? undefined : artifact.dimension;
+  return artifact.kind === "aggregate"
+    ? undefined
+    : artifact.kind === "scatter"
+      ? JSON.stringify([artifact.dimension, artifact.yDimension])
+      : artifact.dimension;
 }
 
 /**
@@ -530,6 +549,32 @@ export function acceptTimeSeriesArtifact(
   });
 }
 
+/** Accept bounded points without retaining mutable producer arrays or feature targets. */
+export function acceptScatterArtifact(
+  options: AcceptAnalyticsOptions & {
+    readonly dimension: string;
+    readonly yDimension: string;
+    readonly marks: readonly AnalyticsScatterMark[];
+  },
+): AnalyticsScatterArtifact {
+  return validateAnalyticsArtifact({
+    ...baseFields(options, { by: "explicit", direction: "asc" }),
+    kind: "scatter",
+    dimension: requireDimension(options.dimension, options.status),
+    yDimension: requireDimension(options.yDimension, options.status),
+    marks: Object.freeze(
+      options.marks.map((mark) =>
+        Object.freeze({
+          ...mark,
+          ...(mark.targets
+            ? { targets: Object.freeze(mark.targets.map((target) => Object.freeze({ ...target }))) }
+            : {}),
+        }),
+      ),
+    ),
+  });
+}
+
 /** Accept one or more scalar aggregates. */
 export function acceptAggregateArtifact(
   options: AcceptAnalyticsOptions & { readonly marks: readonly AnalyticsAggregateMark[] },
@@ -551,6 +596,7 @@ export function unsupportedAnalyticsArtifact(options: {
   readonly measure: AnalyticsMeasure;
   readonly message: string;
   readonly dimension?: string;
+  readonly yDimension?: string;
   readonly title?: string;
   readonly provenance?: AnalyticsProvenance;
 }): AnalyticsArtifact {
@@ -566,6 +612,8 @@ export function unsupportedAnalyticsArtifact(options: {
   };
   const dimension = options.dimension ?? "";
   switch (options.kind) {
+    case "scatter":
+      return acceptScatterArtifact({ ...shared, dimension, yDimension: options.yDimension ?? "", marks: [] });
     case "category":
       return acceptCategoryArtifact({ ...shared, dimension, marks: [] });
     case "histogram":

@@ -180,7 +180,9 @@ export function createAnalyticsLinkedSession(options: CreateAnalyticsLinkedSessi
       (interaction.artifactPlanFingerprint !== undefined &&
         interaction.artifactPlanFingerprint !== (artifact.identity.planFingerprint ?? "")) ||
       (interaction.artifactKind !== undefined && interaction.artifactKind !== artifact.kind) ||
-      (interaction.artifactDimension !== undefined && interaction.artifactDimension !== artifactDimension(artifact))
+      (interaction.artifactDimension !== undefined && interaction.artifactDimension !== artifactDimension(artifact)) ||
+      (interaction.artifactYDimension !== undefined &&
+        interaction.artifactYDimension !== (artifact.kind === "scatter" ? artifact.yDimension : undefined))
     ) {
       const detail = {
         adapterId: interaction.adapterId,

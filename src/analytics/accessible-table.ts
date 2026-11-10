@@ -47,6 +47,8 @@ export interface AnalyticsTableModel {
   /** Column headers, in row-field order. */
   readonly columns: readonly string[];
   readonly rows: readonly AnalyticsTableRow[];
+  /** Label for an empty coordinate table. */
+  readonly emptyMessage?: string;
   readonly status: AnalyticsArtifactStatus;
   /**
    * One-sentence honesty banner. Empty string only when the artifact is
@@ -79,6 +81,7 @@ function extentOf(mark: AnalyticsMark, locale?: string): string | undefined {
     const closing = mark.boundary === "inclusive" ? "]" : ")";
     return `[${new Intl.NumberFormat(locale).format(mark.min)}, ${new Intl.NumberFormat(locale).format(mark.max)}${closing}`;
   }
+  if ("x" in mark) return new Intl.NumberFormat(locale).format(mark.x);
   if ("start" in mark && "end" in mark) return `${mark.start} – ${mark.end}`;
   return undefined;
 }
@@ -92,7 +95,7 @@ function statusMessageFor(artifact: AnalyticsArtifact): string {
       return artifact.message ?? "This analytic failed to compute.";
     case "partial": {
       const detail = bounds.truncated
-        ? `Only ${artifact.marks.length} of the matching buckets were computed${
+        ? `Only ${artifact.marks.length} of the matching ${artifact.kind === "scatter" ? "points" : "buckets"} were computed${
             bounds.rowBudget !== undefined ? ` within a ${bounds.rowBudget}-row budget` : ""
           }.`
         : "The source degraded this aggregation.";
@@ -115,7 +118,8 @@ function provenanceMessageFor(artifact: AnalyticsArtifact): string {
       : computedBy === "worker"
         ? "aggregated in a worker"
         : `reduced in the browser${bounds.rowBudget !== undefined ? ` from at most ${bounds.rowBudget} rows` : ""}`;
-  return `${artifact.marks.length} ${artifact.marks.length === 1 ? "bucket" : "buckets"} ${where}; freshness ${artifact.identity.freshness.authority}, observed ${artifact.identity.freshness.observedAt}.`;
+  const noun = artifact.kind === "scatter" ? "point" : "bucket";
+  return `${artifact.marks.length} ${noun}${artifact.marks.length === 1 ? "" : "s"} ${where}; freshness ${artifact.identity.freshness.authority}, observed ${artifact.identity.freshness.observedAt}.`;
 }
 
 /**
@@ -146,9 +150,11 @@ export function analyticsTableModel(artifact: AnalyticsArtifact, locale?: string
   const dimensionLabel =
     artifact.kind === "aggregate" ? "Measure" : artifact.kind === "time-series" ? "Interval" : artifact.dimension;
   const columns =
-    artifact.kind === "aggregate"
-      ? [dimensionLabel, artifact.measure.label ?? "Value"]
-      : [dimensionLabel, artifact.measure.label ?? artifact.measure.field, "Range"];
+    artifact.kind === "scatter"
+      ? ["Point", artifact.yDimension, artifact.dimension]
+      : artifact.kind === "aggregate"
+        ? [dimensionLabel, artifact.measure.label ?? "Value"]
+        : [dimensionLabel, artifact.measure.label ?? artifact.measure.field, "Range"];
 
   const caption = artifact.title ?? defaultCaption(artifact);
   const statusMessage = statusMessageFor(artifact);
@@ -159,7 +165,9 @@ export function analyticsTableModel(artifact: AnalyticsArtifact, locale?: string
     statusMessage,
     provenanceMessage,
     rows.length === 0
-      ? "No buckets."
+      ? artifact.kind === "scatter"
+        ? "No points."
+        : "No buckets."
       : rows.map((row) => `${row.label}: ${row.value}${row.extent ? ` (${row.extent})` : ""}`).join("; "),
   ]
     .filter((part) => part.length > 0)
@@ -170,6 +178,7 @@ export function analyticsTableModel(artifact: AnalyticsArtifact, locale?: string
     caption,
     columns,
     rows,
+    ...(artifact.kind === "scatter" ? { emptyMessage: "No points." } : {}),
     status: artifact.status,
     statusMessage,
     provenanceMessage,
@@ -183,6 +192,8 @@ export function analyticsTableModel(artifact: AnalyticsArtifact, locale?: string
 
 function defaultCaption(artifact: AnalyticsArtifact): string {
   switch (artifact.kind) {
+    case "scatter":
+      return `${artifact.yDimension} by ${artifact.dimension}`;
     case "category":
       return `${artifact.measure.label ?? artifact.measure.field} by ${artifact.dimension}`;
     case "histogram":
@@ -207,7 +218,7 @@ export function createAccessibleTableAdapter(): AnalyticsPresentationAdapter {
   return {
     id: "honua.accessible-table",
     contractVersion: ANALYTICS_CONTRACT_VERSION,
-    kinds: ["category", "histogram", "aggregate", "time-series"],
+    kinds: ["category", "histogram", "aggregate", "time-series", "scatter"],
     channels: [],
     library: undefined,
     requiresDom: false,
