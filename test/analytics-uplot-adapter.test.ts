@@ -15,6 +15,7 @@ import {
   UNBOUNDED,
   acceptCategoryArtifact,
   acceptHistogramArtifact,
+  acceptScatterArtifact,
   acceptTimeSeriesArtifact,
   analyticsArtifactIdentity,
   analyticsProvenance,
@@ -66,6 +67,20 @@ function histogram() {
     marks: [
       { key: "b0", label: "0–10", value: 5, min: 0, max: 10, boundary: "inclusive-exclusive", bucket: 0 },
       { key: "b1", label: "10–20", value: null, min: 10, max: 20, boundary: "inclusive-exclusive", bucket: 1 },
+    ],
+  });
+}
+
+function scatter() {
+  return acceptScatterArtifact({
+    identity: analyticsArtifactIdentity({ artifactId: "scatter", sourceId: "incidents", acceptedAt: ACCEPTED_AT }),
+    provenance: analyticsProvenance({ computedBy: "server", bounds: UNBOUNDED }),
+    measure: COUNT,
+    dimension: "height",
+    yDimension: "weight",
+    marks: [
+      { key: "b", label: "B", x: 30, value: 40, targets: [2] },
+      { key: "a", label: "A", x: 10, value: 20, targets: [1] },
     ],
   });
 }
@@ -235,7 +250,7 @@ describe("uPlot adapter: support decisions", () => {
       id: UPLOT_ANALYTICS_ADAPTER_ID,
       library: "uPlot",
       requiresDom: true,
-      kinds: ["time-series", "histogram"],
+      kinds: ["time-series", "histogram", "scatter"],
     });
   });
 });
@@ -527,5 +542,43 @@ describe("uPlot adapter: core bundle hygiene", () => {
     expect(files).not.toMatch(/from\s+["']uplot["']/);
     // Only the variable-specifier dynamic import is allowed.
     expect(files).toMatch(/import\(specifier\)/);
+  });
+});
+
+describe("uPlot scatter", () => {
+  it("sorts points and keys together, draws no connecting path and enables a two-axis brush", () => {
+    const projection = projectAnalyticsArtifactToUplot(scatter());
+    expect(projection.data).toEqual([
+      [10, 30],
+      [20, 40],
+    ]);
+    expect(projection.markKeys).toEqual(["a", "b"]);
+    expect(projection.xUnit).toBe("numeric");
+    expect(projection.options.series[1].paths?.()).toBeNull();
+    expect(projection.options.series[1].points?.show).toBe(true);
+    expect(projection.options.cursor?.drag).toEqual({ x: true, y: true, setScale: false });
+  });
+
+  it("links both drag axes, paints peer rectangles and clears without changing peer filters", async () => {
+    const { session, view } = harness(scatter());
+    await session.present({ target: document.createElement("div") });
+    const chart = FakeUplot.instances[0];
+    chart.fireSelect({ left: 5, top: 10, width: 10, height: 15 });
+    expect(session.linkedState.rectangle).toEqual({ x: { min: 5, max: 15 }, y: { min: 10, max: 25 } });
+    expect(Object.values(view.state.filters)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "height", value: [5, 15] }),
+        expect.objectContaining({ field: "weight", value: [10, 25] }),
+      ]),
+    );
+    expect(chart.setSelectCalls.at(-1)).toEqual({ left: 5, top: 10, width: 10, height: 15 });
+    chart.fireCursor(0);
+    chart.fireClick();
+    expect(view.state.selection).toEqual([]);
+    session.apply({ kind: "clear", channel: "rectangle", adapterId: "peer", artifactId: "scatter" });
+    expect(chart.setSelectCalls.at(-1)).toEqual({ left: 0, top: 0, width: 0, height: 0 });
+    chart.fireSelect({ left: 5, top: 10, width: 10, height: 0 });
+    expect(session.linkedState.rectangle).toBeUndefined();
+    session.dispose();
   });
 });

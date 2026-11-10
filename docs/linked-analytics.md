@@ -227,11 +227,13 @@ directly, following the same seam as `loadDeckGlPeers` and `loadApacheArrow`.
 
 The adapter:
 
-- supports `time-series` (epoch-second x axis) and `histogram` (bin-midpoint x
-  axis), and declines `category` / `aggregate` with `kind-not-supported`;
+- supports `time-series` (epoch-second x axis), `histogram` (bin-midpoint x
+  axis), and `scatter` (numeric x/y axes with points only), and declines
+  `category` / `aggregate` with `kind-not-supported`;
 - keeps `null` measures as `null` in the aligned data so µPlot draws a gap
   rather than a false zero;
-- maps `hooks.setSelect` to `temporal-brush` / `range-brush`, `hooks.setCursor`
+- maps `hooks.setSelect` to `temporal-brush` / `range-brush` / `rectangle-brush`,
+  `hooks.setCursor`
   to deduplicated `hover`, and a click on the plot area to `mark-select`;
 - patches with `setData(data, false)` on a newer sequence, so the user's zoom,
   focus, and cursor survive a realtime delta, and rebuilds only when the
@@ -289,7 +291,9 @@ and native numeric minimum/maximum inputs grouped by axis. Apply rectangle
 commits both axes; Clear rectangle releases them. This presentation has no chart
 dependency, and its HTML projection works during server rendering. Empty results
 show No points; errors and partial/stale results retain the common honesty
-banner and provenance. Third-party scatter renderers can consume the same
+banner and provenance. The optional µPlot adapter supports dragging a rectangle
+across both axes and publishes both bounds together without selecting the point
+under the drag release. Third-party scatter renderers can consume the same
 artifact and emit `rectangle-brush`; copy `artifactYDimension` along with the
 existing lineage fields to reject events from a replaced vertical axis. A change
 to either axis invalidates a mounted artifact rather than patching its meaning.

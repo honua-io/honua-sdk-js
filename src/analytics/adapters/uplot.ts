@@ -12,7 +12,7 @@
  *   `importModule`, following the same seam as `loadApacheArrow` and
  *   `loadDeckGlPeers`.
  * - Nothing µPlot-shaped crosses back into SDK core: brushes become
- *   `temporal-brush` / `range-brush` interactions and cursor movement becomes
+ *   `temporal-brush` / `range-brush` / `rectangle-brush` interactions and cursor movement becomes
  *   `hover`, all keyed by stable mark keys.
  * - `dispose()` calls `destroy()`, removes the click listener, and drops the
  *   instance, so an unmounted chart holds no DOM or hook references.
@@ -35,6 +35,7 @@ import type {
   AnalyticsMountRequest,
   AnalyticsPresentationAdapter,
   AnalyticsPresentationHandle,
+  AnalyticsScatterArtifact,
   AnalyticsSupportDecision,
   AnalyticsTimeSeriesArtifact,
 } from "../types.js";
@@ -88,6 +89,7 @@ export interface UplotSeriesOptions {
   readonly width?: number;
   readonly points?: { readonly show?: boolean };
   readonly value?: unknown;
+  readonly paths?: () => null;
 }
 
 /** One µPlot scale definition (the subset this adapter emits). */
@@ -172,7 +174,7 @@ export interface UplotProjection {
    */
   readonly markKeys: readonly string[];
   /** The x-axis unit the projection used. */
-  readonly xUnit: "epoch-seconds" | "bucket-midpoint";
+  readonly xUnit: "epoch-seconds" | "bucket-midpoint" | "numeric";
 }
 
 /** Options for {@link projectAnalyticsArtifactToUplot}. */
@@ -189,16 +191,17 @@ export interface UplotProjectionOptions {
 }
 
 /**
- * Project a time-series or histogram artifact into µPlot options and aligned
+ * Project a time-series, histogram or scatter artifact into µPlot options and aligned
  * data. Pure and DOM-free, so the whole projection is unit-testable and can be
  * asserted against without a canvas.
  *
  * Time-series x values are epoch **seconds** (µPlot's `scales.x.time`
- * convention). Histogram x values are bin midpoints on a linear scale. Null
+ * convention). Histogram x values are bin midpoints on a linear scale. Scatter
+ * points use numeric axes, retain their mark keys when sorted, and draw no lines. Null
  * measures stay `null` so µPlot renders a gap rather than a false zero.
  */
 export function projectAnalyticsArtifactToUplot(
-  artifact: AnalyticsTimeSeriesArtifact | AnalyticsHistogramArtifact,
+  artifact: AnalyticsTimeSeriesArtifact | AnalyticsHistogramArtifact | AnalyticsScatterArtifact,
   options: UplotProjectionOptions = {},
 ): UplotProjection {
   const model = analyticsTableModel(artifact, options.locale);
@@ -207,10 +210,13 @@ export function projectAnalyticsArtifactToUplot(
   const ys: Array<number | null> = [];
   const markKeys: string[] = [];
 
-  for (const mark of artifact.marks) {
+  const marks = artifact.kind === "scatter" ? [...artifact.marks].sort((a, b) => a.x - b.x) : artifact.marks;
+  for (const mark of marks) {
     if (isTemporal) {
       // Bucket start, in seconds — the same instant the mark key denotes.
       xs.push(Math.floor(Date.parse((mark as AnalyticsTimeSeriesArtifact["marks"][number]).start) / 1000));
+    } else if (artifact.kind === "scatter") {
+      xs.push((mark as AnalyticsScatterArtifact["marks"][number]).x);
     } else {
       const bin = mark as AnalyticsHistogramArtifact["marks"][number];
       xs.push((bin.min + bin.max) / 2);
@@ -219,7 +225,8 @@ export function projectAnalyticsArtifactToUplot(
     markKeys.push(mark.key);
   }
 
-  const measureLabel = artifact.measure.label ?? artifact.measure.field;
+  const measureLabel =
+    artifact.kind === "scatter" ? artifact.yDimension : (artifact.measure.label ?? artifact.measure.field);
   const generated: UplotOptions = {
     title: model.caption,
     width: options.width ?? 640,
@@ -229,11 +236,13 @@ export function projectAnalyticsArtifactToUplot(
       {
         label: measureLabel,
         stroke: options.stroke ?? "#2563eb",
-        width: 2,
-        points: { show: artifact.marks.length <= 100 },
+        width: artifact.kind === "scatter" ? 0 : 2,
+        ...(artifact.kind === "scatter" ? { paths: () => null } : {}),
+        points: { show: artifact.kind === "scatter" || artifact.marks.length <= 100 },
       },
     ],
     scales: { x: isTemporal ? { time: true } : { time: false } },
+    ...(artifact.kind === "scatter" ? { cursor: { drag: { x: true, y: true, setScale: false } } } : {}),
   };
 
   const { hooks: _ignoredHooks, ...overrides } = options.optionOverrides ?? {};
@@ -241,7 +250,7 @@ export function projectAnalyticsArtifactToUplot(
     options: { ...generated, ...overrides } as UplotOptions,
     data: [xs, ys],
     markKeys,
-    xUnit: isTemporal ? "epoch-seconds" : "bucket-midpoint",
+    xUnit: isTemporal ? "epoch-seconds" : artifact.kind === "scatter" ? "numeric" : "bucket-midpoint",
   };
 }
 
@@ -255,14 +264,14 @@ export interface CreateUplotAnalyticsAdapterOptions extends UplotProjectionOptio
 
 function isSupportedKind(
   artifact: AnalyticsArtifact,
-): artifact is AnalyticsTimeSeriesArtifact | AnalyticsHistogramArtifact {
-  return artifact.kind === "time-series" || artifact.kind === "histogram";
+): artifact is AnalyticsTimeSeriesArtifact | AnalyticsHistogramArtifact | AnalyticsScatterArtifact {
+  return artifact.kind === "time-series" || artifact.kind === "histogram" || artifact.kind === "scatter";
 }
 
 /**
  * Create the µPlot analytics presentation adapter.
  *
- * Supports `time-series` and `histogram` artifacts. Category and aggregate
+ * Supports `time-series`, `histogram` and `scatter` artifacts. Category and aggregate
  * artifacts are declined with `kind-not-supported` so the registry falls back
  * to a truthful presentation instead of misrendering them on a numeric axis.
  */
@@ -272,8 +281,8 @@ export function createUplotAnalyticsAdapter(
   return {
     id: UPLOT_ANALYTICS_ADAPTER_ID,
     contractVersion: ANALYTICS_CONTRACT_VERSION,
-    kinds: ["time-series", "histogram"],
-    channels: ["range-brush", "temporal-brush", "hover", "mark-select"],
+    kinds: ["time-series", "histogram", "scatter"],
+    channels: ["rectangle-brush", "range-brush", "temporal-brush", "hover", "mark-select"],
     library: "uPlot",
     requiresDom: true,
 
@@ -311,6 +320,7 @@ export function createUplotAnalyticsAdapter(
       let lastHoverKey: string | undefined;
       let instance: UplotInstanceLike | undefined;
       let clickRelease: (() => void) | undefined;
+      let brushed = false;
 
       const artifactId = (): string => artifact.identity.artifactId;
 
@@ -323,6 +333,26 @@ export function createUplotAnalyticsAdapter(
         const max = Math.max(from, to);
         if (!Number.isFinite(min) || !Number.isFinite(max)) return;
 
+        if (artifact.kind === "scatter") {
+          if (box.height <= 0) return;
+          const y0 = self.posToVal(box.top, "y");
+          const y1 = self.posToVal(box.top + box.height, "y");
+          if (!Number.isFinite(y0) || !Number.isFinite(y1)) return;
+          brushed = true;
+          request.host.emit({
+            kind: "rectangle-brush",
+            adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
+            artifactId: artifactId(),
+            artifactSequence: artifact.identity.sequence,
+            artifactSourceId: artifact.identity.sourceId,
+            artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+            artifactKind: artifact.kind,
+            artifactDimension: artifact.dimension,
+            artifactYDimension: artifact.yDimension,
+            rectangle: { x: { min, max }, y: { min: Math.min(y0, y1), max: Math.max(y0, y1) } },
+          });
+          return;
+        }
         if (artifact.kind === "time-series") {
           request.host.emit({
             kind: "temporal-brush",
@@ -367,6 +397,7 @@ export function createUplotAnalyticsAdapter(
           artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
           artifactKind: artifact.kind,
           ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
+          ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
           ...(key ? { markKey: key } : {}),
         });
       }
@@ -380,7 +411,14 @@ export function createUplotAnalyticsAdapter(
 
         const over = instance.over;
         if (over) {
+          const onMouseDown = (): void => {
+            brushed = false;
+          };
           const onClick = (): void => {
+            if (brushed) {
+              brushed = false;
+              return;
+            }
             const index = instance?.cursor?.idx;
             if (typeof index !== "number" || index < 0) return;
             const key = projection.markKeys[index];
@@ -394,12 +432,17 @@ export function createUplotAnalyticsAdapter(
               artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
               artifactKind: artifact.kind,
               ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
+              ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
               markKeys: [key],
               replace: true,
             });
           };
           over.addEventListener("click", onClick);
-          clickRelease = () => over.removeEventListener("click", onClick);
+          over.addEventListener("mousedown", onMouseDown);
+          clickRelease = () => {
+            over.removeEventListener("click", onClick);
+            over.removeEventListener("mousedown", onMouseDown);
+          };
         }
       }
 
@@ -446,6 +489,25 @@ export function createUplotAnalyticsAdapter(
         },
         onLinkedState(state: AnalyticsLinkedState): void {
           if (!instance) return;
+          if (artifact.kind === "scatter" && state.rectangle) {
+            const { x, y } = state.rectangle;
+            const left = instance.valToPos(x.min, "x");
+            const right = instance.valToPos(x.max, "x");
+            const top = instance.valToPos(y.min, "y");
+            const bottom = instance.valToPos(y.max, "y");
+            if ([left, right, top, bottom].every(Number.isFinite)) {
+              instance.setSelect(
+                {
+                  left: Math.min(left, right),
+                  top: Math.min(top, bottom),
+                  width: Math.abs(right - left),
+                  height: Math.abs(bottom - top),
+                },
+                false,
+              );
+            }
+            return;
+          }
           const window = state.temporalWindow;
           const range = state.range;
           if (artifact.kind === "time-series" && window) {

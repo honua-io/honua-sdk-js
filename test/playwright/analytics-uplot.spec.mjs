@@ -194,3 +194,59 @@ test("scatter rectangle controls and keyboard point selection share map/table st
     await server.close();
   }
 });
+
+test("the real scatter chart drag publishes two bounds without selecting the release point", async ({ page }) => {
+  const server = await startSdkFixtureServer();
+  try {
+    await page.goto(server.url);
+    const box = await page.evaluate(async () => {
+      const a = await import("/dist/src/analytics/index.js");
+      const { createUplotAnalyticsAdapter } = await import("/dist/src/analytics/adapters/uplot.js");
+      const { createExplorationContext } = await import("/dist/src/exploration/context.js");
+      const uplot = await import("/node_modules/uplot/dist/uPlot.esm.js");
+      const context = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+      const view = context.connectView({ id: "scatter", role: "chart" });
+      const peer = context.connectView({ id: "map", role: "map" });
+      peer.setFilter("peer", { field: "active", operator: "=", value: true });
+      const artifact = a.acceptScatterArtifact({
+        identity: a.analyticsArtifactIdentity({ artifactId: "scatter", sourceId: "s", acceptedAt: "2026-11-10T00:00:00Z" }),
+        provenance: a.analyticsProvenance({ computedBy: "server", bounds: a.UNBOUNDED }),
+        dimension: "height", yDimension: "weight", measure: { field: "weight", fn: "avg" },
+        marks: [
+          { key: "a", label: "A", x: 10, value: 20, targets: [1] },
+          { key: "b", label: "B", x: 30, value: 40, targets: [2] },
+        ],
+      });
+      const registry = a.createAnalyticsAdapterRegistry({ adapters: [createUplotAnalyticsAdapter({ module: uplot })] });
+      const session = a.createAnalyticsLinkedSession({ view, artifact, registry });
+      const target = document.createElement("div");
+      document.body.append(target);
+      const presentation = await session.present({ target });
+      const chart = presentation.handle.chart;
+      window.scatterDragFixture = { session, peer };
+      const rect = chart.over.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    });
+    await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.8, { steps: 12 });
+    await page.mouse.up();
+    const result = await page.evaluate(() => ({
+      rectangle: window.scatterDragFixture.session.linkedState.rectangle,
+      filters: Object.values(window.scatterDragFixture.peer.state.filters),
+      selection: window.scatterDragFixture.peer.state.selection,
+    }));
+    expect(result.rectangle.x.min).toBeLessThan(result.rectangle.x.max);
+    expect(result.rectangle.y.min).toBeLessThan(result.rectangle.y.max);
+    expect(result.filters).toHaveLength(3);
+    expect(result.filters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "height", value: [result.rectangle.x.min, result.rectangle.x.max] }),
+      expect.objectContaining({ field: "weight", value: [result.rectangle.y.min, result.rectangle.y.max] }),
+    ]));
+    expect(result.selection).toEqual([]);
+    await page.evaluate(() => window.scatterDragFixture.session.dispose());
+    await expect(page.locator("canvas")).toHaveCount(0);
+  } finally {
+    await server.close();
+  }
+});
