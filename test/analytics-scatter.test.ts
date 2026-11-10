@@ -60,13 +60,17 @@ describe("linked scatter", () => {
     expect(binding.linkedState.rectangle).toBeUndefined();
   });
 
-  it("publishes exact point targets and reflects peer selection changes", () => {
+  it("publishes exact point targets and reflects peer selection changes", async () => {
     const { peer, binding } = setup();
+    const updates: unknown[] = [];
+    binding.subscribe((state) => updates.push(state.selectedMarkKeys));
     binding.apply({ ...envelope, kind: "mark-select", markKeys: ["a"] });
     expect(peer.state.selection).toEqual([{ sourceId: "s", id: 1 }]);
     expect(binding.linkedState.selectedMarkKeys).toEqual(["a"]);
     peer.select([{ sourceId: "s", id: 2 }], { replace: true });
     expect(binding.linkedState.selectedMarkKeys).toEqual(["b"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(updates.at(-1)).toEqual(["b"]);
     binding.apply({ ...envelope, kind: "clear", channel: "marks" });
     expect(peer.state.selection).toEqual([]);
   });

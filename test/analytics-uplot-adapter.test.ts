@@ -138,75 +138,88 @@ function category() {
 }
 
 describe("real µPlot scatter points", () => {
-  it.each(["render", "hover", "redraw", "zoom"])("preserves maximum-x points during %s", async (operation) => {
-    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
-    vi.stubGlobal(
-      "Path2D",
-      class {
-        moveTo() {}
-        arc() {}
-        rect() {}
-      },
-    );
-    const context = new Proxy(
-      { measureText: () => ({ width: 10 }) },
-      {
-        get: (target, key) => Reflect.get(target, key) ?? (() => {}),
-      },
-    );
-    const canvas = vi
-      .spyOn(HTMLCanvasElement.prototype, "getContext")
-      .mockReturnValue(context as unknown as CanvasRenderingContext2D);
-    const { default: Uplot } = await import("uplot");
-    const artifact = acceptScatterArtifact({
-      ...scatter(),
-      marks: [
-        { key: "a", label: "A", x: 10, value: 20, targets: [1] },
-        { key: "b", label: "B", x: 30, value: 40, targets: [2] },
-        { key: "c", label: "C", x: 30, value: 60, targets: [3] },
-      ],
-    });
-    const projection = projectAnalyticsArtifactToUplot(artifact);
-    const target = document.createElement("div");
-    document.body.append(target);
-    const chart = new Uplot(
-      projection.options as unknown as import("uplot").Options,
-      projection.data as number[][],
-      target,
-    );
-    try {
-      await vi.waitFor(() => expect(chart.series[1].idxs).toBeDefined());
-      if (operation === "zoom") {
-        chart.setScale("x", { min: 15, max: 25 });
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(chart.scales.x.min).toBeGreaterThan(10);
-        expect(chart.scales.x.max).toBeLessThan(30);
-        return;
-      }
-      if (operation === "redraw") {
-        const bounds = [chart.scales.x.min, chart.scales.x.max];
-        for (let redraw = 0; redraw < 3; redraw++) {
-          chart.redraw();
+  it.each(["render", "hover", "redraw", "zoom", "new-data"])(
+    "preserves maximum-x points during %s",
+    async (operation) => {
+      vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+      vi.stubGlobal(
+        "Path2D",
+        class {
+          moveTo() {}
+          arc() {}
+          rect() {}
+        },
+      );
+      const context = new Proxy(
+        { measureText: () => ({ width: 10 }) },
+        {
+          get: (target, key) => Reflect.get(target, key) ?? (() => {}),
+        },
+      );
+      const canvas = vi
+        .spyOn(HTMLCanvasElement.prototype, "getContext")
+        .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+      const { default: Uplot } = await import("uplot");
+      const artifact = acceptScatterArtifact({
+        ...scatter(),
+        marks: [
+          { key: "a", label: "A", x: 10, value: 20, targets: [1] },
+          { key: "b", label: "B", x: 30, value: 40, targets: [2] },
+          { key: "c", label: "C", x: 30, value: 60, targets: [3] },
+        ],
+      });
+      const projection = projectAnalyticsArtifactToUplot(artifact);
+      const target = document.createElement("div");
+      document.body.append(target);
+      const chart = new Uplot(
+        projection.options as unknown as import("uplot").Options,
+        projection.data as number[][],
+        target,
+      );
+      try {
+        await vi.waitFor(() => expect(chart.series[1].idxs).toBeDefined());
+        if (operation === "new-data") {
+          chart.setData([
+            [9, 31, 31],
+            [20, 40, 80],
+          ]);
           await new Promise((resolve) => setTimeout(resolve, 0));
-          expect([chart.scales.x.min, chart.scales.x.max]).toEqual(bounds);
+          expect(chart.series[1].idxs).toEqual([0, 2]);
+          expect(chart.scales.y.max).toBeGreaterThanOrEqual(80);
+          return;
         }
-        return;
+        if (operation === "zoom") {
+          chart.setScale("x", { min: 15, max: 25 });
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          expect(chart.scales.x.min).toBeGreaterThan(10);
+          expect(chart.scales.x.max).toBeLessThan(30);
+          return;
+        }
+        if (operation === "redraw") {
+          const bounds = [chart.scales.x.min, chart.scales.x.max];
+          for (let redraw = 0; redraw < 3; redraw++) {
+            chart.redraw();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect([chart.scales.x.min, chart.scales.x.max]).toEqual(bounds);
+          }
+          return;
+        }
+        if (operation === "render") {
+          expect(chart.series[1].idxs).toEqual([0, 2]);
+          expect(chart.scales.y.max).toBeGreaterThanOrEqual(60);
+          return;
+        }
+        chart.setCursor({ left: chart.valToPos(30, "x"), top: chart.valToPos(60, "y") });
+        expect(chart.cursor.idxs?.[1]).toBe(2);
+        expect(chart.legend.values?.[1]).toEqual({ _: "60" });
+      } finally {
+        chart.destroy();
+        target.remove();
+        canvas.mockRestore();
+        vi.unstubAllGlobals();
       }
-      if (operation === "render") {
-        expect(chart.series[1].idxs).toEqual([0, 2]);
-        expect(chart.scales.y.max).toBeGreaterThanOrEqual(60);
-        return;
-      }
-      chart.setCursor({ left: chart.valToPos(30, "x"), top: chart.valToPos(60, "y") });
-      expect(chart.cursor.idxs?.[1]).toBe(2);
-      expect(chart.legend.values?.[1]).toEqual({ _: "60" });
-    } finally {
-      chart.destroy();
-      target.remove();
-      canvas.mockRestore();
-      vi.unstubAllGlobals();
-    }
-  });
+    },
+  );
 });
 
 /**

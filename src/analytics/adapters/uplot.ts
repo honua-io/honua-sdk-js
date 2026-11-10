@@ -216,12 +216,18 @@ function nearestPointIndex(self: UplotInstanceLike, data: UplotAlignedData): num
   return nearest;
 }
 
+const scatterRanges = new WeakMap<
+  UplotInstanceLike,
+  { data: UplotAlignedData | undefined; min: number; max: number }
+>();
+
 function scatterXRange(self: UplotInstanceLike, min: number, max: number): readonly [number, number] {
-  // redraw() reuses the already padded scale; explicit zoom and new data supply new bounds.
-  const current = self.scales?.x;
-  if (current?.min === min && current?.max === max) return [min, max];
+  const previous = scatterRanges.get(self);
+  if (previous?.data === self.data && previous?.min === min && previous?.max === max) return [min, max];
   const padding = Math.max((max - min) * 0.05, Math.abs(max) * Number.EPSILON * 4, Number.EPSILON);
-  return [min - padding, max + padding];
+  const range = { data: self.data, min: min - padding, max: max + padding };
+  scatterRanges.set(self, range);
+  return [range.min, range.max];
 }
 
 /**

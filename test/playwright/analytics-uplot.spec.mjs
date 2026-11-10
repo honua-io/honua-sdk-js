@@ -141,7 +141,7 @@ test("scatter rectangle controls and keyboard point selection share map/table st
       const { createExplorationContext } = await import("/dist/src/exploration/context.js");
       const context = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
       const view = context.connectView({ id: "scatter", role: "chart" });
-      const peer = context.connectView({ id: "map-table", role: "table" });
+      const peer = context.connectView({ id: "map-table", role: "grid" });
       peer.setFilter("peer", { field: "active", operator: "=", value: true });
       const artifact = a.acceptScatterArtifact({
         identity: a.analyticsArtifactIdentity({ artifactId: "scatter", sourceId: "s", acceptedAt: "2026-11-10T00:00:00Z" }),
