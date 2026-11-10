@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { EsriCompatCodemodResult } from "../src/migration/codemod.js";
+import type { ClientMigrationCodemodResult } from "../src/migration/codemod.js";
 import { buildJsMigrationReport } from "../src/migration/report.js";
-import type { ArcGisScanReport } from "../src/migration/scanner.js";
+import type { SourceApiScanReport } from "../src/migration/scanner.js";
 
-function createCodemodResult(): EsriCompatCodemodResult {
+function createCodemodResult(): ClientMigrationCodemodResult {
   return {
     rootDir: "/tmp/app",
     target: "honua-compat",
@@ -83,8 +83,8 @@ function createCodemodResult(): EsriCompatCodemodResult {
         query: { total: 0, autoMigrated: 0, manual: 0 },
         "oauth-info": { total: 0, autoMigrated: 0, manual: 0 },
         "identity-manager": { total: 0, autoMigrated: 0, manual: 0 },
-        "esri-request": { total: 0, autoMigrated: 0, manual: 0 },
-        "esri-config": { total: 0, autoMigrated: 0, manual: 0 },
+        "client-request": { total: 0, autoMigrated: 0, manual: 0 },
+        "client-config": { total: 0, autoMigrated: 0, manual: 0 },
         "reactive-utils": { total: 0, autoMigrated: 0, manual: 0 },
         "feature-filter": { total: 0, autoMigrated: 0, manual: 0 },
         "feature-effect": { total: 0, autoMigrated: 0, manual: 0 },
@@ -132,7 +132,7 @@ function createCodemodResult(): EsriCompatCodemodResult {
   };
 }
 
-function createScanReport(): ArcGisScanReport {
+function createScanReport(): SourceApiScanReport {
   return {
     rootDir: "/tmp/app",
     filesScanned: 2,
@@ -264,8 +264,8 @@ describe("buildJsMigrationReport", () => {
       query: 0,
       "oauth-info": 0,
       "identity-manager": 0,
-      "esri-request": 0,
-      "esri-config": 0,
+      "client-request": 0,
+      "client-config": 0,
       "reactive-utils": 0,
       "feature-filter": 0,
       "feature-effect": 0,
@@ -312,7 +312,7 @@ describe("buildJsMigrationReport", () => {
 
   it("treats require usage of supported modules as handled when codemod covered the kind", () => {
     const codemodResult = createCodemodResult();
-    const scanReport: ArcGisScanReport = {
+    const scanReport: SourceApiScanReport = {
       rootDir: "/tmp/app",
       filesScanned: 1,
       filesWithArcGisImports: 1,
@@ -339,7 +339,7 @@ describe("buildJsMigrationReport", () => {
 
   it("keeps unsupported require modules in unhandled inventory", () => {
     const codemodResult = createCodemodResult();
-    const scanReport: ArcGisScanReport = {
+    const scanReport: SourceApiScanReport = {
       rootDir: "/tmp/app",
       filesScanned: 1,
       filesWithArcGisImports: 1,
@@ -373,7 +373,7 @@ describe("buildJsMigrationReport", () => {
       ...createCodemodResult(),
       target: "esri-leaflet" as const,
     };
-    const scanReport: ArcGisScanReport = {
+    const scanReport: SourceApiScanReport = {
       rootDir: "/tmp/app",
       filesScanned: 1,
       filesWithArcGisImports: 1,
@@ -410,7 +410,7 @@ describe("buildJsMigrationReport", () => {
 
   it("treats supported barrel imports as handled when symbols map to codemod scope", () => {
     const codemodResult = createCodemodResult();
-    const scanReport: ArcGisScanReport = {
+    const scanReport: SourceApiScanReport = {
       rootDir: "/tmp/app",
       filesScanned: 1,
       filesWithArcGisImports: 1,
@@ -435,7 +435,7 @@ describe("buildJsMigrationReport", () => {
 
   it("keeps arcgis re-export declarations in unhandled inventory", () => {
     const codemodResult = createCodemodResult();
-    const scanReport: ArcGisScanReport = {
+    const scanReport: SourceApiScanReport = {
       rootDir: "/tmp/app",
       filesScanned: 1,
       filesWithArcGisImports: 1,
@@ -464,11 +464,11 @@ describe("buildJsMigrationReport", () => {
   });
 
   describe("zero-detection scans (#982)", () => {
-    function createEmptyCodemodResult(): EsriCompatCodemodResult {
+    function createEmptyCodemodResult(): ClientMigrationCodemodResult {
       const base = createCodemodResult();
       const byKind = Object.fromEntries(
         Object.keys(base.metrics.byKind).map((kind) => [kind, { total: 0, autoMigrated: 0, manual: 0 }]),
-      ) as EsriCompatCodemodResult["metrics"]["byKind"];
+      ) as ClientMigrationCodemodResult["metrics"]["byKind"];
       return {
         ...base,
         filesScanned: 136,
@@ -485,7 +485,7 @@ describe("buildJsMigrationReport", () => {
       };
     }
 
-    function createBlindScanReport(): ArcGisScanReport {
+    function createBlindScanReport(): SourceApiScanReport {
       return {
         rootDir: "/tmp/amd-app",
         filesScanned: 136,
@@ -519,7 +519,7 @@ describe("buildJsMigrationReport", () => {
     });
 
     it("counts esri-leaflet-only input as detected usage rather than a blind scan", () => {
-      const scanReport: ArcGisScanReport = {
+      const scanReport: SourceApiScanReport = {
         ...createBlindScanReport(),
         filesScanned: 1,
         esriLeafletImportCount: 1,
@@ -541,7 +541,7 @@ describe("buildJsMigrationReport", () => {
     });
 
     it("reports assisted (not ready) once the scanner sees AMD usage the codemod cannot rewrite", () => {
-      const scanReport: ArcGisScanReport = {
+      const scanReport: SourceApiScanReport = {
         ...createBlindScanReport(),
         filesWithArcGisImports: 1,
         imports: [
@@ -573,7 +573,7 @@ describe("buildJsMigrationReport", () => {
     });
 
     it("resolves a bare esri/* static import to the same kind as its @arcgis/core equivalent", () => {
-      const scanReport: ArcGisScanReport = {
+      const scanReport: SourceApiScanReport = {
         ...createBlindScanReport(),
         filesWithArcGisImports: 1,
         imports: [
@@ -610,7 +610,7 @@ describe("buildJsMigrationReport", () => {
       // run of '{' with no closing '}', which forces a backtracking engine
       // to retry the unbounded quantifier at every start position.
       const adversarialImportClause = "{".repeat(500_000);
-      const scanReport: ArcGisScanReport = {
+      const scanReport: SourceApiScanReport = {
         rootDir: "/tmp/app",
         filesScanned: 1,
         filesWithArcGisImports: 1,
@@ -645,7 +645,7 @@ describe("buildJsMigrationReport", () => {
     it("resolves 'first { paired with first }' deterministically and in linear time, even with a well-formed clause buried inside", () => {
       const codemodResult = createCodemodResult();
       const adversarialImportClause = `${"{".repeat(200_000)} { FeatureLayer }`;
-      const scanReport: ArcGisScanReport = {
+      const scanReport: SourceApiScanReport = {
         rootDir: "/tmp/app",
         filesScanned: 1,
         filesWithArcGisImports: 1,

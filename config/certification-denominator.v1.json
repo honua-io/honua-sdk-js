@@ -23,7 +23,7 @@
     "@honua/mcp-server",
     "@honua/react",
     "@honua/sdk",
-    "@honua/sdk-esri-compat",
+    "@honua/sdk-client-compat",
     "@honua/sdk-js",
     "create-honua-app"
   ],
@@ -111,8 +111,8 @@
     },
     {
       "path": "mcp/release/zero-to-map/journey.v1.json",
-      "bytes": 51349,
-      "sha256": "sha256:6cefd925406953b61aa5809120fdd2a64f1496c9b013f9efa94cb5e54d58c789"
+      "bytes": 51369,
+      "sha256": "sha256:d6a43979ccd8d53c39b44f789d62ef657a64d17f5bb8d2a53475d3fa0e166b81"
     },
     {
       "path": "schemas/honua-map-package.v1.json",
@@ -129,8 +129,8 @@
     },
     {
       "path": "config/release-artifacts.v1.json",
-      "bytes": 8938,
-      "sha256": "sha256:fc0146817e4bb0cb0f97423863613650a264d0f2dfaed1aeaf469848471840c9"
+      "bytes": 8948,
+      "sha256": "sha256:816066479be90c7bbce09a2cb32ec1a6619ce597b7a2d1ecdfb07a8ad38370e4"
     },
     {
       "path": "release-please-config.json",
@@ -139,13 +139,13 @@
     },
     {
       "path": "config/sdk-coverage-crosswalk.v1.json",
-      "bytes": 14299,
-      "sha256": "sha256:6e15c00823504164f184213745a401914e62a7a63602d1243bc672020d333fa0"
+      "bytes": 14313,
+      "sha256": "sha256:953c2192c4eb6808e5629071a75c4f9c83c0a41173d9fad00a77289f9f481c48"
     },
     {
       "path": "config/sdk-coverage.v1.json",
-      "bytes": 21442,
-      "sha256": "sha256:4e748e8a6ab72c76ac55b73bc3d996f0a42842fd903bf475545dcb88ff763bb6",
+      "bytes": 21446,
+      "sha256": "sha256:c1aa37a584284bcb00df4f5d64db077987b2e6fe8f2b0f4a338d8d9ce1d2719a",
       "releaseManagedFields": [
         "sdk.version"
       ]
@@ -157,8 +157,8 @@
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 83451,
-      "sha256": "sha256:ce82c04bf841701fdb4ba837526b14cdb2fc52cad09a7a2157ac68cbf243391a"
+      "bytes": 83301,
+      "sha256": "sha256:0dcbe9e5031e8e752067d98161bdf526fed420685bd660e27809eb266b97b214"
     }
   ],
   "profiles": {
@@ -211,7 +211,7 @@
       "editing.featureserver-edits": {
         "tier": "supported",
         "contributors": [
-          "supportClaims/esri-compat-standalone",
+          "supportClaims/client-compat-standalone",
           "supportClaims/geoservices-feature-standalone"
         ],
         "documentationSlugs": [
@@ -243,7 +243,7 @@
       "serve.geoservices-featureserver": {
         "tier": "supported",
         "contributors": [
-          "supportClaims/esri-compat-standalone",
+          "supportClaims/client-compat-standalone",
           "supportClaims/geoservices-feature-standalone"
         ],
         "documentationSlugs": []
@@ -383,7 +383,7 @@
         "unified-raster-direct-cog-client-only": "experimental",
         "geoservices-geometry-discovery-standalone": "supported",
         "geoservices-gp-discovery-standalone": "supported",
-        "esri-compat-standalone": "supported",
+        "client-compat-standalone": "supported",
         "migration-client-only": "supported",
         "geometry-client-only": "supported",
         "ogc-features-standalone": "supported",
@@ -533,10 +533,10 @@
     }
   },
   "digests": {
-    "inputs": "sha256:821856e9ae5043d6f52de2d640501cd4b119040c5aa327975fcf3e5da18701f3",
-    "capabilityProfile": "sha256:8ec47abd5e265148bf79e3d549ba999cc053ef3ca1321f75df37ea5aad23fda9",
-    "supportProfile": "sha256:d3895d1d7e715617556946d80e8c25c30c756699f02fa3b6642676ba4be3e0c3",
-    "rows": "sha256:4a00caff999edf56f8e8e145b582d49050f537dae0d25e54bd9410784719738f"
+    "inputs": "sha256:d7720e87b23c6057bb2465ed8008f6d78bfea05e74897ebfbabbb57c4f8c3206",
+    "capabilityProfile": "sha256:d15915e7453d6f400c08ea196f5070f159c4333bb81d67bbea2be9c3b8b2d3df",
+    "supportProfile": "sha256:4b5f184a8b47288bfc49fd208f239a32309f957c29233b9d1b770da302bc86ef",
+    "rows": "sha256:6dce302f6687ef355c8bbc13b09f5c4600e3f150045721ea8c36ab7831287f6e"
   },
   "summary": {
     "rows": 295,
@@ -593,7 +593,7 @@
       "label": "serve.geoservices-featureserver",
       "operation": "add-features",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/esri-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/client-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
       "capabilityKey": "serve.geoservices-featureserver",
       "coverage": "covered",
       "documentationSlugs": [],
@@ -617,7 +617,7 @@
       "label": "serve.geoservices-featureserver",
       "operation": "attachments",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/esri-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/client-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
       "capabilityKey": "serve.geoservices-featureserver",
       "coverage": "covered",
       "documentationSlugs": [],
@@ -641,7 +641,7 @@
       "label": "serve.geoservices-featureserver",
       "operation": "count",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/esri-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/client-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
       "capabilityKey": "serve.geoservices-featureserver",
       "coverage": "covered",
       "documentationSlugs": [],
@@ -665,7 +665,7 @@
       "label": "serve.geoservices-featureserver",
       "operation": "delete-features",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/esri-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/client-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
       "capabilityKey": "serve.geoservices-featureserver",
       "coverage": "covered",
       "documentationSlugs": [],
@@ -689,7 +689,7 @@
       "label": "serve.geoservices-featureserver",
       "operation": "metadata",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/esri-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/client-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
       "capabilityKey": "serve.geoservices-featureserver",
       "coverage": "covered",
       "documentationSlugs": [],
@@ -714,7 +714,7 @@
       "label": "serve.geoservices-featureserver",
       "operation": "object-ids",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/esri-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/client-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
       "capabilityKey": "serve.geoservices-featureserver",
       "coverage": "covered",
       "documentationSlugs": [],
@@ -739,7 +739,7 @@
       "label": "serve.geoservices-featureserver",
       "operation": "query",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/esri-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/client-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
       "capabilityKey": "serve.geoservices-featureserver",
       "coverage": "covered",
       "documentationSlugs": [],
@@ -764,7 +764,7 @@
       "label": "serve.geoservices-featureserver",
       "operation": "update-features",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/esri-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/client-compat-standalone config/support-manifest.v1.json#/supportClaims/geoservices-feature-standalone",
       "capabilityKey": "serve.geoservices-featureserver",
       "coverage": "covered",
       "documentationSlugs": [],
@@ -4244,6 +4244,50 @@
     },
     {
       "cappedBy": null,
+      "id": "sdk-operation:client-compat-standalone:applyEdits",
+      "family": "sdk-operation",
+      "subject": "client-compat-standalone",
+      "label": "Client compatibility layer",
+      "operation": "applyEdits",
+      "tier": "supported",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/7/status",
+      "protocol": null,
+      "environment": "standalone",
+      "executionMode": "native",
+      "source": {
+        "path": "config/support-manifest.v1.json",
+        "pointer": "/supportClaims/7"
+      },
+      "evidence": [
+        "client-compat-fixtures"
+      ],
+      "counts": true,
+      "environmentSkipAllowed": false
+    },
+    {
+      "cappedBy": null,
+      "id": "sdk-operation:client-compat-standalone:query",
+      "family": "sdk-operation",
+      "subject": "client-compat-standalone",
+      "label": "Client compatibility layer",
+      "operation": "query",
+      "tier": "supported",
+      "tierSource": "config/support-manifest.v1.json#/supportClaims/7/status",
+      "protocol": null,
+      "environment": "standalone",
+      "executionMode": "native",
+      "source": {
+        "path": "config/support-manifest.v1.json",
+        "pointer": "/supportClaims/7"
+      },
+      "evidence": [
+        "client-compat-fixtures"
+      ],
+      "counts": true,
+      "environmentSkipAllowed": false
+    },
+    {
+      "cappedBy": null,
       "id": "sdk-operation:collaboration-deprecated:collaboration",
       "family": "sdk-operation",
       "subject": "collaboration-deprecated",
@@ -4470,50 +4514,6 @@
       ],
       "counts": false,
       "environmentSkipAllowed": true
-    },
-    {
-      "cappedBy": null,
-      "id": "sdk-operation:esri-compat-standalone:applyEdits",
-      "family": "sdk-operation",
-      "subject": "esri-compat-standalone",
-      "label": "Client compatibility layer",
-      "operation": "applyEdits",
-      "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/7/status",
-      "protocol": null,
-      "environment": "standalone",
-      "executionMode": "native",
-      "source": {
-        "path": "config/support-manifest.v1.json",
-        "pointer": "/supportClaims/7"
-      },
-      "evidence": [
-        "esri-compat-fixtures"
-      ],
-      "counts": true,
-      "environmentSkipAllowed": false
-    },
-    {
-      "cappedBy": null,
-      "id": "sdk-operation:esri-compat-standalone:query",
-      "family": "sdk-operation",
-      "subject": "esri-compat-standalone",
-      "label": "Client compatibility layer",
-      "operation": "query",
-      "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/supportClaims/7/status",
-      "protocol": null,
-      "environment": "standalone",
-      "executionMode": "native",
-      "source": {
-        "path": "config/support-manifest.v1.json",
-        "pointer": "/supportClaims/7"
-      },
-      "evidence": [
-        "esri-compat-fixtures"
-      ],
-      "counts": true,
-      "environmentSkipAllowed": false
     },
     {
       "cappedBy": null,
@@ -6675,11 +6675,11 @@
     },
     {
       "cappedBy": null,
-      "id": "terminal-journey:geoprocessing:buffer-esri-gpserver",
+      "id": "terminal-journey:geoprocessing:buffer-geoservices-gpserver",
       "family": "terminal-journey",
       "subject": "geoprocessing",
-      "label": "Prove geometry.buffer through the SDK GPServer runner",
-      "operation": "buffer-esri-gpserver",
+      "label": "Prove geometry.buffer through the SDK GeoServices REST runner",
+      "operation": "buffer-geoservices-gpserver",
       "tier": "supported",
       "tierSource": "mcp/release/zero-to-map/journey.v1.json#/releaseContract (honua-release#123/D9.3)",
       "kind": "gpserver",

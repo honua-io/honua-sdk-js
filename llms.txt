@@ -63,8 +63,8 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 ## ArcGIS migration
 
 - [honua-maplibre migration target](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/migration-honua-maplibre.md): Migrating an ArcGIS Maps SDK app to the Honua MapLibre runtime.
-- [ArcGIS JS SDK → Honua JS SDK migration punch list](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/migration-punch-list.md): Codemod coverage, manual-intervention categories, and parity punch list.
-- [Esri Sample Migration Corpus](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/esri-sample-corpus.md): The Esri sample corpus used to certify migration coverage.
+- [third-party JavaScript mapping SDK → Honua JS SDK migration punch list](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/migration-punch-list.md): Codemod coverage, manual-intervention categories, and parity punch list.
+- [Source Sample Migration Corpus](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/esri-sample-corpus.md): The Esri sample corpus used to certify migration coverage.
 
 ## MCP server
 
@@ -72,7 +72,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 ## AI assistants and skills
 
-- [Honua SDK agent skills](https://github.com/honua-io/honua-sdk-js/blob/trunk/skills/README.md): Agent skills for Claude Code / compatible agents and how to install them.
+- [Honua SDK agent skills](https://github.com/honua-io/honua-sdk-js/blob/trunk/skills/README.md): Agent skill status, release scope, and verification gates.
 - [Zero-to-map release journey](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/zero-to-map-release-journey.md): Bounded 2026.1 install, geometry.buffer, saved 2D map, separate human approval, and exact candidate receipt boundaries.
 - [Coding-agent evaluation harness](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/coding-agent-evals.md): Coding-agent evaluation harness: objective first-try correctness scoring of generated SDK code.
 

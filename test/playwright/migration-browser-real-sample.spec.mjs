@@ -79,7 +79,7 @@ function startServer(projectRoot, appMain, vendors) {
     }
 
     if (requestUrl.pathname === "/compat-entry.js") {
-      const compatEntry = path.join(distSourceRoot, "esri-compat-entry.js");
+      const compatEntry = path.join(distSourceRoot, "client-compat-entry.js");
       res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
       res.end(fs.readFileSync(compatEntry, "utf8"));
       return;
@@ -121,8 +121,8 @@ async function runMigratedFixtureBrowserSmoke(page, options) {
   fs.mkdirSync(appRoot, { recursive: true });
   fs.copyFileSync(fixtureFile, appMain);
 
-  const { runEsriCompatCodemod } = await importCodemod(projectRoot);
-  const codemodResult = runEsriCompatCodemod({
+  const { runClientMigrationCodemod } = await importCodemod(projectRoot);
+  const codemodResult = runClientMigrationCodemod({
     rootDir: tempRoot,
     write: true,
     compatImportPath: "/compat-entry.js",

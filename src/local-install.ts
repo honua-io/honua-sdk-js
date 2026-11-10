@@ -224,10 +224,10 @@ export const LOCAL_INSTALL_MCP_PACKAGE_NAME = "@honua/mcp-server";
  * Published `@honua/mcp-server` version whose `@honua/sdk-js` peer range admits
  * this package's own version, so the pinned pair co-installs with no flags.
  */
-export const LOCAL_INSTALL_MCP_PACKAGE_VERSION = "0.2.6";
+export const LOCAL_INSTALL_MCP_PACKAGE_VERSION = "0.3.0";
 /** Registry tarball integrity for {@link LOCAL_INSTALL_MCP_PACKAGE_VERSION}. */
 export const LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY =
-  "sha512-82N2lefwbafZ3umcGV/3ZfmQPvyJGbthFOS8y9uQt5HCOlIcadLl6u13bM4vV/6gvd8bbAey+td50Jh3G4fnZA==";
+  "sha512-gjk8aCRS2osl6Ea5HgSmkL8HKyeEDUtx2o09RP8AgfEvq2A8KwZxFfWk60xIGWyhe2KkrWxY5wtTzxVem1a9TQ==";
 export const LOCAL_INSTALL_MCP_PACKAGE = `${LOCAL_INSTALL_MCP_PACKAGE_NAME}@${LOCAL_INSTALL_MCP_PACKAGE_VERSION}`;
 
 function isAdminReleaseContractCompatible(): boolean {
@@ -769,7 +769,7 @@ export async function getHonuaLocalStatus(
  * Render the local Docker compose file for an install profile.
  *
  * The 2026.1 bounded setup does not enable MCP profiles from this file.
- * `analysis` and `esri-gp` are not the first-cut gate, and a guessed
+ * `analysis` and `geoservices-gp` are not the first-cut gate, and a guessed
  * `Mcp__Profiles` value would silently do nothing. `honua admin qualify`
  * compares the server-authored workflow view with the pinned manifest instead.
  */

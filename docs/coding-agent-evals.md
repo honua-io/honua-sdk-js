@@ -3,7 +3,7 @@
 A growing share of integration code is written by coding agents, and "agents
 use this SDK correctly on the first try" is a measurable, winnable property.
 This repo already ships the inputs — [`llms.txt`](../llms.txt) /
-[`llms-full.txt`](../llms-full.txt), agent skills, Context7 registration, the
+[`llms-full.txt`](../llms-full.txt), Context7 registration, the
 MCP server — and this harness measures whether they work, with the same
 discipline the MCP package applies through its certification/eval kits
 (`mcp/src/certification/`, `mcp/src/eval/`).
@@ -37,7 +37,7 @@ docs), expected artifact type (`ts`/`tsx`), execution budget, and the
 objective assertions. Covered workflows: FeatureServer connect + count, where
 / outFields query, `connect()` auto-classification, OGC API Features, WFS 2.0,
 STAC search, OData v4, stream/pagination, query-plan explain, MapLibre
-geojson-source mounting (mock lane), geocoding, esri-compat migration snippet,
+geojson-source mounting (mock lane), geocoding, client-compat migration snippet,
 WebMap conversion, CLI usage, capability-error handling, and React hook
 composition.
 

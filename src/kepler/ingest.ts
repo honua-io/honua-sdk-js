@@ -23,7 +23,7 @@ import {
   inferKeplerFieldType,
   isNestedValue,
   keplerField,
-  keplerTypeForEsriFieldType,
+  keplerTypeForGeoServicesFieldType,
   normalizeKeplerValue,
   resolveKeplerCrs,
   unsupportedFieldLoss,
@@ -200,7 +200,7 @@ function planColumns(
     if (temporalFields.has(name)) {
       type = "timestamp";
     } else if (declaredType !== undefined) {
-      type = keplerTypeForEsriFieldType(declaredType);
+      type = keplerTypeForGeoServicesFieldType(declaredType);
       if (type === undefined) {
         losses.push(unsupportedFieldLoss(name, declaredType));
         return;

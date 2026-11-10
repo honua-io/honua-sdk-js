@@ -113,14 +113,13 @@ export async function runSteps(steps, runStep) {
   return results;
 }
 
-async function main() {
-  const options = parseArgs(process.argv.slice(2));
+export async function runValidation(options, runStep = run) {
   const steps = PR_FAST_STEPS;
-  const results = await runSteps(steps, run);
+  const results = await runSteps(steps, runStep);
 
   const completedAtEpochMs = Date.now();
   // System uptime is monotonic across processes, so NTP/WSL wall-clock jumps
-  // cannot create a false two-minute budget failure. CI captures this value
+  // cannot distort the advisory timing record. CI captures this value
   // before Node setup and dependency installation.
   const elapsedMs = os.uptime() * 1000 - options.startedAtMonotonicMs;
   const commandsPassed = results.length === steps.length && results.every((result) => result.exitCode === 0);
@@ -150,16 +149,16 @@ async function main() {
     `PR-fast validation: ${(elapsedMs / 1000).toFixed(2)}s / ${(options.budgetMs / 1000).toFixed(0)}s budget\n`,
   );
 
-  if (!commandsPassed) {
-    process.exitCode = 1;
-  } else if (!withinBudget) {
+  if (!withinBudget) {
     process.stderr.write(`PR-fast validation exceeded its budget by ${elapsedMs - options.budgetMs}ms\n`);
-    process.exitCode = 1;
   }
+  return commandsPassed ? 0 : 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error) => {
+  Promise.resolve().then(() => runValidation(parseArgs(process.argv.slice(2)))).then((exitCode) => {
+    process.exitCode = exitCode;
+  }).catch((error) => {
     process.stderr.write(`pr-fast failed: ${error instanceof Error ? error.stack : String(error)}\n`);
     process.exitCode = 1;
   });

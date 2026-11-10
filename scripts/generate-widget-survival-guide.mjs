@@ -28,7 +28,7 @@ const DISPOSITION_LABELS = {
 const DISPOSITION_DESCRIPTIONS = {
   automated:
     "The `honua-migrate` codemod deterministically rewrites the import and safe constructor call sites to a " +
-    "Honua compat shim from `@honua/sdk-esri-compat`. Unsafe option literals fall through to an annotated manual TODO.",
+    "Honua compat shim from `@honua/sdk-client-compat`. Unsafe option literals fall through to an annotated manual TODO.",
   "compat-shim":
     "A Honua compat shim exists and the codemod rewrites to it, but no native Honua element does the job yet — " +
     "the shim is the destination, not a waypoint. Treat the migration as assisted and verify app-specific " +
@@ -71,31 +71,33 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   // file.
   lines.push("---");
   lines.push("type: reference");
-  lines.push('title: "ArcGIS widget-removal survival guide"');
+  lines.push('title: "Source SDK widget-removal survival guide"');
   lines.push(
-    'description: "Every classic ArcGIS JS SDK widget, what replaces it in Honua, ' +
+    'description: "Classic source SDK widgets, what replaces them in Honua, ' +
       'and whether the migration is automated, shimmed, hand-written or has no ' +
       'equivalent yet."',
   );
   lines.push('resource: "https://www.npmjs.com/package/@honua/honua-migrate"');
-  lines.push("tags: [migration, arcgis, widgets, reference, generated]");
+  lines.push("tags: [migration, migration-source-sdk, widgets, reference, generated]");
   lines.push("---");
   lines.push("<!-- GENERATED FILE - DO NOT EDIT.");
   lines.push("     Source of truth: src/migration/widget-dispositions.ts");
   lines.push("     Regenerate with: npm run docs:widget-guide -->");
   lines.push("");
-  lines.push("# ArcGIS widget-removal survival guide");
+  lines.push("# Source SDK widget-removal survival guide");
+  lines.push("");
+  lines.push("The source SDK here is Esri's ArcGIS Maps SDK for JavaScript. Module paths and release numbers identify that product; Honua is independent of Esri.");
   lines.push("");
   lines.push(
-    `Every classic ArcGIS JS SDK widget (\`esri/widgets/*\` / \`@arcgis/core/widgets/*\`) is deprecated as of ` +
-      `ArcGIS JS ${ARCGIS_WIDGET_DEPRECATION_RELEASE} and is removed at ${ARCGIS_WIDGET_REMOVAL_RELEASE} — ` +
+    `Every classic source SDK widget (\`esri/widgets/*\` / \`@arcgis/core/widgets/*\`) is deprecated as of ` +
+      `source SDK ${ARCGIS_WIDGET_DEPRECATION_RELEASE} and is removed at ${ARCGIS_WIDGET_REMOVAL_RELEASE} — ` +
       `**${ARCGIS_WIDGET_REMOVAL_TIMEFRAME}**. If your app constructs any of these widgets, that code stops ` +
       `compiling and running when you take the ${ARCGIS_WIDGET_REMOVAL_RELEASE} upgrade.`,
   );
   lines.push("");
   lines.push(
     "This guide answers, for each deprecated widget, what happens if you migrate to Honua/MapLibre instead of " +
-      "rewriting onto Esri's web components. Dispositions are deliberately honest — including " +
+      "rewriting onto the source SDK's web components. Dispositions are deliberately honest — including " +
       "\"no equivalent\" — in the spirit of [docs/migration-punch-list.md](./migration-punch-list.md).",
   );
   lines.push("");
@@ -103,7 +105,7 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
     `This document is generated from the versioned disposition data in ` +
       `[\`src/migration/widget-dispositions.ts\`](../src/migration/widget-dispositions.ts) ` +
       `(v${WIDGET_DISPOSITION_DATA_VERSION}); the \`honua-migrate\` widget scanner consumes the same data, so the ` +
-      `scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS ` +
+      `scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per source SDK ` +
       `release against ${ARCGIS_WIDGET_INVENTORY_SOURCE} (${ARCGIS_WIDGET_DEPRECATION_RELEASE} deprecation list) ` +
       `and updated manually.`,
   );
@@ -238,8 +240,8 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   lines.push("");
   lines.push("- [Migration punch list](./migration-punch-list.md) — the honest parity/codemod accounting.");
   lines.push(
-    "- [Third-party OSS ArcGIS app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod " +
-      "actually do to real, pinned, third-party open-source ArcGIS apps (including the ones they cannot see at all).",
+    "- [Third-party OSS source SDK app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod " +
+      "actually do to real, pinned, third-party open-source apps built on the source SDK (including the ones they cannot see at all).",
   );
   lines.push("- [Honua ⇄ MapLibre migration notes](./migration-honua-maplibre.md) — the `honua-maplibre` codemod target.");
   lines.push("- [SDK guide: Migration CLI](./guide.md#migration-cli) — every `honua-migrate` subcommand.");

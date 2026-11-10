@@ -1,13 +1,13 @@
 import {
+  type ClientMigrationCodemodResult,
   type CodemodConstructorKind,
-  type EsriCompatCodemodResult,
   type MigrationTodo,
   isKindSupportedForTarget,
   isSupportedArcGisBarrelModulePath,
   resolveArcGisBarrelImportKind,
   resolveSupportedArcGisModuleKind,
 } from "./codemod.js";
-import { type ArcGisScanReport, scanArcGisUsage, summarizeArcGisScan } from "./scanner.js";
+import { type SourceApiScanReport, scanArcGisUsage, summarizeArcGisScan } from "./scanner.js";
 
 export interface ManualRewriteMetric {
   numerator: number;
@@ -29,8 +29,8 @@ export interface JsMigrationReport {
   rootDir: string;
   codemodTarget: "honua-compat" | "esri-leaflet" | "honua-maplibre";
   scanSummary: string;
-  scanReport: ArcGisScanReport;
-  codemodResult: EsriCompatCodemodResult;
+  scanReport: SourceApiScanReport;
+  codemodResult: ClientMigrationCodemodResult;
   manualRewriteMetric: ManualRewriteMetric;
   manualInterventionMetric: ManualInterventionMetric;
   /**
@@ -58,7 +58,7 @@ export interface JsMigrationReport {
   gates: MigrationGateResult[];
   manualTodosByKind: Record<CodemodConstructorKind, number>;
   manualTodoReasons: MigrationReasonSummary[];
-  unhandledArcGisModules: ArcGisModuleSummary[];
+  unhandledArcGisModules: SourceApiModuleSummary[];
   manualTodos: MigrationTodo[];
 }
 
@@ -68,13 +68,13 @@ export interface MigrationReasonSummary {
   kinds: CodemodConstructorKind[];
 }
 
-export interface ArcGisModuleSummary {
+export interface SourceApiModuleSummary {
   modulePath: string;
-  usageStyle: ArcGisUsageStyle;
+  usageStyle: SourceApiUsageStyle;
   count: number;
 }
 
-export type ArcGisUsageStyle =
+export type SourceApiUsageStyle =
   | "static-import"
   | "dynamic-import"
   | "require"
@@ -100,8 +100,8 @@ const BLOCKING_FLAGS = new Set(["scene-3d-detected", "advanced-widget-or-network
 
 export function buildJsMigrationReport(
   rootDir: string,
-  codemodResult: EsriCompatCodemodResult,
-  scanReport?: ArcGisScanReport,
+  codemodResult: ClientMigrationCodemodResult,
+  scanReport?: SourceApiScanReport,
 ): JsMigrationReport {
   const resolvedScan = scanReport ?? scanArcGisUsage(rootDir);
   const scanSummary = summarizeArcGisScan(resolvedScan);
@@ -131,7 +131,7 @@ export function buildJsMigrationReport(
       denominator,
       ratio,
       scope:
-        "FeatureLayer/Graphic/Point/Polyline/Polygon/Extent/SpatialReference/Color/SimpleLineSymbol/SimpleMarkerSymbol/PictureMarkerSymbol/TextSymbol/LabelClass/SimpleFillSymbol/ClassBreaksRenderer/SimpleRenderer/UniqueValueRenderer/GraphicsLayer/GroupLayer/MapImageLayer/TileLayer/RouteLayer/RouteTask/Basemap/Map/MapView/SceneView/WebMap/LayerList/TableList/Feature/FeatureTemplates/FeatureForm/FeatureTable/FeatureSet/Legend/Popup/PopupTemplate/Swipe/Print/Home/BasemapToggle/Locate/ScaleBar/Search/BasemapLayerList/BasemapGallery/Expand/Compass/Bookmarks/Fullscreen/Zoom/Attribution/Sketch/Editor/Track/DistanceMeasurement2D/AreaMeasurement2D/Measurement/TimeSlider/Directions/CoordinateConversion/Query/OAuthInfo/IdentityManager/EsriRequest/EsriConfig/ReactiveUtils codemod-scoped usage in safe migration scope",
+        "FeatureLayer/Graphic/Point/Polyline/Polygon/Extent/SpatialReference/Color/SimpleLineSymbol/SimpleMarkerSymbol/PictureMarkerSymbol/TextSymbol/LabelClass/SimpleFillSymbol/ClassBreaksRenderer/SimpleRenderer/UniqueValueRenderer/GraphicsLayer/GroupLayer/MapImageLayer/TileLayer/RouteLayer/RouteTask/Basemap/Map/MapView/SceneView/WebMap/LayerList/TableList/Feature/FeatureTemplates/FeatureForm/FeatureTable/FeatureSet/Legend/Popup/PopupTemplate/Swipe/Print/Home/BasemapToggle/Locate/ScaleBar/Search/BasemapLayerList/BasemapGallery/Expand/Compass/Bookmarks/Fullscreen/Zoom/Attribution/Sketch/Editor/Track/DistanceMeasurement2D/AreaMeasurement2D/Measurement/TimeSlider/Directions/CoordinateConversion/Query/OAuthInfo/IdentityManager/ExternalClientRequest/ExternalClientConfig/ReactiveUtils codemod-scoped usage in safe migration scope",
     },
     manualInterventionMetric: {
       numerator: interventionNumerator,
@@ -221,8 +221,8 @@ function summarizeManualTodosByKind(todos: readonly MigrationTodo[]): Record<Cod
     query: 0,
     "oauth-info": 0,
     "identity-manager": 0,
-    "esri-request": 0,
-    "esri-config": 0,
+    "client-request": 0,
+    "client-config": 0,
     "reactive-utils": 0,
     "feature-filter": 0,
     "feature-effect": 0,
@@ -265,9 +265,9 @@ function summarizeManualTodoReasons(todos: readonly MigrationTodo[]): MigrationR
 }
 
 function summarizeUnhandledModules(
-  scanReport: ArcGisScanReport,
-  codemodResult: EsriCompatCodemodResult,
-): ArcGisModuleSummary[] {
+  scanReport: SourceApiScanReport,
+  codemodResult: ClientMigrationCodemodResult,
+): SourceApiModuleSummary[] {
   const moduleCounts = new Map<string, number>();
 
   for (const hit of scanReport.imports) {
@@ -302,7 +302,7 @@ function summarizeUnhandledModules(
       const [modulePath, usageStyleText] = key.split("|", 2);
       return {
         modulePath,
-        usageStyle: usageStyleText as ArcGisUsageStyle,
+        usageStyle: usageStyleText as SourceApiUsageStyle,
         count,
       };
     })
@@ -323,11 +323,11 @@ function summarizeUnhandledModules(
  * inventory even when the module itself maps to a supported kind. The codemod
  * reports the affected call sites as manual TODOs instead.
  */
-function isLoaderStyleOutsideCodemodScope(usageStyle: ArcGisUsageStyle): boolean {
+function isLoaderStyleOutsideCodemodScope(usageStyle: SourceApiUsageStyle): boolean {
   return usageStyle === "amd-dependency" || usageStyle === "import-equals";
 }
 
-function resolveSupportedKindsForImportHit(hit: ArcGisScanReport["imports"][number]): CodemodConstructorKind[] {
+function resolveSupportedKindsForImportHit(hit: SourceApiScanReport["imports"][number]): CodemodConstructorKind[] {
   const directSupportedKind = resolveSupportedArcGisModuleKind(hit.modulePath);
   if (directSupportedKind !== undefined) {
     return [directSupportedKind];
@@ -408,7 +408,7 @@ function extractImportedNamesFromClause(importClause: string): string[] {
 
 // The `importClause` sentinels these map are produced by `scanner.ts`; the two
 // files must agree on the exact strings.
-function classifyUsageStyle(importClause: string): ArcGisUsageStyle {
+function classifyUsageStyle(importClause: string): SourceApiUsageStyle {
   if (importClause === "import(...)") {
     return "dynamic-import";
   }
@@ -431,14 +431,14 @@ function classifyUsageStyle(importClause: string): ArcGisUsageStyle {
  * `esri-leaflet` note explains the rest. What must never count as "detected"
  * is a scan that walked source files and recognized nothing in them.
  */
-function hasDetectedUsage(scanReport: ArcGisScanReport): boolean {
+function hasDetectedUsage(scanReport: SourceApiScanReport): boolean {
   return scanReport.filesWithArcGisImports > 0 || (scanReport.esriLeafletImportCount ?? 0) > 0;
 }
 
 function buildMigrationGates(
-  codemodResult: EsriCompatCodemodResult,
-  scanReport: ArcGisScanReport,
-  unhandledModules: readonly ArcGisModuleSummary[],
+  codemodResult: ClientMigrationCodemodResult,
+  scanReport: SourceApiScanReport,
+  unhandledModules: readonly SourceApiModuleSummary[],
   usageDetected: boolean,
 ): MigrationGateResult[] {
   const hasManualTodos = codemodResult.metrics.manualCallSites > 0;

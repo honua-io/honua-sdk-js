@@ -1,7 +1,7 @@
 {
   "name": "@honua/mcp-server",
-  "version": "0.2.10",
-  "description": "Platform-free MCP server for geospatial services: expose discovery, query, and analysis over any public ArcGIS/Esri FeatureServer or OGC API endpoint to any MCP client, with no platform lock-in",
+  "version": "0.3.0",
+  "description": "Platform-free MCP server for geospatial services: expose discovery, query, and analysis over any public GeoServices REST feature service or OGC API endpoint to any MCP client, with no platform lock-in",
   "license": "Apache-2.0",
   "author": "Honua",
   "homepage": "https://honua-io.github.io/honua-sdk-js/",
@@ -16,7 +16,7 @@
     "mcp",
     "model-context-protocol",
     "ai-agent",
-    "arcgis",
+    "geoservices",
     "ogc-api",
     "feature-service"
   ],
@@ -92,7 +92,7 @@
     "qs": "^6.16.1"
   },
   "peerDependencies": {
-    "@honua/sdk-js": "^0.1.17 || ^0.2.0"
+    "@honua/sdk-js": "^0.2.0 || ^0.3.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

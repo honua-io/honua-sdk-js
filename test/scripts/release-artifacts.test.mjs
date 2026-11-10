@@ -62,7 +62,7 @@ test("the cut covers the coordinated SDK, the split SDK, React, app-platform, an
     "@honua/mcp-server",
     "@honua/react",
     "@honua/sdk",
-    "@honua/sdk-esri-compat",
+    "@honua/sdk-client-compat",
     "@honua/sdk-js",
     "create-honua-app",
   ]);
@@ -84,7 +84,7 @@ test("the split package list is derived from the generator, not restated", () =>
     "@honua/geometry",
     "@honua/react",
     "@honua/sdk",
-    "@honua/sdk-esri-compat",
+    "@honua/sdk-client-compat",
   ]);
   assert.deepEqual(splitPackagesFromVerifier(inputs.splitVerifierSource), generated);
 });
@@ -97,7 +97,7 @@ test("publish invocations are read out of the workflows themselves", () => {
     [
       ".",
       "./dist/packages/honua-sdk",
-      "./dist/packages/honua-sdk-esri-compat",
+      "./dist/packages/honua-sdk-client-compat",
       "./dist/packages/honua-react",
       "./dist/packages/honua-geometry",
       "./dist/packages/honua-app-platform",

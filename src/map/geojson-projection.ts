@@ -7,7 +7,7 @@
  */
 
 import type { HonuaTypedFeature } from "../core/types.js";
-import { esriGeometryToGeoJson } from "./feature-service-adapter.js";
+import { featureServiceGeometryToGeoJson } from "./feature-service-adapter.js";
 import type {
   AdapterGeoJsonFeature,
   AdapterGeoJsonFeatureCollection,
@@ -45,13 +45,13 @@ export function toGeoJsonGeometry(geometry: unknown): AdapterGeoJsonGeometry | n
   if (isGeoJsonGeometryType(record.type) && "coordinates" in record) {
     return { type: record.type, coordinates: record.coordinates };
   }
-  if (Array.isArray(record.points)) return esriGeometryToGeoJson(record, "esriGeometryMultipoint");
-  if (Array.isArray(record.paths)) return esriGeometryToGeoJson(record, "esriGeometryPolyline");
-  if (Array.isArray(record.rings)) return esriGeometryToGeoJson(record, "esriGeometryPolygon");
+  if (Array.isArray(record.points)) return featureServiceGeometryToGeoJson(record, "esriGeometryMultipoint");
+  if (Array.isArray(record.paths)) return featureServiceGeometryToGeoJson(record, "esriGeometryPolyline");
+  if (Array.isArray(record.rings)) return featureServiceGeometryToGeoJson(record, "esriGeometryPolygon");
   if ("xmin" in record && "ymin" in record && "xmax" in record && "ymax" in record) {
-    return esriGeometryToGeoJson(record, "esriGeometryEnvelope");
+    return featureServiceGeometryToGeoJson(record, "esriGeometryEnvelope");
   }
-  return esriGeometryToGeoJson(record, "esriGeometryPoint");
+  return featureServiceGeometryToGeoJson(record, "esriGeometryPoint");
 }
 
 /** Distinct geometry kinds present in a feature array, in point→line→polygon order. */

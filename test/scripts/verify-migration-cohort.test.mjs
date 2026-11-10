@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { expectedSdkPublicationRef, migrationConsumerEnv, migrationNpmEnv, parseArgs, recoverSdkPublicationRef, validateLock, verifyMigrationPublication } from "../../scripts/verify-migration-cohort.mjs";
+import { expectedSdkPublicationRef, migrationConsumerEnv, migrationNpmEnv, migratorCompatPackageName, parseArgs, recoverSdkPublicationRef, validateLock, verifyMigrationPublication } from "../../scripts/verify-migration-cohort.mjs";
 
 test("installed consumer processes receive runtime settings without publishing credentials or hooks", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "migration-consumer-env-"));
@@ -56,14 +56,24 @@ test("only script-disabled npm commands retain the existing build admission leas
 });
 
 const options = { sdkVersion: "0.2.4", migrateVersion: "0.3.0-beta.0", sdkSource: "registry" };
+function pinnedCompatPackageName() {
+  const lock = JSON.parse(fs.readFileSync(new URL("../../package-lock.json", import.meta.url), "utf8"));
+  return migratorCompatPackageName(lock);
+}
 function fixture() {
-  return { packages: Object.fromEntries([
+  const compat = pinnedCompatPackageName();
+  const packages = Object.fromEntries([
     ["@honua/sdk-js", "0.2.4"], ["@honua/honua-migrate", "0.3.0-beta.0"],
-    ["@honua/sdk", "0.2.3"], ["@honua/sdk-esri-compat", "0.2.3"],
+    ["@honua/sdk", "0.2.3"], [compat, "0.2.3"],
   ].map(([name, version]) => [`node_modules/${name}`, {
     version, resolved: `https://registry.npmjs.org/${name}/-/package-${version}.tgz`,
     integrity: `sha512-${Buffer.alloc(64).toString("base64")}`,
-  }])) };
+  }]));
+  packages["node_modules/@honua/honua-migrate"].dependencies = {
+    "@honua/sdk": "^0.2.3",
+    [compat]: "^0.2.3",
+  };
+  return { packages };
 }
 
 test("accepts compatible patch releases without requiring every component to publish together", () => {
@@ -76,6 +86,74 @@ test("rejects an incompatible nested SDK even when the top-level SDK is correct"
     ...lock.packages["node_modules/@honua/sdk"], version: "0.1.15",
   };
   assert.throws(() => validateLock(lock, options), /incompatible SDK generation/);
+});
+
+function releaseFixture() {
+  const lock = fixture();
+  lock.packages["node_modules/@honua/sdk-js"].version = "0.3.0";
+  lock.packages["node_modules/@honua/sdk"].version = "0.2.10";
+  lock.packages["node_modules/@honua/sdk-esri-compat"].version = "0.2.10";
+  return lock;
+}
+
+const releaseOptions = { sdkVersion: "0.3.0", migrateVersion: "0.3.0-beta.0", sdkSource: "registry" };
+
+test("allows the pinned migrator's registry packages to stay on generation 0.2", () => {
+  assert.equal(validateLock(releaseFixture(), releaseOptions).length, 4);
+  const packed = releaseFixture();
+  packed.packages["node_modules/@honua/sdk-js"].resolved = "file:../sdk.tgz";
+  assert.equal(validateLock(packed, { ...releaseOptions, sdkSource: "packed" }).find((item) => item.packed).packed, true);
+});
+
+test("the migrator registry hold expires when the pin moves past 0.3.0-beta.0", () => {
+  for (const migrateVersion of ["0.3.0-beta.1", "0.3.0"]) {
+    const lock = releaseFixture();
+    lock.packages["node_modules/@honua/honua-migrate"].version = migrateVersion;
+    assert.throws(() => validateLock(lock, { ...releaseOptions, migrateVersion }), /incompatible SDK generation/);
+  }
+});
+
+test("the migrator registry hold allows the pinned package's nested registry layouts", () => {
+  const layouts = [
+    ["node_modules/@honua/honua-migrate/node_modules/@honua/sdk", "@honua/sdk"],
+    ["node_modules/@honua/honua-migrate/node_modules/@honua/sdk-esri-compat", "@honua/sdk-esri-compat"],
+    ["node_modules/@honua/sdk-esri-compat/node_modules/@honua/sdk", "@honua/sdk"],
+    ["node_modules/@honua/honua-migrate/node_modules/@honua/sdk-esri-compat/node_modules/@honua/sdk", "@honua/sdk"],
+  ];
+  for (const [location, name] of layouts) {
+    const lock = releaseFixture();
+    lock.packages[location] = { ...lock.packages[`node_modules/${name}`] };
+    delete lock.packages[`node_modules/${name}`];
+    assert.ok(validateLock(lock, releaseOptions).some((item) => item.location === location));
+  }
+});
+
+test("the migrator registry hold does not excuse a mismatched SDK or a non-migrator copy", () => {
+  const mismatchedSdk = releaseFixture();
+  mismatchedSdk.packages["node_modules/@honua/sdk-js"].version = "0.2.10";
+  assert.throws(() => validateLock(mismatchedSdk, releaseOptions), /@honua\/sdk-js installed version/);
+
+  const prohibited = [
+    "node_modules/@honua/sdk-js/node_modules/@honua/sdk",
+    "node_modules/@honua/sdk-js/node_modules/@honua/honua-migrate/node_modules/@honua/sdk",
+    "node_modules/@honua/sdk-js/node_modules/@honua/sdk-esri-compat/node_modules/@honua/sdk",
+    "node_modules/@honua/other/node_modules/@honua/sdk",
+  ];
+  for (const location of prohibited) {
+    const lock = releaseFixture();
+    lock.packages[location] = { ...lock.packages["node_modules/@honua/sdk"] };
+    assert.throws(() => validateLock(lock, releaseOptions), /incompatible SDK generation/);
+  }
+
+  const older = releaseFixture();
+  older.packages["node_modules/@honua/sdk"].version = "0.1.15";
+  assert.throws(() => validateLock(older, releaseOptions), /incompatible SDK generation/);
+
+  const nestedOlder = releaseFixture();
+  nestedOlder.packages["node_modules/@honua/honua-migrate/node_modules/@honua/sdk"] = {
+    ...nestedOlder.packages["node_modules/@honua/sdk"], version: "0.1.15",
+  };
+  assert.throws(() => validateLock(nestedOlder, releaseOptions), /incompatible SDK generation/);
 });
 
 test("rejects a second migrator version hidden inside the SDK", () => {
@@ -105,7 +183,7 @@ test("allows only the top-level packed SDK to use a local tarball", () => {
 
 test("refuses missing, linked and unhashed participating modules", () => {
   for (const mutation of [
-    (lock) => delete lock.packages["node_modules/@honua/sdk-esri-compat"],
+    (lock) => delete lock.packages[`node_modules/${pinnedCompatPackageName()}`],
     (lock) => { lock.packages["node_modules/@honua/sdk"].link = true; },
     (lock) => delete lock.packages["node_modules/@honua/sdk"].integrity,
     (lock) => { lock.packages["node_modules/@honua/honua-migrate"].version = "0.2.0-beta.0"; },
@@ -132,7 +210,7 @@ test("rejects relaxations, arbitrary versions and ambiguous command options", ()
   assert.equal(recovery.sdkPublishRef, "refs/heads/recovery");
   for (const sdkPublishRef of ["refs/heads/recovery", "refs/tags/js-sdk-v0.2.4"]) {
     const cut = { sdkVersion: "0.2.4", sdkPublishRef };
-    for (const name of ["@honua/sdk-js", "@honua/sdk", "@honua/sdk-esri-compat"]) {
+    for (const name of ["@honua/sdk-js", "@honua/sdk", "@honua/sdk-client-compat"]) {
       assert.equal(expectedSdkPublicationRef({ name, version: "0.2.4" }, cut), sdkPublishRef);
       assert.equal(expectedSdkPublicationRef({ name, version: "0.2.3" }, cut), undefined);
     }

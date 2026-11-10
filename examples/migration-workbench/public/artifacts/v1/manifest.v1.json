@@ -6,10 +6,10 @@
     "fixture": "examples/geoservices-source-app",
     "scenario": "examples/geoservices-source-app/src/workbench-scenario.js",
     "sourceSnapshot": {
-      "fixtureTreeSha256": "07da36f9d371736f89a0904ec4f811a09fd9962144f8c608bd1f9a662dee6cba",
+      "fixtureTreeSha256": "ee4459c316f76d4cb9406975f1bc55e2ee48833252155c6503d97cfec9995dfa",
       "expectedBehaviorPath": "examples/migration-workbench/fixtures/expected-behavior.v1.json",
       "expectedBehaviorSha256": "5dda40ab412f3c28785d486e3f6eb57a7f6f13006f21510e58c4e4a72e1e289d",
-      "combinedSha256": "0371040df7e246835d6ca21f1883f361fbaefb1bb59645c62086cba0094c7ddd"
+      "combinedSha256": "d89e9b6ea931ac39ecdc8bb5df04e479ee904c34526816d72e15f3256529b0b7"
     },
     "authorship": "Original Honua-authored repository fixture",
     "licenseScope": "Apache-2.0 repository license; no third-party sample source is reproduced in these artifacts",
@@ -20,10 +20,10 @@
     "transformationEngine": {
       "path": "dist/src/migration/cli.js",
       "preparedArtifactFormat": "honua.prepared-sdk-artifact.v1",
-      "buildInputsSha256": "46d18d7f31177ab9b5c83878b57376b57a9dc332597e0e62fe7c12d8cf94c0be",
-      "buildInputFileCount": 2675,
-      "distSrcSha256": "3aec8a902b6d26b56df683d327513b384ee118b27a09c48945f174aff2d2c805",
-      "distSrcFileCount": 2160,
+      "buildInputsSha256": "95bde62bb71e657972183e701063050677b0c238ccfd7d74255173c697fb2858",
+      "buildInputFileCount": 2657,
+      "distSrcSha256": "f6ddb10b040ca9c3c8eefd6751c47160399a34153f9e7f8d0a7a560ed67d3fcf",
+      "distSrcFileCount": 2157,
       "digestScope": "Complete prepared SDK build inputs plus verified canonical dist/src transformation entries; adopted outputs outside dist/src are excluded."
     },
     "generatedTargetExecution": {
@@ -75,7 +75,7 @@
         "--target",
         "honua-compat",
         "--compat-import-path",
-        "@honua/sdk-js/esri-compat",
+        "@honua/sdk-js/client-compat",
         "--skip-import",
         "--skip-reconcile",
         "--report",
@@ -116,32 +116,32 @@
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/maplibre-assessment.v1.json",
       "mediaType": "application/json",
-      "bytes": 52166,
-      "sha256": "c6015caf74d43018be700940d2d88ea04c5dbe19bf6a181a48ee3a8c6d839357"
+      "bytes": 52226,
+      "sha256": "4d071406bd49b24a29955a2aee9a35e48885064a46eb066709e40f4e628bb55f"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration-report.v1.json",
       "mediaType": "application/json",
-      "bytes": 63132,
-      "sha256": "b4b3d109f260d4ce434a089c4eb8beea79dee5f61c54acfe5d3e5a7bfd30292f"
+      "bytes": 63200,
+      "sha256": "fa5e85a156f9af0b9740c1c13aff0bf4e465222b3065f0db0801ec1cb8685e7a"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration.v1.patch",
       "mediaType": "text/x-diff",
-      "bytes": 3864,
-      "sha256": "5af0f80709512a3bd9f600716a14ab4b9194dc103369294c3db0c944c04e3a9b"
+      "bytes": 3868,
+      "sha256": "c7efaa82d5586636457004e9170294285a7ae65c7e6709bd9d5482743bd21f50"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/widget-readiness.v1.json",
       "mediaType": "application/json",
-      "bytes": 5632,
-      "sha256": "d195f4fd3698ac12493a2468932f2f8142132b494401f8dbec5fffdde6a76d3c"
+      "bytes": 5644,
+      "sha256": "067647a8e8dcf496210095484653e9da4d0ac1906172ce307a4df7bc72df80e9"
     },
     {
       "repositoryPath": "examples/migration-workbench/src/generated/migrated-main.js",
       "mediaType": "text/javascript",
-      "bytes": 5159,
-      "sha256": "ea75ce5a0c267391b846f8825ad54e941a5b6ec31c9fa8cf05f3469712a636a4"
+      "bytes": 5161,
+      "sha256": "9eabc71fa1719ad0c39077704d00606b292b26a1b440c227cc1b238e8493633f"
     }
   ]
 }

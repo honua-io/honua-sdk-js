@@ -127,7 +127,7 @@ describe("Service Explorer capability-truth model", () => {
     expect(source).toContain('from "@honua/sdk-js"');
     expect(source).toContain("createHonua(");
     expect(source).toContain('from "@honua/sdk-js/contract"');
-    expect(source).not.toMatch(/@honua\/sdk-js\/(?:app|app-workspace|app-controller|esri-compat)/);
+    expect(source).not.toMatch(/@honua\/sdk-js\/(?:app|app-workspace|app-controller|client-compat)/);
   });
 
   it("owns and idempotently disposes its default public createHonua kernel", async () => {

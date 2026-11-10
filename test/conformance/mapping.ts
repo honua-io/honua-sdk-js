@@ -147,8 +147,8 @@ function canonicalInt64ToSafeInteger(value: string | number | undefined, field: 
 
 // ── Golden response → expected Result contract ──────────────────────────────
 
-/** geospatial.v1 FIELD_TYPE_* → SDK EsriFieldType string. */
-const CANON_FIELD_TYPE_TO_ESRI: Record<string, string> = {
+/** geospatial.v1 FIELD_TYPE_* → SDK GeoServicesFieldType string. */
+const CANON_FIELD_TYPE_TO_GEOSERVICES: Record<string, string> = {
   FIELD_TYPE_STRING: "esriFieldTypeString",
   FIELD_TYPE_INTEGER: "esriFieldTypeInteger",
   FIELD_TYPE_BIG_INTEGER: "esriFieldTypeInteger",
@@ -165,13 +165,13 @@ const CANON_FIELD_TYPE_TO_ESRI: Record<string, string> = {
 };
 
 /**
- * The canonical set of `EsriFieldType` strings the SDK contract recognises
- * (mirrors the named members of `EsriFieldType` in `src/core/types.ts`; that
+ * The canonical set of `GeoServicesFieldType` strings the SDK contract recognises
+ * (mirrors the named members of `GeoServicesFieldType` in `src/core/types.ts`; that
  * union is open-ended via `(string & {})`, so there is no runtime enum to
  * import). The live projection check flags any on-the-wire field type outside
  * this set as drift.
  */
-export const VALID_ESRI_FIELD_TYPES: ReadonlySet<string> = new Set<string>([
+export const VALID_GEOSERVICES_FIELD_TYPES: ReadonlySet<string> = new Set<string>([
   "esriFieldTypeString",
   "esriFieldTypeInteger",
   "esriFieldTypeSmallInteger",
@@ -188,9 +188,9 @@ export const VALID_ESRI_FIELD_TYPES: ReadonlySet<string> = new Set<string>([
   "esriFieldTypeXML",
 ]);
 
-/** Map a geospatial.v1 field type to its canonical SDK EsriFieldType. */
-export function canonFieldTypeToEsri(fieldType: string): string {
-  const mapped = CANON_FIELD_TYPE_TO_ESRI[fieldType];
+/** Map a geospatial.v1 field type to its canonical SDK GeoServicesFieldType. */
+export function canonFieldTypeToGeoServices(fieldType: string): string {
+  const mapped = CANON_FIELD_TYPE_TO_GEOSERVICES[fieldType];
   if (!mapped) {
     throw new Error(
       `Unknown geospatial.v1 field type "${fieldType}" in golden fixture. Either the schema added a field type (update mapping.ts) or this is drift.`,
@@ -247,7 +247,7 @@ export interface ExpectedQueryResult {
 export function goldenToExpectedQueryResult(golden: CanonQueryResponse): ExpectedQueryResult {
   const fields: ExpectedField[] = (golden.fields ?? []).map((field) => ({
     name: field.name,
-    esriType: canonFieldTypeToEsri(field.fieldType),
+    esriType: canonFieldTypeToGeoServices(field.fieldType),
     ...(field.nullable !== undefined ? { nullable: field.nullable } : {}),
   }));
   const attributeNames = new Set<string>();

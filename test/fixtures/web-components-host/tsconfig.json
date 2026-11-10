@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "types": ["vite/client"],
+    "paths": {
+      "@honua/sdk-js": ["../../../src/index.ts"],
+      "@honua/sdk-js/controls": ["../../../src/controls/index.ts"],
+      "@honua/sdk-js/runtime": ["../../../src/runtime/index.ts"],
+      "@honua/sdk-js/web-components": ["../../../src/web-components/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "vite.config.ts"]
+}

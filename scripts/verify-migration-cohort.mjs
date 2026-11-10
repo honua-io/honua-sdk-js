@@ -21,6 +21,56 @@ const MIGRATE = "@honua/honua-migrate";
 const CORE = "@honua/sdk";
 const COMPAT = "@honua/sdk-esri-compat";
 const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+// Published @honua/honua-migrate@0.3.0-beta.0 still installs generation 0.2
+// registry packages. The hold is that pin only.
+const MIGRATOR_REGISTRY_GENERATION_HOLD = { pin: "0.3.0-beta.0", generation: "0.2" };
+
+function packageGeneration(version) {
+  return version?.split(".").slice(0, 2).join(".");
+}
+
+function readLockPackage(parts, index) {
+  if (parts[index] !== "node_modules") return undefined;
+  const scopeOrName = parts[index + 1];
+  if (!scopeOrName) return undefined;
+  if (!scopeOrName.startsWith("@")) return { name: scopeOrName, next: index + 2 };
+  const packageName = parts[index + 2];
+  if (!packageName) return undefined;
+  return { name: `${scopeOrName}/${packageName}`, next: index + 3 };
+}
+
+function lockPackageChain(location) {
+  const parts = location.split("/");
+  const chain = [];
+  for (let index = 0; index < parts.length;) {
+    const entry = readLockPackage(parts, index);
+    if (!entry) return undefined;
+    chain.push(entry.name);
+    index = entry.next;
+  }
+  return chain;
+}
+
+function migratorRegistryAncestryAllows(chain, name) {
+  if (chain.at(-1) !== name || chain.includes(SDK)) return false;
+  return chain.slice(0, -1).every((ancestor) =>
+    ancestor === MIGRATE || (name === CORE && ancestor === COMPAT));
+}
+
+function migratorRegistryHoldAllows({ location, name, version, migrateVersion }) {
+  if (migrateVersion !== MIGRATOR_REGISTRY_GENERATION_HOLD.pin) return false;
+  if (name !== CORE && name !== COMPAT) return false;
+  if (packageGeneration(version) !== MIGRATOR_REGISTRY_GENERATION_HOLD.generation) return false;
+  const chain = lockPackageChain(location);
+  return chain !== undefined && migratorRegistryAncestryAllows(chain, name);
+}
+
+export function migratorCompatPackageName(lock) {
+  const dependencies = lock.packages?.[`node_modules/${MIGRATE}`]?.dependencies ?? {};
+  const names = Object.keys(dependencies).filter((name) => name.startsWith("@honua/sdk-"));
+  assert.equal(names.length, 1, "pinned migrator must depend on one compat package");
+  return names[0];
+}
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 
 // Installed registry code needs an ordinary process environment, not the
@@ -83,13 +133,23 @@ export function validateLock(lock, { sdkVersion, migrateVersion, sdkSource }) {
     assert.equal(lock.packages?.[`node_modules/${name}`]?.version, version, `${name} installed version`);
   }
   const generation = sdkVersion.split(".").slice(0, 2).join(".");
+  const compat = migratorCompatPackageName(lock);
   const participating = [];
   for (const [location, entry] of Object.entries(lock.packages ?? {})) {
-    const name = [SDK, MIGRATE, CORE, COMPAT].find((candidate) => location.endsWith(`node_modules/${candidate}`));
+    const name = [SDK, MIGRATE, CORE, compat].find((candidate) => location.endsWith(`node_modules/${candidate}`));
     if (!name) continue;
     assert.ok(!entry.link, `${location} must not be a linked package`);
     if (name !== MIGRATE) {
-      assert.equal(entry.version?.split(".").slice(0, 2).join("."), generation, `${location} incompatible SDK generation`);
+      const sameGeneration = packageGeneration(entry.version) === generation;
+      assert.ok(
+        sameGeneration || migratorRegistryHoldAllows({
+          location,
+          name,
+          version: entry.version,
+          migrateVersion,
+        }),
+        `${location} incompatible SDK generation`,
+      );
     } else {
       assert.equal(entry.version, migrateVersion, `${location} contains a second migrator version`);
     }
@@ -103,7 +163,7 @@ export function validateLock(lock, { sdkVersion, migrateVersion, sdkSource }) {
     assert.match(entry.integrity ?? "", /^sha512-[A-Za-z0-9+/]+={0,2}$/, `${location} integrity`);
     participating.push({ name, location, version: entry.version, resolved: entry.resolved, integrity: entry.integrity, packed });
   }
-  for (const name of [SDK, MIGRATE, CORE, COMPAT]) {
+  for (const name of [SDK, MIGRATE, CORE, compat]) {
     assert.ok(participating.some((item) => item.name === name), `missing ${name} resolution`);
   }
   return participating;
@@ -111,7 +171,8 @@ export function validateLock(lock, { sdkVersion, migrateVersion, sdkSource }) {
 
 // This runs inside the isolated consumer, so all imports and createRequire
 // resolution begin at installed package paths, never at the source checkout.
-const PROBE = `
+function migrationProbe(compatPackageName) {
+  return `
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -137,7 +198,7 @@ function locate(request, name) {
 const migrate = locate(require, '@honua/honua-migrate');
 const fromMigrate = createRequire(path.join(migrate.directory, 'package.json'));
 const core = locate(fromMigrate, '@honua/sdk');
-const compat = locate(fromMigrate, '@honua/sdk-esri-compat');
+const compat = locate(fromMigrate, ${JSON.stringify(compatPackageName)});
 const peer = locate(createRequire(path.join(compat.directory, 'package.json')), '@honua/sdk');
 assert.equal(core.directory, peer.directory, 'compat must consume the same SDK as the migrator');
 assert.equal(core.manifest.version, compat.manifest.version, 'SDK and compat pair');
@@ -150,6 +211,7 @@ process.stdout.write(JSON.stringify({
   }))
 }));
 `;
+}
 
 function run(command, args, { cwd, env }) {
   const options = { cwd, env: command === "npm" ? migrationNpmEnv(env, process.env) : env,
@@ -328,7 +390,7 @@ export async function verifyMigrationCohort(argv) {
     }
     // Authenticate every installed registry artifact before importing its code.
     const probe = path.join(consumer, "probe.mjs");
-    fs.writeFileSync(probe, PROBE);
+    fs.writeFileSync(probe, migrationProbe(migratorCompatPackageName(lock)));
     const identity = run(process.execPath, [probe], options);
     assert.match(identity.stderr, /HONUA_MIGRATION_MOVED/);
     const observed = JSON.parse(identity.stdout);

@@ -32,13 +32,13 @@ const MIN_DESCRIPTION_LENGTH = 40;
 export const PUBLISHED_PACKAGE_RULES = {
   "@honua/sdk-js": {
     manifest: "package.json",
-    keywords: ["arcgis-migration", "ogc-api", "stac", "geocoding"],
-    descriptionTerms: ["arcgis", "ogc api", "maplibre"],
+    keywords: ["geoservices", "ogc-api", "stac", "geocoding"],
+    descriptionTerms: ["geoservices rest", "ogc api", "maplibre"],
   },
   "@honua/mcp-server": {
     manifest: "mcp/package.json",
-    keywords: ["mcp", "model-context-protocol", "arcgis", "ogc-api"],
-    descriptionTerms: ["mcp", "arcgis", "ogc api"],
+    keywords: ["mcp", "model-context-protocol", "geoservices", "ogc-api"],
+    descriptionTerms: ["mcp", "geoservices rest", "ogc api"],
   },
   "create-honua-app": {
     manifest: "packages/create-honua-app/package.json",
@@ -49,17 +49,17 @@ export const PUBLISHED_PACKAGE_RULES = {
 
 // Keep these requirements aligned with the generated package metadata in
 // prepare-split-packages.mjs. They are intentionally package-specific: a
-// geometry package should not claim to be an ArcGIS migration package, while
+// geometry package should not claim to be a migration package, while
 // every split package should remain discoverable as part of the Honua GIS /
 // MapLibre family.
 const SPLIT_PACKAGE_RULES = {
   "@honua/sdk": {
-    keywords: ["arcgis", "ogc-api", "stac", "geocoding"],
-    descriptionTerms: ["arcgis", "ogc api", "stac", "maplibre"],
+    keywords: ["geoservices", "ogc-api", "stac", "geocoding"],
+    descriptionTerms: ["geoservices rest", "ogc api", "stac", "maplibre"],
   },
-  "@honua/sdk-esri-compat": {
-    keywords: ["arcgis-migration", "esri"],
-    descriptionTerms: ["arcgis", "migration", "maplibre"],
+  "@honua/sdk-client-compat": {
+    keywords: ["gis-migration", "compatibility"],
+    descriptionTerms: ["migrating", "maplibre"],
   },
   "@honua/geometry": {
     keywords: ["geometry", "reprojection"],

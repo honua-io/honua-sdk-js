@@ -4,19 +4,19 @@
  * `migration-browser-real-sample.spec.mjs` proves the compat layer's
  * generated behavior is correct by serving `dist/src/**` straight from the
  * repository checkout. That is not proof the bytes a real consumer installs
- * work: the split-package boundary (`@honua/sdk` / `@honua/sdk-esri-compat`,
+ * work: the split-package boundary (`@honua/sdk` / `@honua/sdk-client-compat`,
  * see `scripts/prepare-split-packages.mjs`) rewrites cross-package imports,
  * drops non-exported internals, and changes what actually ships. This spec
  * closes that gap:
  *
- *  1. `npm pack`s `dist/packages/honua-sdk` and `dist/packages/honua-sdk-esri-compat`
+ *  1. `npm pack`s `dist/packages/honua-sdk` and `dist/packages/honua-sdk-client-compat`
  *     and `npm install`s the tarballs into a throwaway consumer — the same
  *     bytes a registry install would deliver, never a directory reference
  *     into this checkout (`docs/oss-arcgis-corpus-post-codemod-build.md`
  *     uses the identical technique for third-party apps).
  *  2. Runs the codemod (`src/migration/codemod.ts`, unmodified, the same
  *     transform every other migration test in this repo shares) over each
- *     fixture with its DEFAULT `compatImportPath` (`@honua/sdk-esri-compat`)
+ *     fixture with its DEFAULT `compatImportPath` (`@honua/sdk-client-compat`)
  *     — real migrated-app output imports the published package by name, not
  *     a repo-relative path.
  *  3. Serves the installed package trees to a real browser with an import
@@ -58,7 +58,7 @@ function getProjectRoot() {
 const PROJECT_ROOT = getProjectRoot();
 const SPLIT_PACKAGE_DIRS = {
   sdk: path.join(PROJECT_ROOT, "dist/packages/honua-sdk"),
-  esriCompat: path.join(PROJECT_ROOT, "dist/packages/honua-sdk-esri-compat"),
+  clientCompat: path.join(PROJECT_ROOT, "dist/packages/honua-sdk-client-compat"),
 };
 
 // Every npm invocation below is `--prefix`-scoped to a throwaway temp
@@ -94,7 +94,7 @@ function packAndInstallSplitPackages(installTempRoot) {
   const tarballTempDir = path.join(installTempRoot, "tarballs");
   fs.mkdirSync(tarballTempDir, { recursive: true });
   const sdkTarball = npmPack(SPLIT_PACKAGE_DIRS.sdk, tarballTempDir);
-  const compatTarball = npmPack(SPLIT_PACKAGE_DIRS.esriCompat, tarballTempDir);
+  const compatTarball = npmPack(SPLIT_PACKAGE_DIRS.clientCompat, tarballTempDir);
 
   const consumerTempDir = path.join(installTempRoot, "consumer");
   fs.mkdirSync(consumerTempDir, { recursive: true });
@@ -123,7 +123,7 @@ function packAndInstallSplitPackages(installTempRoot) {
   const consumerDir = consumerTempDir;
 
   const sdkRoot = path.join(consumerDir, "node_modules", "@honua", "sdk");
-  const compatRoot = path.join(consumerDir, "node_modules", "@honua", "sdk-esri-compat");
+  const compatRoot = path.join(consumerDir, "node_modules", "@honua", "sdk-client-compat");
   const sdkPackageJson = JSON.parse(fs.readFileSync(path.join(sdkRoot, "package.json"), "utf8"));
   const compatPackageJson = JSON.parse(fs.readFileSync(path.join(compatRoot, "package.json"), "utf8"));
   return {
@@ -139,7 +139,7 @@ async function importInstalledCodemod() {
   return import(pathToFileURL(codemodPath).href);
 }
 
-function codemodFixture(runEsriCompatCodemod, fixtureName, fileExtension, tempRoot) {
+function codemodFixture(runClientMigrationCodemod, fixtureName, fileExtension, tempRoot) {
   const fixtureFile = path.join(PROJECT_ROOT, "test", "fixtures", fixtureName, "src", `main.${fileExtension}`);
   const appRoot = path.join(tempRoot, "app");
   const appSrc = path.join(appRoot, "src");
@@ -147,9 +147,9 @@ function codemodFixture(runEsriCompatCodemod, fixtureName, fileExtension, tempRo
   const appMain = path.join(appSrc, `main.${fileExtension}`);
   fs.copyFileSync(fixtureFile, appMain);
 
-  // DEFAULT compatImportPath ("@honua/sdk-esri-compat"): real migrated-app
+  // DEFAULT compatImportPath ("@honua/sdk-client-compat"): real migrated-app
   // output, resolved through the import map below — not a repo URL rewrite.
-  const result = runEsriCompatCodemod({ rootDir: appRoot, write: true });
+  const result = runClientMigrationCodemod({ rootDir: appRoot, write: true });
   const source = fs.readFileSync(appMain, "utf8");
   return { result, source };
 }
@@ -215,7 +215,7 @@ function startServer({ appMainJs, sdkRoot, compatRoot, vendors, importMapTag, se
     const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
     if (serveVendorRequest(requestUrl, res, vendors.outDir)) return;
     if (servePackageTree(requestUrl, res, "/pkg/sdk/", sdkRoot)) return;
-    if (servePackageTree(requestUrl, res, "/pkg/esri-compat/", compatRoot)) return;
+    if (servePackageTree(requestUrl, res, "/pkg/client-compat/", compatRoot)) return;
 
     if (requestUrl.pathname === "/") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -242,7 +242,7 @@ function serverUrl(server) {
   return `http://127.0.0.1:${address.port}`;
 }
 
-let runEsriCompatCodemod;
+let runClientMigrationCodemod;
 let installed;
 let workDir;
 let vendors;
@@ -254,7 +254,7 @@ test.beforeAll(async () => {
       return;
     }
   }
-  ({ runEsriCompatCodemod } = await importInstalledCodemod());
+  ({ runClientMigrationCodemod } = await importInstalledCodemod());
   workDir = fs.mkdtempSync(path.join(os.tmpdir(), "honua-installed-driver-"));
   installed = packAndInstallSplitPackages(workDir);
   vendors = await buildGeometryPeerVendors(PROJECT_ROOT, path.join(workDir, "vendor"));
@@ -267,7 +267,7 @@ test.afterAll(() => {
 async function driveFixture(page, { fixtureName, fileExtension, expectedCallSites, assertResult, featureServer }) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-installed-driver-fixture-"));
   try {
-    const { result: codemodResult, source } = codemodFixture(runEsriCompatCodemod, fixtureName, fileExtension, tempRoot);
+    const { result: codemodResult, source } = codemodFixture(runClientMigrationCodemod, fixtureName, fileExtension, tempRoot);
     expect(codemodResult.filesChanged).toBe(1);
     expect(codemodResult.metrics.totalCodemodScopedCallSites).toBe(expectedCallSites);
     expect(codemodResult.metrics.autoMigratedCallSites).toBe(expectedCallSites);
@@ -278,7 +278,7 @@ async function driveFixture(page, { fixtureName, fileExtension, expectedCallSite
     const importMapTag = `<script type="importmap">${JSON.stringify({
       imports: {
         "@honua/sdk": "/pkg/sdk/index.js",
-        "@honua/sdk-esri-compat": "/pkg/esri-compat/index.js",
+        "@honua/sdk-client-compat": "/pkg/client-compat/index.js",
         ...vendors.imports,
       },
     })}</script>`;
@@ -320,7 +320,7 @@ async function driveFixture(page, { fixtureName, fileExtension, expectedCallSite
 
 test("installed-package: packed tarballs installed the coordinates dist/packages actually built", () => {
   expect(installed.sdkCoordinate.name).toBe("@honua/sdk");
-  expect(installed.compatCoordinate.name).toBe("@honua/sdk-esri-compat");
+  expect(installed.compatCoordinate.name).toBe("@honua/sdk-client-compat");
   expect(installed.sdkCoordinate.version).toMatch(/^\d+\.\d+\.\d+/);
   expect(installed.compatCoordinate.version).toBe(installed.sdkCoordinate.version);
 });

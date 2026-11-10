@@ -23,8 +23,8 @@ import { findLiveProjectionDrift, findQueryResultDrift, formatDriftFindings } fr
 import {
   type CanonQueryRequest,
   type CanonQueryResponse,
-  VALID_ESRI_FIELD_TYPES,
-  canonFieldTypeToEsri,
+  VALID_GEOSERVICES_FIELD_TYPES,
+  canonFieldTypeToGeoServices,
   canonRequestToQuery,
   goldenToExpectedQueryResult,
 } from "./mapping.js";
@@ -83,8 +83,8 @@ describe("canonical temporal field contract", () => {
   }
 
   it("maps DATE and DATE_TIME to their distinct literal SDK field types", () => {
-    expect(canonFieldTypeToEsri("FIELD_TYPE_DATE")).toBe("esriFieldTypeDateOnly");
-    expect(canonFieldTypeToEsri("FIELD_TYPE_DATE_TIME")).toBe("esriFieldTypeDate");
+    expect(canonFieldTypeToGeoServices("FIELD_TYPE_DATE")).toBe("esriFieldTypeDateOnly");
+    expect(canonFieldTypeToGeoServices("FIELD_TYPE_DATE_TIME")).toBe("esriFieldTypeDate");
   });
 
   it("derives literal date-only and date-time expectations from a golden schema", () => {
@@ -94,14 +94,14 @@ describe("canonical temporal field contract", () => {
       { name: "flightDate", esriType: "esriFieldTypeDateOnly" },
       { name: "observedAt", esriType: "esriFieldTypeDate" },
     ]);
-    expect(VALID_ESRI_FIELD_TYPES.has("esriFieldTypeDateOnly")).toBe(true);
+    expect(VALID_GEOSERVICES_FIELD_TYPES.has("esriFieldTypeDateOnly")).toBe(true);
   });
 
   it("accepts date-only and date-time fields through both drift detectors", () => {
     const expected = goldenToExpectedQueryResult(golden);
     const actual = temporalResult();
     expect(findQueryResultDrift(expected, actual)).toEqual([]);
-    expect(findLiveProjectionDrift(expected, actual, VALID_ESRI_FIELD_TYPES)).toEqual([]);
+    expect(findLiveProjectionDrift(expected, actual, VALID_GEOSERVICES_FIELD_TYPES)).toEqual([]);
   });
 
   it.each([
@@ -128,7 +128,7 @@ describe("canonical temporal field contract", () => {
       field.name === "flightDate" ? { ...field, type: "esriFieldTypeFutureTemporal" } : field,
     );
     const queryDrift = findQueryResultDrift(expected, actual);
-    const liveDrift = findLiveProjectionDrift(expected, actual, VALID_ESRI_FIELD_TYPES);
+    const liveDrift = findLiveProjectionDrift(expected, actual, VALID_GEOSERVICES_FIELD_TYPES);
     expect(queryDrift).toHaveLength(1);
     expect(queryDrift[0]?.kind).toBe("field-type");
     expect(liveDrift).toHaveLength(1);
@@ -139,10 +139,10 @@ describe("canonical temporal field contract", () => {
   });
 
   it("rejects an unknown canonical type instead of weakening drift detection", () => {
-    expect(() => canonFieldTypeToEsri("FIELD_TYPE_FUTURE_TEMPORAL")).toThrow(
+    expect(() => canonFieldTypeToGeoServices("FIELD_TYPE_FUTURE_TEMPORAL")).toThrow(
       'Unknown geospatial.v1 field type "FIELD_TYPE_FUTURE_TEMPORAL"',
     );
-    expect(VALID_ESRI_FIELD_TYPES.has("esriFieldTypeFutureTemporal")).toBe(false);
+    expect(VALID_GEOSERVICES_FIELD_TYPES.has("esriFieldTypeFutureTemporal")).toBe(false);
   });
 });
 
@@ -276,7 +276,7 @@ describe("live projection conformance (seed-independent)", () => {
 
   it("reports zero drift for a conformant live Result with different seed names", () => {
     const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
-    const drift = findLiveProjectionDrift(expected, liveResult(), VALID_ESRI_FIELD_TYPES);
+    const drift = findLiveProjectionDrift(expected, liveResult(), VALID_GEOSERVICES_FIELD_TYPES);
     expect(drift, formatDriftFindings("feature_query/live", drift)).toEqual([]);
   });
 
@@ -284,7 +284,7 @@ describe("live projection conformance (seed-independent)", () => {
     const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
     const mutated = liveResult();
     mutated.fields = mutated.fields?.map((f) => (f.name === "area" ? { ...f, type: "esriFieldTypeJsonb" } : f));
-    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_GEOSERVICES_FIELD_TYPES);
     expect(drift.some((d) => d.kind === "field-type")).toBe(true);
   });
 
@@ -293,7 +293,7 @@ describe("live projection conformance (seed-independent)", () => {
     const mutated = liveResult();
     // Golden projects 2 attributes (NAME, AREA); drop the live feature to 1.
     mutated.features = [{ attributes: { objectid: 1 }, geometry: { x: 0, y: 0 } }];
-    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_GEOSERVICES_FIELD_TYPES);
     expect(drift.some((d) => d.kind === "missing-attribute")).toBe(true);
   });
 
@@ -301,7 +301,7 @@ describe("live projection conformance (seed-independent)", () => {
     const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
     const mutated = liveResult();
     mutated.fields = [];
-    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_GEOSERVICES_FIELD_TYPES);
     expect(drift.some((d) => d.kind === "missing-field")).toBe(true);
   });
 
@@ -312,7 +312,7 @@ describe("live projection conformance (seed-independent)", () => {
       { attributes: { objectid: 1, name: "x", area: 1 }, geometry: { x: 1, y: 2 } },
       { attributes: { objectid: 2, name: "y", area: 2 }, geometry: null },
     ];
-    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_GEOSERVICES_FIELD_TYPES);
     expect(drift.filter((d) => d.kind === "geometry")).toEqual([]);
   });
 
@@ -320,7 +320,7 @@ describe("live projection conformance (seed-independent)", () => {
     const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
     const mutated = liveResult();
     mutated.features = [{ attributes: { objectid: 1, name: "x", area: 1 }, geometry: null }];
-    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_GEOSERVICES_FIELD_TYPES);
     expect(drift.some((d) => d.kind === "geometry")).toBe(true);
   });
 });

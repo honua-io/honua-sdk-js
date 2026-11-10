@@ -29,10 +29,10 @@
         },
         "jobs": {
           "type": "object",
-          "required": ["esriMcp", "gpServer", "directAnalysis"],
+          "required": ["geoservicesMcp", "geoservicesGp", "directAnalysis"],
           "properties": {
-            "esriMcp": { "type": "string", "minLength": 1 },
-            "gpServer": { "type": "string", "minLength": 1 },
+            "geoservicesMcp": { "type": "string", "minLength": 1 },
+            "geoservicesGp": { "type": "string", "minLength": 1 },
             "directAnalysis": { "type": "string", "minLength": 1 }
           },
           "additionalProperties": false
@@ -50,7 +50,7 @@
           },
           "additionalProperties": false
         },
-        "gpServerResultNames": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "geoservicesGpResultNames": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
         "artifactId": { "type": "string", "minLength": 1 },
         "studio": { "$ref": "#/$defs/studioFamiliesResource" }
       },

@@ -46,6 +46,7 @@ import {
   BasemapToggleCompat,
   BookmarksCompat,
   ClassBreaksRendererCompat,
+  ClientRequestInterceptorRegistry,
   ColorCompat,
   CompassCompat,
   CompatEventBus,
@@ -53,7 +54,6 @@ import {
   DirectionsCompat,
   DistanceMeasurement2DCompat,
   EditorCompat,
-  EsriRequestInterceptorRegistry,
   ExpandCompat,
   ExtentCompat,
   FeatureCompat,
@@ -108,15 +108,15 @@ import {
   UniqueValueRendererCompat,
   WebMapCompat,
   ZoomCompat,
-  createArcGisTokenInterceptor,
-  createEsriRequestInterceptors,
-  esriConfig,
-  esriRequest,
-  getEsriConfigHonuaInterceptors,
+  clientConfig,
+  clientRequest,
+  createClientRequestInterceptors,
+  createClientTokenInterceptor,
+  getClientConfigHonuaInterceptors,
   identityManager,
   parseMapServiceUrl,
   reactiveUtils,
-  resetEsriConfig,
+  resetClientConfig,
   watch,
   when,
   whenOnce,
@@ -314,13 +314,13 @@ describe("entrypoint modules", () => {
     expect(ScaleBarCompat).toBeTypeOf("function");
     expect(CoordinateConversionCompat).toBeTypeOf("function");
     expect(CompatEventBus).toBeTypeOf("function");
-    expect(createEsriRequestInterceptors).toBeTypeOf("function");
-    expect(createArcGisTokenInterceptor).toBeTypeOf("function");
-    expect(EsriRequestInterceptorRegistry).toBeTypeOf("function");
-    expect(esriConfig).toBeTypeOf("object");
-    expect(esriRequest).toBeTypeOf("function");
-    expect(getEsriConfigHonuaInterceptors).toBeTypeOf("function");
-    expect(resetEsriConfig).toBeTypeOf("function");
+    expect(createClientRequestInterceptors).toBeTypeOf("function");
+    expect(createClientTokenInterceptor).toBeTypeOf("function");
+    expect(ClientRequestInterceptorRegistry).toBeTypeOf("function");
+    expect(clientConfig).toBeTypeOf("object");
+    expect(clientRequest).toBeTypeOf("function");
+    expect(getClientConfigHonuaInterceptors).toBeTypeOf("function");
+    expect(resetClientConfig).toBeTypeOf("function");
     expect(identityManager).toBeTypeOf("object");
     expect(DirectionsCompat).toBeTypeOf("function");
     expect(EditorCompat).toBeTypeOf("function");

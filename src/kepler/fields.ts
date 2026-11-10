@@ -34,7 +34,7 @@ const WGS84_CRS: ReadonlySet<string> = new Set([
  * Explicit Esri/Honua field-type to Kepler field-type table. `undefined` means
  * "no equivalent" — the field is dropped with a recorded loss.
  */
-const ESRI_FIELD_TYPE_TO_KEPLER: Readonly<Record<string, KeplerFieldType | undefined>> = Object.freeze({
+const GEOSERVICES_FIELD_TYPE_TO_KEPLER: Readonly<Record<string, KeplerFieldType | undefined>> = Object.freeze({
   esriFieldTypeString: "string",
   esriFieldTypeInteger: "integer",
   esriFieldTypeSmallInteger: "integer",
@@ -148,8 +148,8 @@ export function keplerField(name: string, type: KeplerFieldType, displayName?: s
 }
 
 /** Map a declared Esri/Honua field type. Returns `undefined` when unsupported. */
-export function keplerTypeForEsriFieldType(type: string): KeplerFieldType | undefined {
-  return ESRI_FIELD_TYPE_TO_KEPLER[type];
+export function keplerTypeForGeoServicesFieldType(type: string): KeplerFieldType | undefined {
+  return GEOSERVICES_FIELD_TYPE_TO_KEPLER[type];
 }
 
 /** Map a declared columnar logical type name. Returns `undefined` when unsupported. */

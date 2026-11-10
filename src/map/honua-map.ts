@@ -12,6 +12,7 @@
  * @module
  */
 
+import { parseFeatureLayerUrl, parseMapServiceUrl } from "../client-compat/url.js";
 import type { HonuaClient } from "../core/client.js";
 import {
   HonuaFeatureLayer,
@@ -21,7 +22,6 @@ import {
 } from "../core/surfaces.js";
 import type { HonuaWms, HonuaWmsLayer } from "../core/wms.js";
 import type { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
-import { parseFeatureLayerUrl, parseMapServiceUrl } from "../esri-compat/url.js";
 import type {
   HonuaLayerSpecification,
   HonuaSourceSpecification,

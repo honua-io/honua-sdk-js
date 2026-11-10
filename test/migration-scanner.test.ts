@@ -319,10 +319,10 @@ describe("scanArcGisUsage", () => {
         'import esriConfig from "esri/config";',
         'import BasemapGallery from "esri/dijit/BasemapGallery";',
         'import FeatureLayer from "esri/layers/FeatureLayer";',
-        'import EsriMap from "esri/map";',
+        'import ExternalWebMap from "esri/map";',
         'import Query from "esri/tasks/query";',
         "const layer = new FeatureLayer({ url: serviceUrl });",
-        "void AGSMouseEvent; void esriConfig; void BasemapGallery; void EsriMap; void Query; void layer;",
+        "void AGSMouseEvent; void esriConfig; void BasemapGallery; void ExternalWebMap; void Query; void layer;",
       ].join("\n"),
       "utf8",
     );

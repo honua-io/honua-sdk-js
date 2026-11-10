@@ -55,7 +55,7 @@ import {
   HONUA_STYLE_COLOR,
   HONUA_STYLE_SIDECAR_URI,
   POINT_CLOUD_POINT_COUNT,
-  buildArcGisMapServerMetadata,
+  buildMapServerMetadata,
   buildHonuaStyleSidecar,
   buildPointCloudPnts,
   buildPointCloudTilesetJson,
@@ -312,7 +312,7 @@ function startFixtureServer() {
   const terrainLayerJson = Buffer.from(JSON.stringify(buildTerrainLayerJson()), "utf8");
   const terrainTile = buildQuantizedMeshTile();
   const imageryTile = buildSolidPng();
-  const arcGisMapServerMetadata = Buffer.from(JSON.stringify(buildArcGisMapServerMetadata()), "utf8");
+  const arcGisMapServerMetadata = Buffer.from(JSON.stringify(buildMapServerMetadata()), "utf8");
   const requestLog = [];
   // Full request URLs, query string included. The imagery-protocol case asserts
   // against these: what the adapter shaped for each protocol is only observable

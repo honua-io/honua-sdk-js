@@ -17,6 +17,19 @@ export const sha256 = (value) => `sha256:${createHash("sha256").update(value).di
 // starts with scheme//host carries neither a username nor a password.
 const credentialFree = (url) => url.href.startsWith(`${url.protocol}//${url.host}`);
 
+// Legacy candidates omit @honua/sdk-client-compat. Release snapshots set
+// releaseInput and keep every current release name.
+const LEGACY_OMITTED_COORDINATES = new Set(["@honua/sdk-client-compat"]);
+
+export function coordinatesForCandidate(releaseCoordinates, candidate) {
+  if (candidate.releaseInput) return releaseCoordinates;
+  return releaseCoordinates.filter((name) => !LEGACY_OMITTED_COORDINATES.has(name));
+}
+
+export function releaseArtifactForCoordinate(artifacts, coordinate) {
+  return artifacts.find((artifact) => artifact.npmName === coordinate);
+}
+
 export function validatePackageSet(candidate, required) {
   const packages = candidate.packages;
   assert.ok(Array.isArray(packages) && packages.length > 0, "candidate package set is missing");
@@ -62,7 +75,7 @@ export function validateInstalledLock(candidate, lock) {
 export async function freezeCertification(candidate, denominator, root) {
   const { errors } = evaluateCertificationDenominator({ frozen: denominator, inputs: loadCertificationDenominatorInputs(root) });
   assert.deepEqual(errors, [], "certification denominator has drifted");
-  validatePackageSet(candidate, denominator.candidatePackages);
+  validatePackageSet(candidate, coordinatesForCandidate(denominator.candidatePackages, candidate));
   assert.ok(denominator.rows.some((row) => row.counts), "empty supported denominator");
   assert.equal(new Set(denominator.rows.map((r) => r.id)).size, denominator.rows.length, "duplicate denominator ID");
   const inputs = {};

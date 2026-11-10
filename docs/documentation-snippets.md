@@ -6,7 +6,7 @@ exactly one `doc-test=compile` or `doc-test=skip` directive. The validator uses
 the repository's strict TypeScript configuration and real built declarations,
 so it checks syntax, assignments, function arguments, static and dynamic
 imports, re-exports, and namespace member access. The equivalent split-package
-imports for React, geometry, Esri compatibility, and migration resolve to the
+imports for React, geometry, client compatibility, and migration resolve to the
 same declarations. CI runs the check after its normal build.
 
 Keep examples syntactically complete even when host-defined values are omitted.

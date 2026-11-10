@@ -35,6 +35,7 @@
  *   MCP tag after SDK publication if the public peer is not yet available.
  */
 
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -101,7 +102,7 @@ export function parseArgs(argv) {
 }
 
 function run(label, args, options = {}) {
-  const result = (options.runNpm ?? runNpmSync)(args, {
+  const result = (options.runCommand ?? options.runNpm ?? runNpmSync)(args, {
     cwd: options.cwd ?? PROJECT_ROOT,
     encoding: "utf8",
     env: options.env ?? process.env,
@@ -206,6 +207,13 @@ export async function verifyPair(argv, { projectRoot = PROJECT_ROOT, runNpm = ru
       mcpName: mcp.name,
       mcpVersion: installedMcp.version,
       peerRange: installedMcp.peerDependencies?.[sdk.name],
+    });
+
+    run("installed MCP module import", ["--input-type=module", "--eval", "await import('@honua/mcp-server');"], {
+      ...runOptions,
+      cwd: consumerRoot,
+      timeout: 30_000,
+      runCommand: (args, options) => spawnSync(process.execPath, args, options),
     });
 
     process.stdout.write(

@@ -60,7 +60,6 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 - [`examples/edit-workflow-demo/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
 - [`examples/geocoding-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
 - [`examples/terrain-rgb-elevation/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/terrain-rgb-elevation/README.md): legacy focused Terrain-RGB proof retained while its public point/profile and 2.5D route converges on the credential-safe Imagery and Terrain journey.
-- [`examples/unified-ops-workspace/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/unified-ops-workspace/README.md): fixture-backed operational workspace shell that composes incident command and analysis review modules over one shared app workspace, linked-view context, realtime state, review drafts, and saved snapshot diagnostics.
 - [`docs/examples/cesium-route-playback/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
@@ -147,7 +146,7 @@ The package provides:
 - identify controller (`IdentifyCompat`) for cross-layer MapServer identify workflows with optional popup auto-open,
 - compat widgets/components (`LayerListCompat`, `LegendCompat`, `PopupCompat`, `SearchCompat`, `BasemapGalleryCompat`, `BookmarksCompat`, `ExpandCompat`, `SketchCompat`, `EditorCompat`, `TrackCompat`, `MeasurementCompat`, `TimeSliderCompat`, `DirectionsCompat`) backed by a shared `CompatEventBus` so widgets/components can subscribe to layer/view changes, including popup feature-selection navigation and search source/result state helpers (default search sources support both ArcGIS `queryFeatures` layers and OGC collection-style `items()` layers),
 - common map controls (`HomeCompat`, `BasemapToggleCompat`, `LocateCompat`, `ScaleBarCompat`, `CompassCompat`, `FullscreenCompat`, `ZoomCompat`, `AttributionCompat`) wired to the same event bus for shared view state updates,
-- request/auth migration bridge helpers (`createEsriRequestInterceptors`, `createArcGisTokenInterceptor`) plus core `HonuaClient` interceptor hooks (`before`/`after`/`error`),
+- request/auth migration bridge helpers (`createClientRequestInterceptors`, `createClientTokenInterceptor`) plus core `HonuaClient` interceptor hooks (`before`/`after`/`error`),
 - URL parsing helpers for ArcGIS FeatureLayer endpoint detection,
 - ArcGIS usage scanner (`scanArcGisUsage`) for migration inventory and risk flags,
 - safe codemod runner (`runEsriCompatCodemod`) for migration-safe constructors across layers, views, widgets, and controls,
@@ -161,7 +160,7 @@ The package provides:
 Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 
 - Honua-first core: `@honua/sdk-js/honua`
-- Esri compat bridge: `@honua/sdk-js/client-compat`
+- Client compatibility bridge: `@honua/sdk-js/client-compat`
 - Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
@@ -380,7 +379,7 @@ npm install @honua/sdk-js
 ## Split package artifacts
 
 The same source tree can also be published as focused packages (`@honua/sdk`,
-`@honua/sdk-esri-compat`, `@honua/react`, `@honua/geometry`, `@honua/app-platform`);
+`@honua/sdk-client-compat`, `@honua/react`, `@honua/geometry`, `@honua/app-platform`);
 see [split-packages.md](split-packages.md). `@honua/honua-migrate` is built from the
 [honua-migrate](https://github.com/honua-io/honua-migrate) repository.
 
@@ -388,12 +387,12 @@ see [split-packages.md](split-packages.md). `@honua/honua-migrate` is built from
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js";
-import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/client-compat";
+import { createClientTokenInterceptor, createClientRequestInterceptors } from "@honua/sdk-js/client-compat";
 
 const client = new HonuaClient({
   baseUrl: "https://example.test",
   interceptors: [
-    ...createEsriRequestInterceptors([
+    ...createClientRequestInterceptors([
       {
         urls: "/rest/services/default",
         before: (params) => {
@@ -404,7 +403,7 @@ const client = new HonuaClient({
         },
       },
     ]),
-    createArcGisTokenInterceptor({
+    createClientTokenInterceptor({
       applyTo: "/rest/services/default",
       mode: "query",
       getToken: async () => "arcgis-token-value",
@@ -829,7 +828,7 @@ const slider = new TimeSliderCompat({
 // Connect slider to layer — time extent changes auto-filter queries
 const connection = slider.connectLayer(layer);
 
-// Esri compatibility APIs retain raw ArcGIS SQL during migration.
+// Compatibility APIs retain raw ArcGIS SQL during migration.
 // Queries now include the time parameter automatically.
 const features = await layer.queryFeatures({ where: "1=1" });
 
@@ -1006,9 +1005,9 @@ The codemod is intentionally conservative:
   - `new TimeSlider(...)` -> `new TimeSliderCompat(...)`
   - `new Directions(...)` -> `new DirectionsCompat(...)`
 - alternate target (`--target esri-leaflet`) rewrites deterministic subset plus broad compat fallbacks:
-  - `new FeatureLayer({ ... })` -> `HonuaEsriLeaflet.featureLayer({ ... })`
-  - `new MapImageLayer({ ... })` -> `HonuaEsriLeaflet.dynamicMapLayer({ ... })`
-  - `new TileLayer({ ... })` -> `HonuaEsriLeaflet.tiledMapLayer({ ... })`
+  - `new FeatureLayer({ ... })` -> `HonuaThirdPartyMapAdapter.featureLayer({ ... })`
+  - `new MapImageLayer({ ... })` -> `HonuaThirdPartyMapAdapter.dynamicMapLayer({ ... })`
+  - `new TileLayer({ ... })` -> `HonuaThirdPartyMapAdapter.tiledMapLayer({ ... })`
   - `new Map({ ... })` -> `new MapCompat({ ... })`
   - `new MapView({ ... })` -> `new MapViewCompat({ ... })`
   - `new SceneView({ ... })` -> `new SceneViewCompat({ ... })`
@@ -1017,8 +1016,8 @@ The codemod is intentionally conservative:
   - `new Popup({ ... })` -> `new PopupCompat({ ... })`
   - `new Search({ ... })` -> `new SearchCompat({ ... })`
   - `new Home/BasemapToggle/Locate/ScaleBar/BasemapGallery/Expand/Compass/Bookmarks/Fullscreen/Zoom/Attribution(...)` -> corresponding `*Compat` constructor
-  - dynamic imports for those modules -> `Promise.resolve({ default: HonuaEsriLeaflet.* })`
-  - dynamic imports for compat fallback modules -> `import("@honua/sdk-esri-compat").then((m) => ({ default: m.*Compat }))`
+  - dynamic imports for those modules -> `Promise.resolve({ default: HonuaThirdPartyMapAdapter.* })`
+  - dynamic imports for compat fallback modules -> `import("@honua/sdk-client-compat").then((m) => ({ default: m.*Compat }))`
   - advanced 3D-only modules (for example `Slice` and external-renderer style APIs) are emitted as manual TODO/report entries
 - `--target esri-leaflet` is for ArcGIS JS (`@arcgis/core`) inputs; existing Esri Leaflet apps generally do not need codemod migration
 - it rewrites supported dynamic imports to compat bridge expressions when safe (for example SceneView dynamic import),
@@ -1035,7 +1034,7 @@ The codemod is intentionally conservative:
   - `--max-manual-ratio <0..1>`
   - `--max-manual-intervention-ratio <0..1>`
 - CLI summary includes:
-  - per-type migration counts as `byKind=feature-layer:auto/manual/total,graphic:auto/manual/total,point-geometry:auto/manual/total,polyline-geometry:auto/manual/total,polygon-geometry:auto/manual/total,extent-geometry:auto/manual/total,spatial-reference:auto/manual/total,color:auto/manual/total,simple-line-symbol:auto/manual/total,simple-marker-symbol:auto/manual/total,picture-marker-symbol:auto/manual/total,text-symbol:auto/manual/total,label-class:auto/manual/total,simple-fill-symbol:auto/manual/total,class-breaks-renderer:auto/manual/total,simple-renderer:auto/manual/total,unique-value-renderer:auto/manual/total,...,route-layer:auto/manual/total,layer-list:auto/manual/total,legend-widget:auto/manual/total,popup-widget:auto/manual/total,home-widget:auto/manual/total,basemap-toggle-widget:auto/manual/total,locate-widget:auto/manual/total,scale-bar-widget:auto/manual/total,search-widget:auto/manual/total,basemap-gallery-widget:auto/manual/total,bookmarks-widget:auto/manual/total,expand-widget:auto/manual/total,compass-widget:auto/manual/total,fullscreen-widget:auto/manual/total,zoom-widget:auto/manual/total,attribution-widget:auto/manual/total,sketch-widget:auto/manual/total,editor-widget:auto/manual/total,track-widget:auto/manual/total,measurement-widget:auto/manual/total,time-slider-widget:auto/manual/total,directions-widget:auto/manual/total,query:auto/manual/total,feature-set:auto/manual/total,oauth-info:auto/manual/total,identity-manager:auto/manual/total,esri-request:auto/manual/total,esri-config:auto/manual/total,reactive-utils:auto/manual/total`,
+  - per-type migration counts as `byKind=feature-layer:auto/manual/total,graphic:auto/manual/total,point-geometry:auto/manual/total,polyline-geometry:auto/manual/total,polygon-geometry:auto/manual/total,extent-geometry:auto/manual/total,spatial-reference:auto/manual/total,color:auto/manual/total,simple-line-symbol:auto/manual/total,simple-marker-symbol:auto/manual/total,picture-marker-symbol:auto/manual/total,text-symbol:auto/manual/total,label-class:auto/manual/total,simple-fill-symbol:auto/manual/total,class-breaks-renderer:auto/manual/total,simple-renderer:auto/manual/total,unique-value-renderer:auto/manual/total,...,route-layer:auto/manual/total,layer-list:auto/manual/total,legend-widget:auto/manual/total,popup-widget:auto/manual/total,home-widget:auto/manual/total,basemap-toggle-widget:auto/manual/total,locate-widget:auto/manual/total,scale-bar-widget:auto/manual/total,search-widget:auto/manual/total,basemap-gallery-widget:auto/manual/total,bookmarks-widget:auto/manual/total,expand-widget:auto/manual/total,compass-widget:auto/manual/total,fullscreen-widget:auto/manual/total,zoom-widget:auto/manual/total,attribution-widget:auto/manual/total,sketch-widget:auto/manual/total,editor-widget:auto/manual/total,track-widget:auto/manual/total,measurement-widget:auto/manual/total,time-slider-widget:auto/manual/total,directions-widget:auto/manual/total,query:auto/manual/total,feature-set:auto/manual/total,oauth-info:auto/manual/total,identity-manager:auto/manual/total,client-request:auto/manual/total,client-config:auto/manual/total,reactive-utils:auto/manual/total`,
   - grouped manual reasons,
   - unhandled ArcGIS module inventory (with `static-import` / `dynamic-import` / `require` usage style),
   - scanner flags include module-shape and risk hints (for example `commonjs-detected`, `scene-3d-detected`, `dynamic-import-detected`),

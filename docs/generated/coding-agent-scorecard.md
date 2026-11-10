@@ -15,7 +15,7 @@ Methodology: [docs/coding-agent-evals.md](../coding-agent-evals.md).
 | capability-error | errors | pass | pass | pass | PASS |
 | cli-count | cli | pass | pass | pass | PASS |
 | connect-auto-count | connect-query | pass | pass | pass | PASS |
-| esri-compat-featurelayer | migration | pass | pass | pass | PASS |
+| client-compat-featurelayer | migration | pass | pass | pass | PASS |
 | featureserver-count | connect-query | pass | pass | pass | PASS |
 | featureserver-where-query | connect-query | pass | pass | pass | PASS |
 | geocode-address | geocoding | pass | pass | pass | PASS |

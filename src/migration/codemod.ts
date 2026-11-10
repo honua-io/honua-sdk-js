@@ -4,13 +4,13 @@ import ts from "typescript";
 import { type WebMapMapLibreManualGap, webmapJsonToMapLibreStyle } from "../map/webmap-maplibre.js";
 import type { WebMapJson } from "../webmap/types.js";
 import { readAmdDependencies, readImportEqualsBinding } from "./loader-bindings.js";
-import { canonicalArcGisModulePath, isArcGisModuleSpecifier } from "./module-specifiers.js";
+import { canonicalClientModulePath, isArcGisModuleSpecifier } from "./module-specifiers.js";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
-const DEFAULT_COMPAT_IMPORT_PATH = "@honua/sdk-esri-compat";
-const ESRI_LEAFLET_IMPORT_PATH = "esri-leaflet";
-const ESRI_LEAFLET_NAMESPACE = "HonuaEsriLeaflet";
+const DEFAULT_COMPAT_IMPORT_PATH = "@honua/sdk-client-compat";
+const THIRD_PARTY_MAP_IMPORT_PATH = "esri-leaflet";
+const THIRD_PARTY_MAP_NAMESPACE = "HonuaThirdPartyMapAdapter";
 const HONUA_MAP_IMPORT_PATH = "@honua/sdk-js/map";
 const MAPLIBRE_IMPORT_PATH = "maplibre-gl";
 const MAPLIBRE_NAMESPACE = "maplibregl";
@@ -21,9 +21,9 @@ const AMD_DEPENDENCY_MANUAL_REASON =
   "AMD dependency-array module (define/require) constructors are not auto-migrated; convert the module to ESM imports and rerun.";
 const IMPORT_EQUALS_MANUAL_REASON =
   "TypeScript import-equals module (import X = require(...)) constructors are not auto-migrated; convert it to an ESM import and rerun.";
-const ESRI_LEAFLET_UNSUPPORTED_CONSTRUCTOR_REASON =
+const THIRD_PARTY_MAP_UNSUPPORTED_CONSTRUCTOR_REASON =
   "No deterministic esri-leaflet mapping for this constructor; requires manual migration.";
-const ESRI_LEAFLET_UNSUPPORTED_DYNAMIC_IMPORT_REASON =
+const THIRD_PARTY_MAP_UNSUPPORTED_DYNAMIC_IMPORT_REASON =
   "Dynamic import has no deterministic esri-leaflet mapping; requires manual migration.";
 const HONUA_MAPLIBRE_UNSUPPORTED_CONSTRUCTOR_REASON =
   "No deterministic Honua MapLibre mapping for this constructor; requires manual migration.";
@@ -36,10 +36,10 @@ const HONUA_MAPLIBRE_WEBMAP_DYNAMIC_REASON =
 const HONUA_MAPLIBRE_WEBMAP_UNSUPPORTED_SHAPE_REASON =
   "WebMap constructor argument is not a static WebMap JSON literal; requires manual migration.";
 const REACTIVE_UTILS_IMPORT_UNSUPPORTED_REASON = "ReactiveUtils import shape is unsupported for automatic migration.";
-const ESRI_CONFIG_IMPORT_UNSUPPORTED_REASON = "esriConfig import shape is unsupported for automatic migration.";
+const CLIENT_CONFIG_IMPORT_UNSUPPORTED_REASON = "esriConfig import shape is unsupported for automatic migration.";
 const IDENTITY_MANAGER_IMPORT_UNSUPPORTED_REASON =
   "IdentityManager import shape is unsupported for automatic migration.";
-const ESRI_REQUEST_IMPORT_UNSUPPORTED_REASON = "esriRequest import shape is unsupported for automatic migration.";
+const CLIENT_REQUEST_IMPORT_UNSUPPORTED_REASON = "esriRequest import shape is unsupported for automatic migration.";
 const GEOMETRY_ENGINE_IMPORT_UNSUPPORTED_REASON =
   "geometryEngine import shape is unsupported for automatic migration (expected a default or namespace import).";
 // `@arcgis/core/rest/locator` module (function) form, rewritten import-first to
@@ -94,7 +94,7 @@ const REACTIVE_UTILS_WATCH_ACCESSOR_REASON =
  */
 const SEAM_VALUE_DEPTH_LIMIT = 4;
 
-function compatToArcGisSeamReason(compatSymbol: string, seam: CompatToArcGisSeam): string {
+function clientMigrationSeamReason(compatSymbol: string, seam: ClientMigrationSeam): string {
   const verb = seam.flow === "argument" ? "is passed to" : "is assigned into";
   const handoff = `${seam.consumerLocalName} from ${seam.consumerModulePath}`;
   const scope = "which stays on @arcgis/core because it is outside codemod scope";
@@ -126,7 +126,11 @@ const ARCGIS_TO_COMPAT_EVENT_REMAP: Readonly<Record<string, string>> = Object.fr
   refresh: "refreshed",
 });
 
-const ESRI_LEAFLET_NATIVE_KINDS = new Set<CodemodConstructorKind>(["feature-layer", "map-image-layer", "tile-layer"]);
+const THIRD_PARTY_MAP_NATIVE_KINDS = new Set<CodemodConstructorKind>([
+  "feature-layer",
+  "map-image-layer",
+  "tile-layer",
+]);
 const HONUA_MAPLIBRE_NATIVE_KINDS = new Set<CodemodConstructorKind>([
   "feature-layer",
   "map-image-layer",
@@ -134,7 +138,7 @@ const HONUA_MAPLIBRE_NATIVE_KINDS = new Set<CodemodConstructorKind>([
   "map",
   "map-view",
 ]);
-const ESRI_LEAFLET_COMPAT_FALLBACK_KINDS = new Set<CodemodConstructorKind>([
+const THIRD_PARTY_MAP_COMPAT_FALLBACK_KINDS = new Set<CodemodConstructorKind>([
   "graphic",
   "point-geometry",
   "polyline-geometry",
@@ -199,8 +203,8 @@ const ESRI_LEAFLET_COMPAT_FALLBACK_KINDS = new Set<CodemodConstructorKind>([
   "query",
   "oauth-info",
   "identity-manager",
-  "esri-request",
-  "esri-config",
+  "client-request",
+  "client-config",
   "reactive-utils",
   "feature-filter",
   "feature-effect",
@@ -282,8 +286,8 @@ export type CodemodConstructorKind =
   | "query"
   | "oauth-info"
   | "identity-manager"
-  | "esri-request"
-  | "esri-config"
+  | "client-request"
+  | "client-config"
   | "reactive-utils"
   | "feature-filter"
   | "feature-effect"
@@ -426,7 +430,7 @@ const REWRITE_SPECS: readonly ConstructorRewriteSpec[] = [
     // `@arcgis/core/tasks/Locator` is the class form; `@arcgis/core/rest/locator`
     // is the 4.22+ function module and is rewritten import-first by
     // `rewriteLocatorRestImports` (issue #956). The bare AMD ids `esri/tasks/Locator`
-    // and `esri/rest/locator` resolve here through `canonicalArcGisModulePath`
+    // and `esri/rest/locator` resolve here through `canonicalClientModulePath`
     // (#980). The 3.x `esri/tasks/locator` deliberately does not: it canonicalizes
     // to a path no entry claims and stays reported as an unhandled module, because
     // its API is not the 4.x one this shim mirrors.
@@ -664,13 +668,13 @@ const REWRITE_SPECS: readonly ConstructorRewriteSpec[] = [
     arcGisModules: new Set(["@arcgis/core/identity/IdentityManager", "@arcgis/core/identity/IdentityManager.js"]),
   },
   {
-    kind: "esri-request",
-    compatSymbol: "esriRequest",
+    kind: "client-request",
+    compatSymbol: "clientRequest",
     arcGisModules: new Set(["@arcgis/core/request", "@arcgis/core/request.js"]),
   },
   {
-    kind: "esri-config",
-    compatSymbol: "esriConfig",
+    kind: "client-config",
+    compatSymbol: "clientConfig",
     arcGisModules: new Set(["@arcgis/core/config", "@arcgis/core/config.js"]),
   },
   {
@@ -733,7 +737,7 @@ const REWRITE_SPECS: readonly ConstructorRewriteSpec[] = [
 
 const TARGET_SUPPORTED_KINDS: Readonly<Record<CodemodTarget, ReadonlySet<CodemodConstructorKind>>> = Object.freeze({
   "honua-compat": new Set(REWRITE_SPECS.map((spec) => spec.kind)),
-  "esri-leaflet": new Set([...ESRI_LEAFLET_NATIVE_KINDS, ...ESRI_LEAFLET_COMPAT_FALLBACK_KINDS]),
+  "esri-leaflet": new Set([...THIRD_PARTY_MAP_NATIVE_KINDS, ...THIRD_PARTY_MAP_COMPAT_FALLBACK_KINDS]),
   "honua-maplibre": HONUA_MAPLIBRE_NATIVE_KINDS,
 });
 
@@ -756,14 +760,14 @@ export function isKindSupportedForTarget(kind: CodemodConstructorKind, target: C
 }
 
 export function isSupportedArcGisBarrelModulePath(modulePath: string): boolean {
-  return ARCGIS_BARREL_KIND_BY_PATH[canonicalArcGisModulePath(modulePath)] !== undefined;
+  return ARCGIS_BARREL_KIND_BY_PATH[canonicalClientModulePath(modulePath)] !== undefined;
 }
 
 export function resolveArcGisBarrelImportKind(
   modulePath: string,
   importedName: string,
 ): CodemodConstructorKind | undefined {
-  const bySymbol = ARCGIS_BARREL_KIND_BY_PATH[canonicalArcGisModulePath(modulePath)];
+  const bySymbol = ARCGIS_BARREL_KIND_BY_PATH[canonicalClientModulePath(modulePath)];
   return bySymbol?.[importedName];
 }
 
@@ -773,7 +777,7 @@ interface TextEdit {
   text: string;
 }
 
-interface ArcGisImportBinding {
+interface SourceApiImportBinding {
   kind: CodemodConstructorKind;
   localName: string;
   importStyle: "identifier" | "namespace-default";
@@ -835,7 +839,7 @@ export interface CodemodFileResult {
   manualTodos: MigrationTodo[];
 }
 
-export interface EsriCompatCodemodResult {
+export interface ClientMigrationCodemodResult {
   rootDir: string;
   target: CodemodTarget;
   filesScanned: number;
@@ -846,7 +850,7 @@ export interface EsriCompatCodemodResult {
   errors?: CodemodFileError[];
 }
 
-export interface EsriCompatCodemodOptions {
+export interface ClientMigrationCodemodOptions {
   rootDir: string;
   write?: boolean;
   compatImportPath?: string;
@@ -860,11 +864,11 @@ export interface CodemodFileError {
   message: string;
 }
 
-export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCompatCodemodResult {
+export function runClientMigrationCodemod(options: ClientMigrationCodemodOptions): ClientMigrationCodemodResult {
   const rootDir = path.resolve(options.rootDir);
   const files = collectSourceFiles(rootDir);
   const sourceFilesSet = new Set(files.map((file) => path.resolve(file)));
-  const localArcGisReExports = buildLocalArcGisReExportIndex(files, sourceFilesSet);
+  const localArcGisReExports = buildLocalServiceReExportIndex(files, sourceFilesSet);
   const compatImportPath = options.compatImportPath ?? DEFAULT_COMPAT_IMPORT_PATH;
   const annotateTodos = options.annotateTodos ?? false;
   const target = options.target ?? "honua-compat";
@@ -1043,18 +1047,18 @@ function codemodFile(
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const imports = collectSupportedImports(sourceFile, file, localArcGisReExports, sourceFilesSet);
 
-  const importsByLocalName = new Map<string, ArcGisImportBinding>();
+  const importsByLocalName = new Map<string, SourceApiImportBinding>();
   for (const importBinding of imports) {
     if (!importsByLocalName.has(importBinding.localName)) {
       importsByLocalName.set(importBinding.localName, importBinding);
     }
   }
   const shadowedImportLocalNames = collectShadowedImportLocalNames(sourceFile, new Set(importsByLocalName.keys()));
-  const compatToArcGisSeams = detectCompatToArcGisSeams({
+  const clientMigrationSeams = detectClientMigrationSeams({
     sourceFile,
     importsByLocalName,
     shadowedImportLocalNames,
-    unmigratedConsumers: collectUnmigratedArcGisConsumerBindings(sourceFile),
+    unmigratedConsumers: collectUnmigratedClientBindings(sourceFile),
   });
   const identifierMemberUsage = buildIdentifierMemberUsageIndex(sourceFile);
   const trackedReceiverKeys = collectTrackedCompatReceiverKeys(sourceFile, importsByLocalName);
@@ -1073,7 +1077,7 @@ function codemodFile(
   const requiresEsriLeafletImport = { value: false };
   const requiresMapLibreImport = { value: false };
   const esriLeafletNamespaceAlias =
-    findNamespaceImportAlias(sourceFile, ESRI_LEAFLET_IMPORT_PATH) ?? ESRI_LEAFLET_NAMESPACE;
+    findNamespaceImportAlias(sourceFile, THIRD_PARTY_MAP_IMPORT_PATH) ?? THIRD_PARTY_MAP_NAMESPACE;
   const mapLibreNamespaceAlias = findNamespaceImportAlias(sourceFile, MAPLIBRE_IMPORT_PATH) ?? MAPLIBRE_NAMESPACE;
   const fileExtension = path.extname(file).toLowerCase();
   const isCommonJsModule = fileExtension === ".cjs" || hasCommonJsExportMarkers(source);
@@ -1230,7 +1234,7 @@ function codemodFile(
           return;
         }
 
-        const targetExpression = buildEsriLeafletDynamicImportExpression(spec.kind, esriLeafletNamespaceAlias);
+        const targetExpression = buildThirdPartyMapDynamicImportExpression(spec.kind, esriLeafletNamespaceAlias);
         if (targetExpression) {
           dynamicImportEdits.push({
             start: node.getStart(sourceFile),
@@ -1261,7 +1265,7 @@ function codemodFile(
           file,
           line: location.line + 1,
           column: location.character + 1,
-          reason: ESRI_LEAFLET_UNSUPPORTED_DYNAMIC_IMPORT_REASON,
+          reason: THIRD_PARTY_MAP_UNSUPPORTED_DYNAMIC_IMPORT_REASON,
           difficulty: "complex",
         });
         if (annotateTodos) {
@@ -1270,7 +1274,7 @@ function codemodFile(
             todoCommentEdits.push({
               start: lineStart,
               end: lineStart,
-              text: `// ${TODO_MARKER}[${spec.kind}]: ${ESRI_LEAFLET_UNSUPPORTED_DYNAMIC_IMPORT_REASON}\n`,
+              text: `// ${TODO_MARKER}[${spec.kind}]: ${THIRD_PARTY_MAP_UNSUPPORTED_DYNAMIC_IMPORT_REASON}\n`,
             });
           }
         }
@@ -1386,11 +1390,11 @@ function codemodFile(
     // compat value in an un-migrated ArcGIS consumer's hands — a seam that
     // does not typecheck and that the readiness report would have scored as a
     // clean auto-migration. Hold the rewrite back and name both sides (#1012).
-    const seam = compatToArcGisSeams.get(node.getStart(sourceFile));
+    const seam = clientMigrationSeams.get(node.getStart(sourceFile));
     if (seam) {
       const nodeStart = node.getStart(sourceFile);
       const location = sourceFile.getLineAndCharacterOfPosition(nodeStart);
-      const reason = compatToArcGisSeamReason(specForKind(importBinding.kind).compatSymbol, seam);
+      const reason = clientMigrationSeamReason(specForKind(importBinding.kind).compatSymbol, seam);
       manualTodos.push({
         kind: importBinding.kind,
         file,
@@ -1584,7 +1588,7 @@ function codemodFile(
         return;
       }
 
-      const replacement = buildEsriLeafletConstructorExpression(
+      const replacement = buildThirdPartyMapConstructorExpression(
         importBinding.kind,
         node,
         sourceFile,
@@ -1620,7 +1624,7 @@ function codemodFile(
         file,
         line: location.line + 1,
         column: location.character + 1,
-        reason: ESRI_LEAFLET_UNSUPPORTED_CONSTRUCTOR_REASON,
+        reason: THIRD_PARTY_MAP_UNSUPPORTED_CONSTRUCTOR_REASON,
         difficulty: "complex",
       });
       if (annotateTodos) {
@@ -1629,7 +1633,7 @@ function codemodFile(
           todoCommentEdits.push({
             start: lineStart,
             end: lineStart,
-            text: `// ${TODO_MARKER}[${importBinding.kind}]: ${ESRI_LEAFLET_UNSUPPORTED_CONSTRUCTOR_REASON}\n`,
+            text: `// ${TODO_MARKER}[${importBinding.kind}]: ${THIRD_PARTY_MAP_UNSUPPORTED_CONSTRUCTOR_REASON}\n`,
           });
         }
       }
@@ -1713,7 +1717,7 @@ function codemodFile(
     const esriLeafletImportResult = ensureNamespaceImport(
       file,
       transformed,
-      ESRI_LEAFLET_IMPORT_PATH,
+      THIRD_PARTY_MAP_IMPORT_PATH,
       esriLeafletNamespaceAlias,
     );
     transformed = esriLeafletImportResult.nextSource;
@@ -1773,7 +1777,7 @@ function pushImportManualTodo(
   }
 }
 
-interface LoaderBoundArcGisBinding {
+interface LoaderBoundClientApiBinding {
   kind: CodemodConstructorKind;
   reason: string;
 }
@@ -1786,8 +1790,8 @@ interface LoaderBoundArcGisBinding {
  * here by construction — they are reported by the scanner as unhandled modules
  * instead of being mapped onto a 4.x construct they are not.
  */
-function collectLoaderBoundArcGisBindings(sourceFile: ts.SourceFile): Map<string, LoaderBoundArcGisBinding> {
-  const bindings = new Map<string, LoaderBoundArcGisBinding>();
+function collectLoaderBoundClientBindings(sourceFile: ts.SourceFile): Map<string, LoaderBoundClientApiBinding> {
+  const bindings = new Map<string, LoaderBoundClientApiBinding>();
 
   walk(sourceFile, (node) => {
     const importEquals = readImportEqualsBinding(node);
@@ -1825,11 +1829,11 @@ function flagLoaderBoundConstructors(options: {
   sourceFile: ts.SourceFile;
   file: string;
   annotateTodos: boolean;
-  importsByLocalName: ReadonlyMap<string, ArcGisImportBinding>;
+  importsByLocalName: ReadonlyMap<string, SourceApiImportBinding>;
   manualTodos: MigrationTodo[];
   todoCommentEdits: TextEdit[];
 }): void {
-  const bindings = collectLoaderBoundArcGisBindings(options.sourceFile);
+  const bindings = collectLoaderBoundClientBindings(options.sourceFile);
   if (bindings.size === 0) {
     return;
   }
@@ -2075,7 +2079,7 @@ function rewriteLocatorRestImports(options: {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
       continue;
     }
-    if (canonicalArcGisModulePath(statement.moduleSpecifier.text) !== ARCGIS_REST_LOCATOR_MODULE) {
+    if (canonicalClientModulePath(statement.moduleSpecifier.text) !== ARCGIS_REST_LOCATOR_MODULE) {
       continue;
     }
 
@@ -2309,7 +2313,7 @@ function rewriteEsriRequestImports(options: {
     if (!statement.importClause) {
       continue;
     }
-    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "esri-request") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "client-request") {
       continue;
     }
 
@@ -2317,7 +2321,7 @@ function rewriteEsriRequestImports(options: {
       pushImportManualTodo(
         options,
         statement,
-        "esri-request",
+        "client-request",
         HONUA_MAPLIBRE_UNSUPPORTED_IMPORT_REASON,
         manualTodos,
         todoCommentEdits,
@@ -2325,16 +2329,16 @@ function rewriteEsriRequestImports(options: {
       continue;
     }
 
-    const replacement = buildEsriRequestCompatImport(statement, options.compatImportPath);
+    const replacement = buildClientRequestCompatImport(statement, options.compatImportPath);
     if (!replacement) {
       const nodeStart = statement.getStart(options.sourceFile);
       const location = options.sourceFile.getLineAndCharacterOfPosition(nodeStart);
       manualTodos.push({
-        kind: "esri-request",
+        kind: "client-request",
         file: options.file,
         line: location.line + 1,
         column: location.character + 1,
-        reason: ESRI_REQUEST_IMPORT_UNSUPPORTED_REASON,
+        reason: CLIENT_REQUEST_IMPORT_UNSUPPORTED_REASON,
         difficulty: "complex",
       });
 
@@ -2344,7 +2348,7 @@ function rewriteEsriRequestImports(options: {
           todoCommentEdits.push({
             start: lineStart,
             end: lineStart,
-            text: `// ${TODO_MARKER}[esri-request]: ${ESRI_REQUEST_IMPORT_UNSUPPORTED_REASON}\n`,
+            text: `// ${TODO_MARKER}[client-request]: ${CLIENT_REQUEST_IMPORT_UNSUPPORTED_REASON}\n`,
           });
         }
       }
@@ -2356,7 +2360,7 @@ function rewriteEsriRequestImports(options: {
       end: statement.getEnd(),
       text: replacement,
     });
-    rewrittenKinds.push("esri-request");
+    rewrittenKinds.push("client-request");
   }
 
   return {
@@ -2367,7 +2371,8 @@ function rewriteEsriRequestImports(options: {
   };
 }
 
-function buildEsriRequestCompatImport(statement: ts.ImportDeclaration, compatImportPath: string): string | undefined {
+function buildClientRequestCompatImport(statement: ts.ImportDeclaration, compatImportPath: string): string | undefined {
+  const compatSymbol = specForKind("client-request").compatSymbol;
   const importClause = statement.importClause;
   if (!importClause) {
     return undefined;
@@ -2375,18 +2380,18 @@ function buildEsriRequestCompatImport(statement: ts.ImportDeclaration, compatImp
 
   const specifiers: string[] = [];
   if (importClause.name) {
-    specifiers.push(renderImportSpecifier("esriRequest", importClause.name.text));
+    specifiers.push(renderImportSpecifier(compatSymbol, importClause.name.text));
   }
 
   const namedBindings = importClause.namedBindings;
   if (namedBindings && ts.isNamespaceImport(namedBindings)) {
-    specifiers.push(renderImportSpecifier("esriRequest", namedBindings.name.text));
+    specifiers.push(renderImportSpecifier(compatSymbol, namedBindings.name.text));
   } else if (namedBindings && ts.isNamedImports(namedBindings)) {
     for (const element of namedBindings.elements) {
       const importedName = element.propertyName?.text ?? element.name.text;
       const localName = element.name.text;
-      if (importedName === "default" || importedName === "esriRequest") {
-        specifiers.push(renderImportSpecifier("esriRequest", localName));
+      if (importedName === "default" || importedName === compatSymbol) {
+        specifiers.push(renderImportSpecifier(compatSymbol, localName));
         continue;
       }
       return undefined;
@@ -2395,7 +2400,7 @@ function buildEsriRequestCompatImport(statement: ts.ImportDeclaration, compatImp
 
   const uniqueSpecifiers = Array.from(new Set(specifiers));
   if (uniqueSpecifiers.length === 0) {
-    uniqueSpecifiers.push("esriRequest");
+    uniqueSpecifiers.push(compatSymbol);
   }
 
   return `import { ${uniqueSpecifiers.join(", ")} } from "${compatImportPath}";`;
@@ -2546,7 +2551,7 @@ function rewriteEsriConfigImports(options: {
     if (!statement.importClause) {
       continue;
     }
-    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "esri-config") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "client-config") {
       continue;
     }
 
@@ -2554,7 +2559,7 @@ function rewriteEsriConfigImports(options: {
       pushImportManualTodo(
         options,
         statement,
-        "esri-config",
+        "client-config",
         HONUA_MAPLIBRE_UNSUPPORTED_IMPORT_REASON,
         manualTodos,
         todoCommentEdits,
@@ -2562,16 +2567,16 @@ function rewriteEsriConfigImports(options: {
       continue;
     }
 
-    const replacement = buildEsriConfigCompatImport(statement, options.compatImportPath);
+    const replacement = buildClientConfigCompatImport(statement, options.compatImportPath);
     if (!replacement) {
       const nodeStart = statement.getStart(options.sourceFile);
       const location = options.sourceFile.getLineAndCharacterOfPosition(nodeStart);
       manualTodos.push({
-        kind: "esri-config",
+        kind: "client-config",
         file: options.file,
         line: location.line + 1,
         column: location.character + 1,
-        reason: ESRI_CONFIG_IMPORT_UNSUPPORTED_REASON,
+        reason: CLIENT_CONFIG_IMPORT_UNSUPPORTED_REASON,
         difficulty: "complex",
       });
 
@@ -2581,7 +2586,7 @@ function rewriteEsriConfigImports(options: {
           todoCommentEdits.push({
             start: lineStart,
             end: lineStart,
-            text: `// ${TODO_MARKER}[esri-config]: ${ESRI_CONFIG_IMPORT_UNSUPPORTED_REASON}\n`,
+            text: `// ${TODO_MARKER}[client-config]: ${CLIENT_CONFIG_IMPORT_UNSUPPORTED_REASON}\n`,
           });
         }
       }
@@ -2593,7 +2598,7 @@ function rewriteEsriConfigImports(options: {
       end: statement.getEnd(),
       text: replacement,
     });
-    rewrittenKinds.push("esri-config");
+    rewrittenKinds.push("client-config");
   }
 
   return {
@@ -2604,7 +2609,8 @@ function rewriteEsriConfigImports(options: {
   };
 }
 
-function buildEsriConfigCompatImport(statement: ts.ImportDeclaration, compatImportPath: string): string | undefined {
+function buildClientConfigCompatImport(statement: ts.ImportDeclaration, compatImportPath: string): string | undefined {
+  const compatSymbol = specForKind("client-config").compatSymbol;
   const importClause = statement.importClause;
   if (!importClause) {
     return undefined;
@@ -2612,21 +2618,21 @@ function buildEsriConfigCompatImport(statement: ts.ImportDeclaration, compatImpo
 
   const specifiers: string[] = [];
   if (importClause.name) {
-    specifiers.push(renderImportSpecifier("esriConfig", importClause.name.text));
+    specifiers.push(renderImportSpecifier(compatSymbol, importClause.name.text));
   }
 
   const namedBindings = importClause.namedBindings;
   if (namedBindings && ts.isNamespaceImport(namedBindings)) {
-    specifiers.push(renderImportSpecifier("esriConfig", namedBindings.name.text));
+    specifiers.push(renderImportSpecifier(compatSymbol, namedBindings.name.text));
   } else if (namedBindings && ts.isNamedImports(namedBindings)) {
     for (const element of namedBindings.elements) {
       const importedName = element.propertyName?.text ?? element.name.text;
       const localName = element.name.text;
-      if (importedName === "default" || importedName === "esriConfig") {
-        specifiers.push(renderImportSpecifier("esriConfig", localName));
+      if (importedName === "default" || importedName === compatSymbol) {
+        specifiers.push(renderImportSpecifier(compatSymbol, localName));
         continue;
       }
-      if (importedName === "resetEsriConfig" || importedName === "getEsriConfigHonuaInterceptors") {
+      if (importedName === "resetClientConfig" || importedName === "getClientConfigHonuaInterceptors") {
         specifiers.push(renderImportSpecifier(importedName, localName));
         continue;
       }
@@ -2637,7 +2643,7 @@ function buildEsriConfigCompatImport(statement: ts.ImportDeclaration, compatImpo
 
   const uniqueSpecifiers = Array.from(new Set(specifiers));
   if (uniqueSpecifiers.length === 0) {
-    uniqueSpecifiers.push("esriConfig");
+    uniqueSpecifiers.push(compatSymbol);
   }
 
   return `import { ${uniqueSpecifiers.join(", ")} } from "${compatImportPath}";`;
@@ -2717,7 +2723,7 @@ function buildBarrelKindLookup(
 
   for (const spec of specs) {
     for (const rawModulePath of spec.arcGisModules) {
-      const modulePath = canonicalArcGisModulePath(rawModulePath);
+      const modulePath = canonicalClientModulePath(rawModulePath);
       const slashIndex = modulePath.lastIndexOf("/");
       if (slashIndex < "@arcgis/core/".length) {
         continue;
@@ -2754,7 +2760,7 @@ function buildBarrelKindLookup(
  * second module table.
  */
 function specForModulePath(modulePath: string): ConstructorRewriteSpec | undefined {
-  return MODULE_TO_SPEC.get(modulePath) ?? MODULE_TO_SPEC.get(canonicalArcGisModulePath(modulePath));
+  return MODULE_TO_SPEC.get(modulePath) ?? MODULE_TO_SPEC.get(canonicalClientModulePath(modulePath));
 }
 
 /** Codemod kind a module specifier maps to, in any supported specifier family. */
@@ -2766,7 +2772,7 @@ function resolveArcGisImportKindFromModule(
   modulePath: string,
   importedName: string,
 ): CodemodConstructorKind | undefined {
-  const normalizedModulePath = canonicalArcGisModulePath(modulePath);
+  const normalizedModulePath = canonicalClientModulePath(modulePath);
   const spec = specForModulePath(modulePath);
   if (spec) {
     if (importedName === "default") {
@@ -2783,7 +2789,7 @@ function resolveArcGisImportKindFromModule(
 }
 
 function resolveArcGisExportAllKinds(modulePath: string): ReadonlyArray<readonly [string, CodemodConstructorKind]> {
-  const normalizedModulePath = canonicalArcGisModulePath(modulePath);
+  const normalizedModulePath = canonicalClientModulePath(modulePath);
   const spec = specForModulePath(modulePath);
   if (spec) {
     const inferredSymbol = normalizedModulePath.slice(normalizedModulePath.lastIndexOf("/") + 1);
@@ -2833,7 +2839,7 @@ function resolveLocalModulePath(
   return undefined;
 }
 
-function buildLocalArcGisReExportIndex(
+function buildLocalServiceReExportIndex(
   files: readonly string[],
   sourceFilesSet: ReadonlySet<string>,
 ): ReadonlyMap<string, Readonly<Record<string, CodemodConstructorKind>>> {
@@ -3057,8 +3063,8 @@ function createEmptyByKindMetrics(): CodemodMetricsByKind {
     query: { total: 0, autoMigrated: 0, manual: 0 },
     "oauth-info": { total: 0, autoMigrated: 0, manual: 0 },
     "identity-manager": { total: 0, autoMigrated: 0, manual: 0 },
-    "esri-request": { total: 0, autoMigrated: 0, manual: 0 },
-    "esri-config": { total: 0, autoMigrated: 0, manual: 0 },
+    "client-request": { total: 0, autoMigrated: 0, manual: 0 },
+    "client-config": { total: 0, autoMigrated: 0, manual: 0 },
     "reactive-utils": { total: 0, autoMigrated: 0, manual: 0 },
     "feature-filter": { total: 0, autoMigrated: 0, manual: 0 },
     "feature-effect": { total: 0, autoMigrated: 0, manual: 0 },
@@ -3076,8 +3082,8 @@ function collectSupportedImports(
   file: string,
   localArcGisReExports: ReadonlyMap<string, Readonly<Record<string, CodemodConstructorKind>>>,
   sourceFilesSet: ReadonlySet<string>,
-): ArcGisImportBinding[] {
-  const result: ArcGisImportBinding[] = [];
+): SourceApiImportBinding[] {
+  const result: SourceApiImportBinding[] = [];
 
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
@@ -3085,7 +3091,7 @@ function collectSupportedImports(
     }
 
     const modulePath = statement.moduleSpecifier.text;
-    const normalizedModulePath = canonicalArcGisModulePath(modulePath);
+    const normalizedModulePath = canonicalClientModulePath(modulePath);
     const spec = specForModulePath(modulePath);
 
     const importClause = statement.importClause;
@@ -3281,7 +3287,7 @@ function isArcGisRequireBindingIdentifier(node: ts.Identifier): boolean {
  * A value handoff from a construct the codemod migrates into an ArcGIS module
  * it does not (#1012).
  */
-export interface CompatToArcGisSeam {
+export interface ClientMigrationSeam {
   /** Local name (or `namespace.member`) of the un-migrated ArcGIS consumer. */
   consumerLocalName: string;
   /** Module specifier of that consumer, exactly as the file wrote it. */
@@ -3290,7 +3296,7 @@ export interface CompatToArcGisSeam {
   flow: "argument" | "property-assignment";
 }
 
-interface UnmigratedArcGisConsumer {
+interface UnmigratedClientApiConsumer {
   localName: string;
   modulePath: string;
 }
@@ -3304,7 +3310,7 @@ interface UnmigratedArcGisConsumer {
  * to a `CodemodConstructorKind` are excluded — those get migrated too, so
  * there is no seam.
  */
-function collectUnmigratedArcGisConsumerBindings(sourceFile: ts.SourceFile): Map<string, string> {
+function collectUnmigratedClientBindings(sourceFile: ts.SourceFile): Map<string, string> {
   const bindings = new Map<string, string>();
   const register = (localName: string, modulePath: string): void => {
     if (!bindings.has(localName)) {
@@ -3341,7 +3347,7 @@ function collectUnmigratedArcGisConsumerBindings(sourceFile: ts.SourceFile): Map
         register(namedBindings.name.text, modulePath);
         continue;
       }
-      const normalizedModulePath = canonicalArcGisModulePath(modulePath);
+      const normalizedModulePath = canonicalClientModulePath(modulePath);
       for (const element of namedBindings.elements) {
         if (element.isTypeOnly) {
           continue;
@@ -3518,7 +3524,7 @@ function collectSeamReturnExpressions(
 function resolveUnmigratedArcGisConsumer(
   expression: ts.Expression,
   unmigratedConsumers: ReadonlyMap<string, string>,
-): UnmigratedArcGisConsumer | undefined {
+): UnmigratedClientApiConsumer | undefined {
   if (ts.isIdentifier(expression)) {
     const modulePath = unmigratedConsumers.get(expression.text);
     return modulePath ? { localName: expression.text, modulePath } : undefined;
@@ -3546,14 +3552,14 @@ function resolveUnmigratedArcGisConsumer(
  * Its bias is precision: a value it cannot follow is not a seam, so a missed
  * seam degrades to today's behavior rather than to a spurious manual TODO.
  */
-function detectCompatToArcGisSeams(options: {
+function detectClientMigrationSeams(options: {
   sourceFile: ts.SourceFile;
-  importsByLocalName: ReadonlyMap<string, ArcGisImportBinding>;
+  importsByLocalName: ReadonlyMap<string, SourceApiImportBinding>;
   shadowedImportLocalNames: ReadonlySet<string>;
   unmigratedConsumers: ReadonlyMap<string, string>;
-}): Map<number, CompatToArcGisSeam> {
+}): Map<number, ClientMigrationSeam> {
   const { sourceFile, importsByLocalName, shadowedImportLocalNames, unmigratedConsumers } = options;
-  const seams = new Map<number, CompatToArcGisSeam>();
+  const seams = new Map<number, ClientMigrationSeam>();
   if (unmigratedConsumers.size === 0 || importsByLocalName.size === 0) {
     return seams;
   }
@@ -3561,7 +3567,7 @@ function detectCompatToArcGisSeams(options: {
   const producerStarts = new Set<number>();
   const variableInitializers: Array<{ name: string; expression: ts.Expression }> = [];
   const returnExpressionsByFunction = new Map<string, ts.Expression[]>();
-  const consumerInstances = new Map<string, UnmigratedArcGisConsumer>();
+  const consumerInstances = new Map<string, UnmigratedClientApiConsumer>();
 
   walk(sourceFile, (node) => {
     if (ts.isNewExpression(node)) {
@@ -3648,7 +3654,7 @@ function detectCompatToArcGisSeams(options: {
     record(context.producerStartsByVariable, entry.name, found);
   }
 
-  const recordSeam = (expression: ts.Expression, seam: CompatToArcGisSeam): void => {
+  const recordSeam = (expression: ts.Expression, seam: ClientMigrationSeam): void => {
     const found = new Set<number>();
     resolveSeamValueProducers(expression, context, 0, found);
     for (const start of found) {
@@ -3703,8 +3709,8 @@ function detectCompatToArcGisSeams(options: {
 function resolveConstructorRewriteTarget(
   expression: ts.Expression,
   sourceFile: ts.SourceFile,
-  importsByLocalName: ReadonlyMap<string, ArcGisImportBinding>,
-): { binding: ArcGisImportBinding; start: number; end: number } | undefined {
+  importsByLocalName: ReadonlyMap<string, SourceApiImportBinding>,
+): { binding: SourceApiImportBinding; start: number; end: number } | undefined {
   if (ts.isIdentifier(expression)) {
     const binding = importsByLocalName.get(expression.text);
     if (!binding || binding.importStyle !== "identifier") {
@@ -3995,7 +4001,7 @@ function buildCompatDynamicImportExpression(compatImportPath: string, compatSymb
   return `import("${compatImportPath}").then((m) => ({ default: m.${compatSymbol} }))`;
 }
 
-function buildEsriLeafletConstructorExpression(
+function buildThirdPartyMapConstructorExpression(
   kind: CodemodConstructorKind,
   node: ts.NewExpression,
   sourceFile: ts.SourceFile,
@@ -4010,7 +4016,7 @@ function buildEsriLeafletConstructorExpression(
   return `${namespaceAlias}.${method}(${argsText})`;
 }
 
-function buildEsriLeafletDynamicImportExpression(
+function buildThirdPartyMapDynamicImportExpression(
   kind: CodemodConstructorKind,
   namespaceAlias: string,
 ): string | undefined {
@@ -4238,7 +4244,7 @@ function evaluateExpressionAsJson(node: ts.Expression): { ok: true; value: unkno
 }
 
 function esriLeafletMethodForKind(kind: CodemodConstructorKind): string | undefined {
-  if (!ESRI_LEAFLET_NATIVE_KINDS.has(kind)) {
+  if (!THIRD_PARTY_MAP_NATIVE_KINDS.has(kind)) {
     return undefined;
   }
 
@@ -4255,7 +4261,7 @@ function esriLeafletMethodForKind(kind: CodemodConstructorKind): string | undefi
 }
 
 function esriLeafletCompatFallbackSymbolForKind(kind: CodemodConstructorKind): string | undefined {
-  if (!ESRI_LEAFLET_COMPAT_FALLBACK_KINDS.has(kind)) {
+  if (!THIRD_PARTY_MAP_COMPAT_FALLBACK_KINDS.has(kind)) {
     return undefined;
   }
   return specForKind(kind).compatSymbol;
@@ -4267,7 +4273,7 @@ function resolveEsriLeafletForcedCompatFallbackSymbol(
   sourceFile: ts.SourceFile,
   usageIndex: Map<string, Set<string>>,
 ): string | undefined {
-  if (!ESRI_LEAFLET_NATIVE_KINDS.has(kind)) {
+  if (!THIRD_PARTY_MAP_NATIVE_KINDS.has(kind)) {
     return undefined;
   }
 
@@ -4462,7 +4468,7 @@ function receiverKeyForExpression(expression: ts.Expression): string | undefined
  */
 function collectTrackedCompatReceiverKeys(
   sourceFile: ts.SourceFile,
-  importsByLocalName: ReadonlyMap<string, ArcGisImportBinding>,
+  importsByLocalName: ReadonlyMap<string, SourceApiImportBinding>,
 ): Set<string> {
   const keys = new Set<string>();
 
@@ -5153,12 +5159,12 @@ function isSafeConstructorCall(
         ok: false,
         reason: "IdentityManager is not a constructor and requires import-based migration.",
       };
-    case "esri-request":
+    case "client-request":
       return {
         ok: false,
         reason: "esriRequest is not a constructor and requires import-based migration.",
       };
-    case "esri-config":
+    case "client-config":
       return {
         ok: false,
         reason: "esriConfig is not a constructor and requires import-based migration.",
@@ -8319,7 +8325,7 @@ const QUERY_STATISTIC_TYPES: ReadonlySet<string> = new Set(["count", "sum", "min
 
 /**
  * Maps an ArcGIS `geometry.type` discriminator to the Honua-side
- * `EsriGeometryType` field value (which mirrors the Esri REST API).
+ * `GeoServicesGeometryType` field value (which mirrors the Esri REST API).
  */
 const QUERY_GEOMETRY_TYPE_MAP: Readonly<Record<string, string>> = {
   point: "esriGeometryPoint",

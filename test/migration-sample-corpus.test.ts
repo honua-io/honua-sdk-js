@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzeEsriSampleFixture,
-  classifyArcGisServiceUrl,
+  classifyServiceUrl,
   extractEsriSampleReferences,
   findArcGisServiceUrls,
   loadEsriSampleCorpusManifest,
@@ -101,7 +101,7 @@ describe("Esri sample migration corpus", () => {
 
   it("classifies ArcGIS service URLs without retaining query strings", () => {
     expect(
-      classifyArcGisServiceUrl(
+      classifyServiceUrl(
         "https://example.com/arcgis/rest/services/Hosted/Parcels/MapServer/2?f=json&token=not-retained",
       ),
     ).toEqual({
@@ -126,7 +126,7 @@ describe("Esri sample migration corpus", () => {
 
   it("classifies NAServer URLs with the network-analyst sub-service name folded into servicePath", () => {
     expect(
-      classifyArcGisServiceUrl("https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World"),
+      classifyServiceUrl("https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World"),
     ).toEqual({
       url: "https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World",
       normalizedUrl: "https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World",
@@ -197,11 +197,11 @@ describe("Esri sample migration corpus", () => {
       expect(elapsedMs).toBeLessThan(1000);
     });
 
-    it("classifyArcGisServiceUrl trims a long run of trailing punctuation in linear time", () => {
+    it("classifyServiceUrl trims a long run of trailing punctuation in linear time", () => {
       const adversarial = `https://example.com/arcgis/rest/services/Hosted/Parcels/FeatureServer/3${")".repeat(200_000)}`;
 
       const start = performance.now();
-      const service = classifyArcGisServiceUrl(adversarial);
+      const service = classifyServiceUrl(adversarial);
       const elapsedMs = performance.now() - start;
 
       expect(service.normalizedUrl).toBe("https://example.com/arcgis/rest/services/Hosted/Parcels/FeatureServer/3");

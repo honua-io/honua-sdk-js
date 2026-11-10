@@ -167,7 +167,7 @@ import {
   PopupCompat,
   ZoomCompat,
   registerHonuaWidgetKit,
-} from "/esri-compat-entry.js";
+} from "/client-compat-entry.js";
 
 registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
 
@@ -360,7 +360,7 @@ import {
   MapCompat,
   MapViewCompat,
   registerHonuaWidgetKit,
-} from "/esri-compat-entry.js";
+} from "/client-compat-entry.js";
 
 registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
 
@@ -402,7 +402,7 @@ import {
   MapCompat,
   MapViewCompat,
   registerHonuaWidgetKit,
-} from "/esri-compat-entry.js";
+} from "/client-compat-entry.js";
 
 registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
 
@@ -442,7 +442,7 @@ import {
   MapCompat,
   MapViewCompat,
   registerHonuaWidgetKit,
-} from "/esri-compat-entry.js";
+} from "/client-compat-entry.js";
 
 registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
 
@@ -473,7 +473,7 @@ import {
   MapCompat,
   MapViewCompat,
   registerHonuaWidgetKit,
-} from "/esri-compat-entry.js";
+} from "/client-compat-entry.js";
 
 registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
 

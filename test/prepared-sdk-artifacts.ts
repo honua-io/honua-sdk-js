@@ -14,8 +14,8 @@ export function getPreparedMigrationCliPath(): string {
   return getPreparedSdkArtifact(path.join("dist", "src", "migration", "cli.js"));
 }
 
-export function getPreparedEsriCompatEntryPath(): string {
-  return getPreparedSdkArtifact(path.join("dist", "src", "esri-compat-entry.js"));
+export function getPreparedClientCompatEntryPath(): string {
+  return getPreparedSdkArtifact(path.join("dist", "src", "client-compat-entry.js"));
 }
 
 export function getPreparedHonuaEntryPath(): string {

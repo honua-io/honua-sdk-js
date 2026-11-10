@@ -1605,7 +1605,7 @@ export function geometryToWkt(geometry: Record<string, unknown>, geometryType: s
     if (!Array.isArray(rings) || rings.length === 0) {
       throw new Error("odata: polygon spatialFilter has no rings");
     }
-    const parts = groupEsriPolygonRings(rings).map(
+    const parts = groupGeoServicesPolygonRings(rings).map(
       (part) =>
         `(${part
           .map((ring) => `(${ring.map((pt) => wktPoint(pt as ArrayLike<unknown>, "polygon.ring")).join(", ")})`)
@@ -1627,7 +1627,7 @@ export function geometryToWkt(geometry: Record<string, unknown>, geometryType: s
 }
 
 /** Group clockwise Esri exteriors and assign counter-clockwise holes by containment, independent of order. */
-export function groupEsriPolygonRings(rings: unknown[][][]): unknown[][][][] {
+export function groupGeoServicesPolygonRings(rings: unknown[][][]): unknown[][][][] {
   const parts: unknown[][][][] = [];
   const outerAreas: number[] = [];
   const holes: Array<{ ring: unknown[][]; area: number }> = [];

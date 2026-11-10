@@ -19,15 +19,12 @@ name: SDK Verification
 #   browser (matrix)   one job per owned browser failure domain
 #   verified           the single aggregate result a reviewer reads
 #
-# ROLLOUT. This graph is deliberately NOT authoritative yet (NFR-004): ci.yml
-# remains the required check while shadow runs accumulate. `vars.HONUA_SDK_VERIFICATION_MODE`
-# is the switch and the rollback: `off` skips the graph entirely without editing
-# a workflow file, `shadow` (the default) runs it alongside ci.yml, and
-# `authoritative` is set only once parity and cost thresholds pass -- at which
-# point ci.yml's `JS SDK` and `MCP SDK` jobs are retired in their own pull
-# request, not silently bypassed by this one. Nothing here removes, weakens, or
-# skips a gate that ci.yml enforces today; test/scripts/sdk-verification-workflow.test.mjs
-# fails if it ever does.
+# ROLLOUT. HONUA_SDK_VERIFICATION_MODE defaults to shadow, running this graph
+# beside the legacy jobs. In authoritative mode the graph runs and ordinary
+# PR/push events skip those jobs; manual dispatch retains them.
+# Setting shadow restores the legacy jobs before their required contexts are
+# restored. Off skips the graph, so it requires the legacy contexts first.
+# The workflow contract test preserves the complete verification inventory.
 #
 # NOT REUSED, ON PURPOSE. `quickstart-budget` measures clean-install time to a
 # first usable map. Handing it a prebuilt SDK would measure something else, so
@@ -202,7 +199,7 @@ jobs:
         run: npm ci
 
       - name: Test verification graph policy
-        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/unit-test-shards.test.mjs
+        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/unit-test-shards.test.mjs
 
       - name: Test SDK publication workflow execution
         run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
@@ -222,7 +219,7 @@ jobs:
     name: Quickstart budget (clean install)
     needs: admission
     if: needs.admission.outputs.enabled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Worst-case OS-dependency provisioning (3 x 300 s + backoff) plus the
     # five-minute clock and setup; see the workflow test that derives it.
     timeout-minutes: 25
@@ -248,34 +245,7 @@ jobs:
       - name: Provision Playwright operating-system dependencies
         shell: bash
         run: |
-          set -euo pipefail
-          version="$(node -p 'require("./package-lock.json").packages["node_modules/playwright"].version')"
-          # Playwright only plans the install; apt runs here under a timeout that
-          # root owns and that signals apt's whole process group. A timeout
-          # around Playwright's own installer killed npx alone and orphaned its root
-          # apt-get, which kept the dpkg lock so every retry failed at once.
-          plan="$(npx --yes "playwright@${version}" install-deps --dry-run chromium)"
-          packages="$(sed -n 's/.*apt-get install -y --no-install-recommends \([^"]*\)".*/\1/p' <<<"$plan")"
-          if [ -z "$packages" ]; then
-            echo "::error::Could not read Playwright ${version}'s OS dependency list"
-            echo "$plan"
-            exit 1
-          fi
-          # Abandon a connection idle for 30 s and retry that file, instead of
-          # waiting on a stalled mirror transfer.
-          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=30)
-          for attempt in 1 2 3; do
-            # shellcheck disable=SC2086 # $packages is a space-separated package list
-            if sudo timeout --kill-after=10s 60s apt-get "${apt_options[@]}" update \
-              && sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 210s apt-get "${apt_options[@]}" install -y --no-install-recommends $packages; then
-              exit 0
-            fi
-            echo "::warning::Playwright OS dependency provisioning attempt ${attempt} failed; retrying"
-            sudo dpkg --configure -a || true
-            sleep $((attempt * 15))
-          done
-          echo "::error::Playwright OS dependencies could not be provisioned from the runner's apt mirror"
-          exit 1
+          scripts/ci/provision-playwright-deps.sh
 
       # The enforceable five-minute clock includes npm ci, browser
       # provisioning, the fixture build, and the first usable map. It measures
@@ -722,7 +692,9 @@ jobs:
       # inherited it. Split apart, the pilots failed with "Executable doesn't
       # exist at .../chrome-headless-shell".
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: |
+          scripts/ci/provision-playwright-deps.sh
+          npx playwright install chromium
 
       - name: Verify packed SDK migration cohort with default npm resolution
         run: npm run verify:migration-cohort:prepared
@@ -905,7 +877,7 @@ jobs:
     name: Browser (${{ matrix.shard }})
     needs: [admission, build]
     if: needs.admission.outputs.enabled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       # One failed domain must not cancel the other three: the whole point is
@@ -940,7 +912,9 @@ jobs:
         run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: |
+          scripts/ci/provision-playwright-deps.sh
+          npx playwright install chromium
 
       # coverages-wcs-basic.spec.mjs serves the built example through
       # `vite preview`, so an unbuilt example 404s its own assets and the spec

@@ -1,5 +1,5 @@
 import { HonuaGeometryError } from "./errors.js";
-import type { EsriGeometryType, EsriSpatialRel, HonuaSpatialReference } from "./types.js";
+import type { GeoServicesGeometryType, GeoServicesSpatialRel, HonuaSpatialReference } from "./types.js";
 
 /**
  * A spatial filter fragment that can be spread into a `QueryFeaturesRequest`
@@ -7,8 +7,8 @@ import type { EsriGeometryType, EsriSpatialRel, HonuaSpatialReference } from "./
  */
 export interface SpatialFilter {
   geometry: Record<string, unknown>;
-  geometryType: EsriGeometryType;
-  spatialRel?: EsriSpatialRel;
+  geometryType: GeoServicesGeometryType;
+  spatialRel?: GeoServicesSpatialRel;
 }
 
 /**
@@ -187,7 +187,7 @@ export function spatialWithin(geometry: Record<string, unknown>): SpatialFilter 
  * @see https://developers.arcgis.com/rest/services-reference/enterprise/geometry-objects/
  * @internal
  */
-function detectGeometryType(geometry: unknown): EsriGeometryType {
+function detectGeometryType(geometry: unknown): GeoServicesGeometryType {
   if (!isGeometryRecord(geometry)) {
     throw new HonuaGeometryError(
       "malformed-geometry",

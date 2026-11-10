@@ -103,22 +103,30 @@ export function renderSkillsBlock(skills, journey) {
     "",
     "Every skill declares the release it was written for and the zero-to-map journey",
     "stage(s) it serves. `npm run verify:skills` fails when a skill drifts from the",
-    "release, cites a tool or file that does not exist, pins a package version this",
-    "repository does not publish, or leaves a journey stage with no skill.",
+    "release, cites a tool or file that does not exist, or pins a package version this",
+    "repository does not publish.",
     "",
     "### Terminal-journey skills",
     "",
-    "| Skill | Stage(s) | Use it when |",
-    "| --- | --- | --- |",
   ];
-  for (const skill of terminal) {
-    const stages = skill.stages.map((stage) => `\`${stage}\``).join(", ");
-    lines.push(`| [\`${skill.name}\`](./${skill.dir}/SKILL.md) | ${stages} | ${useItWhen(skill.description)} |`);
+  if (terminal.length === 0) {
+    lines.push("None.");
+  } else {
+    lines.push("| Skill | Stage(s) | Use it when |", "| --- | --- | --- |");
+    for (const skill of terminal) {
+      const stages = skill.stages.map((stage) => `\`${stage}\``).join(", ");
+      lines.push(`| [\`${skill.name}\`](./${skill.dir}/SKILL.md) | ${stages} | ${useItWhen(skill.description)} |`);
+    }
   }
 
-  lines.push("", "### Supporting skills", "", "| Skill | Use it when |", "| --- | --- |");
-  for (const skill of supporting) {
-    lines.push(`| [\`${skill.name}\`](./${skill.dir}/SKILL.md) | ${useItWhen(skill.description)} |`);
+  lines.push("", "### Supporting skills", "");
+  if (supporting.length === 0) {
+    lines.push("None.");
+  } else {
+    lines.push("| Skill | Use it when |", "| --- | --- |");
+    for (const skill of supporting) {
+      lines.push(`| [\`${skill.name}\`](./${skill.dir}/SKILL.md) | ${useItWhen(skill.description)} |`);
+    }
   }
 
   lines.push(
@@ -126,8 +134,8 @@ export function renderSkillsBlock(skills, journey) {
     `### ${journey.release} terminal-stage coverage`,
     "",
     "Stages come from [`mcp/release/zero-to-map/journey.v1.json`](../mcp/release/zero-to-map/journey.v1.json)",
-    "(see [the journey overview](../docs/zero-to-map-release-journey.md)). A stage with",
-    "no skill fails `npm run verify:skills`.",
+    "(see [the journey overview](../docs/zero-to-map-release-journey.md)). A stage",
+    "with no skill is **none**.",
     "",
     "| # | Stage | Skill(s) |",
     "| --- | --- | --- |",

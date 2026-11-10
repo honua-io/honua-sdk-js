@@ -26,7 +26,7 @@
 
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
-import type { EsriGeometryType, EsriSpatialRel } from "../core/types.js";
+import type { GeoServicesGeometryType, GeoServicesSpatialRel } from "../core/types.js";
 
 // ── AST ───────────────────────────────────────────────────────
 
@@ -98,7 +98,7 @@ export type QueryFilterSpatialPredicate =
 /** Canonical geometry operand: the value the spatial-filter builders emit. */
 export interface QueryFilterGeometryOperand {
   readonly geometry: Record<string, unknown>;
-  readonly geometryType: EsriGeometryType;
+  readonly geometryType: GeoServicesGeometryType;
 }
 
 export interface QueryFilterSpatialNode {
@@ -785,7 +785,7 @@ export interface CompiledSql92Filter {
 }
 
 /** Esri spatial relationships the canonical predicates map onto. @internal */
-export const GEOSERVICES_SPATIAL_REL: Record<QueryFilterSpatialPredicate, EsriSpatialRel | undefined> = {
+export const GEOSERVICES_SPATIAL_REL: Record<QueryFilterSpatialPredicate, GeoServicesSpatialRel | undefined> = {
   intersects: "esriSpatialRelIntersects",
   contains: "esriSpatialRelContains",
   within: "esriSpatialRelWithin",

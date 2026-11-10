@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "source": "samples/catalog.v1.json",
   "target": "samples/catalog.v2.json",
-  "targetRelease": "0.3.0",
+  "targetRelease": "0.4.0",
   "configuration": {
     "browserSecretPolicy": "Approved browser configuration may name public endpoints and asset identifiers but never credential values or signed URLs; observed legacy-unsafe names remain inventoried.",
     "credentialQueryParameters": [
@@ -218,15 +218,6 @@
         ]
       }
     },
-    "app-bootstrap-basic": {
-      "expectedDegradation": "Compatibility APIs are retained through 0.2.x and removed when the package advances to 0.3.0.",
-      "track": "lab",
-      "validationProfile": "browser-lab",
-      "replacement": {
-        "kind": "external",
-        "id": "honua-app-platform"
-      }
-    },
     "geoservices-source-app": {
       "track": "fixture",
       "validationProfile": "internal-fixture"
@@ -236,7 +227,7 @@
       "validationProfile": "browser-recipe",
       "lifecycle": {
         "state": "replace",
-        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow."
+        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Not reached in this release; the 0.3.0 scope was the rename and removal."
       },
       "replacement": {
         "kind": "journey",
@@ -290,6 +281,10 @@
       },
       "live": {
         "mode": "authenticated"
+      },
+      "lifecycle": {
+        "reason": "Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "state": "merge"
       }
     },
     "imagery-cog-quickstart": {
@@ -334,7 +329,7 @@
           "npm run evidence:cog:live"
         ],
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-12-03T22:28:51.185Z"
+        "expiresAt": "2026-12-10T08:15:43.937Z"
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "validation": [
@@ -360,12 +355,16 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-12-03T22:27:09.389Z"
+        "expiresAt": "2026-12-10T08:14:00.103Z"
       }
     },
     "mcp-gis-assistant": {
       "track": "lab",
-      "validationProfile": "browser-lab"
+      "validationProfile": "browser-lab",
+      "lifecycle": {
+        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "state": "rework"
+      }
     },
     "migration-workbench": {
       "track": "golden",
@@ -393,7 +392,7 @@
           "npm run evidence:migration-workbench:live"
         ],
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-12-03T22:29:10.895Z"
+        "expiresAt": "2026-12-10T08:16:03.136Z"
       }
     },
     "nl-map-control": {
@@ -529,6 +528,10 @@
       "replacement": {
         "kind": "journey",
         "id": "service-explorer"
+      },
+      "lifecycle": {
+        "reason": "Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "state": "replace"
       }
     },
     "service-explorer": {
@@ -543,7 +546,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-12-03T22:30:05.846Z"
+        "expiresAt": "2026-12-10T08:17:00.254Z"
       },
       "validation": [
         "npm run demo:service-explorer:typecheck",
@@ -587,6 +590,10 @@
         "status": "skipped",
         "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
         "expiresAt": "2026-12-31T14:03:45.765Z"
+      },
+      "lifecycle": {
+        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "state": "rework"
       }
     },
     "stac-imagery-browser": {
@@ -622,6 +629,10 @@
       "configuration": {
         "status": "legacy-unsafe",
         "gap": "The browser bundle currently reads a Honua API-key variable."
+      },
+      "lifecycle": {
+        "reason": "Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "state": "merge"
       }
     },
     "temporal-playback": {
@@ -653,22 +664,10 @@
       "configuration": {
         "status": "legacy-unsafe",
         "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
-      }
-    },
-    "unified-ops-workspace": {
-      "track": "lab",
-      "validationProfile": "browser-lab",
-      "replacement": {
-        "kind": "journey",
-        "id": "incident-operations"
-      }
-    },
-    "web-components-basic": {
-      "track": "lab",
-      "validationProfile": "browser-lab",
-      "replacement": {
-        "kind": "external",
-        "id": "honua-app-platform"
+      },
+      "lifecycle": {
+        "reason": "Combine point/profile proof with the imagery and 3D flagship. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "state": "merge"
       }
     }
   },
@@ -817,8 +816,8 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "rework",
-        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion.",
-        "targetRelease": "0.3.0"
+        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+        "targetRelease": "0.4.0"
       },
       "sourcePath": "docs/examples/cesium-route-playback",
       "docsPath": "docs/examples/cesium-route-playback/README.md",

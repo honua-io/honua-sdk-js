@@ -5,8 +5,8 @@ import { pathToFileURL } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runEsriCompatCodemod } from "../src/migration/codemod.js";
-import { getPreparedEsriCompatEntryPath } from "./prepared-sdk-artifacts.js";
+import { runClientMigrationCodemod } from "../src/migration/codemod.js";
+import { getPreparedClientCompatEntryPath } from "./prepared-sdk-artifacts.js";
 
 const tempDirs: string[] = [];
 
@@ -17,11 +17,11 @@ function makeTempDir(): string {
 }
 
 function getCompatDistEntry(): string {
-  return getPreparedEsriCompatEntryPath();
+  return getPreparedClientCompatEntryPath();
 }
 
 function ensureBuiltCompatArtifacts(): void {
-  getPreparedEsriCompatEntryPath();
+  getPreparedClientCompatEntryPath();
 }
 
 afterEach(() => {
@@ -64,7 +64,7 @@ describe("migration runtime smoke", () => {
       "utf8",
     );
 
-    const codemodResult = runEsriCompatCodemod({
+    const codemodResult = runClientMigrationCodemod({
       rootDir: tempRoot,
       write: true,
       compatImportPath: compatEntryPath,
@@ -256,7 +256,7 @@ describe("migration runtime smoke", () => {
       "utf8",
     );
 
-    const codemodResult = runEsriCompatCodemod({
+    const codemodResult = runClientMigrationCodemod({
       rootDir: tempRoot,
       write: true,
       compatImportPath: compatEntryPath,

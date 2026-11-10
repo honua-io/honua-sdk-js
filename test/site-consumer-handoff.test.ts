@@ -124,12 +124,10 @@ describe("honua-site consumer handoff", () => {
           sourceImplementationDuplicated: false,
         },
         counts: {
-          // 31, not 32, since #1674 retired kepler-analytics: one fewer card and
-          // one fewer canonical route. #1681 corrected the sample count in
-          // capability-sample-matrix.test.ts and missed these.
-          cards: 31,
+          // One card and one canonical route per public sample.
+          cards: 28,
           qualifiedJourneys: 4,
-          canonicalRoutes: 31,
+          canonicalRoutes: 28,
           legacyRoutes: 20,
           gaps: inputs.matrix.gaps.length,
         },
@@ -412,10 +410,8 @@ describe("honua-site consumer handoff", () => {
       httpStatus: 308,
       presentation: "permanent-redirect",
     });
-    // #544 promotes the universal Service Explorer as the canonical replacement for the
-    // former `two-protocols` site-exception (matching that route's documented exceptionReason),
-    // leaving two site-owned exception routes (control-legend, control-search).
-    expect(handoff.legacyRoutes.filter((route) => route.resolution === "site-exception")).toHaveLength(2);
+    // control-legend, control-search, controls-kit, and hello-webmap stay site-owned.
+    expect(handoff.legacyRoutes.filter((route) => route.resolution === "site-exception")).toHaveLength(4);
     expect(
       handoff.legacyRoutes
         .filter((route) => route.resolution !== "canonical-sample")
@@ -423,8 +419,8 @@ describe("honua-site consumer handoff", () => {
     ).toBe(true);
     expect(handoff.canonicalRoutes.every((route) => route.path === `samples/${route.sampleId}.html`)).toBe(true);
     expect(handoff.canonicalRoutes.every((route) => route.externalListingEligible === true)).toBe(true);
-    expect(handoff.canonicalRoutes.find((route) => route.sampleId === "app-bootstrap-basic")).toMatchObject({
-      lifecycleState: "retire",
+    expect(handoff.canonicalRoutes.find((route) => route.sampleId === "edit-workflow-demo")).toMatchObject({
+      lifecycleState: "replace",
       presentation: "lifecycle-status",
     });
     expect(handoff.canonicalRoutes.find((route) => route.sampleId === "runtime-parity-showcase")).toMatchObject({
@@ -434,11 +430,11 @@ describe("honua-site consumer handoff", () => {
 
     const publicNonActiveIds = handoff.cards.filter((card) => card.lifecycle.state !== "active").map((card) => card.id);
     expect(handoff.lifecycleNotices.map((notice) => notice.sampleId)).toEqual(publicNonActiveIds);
-    expect(handoff.lifecycleNotices.find((notice) => notice.sampleId === "app-bootstrap-basic")).toMatchObject({
-      state: "retire",
+    expect(handoff.lifecycleNotices.find((notice) => notice.sampleId === "edit-workflow-demo")).toMatchObject({
+      state: "replace",
       replacement: {
-        kind: "external",
-        id: "honua-app-platform",
+        kind: "journey",
+        id: "planning-permitting",
       },
     });
     expect(allObjectKeys(handoff.cards)).not.toEqual(
@@ -594,10 +590,17 @@ describe("honua-site consumer handoff", () => {
     ).rejects.toThrow("capability matrix visible-gap coverage drift");
 
     const externalQuery = structuredClone(inputs.handoff);
-    const externalNotice = externalQuery.lifecycleNotices.find((notice) => notice.replacement?.kind === "external");
-    if (!externalNotice || externalNotice.replacement?.kind !== "external") {
-      throw new Error("canonical external replacement fixture is missing");
+    const externalNotice = externalQuery.lifecycleNotices[0];
+    const externalTarget = inputs.projection.externalReplacements[0];
+    if (!externalNotice || !externalTarget) {
+      throw new Error("canonical lifecycle notice or external replacement target is missing");
     }
+    externalNotice.replacement = {
+      kind: "external",
+      id: externalTarget.id,
+      title: externalTarget.title,
+      url: externalTarget.url,
+    };
     externalNotice.replacement.url += "?view=docs";
     await expect(validateSiteConsumerHandoff(externalQuery, { verifyCheckout: false })).rejects.toThrow(
       "must be credential-free canonical HTTPS",
@@ -637,7 +640,11 @@ describe("honua-site consumer handoff", () => {
     // shape the gallery must never publish, even though both card IDs stay unique.
     const forkedSourcePath = structuredClone(inputs.projection);
     const forkedMatrixSource = structuredClone(inputs.matrix) as CapabilitySampleMatrix;
-    const [firstProjected, secondProjected] = forkedSourcePath.samples;
+    const publicProjected = forkedSourcePath.samples.filter((sample) =>
+      ["golden", "recipe", "lab"].includes(sample.track),
+    );
+    const [firstProjected, secondProjected] = publicProjected;
+    if (!firstProjected || !secondProjected) throw new Error("canonical public sample pair is missing");
     secondProjected.source.path = firstProjected.source.path;
     const secondMatrixSample = forkedMatrixSource.samples.find((sample) => sample.id === secondProjected.id);
     if (!secondMatrixSample) throw new Error("canonical matrix sample fixture is missing");

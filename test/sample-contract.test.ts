@@ -222,6 +222,37 @@ function visualEvidenceAdversary(
   };
 }
 
+function nextMinorTarget(version: string) {
+  const [major, minor] = version.split(".");
+  return `${major}.${Number(minor) + 1}.0`;
+}
+
+async function promotedIncidentDashboard() {
+  const catalog = await readJson("samples/catalog.v2.json");
+  catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status = "qualified";
+  const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "realtime-incident-dashboard");
+  sample.track = "golden";
+  sample.validationProfile = "golden-browser";
+  return { catalog, sample };
+}
+
+async function executedIncidentAttestation() {
+  const evidence = await readAttestationSeed("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
+  evidence.status = "executed";
+  evidence.reason = null;
+  evidence.provenance = {
+    sourceId: "honua-demo:incident-realtime",
+    observedAt: evidence.observedAt,
+    validAt: null,
+    state: "live",
+    attribution: "Honua demo synthetic incident data",
+  };
+  evidence.semantics.outcome = "connected";
+  evidence.timing.totalMs = 1;
+  evidence.degradation = { state: "none", reasons: [] };
+  return evidence;
+}
+
 describe("sample publication contract", () => {
   it("discovers every runnable example and reserves exactly seven golden journeys", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
@@ -229,10 +260,10 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(34);
+    expect(catalog.samples).toHaveLength(31);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(30);
+    ).toHaveLength(27);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
@@ -245,7 +276,7 @@ describe("sample publication contract", () => {
       3,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
-      lifecycle: { state: "rework", targetRelease: "0.3.0" },
+      lifecycle: { state: "rework", targetRelease: "0.4.0" },
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
     expect(
@@ -937,17 +968,21 @@ describe("sample publication contract", () => {
     expect(isRunnableRootExampleDirectory("shared-test-helpers", ["README.md", "tsconfig.json"])).toBe(false);
   });
 
-  it("refuses unfinished sample transitions at the approved 0.3 deadline", async () => {
+  it("refuses a sample whose target release the package has reached", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
-    // Apply the actual pending policy to the first sorted fixture entry so the
-    // deadline guard runs before unrelated current-version live receipts. This
-    // synthetic negative fixture changes no receipt or production catalog.
-    const pending = catalog.samples.find((sample: { id: string }) => sample.id === "app-bootstrap-basic");
-    expect(pending.lifecycle.targetRelease).toBe("0.3.0");
-    catalog.samples[0].lifecycle = structuredClone(pending.lifecycle);
+    // Apply the pending policy to the first sorted entry so the deadline guard
+    // runs before unrelated current-version live receipts. This synthetic
+    // negative fixture changes no receipt or production catalog.
+    const pending = catalog.samples.find(
+      (sample: { lifecycle: { state: string } }) => sample.lifecycle.state !== "active",
+    );
+    expect(pending.lifecycle.targetRelease).toBe("0.4.0");
+    const expired = structuredClone(pending.lifecycle);
+    expired.targetRelease = "0.3.0";
+    catalog.samples[0].lifecycle = expired;
     await expect(validateCatalog(catalog, { ...packageJson, version: "0.3.0" }, validationTime)).rejects.toThrow(
-      `${catalog.samples[0].id}: lifecycle retire expired at 0.3.0`,
+      `${catalog.samples[0].id}: lifecycle ${expired.state} expired at 0.3.0`,
     );
   });
 
@@ -1099,13 +1134,13 @@ describe("sample publication contract", () => {
       format: "honua.site.sdk-sample-projection.v3",
       schemaVersion: 3,
     });
-    expect(projection.samples).toHaveLength(34);
+    expect(projection.samples).toHaveLength(31);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(34);
+    expect(ciSelection.samples).toHaveLength(31);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(visualEvidence).toMatchObject({
       format: "honua.sdk.golden-journey-visual-evidence.v1",
@@ -1549,10 +1584,10 @@ describe("sample publication contract", () => {
 
     const expiredLifecycle = await readJson("samples/catalog.v2.json");
     expiredLifecycle.samples.find(
-      (sample: { id: string }) => sample.id === "app-bootstrap-basic",
+      (sample: { id: string }) => sample.id === "cesium-route-playback",
     ).lifecycle.targetRelease = packageJson.version;
     await expect(validateCatalog(expiredLifecycle, packageJson, validationTime)).rejects.toThrow(
-      `lifecycle retire expired at ${packageJson.version}`,
+      `lifecycle rework expired at ${packageJson.version}`,
     );
 
     const missingReplacement = await readJson("samples/catalog.v2.json");
@@ -2288,7 +2323,7 @@ runNpmScriptSync("demo:wrong:build", {
         "demo:fixture:build",
       ),
     ).toThrow("expected exactly one demo:fixture:build fixture build");
-    await expect(validateFixtureBuildHarnesses()).resolves.toBe(24);
+    await expect(validateFixtureBuildHarnesses()).resolves.toBe(21);
   });
 
   it("keeps the columnar browser validation exact and bounded", async () => {
@@ -2399,85 +2434,70 @@ runNpmScriptSync("demo:wrong:build", {
     }
   });
 
-  it("keeps candidates non-golden until the full qualification contract is satisfied", async () => {
+  it("rejects a promoted golden sample that is not supported", async () => {
     const packageJson = await readJson("package.json");
-
-    const promoteIncident = async () => {
-      const catalog = await readJson("samples/catalog.v2.json");
-      catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status =
-        "qualified";
-      const sample = catalog.samples.find(
-        (candidate: { id: string }) => candidate.id === "realtime-incident-dashboard",
-      );
-      sample.track = "golden";
-      sample.validationProfile = "golden-browser";
-      return { catalog, sample };
-    };
-
-    const unsupported = await promoteIncident();
+    const unsupported = await promotedIncidentDashboard();
     unsupported.sample.supportTier = "experimental";
     await expect(validateCatalog(unsupported.catalog, packageJson, validationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples must be supported",
     );
+  });
 
-    const inactive = await promoteIncident();
+  it("rejects a promoted golden sample while its rework target is still ahead", async () => {
+    const packageJson = await readJson("package.json");
+    const inactive = await promotedIncidentDashboard();
     inactive.sample.lifecycle = {
       state: "rework",
       reason: "Promotion regression fixture.",
-      targetRelease: "0.3.0",
+      targetRelease: nextMinorTarget(String(packageJson.version)),
     };
     await expect(validateCatalog(inactive.catalog, packageJson, validationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples must be active",
     );
+  });
 
-    const missingFixture = await promoteIncident();
+  it("rejects a promoted golden sample without executed fixture evidence", async () => {
+    const packageJson = await readJson("package.json");
+    const missingFixture = await promotedIncidentDashboard();
     missingFixture.sample.evidence.fixture.status = "planned";
     await expect(validateCatalog(missingFixture.catalog, packageJson, validationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples require executed fixture evidence",
     );
+  });
 
-    const missingLive = await promoteIncident();
+  it("rejects a promoted golden sample without current live evidence", async () => {
+    const packageJson = await readJson("package.json");
+    const missingLive = await promotedIncidentDashboard();
     await expect(validateCatalog(missingLive.catalog, packageJson, validationTime)).rejects.toThrow(
       "realtime-incident-dashboard: golden samples require current executed live evidence",
     );
+  });
 
+  it("rejects a golden track on a journey that is still planned", async () => {
+    const packageJson = await readJson("package.json");
     const prematurePromotion = await readJson("samples/catalog.v2.json");
     prematurePromotion.samples.find((sample: { id: string }) => sample.id === "realtime-incident-dashboard").track =
       "golden";
     await expect(validateCatalog(prematurePromotion, packageJson, validationTime)).rejects.toThrow(
       "incident-operations: planned journey candidate cannot use the golden track",
     );
+  });
 
-    const metadataOnly = await promoteIncident();
+  it("bootstraps metadata-only golden evidence only for the qualified sample", async () => {
+    const packageJson = await readJson("package.json");
+    const metadataOnly = await promotedIncidentDashboard();
     const evidencePath = "test-results/metadata-only-golden-evidence.json";
-    const metadataOnlyExpiresAt = new Date(
-      new Date(validationTime.now).getTime() + 7 * 24 * 60 * 60 * 1000,
-    ).toISOString();
-    const executedEvidence = await readAttestationSeed(
-      "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
-    );
-    executedEvidence.status = "executed";
-    executedEvidence.reason = null;
-    executedEvidence.provenance = {
-      sourceId: "honua-demo:incident-realtime",
-      observedAt: executedEvidence.observedAt,
-      validAt: null,
-      state: "live",
-      attribution: "Honua demo synthetic incident data",
-    };
-    executedEvidence.semantics.outcome = "connected";
-    executedEvidence.timing.totalMs = 1;
-    executedEvidence.degradation = { state: "none", reasons: [] };
+    const expiresAt = new Date(new Date(validationTime.now).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
     metadataOnly.sample.evidence.live = {
       mode: "demo-live",
       status: "executed",
       commands: ["npm run bench:live"],
       evidencePath,
-      expiresAt: metadataOnlyExpiresAt,
+      expiresAt,
     };
     try {
       await mkdir("test-results", { recursive: true });
-      await writeFile(evidencePath, `${JSON.stringify(executedEvidence, null, 2)}\n`);
+      await writeFile(evidencePath, `${JSON.stringify(await executedIncidentAttestation(), null, 2)}\n`);
       await expect(
         validateCatalog(metadataOnly.catalog, packageJson, { ...validationTime, verifyCheckout: false }),
       ).rejects.toThrow("realtime-incident-dashboard: missing gate receipt directory");

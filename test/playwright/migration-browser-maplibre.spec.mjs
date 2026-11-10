@@ -242,8 +242,8 @@ for (const mapLibreTarget of [
     const appRoot = path.join(tempRoot, "app");
     const appMain = writeFixtureApp(appRoot);
 
-    const { runEsriCompatCodemod } = await importCodemod(projectRoot);
-    const codemodResult = runEsriCompatCodemod({
+    const { runClientMigrationCodemod } = await importCodemod(projectRoot);
+    const codemodResult = runClientMigrationCodemod({
       rootDir: tempRoot,
       target: "honua-maplibre",
       write: true,
@@ -260,7 +260,7 @@ for (const mapLibreTarget of [
 
     const migratedSource = fs.readFileSync(appMain, "utf8");
     expect(migratedSource).not.toContain("@arcgis/core");
-    expect(migratedSource).not.toContain("@honua/sdk-esri-compat");
+    expect(migratedSource).not.toContain("@honua/sdk-client-compat");
     expect(migratedSource).toContain('import * as maplibregl from "maplibre-gl";');
     expect(migratedSource).toContain('from "@honua/sdk-js/map"');
     expect(migratedSource).toContain("createHonuaFeatureServiceLayer");

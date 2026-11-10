@@ -176,7 +176,7 @@ describe("capability-to-sample matrix contract", () => {
         inputs.qualificationEvidence,
       ),
     ).toEqual(matrix);
-    expect(matrix.samples).toHaveLength(34);
+    expect(matrix.samples).toHaveLength(31);
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
@@ -187,19 +187,14 @@ describe("capability-to-sample matrix contract", () => {
       supportStatus: "experimental",
       coverage: { qualifyingSampleIds: [] },
     });
-    // 67 = 59 original package entrypoints + the experimental STAC, raster,
+    // 66 = 59 original package entrypoints + the experimental STAC, raster,
     // PMTiles, zarr, and the experimental declarative-interactions compiler
     // and Studio agent session, plus the experimental local installer, plus
-    // `./client-compat`, which took over `./esri-compat`'s stable slot (R33)
-    // while the old subpath stays exported as a deprecated alias.
-    expect(matrix.packageEntrypoints).toHaveLength(67);
+    // `./client-compat`.
+    expect(matrix.packageEntrypoints).toHaveLength(66);
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./client-compat")).toMatchObject({
       subpath: "./client-compat",
       supportStatus: "supported",
-    });
-    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./esri-compat")).toMatchObject({
-      subpath: "./esri-compat",
-      supportStatus: "deprecated",
     });
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./pmtiles")).toMatchObject({
       subpath: "./pmtiles",

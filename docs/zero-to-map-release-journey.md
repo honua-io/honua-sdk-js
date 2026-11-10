@@ -31,7 +31,6 @@ not an immutable evidence pin.
    input schema and a bounded geometry. For the advertised GPServer WKB path,
    provide `wkb`, `srid`, and `distance`; EPSG:4326 distance is in degrees. A
    `layerId` is not a geometry input. Retain the terminal job and result identity.
-   See [geoprocessing guidance](../skills/honua-geoprocessing/SKILL.md).
 5. Prove the published layer's style through get-style → apply-preset → read-back
    → render → MCP `resources/read`. Verify style identity and nonempty rendered
    pixels, not merely PNG byte length. `honua admin qualify` joins the catalog
@@ -39,8 +38,7 @@ not an immutable evidence pin.
 6. Compose one 2D map with the imported layer, style, view, and basic controls.
    Validate, save an immutable version, read it back, reopen it, and prove the
    same content survives restart and a distinct replica read. Retain item,
-   version, and content hash. See
-   [map composition](../skills/honua-map-composition/SKILL.md).
+   version, and content hash.
 7. Propose publication of that exact saved version under the supported proposer
    policy. Require a durable pending proposal. Prove separation of duties with
    an independently approval-capable proposer under a supported policy that
@@ -71,16 +69,16 @@ not an immutable evidence pin.
    Until the human acts, retain `AwaitingApproval`; do not invent a completed run.
 
 Full Admin MCP exposure, additional analysis families, `analytics.buffer-aggregate`,
-`analysis`/`esri-gp` profile switches, dashboards, and a 441-tool count are not
+`analysis`/`geoservices-gp` profile switches, dashboards, and a 441-tool count are not
 requirements for this bounded cut. Missing required support is a blocker to
 report, not permission to substitute a broader workflow.
 
 ## Versioned guidance and receipt consumers
 
-Use the [task skills](../skills/README.md) and local docs from the exact reviewed
+Use the local docs from the exact reviewed
 SDK source commit associated with the candidate; retain that commit and the
 corpus digest alongside package versions. The npm packages do not currently
-ship the complete repository skills/docs corpus. A registry-installed docs
+ship the complete repository docs corpus. A registry-installed docs
 search tool may therefore return `available: false`. Supply the matching
 versioned source documentation separately; do not silently search a newer
 checkout or describe an unavailable local corpus as successful retrieval.
@@ -97,7 +95,7 @@ The release-owned consumers have distinct responsibilities:
   same journey on the verified AWS target and adds provisioning, handoff, and
   authorized cleanup receipts. A local run does not prove the AWS wrapper.
 - [Release#161](https://github.com/honua-io/honua-release/issues/161) records the
-  genuine model-driven canary with reviewed skills/docs, ambiguity handling,
+  genuine model-driven canary with reviewed docs, ambiguity handling,
   recoverable-error behavior, and separate human approval. A deterministic
   driver is not evidence of model calls or human actions.
 

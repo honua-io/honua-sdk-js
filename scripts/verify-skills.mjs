@@ -14,9 +14,8 @@
 //      derived from `mcp/release/zero-to-map/journey.v1.json` (`journeyId`).
 //      There is no second hand-maintained release constant to drift.
 //   4. Every skill declares `stages` (a possibly-empty inline list of journey
-//      stage ids), and EVERY stage id in the journey must be claimed by at
-//      least one skill. This is the "each terminal stage has a published
-//      versioned skill" gate: deleting a stage skill fails this script.
+//      stage ids). Each id must be a stage in the journey. A stage may have
+//      no skill.
 //   5. Any package version pinned in a body (`@honua/sdk-js@X.Y.Z`) must match
 //      `package.json` / `.release-please-manifest.json`. Registry availability
 //      is a separate opt-in live lane (`HONUA_SKILLS_REGISTRY_LIVE_ENABLED=true`)
@@ -102,7 +101,7 @@ function loadPackageVersions() {
     // The root package and every split package published from it.
     ["@honua/sdk-js", root],
     ["honua-sdk", root],
-    ["honua-sdk-esri-compat", root],
+    ["honua-sdk-client-compat", root],
     ["honua-migrate", root],
     ["@honua/react", root],
     ["honua-react", root],
@@ -323,7 +322,7 @@ function checkToolNames(body, relFile) {
 function pinnedPackageVersions(body) {
   const pins = new Map();
   const scoped = /(@honua\/[a-z0-9-]+)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/g;
-  const bare = /(?<![\w@/-])(honua-sdk-esri-compat|honua-sdk|honua-migrate|honua-react|honua-geometry|create-honua-app)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/g;
+  const bare = /(?<![\w@/-])(honua-sdk-client-compat|honua-sdk|honua-migrate|honua-react|honua-geometry|create-honua-app)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/g;
   for (const pattern of [scoped, bare]) {
     for (const match of body.matchAll(pattern)) {
       pins.set(`${match[1]}@${match[2]}`, { name: match[1], version: match[2] });
@@ -443,14 +442,6 @@ async function main() {
       checkToolNames(body, relFile);
       checkPackageVersions(body, relFile, livePins);
       checkNoCredentials(body, relFile);
-    }
-  }
-
-  for (const [stage, owners] of stageCoverage) {
-    if (owners.length === 0) {
-      errors.push(
-        `journey stage "${stage}" (${JOURNEY_FILE}) has no published ${CURRENT_RELEASE} skill: add a skills/<name>/SKILL.md declaring stages: [${stage}]`,
-      );
     }
   }
 

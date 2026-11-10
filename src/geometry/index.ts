@@ -30,7 +30,12 @@ export {
 
 export { defineProjection, normalizeCrs, project, toWebMercator, toWgs84 } from "./project.js";
 
-export { esriFeatureToGeoJson, esriToGeoJson, geoJsonToEsri } from "./convert.js";
+export {
+  geoServicesFeatureToGeoJson,
+  geoServicesGeometryToGeoJSON,
+  geoServicesToGeoJson,
+  geoJsonToGeoServices,
+} from "./convert.js";
 
 export type {
   GeoJsonFeature,

@@ -54,7 +54,7 @@ document.querySelector("honua-map")!.controller = controller;
 The canonical `@honua/app-platform/web-components` package exposes one
 supported, versioned application context for the whole component suite. The
 deprecated `@honua/sdk-js/web-components` forwarding entrypoint exposes the
-same contract during the transition through 0.2.x.
+same contract during the transition through 0.3.x. That entrypoint is removed in 0.4.0.
 
 ```ts doc-test=skip reason="requires browser markup and a Source supplied by the application"
 import { createHonuaApplicationContext, mountHonuaApplication } from "@honua/app-platform/web-components";
@@ -363,7 +363,7 @@ readable `aria-valuetext` naming the window, and a single tab stop. Keyboard:
 Arrow keys step one window (the inline axis mirrors under `dir="rtl"`), Page
 Up / Page Down move ten steps, Home / End jump to the first / last window.
 
-`TimeSliderCompat` from `@honua/sdk-esri-compat` mounts this element into its
+`TimeSliderCompat` from `@honua/sdk-client-compat` mounts this element into its
 ArcGIS-style `container` once the application has called
 `registerHonuaWidgetKit()`; without a registered kit the shim stays
 state-model-only, exactly as before.

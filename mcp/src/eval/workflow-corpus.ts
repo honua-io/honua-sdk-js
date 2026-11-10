@@ -8,7 +8,7 @@ import type { Scenario, WorkflowTranscript } from "./types.js";
  * onto the transcript after the run so a scorecard can show coverage.
  *
  * `buffer-three-ways` stays blocked until the server enables the `analysis` and
- * `esri-gp` profiles (honua-server #3363 / #3430 / #3431). Do not invent the
+ * `geoservices-gp` profiles. Do not invent the
  * configuration key that turns those profiles on.
  */
 
@@ -31,7 +31,6 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "install-ready",
     title: "Install locally and report readiness without the admin key",
     category: "install",
-    skillId: "honua-local-setup",
     journeyStage: "install",
     journeyAction: "install-status",
     prompt:
@@ -50,7 +49,6 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "connect-and-import",
     title: "Connect by secret reference, test, and import",
     category: "admin",
-    skillId: "honua-datasource-connect",
     journeyStage: "admin",
     journeyAction: "import-parcels",
     prompt:
@@ -79,7 +77,6 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "publish-layer",
     title: "Validate a table, then publish it",
     category: "admin",
-    skillId: "honua-publish-layers",
     journeyStage: "admin",
     journeyAction: "publish-parcels",
     prompt:
@@ -99,7 +96,6 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "style-png",
     title: "Apply a published preset and render a PNG",
     category: "style",
-    skillId: "honua-style-verify",
     journeyStage: "style",
     journeyAction: "render-published-map",
     prompt:
@@ -120,32 +116,31 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "buffer-three-ways",
     title: "Buffer through Esri MCP, GPServer, and the native verb",
     category: "geoprocessing",
-    skillId: "honua-geoprocessing",
     journeyStage: "geoprocessing",
-    journeyAction: "buffer-esri-mcp",
-    requiresServerProfiles: ["analysis", "esri-gp"],
+    journeyAction: "buffer-geoservices-mcp",
+    requiresServerProfiles: ["analysis", "geoservices-gp"],
     prompt:
       "Discover the Buffer task, describe it, run it, and keep the job result. Then run the same buffer through the native dataset buffer tool. Report each job id.",
     criteria: {
       requiredTools: [
-        "honua_esri_gp_list_tasks",
-        "honua_esri_gp_describe_task",
-        "honua_esri_gp_execute_task",
+        "honua_geoservices_gp_list_tasks",
+        "honua_geoservices_gp_describe_task",
+        "honua_geoservices_gp_execute_task",
         "honua_buffer_features",
       ],
       expectedToolSequence: [
-        "honua_esri_gp_list_tasks",
-        "honua_esri_gp_describe_task",
-        "honua_esri_gp_execute_task",
+        "honua_geoservices_gp_list_tasks",
+        "honua_geoservices_gp_describe_task",
+        "honua_geoservices_gp_execute_task",
         "honua_buffer_features",
       ],
       answerMustInclude: ["jobId"],
       ...APPROVAL_GATE,
     },
     script: [
-      { tool: "honua_esri_gp_list_tasks", args: {} },
-      { tool: "honua_esri_gp_describe_task", args: { taskName: "Buffer" } },
-      { tool: "honua_esri_gp_execute_task", args: { taskName: "Buffer" } },
+      { tool: "honua_geoservices_gp_list_tasks", args: {} },
+      { tool: "honua_geoservices_gp_describe_task", args: { taskName: "Buffer" } },
+      { tool: "honua_geoservices_gp_execute_task", args: { taskName: "Buffer" } },
       { tool: "honua_buffer_features", args: {} },
     ],
   },
@@ -153,7 +148,6 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "compose-families",
     title: "Compose map, app, and dashboard, then save and reopen",
     category: "studio",
-    skillId: "honua-map-composition",
     journeyStage: "studio",
     journeyAction: "create-map-draft",
     prompt:
@@ -183,7 +177,6 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "propose-and-stop",
     title: "Record publication intent and stop before approval",
     category: "proposal",
-    skillId: "honua-map-composition",
     journeyStage: "proposal",
     journeyAction: "propose-publication",
     prompt:
@@ -203,7 +196,6 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "docs-before-guess",
     title: "Look up the local connection contract before calling it",
     category: "docs",
-    skillId: "honua-datasource-connect",
     journeyStage: "admin",
     journeyAction: "create-connection",
     prompt:
@@ -226,7 +218,6 @@ export const WORKFLOW_CORPUS: Scenario[] = [
     id: "recover-one-error",
     title: "Retry a refused connection test with the corrected argument",
     category: "recovery",
-    skillId: "honua-datasource-connect",
     journeyStage: "admin",
     journeyAction: "test-connection",
     prompt:
@@ -264,7 +255,6 @@ export function blockedTranscript(
     errorCount: 0,
     blockedReason: `server profile not enabled: ${profiles.join(", ")}`,
     surface: "mcp",
-    skillId: scenario.skillId,
     journeyStage: scenario.journeyStage,
     journeyAction: scenario.journeyAction,
     attribution: "HARNESS_DRIVEN",
@@ -294,7 +284,6 @@ export function annotateTranscript(
   return {
     ...transcript,
     surface: transcript.surface ?? "mcp",
-    skillId: scenario.skillId,
     journeyStage: scenario.journeyStage,
     journeyAction: scenario.journeyAction,
     attribution,

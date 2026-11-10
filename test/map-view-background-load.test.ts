@@ -2,9 +2,9 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../src/esri-compat/map-view-mount.js", async () => {
-  const actual = await vi.importActual<typeof import("../src/esri-compat/map-view-mount.js")>(
-    "../src/esri-compat/map-view-mount.js",
+vi.mock("../src/client-compat/map-view-mount.js", async () => {
+  const actual = await vi.importActual<typeof import("../src/client-compat/map-view-mount.js")>(
+    "../src/client-compat/map-view-mount.js",
   );
   return {
     ...actual,
@@ -12,7 +12,7 @@ vi.mock("../src/esri-compat/map-view-mount.js", async () => {
   };
 });
 
-import { MapViewCompat } from "../src/esri-compat/map-view.js";
+import { MapViewCompat } from "../src/client-compat/map-view.js";
 
 describe("MapViewCompat background load", () => {
   it("rejects a discarded when() without an unhandled rejection", async () => {

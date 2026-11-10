@@ -36,7 +36,6 @@ describe("workflow corpus", () => {
       expect(scenario.prompt).not.toContain("journey.v1.json");
       expect(scenario.prompt).not.toContain("-157.8616");
       expect(scenario.journeyStage).toBeTruthy();
-      expect(scenario.skillId).toBeTruthy();
     }
     expect(WORKFLOW_CORPUS.map((scenario) => scenario.id)).toContain("buffer-three-ways");
   });
@@ -62,10 +61,10 @@ describe("workflow corpus", () => {
     expect(graded.violations.some((violation) => violation.includes("visibility"))).toBe(true);
   });
 
-  it("blocks buffer until the analysis and esri-gp profiles are enabled", () => {
+  it("blocks buffer until the analysis and geoservices-gp profiles are enabled", () => {
     const scenario = WORKFLOW_CORPUS.find((item) => item.id === "buffer-three-ways")!;
-    expect(unavailableProfiles(scenario, ["base"])).toEqual(["analysis", "esri-gp"]);
-    const blocked = blockedTranscript("deterministic", scenario, ["analysis", "esri-gp"]);
+    expect(unavailableProfiles(scenario, ["base"])).toEqual(["analysis", "geoservices-gp"]);
+    const blocked = blockedTranscript("deterministic", scenario, ["analysis", "geoservices-gp"]);
     expect(grade(scenario, blocked).outcome).toBe("blocked");
   });
 
@@ -124,7 +123,6 @@ describe("workflow corpus", () => {
       annotateTranscript(await new DeterministicDriver().runWorkflow(scenario, ctx), scenario, "HARNESS_DRIVEN"),
     );
     expect(grade(scenario, result).outcome).toBe("pass");
-    expect(result.skillId).toBe("honua-datasource-connect");
   });
 
   it("requires a full lifecycle for map, app, and dashboard", () => {

@@ -26,7 +26,7 @@ import type {
   SourceSchemaV2,
 } from "../contract/schema.js";
 import type { AggregationFn, AggregationSpec } from "../contract/types.js";
-import type { EsriSpatialRel } from "../core/types.js";
+import type { GeoServicesSpatialRel } from "../core/types.js";
 import { canonicalFilterParts, refuseCanonicalFilter } from "./canonical-filter.js";
 import { hashSemanticQuery } from "./semantic-canonical.js";
 import {
@@ -125,7 +125,7 @@ export interface SemanticGrpcCompiledQueryV1 {
   readonly usesNativeFilter: boolean;
 }
 
-const SPATIAL_REL_MAP: Record<EsriSpatialRel, GrpcSpatialRelationship> = {
+const SPATIAL_REL_MAP: Record<GeoServicesSpatialRel, GrpcSpatialRelationship> = {
   esriSpatialRelIntersects: "SPATIAL_RELATIONSHIP_INTERSECTS",
   esriSpatialRelContains: "SPATIAL_RELATIONSHIP_CONTAINS",
   esriSpatialRelWithin: "SPATIAL_RELATIONSHIP_WITHIN",
@@ -234,7 +234,7 @@ export function compileGrpcQuery(source: QueryIrSourceIdentity, query: Canonical
   };
 }
 
-function spatialRelationship(rel: EsriSpatialRel | undefined): GrpcSpatialRelationship {
+function spatialRelationship(rel: GeoServicesSpatialRel | undefined): GrpcSpatialRelationship {
   if (rel === undefined) return "SPATIAL_RELATIONSHIP_INTERSECTS";
   const mapped = SPATIAL_REL_MAP[rel];
   if (!mapped) {

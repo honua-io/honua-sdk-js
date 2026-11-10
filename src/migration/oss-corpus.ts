@@ -5,7 +5,7 @@ import type { JsMigrationReport, MigrationReadiness } from "./report.js";
 import type { WidgetReadinessReport } from "./widget-scanner.js";
 
 /**
- * Third-party open-source ArcGIS JS app corpus (issue #955).
+ * Third-party open-source app corpus for the source SDK.
  *
  * The corpus is a *manifest of pointers*: every entry names a public GitHub
  * repository, the exact commit the lane checks out, and the reviewed license
@@ -61,7 +61,7 @@ export interface OssArcGisCorpusGuardrails {
   excludedFromPrCi: boolean;
   /** The lane refuses to run unless its opt-in env var is set. */
   requiresOptIn: boolean;
-  /** The lane performs static analysis only — it never contacts Esri services. */
+  /** The lane performs static analysis only — it never contacts upstream services. */
   noLiveEsriServiceContact: boolean;
   /** The lane never installs dependencies declared by a cloned third-party app. */
   noThirdPartyDependencyInstall: boolean;
@@ -162,7 +162,7 @@ export interface OssArcGisCorpusApp {
    * the whole checkout. Must stay inside the checkout.
    */
   scanRoot: string;
-  /** Repo-relative files that were read during review to confirm ArcGIS usage. */
+  /** Repo-relative files that were read during review to confirm source SDK usage. */
   evidencePaths: string[];
   notes: string;
 }
@@ -243,9 +243,9 @@ export interface OssArcGisAppReadiness {
   filesWithArcGisImports: number;
   /**
    * Mirrors `JsMigrationReport.usageDetected`: false when the scanner walked
-   * source files but found no ArcGIS module usage at all. For a corpus app —
+   * source files but found no source SDK module usage at all. For a corpus app —
    * every one of which was reviewed and recorded with evidence paths proving
-   * it uses the ArcGIS JS API — this is a *detection gap*, not a clean bill of
+   * it uses the source JavaScript mapping API — this is a *detection gap*, not a clean bill of
    * health, and the readiness value next to it must not be read as "nothing to
    * migrate". The report now says so itself (`readiness: "no-usage-detected"`);
    * this field stays so the published observation keeps a stable shape.
@@ -282,7 +282,7 @@ export interface OssArcGisCorpusRunSummary {
   unhandledUsageHits: number;
   topManualTodoKinds: OssArcGisKindCount[];
   blockedApps: string[];
-  /** Apps whose ArcGIS usage the scanner failed to see at all (detection gap). */
+  /** Apps whose source SDK usage the scanner failed to see at all (detection gap). */
   undetectedApps: string[];
   styleCoverage: Record<OssArcGisAppStyle, number>;
 }
@@ -728,7 +728,7 @@ export function evaluateOssArcGisCorpusRegression(
     }
     if (baselineApp.usageDetected && !currentApp.usageDetected) {
       failures.push(
-        `${baselineApp.appId}: ArcGIS usage was previously detected and is no longer visible to the scanner`,
+        `${baselineApp.appId}: source SDK usage was previously detected and is no longer visible to the scanner`,
       );
     }
     if (currentApp.autoMigratedRatio + tolerance < baselineApp.autoMigratedRatio) {
@@ -756,11 +756,15 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
   lines.push(`                       ${manifest.lane.publishedObservationPath}`);
   lines.push("     Regenerate with: npm run docs:oss-arcgis-corpus -->");
   lines.push("");
-  lines.push("# Third-party open-source ArcGIS app readiness");
+  lines.push("# Third-party open-source source SDK app readiness");
+  lines.push("");
+  lines.push(
+    "The source SDK is Esri's ArcGIS Maps SDK for JavaScript, including its predecessor ArcGIS API for JavaScript 3.x (`esri/*` AMD modules); Esri Leaflet imports are counted separately.",
+  );
   lines.push("");
   lines.push(
     "Every other migration number Honua publishes comes from Honua-authored fixtures. This page does not: " +
-      "it reports what `honua-migrate` does to **real, third-party, open-source ArcGIS JS applications** that " +
+      "it reports what `honua-migrate` does to **real, third-party, open-source applications built on the source SDK** that " +
       "were written by other people, for their own purposes, with no knowledge of the codemod.",
   );
   lines.push("");
@@ -778,7 +782,7 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
   lines.push(
     [
       `- Lane: opt-in only (\`${run.lane.optInEnvVar}=true\`), never part of pull-request CI, static analysis`,
-      "only (no live Esri service contact).",
+      "only (no live upstream service contact).",
     ].join(" "),
   );
   lines.push("");
@@ -795,16 +799,16 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
   lines.push(`| Codemod-scoped call sites | ${run.summary.totalCallSites} |`);
   lines.push(`| Auto-migrated call sites | ${run.summary.autoMigratedCallSites} |`);
   lines.push(`| Auto-migrated call-site ratio | ${formatRatio(run.summary.autoMigratedRatio)} |`);
-  lines.push(`| ArcGIS module hits outside codemod scope | ${run.summary.unhandledUsageHits} |`);
-  lines.push(`| Apps with no ArcGIS usage detected | ${run.summary.undetectedApps.length} |`);
+  lines.push(`| Source SDK module hits outside codemod scope | ${run.summary.unhandledUsageHits} |`);
+  lines.push(`| Apps with no source SDK usage detected | ${run.summary.undetectedApps.length} |`);
   lines.push("");
 
   if (run.summary.undetectedApps.length > 0) {
     lines.push("### Detection gaps");
     lines.push("");
     lines.push(
-      "The scanner found **no ArcGIS usage at all** in the apps below, even though each one was reviewed and " +
-        "recorded with evidence paths proving it uses the ArcGIS JS API. Nothing about these apps was measured: " +
+      "The scanner found **no source SDK usage at all** in the apps below, even though each one was reviewed and " +
+        "recorded with evidence paths proving it uses the source JavaScript mapping API. Nothing about these apps was measured: " +
         'the report says so with `readiness: "no-usage-detected"`, and every metric next to it is a measurement ' +
         "of the scanner's blind spot, not of the app.",
     );
@@ -818,7 +822,7 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
       lines.push(
         [
           `- **${app.title}** — ${app.filesScanned} source ${app.filesScanned === 1 ? "file" : "files"} scanned,`,
-          "0 with a recognized ArcGIS import.",
+          "0 with a recognized source SDK import.",
           `Reviewed evidence: ${manifestApp.evidencePaths.map((entry) => `\`${entry}\``).join(", ")}.`,
         ].join(" "),
       );
@@ -896,7 +900,7 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
       lines.push(
         [
           `> **Detection gap.** ${app.filesScanned} source ${app.filesScanned === 1 ? "file was" : "files were"}`,
-          "scanned and none produced a recognized ArcGIS import, so no codemod-scoped call site exists to",
+          "scanned and none produced a recognized source SDK import, so no codemod-scoped call site exists to",
           "migrate or count. Every metric below is a measurement of the scanner's blind spot, not of this app.",
         ].join(" "),
       );
@@ -909,7 +913,7 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
       app.usageDetected || app.readiness === "no-usage-detected" ? "" : " (not meaningful — see above)";
     lines.push(`| Readiness | \`${app.readiness}\`${readinessNote} |`);
     lines.push(`| Files scanned | ${app.filesScanned} |`);
-    lines.push(`| Files importing ArcGIS modules | ${app.filesWithArcGisImports} |`);
+    lines.push(`| Files importing source SDK modules | ${app.filesWithArcGisImports} |`);
     lines.push(`| Codemod-scoped call sites | ${app.totalCallSites} |`);
     lines.push(`| Auto-migrated call-site ratio | ${formatRatio(app.autoMigratedRatio)} |`);
     lines.push(`| Manual-rewrite ratio | ${formatRatio(app.manualRewriteRatio)} |`);
@@ -934,7 +938,7 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
     }
 
     if (app.topUnhandledModules.length > 0) {
-      lines.push("Top ArcGIS modules outside codemod scope:");
+      lines.push("Top source SDK modules outside codemod scope:");
       lines.push("");
       for (const entry of app.topUnhandledModules) {
         lines.push(`- \`${entry.modulePath}\` (\`${entry.usageStyle}\`) — ${entry.count}`);

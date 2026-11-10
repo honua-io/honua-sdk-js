@@ -1,12 +1,13 @@
-# Third-party open-source ArcGIS app corpus
+# Third-party open-source source SDK app corpus
+
+The source SDK is Esri's ArcGIS Maps SDK for JavaScript, including its predecessor ArcGIS API for JavaScript 3.x (`esri/*` AMD modules); Esri Leaflet imports are counted separately.
 
 Every migration number Honua published before this corpus came from
 Honua-authored fixtures — code written to exercise the codemod, by people who
 knew exactly what the codemod does. That is a useful regression suite and a
 poor prediction of what happens to *your* app.
 
-This corpus is the counterweight. It pins real, third-party, open-source ArcGIS
-JS applications on GitHub — state DOT tools, a state geospatial office's parcel
+This corpus is the counterweight. It pins real, third-party, open-source applications for the source JavaScript mapping SDK on GitHub — state DOT tools, a state geospatial office's parcel
 viewer, a long-lived community map viewer, a citizen-science map — and runs the
 real `honua-migrate` CLI over them in an opt-in lane. The published results live
 in [docs/oss-arcgis-corpus-readiness.md](./oss-arcgis-corpus-readiness.md).
@@ -20,7 +21,7 @@ in [docs/oss-arcgis-corpus-readiness.md](./oss-arcgis-corpus-readiness.md).
 ## Guardrails
 
 The corpus is a manifest of **pointers**. Nothing about it puts third-party code
-in this repository, and nothing about it talks to Esri.
+in this repository, and the lane does not contact the source provider.
 
 - **No vendored third-party code.** Each entry records a repository URL and the
   exact commit to check out. The lane clones into `.tmp/oss-arcgis-corpus/`
@@ -29,8 +30,8 @@ in this repository, and nothing about it talks to Esri.
   It also refuses to run unless `HONUA_OSS_ARCGIS_CORPUS_ENABLED=true`, so an
   accidental invocation is an explicit no-op rather than a surprise network
   fetch.
-- **No live Esri service contact.** The lane is static analysis only: it reads
-  source files. It never issues a request to an ArcGIS service, a portal, or a
+- **No live upstream service contact.** The lane is static analysis only: it reads
+  source files. It never issues a request to a source service, a portal, or a
   basemap, and it never resolves a cloned app's dependency tree.
 - **License-reviewed.** Only the SPDX ids in `licensePolicy.allowedSpdxIds`
   (`MIT`, `Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `Unlicense`,
@@ -56,7 +57,7 @@ styles a migrating team actually shows up with:
 Each app records `repo` (owner/name/default branch/**full 40-character commit
 SHA**/observation date), `license`, `provenance` (author kind and a plain-English
 description), `styles`, the `scanRoot` the CLI is pointed at, `evidencePaths`
-(the files a reviewer actually read to confirm ArcGIS usage), and `notes`.
+(the files a reviewer actually read to confirm source SDK usage), and `notes`.
 
 `evidencePaths` is load-bearing, not decoration: it is what lets the readiness
 page distinguish "this app has nothing to migrate" from "the scanner could not
@@ -67,6 +68,7 @@ measures.
 
 ```bash
 # Full corpus (clones every pinned app, then deletes the checkouts)
+
 HONUA_OSS_ARCGIS_CORPUS_ENABLED=true npm run corpus:oss-arcgis
 
 # One app, keeping the checkout for inspection
@@ -104,7 +106,7 @@ Outputs land under `test-results/oss-arcgis-corpus/` (git-ignored):
 ```text
 test-results/oss-arcgis-corpus/
   readiness.v1.json          aggregate run record
-  apps/<id>/scan.json        ArcGisScanReport
+  apps/<id>/scan.json        SourceApiScanReport
   apps/<id>/widgets.json     WidgetReadinessReport
   apps/<id>/codemod.json     JsMigrationReport
   apps/<id>/readiness.json   per-app corpus record
@@ -118,8 +120,8 @@ most, and they must be read together:
 
 - **Auto-migrated call-site ratio** — of the call sites the codemod claims,
   how many did it rewrite without leaving a manual TODO.
-- **Apps with no ArcGIS usage detected** — apps where the scanner found
-  *nothing*, despite reviewed evidence that they are ArcGIS apps. For those
+- **Apps with no source SDK usage detected** — apps where the scanner found
+  *nothing*, despite reviewed evidence that they use the source SDK. For those
   apps there is no readiness verdict to read: the report says
   `readiness: "no-usage-detected"` and every number beside it measures the
   scanner's blind spot, not the app. This count is `0` in the current
@@ -220,7 +222,7 @@ that exposed it:
 
 #981 also recorded a concrete internal inconsistency: on
 `ekenes/national-park-visits` the **widget** scanner reported four widget usage
-sites in the same files the ArcGIS scanner reported zero imports in, so the two
+sites in the same files the source SDK scanner reported zero imports in, so the two
 scanners disagreed about the same source.
 
 The scanner now reads module specifiers off the TypeScript AST and recognizes
@@ -233,14 +235,14 @@ turns that into a CI failure. The three formerly dark apps are measured on the
 page above; the "Detection gaps" section disappears when no app is dark.
 
 The first deep run (2026-08-04) then found the next layer down. `owls-of-bavaria`
-**builds post-codemod** against `@honua/sdk-esri-compat` — baseline build passed,
+**builds post-codemod** against the standalone compatibility package — baseline build passed,
 migrated build passed — but it picked up three type diagnostics it did not have
 before, and one of them is structural:
 
 | Issue | Gap | Exposed by |
 | --- | --- | --- |
-| [#1012](https://github.com/honua-io/honua-sdk-js/issues/1012) | The codemod migrates a construct whose only consumer is out of scope, producing a compat-to-ArcGIS value handoff that cannot typecheck — and still counts the call site as auto-migrated | `lujoh/owls_of_bavaria` — `src/features/map/filterOwlLayer.jsx`: `FeatureFilter` → `FeatureFilterCompat` handed to an un-migrated `@arcgis/core/layers/support/FeatureEffect` |
-| [#1013](https://github.com/honua-io/honua-sdk-js/issues/1013) | `FeatureFilterCompat.objectIds` is `ReadonlyArray<number \| string>` where ArcGIS declares a mutable `number[]` — an undocumented divergence from the surface being emulated | the same call site |
+| [#1012](https://github.com/honua-io/honua-sdk-js/issues/1012) | The codemod migrates a construct whose only consumer is out of scope, producing a compat-to-source SDK value handoff that cannot typecheck — and still counts the call site as auto-migrated | `lujoh/owls_of_bavaria` — `src/features/map/filterOwlLayer.jsx`: `FeatureFilter` → `FeatureFilterCompat` handed to an un-migrated `@arcgis/core/layers/support/FeatureEffect` |
+| [#1013](https://github.com/honua-io/honua-sdk-js/issues/1013) | `FeatureFilterCompat.objectIds` is `ReadonlyArray<number \| string>` where the source SDK declares a mutable `number[]` — an undocumented divergence from the surface being emulated | the same call site |
 
 The other two introduced diagnostics are restatements rather than new problems:
 both are pre-existing errors in the app's untyped Redux wiring whose *message*
@@ -252,7 +254,7 @@ be reviewed.
 What the corpus measures now is the *next* cliff, and it is the honest one: the
 codemod rewrites nothing inside an AMD module body (`cmv-app`: 0 of 27
 codemod-scoped call sites auto-migrated), because rewriting a constructor while
-the Dojo loader still delivers the ArcGIS module would leave the file broken.
+the Dojo loader still delivers the source SDK module would leave the file broken.
 Those call sites are reported as manual TODOs, and the `esri/dijit/*` widget
 namespace — which has no `@arcgis/core` counterpart at all — is reported as
 unhandled modules rather than being mapped onto a 4.x construct it is not.

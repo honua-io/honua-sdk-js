@@ -74,7 +74,7 @@ const GEOMETRY_TYPE_MAP: Record<number, string> = {
   [GeometryType.NONE]: "esriGeometryNull",
 };
 
-const ESRI_TO_PROTO_SPATIAL_REL_MAP: Record<string, SpatialRelationship> = {
+const GEOSERVICES_TO_PROTO_SPATIAL_REL_MAP: Record<string, SpatialRelationship> = {
   esriSpatialRelIntersects: SpatialRelationship.INTERSECTS,
   esriSpatialRelContains: SpatialRelationship.CONTAINS,
   esriSpatialRelWithin: SpatialRelationship.WITHIN,
@@ -86,7 +86,7 @@ const ESRI_TO_PROTO_SPATIAL_REL_MAP: Record<string, SpatialRelationship> = {
   esriSpatialRelDisjoint: SpatialRelationship.DISJOINT,
 };
 
-const ESRI_TO_PROTO_DISTANCE_UNIT_MAP: Record<string, DistanceUnit> = {
+const GEOSERVICES_TO_PROTO_DISTANCE_UNIT_MAP: Record<string, DistanceUnit> = {
   esrisrunit_meter: DistanceUnit.METERS,
   meter: DistanceUnit.METERS,
   meters: DistanceUnit.METERS,
@@ -198,7 +198,7 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
     filter.geometry = geometry;
 
     if (request.spatialRel) {
-      const mapped = ESRI_TO_PROTO_SPATIAL_REL_MAP[request.spatialRel];
+      const mapped = GEOSERVICES_TO_PROTO_SPATIAL_REL_MAP[request.spatialRel];
       if (!mapped) {
         throw new Error(`Unsupported spatial relationship for gRPC transport: ${request.spatialRel}`);
       }
@@ -232,7 +232,7 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
 
     const unit = request.units ?? parseExtraString(request.extraParams ?? {}, "units");
     if (unit !== undefined) {
-      const mappedUnit = ESRI_TO_PROTO_DISTANCE_UNIT_MAP[unit.trim().toLowerCase()];
+      const mappedUnit = GEOSERVICES_TO_PROTO_DISTANCE_UNIT_MAP[unit.trim().toLowerCase()];
       if (!mappedUnit) {
         throw new Error(`Unsupported distance unit for gRPC transport: ${unit}`);
       }

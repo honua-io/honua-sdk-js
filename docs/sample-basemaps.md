@@ -6,12 +6,11 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Basemap inventory
 
-Source inventory at SDK commit 9f63b4c3b; 34 catalog entries. Each generated playground inherits its source sample policy.
+Source inventory of the sample catalog; 31 catalog entries. Each generated playground inherits its source sample policy.
 
 | Sample | Source | Policy | Playground |
 |---|---|---|---|
 | ai-spatial-app-builder | `examples/ai-spatial-app-builder` | No map renderer; no online basemap requests | Generated from source |
-| app-bootstrap-basic | `examples/app-bootstrap-basic` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | automatic-source-workflow | `docs/examples/automatic-source-workflow` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | cesium-route-playback | `docs/examples/cesium-route-playback` | Scene / renderer-state demonstration; preserve declared scene fixture/provider credits | — |
 | columnar-query-quickstart | `examples/columnar-query-quickstart` | Offline fixture demonstration; retain local style, document live override where supported | Generated from source |
@@ -42,8 +41,6 @@ Source inventory at SDK commit 9f63b4c3b; 34 catalog entries. Each generated pla
 | storytelling-25d-map | `examples/storytelling-25d-map` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | — |
 | temporal-playback | `examples/temporal-playback` | Offline fixture demonstration; retain local style, document live override where supported | Generated from source |
 | terrain-rgb-elevation | `examples/terrain-rgb-elevation` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | — |
-| unified-ops-workspace | `examples/unified-ops-workspace` | Offline fixture demonstration; retain local style, document live override where supported | — |
-| web-components-basic | `examples/web-components-basic` | Offline fixture demonstration; retain local style, document live override where supported | — |
 
 Starters: vanilla-ts and react-ts keep local default fixture style; configured VITE_HONUA_ENDPOINT lane receives shared online default/override with attribution.
 

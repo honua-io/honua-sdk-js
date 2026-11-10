@@ -28,7 +28,7 @@ import {
 ## MCP / QGIS safety
 
 The barrel exports **only types and pure functions** and never imports from
-`operator`, `esri-compat`, `web-components`, `interactions`, or `realtime` —
+`operator`, `client-compat`, `web-components`, `interactions`, or `realtime` —
 none of the MapLibre/DOM/Console-coupled modules. MCP servers and QGIS plugins
 can import `@honua/sdk-js/studio` without pulling renderer code or triggering a
 build error from Console/Esri internals.

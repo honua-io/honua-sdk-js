@@ -88,14 +88,13 @@ imports of app-platform directories):
   consumer.
 - **`examples/` consume only a handful of app-platform surfaces**, all of which
   move together cleanly:
-  - `/app-workspace` — 9 demos (service-explorer, stac-imagery-browser,
+  - `/app-workspace` — 8 demos (service-explorer, stac-imagery-browser,
     spatial-analytics-workbench, planning-permitting-workbench, mcp-gis-assistant,
-    geoprocessing-job-runner, edit-workflow-demo, ai-spatial-app-builder,
-    unified-ops-workspace).
+    geoprocessing-job-runner, edit-workflow-demo, ai-spatial-app-builder).
   - `/scene-workspace` — 2 demos (terrain-rgb-elevation, storytelling-25d-map).
   - `/app-controller` — 1 demo (runtime-parity-showcase).
-  - `/app` — 1 demo (app-bootstrap-basic).
-  - `/controls` — 2 demos; `/web-components` — 2 demos.
+  - `/app` — the app-bootstrap example was removed with the 0.3.0 sample retirement.
+  - `/controls` — 2 demos. The web-components host lives at `test/fixtures/web-components-host`.
   - `/control-plane` — README prose only, no source import.
 - **`mcp/` imports one app-platform-adjacent surface:** `/agent-tools`
   (`explainHonuaCapabilityGap`). See its disposition below — it stays in the
@@ -127,21 +126,27 @@ API report. `config/public-surface.json` supersedes the historical table below
 as the exact current inventory.
 
 The app-platform shims first shipped in `0.1.0-beta.0` and remain deprecated
-through the `0.2.x` line. Their npm removal deadline is `0.3.0`; CI rejects a
-`0.3.x` package while any shim remains.
+through the `0.3.x` line. Their npm removal deadline is `0.4.0`. CI rejects a
+release whose package version has reached `removeIn` while a shim remains.
+`verify:public-surface` is unchanged.
+
+Honua Studio, the honua-site demos and docs, and this repository's examples
+still import the eighteen forwarders. `0.3.0` ships the esri-compat removal.
+The forwarders stay until those consumers import `@honua/app-platform`.
+[Issue 2317](https://github.com/honua-io/honua-sdk-js/issues/2317) tracks that removal.
 
 The reviewed October 2026 release decision retains compatibility for the Node 22
 minimum-version change, which independently requires the managed `0.2.0` minor
-release. It moves the 18 shim-removal deadlines and 11 unfinished sample
-transition deadlines to npm `0.3.0`. This is a schedule change, not completion of
-those transitions: no exports are removed, samples promoted, or experimental
-surfaces graduated. Sample rework, merge, replacement, and retirement states,
-replacement targets, and credential-safety gaps remain visible in the catalog.
+release. That decision scheduled the 18 shim-removal deadlines and the unfinished
+sample transitions at npm `0.3.0`. The shim deadline is `0.4.0`, for the reason
+above. Sample rework, merge, replacement, and retirement states, replacement
+targets, and credential-safety gaps remain visible in the catalog.
 
-The shim-removal and graduation work remains tracked by
+The broader shim-removal and graduation work remains tracked by
 [issue 385](https://github.com/honua-io/honua-sdk-js/issues/385) in platform release
-`2026.2`, including its required human graduation review. npm `0.3.0` names the
-package deadline; it does not rename that platform release or waive its review.
+`2026.2`, including its required human graduation review. npm `0.4.0` names the
+package deadline for these forwarders; it does not rename that platform release
+or waive its review.
 The current Node 22 release is tracked by
 [issue 2070](https://github.com/honua-io/honua-sdk-js/issues/2070).
 
@@ -153,7 +158,7 @@ The current Node 22 release is tracked by
 | `./browser` | stable-1.0 | Build-less/CDN variant of `.` (same `types`, prebuilt ESM). A build target of the root, not a distinct API. |
 | `./honua` | stable-1.0 | `HonuaClient` — the raw GeoServices/OGC client. The irreducible core of the SDK. |
 | `./contract` | stable-1.0 | Protocol-neutral `Dataset`/`Source`/`Query`/`Result` — the cross-language contract the whole SDK identity rests on. |
-| `./esri-compat` | stable-1.0 | ArcGIS JS-API compatibility layer; a headline adoption driver and already its own split package. |
+| `./client-compat` | stable-1.0 | ArcGIS JS-API compatibility layer; a headline adoption driver and already its own split package. |
 | `./migration` | stable-1.0 | Codemod/scanner behind `honua-migrate`; headline adoption driver, own split package. |
 | `./runtime` | stable-1.0 | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`). Core render path. (Must shed its Studio re-exports — see Evidence.) |
 | `./expr` | stable-1.0 | Typed expression builder; low-level primitive used across map/style/filter. |
@@ -208,7 +213,7 @@ green throughout. This ADR fixes the design so that PR is mechanical.
 
 - `@honua/app-platform` builds from the **same `src/` tree** via the existing
   `scripts/prepare-split-packages.mjs` mechanism (the pattern already used for
-  `honua-sdk`, `honua-sdk-esri-compat`, `honua-migrate`, `honua-react`,
+  `honua-sdk`, `honua-sdk-client-compat`, `honua-migrate`, `honua-react`,
   `honua-geometry`). Add an `app-platform` package descriptor whose entrypoints
   are the 18 "move" subpaths, that declares `@honua/sdk-js` (stable) as a
   `dependency`, and that carries the optional peers those subpaths need

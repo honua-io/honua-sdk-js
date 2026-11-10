@@ -25,7 +25,7 @@ export interface HonuaSourceBase {
 }
 
 /**
- * A source backed by an Esri-compatible Feature Service layer.
+ * A source backed by a GeoServices Feature Service layer.
  *
  * URL format: `https://host/rest/services/{serviceId}/FeatureServer/{layerId}`
  */
@@ -42,7 +42,7 @@ export interface HonuaFeatureServiceSourceSpecification extends HonuaSourceBase 
 }
 
 /**
- * A source backed by an Esri-compatible Map Service (dynamic map export).
+ * A source backed by a GeoServices Map Service (dynamic map export).
  *
  * URL format: `https://host/rest/services/{serviceId}/MapServer`
  */
@@ -198,9 +198,9 @@ export function isWmtsSource(source: { type: string }): source is HonuaWmtsSourc
 // ── URL parsing ──────────────────────────────────────────────
 
 // Feature Service and Map Service URL parsers are re-exported from
-// esri-compat/url.ts (parseFeatureLayerUrl, parseMapServiceUrl) to avoid
+// client-compat/url.ts (parseFeatureLayerUrl, parseMapServiceUrl) to avoid
 // duplication. Only the OGC Features parser is defined here since it has
-// no esri-compat equivalent.
+// no client-compat equivalent.
 
 /** Parsed components of an OGC Features URL. */
 export interface ParsedOgcFeaturesUrl {
