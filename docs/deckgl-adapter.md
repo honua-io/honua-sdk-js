@@ -225,3 +225,57 @@ feature objects or silently downgrading.
 Not yet covered: indexed and aggregate layer families (H3/Quadbin, heatmap,
 cluster, contour, trips), realtime buffer patch/rebuild rules, and WebGPU
 boundaries.
+
+## Bounded count hexbins
+
+`projectDeckGlHexbins(adapter, request)` counts packed WGS84 points into a fixed,
+pointy-top Web Mercator hexagon grid and projects the resulting polygons through
+`DeckGlPeers.SolidPolygonLayer` from the optional `@deck.gl/layers` peer. This is
+explicit `cpu-bounded` aggregation followed by the existing binary polygon
+projection; the polygon projection's zero-copy metric applies after aggregation.
+It does not enable `adapter.project({ layer: "heatmap" })` or import
+`@deck.gl/aggregation-layers`.
+
+```ts
+import { createDeckGlAdapter, loadDeckGlPeers, projectDeckGlHexbins } from "@honua/sdk-js/deckgl";
+
+const adapter = createDeckGlAdapter({ peers: await loadDeckGlPeers() });
+const result = projectDeckGlHexbins(adapter, {
+  layerId: "service-request-counts",
+  positions: new Float64Array([-156.43, 20.86, -156.4301, 20.8601]),
+  identity: { sourceId: "service-requests", planId: "status=open", featureIds: [101, 102] },
+  radiusMeters: 100,
+  color: count => [20, Math.min(220, count * 20), 180, 230],
+});
+console.log(result.bins.map(bin => bin.count));
+console.log(result.selectionsForBin(0));
+// Mount result.projection through the application's existing deck.gl host.
+// Dispose its mount when replacing a filter result; adapter.dispose() removes all mounts.
+```
+
+`radiusMeters` is the circumradius in EPSG:3857 **map meters**. Ground distance
+varies with latitude. Inputs must use finite longitude/latitude within the Web
+Mercator latitude range, and radius must be between 1 and 1,000,000 map meters.
+The grid does not merge cells across the antimeridian. Edge cells may extend
+past the world's longitude boundary; use a regional map with world copies off.
+
+Each point contributes one count, including points with coincident coordinates.
+Bins appear in first-input encounter order; their IDs encode radius and axial
+grid coordinates. A polygon pick identifies a bin. `selectionsForBin(index)`
+returns its original source/plan/version, feature IDs and input row indices.
+Feature identities are snapshotted at construction. Submit the newly filtered
+positions and identities to recompute counts; no filter or service query occurs
+inside this helper. Empty input returns zero bins and an empty projection.
+
+Defaults allow up to 100,000 input rows and 20,000 bins, reduced to fit the adapter's row/vertex budget; `limits.maxRows/maxBins` can
+adjust these within the adapter's row/vertex ceilings, with a hard input ceiling
+of 1,000,000 rows. The input backing allocation and generated polygon buffers
+must each fit `adapter.limits.maxBackingBytes`. Membership uses two row-sized
+Uint32 arrays during construction plus bounded per-bin arrays and a map. These
+are allocation/count bounds, not a measurement of JavaScript engine heap usage.
+The caller must not mutate or detach input arrays during construction. The
+optional color callback receives each final count and returns RGBA bytes, so
+applications can choose their own light/dark palette.
+
+Unit contracts alone do not establish a county demo pass: real-server counts,
+filtering and light/dark narrow browser rendering still need separate evidence.
