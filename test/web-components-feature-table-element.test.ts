@@ -221,6 +221,26 @@ describe("<honua-feature-table> bounded lane", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it("selects the row on the first pointer press before focus replaces the grid", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+
+    const cell = shadow(element).querySelector<HTMLTableCellElement>(
+      "tbody tr[data-row-key='incidents:1'] [role='gridcell']",
+    );
+    if (!cell) throw new Error("no cell");
+    cell.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true }));
+    cell.dispatchEvent(new FocusEvent("focus"));
+
+    expect(cell.isConnected).toBe(false);
+    expect(engine.snapshot.selection).toEqual(["incidents:1"]);
+    const focused = shadow(element).activeElement?.closest("tr");
+    expect(focused?.getAttribute("data-row-key")).toBe("incidents:1");
+    expect(focused?.getAttribute("aria-selected")).toBe("true");
+  });
+
   it("selects the focused row on Enter and dispatches honua-selection-change", async () => {
     const element = mount();
     const engine = makeEngine();

@@ -863,6 +863,8 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   #announcedConflicts = "";
   #tableConnected = false;
   #restoringScroll = false;
+  #ignoreClickSelection = false;
+  #pointerGesture = 0;
   #messages: HonuaFeatureTableMessages = {};
   #applicationContext: HonuaApplicationContext<T> | undefined;
 
@@ -1029,11 +1031,13 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     // `setScroll` itself publishes. Carry the offset across the swap.
     const previousScrollTop = this.#scroller()?.scrollTop ?? 0;
     const previousScrollLeft = this.#scroller()?.scrollLeft ?? 0;
+    const restoreFocus = this.shadowRoot?.activeElement != null;
     this.setShadowHtml(
       `<style>${baseStyles()}${tableStyles()}${featureTableGridStyles()}</style>${this.#applicationPresentationHtml()}${featureTableGridHtml(viewModel)}`,
     );
     this.#bindGrid();
     this.#restoreScroll(previousScrollTop, previousScrollLeft);
+    if (restoreFocus) this.#restoreFocusedCell();
   }
 
   #scroller(): HTMLElement | null {
@@ -1185,10 +1189,17 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       });
     }
     for (const row of root.querySelectorAll<HTMLTableRowElement>("tbody tr[data-feature-id]")) {
-      row.addEventListener("click", () => this.selectRow(row));
+      row.addEventListener("click", () => {
+        if (this.#ignoreClickSelection) {
+          this.#ignoreClickSelection = false;
+          return;
+        }
+        this.selectRow(row);
+      });
       row.addEventListener("keydown", (event) => this.#onRowKeydown(event as KeyboardEvent, row));
     }
     for (const cell of root.querySelectorAll<HTMLTableCellElement>('tbody [role="gridcell"]')) {
+      cell.addEventListener("pointerdown", () => this.#selectCellFromPointer(cell));
       cell.addEventListener("focus", () => this.#focusCell(cell));
       cell.addEventListener("keydown", (event) => this.#onGridKeydown(event as KeyboardEvent, cell));
     }
@@ -1231,6 +1242,31 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     if (!cell) return;
     event.preventDefault();
     cell.focus();
+  }
+
+  /**
+   * Pointer selection has to happen on pointerdown. Focus publishes a new
+   * shadow tree before click, so the pressed cell is gone by the time click
+   * would have selected it. The click that follows this press is the same
+   * gesture and must not select a second time.
+   */
+  #selectCellFromPointer(cell: HTMLTableCellElement): void {
+    const row = cell.closest<HTMLTableRowElement>("tr");
+    if (!row) return;
+    const rowKey = row.dataset.rowKey;
+    const field = cell.dataset.field;
+    const gesture = ++this.#pointerGesture;
+    this.#ignoreClickSelection = true;
+    this.selectRow(row);
+    if (this.#table && rowKey && field) {
+      this.#table.setFocus({ rowKey, field });
+      this.#restoreFocusedCell();
+    }
+    // The click that belongs to this press is dispatched before the next turn.
+    // A press that never produces a click must not swallow a later one.
+    setTimeout(() => {
+      if (this.#pointerGesture === gesture) this.#ignoreClickSelection = false;
+    }, 0);
   }
 
   #focusCell(cell: HTMLTableCellElement): void {
