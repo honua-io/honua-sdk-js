@@ -20,6 +20,13 @@
  * @packageDocumentation
  */
 
+import {
+  compileQueryFilterToCql2Text,
+  compileQueryFilterToOData,
+  compileQueryFilterToSql92,
+  queryFilter,
+} from "../contract/query-filter.js";
+import type { QueryFilterExpression, QueryFilterScalar } from "../contract/query-filter.js";
 import type {
   Capability,
   DegradedReason,
@@ -31,6 +38,7 @@ import type {
   SourceId,
 } from "../contract/types.js";
 import type { WidgetSourceProjection } from "../contract/widget-source.js";
+import { geometryToWkt } from "../core/odata.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent } from "../core/types.js";
 import type { LinkedViewQueryProjection } from "../exploration/selectors.js";
@@ -71,6 +79,8 @@ export interface FilterClause {
   readonly owner: FilterRegistryOwner;
   readonly sourceScope?: FilterSourceScope;
   readonly field?: string;
+  /** Preserve temporal literal typing in shared query projections. */
+  readonly fieldType?: "datetime";
   readonly operator?: FilterOperator;
   readonly value?: unknown;
   readonly spatialScope?: RegistrySpatialScope;
@@ -293,7 +303,7 @@ export function projectFilterRegistryToQuery(
   const active = selectActiveFilterClauses(snapshot, options);
   const filters = toProjectionFilters(active);
   const linkedViewFilters = toLinkedViewFilters(active);
-  const where = compileWhere(active);
+  const where = compileWhere(active, options.source?.protocol);
   const spatialFilter = firstSpatialFilter(active);
   const query: Query = {
     ...(options.baseQuery ?? {}),
@@ -410,42 +420,81 @@ function toLinkedViewFilters(clauses: readonly FilterClause[]): Readonly<Record<
   return out;
 }
 
-function compileWhere(clauses: readonly FilterClause[]): string | undefined {
+function compileWhere(clauses: readonly FilterClause[], protocol?: Protocol): string | undefined {
   const parts = clauses
-    .map(compileClauseWhere)
+    .map((clause) => compileClauseWhere(clause, protocol))
     .filter((entry): entry is string => entry !== undefined)
     .map((entry) => `(${entry})`);
   return parts.length > 0 ? parts.join(" AND ") : undefined;
 }
 
-function compileClauseWhere(clause: FilterClause): string | undefined {
+function compileClauseWhere(clause: FilterClause, protocol?: Protocol): string | undefined {
   if (!clause.field || !clause.operator) return undefined;
   const field = sqlIdentifier(clause.field);
   if (!field) return undefined;
+  if (clause.fieldType === "datetime") return compileTemporalClause(clause, protocol);
+  const valueLiteral = literal;
   switch (clause.operator) {
     case "=":
-      return `${field} = ${literal(clause.value)}`;
+      return `${field} = ${valueLiteral(clause.value)}`;
     case "!=":
-      return `${field} <> ${literal(clause.value)}`;
+      return `${field} <> ${valueLiteral(clause.value)}`;
     case "<":
     case "<=":
     case ">":
     case ">=":
-      return `${field} ${clause.operator} ${literal(clause.value)}`;
+      return `${field} ${clause.operator} ${valueLiteral(clause.value)}`;
     case "in":
     case "not-in":
       if (!Array.isArray(clause.value) || clause.value.length === 0) return undefined;
-      return `${field} ${clause.operator === "not-in" ? "NOT " : ""}IN (${clause.value.map(literal).join(", ")})`;
+      return `${field} ${clause.operator === "not-in" ? "NOT " : ""}IN (${clause.value.map(valueLiteral).join(", ")})`;
     case "between":
       if (!Array.isArray(clause.value) || clause.value.length < 2) return undefined;
-      return `${field} BETWEEN ${literal(clause.value[0])} AND ${literal(clause.value[1])}`;
+      return `${field} BETWEEN ${valueLiteral(clause.value[0])} AND ${valueLiteral(clause.value[1])}`;
     case "like":
-      return `${field} LIKE ${literal(clause.value)}`;
+      return `${field} LIKE ${valueLiteral(clause.value)}`;
     case "is-null":
       return `${field} IS NULL`;
     case "is-not-null":
       return `${field} IS NOT NULL`;
   }
+}
+
+function compileTemporalClause(clause: FilterClause, protocol = "ogc-features" as Protocol): string | undefined {
+  const sourceField = clause.field!;
+  const field = sourceField.includes(".") ? "temporal_field" : sourceField;
+  const value = clause.value as QueryFilterScalar;
+  const comparisons = { "=": "eq", "!=": "ne", "<": "lt", "<=": "lte", ">": "gt", ">=": "gte" } as const;
+  let filter: QueryFilterExpression;
+  if (clause.operator && clause.operator in comparisons) {
+    const operator = comparisons[clause.operator as keyof typeof comparisons];
+    filter = queryFilter[operator](field, value);
+  } else if (clause.operator === "between" && Array.isArray(value) && value.length >= 2) {
+    filter = queryFilter.between(field, value[0], value[1]);
+  } else if ((clause.operator === "in" || clause.operator === "not-in") && Array.isArray(value) && value.length) {
+    const list = queryFilter.isIn(field, value);
+    filter = clause.operator === "not-in" ? { kind: "not", arg: list } : list;
+  } else if (clause.operator === "is-null" || clause.operator === "is-not-null") {
+    filter = { kind: "null", operator: clause.operator, operand: { kind: "property", name: field } };
+  } else {
+    return undefined;
+  }
+  const context = { protocol, fieldTypes: { [field]: "datetime" } };
+  let compiled: string | undefined;
+  if (protocol === "odata") {
+    compiled = compileQueryFilterToOData(filter, context, () => {
+      throw new Error("Unexpected spatial filter");
+    });
+  } else if (protocol === "ogc-features" || protocol === "ogc-records" || protocol === "stac") {
+    compiled = compileQueryFilterToCql2Text(filter, context, geometryToWkt);
+  } else {
+    compiled = compileQueryFilterToSql92(filter, context).where;
+  }
+  // Bind repeated field identifiers while leaving quoted literals untouched.
+  if (sourceField === field) return compiled;
+  return compiled?.replace(/'(?:''|[^'])*'|\btemporal_field\b/g, (token) =>
+    token === "temporal_field" ? sourceField : token,
+  );
 }
 
 function compileRuntimeClause(clause: FilterClause): RuntimeStyleFilterExpression | undefined {
@@ -553,6 +602,7 @@ function normalizeClause(clause: FilterClause): FilterClause {
     id: clause.id,
     owner: { kind: clause.owner.kind, id: clause.owner.id },
     ...(clause.field !== undefined ? { field: clause.field } : {}),
+    ...(clause.fieldType !== undefined ? { fieldType: clause.fieldType } : {}),
     ...(clause.operator !== undefined ? { operator: clause.operator } : {}),
     ...(clause.value !== undefined ? { value: cloneJsonLike(clause.value) } : {}),
     ...(clause.spatialScope !== undefined ? { spatialScope: cloneJsonLike(clause.spatialScope) } : {}),
@@ -624,6 +674,7 @@ function isFilterClause(value: unknown): value is FilterClause {
       record.operator,
       (operator) => typeof operator === "string" && FILTER_OPERATORS.has(operator as FilterOperator),
     ) &&
+    validOptional(record.fieldType, (fieldType) => fieldType === "datetime") &&
     validOptional(record.sourceScope, isFilterSourceScope) &&
     validOptional(
       record.lifecycle,
