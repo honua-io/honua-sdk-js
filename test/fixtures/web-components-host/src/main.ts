@@ -9,6 +9,7 @@ import "../../../../examples/shared/maplibre-vite-worker.js";
 // instead is the explicit, ordered `./register-controls-legend.js` import
 // just below, not an import-order accident.
 import "@honua/sdk-js/controls";
+import { defineHonuaDataExport } from "@honua/sdk-js/controls";
 import "./register-controls-legend.js";
 import type {
   HonuaBasemapDefinition,
@@ -29,6 +30,8 @@ import {
 } from "@honua/sdk-js/web-components";
 
 import "./styles.css";
+
+defineHonuaDataExport();
 
 // The browser qualification lane needs to exercise the native controls-kit
 // layer list alongside this demo's canonical web-components registrant. Keep

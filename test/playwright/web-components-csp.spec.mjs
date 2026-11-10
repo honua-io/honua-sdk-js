@@ -27,6 +27,7 @@ test("web-component catalog renders without strict-CSP violations", async ({ pag
     await page.waitForTimeout(500);
     await page.evaluate(() => {
       const map = document.querySelector("honua-map");
+      document.body.append(document.createElement("honua-data-export"));
       const swipe = document.createElement("honua-swipe-control");
       swipe.map = map?.map;
       document.body.append(swipe);

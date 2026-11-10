@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.1](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.3.0...mcp-server-v0.3.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **mcp:** pin the published MCP server at 0.3.0 ([#2323](https://github.com/honua-io/honua-sdk-js/issues/2323)) ([838965e](https://github.com/honua-io/honua-sdk-js/commit/838965ef57c04e5583027968d8b348b8cc80a7f9))
+* retire operating skills without auditable paired evidence ([#2336](https://github.com/honua-io/honua-sdk-js/issues/2336)) ([65f75f8](https://github.com/honua-io/honua-sdk-js/commit/65f75f8fea1aaa2d90845ab27d43aa53a3141697))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.2.0 || ^0.3.0
+
 ## [0.3.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.2.10...mcp-server-v0.3.0) (2026-11-05)
 
 
