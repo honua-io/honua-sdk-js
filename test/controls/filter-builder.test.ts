@@ -174,3 +174,20 @@ test.each(["ogc-features", "stac", "ogc-records", "odata", "geoservices-feature-
     expect(query.where).toContain("2026-01-01T00:00:00Z");
   },
 );
+
+test("binds both qualified fields in an OData datetime range", () => {
+  const registry = createFilterRegistry();
+  registry.upsert({
+    id: "range",
+    owner: { kind: "control", id: "test" },
+    field: "events.observed",
+    fieldType: "datetime",
+    operator: "between",
+    value: ["2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z"],
+  });
+  const { query } = projectFilterRegistryToQuery(registry.snapshot, {
+    sourceId: "parcels",
+    source: { id: "parcels", protocol: "odata", capabilities: capabilities(["query", "sql"]) },
+  });
+  expect(query.where).toBe("((events.observed ge 2026-01-01T00:00:00Z and events.observed le 2026-02-01T00:00:00Z))");
+});

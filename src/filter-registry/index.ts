@@ -480,7 +480,7 @@ function compileTemporalClause(clause: FilterClause, protocol = "ogc-features" a
     return undefined;
   }
   const context = { protocol, fieldTypes: { [field]: "datetime" } };
-  let compiled: string;
+  let compiled: string | undefined;
   if (protocol === "odata") {
     compiled = compileQueryFilterToOData(filter, context, () => {
       throw new Error("Unexpected spatial filter");
@@ -490,8 +490,11 @@ function compileTemporalClause(clause: FilterClause, protocol = "ogc-features" a
   } else {
     compiled = compileQueryFilterToSql92(filter, context).where;
   }
-  // Each clause emits its single field before any literals; bind only that occurrence.
-  return compiled.replace(field, sourceField);
+  // Bind repeated field identifiers while leaving quoted literals untouched.
+  if (sourceField === field) return compiled;
+  return compiled?.replace(/'(?:''|[^'])*'|\btemporal_field\b/g, (token) =>
+    token === "temporal_field" ? sourceField : token,
+  );
 }
 
 function compileRuntimeClause(clause: FilterClause): RuntimeStyleFilterExpression | undefined {
