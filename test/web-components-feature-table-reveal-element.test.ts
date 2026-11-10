@@ -287,4 +287,42 @@ describe("<honua-feature-table> pointer, reveal, and theme", () => {
     mounted.dispose();
     context.dispose();
   });
+
+  it("drops the previous principal selection when authorization is replaced", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    const host = document.createElement("main");
+    host.append(element);
+    document.body.append(host);
+    const context = createHonuaApplicationContext<Row>({
+      status: "ready",
+      binding: { sourceIdentity: "incidents" },
+      authorization: { status: "authorized", principalId: "operator-a", scopes: ["incidents:read"] },
+    });
+    const mounted = await mountHonuaApplication({ host, context, register: false });
+    await engine.refresh();
+
+    expect(
+      context.applyRealtimeDelta({
+        sourceIdentity: "incidents",
+        mode: "patch",
+        update: {
+          selection: [{ sourceId: "incidents", id: 2 }],
+          freshness: { state: "current", observedAt: "2026-08-14T12:00:01Z" },
+        },
+      }),
+    ).toBe(true);
+    context.replaceAuthorization({ status: "unauthorized", principalId: "operator-b", scopes: [] });
+
+    expect(context.snapshot.status).toBe("unauthorized");
+    expect(context.snapshot.selection).toEqual([]);
+    expect(engine.snapshot.selection).toEqual([]);
+    await vi.waitFor(() => expect(engine.snapshot.state).not.toBe("loading"));
+    expect(context.snapshot.selection).toEqual([]);
+    expect(engine.snapshot.selection).toEqual([]);
+    mounted.dispose();
+    context.dispose();
+    engine.dispose();
+  });
 });

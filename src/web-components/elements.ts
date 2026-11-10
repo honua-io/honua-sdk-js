@@ -1085,7 +1085,12 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       this.render();
       return;
     }
-    if (snapshot.authorization.status === "unauthorized") table.cancel();
+    if (snapshot.authorization.status === "unauthorized") {
+      // Cancel publishes. Clear first, or that publish writes the previous
+      // principal's selection back over the replacement.
+      this.#applyApplicationSelection(table);
+      table.cancel();
+    }
     if (this.#applyingContext) {
       if (event?.changed.includes("selection") && !this.#publishingApplication) {
         this.#applyApplicationSelection(table);
@@ -1191,8 +1196,9 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     const selection = [...peers, ...selected];
     const filters = snapshot.filters;
     const diagnostics = applicationDiagnosticsForTable(context.snapshot.diagnostics, snapshot);
+    const unauthorized = context.snapshot.authorization.status === "unauthorized";
     const update = {
-      ...(!sameApplicationValue(context.snapshot.selection, selection) ? { selection } : {}),
+      ...(!unauthorized && !sameApplicationValue(context.snapshot.selection, selection) ? { selection } : {}),
       ...(!this.#applyingContext && !sameApplicationValue(context.snapshot.filters, filters) ? { filters } : {}),
       ...(!sameApplicationValue(context.snapshot.diagnostics, diagnostics) ? { diagnostics } : {}),
     };
