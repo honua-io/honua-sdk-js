@@ -700,6 +700,17 @@ describe("bounded export (REQ-001)", () => {
 
     expect(names).toEqual(["'=1+1", "'+cmd", "'-2+3", "'@SUM(A1:A2)", "'\tformula", "'  =hidden"]);
   });
+
+  it("neutralizes leading line breaks and quotes carriage returns", async () => {
+    const table = makeTable(
+      makeFixture({
+        totalRows: 1,
+        rows: () => ({ OBJECTID: 1, NAME: "\nvalue", STATUS: "a\rb", SEVERITY: 1 }),
+      }),
+    );
+    const result = await table.export({ format: "csv" });
+    expect(result.content).toContain('1,"\'\nvalue","a\rb",1');
+  });
 });
 
 describe("keyboard focus model (NFR-001)", () => {

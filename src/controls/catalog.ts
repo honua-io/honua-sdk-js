@@ -80,6 +80,17 @@ export interface HonuaComponentCatalogEntry {
 export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
   // ── controls kit (@honua/sdk-js/controls) ──────────────────────────────
   {
+    id: "controls.data-export",
+    tag: "honua-data-export",
+    source: "controls",
+    className: "HonuaDataExportElement",
+    supportTier: "survival-tier",
+    canonical: true,
+    requiredAdapters: ["filtered rows", "public fields"],
+    events: ["honua-data-export", "honua-data-export-error"],
+    collidesWithIds: [],
+  },
+  {
     id: "controls.basemap-switcher",
     tag: "honua-basemap-switcher",
     source: "controls",

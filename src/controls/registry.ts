@@ -5,9 +5,8 @@
  *
  * `controls`-sourced catalog entries are registered synchronously against
  * this module's local sibling files (`./basemap-switcher.js`, `./legend.js`,
- * `./layer-list.js`, `./swipe-control.js`) — none of them import `src/core`
- * or `src/runtime`, so statically importing them here costs nothing beyond
- * what `@honua/sdk-js/controls` already bundles.
+ * `./layer-list.js`, `./swipe-control.js`). Data export also shares the
+ * credential safety and geometry conversion helpers.
  *
  * `web-components`-sourced entries are registered through a **dynamic**
  * `import("../web-components/elements.js")`, so merely importing this module
@@ -42,6 +41,7 @@
 
 import { defineHonuaBasemapSwitcher } from "./basemap-switcher.js";
 import { HONUA_COMPONENT_CATALOG, type HonuaComponentCatalogEntry, getComponentCatalogEntry } from "./catalog.js";
+import { defineHonuaDataExport } from "./data-export-element.js";
 import { globalDom } from "./element-utils.js";
 import { defineHonuaLayerList } from "./layer-list.js";
 import { defineHonuaLegend } from "./legend.js";
@@ -78,6 +78,7 @@ const CONTROLS_REGISTRARS: Readonly<Record<string, ControlsRegistrar>> = {
   "controls.swipe-control": defineHonuaSwipeControl,
   "controls.legend": defineHonuaLegend,
   "controls.layer-list": defineHonuaLayerList,
+  "controls.data-export": defineHonuaDataExport,
 };
 
 async function registerWebComponentsEntry(
