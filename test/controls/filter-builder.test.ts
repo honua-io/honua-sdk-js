@@ -153,3 +153,24 @@ test.each(["stac", "ogc-records", "odata"] as const)("uses the %s temporal diale
     protocol === "odata" ? "(observed ge 2026-01-01T00:00:00Z)" : "(observed >= TIMESTAMP('2026-01-01T00:00:00Z'))",
   );
 });
+
+test.each(["ogc-features", "stac", "ogc-records", "odata", "geoservices-feature-service"] as const)(
+  "preserves qualified datetime fields for %s",
+  (protocol) => {
+    const registry = createFilterRegistry();
+    registry.upsert({
+      id: "observed",
+      owner: { kind: "control", id: "test" },
+      field: "events.observed",
+      fieldType: "datetime",
+      operator: ">=",
+      value: "2026-01-01T00:00:00Z",
+    });
+    const { query } = projectFilterRegistryToQuery(registry.snapshot, {
+      sourceId: "parcels",
+      source: { id: "parcels", protocol, capabilities: capabilities(["query", "sql"]) },
+    });
+    expect(query.where).toContain("events.observed");
+    expect(query.where).toContain("2026-01-01T00:00:00Z");
+  },
+);

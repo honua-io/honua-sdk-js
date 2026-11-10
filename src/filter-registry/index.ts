@@ -461,7 +461,8 @@ function compileClauseWhere(clause: FilterClause, protocol?: Protocol): string |
 }
 
 function compileTemporalClause(clause: FilterClause, protocol = "ogc-features" as Protocol): string | undefined {
-  const field = clause.field!;
+  const sourceField = clause.field!;
+  const field = sourceField.includes(".") ? "temporal_field" : sourceField;
   const value = clause.value as QueryFilterScalar;
   const comparisons = { "=": "eq", "!=": "ne", "<": "lt", "<=": "lte", ">": "gt", ">=": "gte" } as const;
   let filter: QueryFilterExpression;
@@ -479,13 +480,18 @@ function compileTemporalClause(clause: FilterClause, protocol = "ogc-features" a
     return undefined;
   }
   const context = { protocol, fieldTypes: { [field]: "datetime" } };
-  if (protocol === "odata")
-    return compileQueryFilterToOData(filter, context, () => {
+  let compiled: string;
+  if (protocol === "odata") {
+    compiled = compileQueryFilterToOData(filter, context, () => {
       throw new Error("Unexpected spatial filter");
     });
-  if (protocol === "ogc-features" || protocol === "ogc-records" || protocol === "stac")
-    return compileQueryFilterToCql2Text(filter, context, geometryToWkt);
-  return compileQueryFilterToSql92(filter, context).where;
+  } else if (protocol === "ogc-features" || protocol === "ogc-records" || protocol === "stac") {
+    compiled = compileQueryFilterToCql2Text(filter, context, geometryToWkt);
+  } else {
+    compiled = compileQueryFilterToSql92(filter, context).where;
+  }
+  // Each clause emits its single field before any literals; bind only that occurrence.
+  return compiled.replace(field, sourceField);
 }
 
 function compileRuntimeClause(clause: FilterClause): RuntimeStyleFilterExpression | undefined {
