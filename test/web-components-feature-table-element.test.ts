@@ -376,6 +376,26 @@ describe("<honua-feature-table> bounded lane", () => {
     expect(selections).toBe(4);
   });
 
+  it("selects another row after the pointer is released outside the table", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+    const cell = shadow(element).querySelector<HTMLTableCellElement>(
+      "tbody tr[data-row-key='incidents:1'] [role='gridcell']",
+    );
+    if (!cell) throw new Error("no cell");
+    cell.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true }));
+    document.body.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, composed: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const next = shadow(element).querySelector<HTMLTableRowElement>("tbody tr[data-row-key='incidents:2']");
+    if (!next) throw new Error("no second row");
+    next.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expect(engine.snapshot.selection).toEqual(["incidents:2"]);
+  });
+
   it("scrolls the revealed row into the window when the table itself is not focused", async () => {
     const element = mount();
     element.setAttribute("row-height", "32");
@@ -401,6 +421,42 @@ describe("<honua-feature-table> bounded lane", () => {
     expect(row).not.toBeNull();
     expect(scroller?.scrollTop).toBe(70 * 32);
     expect(shadow(element).activeElement).toBeNull();
+  });
+
+  it("scrolls a default-budget reveal so the target row is inside the viewport", async () => {
+    const element = mount();
+    element.setAttribute("row-height", "32");
+    const engine = createHonuaFeatureTable<Row>({
+      source: orderedSource(400),
+      sourceId: "incidents",
+      columns: [
+        { field: "OBJECTID", label: "ID", type: "integer" },
+        { field: "NAME", label: "Name", type: "string" },
+      ],
+    });
+    element.table = engine;
+    await engine.refresh();
+    document.body.focus();
+    const viewportHeight = 300;
+    const rowHeight = 32;
+    const height = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.dataset.scroller === undefined ? 0 : viewportHeight;
+    });
+    try {
+      const revealed = await engine.reveal({ sourceId: "incidents", id: 300 });
+      expect(revealed).toMatchObject({ status: "visible", index: 299 });
+      const scroller = shadow(element).querySelector<HTMLElement>("[data-scroller]");
+      const targetTop = 299 * rowHeight;
+      const centered = targetTop - (viewportHeight - rowHeight) / 2;
+      expect(scroller?.scrollTop).toBe(centered);
+      expect(centered).toBeLessThanOrEqual(targetTop);
+      expect(centered + viewportHeight).toBeGreaterThanOrEqual(targetTop + rowHeight);
+      expect(shadow(element).activeElement).toBeNull();
+    } finally {
+      height.mockRestore();
+    }
   });
 
   it("applies application filters before revealing the initial selection", async () => {

@@ -828,6 +828,27 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
   }
 }
 
+function revealedRowIndex(snapshot: HonuaFeatureTableSnapshot): number | undefined {
+  const key = snapshot.focus?.rowKey;
+  if (key === undefined) return undefined;
+  return snapshot.rows.find((row) => row?.key === key)?.index;
+}
+
+function scrollTopForRevealedRow(request: {
+  readonly index: number | undefined;
+  readonly windowStart: number;
+  readonly windowEnd: number;
+  readonly rowHeight: number;
+  readonly viewportHeight: number;
+  readonly overscan: number;
+}): number {
+  const windowTop = request.windowStart * request.rowHeight;
+  if (request.index === undefined) return Math.max(0, windowTop + request.overscan * request.rowHeight);
+  const centered = request.index * request.rowHeight - (request.viewportHeight - request.rowHeight) / 2;
+  const maxScroll = Math.max(windowTop, request.windowEnd * request.rowHeight - request.viewportHeight);
+  return Math.min(maxScroll, Math.max(windowTop, centered));
+}
+
 /**
  * `<honua-feature-table>` — the production feature grid (issue #681).
  *
@@ -866,6 +887,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   #restoringScroll = false;
   #ignoreClickSelection = false;
   #pointerGesture = 0;
+  #endPointerGesture: (() => void) | undefined;
   #applyingContext = false;
   #publishingApplication = false;
   #contextFollowUp: HonuaApplicationContextChangeEvent<T> | undefined;
@@ -974,6 +996,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 
   public disconnectedCallback(): void {
+    this.#endPointerGesture?.();
     super.disconnectedCallback();
     this.#tableConnected = false;
     this.#tableUnsubscribe?.();
@@ -1147,7 +1170,14 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     const scrollTop =
       implied.startIndex === snapshot.window.startIndex
         ? previousScrollTop
-        : Math.max(0, (snapshot.window.startIndex + overscan) * rowHeight);
+        : scrollTopForRevealedRow({
+            index: revealedRowIndex(snapshot),
+            windowStart: snapshot.window.startIndex,
+            windowEnd: snapshot.window.endIndex,
+            rowHeight,
+            viewportHeight,
+            overscan,
+          });
     this.#restoreScroll(scrollTop, previousScrollLeft);
   }
 
@@ -1330,18 +1360,23 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       this.#table.setFocus({ rowKey, field });
       this.#restoreFocusedCell();
     }
+    this.#endPointerGesture?.();
+    const doc = this.ownerDocument;
     const release = () => {
-      this.removeEventListener("pointerup", release);
-      this.removeEventListener("pointercancel", release);
+      doc.removeEventListener("pointerup", release);
+      doc.removeEventListener("pointercancel", release);
+      if (this.#endPointerGesture === release) this.#endPointerGesture = undefined;
       // The click is dispatched after pointerup listeners return. A held press
       // must not clear the flag before that click, and a press that never
-      // produces a click must not swallow a later one.
+      // produces a click must not swallow a later one. The release can land
+      // outside the host, so the document observes it.
       setTimeout(() => {
         if (this.#pointerGesture === gesture) this.#ignoreClickSelection = false;
       }, 0);
     };
-    this.addEventListener("pointerup", release);
-    this.addEventListener("pointercancel", release);
+    this.#endPointerGesture = release;
+    doc.addEventListener("pointerup", release);
+    doc.addEventListener("pointercancel", release);
   }
 
   #focusCell(cell: HTMLTableCellElement): void {
