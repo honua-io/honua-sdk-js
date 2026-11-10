@@ -905,3 +905,64 @@ the workflow does not parse WebMap template definitions itself. Initialization
 applies only to a new create draft. It does not fill missing values in updates or
 deletes, and changing a subtype after opening a draft does not overwrite edits
 with another template's values.
+
+## Visual filter builder
+
+`@honua/app-platform/controls` exports the opt-in `<honua-filter-builder>`
+control, `compileFilterBuilder`, and `applyFilterBuilder`. Register the element
+explicitly with `defineHonuaFilterBuilder()` or through the component registry.
+
+```ts doc-test=skip reason="partial excerpt requires a source and application host context"
+import {
+  defineHonuaFilterBuilder,
+  HonuaFilterBuilderElement,
+} from "@honua/app-platform/controls";
+import { createFilterRegistry } from "@honua/app-platform/filter-registry";
+
+defineHonuaFilterBuilder();
+const builder = new HonuaFilterBuilderElement();
+builder.registry = createFilterRegistry();
+builder.draft = {
+  sourceId: "towns",
+  ownerId: "town-filters",
+  fields: [
+    { name: "name", type: "string" },
+    { name: "population", type: "number" },
+    { name: "observed", type: "datetime" },
+  ],
+  rows: [{ field: "population", operator: "gte", value: "1000" }],
+  extent: [-158, 20, -157, 22],
+  time: {
+    field: "observed",
+    start: "2026-01-01T00:00:00Z",
+    end: "2026-02-01T00:00:00Z",
+  },
+};
+builder.addEventListener("honua-filter-change", (event) => {
+  const { query, cql2 } = (event as CustomEvent).detail;
+  // Pass query to the selected Source and show cql2 in the host query panel.
+  console.log(query, cql2);
+});
+document.body.append(builder);
+```
+
+All rows, the optional WGS84 extent, and the time range are combined with AND
+through the canonical query compiler. The editor supports at most 32 rows,
+schema field names that are identifiers, typed numeric and boolean values,
+string patterns, null checks, and timestamps with an explicit timezone. Invalid
+input preserves the previously applied registry state and CQL2. Extents must be
+ordered west/south/east/north. An extent crossing the antimeridian requires a
+host-provided spatial editor that supports multiple extents.
+
+Set `countRows` to an async `(query, signal) => number` callback to display a
+matching count. The callback and `honua-filter-change` detail contain this
+builder's query only. Hosts that also use chart or table filters should compose
+the shared registry query in their adapter before counting or reading rows.
+Honor the abort signal to cancel superseded requests. A failed count keeps the
+valid filter applied and displays a fixed unavailable status.
+
+Each draft needs a unique `ownerId` within its registry. Applying replaces only
+that owner's clauses; changing registry/source/owner or detaching removes them.
+Other owners' clauses remain. Drafts are copied on assignment and retrieval.
+The element performs no network requests and carries no credentials; the host
+owns Source selection, request authorization, and map/table refresh.
