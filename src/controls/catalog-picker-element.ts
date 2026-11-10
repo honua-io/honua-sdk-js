@@ -22,6 +22,14 @@ small{display:block;margin-block-start:.25rem}p{overflow-wrap:anywhere}`;
 
 /** Native search form and result buttons. The caller owns and disposes `.picker`. */
 export class HonuaCatalogPickerElement extends HTMLElementBase {
+  public static get observedAttributes(): string[] {
+    return ["label"];
+  }
+
+  public attributeChangedCallback(): void {
+    this.render();
+  }
+
   #picker: HonuaCatalogPicker | undefined;
   #unsubscribe: (() => void) | undefined;
   #connected = false;
@@ -99,7 +107,7 @@ export class HonuaCatalogPickerElement extends HTMLElementBase {
     renderShadowRoot(
       root,
       CSS,
-      `<section part="root" aria-label="Catalog picker" aria-busy="${busy}">
+      `<section part="root" aria-label="${escapeHtml(this.getAttribute?.("label") ?? "Catalog picker")}" aria-busy="${busy}">
       <form part="search"><label for="catalog-query">Search datasets<input id="catalog-query" data-focus="query" type="search" maxlength="256" value="${escapeHtml(this.#query)}" ${this.#picker ? "" : "disabled"}></label>
       <button type="submit" data-focus="search" ${this.#picker ? "" : "disabled"}>Search</button></form>
       <p part="status" role="status" aria-live="polite">${state ? STATUS[state.status] : "Connect a catalog to search datasets."}</p>

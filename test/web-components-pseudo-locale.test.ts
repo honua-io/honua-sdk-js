@@ -6,6 +6,7 @@ import {
   HonuaLayerListElement as ControlsLayerListElement,
   HonuaLegendElement as ControlsLegendElement,
   HonuaBasemapSwitcherElement,
+  HonuaCatalogPickerElement,
   HonuaDataExportElement,
   HonuaSwipeControlElement,
 } from "../src/controls/index.js";
@@ -20,6 +21,7 @@ import { assertPseudoLabelPreserved, pseudoLocale } from "./pseudo-locale.js";
 type ElementFactory = () => HTMLElement;
 
 const factories: Readonly<Record<string, ElementFactory>> = {
+  "controls.catalog-picker": () => document.createElement("honua-qualification-catalog-picker"),
   "controls.data-export": () => document.createElement("honua-qualification-data-export"),
   "controls.basemap-switcher": () => document.createElement("honua-qualification-controls-basemap-switcher"),
   "controls.swipe-control": () => document.createElement("honua-qualification-controls-swipe"),
@@ -58,6 +60,7 @@ const factories: Readonly<Record<string, ElementFactory>> = {
 
 function defineNativeTestElements(): void {
   const definitions = [
+    ["honua-qualification-catalog-picker", class extends HonuaCatalogPickerElement {}],
     ["honua-qualification-data-export", class extends HonuaDataExportElement {}],
     ["honua-qualification-controls-basemap-switcher", class extends HonuaBasemapSwitcherElement {}],
     ["honua-qualification-controls-swipe", class extends HonuaSwipeControlElement {}],
