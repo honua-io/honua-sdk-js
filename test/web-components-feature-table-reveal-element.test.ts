@@ -262,4 +262,52 @@ describe("<honua-feature-table> pointer, reveal, and theme", () => {
     mounted.dispose();
     context.dispose();
   });
+
+  it("keeps the newer application selection when its reveal query fails", async () => {
+    let releaseOlder: (() => void) | undefined;
+    const source = orderedSource(400);
+    const original = source.query.bind(source);
+    source.query = async (request) => {
+      const where = request?.where ?? "";
+      if (where.includes("OBJECTID = 75") && where.includes(" OR ") !== true) {
+        await new Promise<void>((resolve) => {
+          releaseOlder = resolve;
+        });
+      }
+      if (where.includes("OBJECTID = 40") && where.includes(" OR ") !== true) {
+        throw new Error("newer reveal query failed");
+      }
+      return original(request);
+    };
+    const element = mount();
+    const engine = createHonuaFeatureTable<Row>({
+      source,
+      sourceId: "incidents",
+      columns: [
+        { field: "OBJECTID", label: "ID", type: "integer" },
+        { field: "NAME", label: "Name", type: "string" },
+      ],
+      budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 },
+    });
+    element.table = engine;
+    await engine.refresh();
+    const context = createHonuaApplicationContext<Row>({
+      status: "ready",
+      binding: { sourceIdentity: "incidents" },
+      authorization: { status: "authorized", scopes: ["incidents:read"] },
+      selection: [{ sourceId: "incidents", id: 75 }],
+    });
+    const mounted = await mountHonuaApplication({ host: document.body, context, register: false });
+    await vi.waitFor(() => expect(releaseOlder).toBeTypeOf("function"));
+
+    context.update({ selection: [{ sourceId: "incidents", id: 40 }] });
+    releaseOlder?.();
+    await vi.waitFor(() => expect(engine.snapshot.selection).toEqual(["incidents:40"]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(engine.snapshot.selection).toEqual(["incidents:40"]);
+    expect(engine.snapshot.window.startIndex).toBeLessThan(70);
+    mounted.dispose();
+    context.dispose();
+  });
 });
