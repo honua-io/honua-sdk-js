@@ -137,6 +137,62 @@ function category() {
   });
 }
 
+describe("real µPlot scatter points", () => {
+  it.each(["render", "hover"])("preserves maximum-x points during %s", async (operation) => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    vi.stubGlobal(
+      "Path2D",
+      class {
+        moveTo() {}
+        arc() {}
+        rect() {}
+      },
+    );
+    const context = new Proxy(
+      { measureText: () => ({ width: 10 }) },
+      {
+        get: (target, key) => Reflect.get(target, key) ?? (() => {}),
+      },
+    );
+    const canvas = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    const { default: Uplot } = await import("uplot");
+    const artifact = acceptScatterArtifact({
+      ...scatter(),
+      marks: [
+        { key: "a", label: "A", x: 10, value: 20, targets: [1] },
+        { key: "b", label: "B", x: 30, value: 40, targets: [2] },
+        { key: "c", label: "C", x: 30, value: 60, targets: [3] },
+      ],
+    });
+    const projection = projectAnalyticsArtifactToUplot(artifact);
+    const target = document.createElement("div");
+    document.body.append(target);
+    const chart = new Uplot(
+      projection.options as unknown as import("uplot").Options,
+      projection.data as number[][],
+      target,
+    );
+    try {
+      await vi.waitFor(() => expect(chart.series[1].idxs).toBeDefined());
+      if (operation === "render") {
+        expect(chart.series[1].idxs).toEqual([0, 2]);
+        expect(chart.scales.y.max).toBeGreaterThanOrEqual(60);
+        return;
+      }
+      chart.setCursor({ left: chart.valToPos(30, "x"), top: chart.valToPos(60, "y") });
+      expect(chart.cursor.idxs?.[1]).toBe(2);
+      expect(chart.legend.values?.[1]).toEqual({ _: "60" });
+    } finally {
+      chart.destroy();
+      target.remove();
+      canvas.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 /**
  * A fake µPlot that records what the adapter handed it and exposes the hooks so
  * a test can fire brush / cursor / click events. The real peer needs a canvas

@@ -60,6 +60,7 @@ export interface UplotSelectBox {
 
 /** The µPlot instance members this adapter uses. */
 export interface UplotInstanceLike {
+  readonly data?: UplotAlignedData;
   readonly select: UplotSelectBox;
   readonly cursor: {
     readonly idx?: number | null;
@@ -99,7 +100,9 @@ export interface UplotSeriesOptions {
 /** One µPlot scale definition (the subset this adapter emits). */
 export interface UplotScaleOptions {
   readonly time?: boolean;
-  readonly range?: readonly [number, number];
+  readonly range?:
+    | readonly [number, number]
+    | ((self: UplotInstanceLike, min: number, max: number) => readonly [number, number]);
 }
 
 /**
@@ -194,6 +197,30 @@ export interface UplotProjectionOptions {
   readonly optionOverrides?: Readonly<Record<string, unknown>>;
 }
 
+function nearestPointIndex(self: UplotInstanceLike, data: UplotAlignedData): number | null {
+  const { idx, left, top } = self.cursor;
+  if (left === undefined || top === undefined) return idx ?? null;
+  if (!Number.isFinite(left) || !Number.isFinite(top) || left < 0 || top < 0) return null;
+  let nearest: number | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < data[0].length; index++) {
+    const x = data[0][index];
+    const y = data[1][index];
+    if (x == null || y == null) continue;
+    const squared = (self.valToPos(x, "x") - left) ** 2 + (self.valToPos(y, "y") - top) ** 2;
+    if (squared < distance) {
+      distance = squared;
+      nearest = index;
+    }
+  }
+  return nearest;
+}
+
+function scatterXRange(_self: UplotInstanceLike, min: number, max: number): readonly [number, number] {
+  const padding = Math.max((max - min) * 0.05, Math.abs(max) * Number.EPSILON * 4, Number.EPSILON);
+  return [min - padding, max + padding];
+}
+
 /**
  * Project a time-series, histogram or scatter artifact into µPlot options and aligned
  * data. Pure and DOM-free, so the whole projection is unit-testable and can be
@@ -247,8 +274,19 @@ export function projectAnalyticsArtifactToUplot(
         },
       },
     ],
-    scales: { x: isTemporal ? { time: true } : { time: false } },
-    ...(artifact.kind === "scatter" ? { cursor: { drag: { x: true, y: true, setScale: false } } } : {}),
+    scales: {
+      x: isTemporal
+        ? { time: true }
+        : { time: false, ...(artifact.kind === "scatter" ? { range: scatterXRange } : {}) },
+    },
+    ...(artifact.kind === "scatter"
+      ? {
+          cursor: {
+            drag: { x: true, y: true, setScale: false },
+            dataIdx: (self: UplotInstanceLike) => nearestPointIndex(self, self.data ?? [xs, ys]),
+          },
+        }
+      : {}),
   };
 
   const { hooks: _ignoredHooks, ...overrides } = options.optionOverrides ?? {};
@@ -397,24 +435,8 @@ export function createUplotAnalyticsAdapter(
       }
 
       function cursorMarkKey(self: UplotInstanceLike): string | undefined {
-        const { idx, left, top } = self.cursor;
-        if (artifact.kind !== "scatter" || left === undefined || top === undefined) {
-          return typeof idx === "number" && idx >= 0 ? projection.markKeys[idx] : undefined;
-        }
-        if (!Number.isFinite(left) || !Number.isFinite(top) || left < 0 || top < 0) return undefined;
-        let nearest: string | undefined;
-        let distance = Number.POSITIVE_INFINITY;
-        for (let index = 0; index < projection.markKeys.length; index++) {
-          const x = projection.data[0][index];
-          const y = projection.data[1][index];
-          if (x == null || y == null) continue;
-          const squared = (self.valToPos(x, "x") - left) ** 2 + (self.valToPos(y, "y") - top) ** 2;
-          if (squared < distance) {
-            distance = squared;
-            nearest = projection.markKeys[index];
-          }
-        }
-        return nearest;
+        const index = artifact.kind === "scatter" ? nearestPointIndex(self, projection.data) : self.cursor.idx;
+        return typeof index === "number" && index >= 0 ? projection.markKeys[index] : undefined;
       }
 
       function emitHover(self: UplotInstanceLike): void {
