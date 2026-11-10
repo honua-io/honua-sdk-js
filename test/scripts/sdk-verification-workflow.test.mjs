@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 
 import { parse as parseYaml } from "yaml";
 
@@ -31,7 +32,11 @@ function steps(workflow, jobId) {
 // is right to -- a test that shells out to an npm script escapes the prepared
 // artifact owner. This one only reads YAML.
 function stepScript(step) {
-  return typeof step?.run === "string" ? step.run : "";
+  const script = typeof step?.run === "string" ? step.run : "";
+  return script.replaceAll(
+    "scripts/ci/provision-playwright-deps.sh",
+    fs.readFileSync(path.join(root, "scripts/ci/provision-playwright-deps.sh"), "utf8"),
+  );
 }
 
 /**
@@ -105,6 +110,11 @@ const CONSUMER_JOBS = ["verify-core", "unit-coverage", "verify-package", "verify
 const LONG_JOBS = ["quickstart-budget", "build", "coverage-gate", ...CONSUMER_JOBS];
 
 describe("the SDK verification graph produces one build and consumes it", () => {
+  it("runs executable browser bootstrap controls during admission", () => {
+    const policy = steps(graph, "admission").find(step => step.name === "Test verification graph policy");
+    assert.match(policy?.run ?? "", /node --test[^\n]*test\/scripts\/playwright-bootstrap\.test\.mjs/u);
+  });
+
   it("builds the SDK in exactly one job", () => {
     const builders = Object.keys(graph.jobs).filter((jobId) => jobCommands(graph, jobId).has("npm run build"));
     assert.deepEqual(builders, ["build"], "exactly one producer job may compile the SDK");
@@ -207,7 +217,7 @@ describe("the SDK verification graph produces one build and consumes it", () => 
         (step) => step.name === "Provision Playwright operating-system dependencies",
       );
       assert.ok(provision, `${jobId} must provision Playwright OS dependencies before the clock`);
-      const script = stepScript(provision);
+      const script = stepScript(provision).replace(/[ \t]*\\\n\s*/gu, " ");
       assert.doesNotMatch(script, /timeout --foreground/u, `${jobId}: --foreground timeouts orphan apt's children`);
       assert.doesNotMatch(
         script,
@@ -224,7 +234,11 @@ describe("the SDK verification graph produces one build and consumes it", () => 
       const backoff = Number(script.match(/sleep \$\(\(attempt \* (\d+)\)\)/u)?.[1]);
       assert.ok(attempts?.length && backoff > 0, `${jobId} provisioning retries must be bounded`);
       const perAttempt = bounded.reduce((total, match) => total + Number(match[1]) + Number(match[2]), 0);
-      const worstCase = attempts.reduce((total, attempt) => total + perAttempt + attempt * backoff, 0);
+      const recovery = script.match(/sudo timeout --kill-after=(\d+)s (\d+)s dpkg/u);
+      assert.ok(recovery, "dpkg recovery must also have a root-owned deadline");
+      const recoverySeconds = Number(recovery[1]) + Number(recovery[2]);
+      const worstCase = attempts.reduce((total, attempt, index) =>
+        total + perAttempt + (index < attempts.length - 1 ? attempt * backoff + recoverySeconds : 0), 0);
       const jobSeconds = Number(workflow.jobs[jobId]["timeout-minutes"]) * 60;
       assert.ok(
         jobSeconds >= worstCase + QUICKSTART_CLOCK_SECONDS + SETUP_MARGIN_SECONDS,
@@ -712,10 +726,30 @@ describe("the shadow graph cannot satisfy or block a required status context", (
   });
 });
 
-describe("ci.yml stays the authoritative workflow while the graph runs in shadow", () => {
-  it("still owns the JS SDK and MCP SDK jobs", () => {
+describe("ci.yml keeps legacy jobs for rollback and manual dispatch", () => {
+  it("keeps legacy verification jobs and cheap policy gates", () => {
     for (const jobId of ["pr-fast", "benchmark-lab", "js-sdk", "mcp-sdk"]) {
-      assert.ok(ci.jobs[jobId], `${jobId} must remain in ci.yml until the graph is promoted`);
+      assert.ok(ci.jobs[jobId], `${jobId} must remain in ci.yml for rollback and manual dispatch`);
+    }
+  });
+
+  it("retires monoliths only after promotion while preserving manual dispatch and rollback", () => {
+    assert.ok(Object.hasOwn(ci.on, "workflow_dispatch"));
+    const modes = ["", "off", "shadow", "authoritative"];
+    const events = ["pull_request", "push", "workflow_dispatch"];
+    const cases = modes.flatMap((mode) => events.map((event) => ({ mode, event })));
+    for (const jobId of ["js-sdk", "mcp-sdk"]) {
+      const condition = ci.jobs[jobId].if;
+      assert.equal(condition,
+        "vars.HONUA_SDK_VERIFICATION_MODE != 'authoritative' || github.event_name == 'workflow_dispatch'");
+      for (const { mode, event } of cases) {
+        const enabled = runInNewContext(condition, {
+          vars: { HONUA_SDK_VERIFICATION_MODE: mode },
+          github: { event_name: event },
+        });
+        assert.equal(enabled, event === "workflow_dispatch" || mode !== "authoritative",
+          `${jobId}: mode=${mode} event=${event}`);
+      }
     }
   });
 

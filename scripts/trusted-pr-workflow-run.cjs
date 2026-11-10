@@ -232,6 +232,7 @@ async function resolveTrustedPullRequestWorkflowRun({
 
   return {
     run,
+    jobs,
     job,
     checkRun,
     pullRequest,
