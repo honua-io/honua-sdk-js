@@ -79,6 +79,10 @@ export class HonuaCatalogPickerElement extends HTMLElementBase {
     if (!root) return;
     const active = root.activeElement as HTMLElement | null;
     const focus = active?.getAttribute("data-focus");
+    const editing = focus === "query" ? (active as HTMLInputElement) : undefined;
+    const caret = editing
+      ? ([editing.selectionStart, editing.selectionEnd, editing.selectionDirection] as const)
+      : undefined;
     const state = this.#picker?.state;
     const busy = state?.status === "loading" || state?.status === "selecting";
     const results =
@@ -119,6 +123,8 @@ export class HonuaCatalogPickerElement extends HTMLElementBase {
     }
     // State changes replace the markup; restore the native keyboard position.
     if (focus) root.querySelector<HTMLElement>(`[data-focus="${focus}"]`)?.focus();
+    if (caret && caret[0] !== null && caret[1] !== null)
+      input?.setSelectionRange(caret[0], caret[1], caret[2] ?? undefined);
   }
 }
 

@@ -90,3 +90,22 @@ test("narrow enlarged text remains within the viewport", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.getByRole("button", { name: /A very long catalog/ })).toBeVisible();
 });
+
+
+test("keeps the editing caret when a catalog response arrives", async ({ page }) => {
+  await mount(page);
+  await page.evaluate(() => {
+    const control = document.querySelector("honua-catalog-picker");
+    control.picker = new window.HonuaCatalogPicker({
+      collectionId: "datasets", resolve: async () => undefined,
+      client: { searchOgcRecords: () => new Promise(resolve => { window.finishSearch = resolve; }) },
+    });
+    window.pendingSearch = control.picker.search("old query");
+  });
+  const input = page.getByRole("searchbox");
+  await input.fill("next query");
+  await input.evaluate(el => el.setSelectionRange(3, 6, "backward"));
+  await page.evaluate(async () => { window.finishSearch({ features: [] }); await window.pendingSearch; });
+  await expect(input).toBeFocused();
+  expect(await input.evaluate(el => [el.selectionStart, el.selectionEnd, el.selectionDirection])).toEqual([3, 6, "backward"]);
+});

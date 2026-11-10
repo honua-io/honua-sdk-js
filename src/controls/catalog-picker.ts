@@ -1,4 +1,3 @@
-import type { ConnectOptions, connect } from "../connect.js";
 import type { Dataset, Source } from "../contract/types.js";
 import type { HonuaClient } from "../core/client.js";
 import type { HonuaOgcRecordResponse } from "../core/types.js";
@@ -37,20 +36,22 @@ export interface HonuaCatalogPickerOptions {
 }
 
 /** Inject the existing adapters so controls keep their SSR-safe, core-free runtime graph. */
-export interface HonuaCatalogSelectionResolverOptions {
-  readonly connect: typeof connect;
+export interface HonuaCatalogSelectionResolverOptions<ConnectionOptions extends object> {
+  readonly connect: (
+    options: ConnectionOptions & { signal: AbortSignal },
+  ) => Promise<{ dataset: Dataset; source(): Source }>;
   readonly mountSource: typeof mountSource;
   readonly map: DataToMapLibreMap;
   /** Return connection options only for records/endpoints approved by the application. */
-  readonly optionsFor: (record: HonuaOgcRecordResponse) => ConnectOptions | undefined;
+  readonly optionsFor: (record: HonuaOgcRecordResponse) => ConnectionOptions | undefined;
   readonly mountOptions?: Omit<MountSourceOptions, "signal">;
 }
 
 let nextCatalogMountId = 0;
 
 /** Discover and mount the same source returned to the analysis table and charts. */
-export function createCatalogSelectionResolver(
-  options: HonuaCatalogSelectionResolverOptions,
+export function createCatalogSelectionResolver<ConnectionOptions extends object>(
+  options: HonuaCatalogSelectionResolverOptions<ConnectionOptions>,
 ): HonuaCatalogPickerOptions["resolve"] {
   return async (record, signal) => {
     const connectionOptions = options.optionsFor(record);
@@ -85,6 +86,7 @@ export class HonuaCatalogPicker {
   #state: HonuaCatalogPickerState = Object.freeze({ status: "idle", records: Object.freeze([]) });
   #request: AbortController | undefined;
   #disposed = false;
+  readonly #ownedSelections = new Set<HonuaCatalogSelection>();
 
   public constructor(options: HonuaCatalogPickerOptions) {
     if (!options.collectionId.trim()) throw new TypeError("A catalog collection is required.");
@@ -132,18 +134,24 @@ export class HonuaCatalogPicker {
     this.#update({ ...this.#state, status: "selecting" });
     try {
       const selection = await this.#options.resolve(record, request.signal);
+      if (selection) this.#ownedSelections.add(selection);
       if (!this.#current(request)) {
-        selection?.layer.remove();
+        if (selection) this.#release(selection);
         return undefined;
       }
       if (!selection) {
         this.#update({ ...this.#state, status: "unsupported" });
         return undefined;
       }
+      const previous = this.#state.selection;
+      try {
+        if (previous && previous !== selection) this.#release(previous);
+      } catch (error) {
+        if (selection !== previous) this.#release(selection);
+        throw error;
+      }
       // A completed mount keeps its signal alive while later searches run.
       this.#request = undefined;
-      const previous = this.#state.selection;
-      if (previous && previous !== selection) previous.layer.remove();
       this.#update({ status: "selected", records: this.#state.records, selection });
       return selection;
     } catch {
@@ -153,12 +161,24 @@ export class HonuaCatalogPicker {
   }
 
   public dispose(): void {
-    if (this.#disposed) return;
     this.#disposed = true;
     this.#request?.abort();
-    this.#state.selection?.layer.remove();
     this.#state = Object.freeze({ status: "idle", records: Object.freeze([]) });
     this.#listeners.clear();
+    let failure: unknown;
+    for (const selection of this.#ownedSelections) {
+      try {
+        this.#release(selection);
+      } catch (error) {
+        failure ??= error;
+      }
+    }
+    if (failure) throw failure;
+  }
+
+  #release(selection: HonuaCatalogSelection): void {
+    selection.layer.remove();
+    this.#ownedSelections.delete(selection);
   }
 
   #begin(): AbortController {

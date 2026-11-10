@@ -138,3 +138,25 @@ test("ignores old search responses and disposes a stale selection layer", async 
   expect(await pending).toBeUndefined();
   expect(selection.layer.remove).toHaveBeenCalledOnce();
 });
+
+test("retains every mounted layer when replacement cleanup fails", async () => {
+  const oldRemove = vi.fn().mockImplementationOnce(() => {
+    throw new Error("renderer cleanup failed");
+  });
+  const newRemove = vi.fn();
+  const first = { ...selection, layer: { ...selection.layer, remove: oldRemove } };
+  const next = { ...selection, layer: { ...selection.layer, remove: newRemove } };
+  const picker = new HonuaCatalogPicker({
+    client: { searchOgcRecords: vi.fn().mockResolvedValue(response) },
+    collectionId: "data",
+    resolve: vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(next),
+  });
+  await picker.search("");
+  await picker.select(0);
+  await picker.select(0);
+  expect(picker.state.status).toBe("error");
+  expect(picker.state.selection).toBe(first);
+  expect(newRemove).toHaveBeenCalledOnce();
+  picker.dispose();
+  expect(oldRemove).toHaveBeenCalledTimes(2);
+});
