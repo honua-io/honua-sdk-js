@@ -83,6 +83,24 @@ function press(cell: Element, key: string, init: KeyboardEventInit = {}): void {
   cell.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init }));
 }
 
+function contrast(foreground: string, background: string): number {
+  const luminance = (hex: string) => {
+    const value = Number.parseInt(hex.slice(1), 16);
+    const channel = (part: number) => {
+      const scaled = part / 255;
+      return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+    };
+    const red = channel((value >> 16) & 255);
+    const green = channel((value >> 8) & 255);
+    const blue = channel(value & 255);
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  };
+  const lighter = luminance(foreground);
+  const darker = luminance(background);
+  const [high, low] = lighter > darker ? [lighter, darker] : [darker, lighter];
+  return (high + 0.05) / (low + 0.05);
+}
+
 describe("<honua-feature-table> bounded lane", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -157,6 +175,23 @@ describe("<honua-feature-table> bounded lane", () => {
     application.dispose();
     context.dispose();
     engine.dispose();
+  });
+
+  it("paints headers and selected rows with theme colors that stay readable in both themes", () => {
+    const stylesheet = shadow(mount()).querySelector("style")?.textContent ?? "";
+    expect(stylesheet).toContain("th { background: var(--honua-ui-surface); color: var(--honua-ui-fg);");
+    expect(stylesheet).toContain(
+      'tr[aria-selected="true"] td { background: var(--honua-ui-accent); color: var(--honua-ui-accent-fg);',
+    );
+    expect(stylesheet).not.toMatch(/th \{ background: #f8fafc/);
+    expect(stylesheet).not.toContain("#dbeafe");
+
+    const lightHeader = contrast("#172033", "#f8fafc");
+    const darkHeader = contrast("#e8f1f3", "#142e39");
+    const selected = contrast("#ffffff", "#1d4ed8");
+    expect(lightHeader).toBeGreaterThanOrEqual(4.5);
+    expect(darkHeader).toBeGreaterThanOrEqual(4.5);
+    expect(selected).toBeGreaterThanOrEqual(4.5);
   });
 
   it("keeps the panel shrinkable without forcing horizontal overflow", () => {

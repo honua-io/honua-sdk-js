@@ -3502,8 +3502,8 @@ function tableStyles(): string {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    th { background: #f8fafc; font-weight: 650; }
-    tr[aria-selected="true"] td { background: #dbeafe; }
+    th { background: var(--honua-ui-surface); color: var(--honua-ui-fg); font-weight: 650; }
+    tr[aria-selected="true"] td { background: var(--honua-ui-accent); color: var(--honua-ui-accent-fg); }
     tbody tr[data-feature-id] { cursor: pointer; }
     tbody tr[data-feature-id]:focus { outline: 2px solid var(--honua-ui-accent); outline-offset: -2px; }
     @media (forced-colors: active), (prefers-contrast: more) {
