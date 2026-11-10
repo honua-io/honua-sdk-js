@@ -56,3 +56,11 @@ export {
 } from "./providers/honua.js";
 export { type OsrmProviderOptions, osrmRoutingProvider } from "./providers/osrm.js";
 export { type ValhallaProviderOptions, valhallaRoutingProvider } from "./providers/valhalla.js";
+
+export type {
+  IsochroneRequest,
+  IsochroneRoutingProvider,
+  ProviderIsochroneResult,
+  IsochroneContour,
+} from "./isochrone.js";
+export { requestIsochrone } from "./isochrone.js";
