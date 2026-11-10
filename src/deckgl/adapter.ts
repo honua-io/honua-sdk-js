@@ -386,7 +386,7 @@ export function snapshotSelectionIdentity(
   value: unknown,
   featureCount: number,
   countLabel = "data.length",
-): DeckGlSelectionIdentity {
+): DeckGlSelectionIdentity & { readonly featureIds: readonly (string | number | bigint)[] } {
   const identity = requireRecord(value, "request.identity");
   const sourceId = requireNonEmptyString(
     readOnce(identity, "sourceId", "request.identity.sourceId"),
