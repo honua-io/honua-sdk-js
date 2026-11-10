@@ -17,29 +17,43 @@ test("routes an approved record through discovery and mountSource using the iden
   const dispose = vi.fn();
   const mountSource = vi.fn().mockResolvedValue({ sourceId: "towns", layerIds: ["towns-fill"], dispose });
   const map = {} as Parameters<typeof createCatalogSelectionResolver>[0]["map"];
-  const optionsFor = vi.fn().mockReturnValue({ endpoint: "https://data.example.test", protocol: "ogc-features", authorizationScopeFingerprint: "public" });
+  const optionsFor = vi.fn().mockReturnValue({
+    endpoint: "https://data.example.test",
+    protocol: "ogc-features",
+    authorizationScopeFingerprint: "public",
+  });
   const resolve = createCatalogSelectionResolver({ connect, mountSource, map, optionsFor });
   const signal = new AbortController().signal;
   const result = await resolve(record, signal);
   expect(connect).toHaveBeenCalledWith(expect.objectContaining({ protocol: "ogc-features", signal }));
   expect(mountSource).toHaveBeenCalledWith(map, selection.source, expect.objectContaining({ signal }));
+  const sourceId = mountSource.mock.calls[0]?.[2]?.sourceId;
+  expect(sourceId).toMatch(/^honua-catalog-selection-/);
+  await resolve(record, signal);
+  expect(mountSource.mock.calls[1]?.[2]?.sourceId).not.toBe(sourceId);
   expect(result?.source).toBe(selection.source);
   expect(result?.dataset).toBe(selection.dataset);
   result?.layer.remove();
   expect(dispose).toHaveBeenCalledOnce();
   optionsFor.mockReturnValue(undefined);
   expect(await resolve(record, signal)).toBeUndefined();
-  expect(connect).toHaveBeenCalledOnce();
+  expect(connect).toHaveBeenCalledTimes(2);
 });
 
 test("keeps the current layer until a replacement succeeds and disposes owned layers once", async () => {
   const first = { ...selection, layer: { ...selection.layer, remove: vi.fn() } };
   const next = { ...selection, layer: { ...selection.layer, remove: vi.fn() } };
   const resolve = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(undefined).mockResolvedValueOnce(next);
-  const picker = new HonuaCatalogPicker({ client: { searchOgcRecords: vi.fn().mockResolvedValue(response) }, collectionId: "data", resolve });
+  const picker = new HonuaCatalogPicker({
+    client: { searchOgcRecords: vi.fn().mockResolvedValue(response) },
+    collectionId: "data",
+    resolve,
+  });
   await picker.search("");
   await picker.select(0);
+  const mountedSignal = resolve.mock.calls[0]?.[1] as AbortSignal;
   await picker.search("again");
+  expect(mountedSignal.aborted).toBe(false);
   await picker.select(0);
   expect(picker.state.selection).toBe(first);
   expect(first.layer.remove).not.toHaveBeenCalled();

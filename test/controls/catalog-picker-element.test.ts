@@ -1,13 +1,21 @@
 import { expect, test, vi } from "vitest";
-import { HonuaCatalogPicker } from "../../src/controls/catalog-picker.js";
 import { HonuaCatalogPickerElement } from "../../src/controls/catalog-picker-element.js";
+import { HonuaCatalogPicker } from "../../src/controls/catalog-picker.js";
 
 test("renders native search and escaped catalog results, and releases its subscription on disconnect", async () => {
   const picker = new HonuaCatalogPicker({
-    client: { searchOgcRecords: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [
-      { type: "Feature", id: "one", geometry: null, properties: { title: '<img src=x onerror="alert(1)">' } },
-    ] }) },
-    collectionId: "data", resolve: vi.fn(),
+    client: {
+      searchOgcRecords: vi
+        .fn()
+        .mockResolvedValue({
+          type: "FeatureCollection",
+          features: [
+            { type: "Feature", id: "one", geometry: null, properties: { title: '<img src=x onerror="alert(1)">' } },
+          ],
+        }),
+    },
+    collectionId: "data",
+    resolve: vi.fn(),
   });
   const element = new HonuaCatalogPickerElement();
   const shadow = { innerHTML: "", querySelector: () => null, querySelectorAll: () => [], activeElement: null };
@@ -17,8 +25,8 @@ test("renders native search and escaped catalog results, and releases its subscr
   expect(shadow.innerHTML).toContain('type="search"');
   expect(shadow.innerHTML).toContain('for="catalog-query"');
   await picker.search("towns");
-  expect(shadow.innerHTML).toContain('&lt;img');
-  expect(shadow.innerHTML).not.toContain('<img');
+  expect(shadow.innerHTML).toContain("&lt;img");
+  expect(shadow.innerHTML).not.toContain("<img");
   expect(shadow.innerHTML).toContain('type="button"');
   expect(shadow.innerHTML).toContain('role="status"');
   element.disconnectedCallback();

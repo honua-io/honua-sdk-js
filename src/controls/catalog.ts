@@ -78,6 +78,17 @@ export interface HonuaComponentCatalogEntry {
  * the two is `canonical: true`.
  */
 export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
+  {
+    id: "controls.catalog-picker",
+    tag: "honua-catalog-picker",
+    source: "controls",
+    className: "HonuaCatalogPickerElement",
+    supportTier: "survival-tier",
+    canonical: true,
+    requiredAdapters: ["OGC Records client", "approved discovery resolver", "maplibre-map"],
+    events: ["honua-catalog-select"],
+    collidesWithIds: [],
+  },
   // ── controls kit (@honua/sdk-js/controls) ──────────────────────────────
   {
     id: "controls.data-export",

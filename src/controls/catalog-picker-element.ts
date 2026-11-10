@@ -1,4 +1,4 @@
-import { HonuaCatalogPicker, type HonuaCatalogPickerState, type HonuaCatalogSelection } from "./catalog-picker.js";
+import type { HonuaCatalogPicker, HonuaCatalogPickerState, HonuaCatalogSelection } from "./catalog-picker.js";
 import { HTMLElementBase, escapeHtml, globalDom, renderShadowRoot } from "./element-utils.js";
 
 const STATUS: Record<HonuaCatalogPickerState["status"], string> = {
@@ -28,7 +28,9 @@ export class HonuaCatalogPickerElement extends HTMLElementBase {
   #query = "";
   #selection: HonuaCatalogSelection | undefined;
 
-  public get picker(): HonuaCatalogPicker | undefined { return this.#picker; }
+  public get picker(): HonuaCatalogPicker | undefined {
+    return this.#picker;
+  }
   public set picker(value: HonuaCatalogPicker | undefined) {
     if (value === this.#picker) return;
     this.#unsubscribe?.();
@@ -60,9 +62,13 @@ export class HonuaCatalogPickerElement extends HTMLElementBase {
         this.#selection = state.selection;
         const Event = globalDom.CustomEvent;
         if (Event && typeof this.dispatchEvent === "function") {
-          this.dispatchEvent(new Event<HonuaCatalogSelection>("honua-catalog-select", {
-            detail: state.selection, bubbles: true, composed: true,
-          }));
+          this.dispatchEvent(
+            new Event<HonuaCatalogSelection>("honua-catalog-select", {
+              detail: state.selection,
+              bubbles: true,
+              composed: true,
+            }),
+          );
         }
       }
     });
@@ -75,25 +81,41 @@ export class HonuaCatalogPickerElement extends HTMLElementBase {
     const focus = active?.getAttribute("data-focus");
     const state = this.#picker?.state;
     const busy = state?.status === "loading" || state?.status === "selecting";
-    const results = state?.records.map((record, index) => {
-      const title = typeof record.properties?.title === "string" ? record.properties.title : String(record.id ?? `Dataset ${index + 1}`);
-      const description = typeof record.properties?.description === "string" ? record.properties.description : "";
-      return `<li><button type="button" data-result="${index}" data-focus="result-${index}" ${state.status === "selecting" ? "disabled" : ""}>${escapeHtml(title)}${description ? `<small>${escapeHtml(description)}</small>` : ""}</button></li>`;
-    }).join("") ?? "";
-    renderShadowRoot(root, CSS, `<section part="root" aria-label="Catalog picker" aria-busy="${busy}">
+    const results =
+      state?.records
+        .map((record, index) => {
+          const title =
+            typeof record.properties?.title === "string"
+              ? record.properties.title
+              : String(record.id ?? `Dataset ${index + 1}`);
+          const description = typeof record.properties?.description === "string" ? record.properties.description : "";
+          return `<li><button type="button" data-result="${index}" data-focus="result-${index}">${escapeHtml(title)}${description ? `<small>${escapeHtml(description)}</small>` : ""}</button></li>`;
+        })
+        .join("") ?? "";
+    renderShadowRoot(
+      root,
+      CSS,
+      `<section part="root" aria-label="Catalog picker" aria-busy="${busy}">
       <form part="search"><label for="catalog-query">Search datasets<input id="catalog-query" data-focus="query" type="search" maxlength="256" value="${escapeHtml(this.#query)}" ${this.#picker ? "" : "disabled"}></label>
       <button type="submit" data-focus="search" ${this.#picker ? "" : "disabled"}>Search</button></form>
       <p part="status" role="status" aria-live="polite">${state ? STATUS[state.status] : "Connect a catalog to search datasets."}</p>
-      <ul part="results" aria-label="Catalog results">${results}</ul></section>`);
+      <ul part="results" aria-label="Catalog results">${results}</ul></section>`,
+    );
     const input = root.querySelector<HTMLInputElement>("input");
-    input?.addEventListener("input", () => { this.#query = input.value; });
+    input?.addEventListener("input", () => {
+      this.#query = input.value;
+    });
     root.querySelector("form")?.addEventListener("submit", (event) => {
       event.preventDefault();
       if (input) this.#query = input.value;
-      void this.#picker?.search(this.#query).catch(() => { /* Native maxlength bounds user input. */ });
+      void this.#picker?.search(this.#query).catch(() => {
+        /* Native maxlength bounds user input. */
+      });
     });
     for (const button of root.querySelectorAll<HTMLButtonElement>("[data-result]")) {
-      button.addEventListener("click", () => { void this.#picker?.select(Number(button.dataset.result)).catch(() => {}); });
+      button.addEventListener("click", () => {
+        void this.#picker?.select(Number(button.dataset.result)).catch(() => {});
+      });
     }
     // State changes replace the markup; restore the native keyboard position.
     if (focus) root.querySelector<HTMLElement>(`[data-focus="${focus}"]`)?.focus();
@@ -101,5 +123,6 @@ export class HonuaCatalogPickerElement extends HTMLElementBase {
 }
 
 export function defineHonuaCatalogPicker(registry: CustomElementRegistry | undefined = globalDom.customElements): void {
-  if (registry && !registry.get("honua-catalog-picker")) registry.define("honua-catalog-picker", HonuaCatalogPickerElement);
+  if (registry && !registry.get("honua-catalog-picker"))
+    registry.define("honua-catalog-picker", HonuaCatalogPickerElement);
 }

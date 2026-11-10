@@ -14,6 +14,7 @@ const CATALOG_COMPONENTS = qualification.components;
 // controls legend is already the explicit registrant in the fixture.
 const HOSTS = {
   "controls.data-export": "honua-data-export",
+  "controls.catalog-picker": "honua-catalog-picker",
   "controls.basemap-switcher": "honua-basemap-switcher",
   "controls.swipe-control": "honua-swipe-control",
   "controls.legend": "honua-legend",

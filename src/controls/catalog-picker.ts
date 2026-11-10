@@ -1,7 +1,7 @@
+import type { ConnectOptions, connect } from "../connect.js";
 import type { Dataset, Source } from "../contract/types.js";
 import type { HonuaClient } from "../core/client.js";
 import type { HonuaOgcRecordResponse } from "../core/types.js";
-import type { ConnectOptions, connect } from "../connect.js";
 import type { DataToMapLibreMap, MountSourceOptions, mountSource } from "../map/data-to-map-bridge.js";
 
 /** A mounted selection shared by the map, table, and analytics consumers. */
@@ -46,8 +46,12 @@ export interface HonuaCatalogSelectionResolverOptions {
   readonly mountOptions?: Omit<MountSourceOptions, "signal">;
 }
 
+let nextCatalogMountId = 0;
+
 /** Discover and mount the same source returned to the analysis table and charts. */
-export function createCatalogSelectionResolver(options: HonuaCatalogSelectionResolverOptions): HonuaCatalogPickerOptions["resolve"] {
+export function createCatalogSelectionResolver(
+  options: HonuaCatalogSelectionResolverOptions,
+): HonuaCatalogPickerOptions["resolve"] {
   return async (record, signal) => {
     const connectionOptions = options.optionsFor(record);
     if (!connectionOptions) return undefined;
@@ -55,14 +59,20 @@ export function createCatalogSelectionResolver(options: HonuaCatalogSelectionRes
     const connection = await options.connect({ ...connectionOptions, signal });
     signal.throwIfAborted();
     const source = connection.source();
-    const mounted = await options.mountSource(options.map, source, { ...options.mountOptions, signal });
+    const mounted = await options.mountSource(options.map, source, {
+      sourceId: `honua-catalog-selection-${++nextCatalogMountId}`,
+      ...options.mountOptions,
+      signal,
+    });
     // Adapters can complete after cancellation; never leave their map layer behind.
     if (signal.aborted) {
       mounted.dispose();
       signal.throwIfAborted();
     }
     return {
-      record, source, dataset: connection.dataset,
+      record,
+      source,
+      dataset: connection.dataset,
       layer: { sourceId: mounted.sourceId, layerIds: mounted.layerIds, remove: () => mounted.dispose() },
     };
   };
@@ -130,6 +140,8 @@ export class HonuaCatalogPicker {
         this.#update({ ...this.#state, status: "unsupported" });
         return undefined;
       }
+      // A completed mount keeps its signal alive while later searches run.
+      this.#request = undefined;
       const previous = this.#state.selection;
       if (previous && previous !== selection) previous.layer.remove();
       this.#update({ status: "selected", records: this.#state.records, selection });
