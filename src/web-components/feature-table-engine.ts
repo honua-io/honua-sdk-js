@@ -1172,6 +1172,14 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     });
   }
 
+  function settleRevealedWindow(): void {
+    if (disposed || state === "unsupported" || state === "loading") return;
+    recomputeCount();
+    const complete = exhausted || (typeof totalKnown === "number" && residentRows() >= totalKnown);
+    state = complete ? "ready" : "partial";
+    stale = false;
+  }
+
   function recomputeCount(): void {
     const loaded = residentRows();
     if (typeof totalKnown === "number") {
@@ -1775,6 +1783,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
         fetchPage,
         findRow,
         setSelection,
+        settle: settleRevealedWindow,
         publish,
         pageOffsetFor,
         keyForTarget: (selectionTarget) => featureTableKeyForTarget(options.sourceId, selectionTarget),
@@ -1906,6 +1915,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     export: runExport,
     secureExport: runSecureExport,
     cancel() {
+      revealSerial += 1;
       const controller = inFlight;
       inFlight = undefined;
       controller?.abort();

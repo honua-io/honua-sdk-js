@@ -1087,6 +1087,9 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     }
     if (snapshot.authorization.status === "unauthorized") table.cancel();
     if (this.#applyingContext) {
+      if (event?.changed.includes("selection") && !this.#publishingApplication) {
+        this.#applyApplicationSelection(table);
+      }
       if (!this.#publishingApplication && event) this.#contextFollowUp = event;
     } else {
       void this.#syncApplicationTable(event, table).catch(() => undefined);
@@ -1102,6 +1105,14 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     this.render();
   }
 
+  #applyApplicationSelection(table: HonuaFeatureTable<T>): void {
+    const snapshot = this.#applicationContext?.snapshot;
+    if (!snapshot) return;
+    const targets = snapshot.selection.filter(isApplicationSelectionTarget);
+    const keys = table.keysForTargets(targets);
+    if (!sameApplicationValue(table.snapshot.selection, keys)) table.select(keys, { replace: true });
+  }
+
   async #syncApplicationTable(
     event: HonuaApplicationContextChangeEvent<T> | undefined,
     table: HonuaFeatureTable<T>,
@@ -1110,11 +1121,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     if (!snapshot) return;
     this.#applyingContext = true;
     try {
-      if (!event || event.changed.includes("selection")) {
-        const targets = snapshot.selection.filter(isApplicationSelectionTarget);
-        const keys = table.keysForTargets(targets);
-        if (!sameApplicationValue(table.snapshot.selection, keys)) table.select(keys, { replace: true });
-      }
+      if (!event || event.changed.includes("selection")) this.#applyApplicationSelection(table);
       if (!event || event.changed.includes("filters")) {
         const filters = snapshot.filters.filter(isApplicationFilterClause);
         if (!sameApplicationValue(table.snapshot.filters, filters)) await table.setFilters(filters);

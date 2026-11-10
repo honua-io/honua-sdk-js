@@ -214,6 +214,62 @@ describe("feature table reveal", () => {
     expect(table.snapshot.rows.some((row) => row?.id === 75)).toBe(false);
   });
 
+  it("restores the current page when a later reveal fetch fails", async () => {
+    const located = locatingFixture();
+    const original = located.source.query.bind(located.source);
+    located.source.query = async (request) => {
+      if (request?.pagination?.offset === 80) throw new Error("offset 80 failed");
+      return original(request);
+    };
+    const table = makeTable(located, { budgets: { pageSize: 10, maxCachedRows: 10, windowOverscan: 0 } });
+    await table.refresh();
+    const visible = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    await expect(table.reveal({ sourceId: "incidents", id: 80 })).rejects.toThrow("offset 80 failed");
+    table.markStale("The failed reveal must leave the previous page published.");
+
+    expect(table.snapshot.window).toEqual({ startIndex: 0, endIndex: 10 });
+    expect(table.snapshot.rows.map((row) => row?.id)).toEqual(visible);
+    expect(table.snapshot.selection).toEqual([]);
+  });
+
+  it("cancels an in-flight reveal when the table is cancelled", async () => {
+    let releaseOlder: (() => void) | undefined;
+    const located = locatingFixture();
+    const original = located.source.query.bind(located.source);
+    located.source.query = async (request) => {
+      if (request?.where?.includes("OBJECTID = 75") && request.where.includes(" OR ") !== true) {
+        await new Promise<void>((resolve) => {
+          releaseOlder = resolve;
+        });
+      }
+      return original(request);
+    };
+    const table = makeTable(located, { budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 } });
+    await table.refresh();
+    const pending = table.reveal({ sourceId: "incidents", id: 75 });
+    await vi.waitFor(() => expect(releaseOlder).toBeTypeOf("function"));
+
+    table.cancel();
+    releaseOlder?.();
+
+    await expect(pending).resolves.toEqual({ status: "cancelled" });
+    expect(table.snapshot.selection).toEqual([]);
+    expect(table.snapshot.window).toEqual({ startIndex: 0, endIndex: 10 });
+  });
+
+  it("publishes a known count when reveal loads the first window", async () => {
+    const table = makeTable(locatingFixture(), { budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 } });
+    expect(table.snapshot.state).toBe("idle");
+
+    const revealed = await table.reveal({ sourceId: "incidents", id: 1 });
+
+    expect(revealed).toEqual({ status: "visible", key: "incidents:1", index: 0 });
+    expect(table.snapshot.state).toBe("partial");
+    expect(table.snapshot.count).toMatchObject({ kind: "known", loaded: 10 });
+    expect(table.snapshot.paging.loadedPages).toBeGreaterThan(0);
+  });
+
   it("returns cancelled when an in-flight locate query rejects AbortError", async () => {
     const located = locatingFixture();
     const original = located.source.query.bind(located.source);

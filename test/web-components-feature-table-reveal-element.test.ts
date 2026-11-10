@@ -2,7 +2,11 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createHonuaApplicationContext, createHonuaFeatureTable } from "../src/web-components/index.js";
+import {
+  createHonuaApplicationContext,
+  createHonuaFeatureTable,
+  mountHonuaApplication,
+} from "../src/web-components/index.js";
 import { contrast } from "./contrast.js";
 import { type Row, makeEngine, mount, orderedSource, shadow } from "./feature-table-element-fixture.js";
 
@@ -203,6 +207,52 @@ describe("<honua-feature-table> pointer, reveal, and theme", () => {
 
     expect(engine.snapshot.window.startIndex).toBeGreaterThan(0);
     expect(engine.snapshot.selection).toEqual(["incidents:75"]);
+    context.dispose();
+  });
+
+  it("keeps a newer application selection when an older reveal is still locating", async () => {
+    let releaseOlder: (() => void) | undefined;
+    const source = orderedSource(400);
+    const original = source.query.bind(source);
+    source.query = async (request) => {
+      if (request?.where?.includes("OBJECTID = 75") && request.where.includes(" OR ") !== true) {
+        await new Promise<void>((resolve) => {
+          releaseOlder = resolve;
+        });
+      }
+      return original(request);
+    };
+    const element = mount();
+    const engine = createHonuaFeatureTable<Row>({
+      source,
+      sourceId: "incidents",
+      columns: [
+        { field: "OBJECTID", label: "ID", type: "integer" },
+        { field: "NAME", label: "Name", type: "string" },
+      ],
+      budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 },
+    });
+    element.table = engine;
+    await engine.refresh();
+    const context = createHonuaApplicationContext<Row>({
+      status: "ready",
+      binding: { sourceIdentity: "incidents" },
+      authorization: { status: "authorized", scopes: ["incidents:read"] },
+      selection: [{ sourceId: "incidents", id: 75 }],
+    });
+    const mounted = await mountHonuaApplication({ host: document.body, context, register: false });
+    await vi.waitFor(() => expect(releaseOlder).toBeTypeOf("function"));
+
+    context.update({ selection: [{ sourceId: "incidents", id: 40 }] });
+    releaseOlder?.();
+    await vi.waitFor(() => {
+      expect(engine.snapshot.selection).toEqual(["incidents:40"]);
+      expect(engine.snapshot.rows.some((row) => row?.id === 40)).toBe(true);
+    });
+
+    expect(context.snapshot.selection).toMatchObject([{ sourceId: "incidents", id: 40 }]);
+    expect(engine.snapshot.rows.some((row) => row?.id === 75)).toBe(false);
+    mounted.dispose();
     context.dispose();
   });
 });

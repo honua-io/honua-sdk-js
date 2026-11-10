@@ -169,7 +169,7 @@ export function tiedRow(id: number): Row {
   return { OBJECTID: id, NAME: `Incident ${id}`, STATUS: "open", SEVERITY: 1 };
 }
 
-export function matchesWhere(where: string | undefined, row: Row): boolean {
+export function matchesWhere(where: string | undefined, row: Readonly<Record<string, unknown>>): boolean {
   if (!where) return true;
   return parseWhere(where, { index: 0 }, row);
 }
@@ -180,11 +180,11 @@ function skipWhereSpace(where: string, cursor: WhereCursor): void {
   while (where[cursor.index] === " ") cursor.index += 1;
 }
 
-function parseWhere(where: string, cursor: WhereCursor, row: Row): boolean {
+function parseWhere(where: string, cursor: WhereCursor, row: Readonly<Record<string, unknown>>): boolean {
   return parseWhereOr(where, cursor, row);
 }
 
-function parseWhereOr(where: string, cursor: WhereCursor, row: Row): boolean {
+function parseWhereOr(where: string, cursor: WhereCursor, row: Readonly<Record<string, unknown>>): boolean {
   let value = parseWhereAnd(where, cursor, row);
   for (;;) {
     skipWhereSpace(where, cursor);
@@ -198,7 +198,7 @@ function parseWhereOr(where: string, cursor: WhereCursor, row: Row): boolean {
   return value;
 }
 
-function parseWhereAnd(where: string, cursor: WhereCursor, row: Row): boolean {
+function parseWhereAnd(where: string, cursor: WhereCursor, row: Readonly<Record<string, unknown>>): boolean {
   let value = parseWherePrimary(where, cursor, row);
   for (;;) {
     skipWhereSpace(where, cursor);
@@ -212,7 +212,7 @@ function parseWhereAnd(where: string, cursor: WhereCursor, row: Row): boolean {
   return value;
 }
 
-function parseWherePrimary(where: string, cursor: WhereCursor, row: Row): boolean {
+function parseWherePrimary(where: string, cursor: WhereCursor, row: Readonly<Record<string, unknown>>): boolean {
   skipWhereSpace(where, cursor);
   const index = cursor.index;
   if (where[index] === "(") {
@@ -225,7 +225,7 @@ function parseWherePrimary(where: string, cursor: WhereCursor, row: Row): boolea
   return parseWhereComparison(where, cursor, row);
 }
 
-function parseWhereComparison(where: string, cursor: WhereCursor, row: Row): boolean {
+function parseWhereComparison(where: string, cursor: WhereCursor, row: Readonly<Record<string, unknown>>): boolean {
   skipWhereSpace(where, cursor);
   const fieldStart = cursor.index;
   let fieldEnd = fieldStart;
@@ -239,7 +239,7 @@ function parseWhereComparison(where: string, cursor: WhereCursor, row: Row): boo
   cursor.index = cursor.index + operator.length;
   skipWhereSpace(where, cursor);
   const literal = parseWhereLiteral(where, cursor);
-  const actual = row[field as keyof Row];
+  const actual = row[field];
   if (operator === "=") return actual === literal;
   if (operator === "<>") return actual !== literal;
   if (typeof actual !== "number" && typeof actual !== "string") return false;

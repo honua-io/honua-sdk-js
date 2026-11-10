@@ -66,6 +66,7 @@ export interface FeatureTableLocateHost<T> {
   fetchPage(offset: number, signal: AbortSignal | undefined): Promise<FeatureTableCachedPage<T> | undefined>;
   findRow(key: HonuaFeatureTableRowKey): HonuaFeatureTableRow<T> | undefined;
   setSelection(next: readonly HonuaFeatureTableRowKey[]): void;
+  settle(): void;
   publish(): void;
   keyForTarget(target: FeatureSelectionTarget): HonuaFeatureTableRowKey | undefined;
   pageOffsetFor(index: number): number;
@@ -205,11 +206,9 @@ async function showLocated<T>(
       await host.fetchPage(offset, request.signal);
     }
   } catch (error) {
-    if (isAbort(error) || request.signal?.aborted) {
-      const current = host.read();
-      if (request.token === current.revealSerial && !current.disposed) restorePages(host, savedPages, savedTotals);
-      return "cancelled";
-    }
+    const current = host.read();
+    if (request.token === current.revealSerial && !current.disposed) restorePages(host, savedPages, savedTotals);
+    if (isAbort(error) || request.signal?.aborted) return "cancelled";
     throw error;
   }
   if (!revealStillCurrent(host, request.token, request.signal)) {
@@ -227,6 +226,7 @@ async function showLocated<T>(
   const field = host.orderedFields()[0];
   if (field) host.write({ focus: Object.freeze({ rowKey: request.key, field }) });
   if (request.selection === "replace") host.setSelection([request.key]);
+  host.settle();
   host.publish();
   return "shown";
 }
