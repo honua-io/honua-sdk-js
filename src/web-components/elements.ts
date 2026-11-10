@@ -1073,6 +1073,8 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       const targets = snapshot.selection.filter(isApplicationSelectionTarget);
       const keys = table.keysForTargets(targets);
       if (!sameApplicationValue(table.snapshot.selection, keys)) table.select(keys, { replace: true });
+      const primary = targets.find((target) => table.keysForTargets([target]).length > 0);
+      if (primary) void table.reveal(primary, { select: false });
     }
     if (!event || event.changed.includes("filters")) {
       const filters = snapshot.filters.filter(isApplicationFilterClause);

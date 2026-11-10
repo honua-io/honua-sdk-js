@@ -335,6 +335,17 @@ export interface HonuaFeatureTableFocus {
   readonly field: string;
 }
 
+/**
+ * Outcome of {@link HonuaFeatureTable.reveal}. `index` is the absolute row
+ * position under the table's current query identity.
+ */
+export type HonuaFeatureTableReveal =
+  | { readonly status: "visible"; readonly key: HonuaFeatureTableRowKey; readonly index: number }
+  | { readonly status: "missing" }
+  | { readonly status: "filtered-out" }
+  | { readonly status: "unsupported"; readonly reason: string }
+  | { readonly status: "cancelled" };
+
 /** WAI-ARIA data-grid navigation vocabulary (WCAG 2.2 AA workflow). */
 export type HonuaFeatureTableFocusMove =
   | "up"
@@ -644,6 +655,17 @@ export interface HonuaFeatureTable<T = Record<string, unknown>> {
   selectionTargets(): readonly FeatureSelectionTarget[];
 
   setFocus(focus: HonuaFeatureTableFocus | undefined): void;
+  /**
+   * Load and scroll to one selection target under the current sort, filters,
+   * and linked extent. Asks the source for the target and for how many rows
+   * sort before it, so the layer is never scanned on the client. A source that
+   * ignores the predicate, or that does not report `totalCount` for the rank
+   * query, fails closed.
+   */
+  reveal(
+    target: FeatureSelectionTarget,
+    options?: { readonly signal?: AbortSignal; readonly select?: boolean },
+  ): Promise<HonuaFeatureTableReveal>;
   /** Move the focused cell; may load the page the new focus lands on. */
   moveFocus(move: HonuaFeatureTableFocusMove): Promise<HonuaFeatureTableSnapshot<T>>;
 
@@ -773,6 +795,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   let revision = 0;
   let disposed = false;
   let generation = 0;
+  let revealEpoch = 0;
   let cursorPages = 0;
   let cursorIterator: AsyncGenerator<Result<T>, void, undefined> | undefined;
   let inFlight: AbortController | undefined;
@@ -872,6 +895,13 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     return identityField && !fields.includes(identityField) ? [...fields, identityField] : fields;
   }
 
+  let revealOrdering = false;
+
+  function queryOrder(): readonly SortSpec[] {
+    if (!revealOrdering || !identityField || sort.some((entry) => entry.field === identityField)) return sort;
+    return [...sort, { field: identityField, direction: "asc" }];
+  }
+
   function orderedFields(): readonly string[] {
     const visible = columns
       .filter((column) => column.visible)
@@ -918,7 +948,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       ...(projected.where !== undefined ? { where: projected.where } : {}),
       ...(spatialFilter ? { spatialFilter } : {}),
       ...(outFields ? { outFields } : {}),
-      ...(sort.length > 0 ? { orderBy: [...sort] } : {}),
+      ...(queryOrder().length > 0 ? { orderBy: queryOrder() } : {}),
       pagination: { ...(page.offset === undefined ? {} : { offset: page.offset }), limit: page.limit },
       returnGeometry,
     };
@@ -1289,6 +1319,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   }
 
   function invalidate(): void {
+    revealEpoch += 1;
     generation += 1;
     pages.clear();
     exhausted = false;
@@ -1786,6 +1817,200 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     });
   }
 
+  const FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+
+  function sqlField(field: string): string | undefined {
+    return FIELD_NAME.test(field) ? field : undefined;
+  }
+
+  function sqlLiteral(value: string | number | boolean): string {
+    if (typeof value === "number") return String(value);
+    if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+
+  function targetIdentity(target: FeatureSelectionTarget): FeatureId | undefined {
+    if (!isSourceQualifiedSelectionTarget(target)) return target;
+    return target.sourceId === options.sourceId ? target.id : undefined;
+  }
+
+  function sameIdentity(left: unknown, right: FeatureId): boolean {
+    if (left === right) return true;
+    return (typeof left === "string" || typeof left === "number") && String(left) === String(right);
+  }
+
+  function rowsBeforePredicate(
+    keys: readonly {
+      readonly field: string;
+      readonly direction: "asc" | "desc";
+      readonly value: string | number | boolean;
+    }[],
+    idField: string,
+    idValue: string | number,
+  ): string {
+    const terms: string[] = [];
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      if (!key) continue;
+      const earlier = keys.slice(0, index).map((entry) => `${entry.field} = ${sqlLiteral(entry.value)}`);
+      const comparison = `${key.field} ${key.direction === "desc" ? ">" : "<"} ${sqlLiteral(key.value)}`;
+      terms.push(`(${[...earlier, comparison].join(" AND ")})`);
+    }
+    const tied = keys.map((entry) => `${entry.field} = ${sqlLiteral(entry.value)}`);
+    terms.push(`(${[...tied, `${idField} < ${sqlLiteral(idValue)}`].join(" AND ")})`);
+    return terms.join(" OR ");
+  }
+
+  function probeQuery(
+    base: Query<T> | undefined,
+    predicate: string,
+    signal: AbortSignal | undefined,
+    fields: readonly string[],
+  ): Query<T> {
+    return {
+      ...(base ?? {}),
+      where: base?.where ? `(${base.where}) AND (${predicate})` : predicate,
+      outFields: fields,
+      pagination: { limit: 1 },
+      returnGeometry: false,
+      ...(signal ? { signal } : {}),
+    };
+  }
+
+  async function ask(query: Query<T>, signal: AbortSignal | undefined): Promise<Result<T> | "cancelled" | "ceiling"> {
+    if (disposed || signal?.aborted) return "cancelled";
+    if (ledger.requests >= budgets.maxRequests) return "ceiling";
+    noteBudget({ requests: 1 });
+    return options.source.query(query);
+  }
+
+  async function showLocated(
+    index: number,
+    key: HonuaFeatureTableRowKey,
+    selectRow: boolean,
+    signal: AbortSignal | undefined,
+    epoch: number,
+  ): Promise<void> {
+    const span = Math.max(
+      1,
+      window.endIndex > window.startIndex ? window.endIndex - window.startIndex : budgets.pageSize,
+    );
+    if (index < window.startIndex || index >= window.endIndex) {
+      const start = Math.max(0, index - Math.floor((span - 1) / 2));
+      window = Object.freeze({ startIndex: start, endIndex: start + span });
+      revealOrdering = true;
+      try {
+        await run(signal);
+      } finally {
+        revealOrdering = false;
+      }
+    }
+    if (epoch !== revealEpoch || disposed || signal?.aborted) return;
+    const field = orderedFields()[0];
+    if (field) focus = Object.freeze({ rowKey: key, field });
+    if (selectRow) setSelection([key]);
+    publish();
+  }
+
+  async function locate(
+    id: FeatureId,
+    idField: string,
+    signal: AbortSignal | undefined,
+    epoch: number,
+  ): Promise<HonuaFeatureTableReveal | { readonly status: "found"; readonly index: number }> {
+    if (typeof id !== "string" && typeof id !== "number") {
+      return { status: "unsupported", reason: "The target identity cannot be used in a bounded locate query." };
+    }
+    const composed = composeQuery({ offset: 0, limit: 1 });
+    const sortKeys: { field: string; direction: "asc" | "desc" }[] = [];
+    for (const entry of sort) {
+      const field = sqlField(entry.field);
+      if (!field) {
+        return { status: "unsupported", reason: `Sort field ${entry.field} cannot be used in a bounded locate query.` };
+      }
+      sortKeys.push({ field, direction: entry.direction === "desc" ? "desc" : "asc" });
+    }
+    const fields = [...new Set([...(projection() ?? []), idField, ...sortKeys.map((key) => key.field)])];
+    const ceiling = {
+      status: "unsupported" as const,
+      reason: "The request ceiling was reached before the target could be located.",
+    };
+    if (!composed.empty) {
+      const asked = await ask(probeQuery(composed.query, `${idField} = ${sqlLiteral(id)}`, signal, fields), signal);
+      if (asked === "cancelled" || epoch !== revealEpoch || disposed) return { status: "cancelled" };
+      if (asked === "ceiling") return ceiling;
+      const feature = asked.features[0];
+      const attributes = feature?.attributes as Record<string, unknown> | undefined;
+      if (feature && attributes) {
+        if (!sameIdentity(attributes[identityField ?? ""], id)) {
+          return { status: "unsupported", reason: "The source did not apply the identity predicate." };
+        }
+        const comparable: { field: string; direction: "asc" | "desc"; value: string | number | boolean }[] = [];
+        for (const key of sortKeys) {
+          const value = attributes[key.field];
+          if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+            return { status: "unsupported", reason: `Sort field ${key.field} has no comparable value on the target.` };
+          }
+          comparable.push({ field: key.field, direction: key.direction, value });
+        }
+        const ranked = await ask(
+          probeQuery(composed.query, rowsBeforePredicate(comparable, idField, id), signal, [idField]),
+          signal,
+        );
+        if (ranked === "cancelled" || epoch !== revealEpoch || disposed) return { status: "cancelled" };
+        if (ranked === "ceiling") return ceiling;
+        if (typeof ranked.totalCount !== "number" || !Number.isInteger(ranked.totalCount) || ranked.totalCount < 0) {
+          return { status: "unsupported", reason: "The source did not report how many rows sort before the target." };
+        }
+        return { status: "found", index: ranked.totalCount };
+      }
+    }
+    const bare = await ask(probeQuery(undefined, `${idField} = ${sqlLiteral(id)}`, signal, [idField]), signal);
+    if (bare === "cancelled" || epoch !== revealEpoch || disposed) return { status: "cancelled" };
+    if (bare === "ceiling") return ceiling;
+    const present = bare.features.some((feature) =>
+      sameIdentity((feature.attributes as Record<string, unknown> | undefined)?.[identityField ?? ""], id),
+    );
+    return present ? { status: "filtered-out" } : { status: "missing" };
+  }
+
+  async function reveal(
+    target: FeatureSelectionTarget,
+    options: { readonly signal?: AbortSignal; readonly select?: boolean } = {},
+  ): Promise<HonuaFeatureTableReveal> {
+    const signal = options.signal;
+    if (disposed || signal?.aborted) return { status: "cancelled" };
+    if (!identityField || state === "unsupported") {
+      return { status: "unsupported", reason: message ?? "This table cannot reveal a row." };
+    }
+    if (pagingMode === "cursor") {
+      return { status: "unsupported", reason: "Cursor paging cannot reveal an arbitrary row." };
+    }
+    const id = targetIdentity(target);
+    const key = keyForTarget(target);
+    const idField = identityField ? sqlField(identityField) : undefined;
+    if (id === undefined || key === undefined) return { status: "missing" };
+    if (!idField)
+      return { status: "unsupported", reason: "The identity field cannot be used in a bounded locate query." };
+    const epoch = revealEpoch;
+    const previousWindow = window;
+    const resident = findRow(key);
+    const index = resident ? resident.index : undefined;
+    const located =
+      index === undefined ? await locate(id, idField, signal, epoch) : { status: "found" as const, index };
+    if (located.status !== "found") return located;
+    if (epoch !== revealEpoch || disposed || signal?.aborted) return { status: "cancelled" };
+    await showLocated(located.index, key, options.select !== false, signal, epoch);
+    if (epoch !== revealEpoch || disposed || signal?.aborted) return { status: "cancelled" };
+    const shown = findRow(key);
+    if (!shown || shown.index !== located.index) {
+      window = previousWindow;
+      publish();
+      return { status: "unsupported", reason: "The source count did not place the target in the loaded window." };
+    }
+    return { status: "visible", key, index: shown.index };
+  }
+
   return {
     get snapshot() {
       return snapshot;
@@ -1891,6 +2116,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       focus = nextFocus ? Object.freeze({ ...nextFocus }) : undefined;
       publish();
     },
+    reveal,
     moveFocus: applyFocusMove,
     applyRealtimeDiff(diff) {
       const outcome = reconcile(diff);
@@ -1917,6 +2143,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     },
     dispose() {
       disposed = true;
+      revealEpoch += 1;
       inFlight?.abort();
       inFlight = undefined;
       void cursorIterator?.return(undefined);
@@ -2003,7 +2230,10 @@ export function linkFeatureTableToExploration<T>(
     applying = true;
     try {
       if (syncSelection && event.changedSlices.has("selection")) {
-        table.select(table.keysForTargets(event.state.selection), { replace: true });
+        const targets = event.state.selection;
+        table.select(table.keysForTargets(targets), { replace: true });
+        const primary = targets.find((target) => table.keysForTargets([target]).length > 0);
+        if (primary) void table.reveal(primary, { select: false });
       }
       if (syncSort && event.changedSlices.has("sort")) void table.setSort(event.state.sort);
       if (syncFields && event.changedSlices.has("visibleFields")) {

@@ -1546,7 +1546,262 @@ describe("review regressions (PR #801)", () => {
 
     expect(table.selectionTargets()).toEqual([{ sourceId: "incidents", id: 2 }]);
   });
+
+  it("reveals an off-window target without scanning the layer", async () => {
+    const located = locatingFixture();
+    const table = makeTable(located);
+    await table.refresh();
+    const before = located.rowsServed;
+
+    const revealed = await table.reveal({ sourceId: "incidents", id: 4_000 });
+
+    expect(revealed).toEqual({ status: "visible", key: "incidents:4000", index: 3_999 });
+    expect(table.snapshot.selection).toEqual(["incidents:4000"]);
+    expect(table.snapshot.rows.some((row) => row?.id === 4_000)).toBe(true);
+    expect(located.requests.length).toBeLessThan(8);
+    expect(located.rowsServed - before).toBeLessThan(200);
+  });
+
+  it("reveals a sorted, filtered target and reports rows the filter hides", async () => {
+    const located = locatingFixture();
+    const table = makeTable(located);
+    await table.refresh();
+    await table.setSort([{ field: "SEVERITY", direction: "asc" }]);
+    await table.setFilters([statusFilter("open")]);
+
+    const hidden = await table.reveal({ sourceId: "incidents", id: 2 });
+    expect(hidden.status).toBe("filtered-out");
+    expect(table.snapshot.window.startIndex).toBe(0);
+
+    const revealed = await table.reveal({ sourceId: "incidents", id: 4 });
+    expect(revealed).toEqual({ status: "visible", key: "incidents:4", index: openSortedIndex(4) });
+    expect(located.rowsServed).toBeLessThan(TOTAL_ROWS);
+  });
+
+  it("reports a target the layer does not contain", async () => {
+    const table = makeTable(locatingFixture());
+    await table.refresh();
+    expect(await table.reveal({ sourceId: "incidents", id: 90_000 })).toEqual({ status: "missing" });
+  });
+
+  it("cancels a reveal when the query changes or the caller aborts", async () => {
+    const located = locatingFixture();
+    let release: (() => void) | undefined;
+    const original = located.source.query.bind(located.source);
+    located.source.query = async (request) => {
+      if (request?.where?.includes("OBJECTID = 4000")) {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      return original(request);
+    };
+    const table = makeTable(located);
+    await table.refresh();
+    const pending = table.reveal({ sourceId: "incidents", id: 4_000 });
+    await Promise.resolve();
+    const refresh = table.setFilters([statusFilter("open")]);
+    release?.();
+    expect(await pending).toEqual({ status: "cancelled" });
+    await refresh;
+
+    const aborted = new AbortController();
+    aborted.abort();
+    expect((await table.reveal({ sourceId: "incidents", id: 4 }, { signal: aborted.signal })).status).toBe("cancelled");
+  });
+
+  it("scrolls a linked map selection onto a later page", async () => {
+    const located = locatingFixture();
+    const table = makeTable(located);
+    await table.refresh();
+    const context = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+    const grid = context.connectView({ id: "grid", role: "grid" });
+    const unlink = linkFeatureTableToExploration(table, grid);
+    const map = context.connectView({ id: "map", role: "map" });
+
+    map.select([{ sourceId: "incidents", id: 4_000 }], { replace: true });
+    await vi.waitFor(() => expect(table.snapshot.rows.some((row) => row?.id === 4_000)).toBe(true));
+
+    expect(table.snapshot.selection).toEqual(["incidents:4000"]);
+    expect(located.rowsServed).toBeLessThan(TOTAL_ROWS);
+    unlink();
+  });
 });
+
+function locatingFixture(): Fixture {
+  const total = TOTAL_ROWS;
+  const requests: Query<Row>[] = [];
+  const fixture: Fixture = {
+    requests,
+    rowsServed: 0,
+    source: {
+      descriptor: descriptor(),
+      async query(request?: Query<Row>): Promise<Result<Row>> {
+        requests.push(request ?? {});
+        const matched: Row[] = [];
+        for (let index = 0; index < total; index += 1) {
+          const row = makeRow(index);
+          if (matchesWhere(request?.where, row)) matched.push(row);
+        }
+        matched.sort((left, right) => compareRows(left, right, request?.orderBy));
+        const offset = request?.pagination?.offset ?? 0;
+        const limit = request?.pagination?.limit ?? 10;
+        const page = matched.slice(offset, offset + limit);
+        fixture.rowsServed += page.length;
+        return {
+          features: page.map((attributes) => ({ attributes })),
+          exceededTransferLimit: offset + page.length < matched.length,
+          totalCount: matched.length,
+        };
+      },
+    },
+  };
+  return fixture;
+}
+
+function openSortedIndex(id: number): number {
+  const rows: Row[] = [];
+  for (let index = 0; index < TOTAL_ROWS; index += 1) {
+    const row = makeRow(index);
+    if (row.STATUS === "open") rows.push(row);
+  }
+  rows.sort((left, right) =>
+    compareRows(left, right, [
+      { field: "SEVERITY", direction: "asc" },
+      { field: "OBJECTID", direction: "asc" },
+    ]),
+  );
+  return rows.findIndex((row) => row.OBJECTID === id);
+}
+
+function compareRows(left: Row, right: Row, orderBy: readonly SortSpec[] | undefined): number {
+  for (const key of orderBy ?? []) {
+    const direction = key.direction === "desc" ? -1 : 1;
+    const leftValue = left[key.field as keyof Row];
+    const rightValue = right[key.field as keyof Row];
+    if (leftValue < rightValue) return -1 * direction;
+    if (leftValue > rightValue) return 1 * direction;
+  }
+  return left.OBJECTID - right.OBJECTID;
+}
+
+function matchesWhere(where: string | undefined, row: Row): boolean {
+  if (!where) return true;
+  let cursor = 0;
+  const read = parseWhere(
+    where,
+    () => cursor,
+    (next) => {
+      cursor = next;
+    },
+    row,
+  );
+  return read;
+}
+
+function parseWhere(where: string, cursor: () => number, move: (next: number) => void, row: Row): boolean {
+  const skip = () => {
+    let index = cursor();
+    while (where[index] === " ") index += 1;
+    move(index);
+  };
+  const parseOr = (): boolean => {
+    let value = parseAnd();
+    for (;;) {
+      skip();
+      const index = cursor();
+      if (where.slice(index, index + 2) !== "OR") break;
+      const next = where[index + 2];
+      if (next !== " " && next !== "(") break;
+      move(index + 2);
+      value = parseAnd() || value;
+    }
+    return value;
+  };
+  const parseAnd = (): boolean => {
+    let value = parsePrimary();
+    for (;;) {
+      skip();
+      const index = cursor();
+      if (where.slice(index, index + 3) !== "AND") break;
+      const next = where[index + 3];
+      if (next !== " " && next !== "(") break;
+      move(index + 3);
+      value = parsePrimary() && value;
+    }
+    return value;
+  };
+  const parsePrimary = (): boolean => {
+    skip();
+    const index = cursor();
+    if (where[index] === "(") {
+      move(index + 1);
+      const value = parseOr();
+      skip();
+      if (where[cursor()] === ")") move(cursor() + 1);
+      return value;
+    }
+    return parseComparison();
+  };
+  const parseComparison = (): boolean => {
+    skip();
+    const fieldStart = cursor();
+    let fieldEnd = fieldStart;
+    while (/[A-Za-z0-9_]/.test(where[fieldEnd] ?? "")) fieldEnd += 1;
+    const field = where.slice(fieldStart, fieldEnd);
+    move(fieldEnd);
+    skip();
+    const operators = ["<>", "<=", ">=", "=", "<", ">"] as const;
+    const operator = operators.find((candidate) => where.startsWith(candidate, cursor()));
+    if (!operator) throw new Error(`Unsupported locate predicate: ${where.slice(cursor())}`);
+    move(cursor() + operator.length);
+    skip();
+    const literal = parseLiteral();
+    const actual = row[field as keyof Row];
+    if (operator === "=") return actual === literal;
+    if (operator === "<>") return actual !== literal;
+    if (typeof actual !== "number" && typeof actual !== "string") return false;
+    if (typeof literal !== "number" && typeof literal !== "string") return false;
+    if (operator === "<") return actual < literal;
+    if (operator === ">") return actual > literal;
+    if (operator === "<=") return actual <= literal;
+    return actual >= literal;
+  };
+  const parseLiteral = (): string | number | boolean => {
+    const index = cursor();
+    if (where[index] === "'") {
+      let value = "";
+      let next = index + 1;
+      while (next < where.length) {
+        if (where[next] === "'" && where[next + 1] === "'") {
+          value += "'";
+          next += 2;
+          continue;
+        }
+        if (where[next] === "'") {
+          move(next + 1);
+          return value;
+        }
+        value += where[next];
+        next += 1;
+      }
+      throw new Error("Unclosed string in locate predicate");
+    }
+    if (where.startsWith("TRUE", index)) {
+      move(index + 4);
+      return true;
+    }
+    if (where.startsWith("FALSE", index)) {
+      move(index + 5);
+      return false;
+    }
+    const match = /^-?\d+(?:\.\d+)?/.exec(where.slice(index));
+    if (!match) throw new Error(`Unsupported locate literal: ${where.slice(index)}`);
+    move(index + match[0].length);
+    return Number(match[0]);
+  };
+  return parseOr();
+}
 
 function spatialFilterClause(extent: {
   readonly xmin: number;
