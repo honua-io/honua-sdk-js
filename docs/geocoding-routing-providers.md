@@ -171,6 +171,36 @@ need it directly.
 (`valhalla1.openstreetmap.de`) expects fair use; self-host for production.
 **Attribution**: OpenStreetMap (ODbL), as above.
 
+### Travel-time polygons
+
+Valhalla exposes the `isochrone` capability; OSRM and the Honua facade currently
+expose routes only. Configure an endpoint you are entitled to use; the SDK does
+not select a public service or grant permission to call one.
+
+```ts doc-test=compile
+import { valhallaRoutingProvider, requestIsochrone } from "@honua/sdk-js/routing";
+const provider = valhallaRoutingProvider({ baseUrl: "https://routing.example.org" });
+const result = await requestIsochrone(provider, {
+  origin: { longitude: -156.47, latitude: 20.88 },
+  minutes: [5, 15],
+  travelMode: "auto",
+  signal: new AbortController().signal,
+});
+console.log(result.contours, result.provenance.attribution);
+```
+
+Thresholds are one to four distinct positive minutes. Results contain each
+requested contour as a WGS84 Polygon or MultiPolygon, sorted by minutes, with
+provider attribution and policy metadata. Missing, clamped or malformed contours
+fail explicitly; no empty or approximate reachability result is substituted.
+Unsupported providers throw `HonuaCapabilityNotSupportedError` before fetching.
+Caller cancellation and provider timeouts use the SDK's typed errors.
+
+These are configured-provider travel-time estimates, not evacuation guidance.
+The emergency demo remains gated on an approved endpoint and an executed Maui
+scenario; this SDK adapter alone does not establish operational suitability.
+See the [Valhalla isochrone API](https://valhalla.github.io/valhalla/api/isochrone/).
+
 ### Honua facade + client-compat bridge
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"

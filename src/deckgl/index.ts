@@ -15,6 +15,8 @@ export {
   loadDeckGlPeers,
 } from "./adapter.js";
 export { planDeckGlExecution } from "./execution-plan.js";
+export { projectDeckGlHexbins } from "./hexbin.js";
+export type { DeckGlHexbin, DeckGlHexbinProjection, DeckGlHexbinRequest } from "./hexbin.js";
 export type { CreateDeckGlAdapterOptions } from "./adapter.js";
 export {
   bindColumnarBatchToDeckGl,

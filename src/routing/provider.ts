@@ -14,7 +14,7 @@ import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
  *
  * @experimental
  */
-export type RoutingCapability = "route";
+export type RoutingCapability = "route" | "isochrone";
 
 /**
  * Identifies which provider produced a route and carries that provider's
@@ -87,6 +87,11 @@ export interface RoutingProvider {
 
   /** Solve a route through at least two waypoints, in order. */
   route(waypoints: ReadonlyArray<RouteWaypoint>): Promise<ProviderRouteResult>;
+
+  /** Optional travel-time polygons; inspect capabilities before offering this operation. */
+  isochrone?(
+    request: import("./isochrone.js").IsochroneRequest,
+  ): Promise<import("./isochrone.js").ProviderIsochroneResult>;
 }
 
 /**
