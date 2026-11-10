@@ -112,6 +112,17 @@ export type {
   HonuaSwipeOrientation,
 } from "./types.js";
 
+export { compileFilterBuilder, applyFilterBuilder } from "./filter-builder.js";
+export type {
+  HonuaFilterBuilderField,
+  HonuaFilterBuilderOperator,
+  HonuaFilterBuilderRow,
+  HonuaFilterBuilderTime,
+  HonuaFilterBuilderDraft,
+  HonuaFilterBuilderProjection,
+} from "./filter-builder.js";
+export { HonuaFilterBuilderElement, defineHonuaFilterBuilder } from "./filter-builder-element.js";
+export type { HonuaFilterBuilderCount } from "./filter-builder-element.js";
 export { serializeHonuaDataExport } from "./data-export.js";
 export type { HonuaDataExportArtifact, HonuaDataExportFormat, HonuaDataExportOptions } from "./data-export.js";
 export { HonuaDataExportElement, defineHonuaDataExport } from "./data-export-element.js";

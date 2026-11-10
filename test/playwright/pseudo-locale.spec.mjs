@@ -13,6 +13,7 @@ const CATALOG_COMPONENTS = qualification.components;
 // tags. The controls layer-list is mounted under its explicit test alias; the
 // controls legend is already the explicit registrant in the fixture.
 const HOSTS = {
+  "controls.filter-builder": "honua-filter-builder",
   "controls.data-export": "honua-data-export",
   "controls.catalog-picker": "honua-catalog-picker",
   "controls.basemap-switcher": "honua-basemap-switcher",
@@ -108,6 +109,7 @@ test.describe("pseudo-locale component qualification", () => {
           if (document.querySelector(tag)) continue;
           const created = document.createElement(tag);
           created.id = `pseudo-${id}`;
+          if (tag === "honua-filter-builder") created.draft = { ownerId: "pseudo", sourceId: "towns", fields: [{ name: "people", type: "number" }], rows: [{ field: "people", operator: "gte", value: "10" }] };
           document.body.append(created);
         }
         const byId = new Map();

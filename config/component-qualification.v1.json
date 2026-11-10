@@ -134,16 +134,16 @@
     "gates": 18,
     "cells": 630,
     "passing": 403,
-    "failing": 48,
-    "pending": 106,
+    "failing": 47,
+    "pending": 107,
     "notApplicable": 73,
     "productionQualifiedComponents": 2,
     "productionTierComponents": 2
   },
   "components": [
     {
-      "id": "controls.catalog-picker",
-      "tag": "honua-catalog-picker",
+      "id": "controls.filter-builder",
+      "tag": "honua-filter-builder",
       "source": "controls",
       "supportTier": "survival-tier",
       "productionQualified": false,
@@ -162,8 +162,8 @@
       ],
       "summary": {
         "passing": 5,
-        "failing": 4,
-        "pending": 7,
+        "failing": 3,
+        "pending": 8,
         "notApplicable": 2
       },
       "gates": [
@@ -221,8 +221,8 @@
         {
           "gate": "rtl",
           "requirement": "REQ-004",
-          "status": "failing",
-          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+          "status": "pending",
+          "note": "No verdict rather than a known failure, which is the honest distinction for this component: unlike the rest of the kit its styles declare no physical left/right offsets at all, so it is not demonstrably RTL-hostile. It also uses no logical properties and nothing renders it under dir=rtl, so it is simply unverified."
         },
         {
           "gate": "visual-regression",
