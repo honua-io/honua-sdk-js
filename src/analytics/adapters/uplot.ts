@@ -61,7 +61,11 @@ export interface UplotSelectBox {
 /** The µPlot instance members this adapter uses. */
 export interface UplotInstanceLike {
   readonly select: UplotSelectBox;
-  readonly cursor: { readonly idx?: number | null };
+  readonly cursor: {
+    readonly idx?: number | null;
+    readonly left?: number;
+    readonly top?: number;
+  };
   readonly over?: {
     addEventListener(type: string, listener: (event: unknown) => void): void;
     removeEventListener(type: string, listener: (event: unknown) => void): void;
@@ -238,7 +242,9 @@ export function projectAnalyticsArtifactToUplot(
         stroke: options.stroke ?? "#2563eb",
         width: artifact.kind === "scatter" ? 0 : 2,
         ...(artifact.kind === "scatter" ? { paths: () => null } : {}),
-        points: { show: artifact.kind === "scatter" || artifact.marks.length <= 100 },
+        points: {
+          show: artifact.kind === "scatter" || artifact.marks.length <= 100,
+        },
       },
     ],
     scales: { x: isTemporal ? { time: true } : { time: false } },
@@ -301,7 +307,10 @@ export function createUplotAnalyticsAdapter(
           message: `A ${artifact.status} artifact has no marks to plot; present the accessible fallback instead.`,
         };
       }
-      return { supported: true, notes: ["µPlot is an optional peer loaded on mount."] };
+      return {
+        supported: true,
+        notes: ["µPlot is an optional peer loaded on mount."],
+      };
     },
 
     async mount(request: AnalyticsMountRequest): Promise<AnalyticsPresentationHandle> {
@@ -318,6 +327,7 @@ export function createUplotAnalyticsAdapter(
 
       let projection = projectAnalyticsArtifactToUplot(artifact, adapterOptions);
       let lastHoverKey: string | undefined;
+      let paintedRectangle: string | undefined;
       let instance: UplotInstanceLike | undefined;
       let clickRelease: (() => void) | undefined;
       let brushed = false;
@@ -349,7 +359,10 @@ export function createUplotAnalyticsAdapter(
             artifactKind: artifact.kind,
             artifactDimension: artifact.dimension,
             artifactYDimension: artifact.yDimension,
-            rectangle: { x: { min, max }, y: { min: Math.min(y0, y1), max: Math.max(y0, y1) } },
+            rectangle: {
+              x: { min, max },
+              y: { min: Math.min(y0, y1), max: Math.max(y0, y1) },
+            },
           });
           return;
         }
@@ -383,9 +396,29 @@ export function createUplotAnalyticsAdapter(
         });
       }
 
+      function cursorMarkKey(self: UplotInstanceLike): string | undefined {
+        const { idx, left, top } = self.cursor;
+        if (artifact.kind !== "scatter" || left === undefined || top === undefined) {
+          return typeof idx === "number" && idx >= 0 ? projection.markKeys[idx] : undefined;
+        }
+        if (!Number.isFinite(left) || !Number.isFinite(top) || left < 0 || top < 0) return undefined;
+        let nearest: string | undefined;
+        let distance = Number.POSITIVE_INFINITY;
+        for (let index = 0; index < projection.markKeys.length; index++) {
+          const x = projection.data[0][index];
+          const y = projection.data[1][index];
+          if (x == null || y == null) continue;
+          const squared = (self.valToPos(x, "x") - left) ** 2 + (self.valToPos(y, "y") - top) ** 2;
+          if (squared < distance) {
+            distance = squared;
+            nearest = projection.markKeys[index];
+          }
+        }
+        return nearest;
+      }
+
       function emitHover(self: UplotInstanceLike): void {
-        const index = self.cursor?.idx;
-        const key = typeof index === "number" && index >= 0 ? projection.markKeys[index] : undefined;
+        const key = cursorMarkKey(self);
         if (key === lastHoverKey) return;
         lastHoverKey = key;
         request.host.emit({
@@ -419,9 +452,7 @@ export function createUplotAnalyticsAdapter(
               brushed = false;
               return;
             }
-            const index = instance?.cursor?.idx;
-            if (typeof index !== "number" || index < 0) return;
-            const key = projection.markKeys[index];
+            const key = instance ? cursorMarkKey(instance) : undefined;
             if (!key) return;
             request.host.emit({
               kind: "mark-select",
@@ -479,6 +510,7 @@ export function createUplotAnalyticsAdapter(
           artifact = next;
           projection = projectAnalyticsArtifactToUplot(next, adapterOptions);
           lastHoverKey = undefined;
+          paintedRectangle = undefined;
           if (instance) {
             // Patch: keep the live instance, swap the data. Focus, cursor, and
             // the user's zoom survive a realtime delta.
@@ -489,6 +521,13 @@ export function createUplotAnalyticsAdapter(
         },
         onLinkedState(state: AnalyticsLinkedState): void {
           if (!instance) return;
+          if (artifact.kind === "scatter") {
+            // Cursor hooks publish hover while µPlot is drawing its live drag.
+            // Repaint only when linked bounds change, preserving that drag.
+            const rectangle = JSON.stringify(state.rectangle ?? null);
+            if (rectangle === paintedRectangle) return;
+            paintedRectangle = rectangle;
+          }
           if (artifact.kind === "scatter" && state.rectangle) {
             const { x, y } = state.rectangle;
             const left = instance.valToPos(x.min, "x");
@@ -539,5 +578,13 @@ function paintSelection(instance: UplotInstanceLike, min: number, max: number): 
   const left = instance.valToPos(min, "x");
   const right = instance.valToPos(max, "x");
   if (!Number.isFinite(left) || !Number.isFinite(right)) return;
-  instance.setSelect({ left: Math.min(left, right), top: 0, width: Math.abs(right - left), height: 0 }, false);
+  instance.setSelect(
+    {
+      left: Math.min(left, right),
+      top: 0,
+      width: Math.abs(right - left),
+      height: 0,
+    },
+    false,
+  );
 }
