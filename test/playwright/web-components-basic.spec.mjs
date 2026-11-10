@@ -566,3 +566,72 @@ async function mapPoint(page, lngLat) {
     return { x: rect.left + point.x, y: rect.top + point.y };
   }, lngLat);
 }
+
+test("filter builder keyboard editing emits the canonical query and count", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(server.url);
+    await page.evaluate(async () => {
+      await customElements.whenDefined("honua-filter-builder");
+      const element = document.createElement("honua-filter-builder");
+      element.id = "filter-test";
+      element.draft = { ownerId: "filters", sourceId: "towns", fields: [{ name: "people", type: "number" }, { name: "name", type: "string" }, { name: "observed", type: "datetime" }], rows: [] };
+      element.countRows = async () => 12;
+      element.addEventListener("honua-filter-change", (event) => { window.__filterProjection = event.detail; });
+      document.body.prepend(element);
+    });
+    const control = page.locator("#filter-test");
+    await control.getByRole("button", { name: "Add filter" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(control.locator("[data-field]")).toBeFocused();
+    await control.locator("[data-operator]").selectOption("gte");
+    await control.locator("[data-value]").fill("42");
+    await control.getByRole("button", { name: "Apply filters" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(control.getByRole("button", { name: "Apply filters" })).toBeFocused();
+    await expect(control.locator("output")).toHaveText("12 matching rows");
+    await expect(control.locator("pre")).toHaveText("people >= 42");
+    expect(await page.evaluate(() => window.__filterProjection.query.filter)).toMatchObject({ kind: "comparison", operator: "gte" });
+    await control.locator("[data-value]").fill("NaN");
+    await control.getByRole("button", { name: "Apply filters" }).click();
+    await expect(control.locator("output")).toContainText("Filters were not applied");
+    await expect(control.getByRole("button", { name: "Apply filters" })).toBeFocused();
+    await expect(control.locator("pre")).toHaveText("people >= 42");
+    await control.getByRole("button", { name: "Remove filter 1" }).click();
+    await expect(control.getByRole("button", { name: "Add filter" })).toBeFocused();
+    await control.getByRole("button", { name: "Apply filters" }).click();
+    expect(await page.evaluate(() => window.__filterProjection.query)).toEqual({});
+  } finally { await server.close(); }
+});
+
+test("filter builder combines extent and time, escapes labels and preserves edits while counting", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(server.url);
+    await page.evaluate(async () => {
+      await customElements.whenDefined("honua-filter-builder");
+      const element = document.createElement("honua-filter-builder");
+      element.id = "filter-test";
+      element.draft = { ownerId: "filters", sourceId: "towns", fields: [{ name: "name", label: '<img src=x onerror="window.__unsafe = true">', type: "string" }, { name: "observed", type: "datetime" }], rows: [{ field: "name", operator: "eq", value: "Town" }] };
+      element.countRows = () => new Promise((resolve) => { window.__finishCount = resolve; });
+      document.body.prepend(element);
+    });
+    const control = page.locator("#filter-test");
+    await control.locator("[data-extent]").check();
+    for (const [index, bound] of [-158, 20, -157, 22].entries()) await control.locator("[data-bound]").nth(index).fill(String(bound));
+    await control.locator("[data-time-field]").selectOption("observed");
+    await control.locator("[data-start]").fill("2026-01-01T00:00:00Z");
+    await control.locator("[data-end]").fill("2026-02-01T00:00:00Z");
+    await control.getByRole("button", { name: "Apply filters" }).click();
+    await expect(control.locator("pre")).toContainText("S_INTERSECTS");
+    await expect(control.locator("pre")).toContainText("observed BETWEEN");
+    await control.locator("[data-value]").fill("Unsubmitted edit");
+    await page.evaluate(() => window.__finishCount(3));
+    await expect(control.locator("output")).toHaveText("3 matching rows");
+    await expect(control.locator("[data-value]")).toHaveValue("Unsubmitted edit");
+    expect(await control.locator("img").count()).toBe(0);
+    expect(await control.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    if (process.env.HONUA_FILTER_SCREENSHOT) await control.screenshot({ path: process.env.HONUA_FILTER_SCREENSHOT });
+  } finally { await server.close(); }
+});

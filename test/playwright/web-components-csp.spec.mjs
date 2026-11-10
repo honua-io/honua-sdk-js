@@ -26,6 +26,10 @@ test("web-component catalog renders without strict-CSP violations", async ({ pag
     await page.goto(`${server.url}?controls-layer-list=1`);
     await page.waitForTimeout(500);
     await page.evaluate(() => {
+      const filter = document.createElement("honua-filter-builder");
+      filter.draft = { ownerId: "csp", sourceId: "towns", fields: [{ name: "people", type: "number" }], rows: [{ field: "people", operator: "gte", value: "10" }] };
+      document.body.append(filter);
+      void filter.apply();
       const map = document.querySelector("honua-map");
       document.body.append(document.createElement("honua-data-export"));
       const swipe = document.createElement("honua-swipe-control");
