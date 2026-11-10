@@ -258,6 +258,24 @@ describe("feature table reveal", () => {
     expect(table.snapshot.window).toEqual({ startIndex: 0, endIndex: 10 });
   });
 
+  it("settles the count before publishing a revealed selection", async () => {
+    const table = makeTable(locatingFixture(), { budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 } });
+    const seen: { state: string; count: string; rows: number }[] = [];
+    table.subscribe((snapshot) => {
+      seen.push({
+        state: snapshot.state,
+        count: snapshot.count.kind,
+        rows: snapshot.rows.filter((row) => row !== undefined).length,
+      });
+    });
+
+    await table.reveal({ sourceId: "incidents", id: 1 });
+
+    expect(seen.some((snapshot) => snapshot.rows > 0 && snapshot.state === "idle")).toBe(false);
+    expect(table.snapshot.state).toBe("partial");
+    expect(table.snapshot.count.kind).toBe("known");
+  });
+
   it("publishes a known count when reveal loads the first window", async () => {
     const table = makeTable(locatingFixture(), { budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 } });
     expect(table.snapshot.state).toBe("idle");

@@ -1089,6 +1089,10 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     if (this.#applyingContext) {
       if (event?.changed.includes("selection") && !this.#publishingApplication) {
         this.#applyApplicationSelection(table);
+        const primary = this.#applicationContext?.snapshot.selection
+          .filter(isApplicationSelectionTarget)
+          .find((target) => table.keysForTargets([target]).length > 0);
+        if (primary) void table.reveal(primary, { select: false });
       }
       if (!this.#publishingApplication && event) this.#contextFollowUp = event;
     } else {

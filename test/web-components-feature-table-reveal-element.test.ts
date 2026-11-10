@@ -242,6 +242,12 @@ describe("<honua-feature-table> pointer, reveal, and theme", () => {
     });
     const mounted = await mountHonuaApplication({ host: document.body, context, register: false });
     await vi.waitFor(() => expect(releaseOlder).toBeTypeOf("function"));
+    const staleWindows: number[] = [];
+    engine.subscribe((snapshot) => {
+      if (snapshot.selection.includes("incidents:40") && snapshot.window.startIndex >= 70) {
+        staleWindows.push(snapshot.window.startIndex);
+      }
+    });
 
     context.update({ selection: [{ sourceId: "incidents", id: 40 }] });
     releaseOlder?.();
@@ -250,6 +256,7 @@ describe("<honua-feature-table> pointer, reveal, and theme", () => {
       expect(engine.snapshot.rows.some((row) => row?.id === 40)).toBe(true);
     });
 
+    expect(staleWindows).toEqual([]);
     expect(context.snapshot.selection).toMatchObject([{ sourceId: "incidents", id: 40 }]);
     expect(engine.snapshot.rows.some((row) => row?.id === 75)).toBe(false);
     mounted.dispose();

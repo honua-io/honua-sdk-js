@@ -225,8 +225,8 @@ async function showLocated<T>(
   host.write({ window: nextWindow });
   const field = host.orderedFields()[0];
   if (field) host.write({ focus: Object.freeze({ rowKey: request.key, field }) });
-  if (request.selection === "replace") host.setSelection([request.key]);
   host.settle();
+  if (request.selection === "replace") host.setSelection([request.key]);
   host.publish();
   return "shown";
 }
