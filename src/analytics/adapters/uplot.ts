@@ -216,7 +216,22 @@ function nearestPointIndex(self: UplotInstanceLike, data: UplotAlignedData): num
   return nearest;
 }
 
-function scatterXRange(_self: UplotInstanceLike, min: number, max: number): readonly [number, number] {
+function scatterXRange(self: UplotInstanceLike, min: number, max: number): readonly [number, number] {
+  // µPlot supplies the current padded bounds on redraw; derive fresh bounds from data.
+  const values = self.data?.[0];
+  if (values?.length) {
+    let dataMin = Number.POSITIVE_INFINITY;
+    let dataMax = Number.NEGATIVE_INFINITY;
+    for (const value of values) {
+      if (value == null || !Number.isFinite(value)) continue;
+      dataMin = Math.min(dataMin, value);
+      dataMax = Math.max(dataMax, value);
+    }
+    if (Number.isFinite(dataMin) && Number.isFinite(dataMax)) {
+      min = dataMin;
+      max = dataMax;
+    }
+  }
   const padding = Math.max((max - min) * 0.05, Math.abs(max) * Number.EPSILON * 4, Number.EPSILON);
   return [min - padding, max + padding];
 }
