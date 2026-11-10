@@ -5,14 +5,12 @@ import { HonuaCatalogPicker } from "../../src/controls/catalog-picker.js";
 test("renders native search and escaped catalog results, and releases its subscription on disconnect", async () => {
   const picker = new HonuaCatalogPicker({
     client: {
-      searchOgcRecords: vi
-        .fn()
-        .mockResolvedValue({
-          type: "FeatureCollection",
-          features: [
-            { type: "Feature", id: "one", geometry: null, properties: { title: '<img src=x onerror="alert(1)">' } },
-          ],
-        }),
+      searchOgcRecords: vi.fn().mockResolvedValue({
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", id: "one", geometry: null, properties: { title: '<img src=x onerror="alert(1)">' } },
+        ],
+      }),
     },
     collectionId: "data",
     resolve: vi.fn(),
