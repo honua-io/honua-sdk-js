@@ -100,6 +100,7 @@ export interface UplotSeriesOptions {
 /** One µPlot scale definition (the subset this adapter emits). */
 export interface UplotScaleOptions {
   readonly time?: boolean;
+  readonly auto?: (self: UplotInstanceLike) => boolean;
   readonly range?:
     | readonly [number, number]
     | ((self: UplotInstanceLike, min: number, max: number) => readonly [number, number]);
@@ -216,18 +217,22 @@ function nearestPointIndex(self: UplotInstanceLike, data: UplotAlignedData): num
   return nearest;
 }
 
-const scatterRanges = new WeakMap<
-  UplotInstanceLike,
-  { data: UplotAlignedData | undefined; min: number; max: number }
->();
+const scatterInitialized = new WeakSet<UplotInstanceLike>();
+const scatterAutoscaling = new WeakSet<UplotInstanceLike>();
+
+function scatterXAuto(self: UplotInstanceLike): boolean {
+  scatterAutoscaling.add(self);
+  return true;
+}
 
 function scatterXRange(self: UplotInstanceLike, min: number, max: number): readonly [number, number] {
-  const previous = scatterRanges.get(self);
-  if (previous?.data === self.data && previous?.min === min && previous?.max === max) return [min, max];
+  const autoscaling = scatterAutoscaling.delete(self);
+  // µPlot calls auto() for data-driven scale resets, but not for redraws or
+  // explicit zoom bounds. Only automatic ranges need endpoint padding.
+  if (scatterInitialized.has(self) && !autoscaling) return [min, max];
+  scatterInitialized.add(self);
   const padding = Math.max((max - min) * 0.05, Math.abs(max) * Number.EPSILON * 4, Number.EPSILON);
-  const range = { data: self.data, min: min - padding, max: max + padding };
-  scatterRanges.set(self, range);
-  return [range.min, range.max];
+  return [min - padding, max + padding];
 }
 
 /**
@@ -286,7 +291,7 @@ export function projectAnalyticsArtifactToUplot(
     scales: {
       x: isTemporal
         ? { time: true }
-        : { time: false, ...(artifact.kind === "scatter" ? { range: scatterXRange } : {}) },
+        : { time: false, ...(artifact.kind === "scatter" ? { auto: scatterXAuto, range: scatterXRange } : {}) },
     },
     ...(artifact.kind === "scatter"
       ? {

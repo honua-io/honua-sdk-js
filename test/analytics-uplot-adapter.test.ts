@@ -138,7 +138,7 @@ function category() {
 }
 
 describe("real µPlot scatter points", () => {
-  it.each(["render", "hover", "redraw", "zoom", "new-data"])(
+  it.each(["render", "hover", "redraw", "zoom", "new-data", "live-update"])(
     "preserves maximum-x points during %s",
     async (operation) => {
       vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -173,11 +173,27 @@ describe("real µPlot scatter points", () => {
       document.body.append(target);
       const chart = new Uplot(
         projection.options as unknown as import("uplot").Options,
-        projection.data as number[][],
+        projection.data as unknown as import("uplot").AlignedData,
         target,
       );
       try {
         await vi.waitFor(() => expect(chart.series[1].idxs).toBeDefined());
+        if (operation === "live-update") {
+          const bounds = [chart.scales.x.min, chart.scales.x.max];
+          for (let update = 0; update < 3; update++) {
+            chart.setData(
+              [
+                [10, 30, 30],
+                [20, 40, 60 + update],
+              ],
+              false,
+            );
+            chart.redraw();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect([chart.scales.x.min, chart.scales.x.max]).toEqual(bounds);
+          }
+          return;
+        }
         if (operation === "new-data") {
           chart.setData([
             [9, 31, 31],
