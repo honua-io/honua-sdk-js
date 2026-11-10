@@ -3301,7 +3301,8 @@ function mapStyles(): string {
     }
     .map__chrome, .map__footer {
       align-items: center;
-      background: rgba(255, 255, 255, 0.9);
+      background: var(--honua-ui-bg);
+      color: var(--honua-ui-fg);
       display: flex;
       gap: 8px;
       justify-content: space-between;
@@ -3345,9 +3346,9 @@ function mapStyles(): string {
       position: absolute;
     }
     .map__status {
-      background: rgba(255,255,255,0.86);
+      background: var(--honua-ui-bg);
       border-radius: 6px;
-      color: var(--honua-ui-muted);
+      color: var(--honua-ui-fg);
       inset-block-start: 10px;
       inset-inline-start: 10px;
       padding-block: 4px;

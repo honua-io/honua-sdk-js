@@ -79,6 +79,42 @@ describe("<honua-map-status> RTL layout", () => {
   });
 });
 
+describe("<honua-map> theme contrast", () => {
+  it("paints chrome, footer, and status from theme tokens in both themes", () => {
+    const element = new HonuaMapElement();
+    document.body.append(element);
+    const stylesheet = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toMatch(
+      /\.map__chrome, \.map__footer \{[^}]*background: var\(--honua-ui-bg\);[^}]*color: var\(--honua-ui-fg\);/,
+    );
+    expect(stylesheet).toMatch(/\.map__status \{[^}]*background: var\(--honua-ui-bg\);[^}]*color: var\(--honua-ui-fg\);/);
+    expect(stylesheet).not.toContain("rgba(255, 255, 255, 0.9)");
+    expect(stylesheet).not.toContain("rgba(255,255,255,0.86)");
+    expect(contrast("#e8f1f3", "#0e2029")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast("#172033", "#ffffff")).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+function contrast(foreground: string, background: string): number {
+  const luminance = (hex: string) => {
+    const value = Number.parseInt(hex.slice(1), 16);
+    const channel = (part: number) => {
+      const scaled = part / 255;
+      return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+    };
+    return (
+      0.2126 * channel((value >> 16) & 255) +
+      0.7152 * channel((value >> 8) & 255) +
+      0.0722 * channel(value & 255)
+    );
+  };
+  const left = luminance(foreground);
+  const right = luminance(background);
+  const [high, low] = left > right ? [left, right] : [right, left];
+  return (high + 0.05) / (low + 0.05);
+}
+
 describe("<honua-map> responsive styles", () => {
   it("emits narrow-container-safe chrome and footer rules", () => {
     const element = new HonuaMapElement();
