@@ -63,6 +63,7 @@ export interface UplotInstanceLike {
   readonly data?: UplotAlignedData;
   readonly select: UplotSelectBox;
   readonly cursor: {
+    readonly event?: Event | null;
     readonly idx?: number | null;
     readonly left?: number;
     readonly top?: number;
@@ -219,6 +220,7 @@ function nearestPointIndex(self: UplotInstanceLike, data: UplotAlignedData): num
 
 const scatterInitialized = new WeakSet<UplotInstanceLike>();
 const scatterAutoscaling = new WeakSet<UplotInstanceLike>();
+const scatterScaleResetEvents = new WeakSet<Event>();
 
 function scatterXAuto(self: UplotInstanceLike): boolean {
   scatterAutoscaling.add(self);
@@ -227,9 +229,12 @@ function scatterXAuto(self: UplotInstanceLike): boolean {
 
 function scatterXRange(self: UplotInstanceLike, min: number, max: number): readonly [number, number] {
   const autoscaling = scatterAutoscaling.delete(self);
-  // µPlot calls auto() for data-driven scale resets, but not for redraws or
-  // explicit zoom bounds. Only automatic ranges need endpoint padding.
-  if (scatterInitialized.has(self) && !autoscaling) return [min, max];
+  const event = self.cursor.event;
+  const resetting = event?.type === "dblclick" && !scatterScaleResetEvents.has(event);
+  if (resetting) scatterScaleResetEvents.add(event);
+  // µPlot calls auto() for data-driven resets and records double-click events
+  // for user resets; redraws and explicit zoom bounds need no extra padding.
+  if (scatterInitialized.has(self) && !autoscaling && !resetting) return [min, max];
   scatterInitialized.add(self);
   const padding = Math.max((max - min) * 0.05, Math.abs(max) * Number.EPSILON * 4, Number.EPSILON);
   return [min - padding, max + padding];

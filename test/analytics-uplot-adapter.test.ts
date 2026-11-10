@@ -138,7 +138,7 @@ function category() {
 }
 
 describe("real µPlot scatter points", () => {
-  it.each(["render", "hover", "redraw", "zoom", "new-data", "live-update"])(
+  it.each(["render", "hover", "redraw", "zoom", "new-data", "live-update", "reset"])(
     "preserves maximum-x points during %s",
     async (operation) => {
       vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
@@ -178,6 +178,16 @@ describe("real µPlot scatter points", () => {
       );
       try {
         await vi.waitFor(() => expect(chart.series[1].idxs).toBeDefined());
+        if (operation === "reset") {
+          chart.over.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, button: 0 }));
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          expect(chart.series[1].idxs).toEqual([0, 2]);
+          const bounds = [chart.scales.x.min, chart.scales.x.max];
+          chart.redraw();
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          expect([chart.scales.x.min, chart.scales.x.max]).toEqual(bounds);
+          return;
+        }
         if (operation === "live-update") {
           const bounds = [chart.scales.x.min, chart.scales.x.max];
           for (let update = 0; update < 3; update++) {
