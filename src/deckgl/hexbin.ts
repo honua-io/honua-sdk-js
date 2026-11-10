@@ -1,3 +1,4 @@
+import { snapshotSelectionIdentity } from "./adapter.js";
 import type { DeckGlAdapter, DeckGlPickedSelection, DeckGlProjection, DeckGlSelectionIdentity } from "./types.js";
 import { HonuaDeckGlAdapterError } from "./types.js";
 
@@ -36,7 +37,7 @@ export interface DeckGlHexbinProjection {
 export function projectDeckGlHexbins(adapter: DeckGlAdapter, request: DeckGlHexbinRequest): DeckGlHexbinProjection {
   if (adapter.disposed) throw new HonuaDeckGlAdapterError("disposed", "Cannot aggregate with a disposed adapter.");
   const limits = validateRequest(adapter, request);
-  const identity = snapshotIdentity(request.identity, limits.rows);
+  const identity = snapshotSelectionIdentity(request.identity, limits.rows);
   const { bins, assignments } = countBins(request, limits);
   const outputBytes = bins.length * (VERTICES_PER_BIN * 20 + 4) + 4;
   if (outputBytes > adapter.limits.maxBackingBytes) {
@@ -124,29 +125,6 @@ function validateRequest(adapter: DeckGlAdapter, request: DeckGlHexbinRequest): 
     throw invalid("radiusMeters must be between 1 and 1,000,000 Web Mercator map meters.");
   }
   return { rows, maxBins };
-}
-
-function snapshotIdentity(identity: DeckGlSelectionIdentity, rows: number): DeckGlSelectionIdentity {
-  if (
-    !identity ||
-    typeof identity.sourceId !== "string" ||
-    !identity.sourceId.trim() ||
-    typeof identity.planId !== "string" ||
-    !identity.planId.trim() ||
-    identity.featureIds?.length !== rows ||
-    (identity.sourceVersion !== undefined && typeof identity.sourceVersion !== "string")
-  ) {
-    throw invalid("Hexbin input requires source, plan and one scalar identity per point.");
-  }
-  const featureIds: (string | number | bigint)[] = [];
-  for (let row = 0; row < rows; row++) {
-    const id = identity.featureIds[row];
-    if (typeof id !== "string" && typeof id !== "bigint" && !(typeof id === "number" && Number.isFinite(id))) {
-      throw invalid("Hexbin feature identities must be strings, finite numbers or bigints.");
-    }
-    featureIds.push(id);
-  }
-  return { sourceId: identity.sourceId, planId: identity.planId, sourceVersion: identity.sourceVersion, featureIds };
 }
 
 function groupMembers(bins: readonly Bin[], assignments: Uint32Array) {

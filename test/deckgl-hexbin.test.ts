@@ -89,6 +89,32 @@ describe("bounded deck.gl hexbins", () => {
     expect(result.selectionsForBin(1)[0].featureId).toBe(73n);
   });
 
+  it("snapshots each foreign identity field once and wraps getter failures", () => {
+    const input = request();
+    const reads = new Map<PropertyKey, number>();
+    const identity = new Proxy(input.identity, {
+      get(target, key) {
+        reads.set(key, (reads.get(key) ?? 0) + 1);
+        if (reads.get(key)! > 1) throw new Error("Repeated identity read");
+        return Reflect.get(target, key);
+      },
+    });
+    const result = projectDeckGlHexbins(adapter(), { ...input, identity });
+    expect(result.selectionsForBin(0)[0]).toMatchObject({ sourceId: "county", featureId: 71 });
+    expect([...reads.values()]).toEqual([1, 1, 1, 1]);
+    for (const key of ["sourceId", "planId", "sourceVersion", "featureIds"]) {
+      const throwing = new Proxy(input.identity, {
+        get(target, property) {
+          if (property === key) throw new Error("Unreadable identity");
+          return Reflect.get(target, property);
+        },
+      });
+      expect(() => projectDeckGlHexbins(adapter(), { ...input, identity: throwing })).toThrowError(
+        expect.objectContaining({ code: "invalid-data", message: `Unable to read request.identity.${key}.` }),
+      );
+    }
+  });
+
   it("accepts empty results and rejects invalid picks", () => {
     const result = projectDeckGlHexbins(adapter(), {
       ...request(),

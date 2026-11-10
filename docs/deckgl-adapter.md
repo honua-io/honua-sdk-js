@@ -236,7 +236,7 @@ projection; the polygon projection's zero-copy metric applies after aggregation.
 It does not enable `adapter.project({ layer: "heatmap" })` or import
 `@deck.gl/aggregation-layers`.
 
-```ts
+```ts doc-test=compile
 import { createDeckGlAdapter, loadDeckGlPeers, projectDeckGlHexbins } from "@honua/sdk-js/deckgl";
 
 const adapter = createDeckGlAdapter({ peers: await loadDeckGlPeers() });
