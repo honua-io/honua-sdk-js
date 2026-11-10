@@ -189,7 +189,7 @@ export function validateAnalyticsArtifact<T extends AnalyticsArtifact>(artifact:
   if (artifact.kind === "scatter") {
     requireDimension(artifact.dimension, artifact.status);
     requireDimension(artifact.yDimension, artifact.status);
-    if (artifact.dimension === artifact.yDimension && artifact.status !== "unsupported") {
+    if (artifact.dimension && artifact.dimension === artifact.yDimension && artifact.status !== "unsupported") {
       fail("artifact-invalid", "Scatter axes must name distinct fields.");
     }
     for (const mark of artifact.marks) {
@@ -567,7 +567,11 @@ export function acceptScatterArtifact(
         Object.freeze({
           ...mark,
           ...(mark.targets
-            ? { targets: Object.freeze(mark.targets.map((target) => Object.freeze({ ...target }))) }
+            ? {
+                targets: Object.freeze(
+                  mark.targets.map((target) => (typeof target === "object" ? Object.freeze({ ...target }) : target)),
+                ),
+              }
             : {}),
         }),
       ),

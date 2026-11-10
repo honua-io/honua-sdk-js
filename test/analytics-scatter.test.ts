@@ -71,6 +71,44 @@ describe("linked scatter", () => {
     expect(peer.state.selection).toEqual([]);
   });
 
+  it("preserves primitive feature IDs while isolating source-qualified targets", () => {
+    const target = { sourceId: "s", id: 7 };
+    const artifact = acceptScatterArtifact({
+      ...options(),
+      marks: [{ key: "a", label: "A", x: 10, value: 20, targets: [42, "feature-a", target] }],
+    });
+    target.id = 99;
+    expect(artifact.marks[0].targets).toEqual([42, "feature-a", { sourceId: "s", id: 7 }]);
+    expect(Object.isFrozen(artifact.marks[0].targets?.[2])).toBe(true);
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+    const view = ctx.connectView({ id: "chart", role: "chart" });
+    const peer = ctx.connectView({ id: "map", role: "map" });
+    bindAnalyticsToExploration(view, artifact).apply({ ...envelope, kind: "mark-select", markKeys: ["a"] });
+    expect(peer.state.selection).toEqual([42, "feature-a", { sourceId: "s", id: 7 }]);
+  });
+
+  it("presents errors before either axis is known, while rejecting equal known axes", () => {
+    const error = acceptScatterArtifact({
+      ...options(),
+      dimension: "",
+      yDimension: "",
+      marks: [],
+      status: "error",
+      message: "Source unavailable",
+    });
+    expect(analyticsTableModel(error).statusMessage).toBe("Source unavailable");
+    expect(renderAnalyticsBrushHtml(error)).toBe("");
+    expect(() =>
+      acceptScatterArtifact({
+        ...options(),
+        yDimension: "height",
+        marks: [],
+        status: "error",
+        message: "Source unavailable",
+      }),
+    ).toThrow("distinct fields");
+  });
+
   it.each([
     { x: { min: Number.NaN, max: 15 }, y: rectangle.y },
     { x: rectangle.x, y: { min: 30, max: 20 } },
