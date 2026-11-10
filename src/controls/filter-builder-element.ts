@@ -1,9 +1,16 @@
 import type { Query } from "../contract/types.js";
 import type { FilterRegistry } from "../filter-registry/index.js";
 import { HTMLElementBase, globalDom, renderShadowRoot } from "./element-utils.js";
-import { FILTER_BUILDER_CSS, filterBuilderMarkup, readFilterBuilderDraft } from "./filter-builder-view.js";
+import {
+  FILTER_BUILDER_CSS,
+  FILTER_BUILDER_NO_FILTER_TEXT,
+  filterBuilderMarkup,
+  readFilterBuilderDraft,
+} from "./filter-builder-view.js";
 import { FILTER_BUILDER_MAX_ROWS, applyFilterBuilder, compileFilterBuilder } from "./filter-builder.js";
 import type { HonuaFilterBuilderDraft, HonuaFilterBuilderProjection } from "./filter-builder.js";
+
+const INITIAL_STATUS = "Apply filters to update matching rows.";
 
 export type HonuaFilterBuilderCount = (query: Query, signal: AbortSignal) => Promise<number>;
 
@@ -17,7 +24,7 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
   #registry?: FilterRegistry;
   #count?: HonuaFilterBuilderCount;
   #abort?: AbortController;
-  #status = "Apply filters to update matching rows.";
+  #status = INITIAL_STATUS;
   #cql2 = "";
 
   public constructor() {
@@ -29,10 +36,7 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
   }
   public set draft(value: HonuaFilterBuilderDraft | undefined) {
     this.#invalidateCount();
-    if (this.#draft?.ownerId !== value?.ownerId || this.#draft?.sourceId !== value?.sourceId) {
-      this.#clearOwner();
-      this.#cql2 = "";
-    }
+    if (this.#draft?.ownerId !== value?.ownerId || this.#draft?.sourceId !== value?.sourceId) this.#releaseApplied();
     this.#draft = value && cloneDraft(value);
     this.#status = "Draft changed. Apply filters to update matching rows.";
     this.render();
@@ -43,7 +47,7 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
   public set registry(value: FilterRegistry | undefined) {
     if (this.#registry === value) return;
     this.#invalidateCount();
-    this.#clearOwner();
+    this.#releaseApplied();
     this.#registry = value;
     this.#refreshStatus();
   }
@@ -62,7 +66,7 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
   }
   public disconnectedCallback(): void {
     this.#invalidateCount();
-    this.#clearOwner();
+    this.#releaseApplied();
   }
 
   /** Validates atomically before updating the registry, then counts this exact query. */
@@ -144,16 +148,16 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
     const output = this.shadowRoot?.querySelector("output");
     if (output) output.textContent = this.#status;
     const cql2 = this.shadowRoot?.querySelector("pre");
-    if (cql2) cql2.textContent = this.#cql2 || "No attribute, extent or time filter applied.";
+    if (cql2) cql2.textContent = this.#cql2 || FILTER_BUILDER_NO_FILTER_TEXT;
   }
   #invalidateCount(): void {
     this.#abort?.abort();
     this.#abort = undefined;
   }
-  #clearOwner(): void {
+  #releaseApplied(): void {
     if (this.#draft) this.#registry?.clearOwner({ kind: "control", id: this.#draft.ownerId });
     this.#cql2 = "";
-    this.#status = "Apply filters to update matching rows.";
+    this.#status = INITIAL_STATUS;
   }
   #showError(): void {
     this.#status = "Filters were not applied. Check field values, extent bounds and timestamps with timezones.";

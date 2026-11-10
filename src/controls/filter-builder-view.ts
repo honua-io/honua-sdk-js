@@ -2,6 +2,8 @@ import { escapeAttribute as attr, escapeHtml } from "./element-utils.js";
 import { FILTER_BUILDER_MAX_ROWS } from "./filter-builder.js";
 import type { HonuaFilterBuilderDraft, HonuaFilterBuilderRow } from "./filter-builder.js";
 
+export const FILTER_BUILDER_NO_FILTER_TEXT = "No attribute, extent or time filter applied.";
+
 const OPERATORS = {
   eq: "Equals",
   ne: "Differs from",
@@ -74,7 +76,7 @@ export function filterBuilderMarkup(draft: HonuaFilterBuilderDraft, status: stri
 <label>Start (timestamp with timezone)<input data-start placeholder="2026-01-01T00:00:00Z" value="${attr(draft.time?.start ?? "")}"></label>
 <label>End (timestamp with timezone)<input data-end placeholder="2026-02-01T00:00:00Z" value="${attr(draft.time?.end ?? "")}"></label></fieldset>
 <button type="submit">Apply filters</button><output role="status" aria-live="polite">${escapeHtml(status)}</output>
-<pre part="cql2" aria-label="Applied CQL2 filter">${escapeHtml(cql2 || "No attribute, extent or time filter applied.")}</pre></form>`;
+<pre part="cql2" aria-label="Applied CQL2 filter">${escapeHtml(cql2 || FILTER_BUILDER_NO_FILTER_TEXT)}</pre></form>`;
 }
 
 /** Read edited native form controls while retaining host-owned schema and scope. */
