@@ -29,11 +29,12 @@ import {
   HonuaFeatureEditorElement,
 } from "./feature-editor.js";
 import { HonuaFeatureInspectionElement } from "./feature-inspection.js";
-import type {
-  HonuaFeatureTable,
-  HonuaFeatureTableConflict,
-  HonuaFeatureTableFocusMove,
-  HonuaFeatureTableSnapshot,
+import {
+  type HonuaFeatureTable,
+  type HonuaFeatureTableConflict,
+  type HonuaFeatureTableFocusMove,
+  type HonuaFeatureTableSnapshot,
+  featureTableWindow,
 } from "./feature-table-engine.js";
 import {
   type HonuaFeatureTableMessages,
@@ -865,6 +866,10 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   #restoringScroll = false;
   #ignoreClickSelection = false;
   #pointerGesture = 0;
+  #applyingContext = false;
+  #publishingApplication = false;
+  #contextFollowUp: HonuaApplicationContextChangeEvent<T> | undefined;
+  #alignedWindowStart = -1;
   #messages: HonuaFeatureTableMessages = {};
   #applicationContext: HonuaApplicationContext<T> | undefined;
 
@@ -896,6 +901,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     this.#tableUnsubscribe = undefined;
     this.#table = table;
     this.#tableSnapshot = table?.snapshot;
+    this.#alignedWindowStart = -1;
     // Only hold a subscription while connected; `connectedCallback()` re-takes
     // it so a detached-then-reinserted grid resumes updating.
     this.#subscribeTable();
@@ -1036,7 +1042,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       `<style>${baseStyles()}${tableStyles()}${featureTableGridStyles()}</style>${this.#applicationPresentationHtml()}${featureTableGridHtml(viewModel)}`,
     );
     this.#bindGrid();
-    this.#restoreScroll(previousScrollTop, previousScrollLeft);
+    this.#placeWindow(previousScrollTop, previousScrollLeft);
     if (restoreFocus) this.#restoreFocusedCell();
   }
 
@@ -1069,16 +1075,10 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       return;
     }
     if (snapshot.authorization.status === "unauthorized") table.cancel();
-    if (!event || event.changed.includes("selection")) {
-      const targets = snapshot.selection.filter(isApplicationSelectionTarget);
-      const keys = table.keysForTargets(targets);
-      if (!sameApplicationValue(table.snapshot.selection, keys)) table.select(keys, { replace: true });
-      const primary = targets.find((target) => table.keysForTargets([target]).length > 0);
-      if (primary) void table.reveal(primary, { select: false });
-    }
-    if (!event || event.changed.includes("filters")) {
-      const filters = snapshot.filters.filter(isApplicationFilterClause);
-      if (!sameApplicationValue(table.snapshot.filters, filters)) void table.setFilters(filters);
+    if (this.#applyingContext) {
+      if (!this.#publishingApplication && event) this.#contextFollowUp = event;
+    } else {
+      void this.#syncApplicationTable(event, table).catch(() => undefined);
     }
     if (
       event &&
@@ -1089,6 +1089,66 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       void table.refresh();
     }
     this.render();
+  }
+
+  async #syncApplicationTable(
+    event: HonuaApplicationContextChangeEvent<T> | undefined,
+    table: HonuaFeatureTable<T>,
+  ): Promise<void> {
+    const snapshot = this.#applicationContext?.snapshot;
+    if (!snapshot) return;
+    this.#applyingContext = true;
+    try {
+      if (!event || event.changed.includes("selection")) {
+        const targets = snapshot.selection.filter(isApplicationSelectionTarget);
+        const keys = table.keysForTargets(targets);
+        if (!sameApplicationValue(table.snapshot.selection, keys)) table.select(keys, { replace: true });
+      }
+      if (!event || event.changed.includes("filters")) {
+        const filters = snapshot.filters.filter(isApplicationFilterClause);
+        if (!sameApplicationValue(table.snapshot.filters, filters)) await table.setFilters(filters);
+      }
+      if (this.#table !== table) return;
+      if (!event || event.changed.includes("selection")) {
+        const targets = (this.#applicationContext?.snapshot ?? snapshot).selection.filter(isApplicationSelectionTarget);
+        const primary = targets.find((target) => table.keysForTargets([target]).length > 0);
+        if (primary) await table.reveal(primary, { select: false });
+      }
+    } finally {
+      this.#applyingContext = false;
+    }
+    const followUp = this.#contextFollowUp;
+    if (!followUp || this.#table !== table) return;
+    this.#contextFollowUp = undefined;
+    this.#applyApplicationContext(followUp);
+  }
+
+  #placeWindow(previousScrollTop: number, previousScrollLeft: number): void {
+    const snapshot = this.#tableSnapshot;
+    const scroller = this.#scroller();
+    if (!snapshot || !scroller) {
+      this.#restoreScroll(previousScrollTop, previousScrollLeft);
+      return;
+    }
+    const rowHeight = this.rowHeight();
+    const overscan = snapshot.budgets.windowOverscan;
+    const windowMoved = snapshot.window.startIndex !== this.#alignedWindowStart;
+    if (!windowMoved) {
+      this.#restoreScroll(previousScrollTop, previousScrollLeft);
+      return;
+    }
+    const viewportHeight = scroller.clientHeight || rowHeight * 10;
+    const totalRows = snapshot.count.kind === "known" ? snapshot.count.value : undefined;
+    const implied = featureTableWindow(
+      { scrollTop: previousScrollTop, rowHeight, viewportHeight },
+      { overscan, ...(totalRows === undefined ? {} : { totalRows }) },
+    );
+    this.#alignedWindowStart = snapshot.window.startIndex;
+    const scrollTop =
+      implied.startIndex === snapshot.window.startIndex
+        ? previousScrollTop
+        : Math.max(0, (snapshot.window.startIndex + overscan) * rowHeight);
+    this.#restoreScroll(scrollTop, previousScrollLeft);
   }
 
   #publishApplicationState(snapshot: HonuaFeatureTableSnapshot<T>): void {
@@ -1141,10 +1201,16 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     ];
     const update = {
       ...(!sameApplicationValue(context.snapshot.selection, selection) ? { selection } : {}),
-      ...(!sameApplicationValue(context.snapshot.filters, filters) ? { filters } : {}),
+      ...(!this.#applyingContext && !sameApplicationValue(context.snapshot.filters, filters) ? { filters } : {}),
       ...(!sameApplicationValue(context.snapshot.diagnostics, diagnostics) ? { diagnostics } : {}),
     };
-    if (Object.keys(update).length > 0) context.update(update);
+    if (Object.keys(update).length === 0) return;
+    this.#publishingApplication = true;
+    try {
+      context.update(update);
+    } finally {
+      this.#publishingApplication = false;
+    }
   }
 
   #applicationPresentationHtml(): string {
@@ -1249,7 +1315,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   /**
    * Pointer selection has to happen on pointerdown. Focus publishes a new
    * shadow tree before click, so the pressed cell is gone by the time click
-   * would have selected it. The click that follows this press is the same
+   * would have selected it. The click that follows pointerup is the same
    * gesture and must not select a second time.
    */
   #selectCellFromPointer(cell: HTMLTableCellElement): void {
@@ -1264,11 +1330,18 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       this.#table.setFocus({ rowKey, field });
       this.#restoreFocusedCell();
     }
-    // The click that belongs to this press is dispatched before the next turn.
-    // A press that never produces a click must not swallow a later one.
-    setTimeout(() => {
-      if (this.#pointerGesture === gesture) this.#ignoreClickSelection = false;
-    }, 0);
+    const release = () => {
+      this.removeEventListener("pointerup", release);
+      this.removeEventListener("pointercancel", release);
+      // The click is dispatched after pointerup listeners return. A held press
+      // must not clear the flag before that click, and a press that never
+      // produces a click must not swallow a later one.
+      setTimeout(() => {
+        if (this.#pointerGesture === gesture) this.#ignoreClickSelection = false;
+      }, 0);
+    };
+    this.addEventListener("pointerup", release);
+    this.addEventListener("pointercancel", release);
   }
 
   #focusCell(cell: HTMLTableCellElement): void {

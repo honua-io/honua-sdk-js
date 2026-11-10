@@ -2,6 +2,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { contrast } from "./contrast.js";
+
 import type { Query, Result, SourceDescriptor } from "../src/contract/index.js";
 import type {
   HonuaFeatureTable,
@@ -31,6 +33,85 @@ import {
 type Row = { OBJECTID: number; NAME: string; SEVERITY: number };
 
 const TOTAL = 400;
+
+function orderedSource(total: number) {
+  return {
+    descriptor: descriptor(),
+    async query(request?: Query<Row>): Promise<Result<Row>> {
+      const ids = Array.from({ length: total }, (_, index) => index + 1);
+      const where = request?.where;
+      const matched = ids.filter((id) => idMatches(where, id));
+      const offset = request?.pagination?.offset ?? 0;
+      const limit = request?.pagination?.limit ?? 10;
+      const page = matched.slice(offset, offset + limit);
+      return {
+        features: page.map((id) => ({ attributes: { OBJECTID: id, NAME: `Incident ${id}`, SEVERITY: 1 } })),
+        exceededTransferLimit: offset + page.length < matched.length,
+        totalCount: matched.length,
+      };
+    },
+  };
+}
+
+function idMatches(where: string | undefined, id: number): boolean {
+  if (!where) return true;
+  const cursor = { index: 0 };
+  const skip = () => {
+    while (where[cursor.index] === " ") cursor.index += 1;
+  };
+  const parseOr = (): boolean => {
+    let value = parseAnd();
+    for (;;) {
+      skip();
+      if (!where.startsWith("OR", cursor.index)) break;
+      const next = where[cursor.index + 2];
+      if (next !== " " && next !== "(") break;
+      cursor.index += 2;
+      value = parseAnd() || value;
+    }
+    return value;
+  };
+  const parseAnd = (): boolean => {
+    let value = parsePrimary();
+    for (;;) {
+      skip();
+      if (!where.startsWith("AND", cursor.index)) break;
+      const next = where[cursor.index + 3];
+      if (next !== " " && next !== "(") break;
+      cursor.index += 3;
+      value = parsePrimary() && value;
+    }
+    return value;
+  };
+  const parsePrimary = (): boolean => {
+    skip();
+    if (where[cursor.index] === "(") {
+      cursor.index += 1;
+      const value = parseOr();
+      skip();
+      if (where[cursor.index] === ")") cursor.index += 1;
+      return value;
+    }
+    skip();
+    const fieldEnd = where.indexOf(" ", cursor.index);
+    cursor.index = fieldEnd + 1;
+    skip();
+    const operators = [">=", "<=", "<>", "=", ">", "<"] as const;
+    const operator = operators.find((candidate) => where.startsWith(candidate, cursor.index));
+    if (!operator) return true;
+    cursor.index += operator.length;
+    skip();
+    const literal = Number(where.slice(cursor.index).match(/^-?\d+/)?.[0] ?? "NaN");
+    cursor.index += String(literal).length;
+    if (operator === "=") return id === literal;
+    if (operator === ">") return id > literal;
+    if (operator === "<") return id < literal;
+    if (operator === ">=") return id >= literal;
+    if (operator === "<=") return id <= literal;
+    return id !== literal;
+  };
+  return parseOr();
+}
 
 function descriptor(): SourceDescriptor {
   return {
@@ -81,24 +162,6 @@ function shadow(element: HonuaFeatureTableElement<Row>): ShadowRoot {
 
 function press(cell: Element, key: string, init: KeyboardEventInit = {}): void {
   cell.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init }));
-}
-
-function contrast(foreground: string, background: string): number {
-  const luminance = (hex: string) => {
-    const value = Number.parseInt(hex.slice(1), 16);
-    const channel = (part: number) => {
-      const scaled = part / 255;
-      return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
-    };
-    const red = channel((value >> 16) & 255);
-    const green = channel((value >> 8) & 255);
-    const blue = channel(value & 255);
-    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-  };
-  const lighter = luminance(foreground);
-  const darker = luminance(background);
-  const [high, low] = lighter > darker ? [lighter, darker] : [darker, lighter];
-  return (high + 0.05) / (low + 0.05);
 }
 
 describe("<honua-feature-table> bounded lane", () => {
@@ -274,6 +337,108 @@ describe("<honua-feature-table> bounded lane", () => {
     const focused = shadow(element).activeElement?.closest("tr");
     expect(focused?.getAttribute("data-row-key")).toBe("incidents:1");
     expect(focused?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("suppresses the gesture click until the pointer is released or cancelled", async () => {
+    const element = mount();
+    const engine = makeEngine();
+    element.table = engine;
+    await engine.refresh();
+    let selections = 0;
+    element.addEventListener("honua-selection-change", () => {
+      selections += 1;
+    });
+    const cell = shadow(element).querySelector<HTMLTableCellElement>(
+      "tbody tr[data-row-key='incidents:1'] [role='gridcell']",
+    );
+    if (!cell) throw new Error("no cell");
+    cell.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const row = shadow(element).querySelector<HTMLTableRowElement>("tbody tr[data-row-key='incidents:1']");
+    if (!row) throw new Error("no row");
+    row.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(selections).toBe(1);
+
+    element.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    row.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(selections).toBe(2);
+
+    const next = shadow(element).querySelector<HTMLTableCellElement>(
+      "tbody tr[data-row-key='incidents:2'] [role='gridcell']",
+    );
+    if (!next) throw new Error("no second cell");
+    next.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true }));
+    element.dispatchEvent(new MouseEvent("pointercancel", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const nextRow = shadow(element).querySelector<HTMLTableRowElement>("tbody tr[data-row-key='incidents:2']");
+    nextRow?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(selections).toBe(4);
+  });
+
+  it("scrolls the revealed row into the window when the table itself is not focused", async () => {
+    const element = mount();
+    element.setAttribute("row-height", "32");
+    const engine = createHonuaFeatureTable<Row>({
+      source: orderedSource(400),
+      sourceId: "incidents",
+      columns: [
+        { field: "OBJECTID", label: "ID", type: "integer" },
+        { field: "NAME", label: "Name", type: "string" },
+        { field: "SEVERITY", label: "Severity", type: "number" },
+      ],
+      budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 },
+    });
+    element.table = engine;
+    await engine.refresh();
+    document.body.focus();
+
+    const revealed = await engine.reveal({ sourceId: "incidents", id: 75 });
+
+    expect(revealed).toMatchObject({ status: "visible", index: 74 });
+    const scroller = shadow(element).querySelector<HTMLElement>("[data-scroller]");
+    const row = shadow(element).querySelector<HTMLElement>("tr[data-feature-id='75']");
+    expect(row).not.toBeNull();
+    expect(scroller?.scrollTop).toBe(70 * 32);
+    expect(shadow(element).activeElement).toBeNull();
+  });
+
+  it("applies application filters before revealing the initial selection", async () => {
+    const element = mount();
+    const engine = createHonuaFeatureTable<Row>({
+      source: orderedSource(400),
+      sourceId: "incidents",
+      columns: [
+        { field: "OBJECTID", label: "ID", type: "integer" },
+        { field: "NAME", label: "Name", type: "string" },
+      ],
+      budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 },
+    });
+    element.table = engine;
+    await engine.refresh();
+    const context = createHonuaApplicationContext<Row>({
+      status: "ready",
+      binding: { sourceIdentity: "incidents" },
+      authorization: { status: "authorized", scopes: ["incidents:read"] },
+      selection: [{ sourceId: "incidents", id: 75 }],
+      filters: [
+        {
+          id: "open-id",
+          owner: { kind: "table", id: "application" },
+          field: "OBJECTID",
+          operator: ">",
+          value: 0,
+          effect: "filter",
+        },
+      ],
+    });
+
+    element.applicationContext = context;
+    await vi.waitFor(() => expect(engine.snapshot.rows.some((row) => row?.id === 75)).toBe(true));
+
+    expect(engine.snapshot.window.startIndex).toBeGreaterThan(0);
+    expect(engine.snapshot.selection).toEqual(["incidents:75"]);
+    context.dispose();
   });
 
   it("selects the focused row on Enter and dispatches honua-selection-change", async () => {

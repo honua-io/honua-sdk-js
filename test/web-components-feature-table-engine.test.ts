@@ -188,6 +188,7 @@ describe("bounded feature table: paging, sort, filter, selection without materia
     expect(fixture.requests.at(-1)?.orderBy).toEqual([
       { field: "SEVERITY", direction: "desc" },
       { field: "NAME", direction: "asc" },
+      { field: "OBJECTID", direction: "asc" },
     ]);
   });
 
@@ -1626,6 +1627,152 @@ describe("review regressions (PR #801)", () => {
     expect(located.rowsServed).toBeLessThan(TOTAL_ROWS);
     unlink();
   });
+
+  it("keeps the identity tie-break when scrolling after a reveal", async () => {
+    const requests: Query<Row>[] = [];
+    const total = 100;
+    const source: HonuaFeatureTableQuerySource<Row> = {
+      descriptor: descriptor(),
+      async query(request?: Query<Row>): Promise<Result<Row>> {
+        requests.push(request ?? {});
+        const ids = Array.from({ length: total }, (_, index) => index + 1);
+        const tied = request?.orderBy?.some((entry) => entry.field === "OBJECTID") === true;
+        if (!tied) ids.reverse();
+        const where = request?.where;
+        const matched = ids.filter((id) => matchesWhere(where, tiedRow(id)));
+        const offset = request?.pagination?.offset ?? 0;
+        const limit = request?.pagination?.limit ?? 10;
+        const page = matched.slice(offset, offset + limit);
+        return {
+          features: page.map((id) => ({ attributes: tiedRow(id) })),
+          exceededTransferLimit: offset + page.length < matched.length,
+          totalCount: matched.length,
+        };
+      },
+    };
+    const table = createHonuaFeatureTable<Row>({
+      source,
+      sourceId: "incidents",
+      columns: COLUMNS,
+      budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 },
+    });
+    await table.refresh();
+    await table.setSort([{ field: "STATUS", direction: "asc" }]);
+
+    const revealed = await table.reveal({ sourceId: "incidents", id: 75 });
+    expect(revealed).toEqual({ status: "visible", key: "incidents:75", index: 74 });
+    expect(table.snapshot.rows.map((row) => row?.id)).toEqual([71, 72, 73, 74, 75, 76, 77, 78, 79, 80]);
+
+    const next = await table.setScroll({ scrollTop: 80 * 32, rowHeight: 32, viewportHeight: 320 });
+    expect(next.rows.map((row) => row?.id)).toEqual([81, 82, 83, 84, 85, 86, 87, 88, 89, 90]);
+    expect(requests.at(-1)?.orderBy).toEqual([
+      { field: "STATUS", direction: "asc" },
+      { field: "OBJECTID", direction: "asc" },
+    ]);
+  });
+
+  it("does not commit selection when the source ignores the rank predicate", async () => {
+    const source: HonuaFeatureTableQuerySource<Row> = {
+      descriptor: descriptor(),
+      async query(request?: Query<Row>): Promise<Result<Row>> {
+        const identity = /OBJECTID = (\d+)/.exec(request?.where ?? "");
+        const ranked = request?.where?.includes(" OR ") === true || request?.where?.includes("OBJECTID <") === true;
+        if (identity && !ranked) {
+          return {
+            features: [{ attributes: makeRow(Number(identity[1]) - 1) }],
+            totalCount: 1,
+            exceededTransferLimit: false,
+          };
+        }
+        const offset = request?.pagination?.offset ?? 0;
+        const limit = request?.pagination?.limit ?? 10;
+        const features = [];
+        for (let index = offset; index < Math.min(offset + limit, 100); index += 1) {
+          features.push({ attributes: makeRow(index) });
+        }
+        return { features, totalCount: 100, exceededTransferLimit: offset + features.length < 100 };
+      },
+    };
+    const table = createHonuaFeatureTable<Row>({
+      source,
+      sourceId: "incidents",
+      columns: COLUMNS,
+      budgets: { pageSize: 10, maxCachedRows: 20, windowOverscan: 0 },
+    });
+    await table.refresh();
+    table.select(["incidents:2"]);
+    const seen: { selection: readonly string[]; focus?: string }[] = [];
+    table.subscribe((snapshot) => {
+      seen.push({ selection: snapshot.selection, focus: snapshot.focus?.rowKey });
+    });
+
+    const revealed = await table.reveal({ sourceId: "incidents", id: 75 });
+
+    expect(revealed.status).toBe("unsupported");
+    expect(table.snapshot.window).toEqual({ startIndex: 0, endIndex: 10 });
+    expect(table.snapshot.selection).toEqual(["incidents:2"]);
+    expect(table.snapshot.focus).toBeUndefined();
+    expect(table.snapshot.rows.map((row) => row?.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(seen.some((snapshot) => snapshot.selection.includes("incidents:75"))).toBe(false);
+  });
+
+  it("lets the newer reveal win when an older lookup is still in flight", async () => {
+    let releaseOlder: (() => void) | undefined;
+    const located = locatingFixture();
+    const original = located.source.query.bind(located.source);
+    located.source.query = async (request) => {
+      if (request?.where?.includes("OBJECTID = 75") && request.where.includes(" OR ") !== true) {
+        await new Promise<void>((resolve) => {
+          releaseOlder = resolve;
+        });
+      }
+      return original(request);
+    };
+    const table = makeTable(located, { budgets: { pageSize: 10, maxCachedRows: 40, windowOverscan: 0 } });
+    await table.refresh();
+
+    const older = table.reveal({ sourceId: "incidents", id: 75 });
+    await vi.waitFor(() => expect(releaseOlder).toBeTypeOf("function"));
+    const newer = await table.reveal({ sourceId: "incidents", id: 40 });
+    releaseOlder?.();
+    expect(await older).toEqual({ status: "cancelled" });
+
+    expect(newer).toEqual({ status: "visible", key: "incidents:40", index: 39 });
+    expect(table.snapshot.selection).toEqual(["incidents:40"]);
+    expect(table.snapshot.rows.some((row) => row?.id === 40)).toBe(true);
+    expect(table.snapshot.rows.some((row) => row?.id === 75)).toBe(false);
+  });
+
+  it("returns cancelled when an in-flight locate query rejects AbortError", async () => {
+    const located = locatingFixture();
+    const original = located.source.query.bind(located.source);
+    let locateStarted = false;
+    located.source.query = async (request) => {
+      if (request?.where?.includes("OBJECTID = 75")) {
+        locateStarted = true;
+        await new Promise<void>((_resolve, reject) => {
+          const abort = () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          };
+          if (request.signal?.aborted) abort();
+          else request.signal?.addEventListener("abort", abort, { once: true });
+        });
+      }
+      return original(request);
+    };
+    const table = makeTable(located);
+    await table.refresh();
+    const controller = new AbortController();
+    const pending = table.reveal({ sourceId: "incidents", id: 75 }, { signal: controller.signal });
+    await vi.waitFor(() => expect(locateStarted).toBe(true));
+    controller.abort();
+
+    await expect(pending).resolves.toEqual({ status: "cancelled" });
+    expect(table.snapshot.selection).toEqual([]);
+    expect(table.snapshot.window.startIndex).toBe(0);
+  });
 });
 
 function locatingFixture(): Fixture {
@@ -1685,35 +1832,28 @@ function compareRows(left: Row, right: Row, orderBy: readonly SortSpec[] | undef
   return left.OBJECTID - right.OBJECTID;
 }
 
-function matchesWhere(where: string | undefined, row: Row): boolean {
-  if (!where) return true;
-  let cursor = 0;
-  const read = parseWhere(
-    where,
-    () => cursor,
-    (next) => {
-      cursor = next;
-    },
-    row,
-  );
-  return read;
+function tiedRow(id: number): Row {
+  return { OBJECTID: id, NAME: `Incident ${id}`, STATUS: "open", SEVERITY: 1 };
 }
 
-function parseWhere(where: string, cursor: () => number, move: (next: number) => void, row: Row): boolean {
+function matchesWhere(where: string | undefined, row: Row): boolean {
+  if (!where) return true;
+  return parseWhere(where, { index: 0 }, row);
+}
+
+function parseWhere(where: string, cursor: { index: number }, row: Row): boolean {
   const skip = () => {
-    let index = cursor();
-    while (where[index] === " ") index += 1;
-    move(index);
+    while (where[cursor.index] === " ") cursor.index += 1;
   };
   const parseOr = (): boolean => {
     let value = parseAnd();
     for (;;) {
       skip();
-      const index = cursor();
+      const index = cursor.index;
       if (where.slice(index, index + 2) !== "OR") break;
       const next = where[index + 2];
       if (next !== " " && next !== "(") break;
-      move(index + 2);
+      cursor.index = index + 2;
       value = parseAnd() || value;
     }
     return value;
@@ -1722,39 +1862,39 @@ function parseWhere(where: string, cursor: () => number, move: (next: number) =>
     let value = parsePrimary();
     for (;;) {
       skip();
-      const index = cursor();
+      const index = cursor.index;
       if (where.slice(index, index + 3) !== "AND") break;
       const next = where[index + 3];
       if (next !== " " && next !== "(") break;
-      move(index + 3);
+      cursor.index = index + 3;
       value = parsePrimary() && value;
     }
     return value;
   };
   const parsePrimary = (): boolean => {
     skip();
-    const index = cursor();
+    const index = cursor.index;
     if (where[index] === "(") {
-      move(index + 1);
+      cursor.index = index + 1;
       const value = parseOr();
       skip();
-      if (where[cursor()] === ")") move(cursor() + 1);
+      if (where[cursor.index] === ")") cursor.index = cursor.index + 1;
       return value;
     }
     return parseComparison();
   };
   const parseComparison = (): boolean => {
     skip();
-    const fieldStart = cursor();
+    const fieldStart = cursor.index;
     let fieldEnd = fieldStart;
     while (/[A-Za-z0-9_]/.test(where[fieldEnd] ?? "")) fieldEnd += 1;
     const field = where.slice(fieldStart, fieldEnd);
-    move(fieldEnd);
+    cursor.index = fieldEnd;
     skip();
     const operators = ["<>", "<=", ">=", "=", "<", ">"] as const;
-    const operator = operators.find((candidate) => where.startsWith(candidate, cursor()));
-    if (!operator) throw new Error(`Unsupported locate predicate: ${where.slice(cursor())}`);
-    move(cursor() + operator.length);
+    const operator = operators.find((candidate) => where.startsWith(candidate, cursor.index));
+    if (!operator) throw new Error(`Unsupported locate predicate: ${where.slice(cursor.index)}`);
+    cursor.index = cursor.index + operator.length;
     skip();
     const literal = parseLiteral();
     const actual = row[field as keyof Row];
@@ -1768,7 +1908,7 @@ function parseWhere(where: string, cursor: () => number, move: (next: number) =>
     return actual >= literal;
   };
   const parseLiteral = (): string | number | boolean => {
-    const index = cursor();
+    const index = cursor.index;
     if (where[index] === "'") {
       let value = "";
       let next = index + 1;
@@ -1779,7 +1919,7 @@ function parseWhere(where: string, cursor: () => number, move: (next: number) =>
           continue;
         }
         if (where[next] === "'") {
-          move(next + 1);
+          cursor.index = next + 1;
           return value;
         }
         value += where[next];
@@ -1788,16 +1928,16 @@ function parseWhere(where: string, cursor: () => number, move: (next: number) =>
       throw new Error("Unclosed string in locate predicate");
     }
     if (where.startsWith("TRUE", index)) {
-      move(index + 4);
+      cursor.index = index + 4;
       return true;
     }
     if (where.startsWith("FALSE", index)) {
-      move(index + 5);
+      cursor.index = index + 5;
       return false;
     }
     const match = /^-?\d+(?:\.\d+)?/.exec(where.slice(index));
     if (!match) throw new Error(`Unsupported locate literal: ${where.slice(index)}`);
-    move(index + match[0].length);
+    cursor.index = index + match[0].length;
     return Number(match[0]);
   };
   return parseOr();
