@@ -288,8 +288,8 @@ export function assignSpecs(policy, specs) {
 export function validateWorkflow(root) {
   const workflowPath = resolve(root, ".github/workflows/browser-impact-observe.yml");
   const workflow = readFileSync(workflowPath, "utf8");
-  if (!workflow.includes("workflow_run:") || !workflow.includes('workflows: ["SDK CI"]')) {
-    throw new PolicyError("browser observer must consume completed SDK CI workflow runs");
+  if (!workflow.includes("workflow_run:") || !workflow.includes('workflows: ["SDK Verification"]')) {
+    throw new PolicyError("browser observer must consume completed SDK Verification workflow runs");
   }
   for (const forbidden of [
     "playwright test",
@@ -330,12 +330,14 @@ export function validateWorkflow(root) {
       workflow,
     )
   ) {
-    throw new PolicyError("browser observer must resolve the exact trusted JS SDK workflow job");
+    throw new PolicyError("browser observer must resolve the exact trusted SDK verified workflow job");
   }
   for (const binding of [
-    'workflowPath: ".github/workflows/ci.yml"',
-    'workflowName: "SDK CI"',
-    'jobName: "JS SDK"',
+    'workflowPath: ".github/workflows/sdk-verification.yml"',
+    'workflowName: "SDK Verification"',
+    'jobName: "SDK verified"',
+    "browserShardsComplete(resolved)",
+    'const { browserShardsComplete } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/browser-impact-observe.mjs`);',
   ]) {
     if (workflow.split(binding).length - 1 !== 2) {
       throw new PolicyError("browser observer source identity must match in both resolutions");
@@ -378,6 +380,10 @@ export function validateWorkflow(root) {
     );
   }
   for (const argument of [
+    '--source-browser-shards "$SOURCE_BROWSER_SHARDS"',
+    "SOURCE_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}",
+    "EXPECTED_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}",
+    "process.env.EXPECTED_BROWSER_SHARDS",
     '--observer-run-id "$GITHUB_RUN_ID"',
     '--observer-run-attempt "$GITHUB_RUN_ATTEMPT"',
     '--observer-event "$GITHUB_EVENT_NAME"',
@@ -521,10 +527,12 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
   if (!metadata.trust) promotionExclusionReasons.push("missing-trusted-identity");
   if (metadata.trust?.source_job_conclusion === "failure") {
     promotionExclusionReasons.push("browser-authority-failure-unattributed");
-  } else if (metadata.trust && metadata.trust.source_job_conclusion !== "success") {
+  } else if (metadata.trust && (metadata.trust.source_job_conclusion !== "success" ||
+      metadata.trust.source_browser_shards !== "complete")) {
     promotionExclusionReasons.push("browser-authority-not-comparable");
   }
-  if (normalizedChangedPaths.includes(".github/workflows/ci.yml")) {
+  if ([".github/workflows/ci.yml", ".github/workflows/sdk-verification.yml"]
+    .some((path) => normalizedChangedPaths.includes(path))) {
     promotionExclusionReasons.push("source-workflow-changed");
   }
   if (normalizedChangedPaths.some((path) => TRUSTED_POLICY_INPUTS.has(path))) {
@@ -544,7 +552,7 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
     changed_paths: normalizedChangedPaths,
     ignored_paths: ignored,
     fail_closed_paths: failClosed,
-    legacy: { runs_all_specs: true, spec_count: specs.length },
+    legacy: { runs_all_specs: metadata.trust?.source_browser_shards === "complete", spec_count: specs.length },
     candidate: {
       selected_lanes: selectedLanes,
       skipped_lanes: allLanes.filter((lane) => !selectedLanes.includes(lane)),
@@ -611,7 +619,7 @@ export function supersededMarkdown(record) {
     "",
     `- Outcome: \`${record.status}\` at stage \`${record.stage}\` -- **no routing comparison was produced**`,
     `- Reason: \`${record.reason}\``,
-    `- Source SDK CI run: \`${record.source_run_id}\` attempt \`${record.source_run_attempt}\` (\`${record.source_run_conclusion}\`)`,
+    `- Source SDK Verification run: \`${record.source_run_id}\` attempt \`${record.source_run_attempt}\` (\`${record.source_run_conclusion}\`)`,
     `- Observer run: \`${record.observer_run_id}\` attempt \`${record.observer_run_attempt}\``,
     `- Detail: \`${record.detail || "none"}\``,
     "",
@@ -619,7 +627,7 @@ export function supersededMarkdown(record) {
     "observable pull request: GitHub recomputes the check-run association from",
     "live repository state, so a later push, or a merge that deletes the head",
     "branch, detaches it. Nothing was compared and nothing is wrong. The head",
-    "that superseded this one gets its own SDK CI run and its own observation.",
+    "that superseded this one gets its own SDK Verification run and its own observation.",
     "",
   ].join("\n");
 }
@@ -644,7 +652,7 @@ export function markdown(report) {
     const rendered = laneReasons.slice(0, 6).map((path) => `\`${path}\``).join("<br>") || "—";
     lines.push(`| \`${lane}\` | \`${laneReasons.length > 0}\` | \`${specs.length}\` | ${rendered} |`);
   }
-  lines.push("", "This report is shadow evidence only. The existing JS SDK job still runs every Playwright spec.", "");
+  lines.push("", "This report is shadow evidence only. SDK verified retains every browser shard.", "");
   return lines.join("\n");
 }
 
@@ -687,6 +695,21 @@ function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+export function browserShardsComplete({ jobs, run }) {
+  const browsers = jobs.filter((job) => job.name?.startsWith("Browser ("));
+  return browsers.length > 0 && browsers.every((job) =>
+    job.run_id === run.id && job.run_attempt === run.run_attempt &&
+    job.workflow_name === "SDK Verification" && job.head_sha === run.head_sha &&
+    job.status === "completed" && job.conclusion === "success");
+}
+
+function parseBrowserShardExecution(value) {
+  if (value !== "complete" && value !== "incomplete") {
+    throw new PolicyError("trusted browser execution proof is missing or invalid");
+  }
+  return value;
+}
+
 export function buildTrust(metadata) {
   const trust = {
     observer_run_id: parsePositiveSafeInteger(metadata.observerRunId, "observer run id"),
@@ -705,6 +728,7 @@ export function buildTrust(metadata) {
     source_run_conclusion: String(metadata.sourceRunConclusion ?? ""),
     source_job_id: parsePositiveSafeInteger(metadata.sourceJobId, "source job id"),
     source_job_name: String(metadata.sourceJobName ?? ""),
+    source_browser_shards: parseBrowserShardExecution(metadata.sourceBrowserShards),
     source_job_conclusion: String(metadata.sourceJobConclusion ?? ""),
     source_check_run_id: parsePositiveSafeInteger(
       metadata.sourceCheckRunId,
@@ -723,7 +747,7 @@ export function buildTrust(metadata) {
     !OBSERVER_EVENTS.has(trust.observer_event) ||
     trust.observer_ref !== "refs/heads/trunk" ||
     trust.observer_repository !== "honua-io/honua-sdk-js" ||
-    trust.source_job_name !== "JS SDK" ||
+    trust.source_job_name !== "SDK verified" ||
     !TERMINAL_CONCLUSIONS.has(trust.source_run_conclusion) ||
     !TERMINAL_CONCLUSIONS.has(trust.source_job_conclusion)
   ) {
@@ -824,6 +848,7 @@ function main(argv) {
     sourceRunConclusion: args["source-run-conclusion"],
     sourceJobId: args["source-job-id"],
     sourceJobName: args["source-job-name"],
+    sourceBrowserShards: args["source-browser-shards"],
     sourceJobConclusion: args["source-job-conclusion"],
     sourceCheckRunId: args["source-check-run-id"],
     policyCommitSha: execFileSync("git", ["rev-parse", "HEAD"], {

@@ -15,6 +15,7 @@ import {
   assignSpecs,
   assertTrustedPolicyCommit,
   buildTrust,
+  browserShardsComplete,
   discoverBrowserFixtureRoots,
   discoverLocalModuleDependencies,
   discoverSpecs,
@@ -33,6 +34,30 @@ const policy = loadPolicy();
 
 function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
+
+function trustedMetadata(overrides = {}) {
+  return {
+    observerRunId: "789",
+    observerRunAttempt: "1",
+    observerEvent: "workflow_run",
+    observerRef: "refs/heads/trunk",
+    observerRepository: "honua-io/honua-sdk-js",
+    sourceRunId: "123",
+    sourceRunAttempt: "2",
+    sourceRunConclusion: "success",
+    sourceJobId: "456",
+    sourceJobName: "SDK verified",
+    sourceBrowserShards: "complete",
+    sourceJobConclusion: "success",
+    sourceCheckRunId: "456",
+    policyCommitSha: "a".repeat(40),
+    observerWorkflowSha256: "b".repeat(64),
+    policyBlobSha256: "c".repeat(64),
+    resolverBlobSha256: "d".repeat(64),
+    selectorBlobSha256: "e".repeat(64),
+    ...overrides,
+  };
 }
 
 test("owns every current Playwright spec exactly once", () => {
@@ -330,26 +355,15 @@ test("records the source head and merge-tree evaluation snapshot separately", ()
   assert.match(report.mode, /^observe$/u);
 });
 
-test("binds v2 evidence to a fixed ordered trusted-policy manifest", () => {
-  const trust = buildTrust({
-    observerRunId: "789",
-    observerRunAttempt: "1",
-    observerEvent: "workflow_run",
-    observerRef: "refs/heads/trunk",
-    observerRepository: "honua-io/honua-sdk-js",
-    sourceRunId: "123",
-    sourceRunAttempt: "2",
+test("binds verified graph evidence to a fixed ordered trusted-policy manifest", () => {
+  const metadata = trustedMetadata({
     sourceRunConclusion: "failure",
-    sourceJobId: "456",
-    sourceJobName: "JS SDK",
-    sourceJobConclusion: "success",
-    sourceCheckRunId: "456",
-    policyCommitSha: "a".repeat(40),
     observerWorkflowSha256: "d".repeat(64),
     policyBlobSha256: "e".repeat(64),
     resolverBlobSha256: "f".repeat(64),
     selectorBlobSha256: "0".repeat(64),
   });
+  const trust = buildTrust(metadata);
   const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
   assert.equal(report.schema, "honua.sdk.browser-impact-observation/v2");
   assert.equal(report.trust.source_run_id, 123);
@@ -357,31 +371,51 @@ test("binds v2 evidence to a fixed ordered trusted-policy manifest", () => {
   assert.equal(report.trust.source_job_conclusion, "success");
   assert.equal(report.comparison.promotion_sample_eligible, true);
   assert.match(report.trust.policy_manifest_sha256, /^[0-9a-f]{64}$/u);
+  for (const conclusion of ["skipped", "cancelled"]) {
+    const excluded = evaluate(policy, ["docs/decisions/unrelated.md"], {
+      trust: buildTrust({ ...metadata, sourceJobConclusion: conclusion }),
+    });
+    assert.equal(excluded.comparison.promotion_sample_eligible, false);
+    assert.deepEqual(excluded.comparison.promotion_exclusion_reasons, ["browser-authority-not-comparable"]);
+  }
+});
+
+test("browser execution requires successful same-attempt same-head shards", () => {
+  const run = { id: 123, run_attempt: 2, head_sha: "a".repeat(40) };
+  const jobs = ["map", "offline"].map((name) => ({
+    name: `Browser (${name})`, run_id: run.id, run_attempt: run.run_attempt,
+    head_sha: run.head_sha, workflow_name: "SDK Verification",
+    status: "completed", conclusion: "success",
+  }));
+  assert.equal(browserShardsComplete({ jobs, run }), true);
+  assert.equal(browserShardsComplete({ jobs: [], run }), false);
+  for (const [field, value] of [
+    ["run_id", 999], ["run_attempt", 1], ["head_sha", "b".repeat(40)],
+    ["workflow_name", "SDK CI"], ["status", "in_progress"],
+    ["conclusion", "skipped"], ["conclusion", "failure"], ["conclusion", "cancelled"],
+  ]) {
+    const changed = [{ ...jobs[0], [field]: value }, jobs[1]];
+    assert.equal(browserShardsComplete({ jobs: changed, run }), false, field);
+  }
+});
+
+test("disabled graph success cannot qualify without browser execution", () => {
+  const trust = buildTrust(trustedMetadata({ sourceBrowserShards: "incomplete" }));
+  const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
+  assert.equal(report.comparison.promotion_sample_eligible, false);
+  assert.equal(report.legacy.runs_all_specs, false);
+  assert.deepEqual(report.comparison.promotion_exclusion_reasons, ["browser-authority-not-comparable"]);
+});
+
+test("rejects a graph receipt missing its browser execution proof", () => {
+  assert.throws(() => buildTrust(trustedMetadata({ sourceBrowserShards: undefined })), /browser execution/u);
 });
 
 test("excludes policy and source-workflow changes from promotion samples", () => {
-  const trust = buildTrust({
-    observerRunId: "789",
-    observerRunAttempt: "1",
-    observerEvent: "workflow_run",
-    observerRef: "refs/heads/trunk",
-    observerRepository: "honua-io/honua-sdk-js",
-    sourceRunId: "123",
-    sourceRunAttempt: "2",
-    sourceRunConclusion: "success",
-    sourceJobId: "456",
-    sourceJobName: "JS SDK",
-    sourceJobConclusion: "success",
-    sourceCheckRunId: "456",
-    policyCommitSha: "a".repeat(40),
-    observerWorkflowSha256: "b".repeat(64),
-    policyBlobSha256: "c".repeat(64),
-    resolverBlobSha256: "d".repeat(64),
-    selectorBlobSha256: "e".repeat(64),
-  });
+  const trust = buildTrust(trustedMetadata());
   const report = evaluate(
     policy,
-    [".github/workflows/ci.yml", "scripts/trusted-pr-workflow-run.cjs"],
+    [".github/workflows/sdk-verification.yml", "scripts/trusted-pr-workflow-run.cjs"],
     { trust },
   );
   assert.equal(report.comparison.promotion_sample_eligible, false);
@@ -392,25 +426,11 @@ test("excludes policy and source-workflow changes from promotion samples", () =>
 });
 
 test("excludes unattributed browser failures from promotion samples", () => {
-  const trust = buildTrust({
-    observerRunId: "789",
-    observerRunAttempt: "1",
-    observerEvent: "workflow_run",
-    observerRef: "refs/heads/trunk",
-    observerRepository: "honua-io/honua-sdk-js",
-    sourceRunId: "123",
+  const trust = buildTrust(trustedMetadata({
     sourceRunAttempt: "1",
     sourceRunConclusion: "failure",
-    sourceJobId: "456",
-    sourceJobName: "JS SDK",
     sourceJobConclusion: "failure",
-    sourceCheckRunId: "456",
-    policyCommitSha: "a".repeat(40),
-    observerWorkflowSha256: "b".repeat(64),
-    policyBlobSha256: "c".repeat(64),
-    resolverBlobSha256: "d".repeat(64),
-    selectorBlobSha256: "e".repeat(64),
-  });
+  }));
   const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
   assert.equal(report.comparison.promotion_sample_eligible, false);
   assert.deepEqual(report.comparison.promotion_exclusion_reasons, [
@@ -419,26 +439,9 @@ test("excludes unattributed browser failures from promotion samples", () => {
 });
 
 test("rejects incomplete or malformed trusted evidence identity", () => {
-  const valid = {
-    observerRunId: "789",
-    observerRunAttempt: "1",
-    observerEvent: "workflow_run",
-    observerRef: "refs/heads/trunk",
-    observerRepository: "honua-io/honua-sdk-js",
-    sourceRunId: "123",
-    sourceRunAttempt: "2",
-    sourceRunConclusion: "success",
-    sourceJobId: "456",
-    sourceJobName: "JS SDK",
-    sourceJobConclusion: "success",
-    sourceCheckRunId: "456",
-    policyCommitSha: "a".repeat(40),
-    observerWorkflowSha256: "b".repeat(64),
-    policyBlobSha256: "c".repeat(64),
-    resolverBlobSha256: "d".repeat(64),
-    selectorBlobSha256: "e".repeat(64),
-  };
+  const valid = trustedMetadata();
   assert.throws(() => buildTrust({ ...valid, sourceRunAttempt: "0" }), /source run attempt/u);
+  assert.throws(() => buildTrust({ ...valid, sourceJobName: "JS SDK" }), /workflow identity/u);
   assert.throws(
     () => buildTrust({ ...valid, policyCommitSha: "short" }),
     /policy commit SHA/u,
@@ -486,6 +489,42 @@ test("rejects an event policy snapshot outside default-branch history", () => {
   );
 });
 
+test("observes the verified graph after the legacy browser authority is retired", () => {
+  const source = readFileSync(".github/workflows/browser-impact-observe.yml", "utf8");
+  assert.ok(source.includes('workflows: ["SDK Verification"]'));
+  for (const binding of [
+    'workflowPath: ".github/workflows/sdk-verification.yml"',
+    'workflowName: "SDK Verification"',
+    'jobName: "SDK verified"',
+  ]) {
+    assert.equal(source.split(binding).length - 1, 2, binding);
+  }
+});
+
+test("loads the actual inline observer import from an external action module", () => {
+  const source = readFileSync(".github/workflows/browser-impact-observe.yml", "utf8");
+  const imports = source.match(/const \{ browserShardsComplete \} = await import\(.+\);/gu);
+  assert.equal(imports.length, 2);
+  const directory = mkdtempSync(join(tmpdir(), "honua-observer-action-"));
+  try {
+    const runner = join(directory, "runner.cjs");
+    for (const statement of imports) {
+      writeFileSync(runner, `
+        const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+        new AsyncFunction(${JSON.stringify(statement + "; return typeof browserShardsComplete;")})()
+          .then((kind) => require("node:assert/strict").equal(kind, "function"))
+          .catch((error) => { console.error(error); process.exitCode = 1; });
+      `);
+      execFileSync(process.execPath, [runner], {
+        cwd: process.cwd(), env: { ...process.env, GITHUB_WORKSPACE: process.cwd() },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("trusted observer workflow rejects permission and identity regressions", () => {
   const fixtureRoot = mkdtempSync(join(tmpdir(), "honua-browser-impact-workflow-"));
   const workflowDirectory = join(fixtureRoot, ".github", "workflows");
@@ -499,8 +538,12 @@ test("trusted observer workflow rejects permission and identity regressions", ()
       source.replace("  checks: read", "  checks: write"),
       source.replace("  pull-requests: read", "  pull-requests: write"),
       source.replace("  contents: read", "  contents: read\n  issues: read"),
-      source.replace('jobName: "JS SDK"', 'jobName: "MCP SDK"'),
-      source.replace('workflows: ["SDK CI"]', 'workflows: ["Lookalike"]'),
+      source.replace('jobName: "SDK verified"', 'jobName: "MCP SDK"'),
+      source.replace("browserShardsComplete(resolved)", "true"),
+      source.replace('const { browserShardsComplete } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/browser-impact-observe.mjs`);', 'const { browserShardsComplete } = await import("./scripts/browser-impact-observe.mjs");'),
+      source.replace('--source-browser-shards "$SOURCE_BROWSER_SHARDS"', '--source-browser-shards "complete"'),
+      source.replace("EXPECTED_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}", "EXPECTED_BROWSER_SHARDS: complete"),
+      source.replace('workflows: ["SDK Verification"]', 'workflows: ["Lookalike"]'),
       source.replace(
         "github.event.workflow_run.pull_requests[0].base.ref ==",
         "github.event.workflow_run.pull_requests[0].base.ref !=",

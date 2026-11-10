@@ -1,17 +1,17 @@
 name: Browser Impact Observation
 
 # Trusted, report-only shadow router for honua-io/honua-sdk-js#1286. This
-# workflow always executes from the default branch after the canonical SDK CI
+# workflow always executes from the default branch after the canonical SDK Verification
 # run completes. Candidate content is checked out only as inert data; no script,
 # action, package hook, or generated executable from the pull request runs here.
 on:
   workflow_run:
-    workflows: ["SDK CI"]
+    workflows: ["SDK Verification"]
     types: [completed]
   workflow_dispatch:
     inputs:
       run_id:
-        description: Completed canonical SDK CI workflow run ID
+        description: Completed canonical SDK Verification workflow run ID
         required: true
         type: string
       run_attempt:
@@ -69,7 +69,7 @@ jobs:
           node --test test/scripts/browser-impact-observe.test.mjs
           node --test test/scripts/trusted-pr-workflow-run.test.cjs
 
-      - name: Resolve exact SDK CI browser authority
+      - name: Resolve exact SDK Verification browser authority
         id: resolve
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
@@ -81,6 +81,7 @@ jobs:
               SUPERSEDED_SOURCE_RUN,
               resolveTrustedPullRequestWorkflowRun,
             } = require("./scripts/trusted-pr-workflow-run.cjs");
+            const { browserShardsComplete } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/browser-impact-observe.mjs`);
             let resolved;
             try {
               resolved = await resolveTrustedPullRequestWorkflowRun({
@@ -90,9 +91,9 @@ jobs:
               runId: process.env.SOURCE_RUN_ID,
               runAttempt: process.env.SOURCE_RUN_ATTEMPT,
               runConclusion: process.env.SOURCE_RUN_CONCLUSION,
-              workflowPath: ".github/workflows/ci.yml",
-              workflowName: "SDK CI",
-              jobName: "JS SDK",
+              workflowPath: ".github/workflows/sdk-verification.yml",
+              workflowName: "SDK Verification",
+              jobName: "SDK verified",
               defaultBranch: process.env.DEFAULT_BRANCH,
               repositoryId: Number(process.env.REPOSITORY_ID),
             });
@@ -104,7 +105,7 @@ jobs:
               // silent.
               core.warning(
                 `Browser impact observation skipped: ${error.reason}. ` +
-                  `SDK CI run ${process.env.SOURCE_RUN_ID} attempt ${process.env.SOURCE_RUN_ATTEMPT} ` +
+                  `SDK Verification run ${process.env.SOURCE_RUN_ID} attempt ${process.env.SOURCE_RUN_ATTEMPT} ` +
                   `is no longer bound to an observable pull request.`,
               );
               core.setOutput("superseded", "true");
@@ -116,6 +117,7 @@ jobs:
             core.setOutput("pull_request", resolved.pullRequestNumber);
             core.setOutput("base_sha", resolved.baseSha);
             core.setOutput("head_sha", resolved.headSha);
+            core.setOutput("browser_shards", browserShardsComplete(resolved) ? "complete" : "incomplete");
             core.setOutput("job_id", resolved.job.id);
             core.setOutput("job_name", resolved.job.name);
             core.setOutput("job_conclusion", resolved.job.conclusion);
@@ -163,6 +165,7 @@ jobs:
           CANDIDATE_ROOT: ${{ steps.merge.outputs.candidate_root }}
           SOURCE_JOB_ID: ${{ steps.resolve.outputs.job_id }}
           SOURCE_JOB_NAME: ${{ steps.resolve.outputs.job_name }}
+          SOURCE_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}
           SOURCE_JOB_CONCLUSION: ${{ steps.resolve.outputs.job_conclusion }}
           SOURCE_CHECK_RUN_ID: ${{ steps.resolve.outputs.check_run_id }}
         run: |
@@ -184,6 +187,7 @@ jobs:
             --source-run-conclusion "$SOURCE_RUN_CONCLUSION" \
             --source-job-id "$SOURCE_JOB_ID" \
             --source-job-name "$SOURCE_JOB_NAME" \
+            --source-browser-shards "$SOURCE_BROWSER_SHARDS" \
             --source-job-conclusion "$SOURCE_JOB_CONCLUSION" \
             --source-check-run-id "$SOURCE_CHECK_RUN_ID" \
             --output test-results/browser-impact-observation.json \
@@ -201,6 +205,7 @@ jobs:
           EXPECTED_BASE: ${{ steps.resolve.outputs.base_sha }}
           EXPECTED_HEAD: ${{ steps.resolve.outputs.head_sha }}
           EXPECTED_JOB_ID: ${{ steps.resolve.outputs.job_id }}
+          EXPECTED_BROWSER_SHARDS: ${{ steps.resolve.outputs.browser_shards }}
           EXPECTED_JOB_CONCLUSION: ${{ steps.resolve.outputs.job_conclusion }}
           EXPECTED_CHECK_RUN_ID: ${{ steps.resolve.outputs.check_run_id }}
         with:
@@ -209,6 +214,7 @@ jobs:
               SUPERSEDED_SOURCE_RUN,
               resolveTrustedPullRequestWorkflowRun,
             } = require("./scripts/trusted-pr-workflow-run.cjs");
+            const { browserShardsComplete } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/browser-impact-observe.mjs`);
             let resolved;
             try {
               resolved = await resolveTrustedPullRequestWorkflowRun({
@@ -218,9 +224,9 @@ jobs:
               runId: process.env.SOURCE_RUN_ID,
               runAttempt: process.env.SOURCE_RUN_ATTEMPT,
               runConclusion: process.env.SOURCE_RUN_CONCLUSION,
-              workflowPath: ".github/workflows/ci.yml",
-              workflowName: "SDK CI",
-              jobName: "JS SDK",
+              workflowPath: ".github/workflows/sdk-verification.yml",
+              workflowName: "SDK Verification",
+              jobName: "SDK verified",
               defaultBranch: process.env.DEFAULT_BRANCH,
               repositoryId: Number(process.env.REPOSITORY_ID),
             });
@@ -247,6 +253,7 @@ jobs:
               checkRunId: Number(process.env.EXPECTED_CHECK_RUN_ID),
             };
             if (
+              (browserShardsComplete(resolved) ? "complete" : "incomplete") !== process.env.EXPECTED_BROWSER_SHARDS ||
               resolved.pullRequestNumber !== expected.pullRequestNumber ||
               resolved.baseSha !== expected.baseSha ||
               resolved.headSha !== expected.headSha ||
@@ -254,7 +261,7 @@ jobs:
               resolved.job.conclusion !== expected.jobConclusion ||
               resolved.checkRun.id !== expected.checkRunId
             ) {
-              core.setFailed("SDK CI source identity changed during observation");
+              core.setFailed("SDK Verification source identity changed during observation");
             }
 
       - name: Revalidate event-time merge tree before publishing evidence

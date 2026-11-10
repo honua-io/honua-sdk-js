@@ -40,3 +40,8 @@ export function runSteps<TResult>(
   steps: ReadonlyArray<readonly [string, readonly string[]]>,
   runStep: (command: string, args: readonly string[]) => Promise<TResult>,
 ): Promise<TResult[]>;
+
+export function runValidation(
+  options: PrFastOptions,
+  runStep?: (command: string, args: readonly string[]) => Promise<PrFastStepResult>,
+): Promise<number>;
