@@ -112,7 +112,7 @@ export class HonuaCatalogPicker {
     try {
       const result = await this.#options.client.searchOgcRecords({
         collectionId: this.#options.collectionId,
-        ...(this.#options.basePath ? { basePath: this.#options.basePath } : {}),
+        ...(this.#options.basePath !== undefined ? { basePath: this.#options.basePath } : {}),
         ...(q ? { q } : {}),
         limit: 25,
         signal: request.signal,

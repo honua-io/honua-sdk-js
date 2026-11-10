@@ -160,3 +160,10 @@ test("retains every mounted layer when replacement cleanup fails", async () => {
   picker.dispose();
   expect(oldRemove).toHaveBeenCalledTimes(2);
 });
+
+test("preserves an empty base path for root-mounted records services", async () => {
+  const client = { searchOgcRecords: vi.fn().mockResolvedValue(response) };
+  const picker = new HonuaCatalogPicker({ client, collectionId: "data", basePath: "", resolve: vi.fn() });
+  await picker.search("");
+  expect(client.searchOgcRecords).toHaveBeenCalledWith(expect.objectContaining({ basePath: "" }));
+});
