@@ -70,7 +70,12 @@ export function compileFilterBuilder(draft: HonuaFilterBuilderDraft): HonuaFilte
   };
   for (const row of draft.rows) {
     const { node, value } = compileRow(row, draft.fields);
-    add(node, { field: row.field, operator: REGISTRY_OPERATORS[row.operator], value });
+    add(node, {
+      field: row.field,
+      operator: REGISTRY_OPERATORS[row.operator],
+      value,
+      ...(findField(row.field, draft.fields).type === "datetime" ? { fieldType: "datetime" as const } : {}),
+    });
   }
   if (draft.extent) {
     const spatial = compileExtent(draft.extent);
@@ -78,7 +83,12 @@ export function compileFilterBuilder(draft: HonuaFilterBuilderDraft): HonuaFilte
   }
   if (draft.time) {
     const node = compileTime(draft.time, draft.fields);
-    add(node, { field: draft.time.field, operator: "between", value: [draft.time.start, draft.time.end] });
+    add(node, {
+      field: draft.time.field,
+      fieldType: "datetime",
+      operator: "between",
+      value: [draft.time.start, draft.time.end],
+    });
   }
   const filter: QueryFilterExpression | undefined =
     nodes.length > 1 ? { kind: "boolean", operator: "and", args: nodes } : nodes[0];

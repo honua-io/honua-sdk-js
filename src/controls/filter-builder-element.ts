@@ -71,6 +71,7 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
 
   /** Validates atomically before updating the registry, then counts this exact query. */
   public async apply(): Promise<HonuaFilterBuilderProjection> {
+    this.#capture();
     if (!this.#draft) throw new Error("Choose a source before applying filters.");
     this.#invalidateCount();
     const projection = this.#registry
@@ -99,7 +100,6 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
     renderShadowRoot(this.shadowRoot, FILTER_BUILDER_CSS, filterBuilderMarkup(this.#draft, this.#status, this.#cql2));
     this.shadowRoot.querySelector("form")?.addEventListener("submit", (event) => {
       event.preventDefault();
-      this.#capture();
       void this.apply().catch(() => this.#showError());
     });
     this.shadowRoot.querySelector("[data-add]")?.addEventListener("click", () => this.#addRow());

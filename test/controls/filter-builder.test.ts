@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
+import { capabilities } from "../../src/contract/index.js";
 import { applyFilterBuilder, compileFilterBuilder } from "../../src/controls/filter-builder.js";
-import { createFilterRegistry, projectFilterRegistryToQuery } from "../../src/filter-registry/index.js";
+import {
+  createFilterRegistry,
+  parseFilterRegistry,
+  projectFilterRegistryToQuery,
+  serializeFilterRegistry,
+} from "../../src/filter-registry/index.js";
 
 const fields = [
   { name: "population", type: "number" as const },
@@ -103,4 +109,32 @@ test("escapes untyped host extent values before rendering", async () => {
   );
   expect(markup).not.toContain('value="" autofocus');
   expect(markup).toContain("&quot;");
+});
+
+test("shared datetime ranges and rows retain typed literals after serialization", () => {
+  const registry = createFilterRegistry();
+  applyFilterBuilder(registry, {
+    ...options,
+    rows: [{ field: "observed", operator: "gte", value: "2026-01-01T00:00:00Z" }],
+    time: { field: "observed", start: "2026-01-01T00:00:00Z", end: "2026-02-01T00:00:00Z" },
+  });
+  const restored = parseFilterRegistry(serializeFilterRegistry(registry.snapshot));
+  const query = projectFilterRegistryToQuery(restored, { sourceId: "parcels" }).query;
+  expect(query.where).toContain("observed >= TIMESTAMP('2026-01-01T00:00:00Z')");
+  expect(query.where).toContain(
+    "observed BETWEEN TIMESTAMP('2026-01-01T00:00:00Z') AND TIMESTAMP('2026-02-01T00:00:00Z')",
+  );
+});
+
+test("projects temporal registry clauses into GeoServices SQL syntax", () => {
+  const registry = createFilterRegistry();
+  applyFilterBuilder(registry, {
+    ...options,
+    rows: [{ field: "observed", operator: "gte", value: "2026-01-01T00:00:00Z" }],
+  });
+  const { query } = projectFilterRegistryToQuery(registry.snapshot, {
+    sourceId: "parcels",
+    source: { id: "parcels", protocol: "geoservices", capabilities: capabilities(["query", "sql"]) },
+  });
+  expect(query.where).toBe("(observed >= TIMESTAMP '2026-01-01T00:00:00Z')");
 });
