@@ -14,6 +14,7 @@ import {
   type DeckGlProjectionLimits,
   type DeckGlProjectionMetrics,
   type DeckGlProjectionRequest,
+  type DeckGlSelectionIdentity,
   HonuaDeckGlAdapterError,
   type LoadDeckGlAdapterOptions,
   type LoadDeckGlPeersOptions,
@@ -252,10 +253,10 @@ interface ProjectionSnapshot {
   readonly startIndices: readonly unknown[] | undefined;
   /** Feature/pick count: equals `rowCount` for scatterplot, `startIndices.length - 1` otherwise. */
   readonly featureCount: number;
-  readonly sourceId: unknown;
-  readonly planId: unknown;
-  readonly sourceVersion: unknown;
-  readonly featureIds: readonly unknown[];
+  readonly sourceId: string;
+  readonly planId: string;
+  readonly sourceVersion: string | undefined;
+  readonly featureIds: readonly (string | number | bigint)[];
   readonly props: Readonly<Record<string, unknown>>;
 }
 
@@ -359,27 +360,11 @@ function normalizeProjectionRequest(
     });
   }
 
-  const sourceId = readOnce(identity, "sourceId", "request.identity.sourceId");
-  const planId = readOnce(identity, "planId", "request.identity.planId");
-  const sourceVersion = readOnce(identity, "sourceVersion", "request.identity.sourceVersion");
-  const foreignFeatureIds = requireRecord(
-    readOnce(identity, "featureIds", "request.identity.featureIds"),
-    "request.identity.featureIds",
+  const selectionIdentity = snapshotSelectionIdentity(
+    identity,
+    featureCount,
+    startIndices === undefined ? "data.length" : "data.startIndices.length - 1",
   );
-  const featureIdLength = readOnce(foreignFeatureIds, "length", "request.identity.featureIds.length");
-  if (featureIdLength !== featureCount) {
-    throw new HonuaDeckGlAdapterError(
-      "invalid-data",
-      startIndices === undefined
-        ? "identity.featureIds length must equal data.length."
-        : "identity.featureIds length must equal data.startIndices.length - 1.",
-      { features: featureCount, featureIds: featureIdLength },
-    );
-  }
-  const featureIds: unknown[] = new Array(featureCount);
-  for (let index = 0; index < featureCount; index += 1) {
-    featureIds[index] = readOnce(foreignFeatureIds, String(index), `request.identity.featureIds[${index}]`);
-  }
 
   const reservedKeys = isSupportedLayerKind(layer) ? reservedPropKeysFor(layer) : (["id", "data", "pickable"] as const);
   const props = normalizeProps(foreignProps, limits.maxProps, reservedKeys);
@@ -390,12 +375,50 @@ function normalizeProjectionRequest(
     attributes: Object.freeze(attributes),
     startIndices,
     featureCount,
-    sourceId,
-    planId,
-    sourceVersion,
-    featureIds: Object.freeze(featureIds),
+    ...selectionIdentity,
+    sourceVersion: selectionIdentity.sourceVersion,
     props,
   });
+}
+
+/** Snapshot foreign selection metadata with bounded indexed reads and no iterator calls. */
+export function snapshotSelectionIdentity(
+  value: unknown,
+  featureCount: number,
+  countLabel = "data.length",
+): DeckGlSelectionIdentity & { readonly featureIds: readonly (string | number | bigint)[] } {
+  const identity = requireRecord(value, "request.identity");
+  const sourceId = requireNonEmptyString(
+    readOnce(identity, "sourceId", "request.identity.sourceId"),
+    "identity.sourceId",
+  );
+  const planId = requireNonEmptyString(readOnce(identity, "planId", "request.identity.planId"), "identity.planId");
+  const sourceVersion = readOnce(identity, "sourceVersion", "request.identity.sourceVersion");
+  if (sourceVersion !== undefined && typeof sourceVersion !== "string") {
+    throw new HonuaDeckGlAdapterError("invalid-data", "identity.sourceVersion must be a string when provided.");
+  }
+  const foreignFeatureIds = requireRecord(
+    readOnce(identity, "featureIds", "request.identity.featureIds"),
+    "request.identity.featureIds",
+  );
+  const featureIdLength = readOnce(foreignFeatureIds, "length", "request.identity.featureIds.length");
+  if (featureIdLength !== featureCount) {
+    throw new HonuaDeckGlAdapterError("invalid-data", `identity.featureIds length must equal ${countLabel}.`, {
+      features: featureCount,
+      featureIds: featureIdLength,
+    });
+  }
+  const featureIds: (string | number | bigint)[] = new Array(featureCount);
+  for (let index = 0; index < featureCount; index += 1) {
+    const featureId = readOnce(foreignFeatureIds, String(index), `request.identity.featureIds[${index}]`);
+    if (!isSelectionScalar(featureId) || (typeof featureId === "number" && !Number.isFinite(featureId))) {
+      throw new HonuaDeckGlAdapterError("invalid-data", `identity.featureIds[${index}] is not a stable scalar.`, {
+        index,
+      });
+    }
+    featureIds[index] = featureId;
+  }
+  return Object.freeze({ sourceId, planId, sourceVersion, featureIds: Object.freeze(featureIds) });
 }
 
 function createProjection(
@@ -407,8 +430,8 @@ function createProjection(
 ): DeckGlProjection {
   const validated = validateProjectionSnapshot(snapshot, limits);
   const binaryData = Object.freeze({
-    length: validated.rowCount,
-    attributes: validated.attributes,
+    length: usesStartIndices(validated.layer) ? validated.featureCount : validated.rowCount,
+    attributes: usesStartIndices(validated.layer) ? { ...validated.attributes } : validated.attributes,
     ...(validated.startIndices === undefined ? {} : { startIndices: validated.startIndices }),
   });
   const Ctor = peerConstructorFor(peers, validated.layer);
@@ -575,11 +598,6 @@ function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGl
   }
   const layer = snapshot.layer;
   const layerId = requireNonEmptyString(snapshot.layerId, "layerId");
-  const sourceId = requireNonEmptyString(snapshot.sourceId, "identity.sourceId");
-  const planId = requireNonEmptyString(snapshot.planId, "identity.planId");
-  if (snapshot.sourceVersion !== undefined && typeof snapshot.sourceVersion !== "string") {
-    throw new HonuaDeckGlAdapterError("invalid-data", "identity.sourceVersion must be a string when provided.");
-  }
   const rowCount = snapshot.rowCount as number;
   const featureCount = snapshot.featureCount;
   const attributeEntries = Object.entries(snapshot.attributes);
@@ -702,13 +720,6 @@ function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGl
     });
   }
 
-  snapshot.featureIds.forEach((featureId, index) => {
-    if (!isSelectionScalar(featureId) || (typeof featureId === "number" && !Number.isFinite(featureId))) {
-      throw new HonuaDeckGlAdapterError("invalid-data", `identity.featureIds[${index}] is not a stable scalar.`, {
-        index,
-      });
-    }
-  });
   return Object.freeze({
     layer,
     layerId,
@@ -716,10 +727,10 @@ function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGl
     attributes: Object.freeze(attributes),
     startIndices,
     featureCount,
-    sourceId,
-    planId,
-    sourceVersion: snapshot.sourceVersion as string | undefined,
-    featureIds: snapshot.featureIds as readonly (string | number | bigint)[],
+    sourceId: snapshot.sourceId,
+    planId: snapshot.planId,
+    sourceVersion: snapshot.sourceVersion,
+    featureIds: snapshot.featureIds,
     props: snapshot.props,
     metrics: Object.freeze({
       rows: featureCount,
