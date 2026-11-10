@@ -27,6 +27,8 @@ export interface ProviderRequestInit extends ProviderTransportOptions {
   headers?: Record<string, string>;
   /** Label used in error messages, e.g. `"nominatim geocode"`. */
   label: string;
+  /** Caller cancellation, composed with the provider timeout. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -39,25 +41,33 @@ export async function providerGetJson<T>(url: string, init: ProviderRequestInit)
   // throws "TypeError: Illegal invocation" in browsers.
   const fetchFn = (init.fetchFn ?? fetch).bind(globalThis);
   const controller = new AbortController();
+  if (init.signal?.aborted) throw new HonuaAbortError();
+  const abortFromCaller = () => controller.abort();
+  init.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  let timedOut = false;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   if (init.timeoutMs !== undefined) {
-    timeoutId = setTimeout(() => controller.abort(), init.timeoutMs);
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, init.timeoutMs);
   }
 
-  let response: Response;
   try {
-    response = await fetchFn(url, {
+    const response = await fetchFn(url, {
       method: "GET",
       headers: { Accept: "application/json", ...init.headers },
       signal: controller.signal,
     });
+    return await readProviderResponse<T>(response, init.label);
   } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      if (init.timeoutMs !== undefined) {
+    if (controller.signal.aborted) {
+      if (timedOut && !init.signal?.aborted && init.timeoutMs !== undefined) {
         throw new HonuaTimeoutError(init.timeoutMs);
       }
       throw new HonuaAbortError();
     }
+    if (err instanceof HonuaHttpError || err instanceof HonuaNetworkError) throw err;
     throw new HonuaNetworkError(
       err instanceof Error
         ? `${init.label} request failed: ${err.message}`
@@ -65,11 +75,12 @@ export async function providerGetJson<T>(url: string, init: ProviderRequestInit)
       err,
     );
   } finally {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
+    init.signal?.removeEventListener("abort", abortFromCaller);
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
   }
+}
 
+async function readProviderResponse<T>(response: Response, label: string): Promise<T> {
   if (!response.ok) {
     let body: unknown;
     try {
@@ -77,15 +88,14 @@ export async function providerGetJson<T>(url: string, init: ProviderRequestInit)
     } catch {
       body = await response.text().catch(() => null);
     }
-    throw new HonuaHttpError(response.status, `${init.label} request failed with status ${response.status}`, body, {
+    throw new HonuaHttpError(response.status, `${label} request failed with status ${response.status}`, body, {
       responseHeaders: response.headers,
     });
   }
-
   try {
     return (await response.json()) as T;
   } catch (err: unknown) {
-    throw new HonuaNetworkError(`${init.label} response was not valid JSON`, err);
+    throw new HonuaNetworkError(`${label} response was not valid JSON`, err);
   }
 }
 

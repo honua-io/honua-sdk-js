@@ -13,6 +13,7 @@
 import type { CapabilityPolicy } from "../../contract/types.js";
 import { HonuaHttpError } from "../../core/errors.js";
 import { type ProviderTransportOptions, providerGetJson, trimProviderBaseUrl } from "../../geocoding/provider-http.js";
+import type { IsochroneRoutingProvider } from "../isochrone.js";
 import { decodePolyline } from "../polyline.js";
 import {
   type ProviderRouteLeg,
@@ -20,10 +21,10 @@ import {
   type RouteWaypoint,
   type RoutingCapability,
   type RoutingProvenance,
-  type RoutingProvider,
   assertRouteWaypoints,
   assertRoutingCapability,
 } from "../provider.js";
+import { valhallaIsochrone } from "./valhalla-isochrone.js";
 
 /** Options for {@link valhallaRoutingProvider}. @experimental */
 export interface ValhallaProviderOptions extends ProviderTransportOptions {
@@ -58,14 +59,14 @@ interface ValhallaRouteResponse {
 
 const VALHALLA_ATTRIBUTION = "Route data © OpenStreetMap contributors, ODbL 1.0";
 const VALHALLA_USAGE_POLICY_URL = "https://gis-ops.com/global-open-valhalla-server-online/";
-const VALHALLA_CAPABILITIES: ReadonlyArray<RoutingCapability> = ["route"];
+const VALHALLA_CAPABILITIES: ReadonlyArray<RoutingCapability> = ["route", "isochrone"];
 
 /**
  * Create a {@link RoutingProvider} backed by a Valhalla instance.
  *
  * @experimental
  */
-export function valhallaRoutingProvider(options: ValhallaProviderOptions): RoutingProvider {
+export function valhallaRoutingProvider(options: ValhallaProviderOptions): IsochroneRoutingProvider {
   const baseUrl = trimProviderBaseUrl(options.baseUrl);
   const costing = options.costing ?? "auto";
   const policy = options.capabilityPolicy ?? "strict";
@@ -80,6 +81,8 @@ export function valhallaRoutingProvider(options: ValhallaProviderOptions): Routi
     capabilities: VALHALLA_CAPABILITIES,
     attribution: provenance.attribution,
     usagePolicyUrl: provenance.usagePolicyUrl,
+
+    isochrone: (request) => valhallaIsochrone({ baseUrl, costing, provenance, transport: options }, request),
 
     async route(waypoints: ReadonlyArray<RouteWaypoint>): Promise<ProviderRouteResult> {
       assertRoutingCapability({ id: "valhalla", capabilities: VALHALLA_CAPABILITIES }, "route", policy);
