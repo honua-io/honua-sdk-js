@@ -41,9 +41,12 @@ describe("bounded deck.gl hexbins", () => {
     const result = projectDeckGlHexbins(adapter(), { ...request(), color: (count) => [count * 10, 80, 90, 255] });
     const layer = result.projection.layer as Layer;
     const data = layer.props.data as {
+      length: number;
       startIndices: number[];
       attributes: Record<string, { value: Float64Array | Uint8Array }>;
     };
+    expect(data.length).toBe(2);
+    expect(Object.isFrozen(data.attributes)).toBe(false);
     expect(Array.from(data.startIndices)).toEqual([0, 7, 14]);
     expect(Array.from(data.attributes.getPolygon.value.slice(0, 2))).toEqual(
       Array.from(data.attributes.getPolygon.value.slice(12, 14)),
@@ -68,6 +71,22 @@ describe("bounded deck.gl hexbins", () => {
     });
     expect(filtered.bins.map((bin) => bin.count)).toEqual([1]);
     expect(filtered.selectionsForBin(0)[0]).toMatchObject({ featureId: 73n, planId: "status=closed", rowIndex: 0 });
+  });
+
+  it("reads bounded identities by row without invoking a foreign iterator", () => {
+    const featureIds = {
+      length: 3,
+      0: 71,
+      1: "72",
+      2: 73n,
+      [Symbol.iterator]() {
+        throw new Error("Foreign iterator must not run");
+      },
+    };
+    const input = request();
+    const result = projectDeckGlHexbins(adapter(), { ...input, identity: { ...input.identity, featureIds } });
+    expect(result.selectionsForBin(0).map(({ featureId }) => featureId)).toEqual([71, "72"]);
+    expect(result.selectionsForBin(1)[0].featureId).toBe(73n);
   });
 
   it("accepts empty results and rejects invalid picks", () => {

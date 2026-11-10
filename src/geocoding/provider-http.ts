@@ -67,6 +67,7 @@ export async function providerGetJson<T>(url: string, init: ProviderRequestInit)
       }
       throw new HonuaAbortError();
     }
+    if (err instanceof Error && err.name === "AbortError") throw new HonuaAbortError();
     if (err instanceof HonuaHttpError || err instanceof HonuaNetworkError) throw err;
     throw new HonuaNetworkError(
       err instanceof Error
@@ -95,6 +96,7 @@ async function readProviderResponse<T>(response: Response, label: string): Promi
   try {
     return (await response.json()) as T;
   } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
     throw new HonuaNetworkError(`${label} response was not valid JSON`, err);
   }
 }

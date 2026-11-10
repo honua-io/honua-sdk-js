@@ -138,12 +138,14 @@ function snapshotIdentity(identity: DeckGlSelectionIdentity, rows: number): Deck
   ) {
     throw invalid("Hexbin input requires source, plan and one scalar identity per point.");
   }
-  const featureIds = Array.from(identity.featureIds, (id) => {
+  const featureIds: (string | number | bigint)[] = [];
+  for (let row = 0; row < rows; row++) {
+    const id = identity.featureIds[row];
     if (typeof id !== "string" && typeof id !== "bigint" && !(typeof id === "number" && Number.isFinite(id))) {
       throw invalid("Hexbin feature identities must be strings, finite numbers or bigints.");
     }
-    return id;
-  });
+    featureIds.push(id);
+  }
   return { sourceId: identity.sourceId, planId: identity.planId, sourceVersion: identity.sourceVersion, featureIds };
 }
 

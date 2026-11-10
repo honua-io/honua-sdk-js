@@ -16,7 +16,9 @@ integrationSuite("deck.gl hexbin", "deckgl-hexbin", ({ client, context, config }
       const field = result.objectIdFieldName;
       expect(field).toBeTruthy();
       if (!field) throw new Error("Live point query must declare its object ID field.");
-      const rows = (result.features ?? []).map(({ attributes, geometry }) => {
+      const features = (result.features ?? []).filter(({ geometry }) => geometry != null);
+      expect(features.length).toBeLessThan(result.features?.length ?? 0);
+      const rows = features.map(({ attributes, geometry }) => {
         const id = attributes[field];
         const x = geometry && "x" in geometry ? geometry.x : undefined;
         const y = geometry && "y" in geometry ? geometry.y : undefined;

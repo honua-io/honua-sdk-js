@@ -407,8 +407,8 @@ function createProjection(
 ): DeckGlProjection {
   const validated = validateProjectionSnapshot(snapshot, limits);
   const binaryData = Object.freeze({
-    length: validated.rowCount,
-    attributes: validated.attributes,
+    length: usesStartIndices(validated.layer) ? validated.featureCount : validated.rowCount,
+    attributes: usesStartIndices(validated.layer) ? { ...validated.attributes } : validated.attributes,
     ...(validated.startIndices === undefined ? {} : { startIndices: validated.startIndices }),
   });
   const Ctor = peerConstructorFor(peers, validated.layer);

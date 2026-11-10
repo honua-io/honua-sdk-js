@@ -142,6 +142,19 @@ describe("provider travel-time polygons", () => {
     await expect(pending).rejects.toBeInstanceOf(HonuaAbortError);
   });
 
+  it.each(["fetch", "body"])("preserves an independent %s AbortError", async (stage) => {
+    const aborted = new DOMException("Transport cancelled", "AbortError");
+    const fetchFn = vi.fn<typeof fetch>();
+    if (stage === "fetch") fetchFn.mockRejectedValue(aborted);
+    else {
+      const response = new Response("{}");
+      vi.spyOn(response, "json").mockRejectedValue(aborted);
+      fetchFn.mockResolvedValue(response);
+    }
+    const provider = valhallaRoutingProvider({ baseUrl: "https://routing.example.test", fetchFn });
+    await expect(provider.isochrone(request)).rejects.toBeInstanceOf(HonuaAbortError);
+  });
+
   it("maps an expired timeout", async () => {
     const fetchFn = vi.fn<typeof fetch>().mockImplementation(
       (_url, init) =>
