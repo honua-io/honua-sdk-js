@@ -27,6 +27,14 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
   #status = INITIAL_STATUS;
   #cql2 = "";
 
+  public static get observedAttributes(): string[] {
+    return ["label"];
+  }
+  public attributeChangedCallback(): void {
+    this.#capture();
+    this.render();
+  }
+
   public constructor() {
     super();
     if (typeof this.attachShadow === "function") this.attachShadow({ mode: "open" });
@@ -95,9 +103,13 @@ export class HonuaFilterBuilderElement extends HTMLElementBase {
     if (!this.shadowRoot) return;
     if (!this.#draft) {
       renderShadowRoot(this.shadowRoot, FILTER_BUILDER_CSS, '<p role="status">Choose a source to build filters.</p>');
+      this.shadowRoot
+        .querySelector('[role="status"]')
+        ?.setAttribute("aria-label", this.getAttribute("label") ?? "Filter rows");
       return;
     }
     renderShadowRoot(this.shadowRoot, FILTER_BUILDER_CSS, filterBuilderMarkup(this.#draft, this.#status, this.#cql2));
+    this.shadowRoot.querySelector("form")?.setAttribute("aria-label", this.getAttribute("label") ?? "Filter rows");
     this.shadowRoot.querySelector("form")?.addEventListener("submit", (event) => {
       event.preventDefault();
       void this.apply().catch(() => this.#showError());

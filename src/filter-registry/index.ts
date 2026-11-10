@@ -20,6 +20,13 @@
  * @packageDocumentation
  */
 
+import {
+  compileQueryFilterToCql2Text,
+  compileQueryFilterToOData,
+  compileQueryFilterToSql92,
+  queryFilter,
+} from "../contract/query-filter.js";
+import type { QueryFilterExpression, QueryFilterScalar } from "../contract/query-filter.js";
 import type {
   Capability,
   DegradedReason,
@@ -31,6 +38,7 @@ import type {
   SourceId,
 } from "../contract/types.js";
 import type { WidgetSourceProjection } from "../contract/widget-source.js";
+import { geometryToWkt } from "../core/odata.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent } from "../core/types.js";
 import type { LinkedViewQueryProjection } from "../exploration/selectors.js";
@@ -424,12 +432,8 @@ function compileClauseWhere(clause: FilterClause, protocol?: Protocol): string |
   if (!clause.field || !clause.operator) return undefined;
   const field = sqlIdentifier(clause.field);
   if (!field) return undefined;
-  const valueLiteral = (value: unknown): string => {
-    const text = literal(value);
-    if (clause.fieldType !== "datetime" || value === null || value === undefined) return text;
-    // The default query projection uses CQL2; SQL sources use SQL timestamp literals.
-    return protocol === undefined || protocol === "ogc-features" ? `TIMESTAMP(${text})` : `TIMESTAMP ${text}`;
-  };
+  if (clause.fieldType === "datetime") return compileTemporalClause(clause, protocol);
+  const valueLiteral = literal;
   switch (clause.operator) {
     case "=":
       return `${field} = ${valueLiteral(clause.value)}`;
@@ -454,6 +458,34 @@ function compileClauseWhere(clause: FilterClause, protocol?: Protocol): string |
     case "is-not-null":
       return `${field} IS NOT NULL`;
   }
+}
+
+function compileTemporalClause(clause: FilterClause, protocol = "ogc-features" as Protocol): string | undefined {
+  const field = clause.field!;
+  const value = clause.value as QueryFilterScalar;
+  const comparisons = { "=": "eq", "!=": "ne", "<": "lt", "<=": "lte", ">": "gt", ">=": "gte" } as const;
+  let filter: QueryFilterExpression;
+  if (clause.operator && clause.operator in comparisons) {
+    const operator = comparisons[clause.operator as keyof typeof comparisons];
+    filter = queryFilter[operator](field, value);
+  } else if (clause.operator === "between" && Array.isArray(value) && value.length >= 2) {
+    filter = queryFilter.between(field, value[0], value[1]);
+  } else if ((clause.operator === "in" || clause.operator === "not-in") && Array.isArray(value) && value.length) {
+    const list = queryFilter.isIn(field, value);
+    filter = clause.operator === "not-in" ? { kind: "not", arg: list } : list;
+  } else if (clause.operator === "is-null" || clause.operator === "is-not-null") {
+    filter = { kind: "null", operator: clause.operator, operand: { kind: "property", name: field } };
+  } else {
+    return undefined;
+  }
+  const context = { protocol, fieldTypes: { [field]: "datetime" } };
+  if (protocol === "odata")
+    return compileQueryFilterToOData(filter, context, () => {
+      throw new Error("Unexpected spatial filter");
+    });
+  if (protocol === "ogc-features" || protocol === "ogc-records" || protocol === "stac")
+    return compileQueryFilterToCql2Text(filter, context, geometryToWkt);
+  return compileQueryFilterToSql92(filter, context).where;
 }
 
 function compileRuntimeClause(clause: FilterClause): RuntimeStyleFilterExpression | undefined {

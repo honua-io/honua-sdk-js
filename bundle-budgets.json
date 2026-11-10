@@ -1,5 +1,6 @@
 {
  "$comment": [
+  "/controls gzip was reset for #2366: the filter builder adds typed field, spatial and temporal query composition, shared-registry datetime projection, and an accessible web component. The standard report:bundle-sizes command measures 320709 gzip bytes; only this exceeded metric changes to ceil(actual * 1.1), 352780 bytes.",
   "/react min and tree-shake:map-source-workflow min/gzip were reset for #2188: generic feature-service geometry now retains validated nonpoint shapes and reuses canonical polygon topology/winding so separate exteriors and holes survive. Normal CI at c901fc9 measures /react 577017 min bytes and map-source-workflow 50655 min /15308 gzip bytes. Only these exceeded metrics change to ceil(actual * 1.1): 634719, 55721 and16839 bytes. Existing renderer/peer exclusions and all other ceilings remain unchanged. Generated reports use the standard report:bundle-sizes command.",
   "/studio-agent is reset for #2137: the experimental subpath now carries shared versioned GIS workflow guidance, resource continuation/cancellation and independently cancellable MCP initialization. Normal CI at 5f0ec31 measures 59,668 minified and 19,394 gzip bytes. Only these exceeded ceilings change to ceil(actual * 1.1): 65,635 and 21,334 bytes. Root/browser surfaces and every other ceiling are unchanged. Shared generated reports remain owned by the normal derived-artifact workflow.",
   "/studio-agent min was reset for #2164: switching workspace/process tool views on one MCP session adds paginated tool discovery, session view metadata, and rejection of stale in-flight dispatch after navigation. CI measures 48,002 minified bytes, 13 over the prior ceiling. The new ceiling is 52,803 bytes, ceil(actual * 1.1); gzip and every other entrypoint ceiling are unchanged.",
@@ -233,7 +234,7 @@
   },
   "/controls": {
    "min": 1305636,
-   "gzip": 320206
+   "gzip": 352780
   },
   "/web-components": {
    "min": 1428878,

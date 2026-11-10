@@ -134,7 +134,22 @@ test("projects temporal registry clauses into GeoServices SQL syntax", () => {
   });
   const { query } = projectFilterRegistryToQuery(registry.snapshot, {
     sourceId: "parcels",
-    source: { id: "parcels", protocol: "geoservices", capabilities: capabilities(["query", "sql"]) },
+    source: { id: "parcels", protocol: "geoservices-feature-service", capabilities: capabilities(["query", "sql"]) },
   });
   expect(query.where).toBe("(observed >= TIMESTAMP '2026-01-01T00:00:00Z')");
+});
+
+test.each(["stac", "ogc-records", "odata"] as const)("uses the %s temporal dialect", (protocol) => {
+  const registry = createFilterRegistry();
+  applyFilterBuilder(registry, {
+    ...options,
+    rows: [{ field: "observed", operator: "gte", value: "2026-01-01T00:00:00Z" }],
+  });
+  const { query } = projectFilterRegistryToQuery(registry.snapshot, {
+    sourceId: "parcels",
+    source: { id: "parcels", protocol, capabilities: capabilities(["query", "sql"]) },
+  });
+  expect(query.where).toBe(
+    protocol === "odata" ? "(observed ge 2026-01-01T00:00:00Z)" : "(observed >= TIMESTAMP('2026-01-01T00:00:00Z'))",
+  );
 });
