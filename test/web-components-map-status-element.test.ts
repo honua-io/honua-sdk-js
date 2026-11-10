@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { contrast } from "./contrast.js";
+
 import type { HonuaMapMessages } from "../src/web-components/index.js";
 import { HonuaMapElement, HonuaMapStatusElement } from "../src/web-components/index.js";
 
@@ -76,6 +78,25 @@ describe("<honua-map-status> RTL layout", () => {
     expect(stylesheet).toContain("padding-block: 6px;");
     expect(stylesheet).toContain("padding-inline: 8px;");
     expect(stylesheet).toContain("text-align: start;");
+  });
+});
+
+describe("<honua-map> theme contrast", () => {
+  it("paints chrome, footer, and status from theme tokens in both themes", () => {
+    const element = new HonuaMapElement();
+    document.body.append(element);
+    const stylesheet = element.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(stylesheet).toMatch(
+      /\.map__chrome, \.map__footer \{[^}]*background: var\(--honua-ui-bg\);[^}]*color: var\(--honua-ui-fg\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.map__status \{[^}]*background: var\(--honua-ui-bg\);[^}]*color: var\(--honua-ui-fg\);/,
+    );
+    expect(stylesheet).not.toContain("rgba(255, 255, 255, 0.9)");
+    expect(stylesheet).not.toContain("rgba(255,255,255,0.86)");
+    expect(contrast("#e8f1f3", "#0e2029")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast("#172033", "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
 });
 

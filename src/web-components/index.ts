@@ -321,6 +321,7 @@ export type {
   HonuaFeatureTableExportRequest,
   HonuaFeatureTableFocus,
   HonuaFeatureTableFocusMove,
+  HonuaFeatureTableReveal,
   HonuaFeatureTablePageIdentity,
   HonuaFeatureTablePaging,
   HonuaFeatureTablePagingMode,
