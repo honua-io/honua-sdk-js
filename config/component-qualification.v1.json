@@ -36,7 +36,7 @@
       "id": "focus-restoration",
       "requirement": "REQ-004",
       "title": "Focus restoration",
-      "criterion": "A state-driven re-render preserves the active element and, for text fields, the caret/selection range — asserted, not assumed from the shared setShadowHtml() helper."
+      "criterion": "A state-driven re-render preserves the active element and, for text fields, the caret/selection range \u2014 asserted, not assumed from the shared setShadowHtml() helper."
     },
     {
       "id": "reduced-motion",
@@ -130,13 +130,13 @@
     }
   ],
   "summary": {
-    "components": 34,
+    "components": 35,
     "gates": 18,
-    "cells": 612,
-    "passing": 398,
-    "failing": 43,
-    "pending": 99,
-    "notApplicable": 72,
+    "cells": 630,
+    "passing": 403,
+    "failing": 47,
+    "pending": 107,
+    "notApplicable": 73,
     "productionQualifiedComponents": 2,
     "productionTierComponents": 2
   },
@@ -280,6 +280,159 @@
           "requirement": "REQ-005",
           "status": "not-applicable",
           "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "controls.data-export",
+      "tag": "honua-data-export",
+      "source": "controls",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "keyboard-behavior",
+        "screen-reader-semantics",
+        "focus-restoration",
+        "high-contrast",
+        "responsive-layout",
+        "localization",
+        "rtl",
+        "visual-regression",
+        "zero-console-error",
+        "deterministic-disposal",
+        "duplicate-listener",
+        "secure-export"
+      ],
+      "summary": {
+        "passing": 5,
+        "failing": 4,
+        "pending": 8,
+        "notApplicable": 1
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No key event is dispatched against this component in any suite. Where a test names keyboard operation it currently asserts a synthetic click on a natively focusable button, which proves the affordance exists but not that key handling works. jsdom does not implement a button's Enter/Space activation behavior, so this gate can only be closed in the browser lane for elements whose controls are plain buttons."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "No role, accessible-name, or ARIA-state assertion exists for this component. Several are exercised by role-based Playwright locators on the browser fixture page, which depends on accessible names but does not assert the full semantic contract."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "pending",
+          "note": "The controls kit renders through its own template path rather than the web-components base class's capture/restore helper, and no test asserts focus survives a re-render there."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "failing",
+          "note": "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Nothing asserts what this component releases when it is disconnected."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No test re-renders this component and asserts handler count. The existing bind/unbind assertions walk a collaborator's listener count 0 -> 1 -> 0, which is adjacent but does not catch double-add on repeated render."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "Filtered-row export has serializer and browser credential checks; full cross-cutting secure-export qualification remains pending."
         },
         {
           "gate": "bundle-budget",
@@ -1531,7 +1684,7 @@
             "test/playwright/web-components-basic.spec.mjs",
             "test/web-components-feature-table-element.test.ts"
           ],
-          "note": "The kit's strongest keyboard coverage: ArrowDown/Enter/Tab dispatched as real KeyboardEvents against both the controller lane and the bounded engine lane, asserting the resulting focus move, selection, and — for Tab — that the grid does not preventDefault a key the page owns. Also verified end to end in a real browser. Not yet dispatched as DOM events: Home/End, Ctrl+Home/Ctrl+End, PageUp/PageDown, Space, and Shift+click additive sort; the key-to-move mapping behind the paging keys is unit-tested separately, so the gap is the DOM delivery path rather than the behavior."
+          "note": "The kit's strongest keyboard coverage: ArrowDown/Enter/Tab dispatched as real KeyboardEvents against both the controller lane and the bounded engine lane, asserting the resulting focus move, selection, and \u2014 for Tab \u2014 that the grid does not preventDefault a key the page owns. Also verified end to end in a real browser. Not yet dispatched as DOM events: Home/End, Ctrl+Home/Ctrl+End, PageUp/PageDown, Space, and Shift+click additive sort; the key-to-move mapping behind the paging keys is unit-tested separately, so the gap is the DOM delivery path rather than the behavior."
         },
         {
           "gate": "screen-reader-semantics",
@@ -1636,7 +1789,7 @@
             "test/web-components-feature-table-element.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "Removing the element drops its controller state subscription and its root honua-controller-ready listener to zero, and a subsequent controller update reaches no detached element. Both lanes are covered: the controller subscription and root controller-ready listener (harness), and the bounded engine subscription — released on detach, re-taken exactly once on reconnect, with a re-assignment asserted not to double-subscribe and a reconnect asserted not to re-query. Its grid listeners are bound to nodes that the next innerHTML render replaces, so unlike the feature editor's former shadow-root binding they neither accumulate nor survive as a live handler. Still uncovered: the element does not cancel an in-flight engine refresh on disconnect (the engine is host-owned and cancels on its own dispose), and no test asserts that."
+          "note": "Removing the element drops its controller state subscription and its root honua-controller-ready listener to zero, and a subsequent controller update reaches no detached element. Both lanes are covered: the controller subscription and root controller-ready listener (harness), and the bounded engine subscription \u2014 released on detach, re-taken exactly once on reconnect, with a re-assignment asserted not to double-subscribe and a reconnect asserted not to re-query. Its grid listeners are bound to nodes that the next innerHTML render replaces, so unlike the feature editor's former shadow-root binding they neither accumulate nor survive as a live handler. Still uncovered: the element does not cancel an in-flight engine refresh on disconnect (the engine is host-owned and cancels on its own dispose), and no test asserts that."
         },
         {
           "gate": "duplicate-listener",
@@ -1889,7 +2042,7 @@
           "evidence": [
             "test/web-components-search-element.test.ts"
           ],
-          "note": "Full ARIA combobox contract: role, aria-autocomplete, aria-expanded, aria-controls, aria-activedescendant, listbox/option roles, aria-selected, and a role=status live region — plus the plain-textbox contract when no geocoder is assigned."
+          "note": "Full ARIA combobox contract: role, aria-autocomplete, aria-expanded, aria-controls, aria-activedescendant, listbox/option roles, aria-selected, and a role=status live region \u2014 plus the plain-textbox contract when no geocoder is assigned."
         },
         {
           "gate": "focus-restoration",
@@ -2338,7 +2491,7 @@
           "evidence": [
             "test/web-components-feature-editor-element.test.ts"
           ],
-          "note": "Complete for what this element owns: the workflow subscription is released on disconnect and re-taken on reconnect, and the shadow-root keydown listener is released too — asserted by dispatching at the detached element's still-live shadow root and counting zero workflow calls, then exactly one after reconnect, and still exactly one after three detach/reattach cycles (issue #809). The element holds no timers and no AbortController of its own, so there is nothing further to release."
+          "note": "Complete for what this element owns: the workflow subscription is released on disconnect and re-taken on reconnect, and the shadow-root keydown listener is released too \u2014 asserted by dispatching at the detached element's still-live shadow root and counting zero workflow calls, then exactly one after reconnect, and still exactly one after three detach/reattach cycles (issue #809). The element holds no timers and no AbortController of its own, so there is nothing further to release."
         },
         {
           "gate": "duplicate-listener",
@@ -2347,7 +2500,7 @@
           "evidence": [
             "test/web-components-feature-editor-element.test.ts"
           ],
-          "note": "One keystroke after four re-renders drives exactly one undo, one redo, and one cancel, asserted by counting workflow invocations rather than resulting state — which is the only way to see this defect class, since surplus undo()/cancel() calls are idempotent no-ops that leave state looking correct. The keydown listener is now bound once per connection on the shadow root instead of on every render (issue #809)."
+          "note": "One keystroke after four re-renders drives exactly one undo, one redo, and one cancel, asserted by counting workflow invocations rather than resulting state \u2014 which is the only way to see this defect class, since surplus undo()/cancel() calls are idempotent no-ops that leave state looking correct. The keydown listener is now bound once per connection on the shadow root instead of on every render (issue #809)."
         },
         {
           "gate": "memory-leak",
@@ -3474,7 +3627,7 @@
           "evidence": [
             "test/web-components-time-slider-element.test.ts"
           ],
-          "note": "Structurally different from the rest of the kit and asserted as such: this element builds its shadow tree once and updates every value in place, so a playback tick replaces no node. The focused scrubber is asserted to still be shadowRoot.activeElement after ticks, a speed change, and a messages/label change, and the node identity is asserted unchanged across the same updates — which is the property that also keeps an in-flight pointer drag from being torn out. A structural rebuild (the speed control appearing or its options changing) does replace the tree and is not covered."
+          "note": "Structurally different from the rest of the kit and asserted as such: this element builds its shadow tree once and updates every value in place, so a playback tick replaces no node. The focused scrubber is asserted to still be shadowRoot.activeElement after ticks, a speed change, and a messages/label change, and the node identity is asserted unchanged across the same updates \u2014 which is the property that also keeps an in-flight pointer drag from being torn out. A structural rebuild (the speed control appearing or its options changing) does replace the tree and is not covered."
         },
         {
           "gate": "reduced-motion",
@@ -3489,7 +3642,7 @@
           "evidence": [
             "test/web-components-time-slider-element.test.ts"
           ],
-          "note": "The time slider declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText/Highlight/GrayText rules for its panel, transport buttons, pressed play state, and — the case colour alone would lose — the scrubber track, elapsed fill, thumb, focus ring, and disabled state, with forced-color-adjust disabled on the track so the value stays visible; asserted from the emitted stylesheet."
+          "note": "The time slider declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText/Highlight/GrayText rules for its panel, transport buttons, pressed play state, and \u2014 the case colour alone would lose \u2014 the scrubber track, elapsed fill, thumb, focus ring, and disabled state, with forced-color-adjust disabled on the track so the value stays visible; asserted from the emitted stylesheet."
         },
         {
           "gate": "responsive-layout",
@@ -3567,7 +3720,7 @@
           "evidence": [
             "test/web-components-time-slider-element.test.ts"
           ],
-          "note": "After ten controller ticks and a messages reassignment, one click on the play/pause toggle drives exactly one controller call and emits exactly one honua-time-change, and one ArrowRight drives exactly one step — asserted by counting controller invocations rather than resulting state, which is the only way this defect class is visible on an idempotent transport API."
+          "note": "After ten controller ticks and a messages reassignment, one click on the play/pause toggle drives exactly one controller call and emits exactly one honua-time-change, and one ArrowRight drives exactly one step \u2014 asserted by counting controller invocations rather than resulting state, which is the only way this defect class is visible on an idempotent transport API."
         },
         {
           "gate": "memory-leak",
@@ -3809,7 +3962,7 @@
           "evidence": [
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "The outcome readout is a role=status aria-live=polite region that names the adapter requirement, and an export with no adapter carries an explanatory title. Deliberately neither disabled nor aria-disabled: both suppress activation, and activation is how an application discovers it must supply an adapter — the asserted behavior is that activating an unavailable export still reports the unsupported outcome through honua-export."
+          "note": "The outcome readout is a role=status aria-live=polite region that names the adapter requirement, and an export with no adapter carries an explanatory title. Deliberately neither disabled nor aria-disabled: both suppress activation, and activation is how an application discovers it must supply an adapter \u2014 the asserted behavior is that activating an unavailable export still reports the unsupported outcome through honua-export."
         },
         {
           "gate": "focus-restoration",

@@ -5,8 +5,8 @@
  * switcher, the legend, the layer list, and the swipe control.
  *
  * This entry is intentionally independent of the SDK core bundle (the same
- * posture as `@honua/sdk-js/client-compat`): it imports nothing from
- * `src/core`/`src/runtime` and has no dependency on `maplibre-gl` — controls
+ * posture as `@honua/sdk-js/client-compat`): it has no client/runtime or
+ * `maplibre-gl` dependency; data export reuses the credential safety helper. Controls
  * drive any MapLibre `Map` through a duck-typed interface.
  *
  * Importing this module registers the basemap switcher and the swipe control
@@ -123,3 +123,6 @@ export type {
 } from "./filter-builder.js";
 export { HonuaFilterBuilderElement, defineHonuaFilterBuilder } from "./filter-builder-element.js";
 export type { HonuaFilterBuilderCount } from "./filter-builder-element.js";
+export { serializeHonuaDataExport } from "./data-export.js";
+export type { HonuaDataExportArtifact, HonuaDataExportFormat, HonuaDataExportOptions } from "./data-export.js";
+export { HonuaDataExportElement, defineHonuaDataExport } from "./data-export-element.js";

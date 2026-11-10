@@ -1378,6 +1378,8 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "secure-export": {
+    pendingNote:
+      "Filtered-row export has serializer and browser credential checks; full cross-cutting secure-export qualification remains pending.",
     passing: [
       {
         ids: ["web-components.print-export"],
@@ -1391,7 +1393,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
     ],
     notApplicable: [
       {
-        ids: allExcept("web-components.print-export"),
+        ids: allExcept("web-components.print-export", "controls.data-export"),
         note: "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export.",
       },
     ],
