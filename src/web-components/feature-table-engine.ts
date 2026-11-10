@@ -59,6 +59,7 @@ import { reconcileRealtimeKeyedState, reconcileRealtimeViewport } from "../realt
 import { type FeatureTableCachedPage as CachedPage, isAbort, revealOffWindow } from "./feature-table-locate.js";
 import {
   featureTableKeyForTarget,
+  featureTableQueryEvidence,
   featureTableRowKey,
   tableOrderedFields,
   tableProjection,
@@ -958,57 +959,15 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     degraded: readonly DegradedReason[],
     cacheKey: string,
   ): HonuaFeatureTableQueryEvidence {
-    const work: HonuaFeatureTableWorkItem[] = [];
-    for (const step of plan?.steps ?? []) {
-      if (step.engine === "remote") {
-        work.push({
-          tier: "server",
-          concern: step.pushdown === "full" ? "filter" : "paging",
-          detail: `${step.operation} pushdown=${step.pushdown} fidelity=${step.fidelity}: ${step.reason}`,
-          planStepId: step.id,
-        });
-      } else {
-        work.push({
-          tier: residualTier,
-          concern: "filter",
-          detail: `residual ${step.operation} bounded to ${step.maxRows} rows: ${step.reason}`,
-          planStepId: step.id,
-        });
-      }
-    }
-    for (const reason of degraded) {
-      work.push({
-        tier: residualTier,
-        concern: "filter",
-        detail: `residual for ${reason.capability}: ${reason.reason}`,
-      });
-    }
-    if (sort.length > 0) {
-      work.push({
-        tier: plan === undefined || plan.pushdown === "full" ? "server" : residualTier,
-        concern: "sort",
-        detail: `orderBy ${sort.map((entry) => `${entry.field} ${entry.direction ?? "asc"}`).join(", ")}`,
-      });
-    }
-    work.push({
-      tier: "client",
-      concern: "virtualization",
-      detail: `window ${window.startIndex}-${window.endIndex} over ${pages.size} resident page(s)`,
-    });
-    const formatted = columns.filter((column) => column.format).length;
-    if (formatted > 0) {
-      work.push({
-        tier: "client",
-        concern: "format",
-        detail: `${formatted} column formatter(s) applied at render`,
-      });
-    }
-    return Object.freeze({
-      ...(plan ? { planId: plan.id, planFingerprint: plan.fingerprint, pushdown: plan.pushdown } : {}),
-      ...(plan ? { fidelity: plan.fidelity } : {}),
-      work: Object.freeze(work.map((item) => Object.freeze(item))),
-      degraded: Object.freeze([...degraded]),
+    return featureTableQueryEvidence({
+      plan,
+      degraded,
       cacheKey,
+      residualTier,
+      sort,
+      window,
+      residentPages: pages.size,
+      columns,
     });
   }
 
@@ -1817,8 +1776,8 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
         findRow,
         setSelection,
         publish,
-        keyForTarget: (selectionTarget) => featureTableKeyForTarget(options.sourceId, selectionTarget),
         pageOffsetFor,
+        keyForTarget: (selectionTarget) => featureTableKeyForTarget(options.sourceId, selectionTarget),
         projection: () => tableProjection(columns, identityField, budgets.maxFields),
         orderedFields: () => tableOrderedFields(columns, budgets.maxFields),
       },
