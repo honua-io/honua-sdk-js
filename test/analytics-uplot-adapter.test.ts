@@ -12,7 +12,6 @@ import {
   loadUplot,
   projectAnalyticsArtifactToUplot,
 } from "../src/analytics/adapters/uplot.js";
-import type { UplotInstanceLike, UplotOptions, UplotSelectBox } from "../src/analytics/adapters/uplot.js";
 import {
   UNBOUNDED,
   acceptCategoryArtifact,
@@ -21,12 +20,9 @@ import {
   acceptTimeSeriesArtifact,
   analyticsArtifactIdentity,
   analyticsProvenance,
-  createAnalyticsAdapterRegistry,
-  createAnalyticsLinkedSession,
   unsupportedAnalyticsArtifact,
 } from "../src/analytics/index.js";
 import type { AnalyticsMeasure } from "../src/analytics/index.js";
-import { createExplorationContext } from "../src/exploration/context.js";
 
 const COUNT: AnalyticsMeasure = {
   field: "*",
@@ -100,7 +96,6 @@ function histogram() {
     ],
   });
 }
-
 
 function category() {
   return acceptCategoryArtifact({
@@ -229,7 +224,6 @@ describe("real µPlot scatter points", () => {
     },
   );
 });
-
 
 describe("projectAnalyticsArtifactToUplot", () => {
   it("projects a time-series onto epoch seconds with stable mark keys", () => {
@@ -649,4 +643,3 @@ describe("uPlot adapter: core bundle hygiene", () => {
     expect(files).toMatch(/import\(specifier\)/);
   });
 });
-

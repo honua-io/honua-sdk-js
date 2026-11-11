@@ -1,7 +1,5 @@
 // Shared µPlot adapter doubles. The real peer needs a canvas the unit runner does not provide.
-import {
-  createUplotAnalyticsAdapter,
-} from "../src/analytics/adapters/uplot.js";
+import { createUplotAnalyticsAdapter } from "../src/analytics/adapters/uplot.js";
 import type { UplotInstanceLike, UplotOptions, UplotSelectBox } from "../src/analytics/adapters/uplot.js";
 import {
   UNBOUNDED,

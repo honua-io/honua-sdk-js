@@ -541,7 +541,8 @@ function bindUplotPointer(session: UplotChartSession): void {
     if (point.x !== dragOrigin.x || point.y !== dragOrigin.y) session.brushed = true;
   };
   const onDoubleClick = (): void => {
-    if (session.artifact.kind === "scatter" && session.activeRectangle) paintUplotRectangle(session, session.activeRectangle);
+    if (session.artifact.kind === "scatter" && session.activeRectangle)
+      paintUplotRectangle(session, session.activeRectangle);
   };
   const onClick = (): void => {
     dragOrigin = undefined;

@@ -189,7 +189,9 @@ function describeTable(
         ? "No points."
         : "No buckets."
       : rows.map((row) => `${row.label}: ${row.value}${row.extent ? ` (${row.extent})` : ""}`).join("; ");
-  return [copy.caption, copy.statusMessage, copy.provenanceMessage, listing].filter((part) => part.length > 0).join(" ");
+  return [copy.caption, copy.statusMessage, copy.provenanceMessage, listing]
+    .filter((part) => part.length > 0)
+    .join(" ");
 }
 
 function defaultCaption(artifact: AnalyticsArtifact): string {

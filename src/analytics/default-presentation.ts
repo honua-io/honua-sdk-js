@@ -262,8 +262,7 @@ function bindMarkButtons(input: {
     if (!key) continue;
     const onClick = (event: unknown): void => {
       const additive = Boolean(
-        (event as { shiftKey?: boolean; metaKey?: boolean })?.shiftKey ||
-          (event as { metaKey?: boolean })?.metaKey,
+        (event as { shiftKey?: boolean; metaKey?: boolean })?.shiftKey || (event as { metaKey?: boolean })?.metaKey,
       );
       emitMark(key, !additive);
     };
