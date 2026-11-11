@@ -23,6 +23,7 @@ import type {
   FilterOperator,
 } from "../exploration/types.js";
 import { analyticsMarkByKey, temporalWindowForMarks } from "./artifact.js";
+import { rectangleAxesAreOrdered } from "./rectangle-axes.js";
 import { EMPTY_ANALYTICS_LINKED_STATE, HonuaAnalyticsError } from "./types.js";
 import type {
   AnalyticsArtifact,
@@ -249,9 +250,10 @@ function clearLinkedChannels(input: {
   const clearing = new Set<string>();
   if (!channel || channel === "marks") clearing.add(input.marksClauseId());
   if (!channel || channel === "range") clearing.add(clauseIds.range);
-  if (artifact.kind === "scatter" && (!channel || channel === "rectangle")) {
-    clearing.add(`${clauseIds.range}:x`);
-    clearing.add(`${clauseIds.range}:y`);
+  if (!channel || channel === "rectangle") {
+    for (const id of [`${clauseIds.range}:x`, `${clauseIds.range}:y`]) {
+      if (artifact.kind === "scatter" || view.state.filters[id]) clearing.add(id);
+    }
   }
   if (!channel || channel === "temporal") clearing.add(clauseIds.temporal);
   for (const id of clearing) {
@@ -588,13 +590,11 @@ function rectangleContributions(
   if (artifact.kind !== "scatter") {
     throw new HonuaAnalyticsError("artifact-invalid", "A rectangle brush requires a scatter artifact.");
   }
-  for (const range of [rectangle?.x, rectangle?.y]) {
-    if (!range || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.min > range.max) {
-      throw new HonuaAnalyticsError(
-        "artifact-invalid",
-        "Rectangle axes require finite inclusive ranges with min <= max.",
-      );
-    }
+  if (!rectangleAxesAreOrdered(rectangle)) {
+    throw new HonuaAnalyticsError(
+      "artifact-invalid",
+      "Rectangle axes require finite inclusive ranges with min <= max.",
+    );
   }
   return [
     {

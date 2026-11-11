@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   UNBOUNDED,
+  acceptHistogramArtifact,
   acceptScatterArtifact,
   analyticsArtifactIdentity,
   analyticsFilterContributions,
@@ -58,6 +59,29 @@ describe("linked scatter", () => {
     binding.apply({ ...envelope, kind: "clear" });
     expect(Object.keys(peer.state.filters)).toEqual(["peer"]);
     expect(binding.linkedState.rectangle).toBeUndefined();
+  });
+
+  it("clears owned rectangle clauses after the binding leaves scatter", () => {
+    const { view, binding } = setup();
+    binding.apply({ ...envelope, kind: "rectangle-brush", rectangle });
+    const xId = `${binding.clauseIds.range}:x`;
+    const yId = `${binding.clauseIds.range}:y`;
+    expect(view.state.filters[xId]).toMatchObject({ field: "height" });
+    const histogram = acceptHistogramArtifact({
+      identity: analyticsArtifactIdentity({ artifactId: "hist", sourceId: "s", acceptedAt: "2026-11-10T00:00:00Z" }),
+      provenance: analyticsProvenance({ computedBy: "server", bounds: UNBOUNDED }),
+      measure: { field: "*", fn: "count", label: "Count", unit: "count", unitSystem: "count" },
+      dimension: "height",
+      bins: 1,
+      marks: [{ key: "b0", label: "0–10", value: 1, min: 0, max: 10, boundary: "inclusive-exclusive", bucket: 0 }],
+    });
+    binding.retarget(histogram);
+    const cleared = binding.apply({ ...envelope, kind: "clear" });
+    expect(view.state.filters[xId]).toBeUndefined();
+    expect(view.state.filters[yId]).toBeUndefined();
+    cleared.undo();
+    expect(view.state.filters[xId]).toMatchObject({ field: "height", value: [5, 15] });
+    expect(view.state.filters[yId]).toMatchObject({ field: "weight", value: [10, 25] });
   });
 
   it("publishes exact point targets and reflects peer selection changes", async () => {

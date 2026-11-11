@@ -18,6 +18,7 @@
 import { analyticsTableModel } from "./accessible-table.js";
 import type { AnalyticsTableModel } from "./accessible-table.js";
 import { createDisposableHandle } from "./handle.js";
+import { rectangleAxesAreOrdered } from "./rectangle-axes.js";
 import { ANALYTICS_CONTRACT_VERSION, HonuaAnalyticsError } from "./types.js";
 import type {
   AnalyticsArtifact,
@@ -305,9 +306,7 @@ function bindRectangleForm(input: {
         x: { min: read("x-min"), max: read("x-max") },
         y: { min: read("y-min"), max: read("y-max") },
       };
-      const valid = [rectangle.x, rectangle.y].every(
-        (range) => Number.isFinite(range.min) && Number.isFinite(range.max) && range.min <= range.max,
-      );
+      const valid = rectangleAxesAreOrdered(rectangle);
       const error = Array.from(target.querySelectorAll("[data-brush-error]"))[0];
       if (error) error.textContent = valid ? "" : "Enter finite ranges with each minimum at or below its maximum.";
       if (!valid) return;
