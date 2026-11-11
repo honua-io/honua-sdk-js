@@ -17,6 +17,6 @@ test("pull requests run the schema check only when an input of its verdict chang
 });
 
 test("trunk and release pushes keep the unfiltered schema check", () => {
-  assert.ok(push.includes('      - trunk\n') && push.includes('      - "release/**"\n'));
+  assert.ok(push.includes("      - trunk\n") && push.includes('      - "release/**"\n'));
   assert.doesNotMatch(push, /paths/);
 });
