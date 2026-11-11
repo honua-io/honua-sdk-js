@@ -297,6 +297,41 @@ test("real uPlot paints a peer-selected scatter point in the selection color", a
     expect(before).not.toBe("");
     expect(after.keys).toEqual(["b"]);
     expect(after.selected).toBeGreaterThan(0);
+    await page.evaluate(() => {
+      window.scatterColorFixture.chart.setScale("x", { min: 32, max: 60 });
+    });
+    const zoomed = await page.evaluate(() => {
+      const chart = window.scatterColorFixture.chart;
+      const bounds = chart.bbox;
+      const canvas = chart.ctx.canvas;
+      const pixels = chart.ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      const plotLeft = Math.floor(bounds.left);
+      const plotRight = Math.ceil(bounds.left + bounds.width);
+      const plotTop = Math.floor(bounds.top);
+      const plotBottom = Math.ceil(bounds.top + bounds.height);
+      let outside = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const red = pixels[index];
+        const green = pixels[index + 1];
+        const blue = pixels[index + 2];
+        if (Math.abs(red - 154) > 8 || Math.abs(green - 52) > 8 || Math.abs(blue - 18) > 8) continue;
+        const pixel = index / 4;
+        const x = pixel % canvas.width;
+        const y = Math.floor(pixel / canvas.width);
+        if (x < plotLeft - 1 || x >= plotRight + 1 || y < plotTop - 1 || y >= plotBottom + 1) outside += 1;
+      }
+      return {
+        outside,
+        px: chart.valToPos(30, "x", true),
+        left: bounds.left,
+        scaleMin: chart.scales.x.min,
+        keys: window.scatterColorFixture.session.linkedState.selectedMarkKeys,
+      };
+    });
+    expect(zoomed.keys).toEqual(["b"]);
+    expect(zoomed.scaleMin).toBe(32);
+    expect(zoomed.px).toBeLessThan(zoomed.left);
+    expect(zoomed.outside).toBe(0);
     await page.evaluate(() => window.scatterColorFixture.session.dispose());
   } finally {
     await server.close();

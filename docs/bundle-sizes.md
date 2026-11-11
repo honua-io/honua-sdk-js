@@ -8,12 +8,12 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-10 at commit `e58dcdb95`._
+_Generated 2026-11-11 at commit `80df06bb4`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 758.8 KiB | 829.3 KiB | 202.7 KiB | 211.8 KiB |
-| `/honua` | 930.9 KiB | 1033.4 KiB | 249.8 KiB | 278.1 KiB |
+| `/honua` | 933.7 KiB | 1033.4 KiB | 250.6 KiB | 278.1 KiB |
 | `/contract` | 383.9 KiB | 400.6 KiB | 104.3 KiB | 108.0 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 824.2 KiB | 859.4 KiB | 194.8 KiB | 195.3 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.2 KiB | 257.5 KiB | 26.2 KiB | 33.2 KiB |
@@ -32,20 +32,20 @@ _Generated 2026-11-10 at commit `e58dcdb95`._
 | `/client-compat` | 1076.8 KiB | 1139.7 KiB | 270.7 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
-| `/geocoding` | 32.7 KiB | 35.9 KiB | 9.2 KiB | 10.1 KiB |
-| `/routing` | 26.1 KiB | 28.7 KiB | 7.8 KiB | 8.5 KiB |
+| `/geocoding` | 33.0 KiB | 35.9 KiB | 9.3 KiB | 10.1 KiB |
+| `/routing` | 28.7 KiB | 28.7 KiB | 8.6 KiB | 9.5 KiB |
 | `/auth` | 28.2 KiB | 30.6 KiB | 7.7 KiB | 8.7 KiB |
 | `/style` | 65.2 KiB | 69.0 KiB | 16.4 KiB | 17.2 KiB |
-| `/map` | 196.6 KiB | 198.2 KiB | 55.9 KiB | 56.2 KiB |
+| `/map` | 196.7 KiB | 198.2 KiB | 55.9 KiB | 56.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 147.6 KiB | 154.9 KiB | 44.2 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 326.2 KiB | 364.2 KiB | 87.2 KiB | 98.7 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1177.3 KiB | 1275.0 KiB | 307.4 KiB | 312.7 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1282.5 KiB | 1395.4 KiB | 339.0 KiB | 356.1 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1205.4 KiB | 1275.0 KiB | 316.4 KiB | 344.5 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1315.1 KiB | 1395.4 KiB | 349.7 KiB | 356.1 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
-| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
-| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
+| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.2 KiB | 45.5 KiB | 12.6 KiB | 13.9 KiB |
+| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 13.9 KiB | 13.9 KiB | 5.2 KiB | 5.7 KiB |
 | `/react` (react/react-dom external) | 563.2 KiB | 619.8 KiB | 152.5 KiB | 165.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 519.6 KiB | 568.0 KiB | 143.4 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 759.1 KiB | 832.8 KiB | 202.8 KiB | 222.1 KiB |
@@ -61,4 +61,4 @@ _Generated 2026-11-10 at commit `e58dcdb95`._
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 49.2 KiB | 54.4 KiB | 15.0 KiB | 16.4 KiB |
 | tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 34.8 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.4 KiB | 3.8 KiB | 1.5 KiB | 1.7 KiB |
-| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
+| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 32.5 KiB | 35.9 KiB | 10.3 KiB | 11.3 KiB |

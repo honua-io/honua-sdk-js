@@ -263,12 +263,17 @@ class FakeUplot implements UplotInstanceLike {
   public setDataCalls: Array<{ data: unknown; resetScales?: boolean }> = [];
   public setSelectCalls: UplotSelectBox[] = [];
   public redrawCalls = 0;
+  public bbox?: { left: number; top: number; width: number; height: number };
   public ctx?: {
     fillStyle: string;
     beginPath(): void;
+    rect(x: number, y: number, width: number, height: number): void;
     moveTo(x: number, y: number): void;
     arc(x: number, y: number, radius: number, startAngle: number, endAngle: number): void;
+    clip(): void;
     fill(): void;
+    save(): void;
+    restore(): void;
   };
   public readonly listeners = new Map<string, Set<(event: unknown) => void>>();
 
@@ -880,18 +885,27 @@ describe("uPlot scatter", () => {
     expect(typeof draw).toBe("function");
     const arcs: number[] = [];
     const fills: string[] = [];
+    const clips: Array<{ x: number; y: number; width: number; height: number }> = [];
+    chart.bbox = { left: 0, top: 0, width: 100, height: 80 };
     chart.ctx = {
       fillStyle: "",
       beginPath() {},
+      rect(x: number, y: number, width: number, height: number) {
+        clips.push({ x, y, width, height });
+      },
       moveTo() {},
       arc(x: number) {
         arcs.push(x);
       },
+      clip() {},
       fill() {
         fills.push(String(this.fillStyle));
       },
+      save() {},
+      restore() {},
     };
     draw?.(chart);
+    expect(clips).toEqual([{ x: 0, y: 0, width: 100, height: 80 }]);
     expect(arcs).toEqual([30]);
     expect(fills).toEqual(["#9a3412"]);
     session.dispose();

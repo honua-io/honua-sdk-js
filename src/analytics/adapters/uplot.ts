@@ -81,13 +81,19 @@ export interface UplotInstanceLike {
   posToVal(position: number, scaleKey: string): number;
   valToPos(value: number, scaleKey: string, canvasPixels?: boolean): number;
   redraw?(rebuildPaths?: boolean): void;
+  /** Canvas-pixel plot rectangle. Real µPlot sets this before drawing. */
+  readonly bbox?: { left: number; top: number; width: number; height: number };
   /** Present only while the chart is drawing. Real µPlot sets this before `hooks.draw`. */
   readonly ctx?: {
     fillStyle: string;
     beginPath(): void;
+    rect(x: number, y: number, width: number, height: number): void;
     moveTo(x: number, y: number): void;
     arc(x: number, y: number, radius: number, startAngle: number, endAngle: number): void;
+    clip(): void;
     fill(): void;
+    save(): void;
+    restore(): void;
   };
   destroy(): void;
 }
@@ -530,12 +536,16 @@ export function createUplotAnalyticsAdapter(
       function drawSelectedScatterPoints(self: UplotInstanceLike): void {
         if (artifact.kind !== "scatter" || highlightedMarkKeys.size === 0) return;
         const ctx = self.ctx;
+        const bounds = self.bbox;
         const data = self.data ?? projection.data;
-        if (!ctx || data.length < 2) return;
+        if (!ctx || !bounds || data.length < 2) return;
         const xs = data[0];
         const ys = data[1];
+        ctx.save();
         ctx.beginPath();
-        let drew = false;
+        ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
+        ctx.clip();
+        ctx.beginPath();
         for (let index = 0; index < xs.length; index += 1) {
           const key = projection.markKeys[index];
           const x = xs[index];
@@ -546,11 +556,10 @@ export function createUplotAnalyticsAdapter(
           if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
           ctx.moveTo(px + SCATTER_SELECTED_RADIUS, py);
           ctx.arc(px, py, SCATTER_SELECTED_RADIUS, 0, Math.PI * 2);
-          drew = true;
         }
-        if (!drew) return;
         ctx.fillStyle = SCATTER_POINT_SELECTED;
         ctx.fill();
+        ctx.restore();
       }
 
       function build(): void {
