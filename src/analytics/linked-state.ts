@@ -26,6 +26,7 @@ import { analyticsMarkByKey, temporalWindowForMarks } from "./artifact.js";
 import { EMPTY_ANALYTICS_LINKED_STATE, HonuaAnalyticsError } from "./types.js";
 import type {
   AnalyticsArtifact,
+  AnalyticsClearInteraction,
   AnalyticsFilterClauseIds,
   AnalyticsFilterContribution,
   AnalyticsInteraction,
@@ -223,6 +224,55 @@ function marksMatchingClause(artifact: AnalyticsArtifact, clause: FilterClause):
  * presentation of one artifact so the default table, a category chart, and a
  * third-party time-series chart contribute to one clause set.
  */
+function clearLinkedChannels(input: {
+  interaction: AnalyticsClearInteraction;
+  artifact: AnalyticsArtifact;
+  view: ExplorationViewController;
+  clauseIds: AnalyticsFilterClauseIds;
+  publishSelection: boolean;
+  marksClauseId: () => string;
+  writeClause: (id: string, clause: FilterClause | undefined) => () => void;
+  writeSelection: (targets: readonly FeatureSelectionTarget[] | undefined) => () => void;
+  commit: (
+    interaction: AnalyticsInteraction,
+    inverses: ReadonlyArray<() => void>,
+    touchedClauseIds: readonly string[],
+    touchedSelection: boolean,
+  ) => AnalyticsLinkCommit;
+  readHover: () => string | undefined;
+  writeHover: (key: string | undefined) => void;
+}): AnalyticsLinkCommit {
+  const { interaction, artifact, view, clauseIds, publishSelection, commit } = input;
+  const channel = interaction.channel;
+  const inverses: Array<() => void> = [];
+  const touched: string[] = [];
+  const clearing = new Set<string>();
+  if (!channel || channel === "marks") clearing.add(input.marksClauseId());
+  if (!channel || channel === "range") clearing.add(clauseIds.range);
+  if (artifact.kind === "scatter" && (!channel || channel === "rectangle")) {
+    clearing.add(`${clauseIds.range}:x`);
+    clearing.add(`${clauseIds.range}:y`);
+  }
+  if (!channel || channel === "temporal") clearing.add(clauseIds.temporal);
+  for (const id of clearing) {
+    inverses.push(input.writeClause(id, undefined));
+    touched.push(id);
+  }
+  let touchedSelection = false;
+  if ((!channel || channel === "marks") && publishSelection && view.state.selection.length > 0) {
+    inverses.push(input.writeSelection(undefined));
+    touchedSelection = true;
+  }
+  if (!channel || channel === "hover") {
+    const previousHover = input.readHover();
+    input.writeHover(undefined);
+    inverses.push(() => {
+      input.writeHover(previousHover);
+    });
+  }
+  return commit(interaction, inverses, touched, touchedSelection);
+}
+
 export function bindAnalyticsToExploration(
   view: ExplorationViewController,
   initialArtifact: AnalyticsArtifact,
@@ -457,39 +507,22 @@ export function bindAnalyticsToExploration(
           };
         }
 
-        default: {
-          const channel = interaction.channel;
-          const inverses: Array<() => void> = [];
-          const touched: string[] = [];
-          // The marks channel clears whichever clause `applyMarkSelect` would
-          // have written, so clearing a time-series presentation actually
-          // releases its temporal filter instead of an unused marks clause.
-          const clearing = new Set<string>();
-          if (!channel || channel === "marks") clearing.add(marksClauseId());
-          if (!channel || channel === "range") clearing.add(clauseIds.range);
-          if (artifact.kind === "scatter" && (!channel || channel === "rectangle")) {
-            clearing.add(`${clauseIds.range}:x`);
-            clearing.add(`${clauseIds.range}:y`);
-          }
-          if (!channel || channel === "temporal") clearing.add(clauseIds.temporal);
-          for (const id of clearing) {
-            inverses.push(writeClause(id, undefined));
-            touched.push(id);
-          }
-          let touchedSelection = false;
-          if ((!channel || channel === "marks") && publishSelection && view.state.selection.length > 0) {
-            inverses.push(writeSelection(undefined));
-            touchedSelection = true;
-          }
-          if (!channel || channel === "hover") {
-            const previousHover = hoveredMarkKey;
-            hoveredMarkKey = undefined;
-            inverses.push(() => {
-              hoveredMarkKey = previousHover;
-            });
-          }
-          return commit(interaction, inverses, touched, touchedSelection);
-        }
+        default:
+          return clearLinkedChannels({
+            interaction,
+            artifact,
+            view,
+            clauseIds,
+            publishSelection,
+            marksClauseId,
+            writeClause,
+            writeSelection,
+            commit,
+            readHover: () => hoveredMarkKey,
+            writeHover: (key) => {
+              hoveredMarkKey = key;
+            },
+          });
       }
     },
     subscribe(listener): () => void {

@@ -400,14 +400,12 @@ function uplotEventBase(
   };
 }
 
-function emitScatterRectangle(
-  session: UplotChartSession,
-  self: UplotInstanceLike,
-  box: UplotSelectBox,
-  min: number,
-  max: number,
-): void {
-  if (box.height <= 0) return;
+function emitScatterRectangle(session: UplotChartSession, self: UplotInstanceLike): void {
+  const box = self.select;
+  if (!box || box.width <= 0 || box.height <= 0) return;
+  const min = Math.min(self.posToVal(box.left, "x"), self.posToVal(box.left + box.width, "x"));
+  const max = Math.max(self.posToVal(box.left, "x"), self.posToVal(box.left + box.width, "x"));
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return;
   const y0 = self.posToVal(box.top, "y");
   const y1 = self.posToVal(box.top + box.height, "y");
   if (!Number.isFinite(y0) || !Number.isFinite(y1)) return;
@@ -432,7 +430,7 @@ function emitUplotBrush(session: UplotChartSession, self: UplotInstanceLike): vo
   const max = Math.max(from, to);
   if (!Number.isFinite(min) || !Number.isFinite(max)) return;
   if (session.artifact.kind === "scatter") {
-    emitScatterRectangle(session, self, box, min, max);
+    emitScatterRectangle(session, self);
     return;
   }
   if (session.artifact.kind === "time-series") {

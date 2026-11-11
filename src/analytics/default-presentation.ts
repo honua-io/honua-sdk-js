@@ -248,14 +248,15 @@ function emitMarkHover(request: AnalyticsMountRequest, artifact: AnalyticsArtifa
   });
 }
 
-function bindMarkButtons(
-  target: RenderTarget,
-  className: string,
-  request: AnalyticsMountRequest,
-  artifactOf: () => AnalyticsArtifact,
-  emitMark: (key: string, replace: boolean) => void,
-  teardown: Array<() => void>,
-): void {
+function bindMarkButtons(input: {
+  target: RenderTarget;
+  className: string;
+  request: AnalyticsMountRequest;
+  artifactOf: () => AnalyticsArtifact;
+  emitMark: (key: string, replace: boolean) => void;
+  teardown: Array<() => void>;
+}): void {
+  const { target, className, request, artifactOf, emitMark, teardown } = input;
   for (const button of Array.from(target.querySelectorAll(`.${className}__mark`))) {
     const key = button.getAttribute("data-mark");
     if (!key) continue;
@@ -283,13 +284,14 @@ function bindMarkButtons(
   }
 }
 
-function bindRectangleForm(
-  target: RenderTarget,
-  className: string,
-  request: AnalyticsMountRequest,
-  artifactOf: () => AnalyticsArtifact,
-  teardown: Array<() => void>,
-): void {
+function bindRectangleForm(input: {
+  target: RenderTarget;
+  className: string;
+  request: AnalyticsMountRequest;
+  artifactOf: () => AnalyticsArtifact;
+  teardown: Array<() => void>;
+}): void {
+  const { target, className, request, artifactOf, teardown } = input;
   for (const form of Array.from(target.querySelectorAll(`.${className}__rectangle`))) {
     const onSubmit = (event: unknown): void => {
       (event as { preventDefault(): void }).preventDefault();
@@ -451,9 +453,9 @@ export function createDefaultAnalyticsPresentation(
       }
 
       function bindListeners(): void {
-        bindMarkButtons(target, className, request, () => artifact, emitMark, teardown);
+        bindMarkButtons({ target, className, request, artifactOf: () => artifact, emitMark, teardown });
         if (!brushing) return;
-        bindRectangleForm(target, className, request, () => artifact, teardown);
+        bindRectangleForm({ target, className, request, artifactOf: () => artifact, teardown });
         bindRectangleClear(target, request, () => artifact, teardown);
         for (const input of Array.from(target.querySelectorAll(`.${className}__brush-input`))) {
           const onChange = (): void => emitBrush();

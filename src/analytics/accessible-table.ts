@@ -159,7 +159,7 @@ export function analyticsTableModel(artifact: AnalyticsArtifact, locale?: string
   const caption = artifact.title ?? defaultCaption(artifact);
   const statusMessage = statusMessageFor(artifact);
   const provenanceMessage = provenanceMessageFor(artifact);
-  const description = describeTable(artifact, caption, statusMessage, provenanceMessage, rows);
+  const description = describeTable(artifact, rows, { caption, statusMessage, provenanceMessage });
 
   return {
     artifactId: artifact.identity.artifactId,
@@ -180,10 +180,8 @@ export function analyticsTableModel(artifact: AnalyticsArtifact, locale?: string
 
 function describeTable(
   artifact: AnalyticsArtifact,
-  caption: string,
-  statusMessage: string,
-  provenanceMessage: string,
   rows: readonly AnalyticsTableRow[],
+  copy: { caption: string; statusMessage: string; provenanceMessage: string },
 ): string {
   const listing =
     rows.length === 0
@@ -191,7 +189,7 @@ function describeTable(
         ? "No points."
         : "No buckets."
       : rows.map((row) => `${row.label}: ${row.value}${row.extent ? ` (${row.extent})` : ""}`).join("; ");
-  return [caption, statusMessage, provenanceMessage, listing].filter((part) => part.length > 0).join(" ");
+  return [copy.caption, copy.statusMessage, copy.provenanceMessage, listing].filter((part) => part.length > 0).join(" ");
 }
 
 function defaultCaption(artifact: AnalyticsArtifact): string {
