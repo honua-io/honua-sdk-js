@@ -126,3 +126,13 @@ export type { HonuaFilterBuilderCount } from "./filter-builder-element.js";
 export { serializeHonuaDataExport } from "./data-export.js";
 export type { HonuaDataExportArtifact, HonuaDataExportFormat, HonuaDataExportOptions } from "./data-export.js";
 export { HonuaDataExportElement, defineHonuaDataExport } from "./data-export-element.js";
+
+export { HonuaCatalogPicker, createCatalogSelectionResolver } from "./catalog-picker.js";
+export type {
+  HonuaCatalogSelection,
+  HonuaCatalogPickerStatus,
+  HonuaCatalogPickerState,
+  HonuaCatalogPickerOptions,
+  HonuaCatalogSelectionResolverOptions,
+} from "./catalog-picker.js";
+export { HonuaCatalogPickerElement, defineHonuaCatalogPicker } from "./catalog-picker-element.js";

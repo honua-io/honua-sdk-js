@@ -18,13 +18,16 @@
 import { analyticsTableModel } from "./accessible-table.js";
 import type { AnalyticsTableModel } from "./accessible-table.js";
 import { createDisposableHandle } from "./handle.js";
+import { rectangleAxesAreOrdered } from "./rectangle-axes.js";
 import { ANALYTICS_CONTRACT_VERSION, HonuaAnalyticsError } from "./types.js";
 import type {
   AnalyticsArtifact,
   AnalyticsLinkedState,
   AnalyticsMountRequest,
+  AnalyticsNumericRectangle,
   AnalyticsPresentationAdapter,
   AnalyticsPresentationHandle,
+  AnalyticsScatterArtifact,
   AnalyticsSupportDecision,
 } from "./types.js";
 
@@ -42,10 +45,12 @@ interface RenderTarget {
 interface RenderElement {
   getAttribute(name: string): string | null;
   setAttribute(name: string, value: string): void;
+  removeAttribute?(name: string): void;
   addEventListener(type: string, listener: (event: unknown) => void): void;
   removeEventListener(type: string, listener: (event: unknown) => void): void;
   readonly dataset?: Record<string, string | undefined>;
   value?: string;
+  textContent?: string | null;
 }
 
 function asRenderTarget(value: unknown): RenderTarget {
@@ -63,7 +68,7 @@ function asRenderTarget(value: unknown): RenderTarget {
 /** Options for {@link createDefaultAnalyticsPresentation}. */
 export interface DefaultAnalyticsPresentationOptions {
   /**
-   * Render brush controls for histogram and time-series artifacts.
+   * Render brush controls for histogram, time-series, and scatter artifacts.
    * @default true
    */
   readonly brushing?: boolean;
@@ -117,7 +122,7 @@ export function renderAnalyticsTableHtml(
   const headers = model.columns.map((column) => `<th scope="col">${escapeHtml(column)}</th>`).join("");
   const empty =
     model.rows.length === 0
-      ? `<tbody><tr><td colspan="${model.columns.length}">No buckets.</td></tr></tbody>`
+      ? `<tbody><tr><td colspan="${model.columns.length}">${escapeHtml(model.emptyMessage ?? "No buckets.")}</td></tr></tbody>`
       : `<tbody>${rows}</tbody>`;
   const total = model.total
     ? `<tfoot><tr><th scope="row">Total</th><td>${escapeHtml(model.total)}</td>${model.columns.length > 2 ? "<td></td>" : ""}</tr></tfoot>`
@@ -180,8 +185,22 @@ export function analyticsBrushIndices(
   return { start: 0, end: last };
 }
 
+/** The active rectangle, or the mark extent when no rectangle is linked. */
+function scatterBrushBounds(
+  artifact: AnalyticsScatterArtifact,
+  rectangle: AnalyticsNumericRectangle | undefined,
+): AnalyticsNumericRectangle {
+  if (rectangle) return rectangle;
+  const xs = artifact.marks.map((mark) => mark.x);
+  const ys = artifact.marks.map((mark) => mark.value);
+  return {
+    x: { min: Math.min(...xs), max: Math.max(...xs) },
+    y: { min: Math.min(...ys), max: Math.max(...ys) },
+  };
+}
+
 /**
- * Render the brush controls for a histogram or time-series artifact. Two range
+ * Render numeric rectangle bounds for scatter artifacts, or two range
  * inputs rather than a drag surface: keyboard-operable, screen-reader
  * announced, and zero dependencies.
  *
@@ -194,6 +213,18 @@ export function renderAnalyticsBrushHtml(
   state: AnalyticsLinkedState = { selectedMarkKeys: [] },
   className = "honua-analytics",
 ): string {
+  if (artifact.kind === "scatter") {
+    if (artifact.marks.length === 0 || artifact.status === "error" || artifact.status === "unsupported") return "";
+    const rectangle = scatterBrushBounds(artifact, state.rectangle);
+    const axis = (key: "x" | "y", label: string): string =>
+      `<fieldset><legend>${escapeHtml(label)}</legend>${(["min", "max"] as const)
+        .map(
+          (bound) =>
+            `<label>${bound === "min" ? "Minimum" : "Maximum"} <input type="number" step="any" required data-rectangle="${key}-${bound}" value="${rectangle[key][bound]}"></label>`,
+        )
+        .join("")}</fieldset>`;
+    return `<form class="${className}__rectangle">${axis("x", artifact.dimension)}${axis("y", artifact.yDimension)}<p role="status" data-brush-error></p><button type="submit">Apply rectangle</button><button type="button" data-clear-rectangle>Clear rectangle</button></form>`;
+  }
   const indices = analyticsBrushIndices(artifact, state);
   if (!indices) return "";
   const last = artifact.marks.length - 1;
@@ -201,6 +232,128 @@ export function renderAnalyticsBrushHtml(
 <label class="${className}__brush-label">From <input type="range" class="${className}__brush-input" data-brush="start" min="0" max="${last}" step="1" value="${indices.start}"></label>
 <label class="${className}__brush-label">To <input type="range" class="${className}__brush-input" data-brush="end" min="0" max="${last}" step="1" value="${indices.end}"></label>
 </div>`;
+}
+
+function emitMarkHover(request: AnalyticsMountRequest, artifact: AnalyticsArtifact, key?: string): void {
+  request.host.emit({
+    kind: "hover",
+    adapterId: ADAPTER_ID,
+    artifactId: artifact.identity.artifactId,
+    artifactSequence: artifact.identity.sequence,
+    artifactSourceId: artifact.identity.sourceId,
+    artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+    artifactKind: artifact.kind,
+    ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
+    ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
+    ...(key ? { markKey: key } : {}),
+  });
+}
+
+function bindMarkButtons(input: {
+  target: RenderTarget;
+  className: string;
+  request: AnalyticsMountRequest;
+  artifactOf: () => AnalyticsArtifact;
+  emitMark: (key: string, replace: boolean) => void;
+  teardown: Array<() => void>;
+}): void {
+  const { target, className, request, artifactOf, emitMark, teardown } = input;
+  for (const button of Array.from(target.querySelectorAll(`.${className}__mark`))) {
+    const key = button.getAttribute("data-mark");
+    if (!key) continue;
+    const onClick = (event: unknown): void => {
+      const additive = Boolean(
+        (event as { shiftKey?: boolean; metaKey?: boolean })?.shiftKey || (event as { metaKey?: boolean })?.metaKey,
+      );
+      emitMark(key, !additive);
+    };
+    const onEnter = (): void => emitMarkHover(request, artifactOf(), key);
+    const onLeave = (): void => emitMarkHover(request, artifactOf());
+    button.addEventListener("click", onClick);
+    button.addEventListener("mouseenter", onEnter);
+    button.addEventListener("focus", onEnter);
+    button.addEventListener("mouseleave", onLeave);
+    button.addEventListener("blur", onLeave);
+    teardown.push(() => {
+      button.removeEventListener("click", onClick);
+      button.removeEventListener("mouseenter", onEnter);
+      button.removeEventListener("focus", onEnter);
+      button.removeEventListener("mouseleave", onLeave);
+      button.removeEventListener("blur", onLeave);
+    });
+  }
+}
+
+function bindRectangleForm(input: {
+  target: RenderTarget;
+  className: string;
+  request: AnalyticsMountRequest;
+  artifactOf: () => AnalyticsArtifact;
+  teardown: Array<() => void>;
+}): void {
+  const { target, className, request, artifactOf, teardown } = input;
+  for (const form of Array.from(target.querySelectorAll(`.${className}__rectangle`))) {
+    const onSubmit = (event: unknown): void => {
+      (event as { preventDefault(): void }).preventDefault();
+      const artifact = artifactOf();
+      if (artifact.kind !== "scatter") return;
+      const read = (key: string): number => {
+        const input = Array.from(target.querySelectorAll(`[data-rectangle="${key}"]`))[0];
+        const raw = input?.value?.trim();
+        return raw ? Number(raw) : Number.NaN;
+      };
+      const rectangle = {
+        x: { min: read("x-min"), max: read("x-max") },
+        y: { min: read("y-min"), max: read("y-max") },
+      };
+      const valid = rectangleAxesAreOrdered(rectangle);
+      const error = Array.from(target.querySelectorAll("[data-brush-error]"))[0];
+      if (error) error.textContent = valid ? "" : "Enter finite ranges with each minimum at or below its maximum.";
+      if (!valid) return;
+      request.host.emit({
+        kind: "rectangle-brush",
+        adapterId: ADAPTER_ID,
+        artifactId: artifact.identity.artifactId,
+        artifactSequence: artifact.identity.sequence,
+        artifactSourceId: artifact.identity.sourceId,
+        artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+        artifactKind: artifact.kind,
+        artifactDimension: artifact.dimension,
+        artifactYDimension: artifact.yDimension,
+        rectangle,
+      });
+    };
+    form.addEventListener("submit", onSubmit);
+    teardown.push(() => form.removeEventListener("submit", onSubmit));
+  }
+}
+
+function bindRectangleClear(
+  target: RenderTarget,
+  request: AnalyticsMountRequest,
+  artifactOf: () => AnalyticsArtifact,
+  teardown: Array<() => void>,
+): void {
+  for (const button of Array.from(target.querySelectorAll("[data-clear-rectangle]"))) {
+    const onClear = (): void => {
+      const artifact = artifactOf();
+      request.host.emit({
+        kind: "clear",
+        channel: "rectangle",
+        adapterId: ADAPTER_ID,
+        artifactId: artifact.identity.artifactId,
+        artifactSequence: artifact.identity.sequence,
+        artifactSourceId: artifact.identity.sourceId,
+        artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+        artifactKind: artifact.kind,
+        ...(artifact.kind === "scatter"
+          ? { artifactDimension: artifact.dimension, artifactYDimension: artifact.yDimension }
+          : {}),
+      });
+    };
+    button.addEventListener("click", onClear);
+    teardown.push(() => button.removeEventListener("click", onClear));
+  }
 }
 
 /**
@@ -219,8 +372,8 @@ export function createDefaultAnalyticsPresentation(
   return {
     id: ADAPTER_ID,
     contractVersion: ANALYTICS_CONTRACT_VERSION,
-    kinds: ["category", "histogram", "aggregate", "time-series"],
-    channels: ["mark-select", "hover", "range-brush", "temporal-brush", "clear"],
+    kinds: ["category", "histogram", "aggregate", "time-series", "scatter"],
+    channels: ["mark-select", "hover", "range-brush", "rectangle-brush", "temporal-brush", "clear"],
     requiresDom: true,
     describeSupport(): AnalyticsSupportDecision {
       return { supported: true };
@@ -242,6 +395,7 @@ export function createDefaultAnalyticsPresentation(
           artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
           artifactKind: artifact.kind,
           ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
+          ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
           markKeys: [key],
           replace,
         });
@@ -297,56 +451,10 @@ export function createDefaultAnalyticsPresentation(
       }
 
       function bindListeners(): void {
-        for (const button of Array.from(target.querySelectorAll(`.${className}__mark`))) {
-          const key = button.getAttribute("data-mark");
-          if (!key) continue;
-          const onClick = (event: unknown): void => {
-            const additive = Boolean(
-              (event as { shiftKey?: boolean; metaKey?: boolean })?.shiftKey ||
-                (event as { metaKey?: boolean })?.metaKey,
-            );
-            emitMark(key, !additive);
-          };
-          const onEnter = (): void => {
-            request.host.emit({
-              kind: "hover",
-              adapterId: ADAPTER_ID,
-              artifactId: artifact.identity.artifactId,
-              artifactSequence: artifact.identity.sequence,
-              artifactSourceId: artifact.identity.sourceId,
-              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-              artifactKind: artifact.kind,
-              ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
-              markKey: key,
-            });
-          };
-          const onLeave = (): void => {
-            request.host.emit({
-              kind: "hover",
-              adapterId: ADAPTER_ID,
-              artifactId: artifact.identity.artifactId,
-              artifactSequence: artifact.identity.sequence,
-              artifactSourceId: artifact.identity.sourceId,
-              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-              artifactKind: artifact.kind,
-              ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
-            });
-          };
-          button.addEventListener("click", onClick);
-          button.addEventListener("mouseenter", onEnter);
-          button.addEventListener("focus", onEnter);
-          button.addEventListener("mouseleave", onLeave);
-          button.addEventListener("blur", onLeave);
-          teardown.push(() => {
-            button.removeEventListener("click", onClick);
-            button.removeEventListener("mouseenter", onEnter);
-            button.removeEventListener("focus", onEnter);
-            button.removeEventListener("mouseleave", onLeave);
-            button.removeEventListener("blur", onLeave);
-          });
-        }
-
+        bindMarkButtons({ target, className, request, artifactOf: () => artifact, emitMark, teardown });
         if (!brushing) return;
+        bindRectangleForm({ target, className, request, artifactOf: () => artifact, teardown });
+        bindRectangleClear(target, request, () => artifact, teardown);
         for (const input of Array.from(target.querySelectorAll(`.${className}__brush-input`))) {
           const onChange = (): void => emitBrush();
           input.addEventListener("change", onChange);
@@ -381,8 +489,31 @@ export function createDefaultAnalyticsPresentation(
           render();
         },
         onLinkedState(next) {
+          const previous = state;
           state = next;
-          render();
+          if (artifact.kind !== "scatter") {
+            render();
+            return;
+          }
+          // Patch linked highlights without replacing a focused button or a brush draft.
+          for (const button of Array.from(target.querySelectorAll("button[data-mark]"))) {
+            const key = button.getAttribute("data-mark") ?? "";
+            button.setAttribute("aria-pressed", String(state.selectedMarkKeys.includes(key)));
+          }
+          for (const row of Array.from(target.querySelectorAll("tr[data-mark]"))) {
+            const key = row.getAttribute("data-mark") ?? "";
+            row.setAttribute("aria-selected", String(state.selectedMarkKeys.includes(key)));
+            if (state.hoveredMarkKey === key) row.setAttribute("data-hovered", "true");
+            else row.removeAttribute?.("data-hovered");
+          }
+          if (JSON.stringify(previous.rectangle) !== JSON.stringify(state.rectangle)) {
+            const bounds = scatterBrushBounds(artifact as AnalyticsScatterArtifact, state.rectangle);
+            for (const input of Array.from(target.querySelectorAll("[data-rectangle]"))) {
+              const [axis, bound] = (input.getAttribute("data-rectangle") ?? "").split("-");
+              if ((axis === "x" || axis === "y") && (bound === "min" || bound === "max"))
+                input.value = String(bounds[axis][bound]);
+            }
+          }
         },
         onDispose() {
           releaseListeners();

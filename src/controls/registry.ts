@@ -40,6 +40,7 @@
  */
 
 import { defineHonuaBasemapSwitcher } from "./basemap-switcher.js";
+import { defineHonuaCatalogPicker } from "./catalog-picker-element.js";
 import { HONUA_COMPONENT_CATALOG, type HonuaComponentCatalogEntry, getComponentCatalogEntry } from "./catalog.js";
 import { defineHonuaDataExport } from "./data-export-element.js";
 import { globalDom } from "./element-utils.js";
@@ -81,6 +82,7 @@ const CONTROLS_REGISTRARS: Readonly<Record<string, ControlsRegistrar>> = {
   "controls.legend": defineHonuaLegend,
   "controls.layer-list": defineHonuaLayerList,
   "controls.data-export": defineHonuaDataExport,
+  "controls.catalog-picker": defineHonuaCatalogPicker,
 };
 
 async function registerWebComponentsEntry(
