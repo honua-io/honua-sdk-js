@@ -38,8 +38,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Ubuntu sources only, with bounded apt retries, so a mirror fault
+      # fails inside the step timeout instead of consuming the job.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 20
+        run: |
+          scripts/ci/provision-playwright-deps.sh
+          npx playwright install chromium
 
       - name: Run full-scale deck.gl evidence
         id: benchmark
