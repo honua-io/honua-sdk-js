@@ -19,8 +19,8 @@
 ## Guides
 
 * [Honua App Bootstrap (`@honua/sdk-js/app`)](app-bootstrap.md)
-* [Filtered-row data export](controls-data-export.md)
 * [Catalog dataset picker](controls-catalog-picker.md)
+* [Filtered-row data export](controls-data-export.md)
 * [Scaffold a new app](create-honua-app.md)
 * [FOSS4G NA evidence renewal runbook](evidence/foss4g-renewal-2217/README.md)
 * [MCP compatibility across the Node 22 transition](mcp-minor-line-bridge.md)

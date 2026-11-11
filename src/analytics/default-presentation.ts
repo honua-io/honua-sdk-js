@@ -233,6 +233,129 @@ export function renderAnalyticsBrushHtml(
 </div>`;
 }
 
+function emitMarkHover(request: AnalyticsMountRequest, artifact: AnalyticsArtifact, key?: string): void {
+  request.host.emit({
+    kind: "hover",
+    adapterId: ADAPTER_ID,
+    artifactId: artifact.identity.artifactId,
+    artifactSequence: artifact.identity.sequence,
+    artifactSourceId: artifact.identity.sourceId,
+    artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+    artifactKind: artifact.kind,
+    ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
+    ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
+    ...(key ? { markKey: key } : {}),
+  });
+}
+
+function bindMarkButtons(
+  target: RenderTarget,
+  className: string,
+  request: AnalyticsMountRequest,
+  artifactOf: () => AnalyticsArtifact,
+  emitMark: (key: string, replace: boolean) => void,
+  teardown: Array<() => void>,
+): void {
+  for (const button of Array.from(target.querySelectorAll(`.${className}__mark`))) {
+    const key = button.getAttribute("data-mark");
+    if (!key) continue;
+    const onClick = (event: unknown): void => {
+      const additive = Boolean(
+        (event as { shiftKey?: boolean; metaKey?: boolean })?.shiftKey ||
+          (event as { metaKey?: boolean })?.metaKey,
+      );
+      emitMark(key, !additive);
+    };
+    const onEnter = (): void => emitMarkHover(request, artifactOf(), key);
+    const onLeave = (): void => emitMarkHover(request, artifactOf());
+    button.addEventListener("click", onClick);
+    button.addEventListener("mouseenter", onEnter);
+    button.addEventListener("focus", onEnter);
+    button.addEventListener("mouseleave", onLeave);
+    button.addEventListener("blur", onLeave);
+    teardown.push(() => {
+      button.removeEventListener("click", onClick);
+      button.removeEventListener("mouseenter", onEnter);
+      button.removeEventListener("focus", onEnter);
+      button.removeEventListener("mouseleave", onLeave);
+      button.removeEventListener("blur", onLeave);
+    });
+  }
+}
+
+function bindRectangleForm(
+  target: RenderTarget,
+  className: string,
+  request: AnalyticsMountRequest,
+  artifactOf: () => AnalyticsArtifact,
+  teardown: Array<() => void>,
+): void {
+  for (const form of Array.from(target.querySelectorAll(`.${className}__rectangle`))) {
+    const onSubmit = (event: unknown): void => {
+      (event as { preventDefault(): void }).preventDefault();
+      const artifact = artifactOf();
+      if (artifact.kind !== "scatter") return;
+      const read = (key: string): number => {
+        const input = Array.from(target.querySelectorAll(`[data-rectangle="${key}"]`))[0];
+        const raw = input?.value?.trim();
+        return raw ? Number(raw) : Number.NaN;
+      };
+      const rectangle = {
+        x: { min: read("x-min"), max: read("x-max") },
+        y: { min: read("y-min"), max: read("y-max") },
+      };
+      const valid = [rectangle.x, rectangle.y].every(
+        (range) => Number.isFinite(range.min) && Number.isFinite(range.max) && range.min <= range.max,
+      );
+      const error = Array.from(target.querySelectorAll("[data-brush-error]"))[0];
+      if (error) error.textContent = valid ? "" : "Enter finite ranges with each minimum at or below its maximum.";
+      if (!valid) return;
+      request.host.emit({
+        kind: "rectangle-brush",
+        adapterId: ADAPTER_ID,
+        artifactId: artifact.identity.artifactId,
+        artifactSequence: artifact.identity.sequence,
+        artifactSourceId: artifact.identity.sourceId,
+        artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+        artifactKind: artifact.kind,
+        artifactDimension: artifact.dimension,
+        artifactYDimension: artifact.yDimension,
+        rectangle,
+      });
+    };
+    form.addEventListener("submit", onSubmit);
+    teardown.push(() => form.removeEventListener("submit", onSubmit));
+  }
+}
+
+function bindRectangleClear(
+  target: RenderTarget,
+  request: AnalyticsMountRequest,
+  artifactOf: () => AnalyticsArtifact,
+  teardown: Array<() => void>,
+): void {
+  for (const button of Array.from(target.querySelectorAll("[data-clear-rectangle]"))) {
+    const onClear = (): void => {
+      const artifact = artifactOf();
+      request.host.emit({
+        kind: "clear",
+        channel: "rectangle",
+        adapterId: ADAPTER_ID,
+        artifactId: artifact.identity.artifactId,
+        artifactSequence: artifact.identity.sequence,
+        artifactSourceId: artifact.identity.sourceId,
+        artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+        artifactKind: artifact.kind,
+        ...(artifact.kind === "scatter"
+          ? { artifactDimension: artifact.dimension, artifactYDimension: artifact.yDimension }
+          : {}),
+      });
+    };
+    button.addEventListener("click", onClear);
+    teardown.push(() => button.removeEventListener("click", onClear));
+  }
+}
+
 /**
  * Create the default presentation adapter.
  *
@@ -328,112 +451,10 @@ export function createDefaultAnalyticsPresentation(
       }
 
       function bindListeners(): void {
-        for (const button of Array.from(target.querySelectorAll(`.${className}__mark`))) {
-          const key = button.getAttribute("data-mark");
-          if (!key) continue;
-          const onClick = (event: unknown): void => {
-            const additive = Boolean(
-              (event as { shiftKey?: boolean; metaKey?: boolean })?.shiftKey ||
-                (event as { metaKey?: boolean })?.metaKey,
-            );
-            emitMark(key, !additive);
-          };
-          const onEnter = (): void => {
-            request.host.emit({
-              kind: "hover",
-              adapterId: ADAPTER_ID,
-              artifactId: artifact.identity.artifactId,
-              artifactSequence: artifact.identity.sequence,
-              artifactSourceId: artifact.identity.sourceId,
-              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-              artifactKind: artifact.kind,
-              ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
-              ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
-              markKey: key,
-            });
-          };
-          const onLeave = (): void => {
-            request.host.emit({
-              kind: "hover",
-              adapterId: ADAPTER_ID,
-              artifactId: artifact.identity.artifactId,
-              artifactSequence: artifact.identity.sequence,
-              artifactSourceId: artifact.identity.sourceId,
-              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-              artifactKind: artifact.kind,
-              ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
-              ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
-            });
-          };
-          button.addEventListener("click", onClick);
-          button.addEventListener("mouseenter", onEnter);
-          button.addEventListener("focus", onEnter);
-          button.addEventListener("mouseleave", onLeave);
-          button.addEventListener("blur", onLeave);
-          teardown.push(() => {
-            button.removeEventListener("click", onClick);
-            button.removeEventListener("mouseenter", onEnter);
-            button.removeEventListener("focus", onEnter);
-            button.removeEventListener("mouseleave", onLeave);
-            button.removeEventListener("blur", onLeave);
-          });
-        }
-
+        bindMarkButtons(target, className, request, () => artifact, emitMark, teardown);
         if (!brushing) return;
-        for (const form of Array.from(target.querySelectorAll(`.${className}__rectangle`))) {
-          const onSubmit = (event: unknown): void => {
-            (event as { preventDefault(): void }).preventDefault();
-            if (artifact.kind !== "scatter") return;
-            const read = (key: string): number => {
-              const input = Array.from(target.querySelectorAll(`[data-rectangle="${key}"]`))[0];
-              const raw = input?.value?.trim();
-              return raw ? Number(raw) : Number.NaN;
-            };
-            const rectangle = {
-              x: { min: read("x-min"), max: read("x-max") },
-              y: { min: read("y-min"), max: read("y-max") },
-            };
-            const valid = [rectangle.x, rectangle.y].every(
-              (range) => Number.isFinite(range.min) && Number.isFinite(range.max) && range.min <= range.max,
-            );
-            const error = Array.from(target.querySelectorAll("[data-brush-error]"))[0];
-            if (error)
-              error.textContent = valid ? "" : "Enter finite ranges with each minimum at or below its maximum.";
-            if (!valid) return;
-            request.host.emit({
-              kind: "rectangle-brush",
-              adapterId: ADAPTER_ID,
-              artifactId: artifact.identity.artifactId,
-              artifactSequence: artifact.identity.sequence,
-              artifactSourceId: artifact.identity.sourceId,
-              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-              artifactKind: artifact.kind,
-              artifactDimension: artifact.dimension,
-              artifactYDimension: artifact.yDimension,
-              rectangle,
-            });
-          };
-          form.addEventListener("submit", onSubmit);
-          teardown.push(() => form.removeEventListener("submit", onSubmit));
-        }
-        for (const button of Array.from(target.querySelectorAll("[data-clear-rectangle]"))) {
-          const onClear = (): void =>
-            request.host.emit({
-              kind: "clear",
-              channel: "rectangle",
-              adapterId: ADAPTER_ID,
-              artifactId: artifact.identity.artifactId,
-              artifactSequence: artifact.identity.sequence,
-              artifactSourceId: artifact.identity.sourceId,
-              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-              artifactKind: artifact.kind,
-              ...(artifact.kind === "scatter"
-                ? { artifactDimension: artifact.dimension, artifactYDimension: artifact.yDimension }
-                : {}),
-            });
-          button.addEventListener("click", onClear);
-          teardown.push(() => button.removeEventListener("click", onClear));
-        }
+        bindRectangleForm(target, className, request, () => artifact, teardown);
+        bindRectangleClear(target, request, () => artifact, teardown);
         for (const input of Array.from(target.querySelectorAll(`.${className}__brush-input`))) {
           const onChange = (): void => emitBrush();
           input.addEventListener("change", onChange);

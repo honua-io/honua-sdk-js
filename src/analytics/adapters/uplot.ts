@@ -264,6 +264,28 @@ function scatterXRange(self: UplotInstanceLike, min: number, max: number): reado
   return [min - padding, max + padding];
 }
 
+function projectedColumns(
+  artifact: AnalyticsTimeSeriesArtifact | AnalyticsHistogramArtifact | AnalyticsScatterArtifact,
+): { xs: number[]; ys: Array<number | null>; markKeys: string[] } {
+  const xs: number[] = [];
+  const ys: Array<number | null> = [];
+  const markKeys: string[] = [];
+  const marks = artifact.kind === "scatter" ? [...artifact.marks].sort((a, b) => a.x - b.x) : artifact.marks;
+  for (const mark of marks) {
+    if (artifact.kind === "time-series") {
+      xs.push(Math.floor(Date.parse((mark as AnalyticsTimeSeriesArtifact["marks"][number]).start) / 1000));
+    } else if (artifact.kind === "scatter") {
+      xs.push((mark as AnalyticsScatterArtifact["marks"][number]).x);
+    } else {
+      const bin = mark as AnalyticsHistogramArtifact["marks"][number];
+      xs.push((bin.min + bin.max) / 2);
+    }
+    ys.push(mark.value);
+    markKeys.push(mark.key);
+  }
+  return { xs, ys, markKeys };
+}
+
 /**
  * Project a time-series, histogram or scatter artifact into µPlot options and aligned
  * data. Pure and DOM-free, so the whole projection is unit-testable and can be
@@ -280,24 +302,7 @@ export function projectAnalyticsArtifactToUplot(
 ): UplotProjection {
   const model = analyticsTableModel(artifact, options.locale);
   const isTemporal = artifact.kind === "time-series";
-  const xs: number[] = [];
-  const ys: Array<number | null> = [];
-  const markKeys: string[] = [];
-
-  const marks = artifact.kind === "scatter" ? [...artifact.marks].sort((a, b) => a.x - b.x) : artifact.marks;
-  for (const mark of marks) {
-    if (isTemporal) {
-      // Bucket start, in seconds — the same instant the mark key denotes.
-      xs.push(Math.floor(Date.parse((mark as AnalyticsTimeSeriesArtifact["marks"][number]).start) / 1000));
-    } else if (artifact.kind === "scatter") {
-      xs.push((mark as AnalyticsScatterArtifact["marks"][number]).x);
-    } else {
-      const bin = mark as AnalyticsHistogramArtifact["marks"][number];
-      xs.push((bin.min + bin.max) / 2);
-    }
-    ys.push(mark.value);
-    markKeys.push(mark.key);
-  }
+  const { xs, ys, markKeys } = projectedColumns(artifact);
 
   const measureLabel =
     artifact.kind === "scatter" ? artifact.yDimension : (artifact.measure.label ?? artifact.measure.field);
@@ -355,6 +360,253 @@ function isSupportedKind(
   return artifact.kind === "time-series" || artifact.kind === "histogram" || artifact.kind === "scatter";
 }
 
+interface UplotChartSession {
+  request: AnalyticsMountRequest;
+  artifact: AnalyticsTimeSeriesArtifact | AnalyticsHistogramArtifact | AnalyticsScatterArtifact;
+  projection: UplotProjection;
+  lastHoverKey: string | undefined;
+  paintedRectangle: string | undefined;
+  paintedMarkKeys: string;
+  activeRectangle: AnalyticsNumericRectangle | undefined;
+  highlightedMarkKeys: Set<string>;
+  instance: UplotInstanceLike | undefined;
+  clickRelease: (() => void) | undefined;
+  brushed: boolean;
+  painting: boolean;
+}
+
+function uplotEventBase(
+  artifact: AnalyticsTimeSeriesArtifact | AnalyticsHistogramArtifact | AnalyticsScatterArtifact,
+): {
+  adapterId: typeof UPLOT_ANALYTICS_ADAPTER_ID;
+  artifactId: string;
+  artifactSequence: number;
+  artifactSourceId: string;
+  artifactPlanFingerprint: string;
+  artifactKind: typeof artifact.kind;
+  artifactDimension?: string;
+  artifactYDimension?: string;
+} {
+  return {
+    adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
+    artifactId: artifact.identity.artifactId,
+    artifactSequence: artifact.identity.sequence,
+    artifactSourceId: artifact.identity.sourceId,
+    artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+    artifactKind: artifact.kind,
+    ...(artifact.kind === "scatter"
+      ? { artifactDimension: artifact.dimension, artifactYDimension: artifact.yDimension }
+      : { artifactDimension: artifact.dimension }),
+  };
+}
+
+function emitScatterRectangle(
+  session: UplotChartSession,
+  self: UplotInstanceLike,
+  box: UplotSelectBox,
+  min: number,
+  max: number,
+): void {
+  if (box.height <= 0) return;
+  const y0 = self.posToVal(box.top, "y");
+  const y1 = self.posToVal(box.top + box.height, "y");
+  if (!Number.isFinite(y0) || !Number.isFinite(y1)) return;
+  session.brushed = true;
+  session.activeRectangle = {
+    x: { min, max },
+    y: { min: Math.min(y0, y1), max: Math.max(y0, y1) },
+  };
+  session.request.host.emit({
+    kind: "rectangle-brush",
+    ...uplotEventBase(session.artifact),
+    rectangle: session.activeRectangle,
+  });
+}
+
+function emitUplotBrush(session: UplotChartSession, self: UplotInstanceLike): void {
+  const box = self.select;
+  if (!box || box.width <= 0) return;
+  const from = self.posToVal(box.left, "x");
+  const to = self.posToVal(box.left + box.width, "x");
+  const min = Math.min(from, to);
+  const max = Math.max(from, to);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+  if (session.artifact.kind === "scatter") {
+    emitScatterRectangle(session, self, box, min, max);
+    return;
+  }
+  if (session.artifact.kind === "time-series") {
+    session.request.host.emit({
+      kind: "temporal-brush",
+      ...uplotEventBase(session.artifact),
+      window: {
+        start: new Date(Math.round(min * 1000)).toISOString(),
+        end: new Date(Math.round(max * 1000)).toISOString(),
+      },
+    });
+    return;
+  }
+  session.request.host.emit({
+    kind: "range-brush",
+    ...uplotEventBase(session.artifact),
+    range: { min, max },
+  });
+}
+
+function cursorMarkKey(session: UplotChartSession, self: UplotInstanceLike): string | undefined {
+  const index =
+    session.artifact.kind === "scatter" ? nearestPointIndex(self, session.projection.data) : self.cursor.idx;
+  return typeof index === "number" && index >= 0 ? session.projection.markKeys[index] : undefined;
+}
+
+function emitUplotHover(session: UplotChartSession, self: UplotInstanceLike): void {
+  const key = cursorMarkKey(session, self);
+  if (key === session.lastHoverKey) return;
+  session.lastHoverKey = key;
+  session.request.host.emit({
+    kind: "hover",
+    ...uplotEventBase(session.artifact),
+    ...(key ? { markKey: key } : {}),
+  });
+}
+
+function paintUplotRectangle(session: UplotChartSession, rectangle: AnalyticsNumericRectangle): void {
+  const instance = session.instance;
+  if (!instance || session.painting) return;
+  const left = instance.valToPos(rectangle.x.min, "x");
+  const right = instance.valToPos(rectangle.x.max, "x");
+  const top = instance.valToPos(rectangle.y.min, "y");
+  const bottom = instance.valToPos(rectangle.y.max, "y");
+  if (![left, right, top, bottom].every(Number.isFinite)) return;
+  session.painting = true;
+  try {
+    instance.setSelect(
+      {
+        left: Math.min(left, right),
+        top: Math.min(top, bottom),
+        width: Math.abs(right - left),
+        height: Math.abs(bottom - top),
+      },
+      false,
+    );
+  } finally {
+    session.painting = false;
+  }
+}
+
+function drawSelectedScatterPoints(session: UplotChartSession, self: UplotInstanceLike): void {
+  if (session.artifact.kind !== "scatter" || session.highlightedMarkKeys.size === 0) return;
+  const ctx = self.ctx;
+  const bounds = self.bbox;
+  const data = self.data ?? session.projection.data;
+  if (!ctx || !bounds || data.length < 2) return;
+  const xs = data[0];
+  const ys = data[1];
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
+  ctx.clip();
+  ctx.beginPath();
+  for (let index = 0; index < xs.length; index += 1) {
+    const key = session.projection.markKeys[index];
+    const x = xs[index];
+    const y = ys[index];
+    if (key === undefined || !session.highlightedMarkKeys.has(key) || x == null || y == null) continue;
+    const px = self.valToPos(x, "x", true);
+    const py = self.valToPos(y, "y", true);
+    if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
+    ctx.moveTo(px + SCATTER_SELECTED_RADIUS, py);
+    ctx.arc(px, py, SCATTER_SELECTED_RADIUS, 0, Math.PI * 2);
+  }
+  ctx.fillStyle = SCATTER_POINT_SELECTED;
+  ctx.fill();
+  ctx.restore();
+}
+
+function bindUplotPointer(session: UplotChartSession): void {
+  const over = session.instance?.over;
+  if (!over) return;
+  let dragOrigin: { x: number; y: number } | undefined;
+  const pointer = (event: unknown): { x: number; y: number } | undefined => {
+    if (typeof event !== "object" || event === null) return undefined;
+    const point = event as { clientX?: unknown; clientY?: unknown };
+    if (typeof point.clientX !== "number" || typeof point.clientY !== "number") return undefined;
+    return { x: point.clientX, y: point.clientY };
+  };
+  const onMouseDown = (event: unknown): void => {
+    dragOrigin = pointer(event);
+    session.brushed = false;
+  };
+  const onMouseMove = (event: unknown): void => {
+    const point = pointer(event);
+    if (!dragOrigin || !point) return;
+    if (point.x !== dragOrigin.x || point.y !== dragOrigin.y) session.brushed = true;
+  };
+  const onDoubleClick = (): void => {
+    if (session.artifact.kind === "scatter" && session.activeRectangle) paintUplotRectangle(session, session.activeRectangle);
+  };
+  const onClick = (): void => {
+    dragOrigin = undefined;
+    if (session.brushed) {
+      session.brushed = false;
+      return;
+    }
+    const key = session.instance ? cursorMarkKey(session, session.instance) : undefined;
+    if (!key) return;
+    session.request.host.emit({
+      kind: "mark-select",
+      ...uplotEventBase(session.artifact),
+      markKeys: [key],
+      replace: true,
+    });
+  };
+  over.addEventListener("click", onClick);
+  over.addEventListener("mousedown", onMouseDown);
+  over.addEventListener("mousemove", onMouseMove);
+  over.addEventListener("dblclick", onDoubleClick);
+  session.clickRelease = () => {
+    over.removeEventListener("click", onClick);
+    over.removeEventListener("mousedown", onMouseDown);
+    over.removeEventListener("mousemove", onMouseMove);
+    over.removeEventListener("dblclick", onDoubleClick);
+  };
+}
+
+function applyUplotLinkedState(session: UplotChartSession, state: AnalyticsLinkedState): void {
+  const instance = session.instance;
+  if (!instance) return;
+  if (session.artifact.kind === "scatter") {
+    const nextKeys = state.selectedMarkKeys.join("\0");
+    if (nextKeys !== session.paintedMarkKeys) {
+      session.paintedMarkKeys = nextKeys;
+      session.highlightedMarkKeys.clear();
+      for (const key of state.selectedMarkKeys) session.highlightedMarkKeys.add(key);
+      instance.redraw?.();
+    }
+    const rectangle = JSON.stringify(state.rectangle ?? null);
+    if (rectangle === session.paintedRectangle) return;
+    session.paintedRectangle = rectangle;
+    session.activeRectangle = state.rectangle;
+    if (state.rectangle) {
+      paintUplotRectangle(session, state.rectangle);
+      return;
+    }
+    instance.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
+    return;
+  }
+  const window = state.temporalWindow;
+  const range = state.range;
+  if (session.artifact.kind === "time-series" && window) {
+    paintSelection(instance, Date.parse(window.start) / 1000, Date.parse(window.end) / 1000);
+    return;
+  }
+  if (session.artifact.kind === "histogram" && range) {
+    paintSelection(instance, range.min, range.max);
+    return;
+  }
+  instance.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
+}
+
 /**
  * Create the µPlot analytics presentation adapter.
  *
@@ -405,238 +657,49 @@ export function createUplotAnalyticsAdapter(
       }
 
       const Uplot = adapterOptions.module ? asConstructor(adapterOptions.module) : await loadUplot(adapterOptions);
-
-      let projection = projectAnalyticsArtifactToUplot(artifact, adapterOptions);
-      let lastHoverKey: string | undefined;
-      let paintedRectangle: string | undefined;
-      let paintedMarkKeys = "";
-      let activeRectangle: AnalyticsNumericRectangle | undefined;
-      const highlightedMarkKeys = new Set<string>();
-      let instance: UplotInstanceLike | undefined;
-      let clickRelease: (() => void) | undefined;
-      let brushed = false;
-      let painting = false;
-
-      const artifactId = (): string => artifact.identity.artifactId;
-
-      function emitBrush(self: UplotInstanceLike): void {
-        const box = self.select;
-        if (!box || box.width <= 0) return;
-        const from = self.posToVal(box.left, "x");
-        const to = self.posToVal(box.left + box.width, "x");
-        const min = Math.min(from, to);
-        const max = Math.max(from, to);
-        if (!Number.isFinite(min) || !Number.isFinite(max)) return;
-
-        if (artifact.kind === "scatter") {
-          if (box.height <= 0) return;
-          const y0 = self.posToVal(box.top, "y");
-          const y1 = self.posToVal(box.top + box.height, "y");
-          if (!Number.isFinite(y0) || !Number.isFinite(y1)) return;
-          brushed = true;
-          activeRectangle = {
-            x: { min, max },
-            y: { min: Math.min(y0, y1), max: Math.max(y0, y1) },
-          };
-          request.host.emit({
-            kind: "rectangle-brush",
-            adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
-            artifactId: artifactId(),
-            artifactSequence: artifact.identity.sequence,
-            artifactSourceId: artifact.identity.sourceId,
-            artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-            artifactKind: artifact.kind,
-            artifactDimension: artifact.dimension,
-            artifactYDimension: artifact.yDimension,
-            rectangle: activeRectangle,
-          });
-          return;
-        }
-        if (artifact.kind === "time-series") {
-          request.host.emit({
-            kind: "temporal-brush",
-            adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
-            artifactId: artifactId(),
-            artifactSequence: artifact.identity.sequence,
-            artifactSourceId: artifact.identity.sourceId,
-            artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-            artifactKind: artifact.kind,
-            artifactDimension: artifact.dimension,
-            window: {
-              start: new Date(Math.round(min * 1000)).toISOString(),
-              end: new Date(Math.round(max * 1000)).toISOString(),
-            },
-          });
-          return;
-        }
-        request.host.emit({
-          kind: "range-brush",
-          adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
-          artifactId: artifactId(),
-          artifactSequence: artifact.identity.sequence,
-          artifactSourceId: artifact.identity.sourceId,
-          artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-          artifactKind: artifact.kind,
-          ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
-          range: { min, max },
-        });
-      }
-
-      function cursorMarkKey(self: UplotInstanceLike): string | undefined {
-        const index = artifact.kind === "scatter" ? nearestPointIndex(self, projection.data) : self.cursor.idx;
-        return typeof index === "number" && index >= 0 ? projection.markKeys[index] : undefined;
-      }
-
-      function emitHover(self: UplotInstanceLike): void {
-        const key = cursorMarkKey(self);
-        if (key === lastHoverKey) return;
-        lastHoverKey = key;
-        request.host.emit({
-          kind: "hover",
-          adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
-          artifactId: artifactId(),
-          artifactSequence: artifact.identity.sequence,
-          artifactSourceId: artifact.identity.sourceId,
-          artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-          artifactKind: artifact.kind,
-          ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
-          ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
-          ...(key ? { markKey: key } : {}),
-        });
-      }
-
-      function paintRectangle(rectangle: AnalyticsNumericRectangle): void {
-        if (!instance || painting) return;
-        const left = instance.valToPos(rectangle.x.min, "x");
-        const right = instance.valToPos(rectangle.x.max, "x");
-        const top = instance.valToPos(rectangle.y.min, "y");
-        const bottom = instance.valToPos(rectangle.y.max, "y");
-        if (![left, right, top, bottom].every(Number.isFinite)) return;
-        painting = true;
-        try {
-          instance.setSelect(
-            {
-              left: Math.min(left, right),
-              top: Math.min(top, bottom),
-              width: Math.abs(right - left),
-              height: Math.abs(bottom - top),
-            },
-            false,
-          );
-        } finally {
-          painting = false;
-        }
-      }
+      const session: UplotChartSession = {
+        request,
+        artifact,
+        projection: projectAnalyticsArtifactToUplot(artifact, adapterOptions),
+        lastHoverKey: undefined,
+        paintedRectangle: undefined,
+        paintedMarkKeys: "",
+        activeRectangle: undefined,
+        highlightedMarkKeys: new Set<string>(),
+        instance: undefined,
+        clickRelease: undefined,
+        brushed: false,
+        painting: false,
+      };
 
       function restoreRectangle(): void {
-        if (artifact.kind !== "scatter" || !activeRectangle) return;
-        paintRectangle(activeRectangle);
-      }
-
-      function drawSelectedScatterPoints(self: UplotInstanceLike): void {
-        if (artifact.kind !== "scatter" || highlightedMarkKeys.size === 0) return;
-        const ctx = self.ctx;
-        const bounds = self.bbox;
-        const data = self.data ?? projection.data;
-        if (!ctx || !bounds || data.length < 2) return;
-        const xs = data[0];
-        const ys = data[1];
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(bounds.left, bounds.top, bounds.width, bounds.height);
-        ctx.clip();
-        ctx.beginPath();
-        for (let index = 0; index < xs.length; index += 1) {
-          const key = projection.markKeys[index];
-          const x = xs[index];
-          const y = ys[index];
-          if (key === undefined || !highlightedMarkKeys.has(key) || x == null || y == null) continue;
-          const px = self.valToPos(x, "x", true);
-          const py = self.valToPos(y, "y", true);
-          if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
-          ctx.moveTo(px + SCATTER_SELECTED_RADIUS, py);
-          ctx.arc(px, py, SCATTER_SELECTED_RADIUS, 0, Math.PI * 2);
-        }
-        ctx.fillStyle = SCATTER_POINT_SELECTED;
-        ctx.fill();
-        ctx.restore();
+        if (session.artifact.kind !== "scatter" || !session.activeRectangle) return;
+        paintUplotRectangle(session, session.activeRectangle);
       }
 
       function build(): void {
         const options: UplotOptions = {
-          ...projection.options,
+          ...session.projection.options,
           hooks: {
-            setSelect: [emitBrush],
-            setCursor: [emitHover],
+            setSelect: [(self: UplotInstanceLike) => emitUplotBrush(session, self)],
+            setCursor: [(self: UplotInstanceLike) => emitUplotHover(session, self)],
             setScale: [restoreRectangle],
-            ...(artifact.kind === "scatter" ? { draw: [drawSelectedScatterPoints] } : {}),
+            ...(session.artifact.kind === "scatter"
+              ? { draw: [(self: UplotInstanceLike) => drawSelectedScatterPoints(session, self)] }
+              : {}),
           },
         };
-        instance = new Uplot(options, projection.data, request.target);
-
-        const over = instance.over;
-        if (over) {
-          let dragOrigin: { x: number; y: number } | undefined;
-          const pointer = (event: unknown): { x: number; y: number } | undefined => {
-            if (typeof event !== "object" || event === null) return undefined;
-            const point = event as { clientX?: unknown; clientY?: unknown };
-            if (typeof point.clientX !== "number" || typeof point.clientY !== "number") return undefined;
-            return { x: point.clientX, y: point.clientY };
-          };
-          const onMouseDown = (event: unknown): void => {
-            dragOrigin = pointer(event);
-            brushed = false;
-          };
-          const onMouseMove = (event: unknown): void => {
-            const point = pointer(event);
-            if (!dragOrigin || !point) return;
-            if (point.x !== dragOrigin.x || point.y !== dragOrigin.y) brushed = true;
-          };
-          const onDoubleClick = (): void => {
-            restoreRectangle();
-          };
-          const onClick = (): void => {
-            dragOrigin = undefined;
-            if (brushed) {
-              brushed = false;
-              return;
-            }
-            const key = instance ? cursorMarkKey(instance) : undefined;
-            if (!key) return;
-            request.host.emit({
-              kind: "mark-select",
-              adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
-              artifactId: artifactId(),
-              artifactSequence: artifact.identity.sequence,
-              artifactSourceId: artifact.identity.sourceId,
-              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
-              artifactKind: artifact.kind,
-              ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
-              ...(artifact.kind === "scatter" ? { artifactYDimension: artifact.yDimension } : {}),
-              markKeys: [key],
-              replace: true,
-            });
-          };
-          over.addEventListener("click", onClick);
-          over.addEventListener("mousedown", onMouseDown);
-          over.addEventListener("mousemove", onMouseMove);
-          over.addEventListener("dblclick", onDoubleClick);
-          clickRelease = () => {
-            over.removeEventListener("click", onClick);
-            over.removeEventListener("mousedown", onMouseDown);
-            over.removeEventListener("mousemove", onMouseMove);
-            over.removeEventListener("dblclick", onDoubleClick);
-          };
-        }
+        session.instance = new Uplot(options, session.projection.data, request.target);
+        bindUplotPointer(session);
       }
 
       function teardown(): void {
-        clickRelease?.();
-        clickRelease = undefined;
+        session.clickRelease?.();
+        session.clickRelease = undefined;
         try {
-          instance?.destroy();
+          session.instance?.destroy();
         } finally {
-          instance = undefined;
+          session.instance = undefined;
         }
       }
 
@@ -647,8 +710,6 @@ export function createUplotAnalyticsAdapter(
         artifact,
         describe: (current) => analyticsTableModel(current, request.locale).description,
         onInvalidate(): void {
-          // A lineage / plan / shape change invalidates the axes too, so the
-          // peer instance is rebuilt rather than patched.
           teardown();
         },
         onUpdate(next): void {
@@ -661,64 +722,29 @@ export function createUplotAnalyticsAdapter(
             return;
           }
           artifact = next;
-          projection = projectAnalyticsArtifactToUplot(next, adapterOptions);
-          lastHoverKey = undefined;
-          paintedRectangle = undefined;
-          paintedMarkKeys = "";
-          activeRectangle = undefined;
-          highlightedMarkKeys.clear();
-          if (instance) {
-            // Patch: keep the live instance, swap the data. Focus, cursor, and
-            // the user's zoom survive a realtime delta.
-            instance.setData(projection.data, false);
+          session.artifact = next;
+          session.projection = projectAnalyticsArtifactToUplot(next, adapterOptions);
+          session.lastHoverKey = undefined;
+          session.paintedRectangle = undefined;
+          session.paintedMarkKeys = "";
+          session.activeRectangle = undefined;
+          session.highlightedMarkKeys.clear();
+          if (session.instance) {
+            session.instance.setData(session.projection.data, false);
             return;
           }
           build();
         },
         onLinkedState(state: AnalyticsLinkedState): void {
-          if (!instance) return;
-          if (artifact.kind === "scatter") {
-            // Cursor hooks publish hover while µPlot is drawing its live drag.
-            // Repaint bounds only when they change, and highlight points even
-            // when the rectangle is unchanged.
-            const nextKeys = state.selectedMarkKeys.join("\0");
-            if (nextKeys !== paintedMarkKeys) {
-              paintedMarkKeys = nextKeys;
-              highlightedMarkKeys.clear();
-              for (const key of state.selectedMarkKeys) highlightedMarkKeys.add(key);
-              instance.redraw?.();
-            }
-            const rectangle = JSON.stringify(state.rectangle ?? null);
-            if (rectangle === paintedRectangle) return;
-            paintedRectangle = rectangle;
-            activeRectangle = state.rectangle;
-            if (state.rectangle) {
-              paintRectangle(state.rectangle);
-              return;
-            }
-            instance.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
-            return;
-          }
-          const window = state.temporalWindow;
-          const range = state.range;
-          if (artifact.kind === "time-series" && window) {
-            paintSelection(instance, Date.parse(window.start) / 1000, Date.parse(window.end) / 1000);
-            return;
-          }
-          if (artifact.kind === "histogram" && range) {
-            paintSelection(instance, range.min, range.max);
-            return;
-          }
-          instance.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
+          applyUplotLinkedState(session, state);
         },
         onDispose: teardown,
         extra: {
-          /** The live µPlot instance, for hosts that need library-specific APIs. */
           get chart(): UplotInstanceLike | undefined {
-            return instance;
+            return session.instance;
           },
           get projection(): UplotProjection {
-            return projection;
+            return session.projection;
           },
         },
       });

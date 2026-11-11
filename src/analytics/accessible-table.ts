@@ -159,19 +159,7 @@ export function analyticsTableModel(artifact: AnalyticsArtifact, locale?: string
   const caption = artifact.title ?? defaultCaption(artifact);
   const statusMessage = statusMessageFor(artifact);
   const provenanceMessage = provenanceMessageFor(artifact);
-
-  const description = [
-    caption,
-    statusMessage,
-    provenanceMessage,
-    rows.length === 0
-      ? artifact.kind === "scatter"
-        ? "No points."
-        : "No buckets."
-      : rows.map((row) => `${row.label}: ${row.value}${row.extent ? ` (${row.extent})` : ""}`).join("; "),
-  ]
-    .filter((part) => part.length > 0)
-    .join(" ");
+  const description = describeTable(artifact, caption, statusMessage, provenanceMessage, rows);
 
   return {
     artifactId: artifact.identity.artifactId,
@@ -188,6 +176,22 @@ export function analyticsTableModel(artifact: AnalyticsArtifact, locale?: string
       : {}),
     description,
   };
+}
+
+function describeTable(
+  artifact: AnalyticsArtifact,
+  caption: string,
+  statusMessage: string,
+  provenanceMessage: string,
+  rows: readonly AnalyticsTableRow[],
+): string {
+  const listing =
+    rows.length === 0
+      ? artifact.kind === "scatter"
+        ? "No points."
+        : "No buckets."
+      : rows.map((row) => `${row.label}: ${row.value}${row.extent ? ` (${row.extent})` : ""}`).join("; ");
+  return [caption, statusMessage, provenanceMessage, listing].filter((part) => part.length > 0).join(" ");
 }
 
 function defaultCaption(artifact: AnalyticsArtifact): string {

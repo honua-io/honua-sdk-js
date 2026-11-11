@@ -184,23 +184,25 @@ export function validateAnalyticsArtifact<T extends AnalyticsArtifact>(artifact:
     validateHistogramMarks(artifact.marks);
   } else if (artifact.kind === "time-series") {
     validateTimeSeriesMarks(artifact.marks);
-  }
-
-  if (artifact.kind === "scatter") {
-    requireDimension(artifact.dimension, artifact.status);
-    requireDimension(artifact.yDimension, artifact.status);
-    if (artifact.dimension && artifact.dimension === artifact.yDimension && artifact.status !== "unsupported") {
-      fail("artifact-invalid", "Scatter axes must name distinct fields.");
-    }
-    for (const mark of artifact.marks) {
-      if (!Number.isFinite(mark.x) || !Number.isFinite(mark.value)) {
-        fail("artifact-invalid", "Scatter coordinates must be finite numbers.");
-      }
-    }
+  } else if (artifact.kind === "scatter") {
+    validateScatterArtifact(artifact);
   }
 
   assertOrdering(artifact);
   return Object.freeze(artifact);
+}
+
+function validateScatterArtifact(artifact: AnalyticsArtifact & { kind: "scatter" }): void {
+  requireDimension(artifact.dimension, artifact.status);
+  requireDimension(artifact.yDimension, artifact.status);
+  if (artifact.dimension && artifact.dimension === artifact.yDimension && artifact.status !== "unsupported") {
+    fail("artifact-invalid", "Scatter axes must name distinct fields.");
+  }
+  for (const mark of artifact.marks) {
+    if (!Number.isFinite(mark.x) || !Number.isFinite(mark.value)) {
+      fail("artifact-invalid", "Scatter coordinates must be finite numbers.");
+    }
+  }
 }
 
 function validateHistogramMarks(marks: readonly AnalyticsHistogramMark[]): void {
