@@ -33,12 +33,16 @@ import type {
   AnalyticsHistogramArtifact,
   AnalyticsLinkedState,
   AnalyticsMountRequest,
+  AnalyticsNumericRectangle,
   AnalyticsPresentationAdapter,
   AnalyticsPresentationHandle,
   AnalyticsScatterArtifact,
   AnalyticsSupportDecision,
   AnalyticsTimeSeriesArtifact,
 } from "../types.js";
+
+const SCATTER_POINT = "#1d4e89";
+const SCATTER_POINT_SELECTED = "#9a3412";
 
 /** Adapter id, stable across releases. */
 export const UPLOT_ANALYTICS_ADAPTER_ID = "honua.uplot";
@@ -76,6 +80,7 @@ export interface UplotInstanceLike {
   setSelect(box: UplotSelectBox, fireHook?: boolean): void;
   posToVal(position: number, scaleKey: string): number;
   valToPos(value: number, scaleKey: string): number;
+  redraw?(rebuildPaths?: boolean): void;
   destroy(): void;
 }
 
@@ -93,7 +98,10 @@ export interface UplotSeriesOptions {
   readonly stroke?: string;
   readonly fill?: string;
   readonly width?: number;
-  readonly points?: { readonly show?: boolean };
+  readonly points?: {
+    readonly show?: boolean;
+    readonly stroke?: string | ((self: UplotInstanceLike, seriesIdx: number, dataIdx: number) => string);
+  };
   readonly value?: unknown;
   readonly paths?: () => null;
 }
@@ -122,6 +130,7 @@ export interface UplotOptions {
   readonly hooks?: {
     readonly setSelect?: ReadonlyArray<(self: UplotInstanceLike) => void>;
     readonly setCursor?: ReadonlyArray<(self: UplotInstanceLike) => void>;
+    readonly setScale?: ReadonlyArray<(self: UplotInstanceLike) => void>;
   };
   readonly [extra: string]: unknown;
 }
@@ -385,9 +394,13 @@ export function createUplotAnalyticsAdapter(
       let projection = projectAnalyticsArtifactToUplot(artifact, adapterOptions);
       let lastHoverKey: string | undefined;
       let paintedRectangle: string | undefined;
+      let paintedMarkKeys = "";
+      let activeRectangle: AnalyticsNumericRectangle | undefined;
+      const highlightedMarkKeys = new Set<string>();
       let instance: UplotInstanceLike | undefined;
       let clickRelease: (() => void) | undefined;
       let brushed = false;
+      let painting = false;
 
       const artifactId = (): string => artifact.identity.artifactId;
 
@@ -406,6 +419,10 @@ export function createUplotAnalyticsAdapter(
           const y1 = self.posToVal(box.top + box.height, "y");
           if (!Number.isFinite(y0) || !Number.isFinite(y1)) return;
           brushed = true;
+          activeRectangle = {
+            x: { min, max },
+            y: { min: Math.min(y0, y1), max: Math.max(y0, y1) },
+          };
           request.host.emit({
             kind: "rectangle-brush",
             adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
@@ -416,10 +433,7 @@ export function createUplotAnalyticsAdapter(
             artifactKind: artifact.kind,
             artifactDimension: artifact.dimension,
             artifactYDimension: artifact.yDimension,
-            rectangle: {
-              x: { min, max },
-              y: { min: Math.min(y0, y1), max: Math.max(y0, y1) },
-            },
+            rectangle: activeRectangle,
           });
           return;
         }
@@ -476,19 +490,72 @@ export function createUplotAnalyticsAdapter(
         });
       }
 
+      function paintRectangle(rectangle: AnalyticsNumericRectangle): void {
+        if (!instance || painting) return;
+        const left = instance.valToPos(rectangle.x.min, "x");
+        const right = instance.valToPos(rectangle.x.max, "x");
+        const top = instance.valToPos(rectangle.y.min, "y");
+        const bottom = instance.valToPos(rectangle.y.max, "y");
+        if (![left, right, top, bottom].every(Number.isFinite)) return;
+        painting = true;
+        try {
+          instance.setSelect(
+            {
+              left: Math.min(left, right),
+              top: Math.min(top, bottom),
+              width: Math.abs(right - left),
+              height: Math.abs(bottom - top),
+            },
+            false,
+          );
+        } finally {
+          painting = false;
+        }
+      }
+
+      function restoreRectangle(): void {
+        if (artifact.kind !== "scatter" || !activeRectangle) return;
+        paintRectangle(activeRectangle);
+      }
+
+      function pointStroke(_self: UplotInstanceLike, _seriesIdx: number, dataIdx: number): string {
+        const key = projection.markKeys[dataIdx];
+        return key !== undefined && highlightedMarkKeys.has(key) ? SCATTER_POINT_SELECTED : SCATTER_POINT;
+      }
+
       function build(): void {
         const options: UplotOptions = {
           ...projection.options,
-          hooks: { setSelect: [emitBrush], setCursor: [emitHover] },
+          series: projection.options.series.map((series, index) =>
+            index === 0 ? series : { ...series, points: { ...series.points, stroke: pointStroke } },
+          ),
+          hooks: { setSelect: [emitBrush], setCursor: [emitHover], setScale: [restoreRectangle] },
         };
         instance = new Uplot(options, projection.data, request.target);
 
         const over = instance.over;
         if (over) {
-          const onMouseDown = (): void => {
+          let dragOrigin: { x: number; y: number } | undefined;
+          const pointer = (event: unknown): { x: number; y: number } | undefined => {
+            if (typeof event !== "object" || event === null) return undefined;
+            const point = event as { clientX?: unknown; clientY?: unknown };
+            if (typeof point.clientX !== "number" || typeof point.clientY !== "number") return undefined;
+            return { x: point.clientX, y: point.clientY };
+          };
+          const onMouseDown = (event: unknown): void => {
+            dragOrigin = pointer(event);
             brushed = false;
           };
+          const onMouseMove = (event: unknown): void => {
+            const point = pointer(event);
+            if (!dragOrigin || !point) return;
+            if (point.x !== dragOrigin.x || point.y !== dragOrigin.y) brushed = true;
+          };
+          const onDoubleClick = (): void => {
+            restoreRectangle();
+          };
           const onClick = (): void => {
+            dragOrigin = undefined;
             if (brushed) {
               brushed = false;
               return;
@@ -511,9 +578,13 @@ export function createUplotAnalyticsAdapter(
           };
           over.addEventListener("click", onClick);
           over.addEventListener("mousedown", onMouseDown);
+          over.addEventListener("mousemove", onMouseMove);
+          over.addEventListener("dblclick", onDoubleClick);
           clickRelease = () => {
             over.removeEventListener("click", onClick);
             over.removeEventListener("mousedown", onMouseDown);
+            over.removeEventListener("mousemove", onMouseMove);
+            over.removeEventListener("dblclick", onDoubleClick);
           };
         }
       }
@@ -552,6 +623,9 @@ export function createUplotAnalyticsAdapter(
           projection = projectAnalyticsArtifactToUplot(next, adapterOptions);
           lastHoverKey = undefined;
           paintedRectangle = undefined;
+          paintedMarkKeys = "";
+          activeRectangle = undefined;
+          highlightedMarkKeys.clear();
           if (instance) {
             // Patch: keep the live instance, swap the data. Focus, cursor, and
             // the user's zoom survive a realtime delta.
@@ -564,28 +638,24 @@ export function createUplotAnalyticsAdapter(
           if (!instance) return;
           if (artifact.kind === "scatter") {
             // Cursor hooks publish hover while µPlot is drawing its live drag.
-            // Repaint only when linked bounds change, preserving that drag.
+            // Repaint bounds only when they change, and highlight points even
+            // when the rectangle is unchanged.
+            const nextKeys = state.selectedMarkKeys.join("\0");
+            if (nextKeys !== paintedMarkKeys) {
+              paintedMarkKeys = nextKeys;
+              highlightedMarkKeys.clear();
+              for (const key of state.selectedMarkKeys) highlightedMarkKeys.add(key);
+              instance.redraw?.();
+            }
             const rectangle = JSON.stringify(state.rectangle ?? null);
             if (rectangle === paintedRectangle) return;
             paintedRectangle = rectangle;
-          }
-          if (artifact.kind === "scatter" && state.rectangle) {
-            const { x, y } = state.rectangle;
-            const left = instance.valToPos(x.min, "x");
-            const right = instance.valToPos(x.max, "x");
-            const top = instance.valToPos(y.min, "y");
-            const bottom = instance.valToPos(y.max, "y");
-            if ([left, right, top, bottom].every(Number.isFinite)) {
-              instance.setSelect(
-                {
-                  left: Math.min(left, right),
-                  top: Math.min(top, bottom),
-                  width: Math.abs(right - left),
-                  height: Math.abs(bottom - top),
-                },
-                false,
-              );
+            activeRectangle = state.rectangle;
+            if (state.rectangle) {
+              paintRectangle(state.rectangle);
+              return;
             }
+            instance.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
             return;
           }
           const window = state.temporalWindow;

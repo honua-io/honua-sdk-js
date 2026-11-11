@@ -23,8 +23,10 @@ import type {
   AnalyticsArtifact,
   AnalyticsLinkedState,
   AnalyticsMountRequest,
+  AnalyticsNumericRectangle,
   AnalyticsPresentationAdapter,
   AnalyticsPresentationHandle,
+  AnalyticsScatterArtifact,
   AnalyticsSupportDecision,
 } from "./types.js";
 
@@ -182,6 +184,20 @@ export function analyticsBrushIndices(
   return { start: 0, end: last };
 }
 
+/** The active rectangle, or the mark extent when no rectangle is linked. */
+function scatterBrushBounds(
+  artifact: AnalyticsScatterArtifact,
+  rectangle: AnalyticsNumericRectangle | undefined,
+): AnalyticsNumericRectangle {
+  if (rectangle) return rectangle;
+  const xs = artifact.marks.map((mark) => mark.x);
+  const ys = artifact.marks.map((mark) => mark.value);
+  return {
+    x: { min: Math.min(...xs), max: Math.max(...xs) },
+    y: { min: Math.min(...ys), max: Math.max(...ys) },
+  };
+}
+
 /**
  * Render numeric rectangle bounds for scatter artifacts, or two range
  * inputs rather than a drag surface: keyboard-operable, screen-reader
@@ -198,16 +214,7 @@ export function renderAnalyticsBrushHtml(
 ): string {
   if (artifact.kind === "scatter") {
     if (artifact.marks.length === 0 || artifact.status === "error" || artifact.status === "unsupported") return "";
-    const rectangle = state.rectangle ?? {
-      x: {
-        min: Math.min(...artifact.marks.map((mark) => mark.x)),
-        max: Math.max(...artifact.marks.map((mark) => mark.x)),
-      },
-      y: {
-        min: Math.min(...artifact.marks.map((mark) => mark.value)),
-        max: Math.max(...artifact.marks.map((mark) => mark.value)),
-      },
-    };
+    const rectangle = scatterBrushBounds(artifact, state.rectangle);
     const axis = (key: "x" | "y", label: string): string =>
       `<fieldset><legend>${escapeHtml(label)}</legend>${(["min", "max"] as const)
         .map(
@@ -479,16 +486,7 @@ export function createDefaultAnalyticsPresentation(
             else row.removeAttribute?.("data-hovered");
           }
           if (JSON.stringify(previous.rectangle) !== JSON.stringify(state.rectangle)) {
-            const bounds = state.rectangle ?? {
-              x: {
-                min: Math.min(...artifact.marks.map((mark) => mark.x)),
-                max: Math.max(...artifact.marks.map((mark) => mark.x)),
-              },
-              y: {
-                min: Math.min(...artifact.marks.map((mark) => mark.value)),
-                max: Math.max(...artifact.marks.map((mark) => mark.value)),
-              },
-            };
+            const bounds = scatterBrushBounds(artifact as AnalyticsScatterArtifact, state.rectangle);
             for (const input of Array.from(target.querySelectorAll("[data-rectangle]"))) {
               const [axis, bound] = (input.getAttribute("data-rectangle") ?? "").split("-");
               if ((axis === "x" || axis === "y") && (bound === "min" || bound === "max"))

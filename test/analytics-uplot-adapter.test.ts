@@ -262,6 +262,7 @@ class FakeUplot implements UplotInstanceLike {
   public destroyed = false;
   public setDataCalls: Array<{ data: unknown; resetScales?: boolean }> = [];
   public setSelectCalls: UplotSelectBox[] = [];
+  public redrawCalls = 0;
   public readonly listeners = new Map<string, Set<(event: unknown) => void>>();
 
   public readonly over = {
@@ -304,6 +305,10 @@ class FakeUplot implements UplotInstanceLike {
 
   public destroy(): void {
     this.destroyed = true;
+  }
+
+  public redraw(): void {
+    this.redrawCalls += 1;
   }
 
   public fireSelect(box: UplotSelectBox): void {
@@ -836,6 +841,62 @@ describe("uPlot scatter", () => {
     });
     chart.fireSelect({ left: 5, top: 10, width: 10, height: 0 });
     expect(session.linkedState.rectangle).toBeUndefined();
+    session.dispose();
+  });
+
+  it("highlights a peer point selection without repainting an unchanged rectangle", async () => {
+    const { session } = harness(scatter());
+    await session.present({ target: document.createElement("div") });
+    const chart = FakeUplot.instances[0];
+    chart.fireSelect({ left: 5, top: 10, width: 10, height: 15 });
+    const paints = chart.setSelectCalls.length;
+    session.apply({
+      kind: "mark-select",
+      adapterId: "peer",
+      artifactId: "scatter",
+      markKeys: ["b"],
+      replace: true,
+    });
+    expect(chart.setSelectCalls).toHaveLength(paints);
+    expect(chart.redrawCalls).toBeGreaterThan(0);
+    const points = chart.options.series[1].points as {
+      stroke?: (self: FakeUplot, seriesIdx: number, dataIdx: number) => string;
+    };
+    expect(typeof points.stroke).toBe("function");
+    expect(points.stroke?.(chart, 1, 1)).not.toBe(points.stroke?.(chart, 1, 0));
+    session.dispose();
+  });
+
+  it("keeps the rectangle when a repeated drag does not change the brush bounds", async () => {
+    const { session, view } = harness(scatter());
+    await session.present({ target: document.createElement("div") });
+    const chart = FakeUplot.instances[0];
+    chart.fireSelect({ left: 5, top: 10, width: 10, height: 15 });
+    const filters = { ...view.state.filters };
+    chart.cursor = { idx: 0, left: 10, top: 20 };
+    const dispatch = (type: string, x: number, y: number): void => {
+      for (const listener of chart.listeners.get(type) ?? []) {
+        listener(new MouseEvent(type, { clientX: x, clientY: y }));
+      }
+    };
+    dispatch("mousedown", 5, 10);
+    dispatch("mousemove", 15, 25);
+    chart.fireClick();
+    expect(view.state.filters).toEqual(filters);
+    expect(view.state.selection).toEqual([]);
+    session.dispose();
+  });
+
+  it("repaints the active rectangle after a double-click reset", async () => {
+    const { session } = harness(scatter());
+    await session.present({ target: document.createElement("div") });
+    const chart = FakeUplot.instances[0];
+    chart.fireSelect({ left: 5, top: 10, width: 10, height: 15 });
+    const paints = chart.setSelectCalls.length;
+    chart.select = { left: 0, top: 0, width: 0, height: 0 };
+    for (const listener of chart.listeners.get("dblclick") ?? []) listener({});
+    expect(chart.setSelectCalls.length).toBeGreaterThan(paints);
+    expect(chart.setSelectCalls.at(-1)).toEqual({ left: 5, top: 10, width: 10, height: 15 });
     session.dispose();
   });
 });

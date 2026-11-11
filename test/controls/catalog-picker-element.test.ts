@@ -5,12 +5,18 @@ import { HonuaCatalogPicker } from "../../src/controls/catalog-picker.js";
 test("renders native search and escaped catalog results, and releases its subscription on disconnect", async () => {
   const picker = new HonuaCatalogPicker({
     client: {
-      searchOgcRecords: vi.fn().mockResolvedValue({
-        type: "FeatureCollection",
-        features: [
-          { type: "Feature", id: "one", geometry: null, properties: { title: '<img src=x onerror="alert(1)">' } },
-        ],
-      }),
+      searchOgcRecords: vi
+        .fn()
+        .mockResolvedValueOnce({
+          type: "FeatureCollection",
+          features: [
+            { type: "Feature", id: "one", geometry: null, properties: { title: '<img src=x onerror="alert(1)">' } },
+          ],
+        })
+        .mockResolvedValueOnce({
+          type: "FeatureCollection",
+          features: [{ type: "Feature", id: "two", geometry: null, properties: { title: "second-result" } }],
+        }),
     },
     collectionId: "data",
     resolve: vi.fn(),
@@ -31,6 +37,7 @@ test("renders native search and escaped catalog results, and releases its subscr
   const previous = shadow.innerHTML;
   await picker.search("elsewhere");
   expect(shadow.innerHTML).toBe(previous);
+  expect(shadow.innerHTML).not.toContain("second-result");
   // A borrowed model still belongs to its caller after the view disconnects.
   expect(picker.state.status).toBe("ready");
 });
