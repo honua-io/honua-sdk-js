@@ -38,8 +38,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Hardened apt path (Ubuntu sources only, bounded retries): the plain
+      # --with-deps install hung 45 min on an Azure mirror outage (43060250811).
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 20
+        run: |
+          scripts/ci/provision-playwright-deps.sh
+          npx playwright install chromium
 
       - name: Run full-scale deck.gl evidence
         id: benchmark
