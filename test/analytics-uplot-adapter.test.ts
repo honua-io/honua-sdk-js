@@ -15,6 +15,7 @@ import {
   UNBOUNDED,
   acceptCategoryArtifact,
   acceptHistogramArtifact,
+  acceptScatterArtifact,
   acceptTimeSeriesArtifact,
   analyticsArtifactIdentity,
   analyticsProvenance,
@@ -25,7 +26,13 @@ import {
 import type { AnalyticsMeasure } from "../src/analytics/index.js";
 import { createExplorationContext } from "../src/exploration/context.js";
 
-const COUNT: AnalyticsMeasure = { field: "*", fn: "count", label: "Count", unit: "count", unitSystem: "count" };
+const COUNT: AnalyticsMeasure = {
+  field: "*",
+  fn: "count",
+  label: "Count",
+  unit: "count",
+  unitSystem: "count",
+};
 const ACCEPTED_AT = "2026-07-25T12:00:00.000Z";
 
 function timeSeries(sequence = 0, values: readonly number[] = [2, 4, 1]) {
@@ -37,7 +44,10 @@ function timeSeries(sequence = 0, values: readonly number[] = [2, 4, 1]) {
       sequence,
       acceptedAt: ACCEPTED_AT,
     }),
-    provenance: analyticsProvenance({ computedBy: "server", bounds: UNBOUNDED }),
+    provenance: analyticsProvenance({
+      computedBy: "server",
+      bounds: UNBOUNDED,
+    }),
     measure: COUNT,
     title: "Incidents by day",
     dimension: "reported_at",
@@ -59,26 +69,184 @@ function histogram() {
       sourceId: "incidents",
       acceptedAt: ACCEPTED_AT,
     }),
-    provenance: analyticsProvenance({ computedBy: "server", bounds: UNBOUNDED }),
+    provenance: analyticsProvenance({
+      computedBy: "server",
+      bounds: UNBOUNDED,
+    }),
     measure: COUNT,
     dimension: "severity",
     bins: 2,
     marks: [
-      { key: "b0", label: "0–10", value: 5, min: 0, max: 10, boundary: "inclusive-exclusive", bucket: 0 },
-      { key: "b1", label: "10–20", value: null, min: 10, max: 20, boundary: "inclusive-exclusive", bucket: 1 },
+      {
+        key: "b0",
+        label: "0–10",
+        value: 5,
+        min: 0,
+        max: 10,
+        boundary: "inclusive-exclusive",
+        bucket: 0,
+      },
+      {
+        key: "b1",
+        label: "10–20",
+        value: null,
+        min: 10,
+        max: 20,
+        boundary: "inclusive-exclusive",
+        bucket: 1,
+      },
+    ],
+  });
+}
+
+function scatter() {
+  return acceptScatterArtifact({
+    identity: analyticsArtifactIdentity({
+      artifactId: "scatter",
+      sourceId: "incidents",
+      acceptedAt: ACCEPTED_AT,
+    }),
+    provenance: analyticsProvenance({
+      computedBy: "server",
+      bounds: UNBOUNDED,
+    }),
+    measure: COUNT,
+    dimension: "height",
+    yDimension: "weight",
+    marks: [
+      { key: "b", label: "B", x: 30, value: 40, targets: [2] },
+      { key: "a", label: "A", x: 10, value: 20, targets: [1] },
     ],
   });
 }
 
 function category() {
   return acceptCategoryArtifact({
-    identity: analyticsArtifactIdentity({ artifactId: "status", sourceId: "incidents", acceptedAt: ACCEPTED_AT }),
-    provenance: analyticsProvenance({ computedBy: "server", bounds: UNBOUNDED }),
+    identity: analyticsArtifactIdentity({
+      artifactId: "status",
+      sourceId: "incidents",
+      acceptedAt: ACCEPTED_AT,
+    }),
+    provenance: analyticsProvenance({
+      computedBy: "server",
+      bounds: UNBOUNDED,
+    }),
     measure: COUNT,
     dimension: "status",
     marks: [{ key: "s:OPEN", label: "Open", value: 1, filterValue: "OPEN" }],
   });
 }
+
+describe("real µPlot scatter points", () => {
+  it.each(["render", "hover", "redraw", "zoom", "new-data", "live-update", "reset"])(
+    "preserves maximum-x points during %s",
+    async (operation) => {
+      vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+      vi.stubGlobal(
+        "Path2D",
+        class {
+          moveTo() {}
+          arc() {}
+          rect() {}
+        },
+      );
+      const context = new Proxy(
+        { measureText: () => ({ width: 10 }) },
+        {
+          get: (target, key) => Reflect.get(target, key) ?? (() => {}),
+        },
+      );
+      const canvas = vi
+        .spyOn(HTMLCanvasElement.prototype, "getContext")
+        .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+      const { default: Uplot } = await import("uplot");
+      const artifact = acceptScatterArtifact({
+        ...scatter(),
+        marks: [
+          { key: "a", label: "A", x: 10, value: 20, targets: [1] },
+          { key: "b", label: "B", x: 30, value: 40, targets: [2] },
+          { key: "c", label: "C", x: 30, value: 60, targets: [3] },
+        ],
+      });
+      const projection = projectAnalyticsArtifactToUplot(artifact);
+      const target = document.createElement("div");
+      document.body.append(target);
+      const chart = new Uplot(
+        projection.options as unknown as import("uplot").Options,
+        projection.data as unknown as import("uplot").AlignedData,
+        target,
+      );
+      try {
+        await vi.waitFor(() => expect(chart.series[1].idxs).toBeDefined());
+        if (operation === "reset") {
+          chart.over.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, button: 0 }));
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          expect(chart.series[1].idxs).toEqual([0, 2]);
+          const bounds = [chart.scales.x.min, chart.scales.x.max];
+          chart.redraw();
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          expect([chart.scales.x.min, chart.scales.x.max]).toEqual(bounds);
+          return;
+        }
+        if (operation === "live-update") {
+          const bounds = [chart.scales.x.min, chart.scales.x.max];
+          for (let update = 0; update < 3; update++) {
+            chart.setData(
+              [
+                [10, 30, 30],
+                [20, 40, 60 + update],
+              ],
+              false,
+            );
+            chart.redraw();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect([chart.scales.x.min, chart.scales.x.max]).toEqual(bounds);
+          }
+          return;
+        }
+        if (operation === "new-data") {
+          chart.setData([
+            [9, 31, 31],
+            [20, 40, 80],
+          ]);
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          expect(chart.series[1].idxs).toEqual([0, 2]);
+          expect(chart.scales.y.max).toBeGreaterThanOrEqual(80);
+          return;
+        }
+        if (operation === "zoom") {
+          chart.setScale("x", { min: 15, max: 25 });
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          expect(chart.scales.x.min).toBeGreaterThan(10);
+          expect(chart.scales.x.max).toBeLessThan(30);
+          return;
+        }
+        if (operation === "redraw") {
+          const bounds = [chart.scales.x.min, chart.scales.x.max];
+          for (let redraw = 0; redraw < 3; redraw++) {
+            chart.redraw();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect([chart.scales.x.min, chart.scales.x.max]).toEqual(bounds);
+          }
+          return;
+        }
+        if (operation === "render") {
+          expect(chart.series[1].idxs).toEqual([0, 2]);
+          expect(chart.scales.y.max).toBeGreaterThanOrEqual(60);
+          return;
+        }
+        chart.setCursor({ left: chart.valToPos(30, "x"), top: chart.valToPos(60, "y") });
+        expect(chart.cursor.idxs?.[1]).toBe(2);
+        expect(chart.legend.values?.[1]).toEqual({ _: "60" });
+      } finally {
+        chart.destroy();
+        target.remove();
+        canvas.mockRestore();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+});
 
 /**
  * A fake µPlot that records what the adapter handed it and exposes the hooks so
@@ -90,7 +258,7 @@ class FakeUplot implements UplotInstanceLike {
   public static instances: FakeUplot[] = [];
 
   public select: UplotSelectBox = { left: 0, top: 0, width: 0, height: 0 };
-  public cursor: { idx?: number | null } = {};
+  public cursor: { idx?: number | null; left?: number; top?: number } = {};
   public destroyed = false;
   public setDataCalls: Array<{ data: unknown; resetScales?: boolean }> = [];
   public setSelectCalls: UplotSelectBox[] = [];
@@ -159,12 +327,18 @@ function fakeModule() {
 }
 
 function harness(artifact: Parameters<typeof createAnalyticsLinkedSession>[0]["artifact"]) {
-  const ctx = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+  const ctx = createExplorationContext({
+    datasetId: "incidents",
+    sourceIds: ["incidents"],
+  });
   const view = ctx.connectView({ id: "chart", role: "chart" });
   const registry = createAnalyticsAdapterRegistry({
     adapters: [createUplotAnalyticsAdapter({ module: fakeModule() })],
   });
-  return { view, session: createAnalyticsLinkedSession({ view, artifact, registry }) };
+  return {
+    view,
+    session: createAnalyticsLinkedSession({ view, artifact, registry }),
+  };
 }
 
 describe("projectAnalyticsArtifactToUplot", () => {
@@ -195,7 +369,11 @@ describe("projectAnalyticsArtifactToUplot", () => {
   it("accepts option overrides but never lets a caller replace the hooks", () => {
     const projection = projectAnalyticsArtifactToUplot(timeSeries(), {
       width: 800,
-      optionOverrides: { width: 1024, hooks: { setSelect: [] }, legend: { show: false } },
+      optionOverrides: {
+        width: 1024,
+        hooks: { setSelect: [] },
+        legend: { show: false },
+      },
     });
     expect(projection.options.width).toBe(1024);
     expect(projection.options.legend).toEqual({ show: false });
@@ -217,12 +395,19 @@ describe("uPlot adapter: support decisions", () => {
 
   it("declines unsupported and error artifacts", () => {
     const unsupported = unsupportedAnalyticsArtifact({
-      identity: analyticsArtifactIdentity({ artifactId: "a", sourceId: "s", acceptedAt: ACCEPTED_AT }),
+      identity: analyticsArtifactIdentity({
+        artifactId: "a",
+        sourceId: "s",
+        acceptedAt: ACCEPTED_AT,
+      }),
       kind: "time-series",
       measure: COUNT,
       message: "not supported",
     });
-    expect(adapter.describeSupport(unsupported)).toMatchObject({ supported: false, reason: "artifact-invalid" });
+    expect(adapter.describeSupport(unsupported)).toMatchObject({
+      supported: false,
+      reason: "artifact-invalid",
+    });
   });
 
   it("accepts time-series and histogram artifacts", () => {
@@ -235,7 +420,7 @@ describe("uPlot adapter: support decisions", () => {
       id: UPLOT_ANALYTICS_ADAPTER_ID,
       library: "uPlot",
       requiresDom: true,
-      kinds: ["time-series", "histogram"],
+      kinds: ["time-series", "histogram", "scatter"],
     });
   });
 });
@@ -249,7 +434,9 @@ describe("uPlot adapter: optional peer loading", () => {
   });
 
   it("unwraps a default export", async () => {
-    const loaded = await loadUplot({ importModule: async () => ({ default: FakeUplot }) });
+    const loaded = await loadUplot({
+      importModule: async () => ({ default: FakeUplot }),
+    });
     expect(loaded).toBe(FakeUplot);
   });
 
@@ -294,7 +481,9 @@ describe("uPlot adapter: optional peer loading", () => {
 describe("uPlot adapter: linked interactions", () => {
   it("turns a µPlot brush into a temporal filter on shared state", async () => {
     const { session, view } = harness(timeSeries());
-    const presentation = await session.present({ target: document.createElement("div") });
+    const presentation = await session.present({
+      target: document.createElement("div"),
+    });
     const chart = FakeUplot.instances.at(-1)!;
 
     const start = Date.parse("2026-07-01T00:00:00.000Z") / 1000;
@@ -386,15 +575,27 @@ describe("uPlot adapter: linked interactions", () => {
       kind: "temporal-brush",
       adapterId: "peer",
       artifactId: "incidents-by-day",
-      window: { start: "2026-07-02T00:00:00.000Z", end: "2026-07-03T00:00:00.000Z" },
+      window: {
+        start: "2026-07-02T00:00:00.000Z",
+        end: "2026-07-03T00:00:00.000Z",
+      },
     });
 
     const painted = chart.setSelectCalls.at(-1)!;
     expect(painted.left).toBe(Date.parse("2026-07-02T00:00:00.000Z") / 1000);
     expect(painted.width).toBe(86_400);
 
-    session.apply({ kind: "clear", adapterId: "peer", artifactId: "incidents-by-day" });
-    expect(chart.setSelectCalls.at(-1)).toEqual({ left: 0, top: 0, width: 0, height: 0 });
+    session.apply({
+      kind: "clear",
+      adapterId: "peer",
+      artifactId: "incidents-by-day",
+    });
+    expect(chart.setSelectCalls.at(-1)).toEqual({
+      left: 0,
+      top: 0,
+      width: 0,
+      height: 0,
+    });
     session.dispose();
   });
 });
@@ -430,12 +631,21 @@ describe("uPlot adapter: update disposition and disposal", () => {
           sequence: 2,
           acceptedAt: ACCEPTED_AT,
         }),
-        provenance: analyticsProvenance({ computedBy: "server", bounds: UNBOUNDED }),
+        provenance: analyticsProvenance({
+          computedBy: "server",
+          bounds: UNBOUNDED,
+        }),
         measure: COUNT,
         dimension: "reported_at",
         interval: { unit: "day", step: 1 },
         marks: [
-          { key: "d1", label: "Jul 1", value: 7, start: "2026-07-01T00:00:00.000Z", end: "2026-07-02T00:00:00.000Z" },
+          {
+            key: "d1",
+            label: "Jul 1",
+            value: 7,
+            start: "2026-07-01T00:00:00.000Z",
+            end: "2026-07-02T00:00:00.000Z",
+          },
         ],
       }),
     );
@@ -458,7 +668,9 @@ describe("uPlot adapter: update disposition and disposal", () => {
 
   it("destroys the instance and releases the click listener on dispose", async () => {
     const { session } = harness(timeSeries());
-    const presentation = await session.present({ target: document.createElement("div") });
+    const presentation = await session.present({
+      target: document.createElement("div"),
+    });
     const chart = FakeUplot.instances[0];
     expect(chart.listeners.get("click")?.size).toBe(1);
 
@@ -474,7 +686,9 @@ describe("uPlot adapter: update disposition and disposal", () => {
 
   it("is idempotent on repeated dispose", async () => {
     const { session } = harness(histogram());
-    const presentation = await session.present({ target: document.createElement("div") });
+    const presentation = await session.present({
+      target: document.createElement("div"),
+    });
     presentation.handle.dispose();
     expect(() => presentation.handle.dispose()).not.toThrow();
     session.dispose();
@@ -483,7 +697,11 @@ describe("uPlot adapter: update disposition and disposal", () => {
   it("refuses to mount an unsupported kind", async () => {
     const adapter = createUplotAnalyticsAdapter({ module: fakeModule() });
     await expect(
-      adapter.mount({ artifact: category(), host: { emit: () => {} }, target: document.createElement("div") }),
+      adapter.mount({
+        artifact: category(),
+        host: { emit: () => {} },
+        target: document.createElement("div"),
+      }),
     ).rejects.toMatchObject({ code: "adapter-unsupported" });
   });
 
@@ -492,7 +710,10 @@ describe("uPlot adapter: update disposition and disposal", () => {
     const adapter = createUplotAnalyticsAdapter({ module: fakeModule() });
     const handle = await adapter.mount({
       artifact: timeSeries(1),
-      host: { emit: () => {}, reportWarning: (message) => warnings.push(message) },
+      host: {
+        emit: () => {},
+        reportWarning: (message) => warnings.push(message),
+      },
       target: document.createElement("div"),
     });
     const chart = FakeUplot.instances[0];
@@ -527,5 +748,94 @@ describe("uPlot adapter: core bundle hygiene", () => {
     expect(files).not.toMatch(/from\s+["']uplot["']/);
     // Only the variable-specifier dynamic import is allowed.
     expect(files).toMatch(/import\(specifier\)/);
+  });
+});
+
+describe("uPlot scatter", () => {
+  it("sorts points and keys together, draws no connecting path and enables a two-axis brush", () => {
+    const projection = projectAnalyticsArtifactToUplot(scatter());
+    expect(projection.data).toEqual([
+      [10, 30],
+      [20, 40],
+    ]);
+    expect(projection.markKeys).toEqual(["a", "b"]);
+    expect(projection.xUnit).toBe("numeric");
+    expect(projection.options.series[1].paths?.()).toBeNull();
+    expect(projection.options.series[1].points?.show).toBe(true);
+    expect(projection.options.cursor?.drag).toEqual({
+      x: true,
+      y: true,
+      setScale: false,
+    });
+  });
+
+  it("keeps an in-progress drag when hover state changes", async () => {
+    const { session } = harness(scatter());
+    await session.present({ target: document.createElement("div") });
+    const chart = FakeUplot.instances[0];
+    const drag = { left: 5, top: 10, width: 10, height: 15 };
+    chart.select = drag;
+    chart.fireCursor(0);
+    expect(chart.select).toEqual(drag);
+    session.dispose();
+  });
+
+  it("uses both screen coordinates to select points sharing an x value", async () => {
+    const artifact = scatter();
+    const { session, view } = harness(
+      acceptScatterArtifact({
+        ...artifact,
+        marks: artifact.marks.map((mark) => ({ ...mark, x: 10 })),
+      }),
+    );
+    await session.present({ target: document.createElement("div") });
+    const chart = FakeUplot.instances[0];
+    chart.cursor = { idx: 0, left: 10, top: 20 };
+    for (const hook of chart.options.hooks?.setCursor ?? []) hook(chart);
+    expect(session.linkedState.hoveredMarkKey).toBe("a");
+    chart.fireClick();
+    expect(view.state.selection).toEqual([1]);
+    session.dispose();
+  });
+
+  it("links both drag axes, paints peer rectangles and clears without changing peer filters", async () => {
+    const { session, view } = harness(scatter());
+    await session.present({ target: document.createElement("div") });
+    const chart = FakeUplot.instances[0];
+    chart.fireSelect({ left: 5, top: 10, width: 10, height: 15 });
+    expect(session.linkedState.rectangle).toEqual({
+      x: { min: 5, max: 15 },
+      y: { min: 10, max: 25 },
+    });
+    expect(Object.values(view.state.filters)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "height", value: [5, 15] }),
+        expect.objectContaining({ field: "weight", value: [10, 25] }),
+      ]),
+    );
+    expect(chart.setSelectCalls.at(-1)).toEqual({
+      left: 5,
+      top: 10,
+      width: 10,
+      height: 15,
+    });
+    chart.fireCursor(0);
+    chart.fireClick();
+    expect(view.state.selection).toEqual([]);
+    session.apply({
+      kind: "clear",
+      channel: "rectangle",
+      adapterId: "peer",
+      artifactId: "scatter",
+    });
+    expect(chart.setSelectCalls.at(-1)).toEqual({
+      left: 0,
+      top: 0,
+      width: 0,
+      height: 0,
+    });
+    chart.fireSelect({ left: 5, top: 10, width: 10, height: 0 });
+    expect(session.linkedState.rectangle).toBeUndefined();
+    session.dispose();
   });
 });
