@@ -66,7 +66,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-10 at commit `e58dcdb95`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-11 at commit `95121af7e`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -77,8 +77,8 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.2 KiB | 15.0 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 383.9 KiB | 104.3 KiB |
 | Client compatibility layer (drop-in migration surface) | 1076.8 KiB | 270.7 KiB |
-| Geocoding client | 32.7 KiB | 9.2 KiB |
-| Routing client | 26.1 KiB | 7.8 KiB |
+| Geocoding client | 33.0 KiB | 9.3 KiB |
+| Routing client | 28.7 KiB | 8.6 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1589.3 KiB minified / **433.2 KiB gzip**.
