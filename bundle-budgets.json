@@ -1,5 +1,6 @@
 {
  "$comment": [
+  "/analytics/uplot min was reset because splitting the chart helpers under the line budget keeps extra function boundaries in the minified entry. CI at 565ff6b5 measures 14925 minified bytes, 665 over the prior 14260 ceiling. The new ceiling is 16418, ceil(actual * 1.1). Gzip stayed inside 5868, and every other entrypoint ceiling is unchanged.",
   "Scatter selection and the optional uPlot renderer (#2367) add paired-axis ranges, point picking, rectangle selection and stable endpoint padding. Measured /analytics 42,313 minified / 12,919 gzip, /analytics/uplot 12,963 / 4,821, and tree-shake:analytics-core 33,416 / 10,517 bytes. Only these exceeded metrics are reset to measured actual plus 10% headroom.",
   "/controls gzip was reset for #2366: the filter builder adds typed field, spatial and temporal query composition, shared-registry datetime projection, and an accessible web component. The standard report:bundle-sizes command measures 320709 gzip bytes; only this exceeded metric changes to ceil(actual * 1.1), 352780 bytes.",
   "/react min and tree-shake:map-source-workflow min/gzip were reset for #2188: generic feature-service geometry now retains validated nonpoint shapes and reuses canonical polygon topology/winding so separate exteriors and holes survive. Normal CI at c901fc9 measures /react 577017 min bytes and map-source-workflow 50655 min /15308 gzip bytes. Only these exceeded metrics change to ceil(actual * 1.1): 634719, 55721 and16839 bytes. Existing renderer/peer exclusions and all other ceilings remain unchanged. Generated reports use the standard report:bundle-sizes command.",
@@ -251,7 +252,7 @@
    "gzip": 14211
   },
   "/analytics/uplot": {
-   "min": 14260,
+   "min": 16418,
    "gzip": 5868
   },
   "browser-iife": {

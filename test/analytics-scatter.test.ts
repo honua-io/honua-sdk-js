@@ -147,6 +147,17 @@ describe("linked scatter", () => {
     expect(view.state.filters).toEqual({});
   });
 
+  it.each([
+    { x: null, y: { min: 0, max: 1 } },
+    { x: { min: 0, max: 1 }, y: null },
+  ])("rejects a null rectangle axis as artifact-invalid", (invalid) => {
+    const { view, binding } = setup();
+    expect(() => binding.apply({ ...envelope, kind: "rectangle-brush", rectangle: invalid as never })).toThrowError(
+      expect.objectContaining({ code: "artifact-invalid" }),
+    );
+    expect(view.state.filters).toEqual({});
+  });
+
   it("validates finite coordinates and distinct axis fields and freezes its accepted marks", () => {
     expect(() =>
       acceptScatterArtifact({ ...options(), marks: [{ key: "a", label: "A", x: Number.NaN, value: 1 }] }),
