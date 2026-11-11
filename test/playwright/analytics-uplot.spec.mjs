@@ -250,3 +250,55 @@ test("the real scatter chart drag publishes two bounds without selecting the rel
     await server.close();
   }
 });
+
+test("real uPlot paints a peer-selected scatter point in the selection color", async ({ page }) => {
+  const server = await startSdkFixtureServer();
+  try {
+    await page.goto(server.url);
+    await page.evaluate(async () => {
+      const a = await import("/dist/src/analytics/index.js");
+      const { createUplotAnalyticsAdapter } = await import("/dist/src/analytics/adapters/uplot.js");
+      const { createExplorationContext } = await import("/dist/src/exploration/context.js");
+      const uplot = await import("/node_modules/uplot/dist/uPlot.esm.js");
+      const context = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+      const view = context.connectView({ id: "scatter", role: "chart" });
+      const peer = context.connectView({ id: "map", role: "map" });
+      const artifact = a.acceptScatterArtifact({
+        identity: a.analyticsArtifactIdentity({ artifactId: "scatter", sourceId: "s", acceptedAt: "2026-11-10T00:00:00Z" }),
+        provenance: a.analyticsProvenance({ computedBy: "server", bounds: a.UNBOUNDED }),
+        dimension: "height", yDimension: "weight", measure: { field: "weight", fn: "avg" },
+        marks: [
+          { key: "a", label: "A", x: 10, value: 20, targets: [{ sourceId: "s", id: 1 }] },
+          { key: "b", label: "B", x: 30, value: 40, targets: [{ sourceId: "s", id: 2 }] },
+        ],
+      });
+      const registry = a.createAnalyticsAdapterRegistry({ adapters: [createUplotAnalyticsAdapter({ module: uplot })] });
+      const session = a.createAnalyticsLinkedSession({ view, artifact, registry });
+      const target = document.createElement("div");
+      document.body.append(target);
+      const presentation = await session.present({ target });
+      window.scatterColorFixture = { session, peer, chart: presentation.handle.chart };
+    });
+    const before = await page.evaluate(() => window.scatterColorFixture.chart.ctx.canvas.toDataURL());
+    await page.evaluate(() => window.scatterColorFixture.peer.select([{ sourceId: "s", id: 2 }], { replace: true }));
+    const after = await page.evaluate(() => {
+      const chart = window.scatterColorFixture.chart;
+      const { width, height } = chart.ctx.canvas;
+      const pixels = chart.ctx.getImageData(0, 0, width, height).data;
+      let selected = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const red = pixels[index];
+        const green = pixels[index + 1];
+        const blue = pixels[index + 2];
+        if (Math.abs(red - 154) <= 8 && Math.abs(green - 52) <= 8 && Math.abs(blue - 18) <= 8) selected += 1;
+      }
+      return { selected, keys: window.scatterColorFixture.session.linkedState.selectedMarkKeys };
+    });
+    expect(before).not.toBe("");
+    expect(after.keys).toEqual(["b"]);
+    expect(after.selected).toBeGreaterThan(0);
+    await page.evaluate(() => window.scatterColorFixture.session.dispose());
+  } finally {
+    await server.close();
+  }
+});

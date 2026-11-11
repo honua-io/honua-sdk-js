@@ -41,8 +41,8 @@ import type {
   AnalyticsTimeSeriesArtifact,
 } from "../types.js";
 
-const SCATTER_POINT = "#1d4e89";
 const SCATTER_POINT_SELECTED = "#9a3412";
+const SCATTER_SELECTED_RADIUS = 6;
 
 /** Adapter id, stable across releases. */
 export const UPLOT_ANALYTICS_ADAPTER_ID = "honua.uplot";
@@ -79,8 +79,16 @@ export interface UplotInstanceLike {
   setData(data: ReadonlyArray<ReadonlyArray<number | null>>, resetScales?: boolean): void;
   setSelect(box: UplotSelectBox, fireHook?: boolean): void;
   posToVal(position: number, scaleKey: string): number;
-  valToPos(value: number, scaleKey: string): number;
+  valToPos(value: number, scaleKey: string, canvasPixels?: boolean): number;
   redraw?(rebuildPaths?: boolean): void;
+  /** Present only while the chart is drawing. Real µPlot sets this before `hooks.draw`. */
+  readonly ctx?: {
+    fillStyle: string;
+    beginPath(): void;
+    moveTo(x: number, y: number): void;
+    arc(x: number, y: number, radius: number, startAngle: number, endAngle: number): void;
+    fill(): void;
+  };
   destroy(): void;
 }
 
@@ -100,7 +108,7 @@ export interface UplotSeriesOptions {
   readonly width?: number;
   readonly points?: {
     readonly show?: boolean;
-    readonly stroke?: string | ((self: UplotInstanceLike, seriesIdx: number, dataIdx: number) => string);
+    readonly stroke?: string;
   };
   readonly value?: unknown;
   readonly paths?: () => null;
@@ -131,6 +139,7 @@ export interface UplotOptions {
     readonly setSelect?: ReadonlyArray<(self: UplotInstanceLike) => void>;
     readonly setCursor?: ReadonlyArray<(self: UplotInstanceLike) => void>;
     readonly setScale?: ReadonlyArray<(self: UplotInstanceLike) => void>;
+    readonly draw?: ReadonlyArray<(self: UplotInstanceLike) => void>;
   };
   readonly [extra: string]: unknown;
 }
@@ -518,18 +527,41 @@ export function createUplotAnalyticsAdapter(
         paintRectangle(activeRectangle);
       }
 
-      function pointStroke(_self: UplotInstanceLike, _seriesIdx: number, dataIdx: number): string {
-        const key = projection.markKeys[dataIdx];
-        return key !== undefined && highlightedMarkKeys.has(key) ? SCATTER_POINT_SELECTED : SCATTER_POINT;
+      function drawSelectedScatterPoints(self: UplotInstanceLike): void {
+        if (artifact.kind !== "scatter" || highlightedMarkKeys.size === 0) return;
+        const ctx = self.ctx;
+        const data = self.data ?? projection.data;
+        if (!ctx || data.length < 2) return;
+        const xs = data[0];
+        const ys = data[1];
+        ctx.beginPath();
+        let drew = false;
+        for (let index = 0; index < xs.length; index += 1) {
+          const key = projection.markKeys[index];
+          const x = xs[index];
+          const y = ys[index];
+          if (key === undefined || !highlightedMarkKeys.has(key) || x == null || y == null) continue;
+          const px = self.valToPos(x, "x", true);
+          const py = self.valToPos(y, "y", true);
+          if (!Number.isFinite(px) || !Number.isFinite(py)) continue;
+          ctx.moveTo(px + SCATTER_SELECTED_RADIUS, py);
+          ctx.arc(px, py, SCATTER_SELECTED_RADIUS, 0, Math.PI * 2);
+          drew = true;
+        }
+        if (!drew) return;
+        ctx.fillStyle = SCATTER_POINT_SELECTED;
+        ctx.fill();
       }
 
       function build(): void {
         const options: UplotOptions = {
           ...projection.options,
-          series: projection.options.series.map((series, index) =>
-            index === 0 ? series : { ...series, points: { ...series.points, stroke: pointStroke } },
-          ),
-          hooks: { setSelect: [emitBrush], setCursor: [emitHover], setScale: [restoreRectangle] },
+          hooks: {
+            setSelect: [emitBrush],
+            setCursor: [emitHover],
+            setScale: [restoreRectangle],
+            ...(artifact.kind === "scatter" ? { draw: [drawSelectedScatterPoints] } : {}),
+          },
         };
         instance = new Uplot(options, projection.data, request.target);
 

@@ -263,6 +263,13 @@ class FakeUplot implements UplotInstanceLike {
   public setDataCalls: Array<{ data: unknown; resetScales?: boolean }> = [];
   public setSelectCalls: UplotSelectBox[] = [];
   public redrawCalls = 0;
+  public ctx?: {
+    fillStyle: string;
+    beginPath(): void;
+    moveTo(x: number, y: number): void;
+    arc(x: number, y: number, radius: number, startAngle: number, endAngle: number): void;
+    fill(): void;
+  };
   public readonly listeners = new Map<string, Set<(event: unknown) => void>>();
 
   public readonly over = {
@@ -603,6 +610,15 @@ describe("uPlot adapter: linked interactions", () => {
     });
     session.dispose();
   });
+
+  it("leaves time-series point styling to the chart", async () => {
+    const { session } = harness(timeSeries());
+    await session.present({ target: document.createElement("div") });
+    const chart = FakeUplot.instances[0];
+    expect(chart.options.series[1].points?.stroke).toBeUndefined();
+    expect(chart.options.hooks?.draw).toBeUndefined();
+    session.dispose();
+  });
 });
 
 describe("uPlot adapter: update disposition and disposal", () => {
@@ -859,11 +875,25 @@ describe("uPlot scatter", () => {
     });
     expect(chart.setSelectCalls).toHaveLength(paints);
     expect(chart.redrawCalls).toBeGreaterThan(0);
-    const points = chart.options.series[1].points as {
-      stroke?: (self: FakeUplot, seriesIdx: number, dataIdx: number) => string;
+    expect(chart.options.series[1].points?.stroke).toBeUndefined();
+    const draw = chart.options.hooks?.draw?.[0];
+    expect(typeof draw).toBe("function");
+    const arcs: number[] = [];
+    const fills: string[] = [];
+    chart.ctx = {
+      fillStyle: "",
+      beginPath() {},
+      moveTo() {},
+      arc(x: number) {
+        arcs.push(x);
+      },
+      fill() {
+        fills.push(String(this.fillStyle));
+      },
     };
-    expect(typeof points.stroke).toBe("function");
-    expect(points.stroke?.(chart, 1, 1)).not.toBe(points.stroke?.(chart, 1, 0));
+    draw?.(chart);
+    expect(arcs).toEqual([30]);
+    expect(fills).toEqual(["#9a3412"]);
     session.dispose();
   });
 
