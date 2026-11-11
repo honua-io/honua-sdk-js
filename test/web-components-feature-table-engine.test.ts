@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Capability, Query, Result, SortSpec, SourceDescriptor } from "../src/contract/index.js";
+import {
+  COLUMNS,
+  type Fixture,
+  type Row,
+  TOTAL_ROWS,
+  descriptor,
+  makeFixture,
+  makeTable,
+  statusFilter,
+} from "./feature-table-engine-fixture.js";
+
+import type { Query, Result, SortSpec } from "../src/contract/index.js";
 import { createExplorationContext } from "../src/exploration/index.js";
 import type { FilterClause } from "../src/filter-registry/index.js";
 import type { QueryExecutionPlan } from "../src/query-planner/index.js";
-import type {
-  HonuaFeatureTable,
-  HonuaFeatureTableQuerySource,
-  HonuaFeatureTableRealtimeDiff,
-} from "../src/web-components/index.js";
+import type { HonuaFeatureTableQuerySource, HonuaFeatureTableRealtimeDiff } from "../src/web-components/index.js";
 import {
   DEFAULT_FEATURE_TABLE_BUDGETS,
   createHonuaFeatureTable,
@@ -33,111 +40,6 @@ import {
  * observable property (the fixture counts every row it hands out) rather than a
  * claim.
  */
-
-type Row = { OBJECTID: number; NAME: string; STATUS: string; SEVERITY: number };
-
-const TOTAL_ROWS = 5_000;
-
-interface Fixture {
-  readonly source: HonuaFeatureTableQuerySource<Row>;
-  readonly requests: Query<Row>[];
-  rowsServed: number;
-}
-
-function descriptor(capabilities: readonly Capability[] = ["query", "stream"]): SourceDescriptor {
-  return {
-    id: "incidents",
-    protocol: "geoservices-feature-service",
-    locator: { url: "https://example.test/FeatureServer/0" },
-    capabilities: new Set(capabilities),
-    schema: { primaryKey: "OBJECTID" },
-  };
-}
-
-function makeRow(index: number): Row {
-  return {
-    OBJECTID: index + 1,
-    NAME: `Incident ${index + 1}`,
-    STATUS: index % 3 === 0 ? "open" : "closed",
-    SEVERITY: (index % 5) + 1,
-  };
-}
-
-/** Materializes only the page it is asked for — never the whole fixture. */
-function makeFixture(
-  options: {
-    readonly totalRows?: number;
-    readonly reportTotalCount?: boolean;
-    readonly rows?: (index: number) => Row;
-    readonly capabilities?: readonly Capability[];
-  } = {},
-): Fixture {
-  const total = options.totalRows ?? TOTAL_ROWS;
-  const build = options.rows ?? makeRow;
-  const requests: Query<Row>[] = [];
-  const fixture: Fixture = {
-    requests,
-    rowsServed: 0,
-    source: {
-      descriptor: descriptor(options.capabilities),
-      async query(request?: Query<Row>): Promise<Result<Row>> {
-        requests.push(request ?? {});
-        const offset = request?.pagination?.offset ?? 0;
-        const limit = request?.pagination?.limit ?? 10;
-        const features = [];
-        for (let index = offset; index < Math.min(offset + limit, total); index += 1) {
-          features.push({ attributes: build(index) });
-        }
-        fixture.rowsServed += features.length;
-        return {
-          features,
-          exceededTransferLimit: offset + features.length < total,
-          ...(options.reportTotalCount === false ? {} : { totalCount: total }),
-        };
-      },
-      async *stream(request?: Query<Row>): AsyncGenerator<Result<Row>, void, undefined> {
-        const limit = request?.pagination?.limit ?? 10;
-        for (let offset = 0; offset < total; offset += limit) {
-          const features = [];
-          for (let index = offset; index < Math.min(offset + limit, total); index += 1) {
-            features.push({ attributes: build(index) });
-          }
-          fixture.rowsServed += features.length;
-          yield { features, exceededTransferLimit: offset + features.length < total };
-        }
-      },
-    },
-  };
-  return fixture;
-}
-
-const COLUMNS = [
-  { field: "OBJECTID", label: "ID", type: "integer" as const },
-  { field: "NAME", label: "Name", type: "string" as const },
-  { field: "STATUS", label: "Status", type: "string" as const },
-  { field: "SEVERITY", label: "Severity", type: "number" as const },
-];
-
-function makeTable(fixture: Fixture, overrides: Record<string, unknown> = {}): HonuaFeatureTable<Row> {
-  return createHonuaFeatureTable<Row>({
-    source: fixture.source,
-    sourceId: "incidents",
-    columns: COLUMNS,
-    budgets: { pageSize: 50, maxCachedRows: 150, windowOverscan: 0 },
-    ...overrides,
-  });
-}
-
-function statusFilter(value: string): FilterClause {
-  return {
-    id: "status",
-    owner: { kind: "table", id: "grid" },
-    field: "STATUS",
-    operator: "=",
-    value,
-    effect: "filter",
-  };
-}
 
 describe("bounded feature table: paging, sort, filter, selection without materialization", () => {
   let fixture: Fixture;
@@ -188,6 +90,7 @@ describe("bounded feature table: paging, sort, filter, selection without materia
     expect(fixture.requests.at(-1)?.orderBy).toEqual([
       { field: "SEVERITY", direction: "desc" },
       { field: "NAME", direction: "asc" },
+      { field: "OBJECTID", direction: "asc" },
     ]);
   });
 

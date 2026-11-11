@@ -29,11 +29,21 @@ import {
   HonuaFeatureEditorElement,
 } from "./feature-editor.js";
 import { HonuaFeatureInspectionElement } from "./feature-inspection.js";
-import type {
-  HonuaFeatureTable,
-  HonuaFeatureTableConflict,
-  HonuaFeatureTableFocusMove,
-  HonuaFeatureTableSnapshot,
+import {
+  applicationDiagnosticsForTable,
+  applicationTargetsForRows,
+  isApplicationSelectionTarget,
+  mapStatusStyles,
+  revealedRowIndex,
+  scrollTopForRevealedRow,
+  tableStyles,
+} from "./feature-table-chrome.js";
+import {
+  type HonuaFeatureTable,
+  type HonuaFeatureTableConflict,
+  type HonuaFeatureTableFocusMove,
+  type HonuaFeatureTableSnapshot,
+  featureTableWindow,
 } from "./feature-table-engine.js";
 import {
   type HonuaFeatureTableMessages,
@@ -863,6 +873,13 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   #announcedConflicts = "";
   #tableConnected = false;
   #restoringScroll = false;
+  #ignoreClickSelection = false;
+  #pointerGesture = 0;
+  #endPointerGesture: (() => void) | undefined;
+  #applyingContext = false;
+  #publishingApplication = false;
+  #contextFollowUp: HonuaApplicationContextChangeEvent<T> | undefined;
+  #alignedWindowStart = -1;
   #messages: HonuaFeatureTableMessages = {};
   #applicationContext: HonuaApplicationContext<T> | undefined;
 
@@ -894,6 +911,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     this.#tableUnsubscribe = undefined;
     this.#table = table;
     this.#tableSnapshot = table?.snapshot;
+    this.#alignedWindowStart = -1;
     // Only hold a subscription while connected; `connectedCallback()` re-takes
     // it so a detached-then-reinserted grid resumes updating.
     this.#subscribeTable();
@@ -966,6 +984,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 
   public disconnectedCallback(): void {
+    this.#endPointerGesture?.();
     super.disconnectedCallback();
     this.#tableConnected = false;
     this.#tableUnsubscribe?.();
@@ -1029,11 +1048,13 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     // `setScroll` itself publishes. Carry the offset across the swap.
     const previousScrollTop = this.#scroller()?.scrollTop ?? 0;
     const previousScrollLeft = this.#scroller()?.scrollLeft ?? 0;
+    const restoreFocus = this.shadowRoot?.activeElement != null;
     this.setShadowHtml(
       `<style>${baseStyles()}${tableStyles()}${featureTableGridStyles()}</style>${this.#applicationPresentationHtml()}${featureTableGridHtml(viewModel)}`,
     );
     this.#bindGrid();
-    this.#restoreScroll(previousScrollTop, previousScrollLeft);
+    this.#placeWindow(previousScrollTop, previousScrollLeft);
+    if (restoreFocus) this.#restoreFocusedCell();
   }
 
   #scroller(): HTMLElement | null {
@@ -1064,15 +1085,23 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       this.render();
       return;
     }
-    if (snapshot.authorization.status === "unauthorized") table.cancel();
-    if (!event || event.changed.includes("selection")) {
-      const targets = snapshot.selection.filter(isApplicationSelectionTarget);
-      const keys = table.keysForTargets(targets);
-      if (!sameApplicationValue(table.snapshot.selection, keys)) table.select(keys, { replace: true });
+    if (snapshot.authorization.status === "unauthorized") {
+      // Cancel publishes. Clear first, or that publish writes the previous
+      // principal's selection back over the replacement.
+      this.#applyApplicationSelection(table);
+      table.cancel();
     }
-    if (!event || event.changed.includes("filters")) {
-      const filters = snapshot.filters.filter(isApplicationFilterClause);
-      if (!sameApplicationValue(table.snapshot.filters, filters)) void table.setFilters(filters);
+    if (this.#applyingContext) {
+      if (event?.changed.includes("selection") && !this.#publishingApplication) {
+        this.#applyApplicationSelection(table);
+        const primary = this.#applicationContext?.snapshot.selection
+          .filter(isApplicationSelectionTarget)
+          .find((target) => table.keysForTargets([target]).length > 0);
+        if (primary) void table.reveal(primary, { select: false }).catch(() => undefined);
+      }
+      if (!this.#publishingApplication && event) this.#contextFollowUp = event;
+    } else {
+      void this.#syncApplicationTable(event, table).catch(() => undefined);
     }
     if (
       event &&
@@ -1085,6 +1114,77 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     this.render();
   }
 
+  #applyApplicationSelection(table: HonuaFeatureTable<T>): void {
+    const snapshot = this.#applicationContext?.snapshot;
+    if (!snapshot) return;
+    const targets = snapshot.selection.filter(isApplicationSelectionTarget);
+    const keys = table.keysForTargets(targets);
+    if (!sameApplicationValue(table.snapshot.selection, keys)) table.select(keys, { replace: true });
+  }
+
+  async #syncApplicationTable(
+    event: HonuaApplicationContextChangeEvent<T> | undefined,
+    table: HonuaFeatureTable<T>,
+  ): Promise<void> {
+    const snapshot = this.#applicationContext?.snapshot;
+    if (!snapshot) return;
+    this.#applyingContext = true;
+    try {
+      if (!event || event.changed.includes("selection")) this.#applyApplicationSelection(table);
+      if (!event || event.changed.includes("filters")) {
+        const filters = snapshot.filters.filter(isApplicationFilterClause);
+        if (!sameApplicationValue(table.snapshot.filters, filters)) await table.setFilters(filters);
+      }
+      if (this.#table !== table) return;
+      if (!event || event.changed.includes("selection")) {
+        const targets = (this.#applicationContext?.snapshot ?? snapshot).selection.filter(isApplicationSelectionTarget);
+        const primary = targets.find((target) => table.keysForTargets([target]).length > 0);
+        if (primary) await table.reveal(primary, { select: false });
+      }
+    } finally {
+      this.#applyingContext = false;
+    }
+    const followUp = this.#contextFollowUp;
+    if (!followUp || this.#table !== table) return;
+    this.#contextFollowUp = undefined;
+    this.#applyApplicationContext(followUp);
+  }
+
+  #placeWindow(previousScrollTop: number, previousScrollLeft: number): void {
+    const snapshot = this.#tableSnapshot;
+    const scroller = this.#scroller();
+    if (!snapshot || !scroller) {
+      this.#restoreScroll(previousScrollTop, previousScrollLeft);
+      return;
+    }
+    const rowHeight = this.rowHeight();
+    const overscan = snapshot.budgets.windowOverscan;
+    const windowMoved = snapshot.window.startIndex !== this.#alignedWindowStart;
+    if (!windowMoved) {
+      this.#restoreScroll(previousScrollTop, previousScrollLeft);
+      return;
+    }
+    const viewportHeight = scroller.clientHeight || rowHeight * 10;
+    const totalRows = snapshot.count.kind === "known" ? snapshot.count.value : undefined;
+    const implied = featureTableWindow(
+      { scrollTop: previousScrollTop, rowHeight, viewportHeight },
+      { overscan, ...(totalRows === undefined ? {} : { totalRows }) },
+    );
+    this.#alignedWindowStart = snapshot.window.startIndex;
+    const scrollTop =
+      implied.startIndex === snapshot.window.startIndex
+        ? previousScrollTop
+        : scrollTopForRevealedRow({
+            index: revealedRowIndex(snapshot),
+            windowStart: snapshot.window.startIndex,
+            windowEnd: snapshot.window.endIndex,
+            rowHeight,
+            viewportHeight,
+            overscan,
+          });
+    this.#restoreScroll(scrollTop, previousScrollLeft);
+  }
+
   #publishApplicationState(snapshot: HonuaFeatureTableSnapshot<T>): void {
     const context = this.#applicationContext;
     if (!context || context.disposed) return;
@@ -1092,53 +1192,23 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     const peers = context.snapshot.selection.filter(
       (entry) => !isApplicationSelectionTarget(entry) || entry.sourceId !== sourceId,
     );
-    const selectionTargets = this.#table?.selectionTargets() ?? [];
-    const selected = snapshot.selection
-      .map((key, index) => {
-        const row = snapshot.rows.find((candidate) => candidate?.key === key);
-        const target = row?.target ?? selectionTargets[index];
-        if (!target) return undefined;
-        return row && isApplicationSelectionTarget(target)
-          ? { ...target, attributes: row.attributes, ...(row.geometry !== undefined ? { geometry: row.geometry } : {}) }
-          : target;
-      })
-      .filter((entry) => entry !== undefined);
+    const selected = applicationTargetsForRows(snapshot, this.#table?.selectionTargets() ?? []);
     const selection = [...peers, ...selected];
     const filters = snapshot.filters;
-    const componentId = "honua-feature-table";
-    const tableDiagnostics = [
-      ...(snapshot.error
-        ? [
-            {
-              code: "feature-table-query-failed",
-              message:
-                snapshot.error instanceof Error
-                  ? snapshot.error.message
-                  : (snapshot.message ?? "The table query failed."),
-              severity: "error" as const,
-              componentId,
-              status: "failed" as const,
-            },
-          ]
-        : []),
-      ...snapshot.conflicts.map((conflict) => ({
-        code: `feature-table-${conflict.code}`,
-        message: conflict.message,
-        severity: "warning" as const,
-        componentId,
-        status: "degraded" as const,
-      })),
-    ];
-    const diagnostics = [
-      ...context.snapshot.diagnostics.filter((entry) => entry.componentId !== componentId),
-      ...tableDiagnostics,
-    ];
+    const diagnostics = applicationDiagnosticsForTable(context.snapshot.diagnostics, snapshot);
+    const unauthorized = context.snapshot.authorization.status === "unauthorized";
     const update = {
-      ...(!sameApplicationValue(context.snapshot.selection, selection) ? { selection } : {}),
-      ...(!sameApplicationValue(context.snapshot.filters, filters) ? { filters } : {}),
+      ...(!unauthorized && !sameApplicationValue(context.snapshot.selection, selection) ? { selection } : {}),
+      ...(!this.#applyingContext && !sameApplicationValue(context.snapshot.filters, filters) ? { filters } : {}),
       ...(!sameApplicationValue(context.snapshot.diagnostics, diagnostics) ? { diagnostics } : {}),
     };
-    if (Object.keys(update).length > 0) context.update(update);
+    if (Object.keys(update).length === 0) return;
+    this.#publishingApplication = true;
+    try {
+      context.update(update);
+    } finally {
+      this.#publishingApplication = false;
+    }
   }
 
   #applicationPresentationHtml(): string {
@@ -1185,10 +1255,17 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       });
     }
     for (const row of root.querySelectorAll<HTMLTableRowElement>("tbody tr[data-feature-id]")) {
-      row.addEventListener("click", () => this.selectRow(row));
+      row.addEventListener("click", () => {
+        if (this.#ignoreClickSelection) {
+          this.#ignoreClickSelection = false;
+          return;
+        }
+        this.selectRow(row);
+      });
       row.addEventListener("keydown", (event) => this.#onRowKeydown(event as KeyboardEvent, row));
     }
     for (const cell of root.querySelectorAll<HTMLTableCellElement>('tbody [role="gridcell"]')) {
+      cell.addEventListener("pointerdown", () => this.#selectCellFromPointer(cell));
       cell.addEventListener("focus", () => this.#focusCell(cell));
       cell.addEventListener("keydown", (event) => this.#onGridKeydown(event as KeyboardEvent, cell));
     }
@@ -1231,6 +1308,43 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     if (!cell) return;
     event.preventDefault();
     cell.focus();
+  }
+
+  /**
+   * Pointer selection has to happen on pointerdown. Focus publishes a new
+   * shadow tree before click, so the pressed cell is gone by the time click
+   * would have selected it. The click that follows pointerup is the same
+   * gesture and must not select a second time.
+   */
+  #selectCellFromPointer(cell: HTMLTableCellElement): void {
+    const row = cell.closest<HTMLTableRowElement>("tr");
+    if (!row) return;
+    const rowKey = row.dataset.rowKey;
+    const field = cell.dataset.field;
+    const gesture = ++this.#pointerGesture;
+    this.#ignoreClickSelection = true;
+    this.selectRow(row);
+    if (this.#table && rowKey && field) {
+      this.#table.setFocus({ rowKey, field });
+      this.#restoreFocusedCell();
+    }
+    this.#endPointerGesture?.();
+    const doc = this.ownerDocument;
+    const release = () => {
+      doc.removeEventListener("pointerup", release);
+      doc.removeEventListener("pointercancel", release);
+      if (this.#endPointerGesture === release) this.#endPointerGesture = undefined;
+      // The click is dispatched after pointerup listeners return. A held press
+      // must not clear the flag before that click, and a press that never
+      // produces a click must not swallow a later one. The release can land
+      // outside the host, so the document observes it.
+      setTimeout(() => {
+        if (this.#pointerGesture === gesture) this.#ignoreClickSelection = false;
+      }, 0);
+    };
+    this.#endPointerGesture = release;
+    doc.addEventListener("pointerup", release);
+    doc.addEventListener("pointercancel", release);
   }
 
   #focusCell(cell: HTMLTableCellElement): void {
@@ -3163,19 +3277,6 @@ function escapeAttribute(value: string): string {
   return escapeHtml(value).replace(/'/g, "&#39;");
 }
 
-function isApplicationSelectionTarget(
-  value: unknown,
-): value is { readonly sourceId: string; readonly id: string | number } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "sourceId" in value &&
-    typeof value.sourceId === "string" &&
-    "id" in value &&
-    (typeof value.id === "string" || typeof value.id === "number")
-  );
-}
-
 function isApplicationFilterClause(value: unknown): value is FilterClause {
   if (typeof value !== "object" || value === null || !("id" in value) || !("owner" in value)) return false;
   const owner = value.owner;
@@ -3265,7 +3366,8 @@ function mapStyles(): string {
     }
     .map__chrome, .map__footer {
       align-items: center;
-      background: rgba(255, 255, 255, 0.9);
+      background: var(--honua-ui-bg);
+      color: var(--honua-ui-fg);
       display: flex;
       gap: 8px;
       justify-content: space-between;
@@ -3309,9 +3411,9 @@ function mapStyles(): string {
       position: absolute;
     }
     .map__status {
-      background: rgba(255,255,255,0.86);
+      background: var(--honua-ui-bg);
       border-radius: 6px;
-      color: var(--honua-ui-muted);
+      color: var(--honua-ui-fg);
       inset-block-start: 10px;
       inset-inline-start: 10px;
       padding-block: 4px;
@@ -3434,52 +3536,6 @@ function layerListStyles(): string {
       .layer-row__tools { flex-wrap: wrap; padding-left: 0; }
       .opacity { min-width: 0; width: 100%; }
       .move { flex: 1 1 32px; }
-    }
-  `;
-}
-
-function tableStyles(): string {
-  return `
-    :host { direction: inherit; }
-    :host([dir="rtl"]) { direction: rtl; }
-    .table-panel {
-      border: 1px solid var(--honua-ui-border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .table-panel__bar {
-      align-items: center;
-      background: var(--honua-ui-surface);
-      display: flex;
-      justify-content: space-between;
-      padding-block: 8px;
-      padding-inline: 10px;
-    }
-    .table-wrap { max-height: 300px; overflow: auto; }
-    table { border-collapse: collapse; min-width: 100%; table-layout: fixed; }
-    th, td {
-      border-top: 1px solid var(--honua-ui-border);
-      overflow: hidden;
-      padding-block: 7px;
-      padding-inline: 9px;
-      text-align: start;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    th { background: #f8fafc; font-weight: 650; }
-    tr[aria-selected="true"] td { background: #dbeafe; }
-    tbody tr[data-feature-id] { cursor: pointer; }
-    tbody tr[data-feature-id]:focus { outline: 2px solid var(--honua-ui-accent); outline-offset: -2px; }
-    @media (forced-colors: active), (prefers-contrast: more) {
-      .table-panel {
-        background: Canvas;
-        border-color: CanvasText;
-        color: CanvasText;
-      }
-      .table-panel__bar, th { background: Canvas; color: CanvasText; }
-      th, td { border-top-color: CanvasText; }
-      tr[aria-selected="true"] td { background: Highlight; color: HighlightText; }
-      tbody tr[data-feature-id]:focus { outline-color: Highlight; }
     }
   `;
 }
@@ -3781,59 +3837,6 @@ function actionPanelStyles(): string {
         border-color: GrayText;
         color: GrayText;
       }
-    }
-  `;
-}
-
-function mapStatusStyles(): string {
-  return `
-    .map-status {
-      align-items: center;
-      background: var(--honua-ui-bg);
-      border: 1px solid var(--honua-ui-border);
-      border-radius: 8px;
-      display: flex;
-      direction: inherit;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: space-between;
-      min-height: 42px;
-      padding-block: 6px;
-      padding-inline: 8px;
-    }
-    span {
-      color: var(--honua-ui-muted);
-      min-width: 0;
-      text-align: start;
-    }
-    .map-status button { text-align: start; }
-    @media (forced-colors: active), (prefers-contrast: more) {
-      .map-status {
-        background: Canvas;
-        border-color: CanvasText;
-        color: CanvasText;
-      }
-      .map-status span { color: CanvasText; }
-      .map-status button {
-        background: ButtonFace;
-        border: 2px solid ButtonText;
-        color: ButtonText;
-        forced-color-adjust: none;
-      }
-      :host([data-status="unsupported"]) .map-status {
-        border-color: GrayText;
-        color: GrayText;
-      }
-      :host([data-status="unsupported"]) .map-status span { color: GrayText; }
-      :host([data-status="error"]) .map-status {
-        border-color: Mark;
-        color: MarkText;
-      }
-      :host([data-status="error"]) .map-status span { color: MarkText; }
-    }
-    @media (max-width: 240px) {
-      .map-status { align-items: flex-start; flex-direction: column; }
-      .map-status button { inline-size: 100%; }
     }
   `;
 }

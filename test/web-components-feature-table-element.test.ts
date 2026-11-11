@@ -2,9 +2,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Query, Result, SourceDescriptor } from "../src/contract/index.js";
+import { type Row, TOTAL, descriptor, makeEngine, mount, shadow } from "./feature-table-element-fixture.js";
+
+import type { Query } from "../src/contract/index.js";
 import type {
-  HonuaFeatureTable,
   HonuaFeatureTableConflictDetail,
   HonuaFeatureTableElement,
   HonuaSelectionChangeDetail,
@@ -27,57 +28,6 @@ import {
  * contract, roving tabindex, keyboard navigation, virtualization spacers,
  * header sort, conflict announcement, and the unchanged controller lane.
  */
-
-type Row = { OBJECTID: number; NAME: string; SEVERITY: number };
-
-const TOTAL = 400;
-
-function descriptor(): SourceDescriptor {
-  return {
-    id: "incidents",
-    protocol: "geoservices-feature-service",
-    locator: { url: "https://example.test/FeatureServer/0" },
-    capabilities: new Set(["query"]),
-    schema: { primaryKey: "OBJECTID" },
-  };
-}
-
-function makeEngine(): HonuaFeatureTable<Row> {
-  return createHonuaFeatureTable<Row>({
-    source: {
-      descriptor: descriptor(),
-      async query(request?: Query<Row>): Promise<Result<Row>> {
-        const offset = request?.pagination?.offset ?? 0;
-        const limit = request?.pagination?.limit ?? 10;
-        const features = [];
-        for (let index = offset; index < Math.min(offset + limit, TOTAL); index += 1) {
-          features.push({ attributes: { OBJECTID: index + 1, NAME: `Incident ${index + 1}`, SEVERITY: index % 5 } });
-        }
-        return { features, exceededTransferLimit: offset + features.length < TOTAL, totalCount: TOTAL };
-      },
-    },
-    sourceId: "incidents",
-    columns: [
-      { field: "OBJECTID", label: "ID", type: "integer" },
-      { field: "NAME", label: "Name", type: "string" },
-      { field: "SEVERITY", label: "Severity", type: "number" },
-    ],
-    budgets: { pageSize: 20, windowOverscan: 0 },
-  });
-}
-
-function mount(): HonuaFeatureTableElement<Row> {
-  defineHonuaWebComponents();
-  const element = document.createElement("honua-feature-table") as HonuaFeatureTableElement<Row>;
-  document.body.append(element);
-  return element;
-}
-
-function shadow(element: HonuaFeatureTableElement<Row>): ShadowRoot {
-  const root = element.shadowRoot;
-  if (!root) throw new Error("missing shadow root");
-  return root;
-}
 
 function press(cell: Element, key: string, init: KeyboardEventInit = {}): void {
   cell.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init }));
