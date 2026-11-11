@@ -47,6 +47,7 @@ import type {
   FeatureSelectionTarget,
   FilterOperator,
 } from "../exploration/types.js";
+import { sqlIdentifier, sqlLiteral } from "./sql-text.js";
 
 export type FilterRegistryOwner =
   | { readonly kind: "map"; readonly id: string }
@@ -190,8 +191,6 @@ const FILTER_OPERATORS = new Set<FilterOperator>([
   "is-null",
   "is-not-null",
 ]);
-const FILTER_FIELD_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
-
 /** Create an in-memory filter registry with owner-scoped mutation helpers. */
 export function createFilterRegistry(options: CreateFilterRegistryOptions = {}): FilterRegistry {
   let clauses = normalizeClauses(options.initialClauses ?? []);
@@ -433,7 +432,7 @@ function compileClauseWhere(clause: FilterClause, protocol?: Protocol): string |
   const field = sqlIdentifier(clause.field);
   if (!field) return undefined;
   if (clause.fieldType === "datetime") return compileTemporalClause(clause, protocol);
-  const valueLiteral = literal;
+  const valueLiteral = sqlLiteral;
   switch (clause.operator) {
     case "=":
       return `${field} = ${valueLiteral(clause.value)}`;
@@ -623,17 +622,6 @@ function ownerKey(owner: FilterRegistryOwner): string {
   return `${owner.kind}:${owner.id}`;
 }
 
-function literal(value: unknown): string {
-  if (value === null || value === undefined) return "NULL";
-  if (typeof value === "number" || typeof value === "bigint") return String(value);
-  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
-  return `'${String(value).replace(/'/g, "''")}'`;
-}
-
-function sqlIdentifier(field: string): string | undefined {
-  return FILTER_FIELD_IDENTIFIER.test(field) ? field : undefined;
-}
-
 function combineWhere(left: string | undefined, right: string | undefined): string | undefined {
   if (left && right) return `(${left}) AND (${right})`;
   return left || right || undefined;
@@ -669,7 +657,7 @@ function isFilterClause(value: unknown): value is FilterClause {
     typeof record.id === "string" &&
     record.id.length > 0 &&
     isFilterRegistryOwner(record.owner) &&
-    validOptional(record.field, (field) => typeof field === "string" && FILTER_FIELD_IDENTIFIER.test(field)) &&
+    validOptional(record.field, (field) => typeof field === "string" && sqlIdentifier(field) !== undefined) &&
     validOptional(
       record.operator,
       (operator) => typeof operator === "string" && FILTER_OPERATORS.has(operator as FilterOperator),

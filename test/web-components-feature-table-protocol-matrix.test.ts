@@ -97,7 +97,7 @@ function geoServicesFixture(): ProtocolFixture {
   } satisfies SourceDescriptor;
   return {
     adapterKind: "geoservices-feature-service",
-    expectedSort: "ACRES DESC",
+    expectedSort: "ACRES DESC,OBJECTID",
     observations,
     source: sourceFrom(client, descriptor),
   };
@@ -133,7 +133,7 @@ function ogcFeaturesFixture(): ProtocolFixture {
   } satisfies SourceDescriptor;
   return {
     adapterKind: "ogc-features",
-    expectedSort: "-ACRES",
+    expectedSort: "-ACRES,OBJECTID",
     observations,
     source: sourceFrom(client, descriptor),
   };
@@ -177,7 +177,7 @@ function wfsFixture(): ProtocolFixture {
   } satisfies SourceDescriptor;
   return {
     adapterKind: "wfs",
-    expectedSort: "ACRES D",
+    expectedSort: "ACRES D,OBJECTID A",
     observations,
     source: sourceFrom(client, descriptor),
   };
@@ -210,7 +210,7 @@ function odataFixture(): ProtocolFixture {
   } satisfies SourceDescriptor;
   return {
     adapterKind: "odata",
-    expectedSort: "ACRES desc",
+    expectedSort: "ACRES desc,OBJECTID",
     observations,
     source: sourceFrom(client, descriptor),
   };
