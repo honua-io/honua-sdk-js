@@ -762,6 +762,7 @@ describe("ci.yml keeps legacy jobs for rollback and manual dispatch", () => {
   it("keeps the cheap policy suites wired into both workflow-guard jobs", () => {
     const required = [
       "node test/scripts/pr-issue-disposition.test.mjs",
+      "node test/scripts/schema-sync-workflow.test.mjs",
       "node test/scripts/release-please-ci-dispatch.test.mjs",
       "node test/scripts/release-please-ci-checks.test.mjs",
       "node test/scripts/backlog-dependencies.test.mjs",

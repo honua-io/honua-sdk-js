@@ -134,6 +134,9 @@ jobs:
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
+      - name: Test schema sync pull-request admission
+        run: node --test test/scripts/schema-sync-workflow.test.mjs
+
       - name: Test Release Please CI dispatch policy
         run: node --test test/scripts/release-please-ci-dispatch.test.mjs
 

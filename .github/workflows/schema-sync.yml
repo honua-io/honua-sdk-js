@@ -15,6 +15,12 @@ on:
     branches:
       - trunk
       - "release/**"
+    # The verdict depends only on the vendored tree, its pinned upstream commit
+    # (recorded in PROVENANCE.md inside that tree) and this check itself.
+    paths:
+      - "mcp/certification/geospatial-mcp-schemas/**"
+      - "scripts/sync-schemas.sh"
+      - ".github/workflows/schema-sync.yml"
 
 permissions:
   contents: read
