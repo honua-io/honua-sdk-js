@@ -319,7 +319,7 @@ generated from that measurement, tree-shake guards included:
 | Entrypoint (gzip) | Size |
 | --- | ---: |
 | `@honua/sdk-js/expr` | 2.4 KiB |
-| `@honua/sdk-js/geocoding` | 9.2 KiB |
+| `@honua/sdk-js/geocoding` | 9.3 KiB |
 | `@honua/sdk-js/webmap` | 10.7 KiB |
 | `@honua/sdk-js/style` | 16.4 KiB |
 | `@honua/sdk-js/map` | 55.9 KiB |
@@ -1930,7 +1930,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-10 at commit `e58dcdb95`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-11 at commit `95121af7e`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -1941,8 +1941,8 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.2 KiB | 15.0 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 383.9 KiB | 104.3 KiB |
 | Client compatibility layer (drop-in migration surface) | 1076.8 KiB | 270.7 KiB |
-| Geocoding client | 32.7 KiB | 9.2 KiB |
-| Routing client | 26.1 KiB | 7.8 KiB |
+| Geocoding client | 33.0 KiB | 9.3 KiB |
+| Routing client | 28.7 KiB | 8.6 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1589.3 KiB minified / **433.2 KiB gzip**.
@@ -5845,6 +5845,60 @@ Not yet covered: indexed and aggregate layer families (H3/Quadbin, heatmap,
 cluster, contour, trips), realtime buffer patch/rebuild rules, and WebGPU
 boundaries.
 
+## Bounded count hexbins
+
+`projectDeckGlHexbins(adapter, request)` counts packed WGS84 points into a fixed,
+pointy-top Web Mercator hexagon grid and projects the resulting polygons through
+`DeckGlPeers.SolidPolygonLayer` from the optional `@deck.gl/layers` peer. This is
+explicit `cpu-bounded` aggregation followed by the existing binary polygon
+projection; the polygon projection's zero-copy metric applies after aggregation.
+It does not enable `adapter.project({ layer: "heatmap" })` or import
+`@deck.gl/aggregation-layers`.
+
+```ts doc-test=compile
+import { createDeckGlAdapter, loadDeckGlPeers, projectDeckGlHexbins } from "@honua/sdk-js/deckgl";
+
+const adapter = createDeckGlAdapter({ peers: await loadDeckGlPeers() });
+const result = projectDeckGlHexbins(adapter, {
+  layerId: "service-request-counts",
+  positions: new Float64Array([-156.43, 20.86, -156.4301, 20.8601]),
+  identity: { sourceId: "service-requests", planId: "status=open", featureIds: [101, 102] },
+  radiusMeters: 100,
+  color: count => [20, Math.min(220, count * 20), 180, 230],
+});
+console.log(result.bins.map(bin => bin.count));
+console.log(result.selectionsForBin(0));
+// Mount result.projection through the application's existing deck.gl host.
+// Dispose its mount when replacing a filter result; adapter.dispose() removes all mounts.
+```
+
+`radiusMeters` is the circumradius in EPSG:3857 **map meters**. Ground distance
+varies with latitude. Inputs must use finite longitude/latitude within the Web
+Mercator latitude range, and radius must be between 1 and 1,000,000 map meters.
+The grid does not merge cells across the antimeridian. Edge cells may extend
+past the world's longitude boundary; use a regional map with world copies off.
+
+Each point contributes one count, including points with coincident coordinates.
+Bins appear in first-input encounter order; their IDs encode radius and axial
+grid coordinates. A polygon pick identifies a bin. `selectionsForBin(index)`
+returns its original source/plan/version, feature IDs and input row indices.
+Feature identities are snapshotted at construction. Submit the newly filtered
+positions and identities to recompute counts; no filter or service query occurs
+inside this helper. Empty input returns zero bins and an empty projection.
+
+Defaults allow up to 100,000 input rows and 20,000 bins, reduced to fit the adapter's row/vertex budget; `limits.maxRows/maxBins` can
+adjust these within the adapter's row/vertex ceilings, with a hard input ceiling
+of 1,000,000 rows. The input backing allocation and generated polygon buffers
+must each fit `adapter.limits.maxBackingBytes`. Membership uses two row-sized
+Uint32 arrays during construction plus bounded per-bin arrays and a map. These
+are allocation/count bounds, not a measurement of JavaScript engine heap usage.
+The caller must not mutate or detach input arrays during construction. The
+optional color callback receives each final count and returns RGBA bytes, so
+applications can choose their own light/dark palette.
+
+Unit contracts alone do not establish a county demo pass: real-server counts,
+filtering and light/dark narrow browser rendering still need separate evidence.
+
 ---
 
 # File: docs/kepler-workspace-bridge.md
@@ -9004,6 +9058,36 @@ need it directly.
 (`valhalla1.openstreetmap.de`) expects fair use; self-host for production.
 **Attribution**: OpenStreetMap (ODbL), as above.
 
+### Travel-time polygons
+
+Valhalla exposes the `isochrone` capability; OSRM and the Honua facade currently
+expose routes only. Configure an endpoint you are entitled to use; the SDK does
+not select a public service or grant permission to call one.
+
+```ts doc-test=compile
+import { valhallaRoutingProvider, requestIsochrone } from "@honua/sdk-js/routing";
+const provider = valhallaRoutingProvider({ baseUrl: "https://routing.example.org" });
+const result = await requestIsochrone(provider, {
+  origin: { longitude: -156.47, latitude: 20.88 },
+  minutes: [5, 15],
+  travelMode: "auto",
+  signal: new AbortController().signal,
+});
+console.log(result.contours, result.provenance.attribution);
+```
+
+Thresholds are one to four distinct positive minutes. Results contain each
+requested contour as a WGS84 Polygon or MultiPolygon, sorted by minutes, with
+provider attribution and policy metadata. Missing, clamped or malformed contours
+fail explicitly; no empty or approximate reachability result is substituted.
+Unsupported providers throw `HonuaCapabilityNotSupportedError` before fetching.
+Caller cancellation and provider timeouts use the SDK's typed errors.
+
+These are configured-provider travel-time estimates, not evacuation guidance.
+The emergency demo remains gated on an approved endpoint and an executed Maui
+scenario; this SDK adapter alone does not establish operational suitability.
+See the [Valhalla isochrone API](https://valhalla.github.io/valhalla/api/isochrone/).
+
 ### Honua facade + client-compat bridge
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
@@ -11777,12 +11861,12 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-10 at commit `e58dcdb95`._
+_Generated 2026-11-11 at commit `95121af7e`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 758.8 KiB | 829.3 KiB | 202.7 KiB | 211.8 KiB |
-| `/honua` | 930.9 KiB | 1033.4 KiB | 249.8 KiB | 278.1 KiB |
+| `/honua` | 933.7 KiB | 1033.4 KiB | 250.6 KiB | 278.1 KiB |
 | `/contract` | 383.9 KiB | 400.6 KiB | 104.3 KiB | 108.0 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 824.2 KiB | 859.4 KiB | 194.8 KiB | 195.3 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.2 KiB | 257.5 KiB | 26.2 KiB | 33.2 KiB |
@@ -11801,20 +11885,20 @@ _Generated 2026-11-10 at commit `e58dcdb95`._
 | `/client-compat` | 1076.8 KiB | 1139.7 KiB | 270.7 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
-| `/geocoding` | 32.7 KiB | 35.9 KiB | 9.2 KiB | 10.1 KiB |
-| `/routing` | 26.1 KiB | 28.7 KiB | 7.8 KiB | 8.5 KiB |
+| `/geocoding` | 33.0 KiB | 35.9 KiB | 9.3 KiB | 10.1 KiB |
+| `/routing` | 28.7 KiB | 28.7 KiB | 8.6 KiB | 9.5 KiB |
 | `/auth` | 28.2 KiB | 30.6 KiB | 7.7 KiB | 8.7 KiB |
 | `/style` | 65.2 KiB | 69.0 KiB | 16.4 KiB | 17.2 KiB |
-| `/map` | 196.6 KiB | 198.2 KiB | 55.9 KiB | 56.2 KiB |
+| `/map` | 196.7 KiB | 198.2 KiB | 55.9 KiB | 56.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 147.6 KiB | 154.9 KiB | 44.2 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 326.2 KiB | 364.2 KiB | 87.2 KiB | 98.7 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1177.3 KiB | 1275.0 KiB | 307.4 KiB | 312.7 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1282.5 KiB | 1395.4 KiB | 339.0 KiB | 356.1 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1205.4 KiB | 1275.0 KiB | 316.4 KiB | 344.5 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1315.1 KiB | 1395.4 KiB | 349.7 KiB | 356.1 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
-| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
-| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
+| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.7 KiB | 45.5 KiB | 13.0 KiB | 13.9 KiB |
+| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 14.6 KiB | 16.0 KiB | 5.4 KiB | 5.7 KiB |
 | `/react` (react/react-dom external) | 563.2 KiB | 619.8 KiB | 152.5 KiB | 165.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 519.6 KiB | 568.0 KiB | 143.4 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 759.1 KiB | 832.8 KiB | 202.8 KiB | 222.1 KiB |
@@ -11830,7 +11914,7 @@ _Generated 2026-11-10 at commit `e58dcdb95`._
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 49.2 KiB | 54.4 KiB | 15.0 KiB | 16.4 KiB |
 | tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 34.8 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.4 KiB | 3.8 KiB | 1.5 KiB | 1.7 KiB |
-| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
+| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 33.0 KiB | 35.9 KiB | 10.6 KiB | 11.3 KiB |
 
 ---
 
