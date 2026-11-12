@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -177,14 +177,18 @@ test("only the reporter may write issues, and it does not execute repository cod
   assert.equal(reporterScript.includes("search/issues"), false);
   assert.equal(reporterScript.includes("search"), false);
   assert.equal(workflow.includes("search/issues"), false);
+  assert.match(
+    reporterScript,
+    /gh api --paginate --method GET "repos\/\$\{repository\}\/issues\?state=all&per_page=100" \| jq -ser /u,
+  );
+  assert.equal(reporterScript.includes("--slurp"), false);
+  assert.equal(reporterScript.includes("--include"), false);
+  assert.equal(reporterScript.includes("normalize_next"), false);
+  assert.equal(reporterScript.includes("head "), false);
+  assert.equal(reporterScript.includes("awk "), false);
 });
 
-const REPO = "honua-io/honua-sdk-js";
-const FIRST_PAGE = `repos/${REPO}/issues?state=all&per_page=100&page=1`;
-const NEXT_URL =
-  "https://api.github.com/repositories/1171771524/issues?state=all&per_page=100&page=2&after=Y3Vyc29yOnYyOpLPAAABoaw1SkDPAAAAAXMTsjE%3D";
-const SECOND_PAGE =
-  "repositories/1171771524/issues?state=all&per_page=100&page=2&after=Y3Vyc29yOnYyOpLPAAABoaw1SkDPAAAAAXMTsjE%3D";
+const LIST_ENDPOINT = "repos/honua-io/honua-sdk-js/issues?state=all&per_page=100";
 
 const fakeGh = `#!/bin/bash
 set -euo pipefail
@@ -196,13 +200,18 @@ shift
 method="GET"
 endpoint=""
 input=""
+paginate=0
 fields=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --method|-X) method="$2"; shift 2 ;;
     --input) input="$2"; shift 2 ;;
     --raw-field|-f) fields+=("$2"); shift 2 ;;
-    --include|-i) shift ;;
+    --paginate) paginate=1; shift ;;
+    --slurp|--include|-i)
+      echo "unexpected gh flag: $1" >&2
+      exit 2
+      ;;
     *)
       if [[ "$1" == -* ]]; then
         echo "unexpected gh flag: $1" >&2
@@ -221,17 +230,17 @@ field_json="[]"
 if [[ \${#fields[@]} -gt 0 ]]; then
   field_json=$(printf '%s\\n' "\${fields[@]}" | jq -R . | jq -s .)
 fi
-jq -nc --arg method "$method" --arg endpoint "$endpoint" --arg body "$body" --argjson fields "$field_json" \\
-  '{method:$method, endpoint:$endpoint, body:$body, fields:$fields}' >> "$GH_FAKE_LOG"
+jq -nc --arg method "$method" --arg endpoint "$endpoint" --arg body "$body" --argjson paginate "$paginate" --argjson fields "$field_json" \\
+  '{method:$method, endpoint:$endpoint, body:$body, paginate:($paginate == 1), fields:$fields}' >> "$GH_FAKE_LOG"
 if [[ "$endpoint" == *search* ]]; then
   echo "search endpoint used: $endpoint" >&2
   exit 2
 fi
 if [[ "$method" == "GET" ]]; then
-  page_file="$GH_PAGES_DIR/$endpoint"
-  [[ -f "$page_file" ]] || { echo "unscripted issue page: $endpoint" >&2; exit 2; }
-  cat "$page_file"
-  exit 0
+  [[ "$paginate" == 1 ]] || { echo "issue list was not paginated" >&2; exit 2; }
+  [[ -f "$GH_LIST_FILE" ]] || { echo "missing issue list" >&2; exit 2; }
+  cat "$GH_LIST_FILE"
+  exit "\${GH_LIST_STATUS:-0}"
 fi
 if [[ "$method" == "POST" || "$method" == "PATCH" ]]; then
   printf '%s\\n' '{"number":1}'
@@ -241,30 +250,26 @@ echo "unexpected gh api call: $method $endpoint" >&2
 exit 2
 `;
 
-function issuePage(issues, nextUrl) {
-  const link = nextUrl === undefined ? "" : `Link: <${nextUrl}>; rel="next"\n`;
-  return `HTTP/2.0 200 OK\n${link}Content-Type: application/json\n\n${JSON.stringify(issues)}\n`;
+function pagesJson(pages) {
+  return `${pages.map((page) => JSON.stringify(page)).join("\n")}\n`;
 }
 
-function runReport(env, pages) {
+function runReport(env, listBody, options = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "docs-site-report-"));
   const bin = path.join(dir, "gh");
   const log = path.join(dir, "calls.jsonl");
-  const pagesDir = path.join(dir, "pages");
+  const listFile = path.join(dir, "issues.json");
   writeFileSync(bin, fakeGh);
   chmodSync(bin, 0o755);
   writeFileSync(log, "");
-  for (const [endpoint, raw] of Object.entries(pages)) {
-    const file = path.join(pagesDir, endpoint);
-    mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, raw);
-  }
+  writeFileSync(listFile, listBody);
   const result = spawnSync("bash", ["-c", reporterScript], {
     encoding: "utf8",
     env: {
       PATH: `${dir}:${process.env.PATH}`,
       GH_FAKE_LOG: log,
-      GH_PAGES_DIR: pagesDir,
+      GH_LIST_FILE: listFile,
+      GH_LIST_STATUS: String(options.listStatus ?? 0),
       GH_TOKEN: "test-token",
       ...env,
     },
@@ -280,9 +285,17 @@ const identity = {
   GITHUB_SERVER_URL: "https://github.com",
 };
 
-function assertNoSearch(report) {
+function assertListCall(call) {
+  assert.equal(call.method, "GET");
+  assert.equal(call.paginate, true);
+  assert.equal(call.endpoint, LIST_ENDPOINT);
+  assert.deepEqual(call.fields, []);
+  assert.equal(call.endpoint.includes("search"), false);
+}
+
+function assertNoMutation(report) {
   assert.equal(
-    report.calls.some((call) => call.endpoint.includes("search")),
+    report.calls.some((call) => call.method === "POST" || call.method === "PATCH"),
     false,
   );
 }
@@ -290,35 +303,34 @@ function assertNoSearch(report) {
 test("a failed build opens one exact-title issue with both results and the run URL", () => {
   const report = runReport(
     { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
-    { [FIRST_PAGE]: issuePage([{ number: 9, title: "Docs site notes", state: "open" }]) },
+    pagesJson([[{ number: 9, title: "Docs site notes", state: "open" }]]),
   );
   assert.equal(report.status, 0, report.stderr);
   assert.equal(report.calls.length, 2);
-  assert.equal(report.calls[0].method, "GET");
-  assert.equal(report.calls[0].endpoint, FIRST_PAGE);
-  assert.deepEqual(report.calls[0].fields, []);
+  assertListCall(report.calls[0]);
   assert.equal(report.calls[1].method, "POST");
+  assert.equal(report.calls[1].paginate, false);
   assert.equal(report.calls[1].endpoint, "repos/honua-io/honua-sdk-js/issues");
   assert.deepEqual(JSON.parse(report.calls[1].body), {
     title: TITLE,
     body: "Build result: failure\nDeploy result: skipped\nRun: https://github.com/honua-io/honua-sdk-js/actions/runs/4242",
   });
-  assertNoSearch(report);
 });
 
 test("a failed deploy updates the oldest exact-title issue and does not create another", () => {
   const report = runReport(
     { ...identity, BUILD_RESULT: "success", DEPLOY_RESULT: "failure" },
-    {
-      [FIRST_PAGE]: issuePage([
+    pagesJson([
+      [
         { number: 15, title: TITLE, state: "open", pull_request: { url: "https://github.com/example/1" } },
         { number: 40, title: TITLE, state: "closed" },
         { number: 12, title: TITLE, state: "closed" },
-      ]),
-    },
+      ],
+    ]),
   );
   assert.equal(report.status, 0, report.stderr);
   assert.equal(report.calls.length, 2);
+  assertListCall(report.calls[0]);
   assert.equal(report.calls[1].method, "PATCH");
   assert.equal(report.calls[1].endpoint, "repos/honua-io/honua-sdk-js/issues/12");
   assert.deepEqual(JSON.parse(report.calls[1].body), {
@@ -326,90 +338,92 @@ test("a failed deploy updates the oldest exact-title issue and does not create a
     body: "Build result: success\nDeploy result: failure\nRun: https://github.com/honua-io/honua-sdk-js/actions/runs/4242",
     state: "open",
   });
-  assertNoSearch(report);
 });
 
-test("a match on a later issue page updates that issue and does not use search", () => {
+test("paginated JSON chooses the oldest exact title and reopens it", () => {
   const report = runReport(
     { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "failure" },
-    {
-      [FIRST_PAGE]: issuePage([{ number: 90, title: "Docs site notes" }], NEXT_URL),
-      [SECOND_PAGE]: issuePage([{ number: 7, title: TITLE, state: "closed" }]),
-    },
+    pagesJson([
+      [
+        { number: 4, title: TITLE, pull_request: { url: "https://github.com/example/4" } },
+        { number: 40, title: TITLE, state: "open" },
+      ],
+      [
+        { number: 12, title: TITLE, state: "closed" },
+        { number: 18, title: "other" },
+      ],
+    ]),
   );
   assert.equal(report.status, 0, report.stderr);
-  assert.deepEqual(
-    report.calls.slice(0, 2).map((call) => call.endpoint),
-    [FIRST_PAGE, SECOND_PAGE],
-  );
-  assert.equal(report.calls[2].method, "PATCH");
-  assert.equal(report.calls[2].endpoint, "repos/honua-io/honua-sdk-js/issues/7");
-  const body = JSON.parse(report.calls[2].body);
+  assert.equal(report.calls.length, 2);
+  assertListCall(report.calls[0]);
+  assert.equal(report.calls[1].method, "PATCH");
+  assert.equal(report.calls[1].endpoint, "repos/honua-io/honua-sdk-js/issues/12");
+  const body = JSON.parse(report.calls[1].body);
   assert.equal(body.state, "open");
   assert.equal(body.body.includes("Build result: failure"), true);
   assert.equal(body.body.includes("Deploy result: failure"), true);
-  assertNoSearch(report);
 });
 
-test("the oldest exact title on a later page wins over a newer match", () => {
+test("a large paginated issue list still updates the oldest exact title", () => {
+  const filler = "x".repeat(180);
+  const first = [];
+  for (let number = 1000; number < 3500; number += 1) {
+    first.push({ number, title: "noise", body: filler });
+  }
+  first.push({ number: 80, title: TITLE, state: "open" });
+  const raw = pagesJson([
+    first,
+    [
+      { number: 9, title: TITLE, pull_request: { url: "https://github.com/example/9" } },
+      { number: 12, title: TITLE, state: "closed" },
+    ],
+  ]);
+  assert.ok(Buffer.byteLength(raw) >= 548025, String(Buffer.byteLength(raw)));
   const report = runReport(
     { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
-    {
-      [FIRST_PAGE]: issuePage(
-        [
-          { number: 4, title: TITLE, pull_request: { url: "https://github.com/example/4" } },
-          { number: 40, title: TITLE, state: "open" },
-        ],
-        NEXT_URL,
-      ),
-      [SECOND_PAGE]: issuePage([
-        { number: 12, title: TITLE, state: "closed" },
-        { number: 18, title: "other" },
-      ]),
-    },
+    raw,
   );
   assert.equal(report.status, 0, report.stderr);
-  assert.equal(report.calls.length, 3);
-  assert.equal(report.calls[2].method, "PATCH");
-  assert.equal(report.calls[2].endpoint, "repos/honua-io/honua-sdk-js/issues/12");
-  assertNoSearch(report);
+  assert.equal(report.calls.length, 2);
+  assertListCall(report.calls[0]);
+  assert.equal(report.calls[1].method, "PATCH");
+  assert.equal(report.calls[1].endpoint, "repos/honua-io/honua-sdk-js/issues/12");
 });
 
-test("a malformed later page refuses to create a duplicate", () => {
+test("malformed issue pages do not create or update an issue", () => {
+  const cases = [
+    "",
+    "not-json\n",
+    `${JSON.stringify({ message: "unavailable" })}\n`,
+    pagesJson([[{ title: TITLE, number: "12" }]]),
+  ];
+  for (const listBody of cases) {
+    const report = runReport(
+      { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
+      listBody,
+    );
+    assert.notEqual(report.status, 0, report.stderr);
+    assert.deepEqual(report.calls.map((call) => call.method), ["GET"]);
+    assertListCall(report.calls[0]);
+    assertNoMutation(report);
+  }
+});
+
+test("an issue API failure does not report success", () => {
   const report = runReport(
-    { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
-    {
-      [FIRST_PAGE]: issuePage([{ number: 3, title: "other" }], NEXT_URL),
-      [SECOND_PAGE]: "HTTP/2.0 200 OK\nContent-Type: application/json\n\n{\"message\":\"unavailable\"}\n",
-    },
+    { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "failure" },
+    pagesJson([[{ number: 12, title: TITLE, state: "closed" }]]),
+    { listStatus: 1 },
   );
   assert.notEqual(report.status, 0);
-  assert.deepEqual(report.calls.map((call) => call.method), ["GET", "GET"]);
-  assert.deepEqual(
-    report.calls.map((call) => call.endpoint),
-    [FIRST_PAGE, SECOND_PAGE],
-  );
-  assertNoSearch(report);
-});
-
-test("an untrusted next link refuses to create a duplicate", () => {
-  const report = runReport(
-    { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
-    {
-      [FIRST_PAGE]: issuePage(
-        [{ number: 3, title: "other" }],
-        "https://evil.example/repos/honua-io/honua-sdk-js/issues?state=all&per_page=100&page=2",
-      ),
-    },
-  );
-  assert.equal(report.status, 1);
-  assert.match(report.stderr, /invalid next issue page link/u);
   assert.deepEqual(report.calls.map((call) => call.method), ["GET"]);
-  assertNoSearch(report);
+  assertListCall(report.calls[0]);
+  assertNoMutation(report);
 });
 
 test("rejected API inputs never reach gh", () => {
-  const pages = { [FIRST_PAGE]: issuePage([]) };
+  const listBody = pagesJson([[]]);
   const cases = [
     { BUILD_RESULT: "failed", DEPLOY_RESULT: "skipped" },
     { BUILD_RESULT: "failure", DEPLOY_RESULT: "error" },
@@ -421,20 +435,9 @@ test("rejected API inputs never reach gh", () => {
   for (const override of cases) {
     const report = runReport(
       { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped", ...override },
-      pages,
+      listBody,
     );
     assert.equal(report.status, 1, `${JSON.stringify(override)}\n${report.stderr}`);
     assert.deepEqual(report.calls, []);
   }
-});
-
-test("an issue list response without an issue array fails closed", () => {
-  const report = runReport(
-    { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "failure" },
-    { [FIRST_PAGE]: "HTTP/2.0 200 OK\nContent-Type: application/json\n\n{\"message\":\"unavailable\"}\n" },
-  );
-  assert.notEqual(report.status, 0);
-  assert.deepEqual(report.calls.map((call) => call.method), ["GET"]);
-  assert.equal(report.calls[0].endpoint, FIRST_PAGE);
-  assertNoSearch(report);
 });

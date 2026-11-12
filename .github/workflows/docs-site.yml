@@ -147,8 +147,8 @@ jobs:
     if: "${{ !cancelled() && (needs.build.result == 'failure' || needs.deploy.result == 'failure') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # One queued writer. Listing every issue page still races another writer,
-    # and this group keeps those writers from creating the same title twice.
+    # One queued writer. Two reports can still race a create, and this group
+    # keeps them from opening the same title twice.
     concurrency:
       group: docs-site-failure-report
       cancel-in-progress: false
@@ -181,122 +181,28 @@ jobs:
           run_url="${server_url}/${repository}/actions/runs/${run_id}"
           body=$(printf 'Build result: %s\nDeploy result: %s\nRun: %s\n' "${BUILD_RESULT}" "${DEPLOY_RESULT}" "${run_url}")
 
-          # Follow the repository issue list, including the cursor in rel="next".
-          # A bare page number skips or repeats issues. An unended or malformed
-          # list must not create a second tracking issue.
-          normalize_next() {
-            local url="$1"
-            [[ "${url}" =~ ^https://api\.github\.com/([^?]+)\?(.+)$ ]] || return 1
-            local path_part="${BASH_REMATCH[1]}"
-            local query="${BASH_REMATCH[2]}"
-            if [[ "${path_part}" != "repos/${repository}/issues" && ! "${path_part}" =~ ^repositories/[0-9]+/issues$ ]]; then
-              return 1
-            fi
-            local query_pattern='^[A-Za-z0-9._~%&=+/-]+$'
-            [[ "${query}" =~ ${query_pattern} ]] || return 1
-            local state_ok=0 per_ok=0 page_ok=0
-            local page_val="" after_val="" pair key val
-            local IFS='&'
-            read -ra pairs <<< "${query}"
-            for pair in "${pairs[@]}"; do
-              [[ "${pair}" == *=* ]] || return 1
-              key="${pair%%=*}"
-              val="${pair#*=}"
-              case "${key}" in
-                state)
-                  [[ "${state_ok}" == 0 && "${val}" == "all" ]] || return 1
-                  state_ok=1
-                  ;;
-                per_page)
-                  [[ "${per_ok}" == 0 && "${val}" == "100" ]] || return 1
-                  per_ok=1
-                  ;;
-                page)
-                  [[ "${page_ok}" == 0 && "${val}" =~ ^[1-9][0-9]*$ && "${val}" -le 200 ]] || return 1
-                  page_ok=1
-                  page_val="${val}"
-                  ;;
-                after)
-                  [[ -z "${after_val}" && "${val}" =~ ^[A-Za-z0-9._~%+/=-]+$ ]] || return 1
-                  after_val="${val}"
-                  ;;
-                *) return 1 ;;
-              esac
-            done
-            [[ "${state_ok}" == 1 && "${per_ok}" == 1 && "${page_ok}" == 1 ]] || return 1
-            printf '%s?state=all&per_page=100&page=%s' "${path_part}" "${page_val}"
-            if [[ -n "${after_val}" ]]; then
-              printf '&after=%s' "${after_val}"
-            fi
-            printf '\n'
-          }
-
-          number=""
-          endpoint="repos/${repository}/issues?state=all&per_page=100&page=1"
-          seen_pages=$'\n'
-          page_count=0
-          while true; do
-            page_count=$((page_count + 1))
-            [[ "${page_count}" -le 200 ]] || { echo 'issue list did not end' >&2; exit 1; }
-            if printf '%s\n' "${seen_pages}" | grep -Fxq -- "${endpoint}"; then
-              echo 'repeated issue list page' >&2
-              exit 1
-            fi
-            seen_pages="${seen_pages}${endpoint}"$'\n'
-            raw=$(gh api --method GET --include "${endpoint}")
-            [[ -n "${raw}" ]] || { echo 'empty issue list response' >&2; exit 1; }
-            status_line=$(printf '%s\n' "${raw}" | head -n 1)
-            [[ "${status_line}" =~ ^HTTP/[0-9.]+[[:space:]]200[[:space:]] ]] || { echo 'issue list request failed' >&2; exit 1; }
-            printf '%s\n' "${raw}" | awk 'NF==0 {found=1; exit} END {exit !found}' \
-              || { echo 'issue list response has no header separator' >&2; exit 1; }
-            headers=$(printf '%s\n' "${raw}" | tr -d '\r' | awk 'NF==0 {exit} {print}')
-            payload=$(printf '%s\n' "${raw}" | tr -d '\r' | awk 'BEGIN{h=1} h && NF==0 {h=0; next} h {next} {print}')
-            [[ -n "${payload}" ]] || { echo 'issue list response has no body' >&2; exit 1; }
-            page_number=$(printf '%s\n' "${payload}" | jq -er --arg title "${title}" '
-              if type != "array" then error("issue page is not an array") else . end
-              | [
-                  .[]
-                  | select(type == "object" and .title == $title and (.pull_request | not))
-                  | if (.number | type) != "number"
-                      or .number < 1
-                      or .number > 1000000000
-                      or (.number | floor) != .number
-                    then error("invalid issue number")
-                    else .number
-                    end
-                ]
-              | if length == 0 then "" else min end
-            ')
-            if [[ -n "${page_number}" ]]; then
-              [[ "${page_number}" =~ ^[1-9][0-9]*$ ]] || { echo 'invalid issue number' >&2; exit 1; }
-              if [[ -z "${number}" || "${page_number}" -lt "${number}" ]]; then
-                number="${page_number}"
-              fi
-            fi
-            next_url=$(printf '%s\n' "${headers}" | awk '
-              {
-                low=tolower($0)
-                if (low ~ /^link:/) {
-                  raw=$0
-                  sub(/^[^:]*:[[:space:]]*/, "", raw)
-                  n=split(raw, parts, ",")
-                  for (i=1; i<=n; i++) {
-                    part=tolower(parts[i])
-                    if (part ~ /rel="next"/) {
-                      if (match(parts[i], /<[^>]*>/)) {
-                        print substr(parts[i], RSTART+1, RLENGTH-2)
-                        exit 0
-                      }
-                      exit 1
-                    }
-                  }
-                }
-              }
-            ') || { echo 'invalid next issue page link' >&2; exit 1; }
-            [[ -z "${next_url}" ]] && break
-            endpoint=$(normalize_next "${next_url}") || { echo 'invalid next issue page link' >&2; exit 1; }
-          done
+          # gh 2.45 paginates by printing one JSON array per page. jq -s reads
+          # every page. An API error or a page that is not an issue array stops
+          # before a second tracking issue can be opened.
+          number=$(gh api --paginate --method GET "repos/${repository}/issues?state=all&per_page=100" | jq -ser --arg title "${title}" '
+            if length == 0 then error("empty issue list response")
+            elif any(.[]; type != "array") then error("issue page is not an array")
+            else . end
+            | [
+                .[][]
+                | select(type == "object" and .title == $title and (.pull_request | not))
+                | if (.number | type) != "number"
+                    or .number < 1
+                    or .number > 1000000000
+                    or (.number | floor) != .number
+                  then error("invalid issue number")
+                  else .number
+                  end
+              ]
+            | if length == 0 then "" else min end
+          ')
           if [[ -n "${number}" ]]; then
+            [[ "${number}" =~ ^[1-9][0-9]*$ ]] || { echo 'invalid issue number' >&2; exit 1; }
             jq -n --arg title "${title}" --arg body "${body}" '{title:$title, body:$body, state:"open"}' \
               | gh api --method PATCH "repos/${repository}/issues/${number}" --input -
           else
