@@ -907,7 +907,7 @@ evidence; its typed adapter reuses the reviewed description without refetching.
 The `pmtiles` package is an optional peer dependency imported lazily — a
 build that never inspects or renders a PMTiles archive pays no cost. The
 MapLibre runtime auto-registers the `pmtiles://` protocol on map attach
-(`loadMapPackage`), so a `pmtiles` MapPackage source binding renders with no
+(`loadMapDocument`), so a `pmtiles` map document source binding renders with no
 manual `addProtocol` wiring; see [`pmtiles.md`](./pmtiles.md).
 
 ## Multi-source negotiation

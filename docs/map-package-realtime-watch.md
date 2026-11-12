@@ -1,12 +1,12 @@
 ---
 type: reference
-title: "MapPackage Realtime Watch"
-description: "Follow hosted MapPackage changes over a realtime channel with polling fallback: client usage, message contract, lifecycle and auth."
+title: "Map Document Realtime Watch"
+description: "Follow hosted map document changes over a realtime channel with polling fallback: client usage, message contract, lifecycle and auth."
 resource: "honua://capability/streaming.feature-subscriptions"
 ---
-# MapPackage Realtime Watch
+# Map Document Realtime Watch
 
-`watchMapPackage` can follow hosted `MapPackage` changes over a realtime
+`watchMapDocument` can follow hosted `HonuaMapDocument` changes over a realtime
 channel when one is configured by the caller or advertised by the package. The
 polling watcher remains the fallback path and is still used when no realtime
 channel is available.
@@ -20,9 +20,9 @@ use polling or explicit refresh when the server does not advertise one.
 ## Client Usage
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { watchMapPackage } from "@honua/sdk-js/runtime";
+import { watchMapDocument } from "@honua/sdk-js/runtime";
 
-const watcher = watchMapPackage("map_123", {
+const watcher = watchMapDocument("map_123", {
   client,
   runtime,
   realtime: {
@@ -39,7 +39,7 @@ const watcher = watchMapPackage("map_123", {
 watcher.dispose();
 ```
 
-When `realtime` is omitted, `watchMapPackage` looks for an advertised channel
+When `realtime` is omitted, `watchMapDocument` looks for an advertised channel
 on the current or fetched package:
 
 ```json
@@ -68,7 +68,7 @@ may send the object directly or wrap it as `{ "event": { ... } }`.
 Common fields:
 
 ```ts doc-test=compile
-interface MapPackageRealtimeMessageBase {
+interface MapDocumentRealtimeMessageBase {
   type: string;
   channel?: "honua.map-package.watch.v1";
   packageId?: string;
@@ -105,7 +105,7 @@ consistent.
 
 ## Lifecycle And Fallback
 
-`watchMapPackage` emits typed watch events:
+`watchMapDocument` emits typed watch events:
 
 - `connected`
 - `disconnected`

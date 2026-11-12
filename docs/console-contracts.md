@@ -55,7 +55,7 @@ state derived from a projection.
 | Metadata v2 wire shape | **server-owned** | `honua-server` (`honua_metadata.v2`) |
 | Content item wire shape | **server-owned** | `honua-server` |
 | Sharing / embed / provenance wire shapes | **server-owned** | `honua-server`, RBAC API (`#1162`) |
-| MapPackage (`honua_map_package.v1`) | **server-owned** | `honua-server`; typed in SDK `@honua/sdk-js/runtime` (`HonuaMapPackage`) |
+| Map document (`honua_map_package.v1`) | **server-owned** | `honua-server`; typed in SDK `@honua/sdk-js/runtime` (`HonuaMapDocument`) |
 | Generated AppPackage + manifest artifact | **server-owned** | `honua-server` builder; typed in `@honua/sdk-js/generated-app` |
 | Dashboard / report package wire shape | **server-owned** | `honua-server` |
 | `HonuaConsoleContentItem` / `HonuaConsoleMetadata` / `HonuaConsoleSharing` / `HonuaConsoleEmbed` / `HonuaConsoleProvenance` | **SDK-projected** | `src/console/content.ts` |
@@ -84,7 +84,7 @@ The package projections in `src/console/packages.ts` are deliberately **slim
 catalog summaries** for content-browser and detail surfaces — they do not
 replace the runtimes:
 
-- To actually render a map, use `loadMapPackage` from `@honua/sdk-js/runtime`.
+- To actually render a map, use `loadMapDocument` from `@honua/sdk-js/runtime`.
 - To actually run a generated app, use `loadGeneratedAppRuntime` from
   `@honua/sdk-js/generated-app`.
 - To list / inspect a package in the Console catalog (identity, status, source

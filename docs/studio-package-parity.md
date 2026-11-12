@@ -49,7 +49,7 @@ same provenance shape as Console — there is no surface-specific variant.
 `validateStudioPackage(family, pkg, options)` validates a package of any family
 produced by an MCP client, the QGIS plugin, or the SDK, returning the unified
 `StudioPackageValidationResponse<T>`. For the `map` family it
-delegates to the established structural `validateMapPackage`; for the other
+delegates to the established structural `validateMapDocument`; for the other
 families it runs the shared base checks (identity field, `format`, lifecycle)
 plus provenance checks when an envelope is present. Pass
 `{ requireProvenance: true }` to make provenance mandatory.

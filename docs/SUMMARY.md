@@ -79,7 +79,7 @@
 * [Linked analytics and chart presentation (experimental)](linked-analytics.md)
 * [Linked-View Context Sync](linked-view-context-sync.md)
 * [Local native workspace preview](local-agent-workspace-preview.md)
-* [MapPackage Realtime Watch](map-package-realtime-watch.md)
+* [Map Document Realtime Watch](map-package-realtime-watch.md)
 * [MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)](maplibre-runtime.md)
 * [Natural-language map control (`@honua/sdk-js/nl-map-control`)](nl-map-control.md)
 * [Downloadable offline regions (experimental)](offline-regions.md)

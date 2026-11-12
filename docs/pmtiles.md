@@ -71,7 +71,7 @@ second native fetch.
 
 ## Rendering a PMTiles source (runtime)
 
-`loadMapPackage` auto-registers the `pmtiles://` protocol before it applies the
+`loadMapDocument` auto-registers the `pmtiles://` protocol before it applies the
 composed style, so a `pmtiles` source binding renders with no manual
 `addProtocol` call. The registration is lazy (the `pmtiles` and `maplibre-gl`
 packages are imported only when a PMTiles-backed map loads) and idempotent
@@ -79,15 +79,15 @@ across every map you attach.
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, loadMapPackage } from "@honua/sdk-js/runtime";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, loadMapDocument } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 
 const map = new maplibregl.Map({ container: "map", style: { version: 8, sources: {}, layers: [] } });
 await new Promise((resolve) => map.on("load", resolve));
 
-await loadMapPackage(
+await loadMapDocument(
   {
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     mapPackageId: "pmtiles-basemap",
     sourceBindings: [
       {

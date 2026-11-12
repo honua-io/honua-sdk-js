@@ -105,7 +105,7 @@ Neither locale nor theme uses global mutable state, and disposal restores the
 host's original attributes and token values.
 
 `honua-map` owns a MapLibre GL JS map for package and controller bindings.
-Import MapLibre's CSS in browser demos, then pass either an inline `MapPackage`,
+Import MapLibre's CSS in browser demos, then pass either an inline `HonuaMapDocument`,
 a hosted package URL, or a controller whose state contains a package. MapLibre
 6 bundler hosts must configure the ESM worker before the element creates its
 map; for Vite:
@@ -155,7 +155,7 @@ Sibling controls bind to the same controller with `for="<map-id>"`.
 The controller contract is intentionally small so this package can integrate
 with the runtime today and a richer `HonuaController` later. Use
 `createHonuaWebComponentControllerFromRuntime(runtime)` when a
-`HonuaMapRuntime` already owns the MapPackage and layer operations.
+`HonuaMapRuntime` already owns the map document and layer operations.
 
 Components dispatch typed custom events:
 

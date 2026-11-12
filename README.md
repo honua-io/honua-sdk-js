@@ -129,8 +129,8 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
   backpressure, worker-side aggregation —
   [`docs/columnar-data-plane.md`](./docs/columnar-data-plane.md)).
 - **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
-  styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
-  server-authored `MapPackage`s; `createTemporalPlayback` and the
+  styled, interactive MapLibre layer; `loadMapDocument(...)` + `HonuaMapRuntime` render
+  server-authored map documents; `createTemporalPlayback` and the
   `<honua-time-slider>` control animate time-enabled sources. This is the stable renderer path. OGC web-map support
   follows the generated capability matrix; Cesium integration lives on the `beta`
   `@honua/app-platform/scene-workspace` path — see the
@@ -161,7 +161,7 @@ The honest comparisons are the service-client libraries, not the renderers:
   MapLibre.
 - vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
-  client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
+  client, the ArcGIS migration path, or the server-authored `HonuaMapDocument` runtime.
 
 The numbers behind those claims — generated bundle sizes, a protocol-coverage matrix and an
 operation-level behaviour table against raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and
@@ -189,7 +189,7 @@ discovery (`supported`, `standalone`) and
 typed execution (`experimental`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
-`MapPackage`s, realtime, collaboration, compatibility metadata, a richer hosted
+map documents, realtime, collaboration, compatibility metadata, a richer hosted
 `/mcp` operator catalog, and the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
 claim's tier, execution mode, and evidence link.
@@ -441,7 +441,7 @@ for the committed source.
 ### Add a Honua Server
 
 A [Honua Server](https://github.com/honua-io/honua-server) unlocks
-server-authored `MapPackage`s (`loadMapPackage()`), realtime subscriptions,
+server-authored map documents (`loadMapDocument()`), realtime subscriptions,
 collaboration / saved maps, and the MCP + AI surfaces. Point the same code at a
 local server (`docker compose up` in a honua-server checkout), and gate
 production reads on the compatibility check:
@@ -630,7 +630,7 @@ tables, and backwards-compatibility policy live in:
 - [`docs/shared-client-contract.md`](./docs/shared-client-contract.md) — `Dataset` / `Source` / `Query` / `Result` design
 - [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — what each protocol supports
 - [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md) — cross-language naming & semver policy
-- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage()` / `HonuaMapRuntime`
+- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapDocument()` / `HonuaMapRuntime`
 - [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` standalone bridge cookbook
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
@@ -791,7 +791,7 @@ Long-form reference material now lives in [`docs/guide.md`](./docs/guide.md):
 - Subpath entrypoints and the `@experimental` tier
 - Protocol cookbooks — OGC Features / Tiles / Maps / Processes / STAC, WMS / WMTS, WFS 2.0, OData v4
 - Mixed Esri + OGC composition, streaming pagination, event lifecycle
-- MapLibre `MapPackage` runtime + Generated App preview runtime
+- MapLibre `HonuaMapDocument` runtime + Generated App preview runtime
 - Request/Auth bridge (interceptors, ArcGIS token + client-request interop)
 - `honua-migrate` CLI, admin scanner, parity matrix, sample-corpus harness
 

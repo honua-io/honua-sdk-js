@@ -235,15 +235,15 @@ Offline tiles reach MapLibre through the protocol seam the runtime already uses
 for other custom schemes, rather than a second tile pipeline. A style names
 `offline-region://` tiles and the handler answers each one from the region.
 
-The simplest binding is to hand `loadMapPackage` a handler and the style sources
+The simplest binding is to hand `loadMapDocument` a handler and the style sources
 that should come from storage. It rewrites those sources' tile templates and
 registers the protocol before `map.setStyle`:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createOfflineRegionTileProtocol } from "@honua/sdk-js/offline";
-import { loadMapPackage } from "@honua/sdk-js/runtime";
+import { loadMapDocument } from "@honua/sdk-js/runtime";
 
-const runtime = await loadMapPackage(pkg, map, {
+const runtime = await loadMapDocument(pkg, map, {
   client,
   offlineRegion: {
     tileHandler: createOfflineRegionTileProtocol({
@@ -281,7 +281,7 @@ deliberately narrow:
   `{quadkey}` or `{ratio}` (`unsupported-tile-template`), is not a tile source at
   all (`not-a-tile-source`), or has already been rewritten
   (`already-rewritten`) is reported with a reason and left untouched.
-- `loadMapPackage` treats any refusal for a source the caller *named* as fatal,
+- `loadMapDocument` treats any refusal for a source the caller *named* as fatal,
   because leaving one on its network template would render live tiles while the
   application believed it was reading from storage.
 

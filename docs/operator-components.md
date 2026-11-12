@@ -48,7 +48,7 @@ The workspace composes six controller surfaces:
 - `ClarificationController` submits typed clarification answers back through the shared client.
 - `PlanReviewController` loads, revises, and accepts server-produced plans without mutating steps locally.
 - `ExecutionController` adapts the shared `IJobRun` contract and emits every progress and terminal transition.
-- `MapWorkspaceController` loads result `MapPackage` objects through the runtime instead of owning MapLibre source/style logic.
+- `MapWorkspaceController` loads result `HonuaMapDocument` objects through the runtime instead of owning MapLibre source/style logic.
 - `BuilderWorkspaceController` exposes app package preview handles for host-owned sandbox rendering.
 - `ApprovalController` surfaces server-rendered policy decisions and never upgrades deferred or denied outcomes locally.
 
